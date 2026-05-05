@@ -29,6 +29,35 @@ export type XiaohongshuOriginalWorkRecord = {
   updatedAt: string;
 };
 
+export type XiaohongshuRewriteWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  title: string;
+  content: string;
+  coverImageUrl?: string;
+  imageUrls: string[];
+  noteCategory: "二创";
+  noteType: "图文";
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceMaterialDescription?: string;
+  sourceMaterialUrl?: string;
+  sourceMaterialImageUrls: string[];
+  productId?: string;
+  productName?: string;
+  additionalInstruction?: string;
+  hashtags: string[];
+  coverPrompt: string;
+  imagePrompts: string[];
+  copyModel?: string;
+  imagePromptModel?: string;
+  imageGenerationModel?: string;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GenerateXiaohongshuOriginalNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -37,6 +66,12 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   additionalInstruction?: string;
   coverReferenceFile?: File | null;
   galleryReferenceFiles?: File[];
+};
+
+export type GenerateXiaohongshuRewriteNoteForm = {
+  sourceMaterialId?: string;
+  productId?: string;
+  additionalInstruction?: string;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -77,6 +112,39 @@ export async function updateXiaohongshuOriginalWork(
 
 export async function deleteXiaohongshuOriginalWork(brandId: string, workId: string) {
   return request<{ success: boolean }>(`/works/brands/${brandId}/xiaohongshu/original/${workId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getXiaohongshuRewriteWorks(brandId: string) {
+  return request<{ items: XiaohongshuRewriteWorkRecord[] }>(`/works/brands/${brandId}/xiaohongshu/rewrite`);
+}
+
+export async function generateXiaohongshuRewriteWork(brandId: string, form: GenerateXiaohongshuRewriteNoteForm) {
+  return jsonRequest<{ item: XiaohongshuRewriteWorkRecord }>(`/works/brands/${brandId}/xiaohongshu/rewrite/generate`, "POST", {
+    sourceMaterialId: form.sourceMaterialId,
+    productId: form.productId,
+    additionalInstruction: form.additionalInstruction,
+  });
+}
+
+export async function updateXiaohongshuRewriteWork(
+  brandId: string,
+  workId: string,
+  payload: {
+    title?: string;
+    content?: string;
+  },
+) {
+  return jsonRequest<{ item: XiaohongshuRewriteWorkRecord }>(
+    `/works/brands/${brandId}/xiaohongshu/rewrite/${workId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteXiaohongshuRewriteWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/xiaohongshu/rewrite/${workId}`, {
     method: "DELETE",
   });
 }

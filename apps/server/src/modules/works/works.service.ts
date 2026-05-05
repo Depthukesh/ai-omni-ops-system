@@ -30,6 +30,17 @@ export type UpdateXiaohongshuOriginalNotePayload = {
   content?: string;
 };
 
+export type GenerateXiaohongshuRewriteNotePayload = {
+  sourceMaterialId?: string;
+  productId?: string;
+  additionalInstruction?: string;
+};
+
+export type UpdateXiaohongshuRewriteNotePayload = {
+  title?: string;
+  content?: string;
+};
+
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
 type OriginalWorkAssetMeta = {
@@ -75,6 +86,47 @@ type OriginalImageAssetMeta = {
   createdAt: string;
 };
 
+type RewriteWorkAssetMeta = {
+  kind: "XHS_REWRITE_NOTE";
+  taskId: string;
+  noteCategory: "二创";
+  noteType: "图文";
+  title: string;
+  content: string;
+  htmlContent: string;
+  hashtags: string[];
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceMaterialDescription?: string;
+  sourceMaterialUrl?: string;
+  sourceMaterialImageUrls: string[];
+  productId?: string;
+  productName?: string;
+  productImageUrl?: string;
+  additionalInstruction?: string;
+  coverImageId?: string;
+  coverImageUrl?: string;
+  galleryImageIds: string[];
+  imageUrls: string[];
+  coverPrompt: string;
+  imagePrompts: string[];
+  copyModel?: string;
+  imagePromptModel?: string;
+  imageGenerationModel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type RewriteImageAssetMeta = {
+  kind: "XHS_REWRITE_NOTE_IMAGE";
+  workId: string;
+  taskId: string;
+  role: "COVER" | "GALLERY";
+  order: number;
+  prompt: string;
+  createdAt: string;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -96,6 +148,35 @@ export type XiaohongshuOriginalWorkRecord = {
   imagePrompts: string[];
   coverReferenceStyle?: string;
   galleryReferenceStyles: string[];
+  copyModel?: string;
+  imagePromptModel?: string;
+  imageGenerationModel?: string;
+  taskStatus?: WorkTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type XiaohongshuRewriteWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  title: string;
+  content: string;
+  coverImageUrl?: string;
+  imageUrls: string[];
+  noteCategory: "二创";
+  noteType: "图文";
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceMaterialDescription?: string;
+  sourceMaterialUrl?: string;
+  sourceMaterialImageUrls: string[];
+  productId?: string;
+  productName?: string;
+  additionalInstruction?: string;
+  hashtags: string[];
+  coverPrompt: string;
+  imagePrompts: string[];
   copyModel?: string;
   imagePromptModel?: string;
   imageGenerationModel?: string;
@@ -183,6 +264,37 @@ export class WorksService {
       .filter((item) => this.isOriginalWorkMeta((item as { metadataJson?: unknown }).metadataJson))
       .map((item) => this.mapOriginalWorkFromMock(item))
       .filter((item): item is XiaohongshuOriginalWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return { items };
+  }
+
+  async listXiaohongshuRewriteWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const items = await Promise.all(
+        workRows
+          .filter((item) => this.isRewriteWorkMeta(item.metadataJson))
+          .map(async (item) => this.mapRewriteWorkFromDatabase(item)),
+      );
+
+      return {
+        items: items.filter((item): item is XiaohongshuRewriteWorkRecord => Boolean(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isRewriteWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => this.mapRewriteWorkFromMock(item))
+      .filter((item): item is XiaohongshuRewriteWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
@@ -279,12 +391,13 @@ export class WorksService {
       );
 
       const now = new Date().toISOString();
-      const htmlContent = this.renderOriginalNoteHtml({
+      const htmlContent = this.renderGeneratedNoteHtml({
         title: copyResult.title,
         content: copyResult.content,
         hashtags: copyResult.hashtags,
         coverImageUrl: coverImage.url,
         imageUrls: galleryImages.map((item) => item.url),
+        noteLabel: "原创图文笔记",
       });
       const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-note.html`, htmlContent);
 
@@ -331,6 +444,7 @@ export class WorksService {
       });
 
       const coverMedia = await this.createWorkImageMedia({
+        kind: "XHS_ORIGINAL_NOTE_IMAGE",
         userId,
         brandId,
         taskId: task.id,
@@ -345,6 +459,7 @@ export class WorksService {
       const galleryMedia = await Promise.all(
         galleryImages.map((item, index) =>
           this.createWorkImageMedia({
+            kind: "XHS_ORIGINAL_NOTE_IMAGE",
             userId,
             brandId,
             taskId: task.id,
@@ -381,17 +496,209 @@ export class WorksService {
     }
   }
 
+  async generateXiaohongshuRewriteNote(brandId: string, payload: GenerateXiaohongshuRewriteNotePayload) {
+    const sourceMaterialId = payload.sourceMaterialId?.trim();
+    if (!sourceMaterialId) {
+      throw new BadRequestException("请选择一个素材库作品，再开始二创。");
+    }
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (!latestMarketingPlan) {
+      throw new BadRequestException("请先生成小红书营销策划方案，再创作二创笔记。");
+    }
+
+    const collectionWorkspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const sourceMaterial = collectionWorkspace.benchmarkNotes.find(
+      (item) => item.id === sourceMaterialId && item.isInMaterialLibrary,
+    );
+    if (!sourceMaterial) {
+      throw new BadRequestException("未找到你选择的素材库作品，请先确认该作品已加入素材库。");
+    }
+
+    const selectedProduct = payload.productId
+      ? archive.products.find((item) => item.id === payload.productId)
+      : undefined;
+    const normalizedProduct = selectedProduct
+      ? {
+          id: selectedProduct.id,
+          productName: selectedProduct.productName,
+          detailDescription: selectedProduct.detailDescription || "",
+          usageScenario: selectedProduct.usageScenario || "",
+          targetAudience: selectedProduct.targetAudience || "",
+          differentiators: selectedProduct.differentiators || "",
+          imageUrl: selectedProduct.imageUrl || undefined,
+        }
+      : undefined;
+
+    const userId = await this.getBrandOwnerUserId(brandId);
+    const taskTitle = `生成小红书二创笔记：${sourceMaterial.title}`;
+    const task = await this.createRewriteTask({
+      userId,
+      brandId,
+      taskTitle,
+    });
+
+    try {
+      await this.markTaskRunning(task.id);
+
+      const copyResult = await this.generateRewriteCopy({
+        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        sourceMaterial,
+        product: normalizedProduct,
+        additionalInstruction: payload.additionalInstruction?.trim(),
+      });
+
+      const imagePromptResult = await this.generateRewriteImagePrompts({
+        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        sourceMaterial,
+        product: normalizedProduct,
+        additionalInstruction: payload.additionalInstruction?.trim(),
+        noteTitle: copyResult.title,
+        noteContent: copyResult.content,
+      });
+
+      const coverImage = await this.generateImageAsset({
+        brandId,
+        taskId: task.id,
+        title: `二创笔记封面 - ${copyResult.title}`,
+        role: "COVER",
+        order: 0,
+        prompt: imagePromptResult.coverPrompt,
+        referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+      });
+
+      const galleryImages = await Promise.all(
+        imagePromptResult.imagePrompts.map((prompt, index) =>
+          this.generateImageAsset({
+            brandId,
+            taskId: task.id,
+            title: `二创笔记配图${index + 1} - ${copyResult.title}`,
+            role: "GALLERY",
+            order: index + 1,
+            prompt,
+            referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+          }),
+        ),
+      );
+
+      const now = new Date().toISOString();
+      const htmlContent = this.renderGeneratedNoteHtml({
+        title: copyResult.title,
+        content: copyResult.content,
+        hashtags: copyResult.hashtags,
+        coverImageUrl: coverImage.url,
+        imageUrls: galleryImages.map((item) => item.url),
+        noteLabel: "二创图文笔记",
+      });
+      const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-rewrite-note.html`, htmlContent);
+
+      const metadata: RewriteWorkAssetMeta = {
+        kind: "XHS_REWRITE_NOTE",
+        taskId: task.id,
+        noteCategory: "二创",
+        noteType: "图文",
+        title: copyResult.title,
+        content: copyResult.content,
+        htmlContent,
+        hashtags: copyResult.hashtags,
+        sourceMaterialId: sourceMaterial.id,
+        sourceMaterialTitle: sourceMaterial.title,
+        sourceMaterialDescription: sourceMaterial.description || undefined,
+        sourceMaterialUrl: sourceMaterial.noteUrl || sourceMaterial.sourceUrl || undefined,
+        sourceMaterialImageUrls: sourceMaterial.imageList || [],
+        productId: selectedProduct?.id,
+        productName: selectedProduct?.productName,
+        productImageUrl: selectedProduct?.imageUrl || undefined,
+        additionalInstruction: payload.additionalInstruction?.trim() || undefined,
+        coverImageUrl: coverImage.url,
+        galleryImageIds: [],
+        imageUrls: galleryImages.map((item) => item.url),
+        coverPrompt: imagePromptResult.coverPrompt,
+        imagePrompts: imagePromptResult.imagePrompts,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+        imageGenerationModel: coverImage.modelName,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const workMedia = await this.createWorkHtmlMedia({
+        userId,
+        brandId,
+        taskId: task.id,
+        title: `小红书二创笔记 - ${copyResult.title}`,
+        storageKey: htmlFile.storageKey,
+        sourceUrl: htmlFile.url,
+        metadata,
+      });
+
+      const coverMedia = await this.createWorkImageMedia({
+        kind: "XHS_REWRITE_NOTE_IMAGE",
+        userId,
+        brandId,
+        taskId: task.id,
+        workId: workMedia.id,
+        title: `二创笔记封面 - ${copyResult.title}`,
+        sourceUrl: coverImage.url,
+        role: "COVER",
+        order: 0,
+        prompt: imagePromptResult.coverPrompt,
+      });
+
+      const galleryMedia = await Promise.all(
+        galleryImages.map((item, index) =>
+          this.createWorkImageMedia({
+            kind: "XHS_REWRITE_NOTE_IMAGE",
+            userId,
+            brandId,
+            taskId: task.id,
+            workId: workMedia.id,
+            title: `二创笔记配图${index + 1} - ${copyResult.title}`,
+            sourceUrl: item.url,
+            role: "GALLERY",
+            order: index + 1,
+            prompt: imagePromptResult.imagePrompts[index] || item.prompt,
+          }),
+        ),
+      );
+
+      const updatedMetadata: RewriteWorkAssetMeta = {
+        ...metadata,
+        coverImageId: coverMedia.id,
+        galleryImageIds: galleryMedia.map((item) => item.id),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
+      await this.markTaskSuccess(task.id, {
+        workId: workMedia.id,
+        title: copyResult.title,
+        imageCount: 1 + galleryImages.length,
+      });
+
+      return {
+        item: this.mapRewriteWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
+      };
+    } catch (error) {
+      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "二创笔记生成失败");
+      throw error;
+    }
+  }
+
   async updateXiaohongshuOriginalNote(brandId: string, workId: string, payload: UpdateXiaohongshuOriginalNotePayload) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
     const nextTitle = payload.title?.trim() || meta.title;
     const nextContent = payload.content?.trim() || meta.content;
-    const nextHtmlContent = this.renderOriginalNoteHtml({
+    const nextHtmlContent = this.renderGeneratedNoteHtml({
       title: nextTitle,
       content: nextContent,
       hashtags: meta.hashtags,
       coverImageUrl: meta.coverImageUrl,
       imageUrls: meta.imageUrls,
+      noteLabel: "原创图文笔记",
     });
     const nextMeta: OriginalWorkAssetMeta = {
       ...meta,
@@ -407,6 +714,33 @@ export class WorksService {
     };
   }
 
+  async updateXiaohongshuRewriteNote(brandId: string, workId: string, payload: UpdateXiaohongshuRewriteNotePayload) {
+    const target = await this.getRewriteWorkRowById(brandId, workId);
+    const meta = this.readRewriteWorkMeta(this.getMediaMetadata(target));
+    const nextTitle = payload.title?.trim() || meta.title;
+    const nextContent = payload.content?.trim() || meta.content;
+    const nextHtmlContent = this.renderGeneratedNoteHtml({
+      title: nextTitle,
+      content: nextContent,
+      hashtags: meta.hashtags,
+      coverImageUrl: meta.coverImageUrl,
+      imageUrls: meta.imageUrls,
+      noteLabel: "二创图文笔记",
+    });
+    const nextMeta: RewriteWorkAssetMeta = {
+      ...meta,
+      title: nextTitle,
+      content: nextContent,
+      htmlContent: nextHtmlContent,
+      updatedAt: new Date().toISOString(),
+    };
+    this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书二创笔记 - ${nextTitle}`);
+    return {
+      item: this.mapRewriteWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
+    };
+  }
+
   async deleteXiaohongshuOriginalNote(brandId: string, workId: string) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
@@ -419,6 +753,40 @@ export class WorksService {
             { id: workId },
             ...(taskId ? [{ taskId }] : []),
           ],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    return { success: true };
+  }
+
+  async deleteXiaohongshuRewriteNote(brandId: string, workId: string) {
+    const target = await this.getRewriteWorkRowById(brandId, workId);
+    const meta = this.readRewriteWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
         },
       });
       if (relatedRows.length) {
@@ -868,6 +1236,38 @@ export class WorksService {
     return task;
   }
 
+  private async createRewriteTask(params: { userId: string; brandId: string; taskTitle: string }) {
+    if (await this.prismaService.canUseDatabase()) {
+      return this.prismaService.task.create({
+        data: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskType: "XHS_REWRITE_NOTE",
+          taskTitle: params.taskTitle,
+          taskStatus: TaskStatus.QUEUED,
+          modelName: "deepseek-v4-pro",
+          pointsCost: 220,
+        },
+      });
+    }
+
+    const now = new Date().toISOString();
+    const task = {
+      id: createId("tsk"),
+      userId: params.userId,
+      brandId: params.brandId,
+      taskType: "XHS_REWRITE_NOTE",
+      taskTitle: params.taskTitle,
+      taskStatus: "QUEUED" as const,
+      modelName: "deepseek-v4-pro",
+      pointsCost: 220,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return task;
+  }
+
   private async markTaskRunning(taskId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
@@ -940,7 +1340,7 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta;
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -977,6 +1377,7 @@ export class WorksService {
   }
 
   private async createWorkImageMedia(params: {
+    kind: OriginalImageAssetMeta["kind"] | RewriteImageAssetMeta["kind"];
     userId: string;
     brandId: string;
     taskId: string;
@@ -987,8 +1388,8 @@ export class WorksService {
     order: number;
     prompt: string;
   }) {
-    const metadata: OriginalImageAssetMeta = {
-      kind: "XHS_ORIGINAL_NOTE_IMAGE",
+    const metadata: OriginalImageAssetMeta | RewriteImageAssetMeta = {
+      kind: params.kind,
       workId: params.workId,
       taskId: params.taskId,
       role: params.role,
@@ -1034,7 +1435,7 @@ export class WorksService {
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta,
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -1105,12 +1506,13 @@ export class WorksService {
     return product?.imageUrl ? [product.imageUrl] : [];
   }
 
-  private renderOriginalNoteHtml(params: {
+  private renderGeneratedNoteHtml(params: {
     title: string;
     content: string;
     hashtags: string[];
     coverImageUrl?: string;
     imageUrls: string[];
+    noteLabel: string;
   }) {
     const paragraphs = params.content
       .split(/\r?\n/)
@@ -1137,7 +1539,7 @@ export class WorksService {
       '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
       cover,
       `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;margin-bottom:18px;">原创图文笔记</div>`,
+      `<div style="color:#63708a;font-size:13px;margin-bottom:18px;">${this.escapeHtml(params.noteLabel)}</div>`,
       paragraphs,
       tags,
       gallery,
@@ -1282,6 +1684,141 @@ export class WorksService {
     return row;
   }
 
+  private mapRewriteWorkFromDatabase(
+    item: {
+      id: string;
+      brandId: string | null;
+      taskId: string | null;
+      metadataJson: Prisma.JsonValue | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+  ) {
+    const meta = this.readRewriteWorkMeta(item.metadataJson);
+    return this.mapRewriteWorkRecord(
+      item.id,
+      item.brandId ?? undefined,
+      item.taskId ?? meta.taskId,
+      meta,
+      undefined,
+      item.createdAt.toISOString(),
+      item.updatedAt.toISOString(),
+    );
+  }
+
+  private mapRewriteWorkFromMock(item: { id: string; brandId?: string; taskId?: string; metadataJson?: unknown; createdAt: string; updatedAt?: string }) {
+    const meta = this.readRewriteWorkMeta(item.metadataJson);
+    const task = database.tasks.find((entry) => entry.id === (item.taskId || meta.taskId));
+    return this.mapRewriteWorkRecord(
+      item.id,
+      item.brandId,
+      item.taskId || meta.taskId,
+      meta,
+      task?.taskStatus,
+      item.createdAt,
+      item.updatedAt || item.createdAt,
+    );
+  }
+
+  private mapRewriteWorkRecord(
+    id: string,
+    brandId: string | undefined,
+    taskId: string | undefined,
+    meta: RewriteWorkAssetMeta,
+    taskStatus?: WorkTaskStatus,
+    createdAt?: string,
+    updatedAt?: string,
+  ): XiaohongshuRewriteWorkRecord {
+    return {
+      id,
+      taskId: taskId || meta.taskId,
+      brandId,
+      title: meta.title,
+      content: meta.content,
+      coverImageUrl: meta.coverImageUrl,
+      imageUrls: meta.imageUrls || [],
+      noteCategory: "二创",
+      noteType: "图文",
+      sourceMaterialId: meta.sourceMaterialId,
+      sourceMaterialTitle: meta.sourceMaterialTitle,
+      sourceMaterialDescription: meta.sourceMaterialDescription,
+      sourceMaterialUrl: meta.sourceMaterialUrl,
+      sourceMaterialImageUrls: meta.sourceMaterialImageUrls || [],
+      productId: meta.productId,
+      productName: meta.productName,
+      additionalInstruction: meta.additionalInstruction,
+      hashtags: meta.hashtags || [],
+      coverPrompt: meta.coverPrompt,
+      imagePrompts: meta.imagePrompts || [],
+      copyModel: meta.copyModel,
+      imagePromptModel: meta.imagePromptModel,
+      imageGenerationModel: meta.imageGenerationModel,
+      taskStatus,
+      createdAt: createdAt || meta.createdAt,
+      updatedAt: updatedAt || meta.updatedAt,
+    };
+  }
+
+  private isRewriteWorkMeta(metadataJson: unknown) {
+    const meta = this.asRecord(metadataJson);
+    return meta?.kind === "XHS_REWRITE_NOTE";
+  }
+
+  private readRewriteWorkMeta(metadataJson: unknown): RewriteWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    if (!meta || meta.kind !== "XHS_REWRITE_NOTE") {
+      throw new NotFoundException("二创笔记不存在");
+    }
+    return {
+      kind: "XHS_REWRITE_NOTE",
+      taskId: String(meta.taskId ?? ""),
+      noteCategory: "二创",
+      noteType: "图文",
+      title: String(meta.title ?? "").trim(),
+      content: String(meta.content ?? "").trim(),
+      htmlContent: String(meta.htmlContent ?? "").trim(),
+      hashtags: this.normalizeStringArray(meta.hashtags, [], 12),
+      sourceMaterialId: String(meta.sourceMaterialId ?? "").trim(),
+      sourceMaterialTitle: String(meta.sourceMaterialTitle ?? "").trim(),
+      sourceMaterialDescription: this.readOptionalString(meta.sourceMaterialDescription),
+      sourceMaterialUrl: this.readOptionalString(meta.sourceMaterialUrl),
+      sourceMaterialImageUrls: this.normalizeStringArray(meta.sourceMaterialImageUrls, [], 20),
+      productId: this.readOptionalString(meta.productId),
+      productName: this.readOptionalString(meta.productName),
+      productImageUrl: this.readOptionalString(meta.productImageUrl),
+      additionalInstruction: this.readOptionalString(meta.additionalInstruction),
+      coverImageId: this.readOptionalString(meta.coverImageId),
+      coverImageUrl: this.readOptionalString(meta.coverImageUrl),
+      galleryImageIds: this.normalizeStringArray(meta.galleryImageIds, [], 20),
+      imageUrls: this.normalizeStringArray(meta.imageUrls, [], 20),
+      coverPrompt: String(meta.coverPrompt ?? "").trim(),
+      imagePrompts: this.normalizeStringArray(meta.imagePrompts, [], 12),
+      copyModel: this.readOptionalString(meta.copyModel),
+      imagePromptModel: this.readOptionalString(meta.imagePromptModel),
+      imageGenerationModel: this.readOptionalString(meta.imageGenerationModel),
+      createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
+      updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private async getRewriteWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isRewriteWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("二创笔记不存在");
+      }
+      return row;
+    }
+
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isRewriteWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("二创笔记不存在");
+    }
+    return row;
+  }
+
   private getMediaMetadata(item: { metadataJson?: unknown }) {
     return item.metadataJson;
   }
@@ -1317,6 +1854,40 @@ export class WorksService {
       "# 小红书原创配图提示词生成器",
       "你需要根据营销规划、营销日历、原创笔记文案、产品和用户要求，输出封面提示词与多张配图提示词。",
       "请保证整体风格统一、适合小红书图文封面与内页展示。",
+    ].join("\n");
+  }
+
+  private loadRewriteCopyPrompt() {
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
+      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return [
+      "# 小红书二创文案生成器",
+      "你需要根据营销策划方案、素材库作品、产品信息和用户附加要求，重写并优化出一篇小红书二创图文笔记。",
+      "输出标题、正文和标签，保持平台表达习惯，并避免直接复刻原文。",
+    ].join("\n");
+  }
+
+  private loadRewriteImagePrompt() {
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_image", "SKILL.md"),
+      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_image", "SKILL.md"),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return [
+      "# 小红书二创配图提示词生成器",
+      "你需要根据素材库作品、二创文案、营销策划方案和产品信息，输出二创封面提示词与配图提示词。",
+      "请保证画面有明显差异化，但仍能承接素材作品的爆款结构与品牌调性。",
     ].join("\n");
   }
 
@@ -1455,6 +2026,237 @@ export class WorksService {
       throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
     }
     return providers;
+  }
+
+  private async generateRewriteCopy(params: {
+    marketingPlanMarkdown: string;
+    sourceMaterial: {
+      id: string;
+      title: string;
+      description?: string;
+      noteUrl?: string;
+      sourceUrl?: string;
+      imageList?: string[];
+      nickname?: string;
+      noteType?: string;
+      likeCount?: number;
+      collectCount?: number;
+      commentCount?: number;
+      shareCount?: number;
+    };
+    product?: {
+      id: string;
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+      imageUrl?: string;
+    };
+    additionalInstruction?: string;
+  }): Promise<OriginalCopyModelResult> {
+    const skillPrompt = this.loadRewriteCopyPrompt();
+    const providers = this.loadOriginalCopyProviders();
+    const inputPayload = {
+      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      benchmark_note: {
+        id: params.sourceMaterial.id,
+        title: params.sourceMaterial.title,
+        description: params.sourceMaterial.description,
+        noteUrl: params.sourceMaterial.noteUrl || params.sourceMaterial.sourceUrl,
+        imageUrls: params.sourceMaterial.imageList || [],
+        nickname: params.sourceMaterial.nickname,
+        noteType: params.sourceMaterial.noteType,
+        likeCount: params.sourceMaterial.likeCount,
+        collectCount: params.sourceMaterial.collectCount,
+        commentCount: params.sourceMaterial.commentCount,
+        shareCount: params.sourceMaterial.shareCount,
+      },
+      product: params.product
+        ? {
+            productName: params.product.productName,
+            detailDescription: params.product.detailDescription,
+            usageScenario: params.product.usageScenario,
+            targetAudience: params.product.targetAudience,
+            differentiators: params.product.differentiators,
+          }
+        : null,
+      additional_instruction: params.additionalInstruction,
+    };
+
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前要输出一篇可直接发布的小红书二创图文笔记。",
+      "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "最终标题",',
+      '  "content": "二创后的正文内容",',
+      '  "tags": ["#关键词1", "#关键词2"]',
+      "}",
+    ].join("\n");
+    const userPrompt = ["以下是本次二创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 180000,
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const title = String(parsed.title ?? "").trim();
+              const body = String(parsed.content ?? "").trim();
+              const hashtags = this.normalizeStringArray(parsed.tags ?? parsed.hashtags, [], 8);
+              if (!title || !body) {
+                lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                continue;
+              }
+              return {
+                title,
+                content: body,
+                hashtags: hashtags.length ? hashtags : this.extractHashtagsFromContent(body),
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "二创文案生成失败";
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(`二创笔记文案生成失败：${lastError || "未获取到有效响应"}`);
+  }
+
+  private async generateRewriteImagePrompts(params: {
+    marketingPlanMarkdown: string;
+    sourceMaterial: {
+      id: string;
+      title: string;
+      description?: string;
+      noteUrl?: string;
+      sourceUrl?: string;
+      imageList?: string[];
+      nickname?: string;
+      noteType?: string;
+    };
+    product?: {
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+      imageUrl?: string;
+    };
+    additionalInstruction?: string;
+    noteTitle: string;
+    noteContent: string;
+  }): Promise<OriginalImagePromptResult> {
+    const skillPrompt = this.loadRewriteImagePrompt();
+    const providers = this.loadOriginalImagePromptProviders();
+    const inputPayload = {
+      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      benchmark_note: {
+        id: params.sourceMaterial.id,
+        title: params.sourceMaterial.title,
+        description: params.sourceMaterial.description,
+        noteUrl: params.sourceMaterial.noteUrl || params.sourceMaterial.sourceUrl,
+        imageUrls: params.sourceMaterial.imageList || [],
+        nickname: params.sourceMaterial.nickname,
+        noteType: params.sourceMaterial.noteType,
+      },
+      noteTitle: params.noteTitle,
+      noteContent: params.noteContent,
+      product: params.product
+        ? {
+            productName: params.product.productName,
+            detailDescription: params.product.detailDescription,
+            usageScenario: params.product.usageScenario,
+            targetAudience: params.product.targetAudience,
+            differentiators: params.product.differentiators,
+          }
+        : null,
+      additional_instruction: params.additionalInstruction,
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前需要输出小红书二创图文的封面与配图提示词。",
+      "请至少返回 1 条封面提示词和 2 条配图提示词。",
+      "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "{",
+      '  "cover_prompt": "封面提示词",',
+      '  "image_prompts": ["配图提示词1", "配图提示词2"]',
+      "}",
+    ].join("\n");
+    const userPrompt = ["以下是本次二创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 180000,
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const coverPrompt = String(parsed.cover_prompt ?? parsed.coverPrompt ?? "").trim();
+              const imagePrompts = this.normalizeStringArray(parsed.image_prompts ?? parsed.imagePrompts, [], 10);
+              if (!coverPrompt) {
+                lastError = `${provider.provider}/${modelName} 封面提示词为空`;
+                continue;
+              }
+              return {
+                coverPrompt,
+                imagePrompts: imagePrompts.length ? imagePrompts : this.normalizeFixedImagePromptCount([], coverPrompt, 3),
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "二创配图提示词生成失败";
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(`二创笔记配图提示词生成失败：${lastError || "未获取到有效响应"}`);
   }
 
   private loadDoubaoImageAnalysisProvider() {

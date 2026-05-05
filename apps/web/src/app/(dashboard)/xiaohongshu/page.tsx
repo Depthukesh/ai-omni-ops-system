@@ -36,10 +36,15 @@ import {
 } from "../../../services/xiaohongshu";
 import {
   deleteXiaohongshuOriginalWork,
+  deleteXiaohongshuRewriteWork,
   generateXiaohongshuOriginalWork,
+  generateXiaohongshuRewriteWork,
   getXiaohongshuOriginalWorks,
+  getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
+  type XiaohongshuRewriteWorkRecord,
   updateXiaohongshuOriginalWork,
+  updateXiaohongshuRewriteWork,
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
@@ -106,6 +111,19 @@ export default function XiaohongshuPage() {
   const [editingOriginalContent, setEditingOriginalContent] = useState("");
   const [savingOriginalWorkId, setSavingOriginalWorkId] = useState("");
   const [deletingOriginalWorkId, setDeletingOriginalWorkId] = useState("");
+  const [rewriteWorks, setRewriteWorks] = useState<XiaohongshuRewriteWorkRecord[]>([]);
+  const [selectedRewriteWorkId, setSelectedRewriteWorkId] = useState("");
+  const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
+  const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
+  const [rewriteProductValue, setRewriteProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
+  const [rewriteAdditionalInstruction, setRewriteAdditionalInstruction] = useState("");
+  const [editingRewriteWorkId, setEditingRewriteWorkId] = useState("");
+  const [editingRewriteTitle, setEditingRewriteTitle] = useState("");
+  const [editingRewriteContent, setEditingRewriteContent] = useState("");
+  const [savingRewriteWorkId, setSavingRewriteWorkId] = useState("");
+  const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
+  const [isRewriteSubmitting, setIsRewriteSubmitting] = useState(false);
+  const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<{ title: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
@@ -200,13 +218,29 @@ export default function XiaohongshuPage() {
     return () => window.clearTimeout(timer);
   }, [workspace.tasks]);
 
+  useEffect(() => {
+    const latestTask = workspace.tasks
+      .filter((item) => item.taskType === "XHS_REWRITE_NOTE")
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
+    if (!isTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadWorkspace();
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [workspace.tasks]);
+
   async function loadWorkspace() {
     setIsLoading(true);
     setDataSource("loading");
     setNotice("");
     setErrorMessage("");
 
-    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult] =
+    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult] =
       await Promise.allSettled([
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
@@ -214,6 +248,7 @@ export default function XiaohongshuPage() {
       getXiaohongshuMarketingPlanWorkspace(),
       getXiaohongshuMarketingCalendarWorkspace(),
       getXiaohongshuOriginalWorks(DEMO_BRAND_ID),
+      getXiaohongshuRewriteWorks(DEMO_BRAND_ID),
     ]);
 
     const messages: string[] = [];
@@ -275,6 +310,12 @@ export default function XiaohongshuPage() {
       setOriginalWorks(originalWorksResult.value.items);
     } else {
       messages.push("原创笔记作品读取失败。");
+    }
+
+    if (rewriteWorksResult.status === "fulfilled") {
+      setRewriteWorks(rewriteWorksResult.value.items);
+    } else {
+      messages.push("二创笔记作品读取失败。");
     }
 
     if (workspaceResult.status === "fulfilled") {
@@ -434,6 +475,8 @@ export default function XiaohongshuPage() {
   }, [calendarWorkspace.history, latestCalendar]);
   const originalSelectedWork = originalWorks.find((item) => item.id === selectedOriginalWorkId) || originalWorks[0];
   const originalEditingWork = originalWorks.find((item) => item.id === editingOriginalWorkId);
+  const rewriteSelectedWork = rewriteWorks.find((item) => item.id === selectedRewriteWorkId) || rewriteWorks[0];
+  const rewriteEditingWork = rewriteWorks.find((item) => item.id === editingRewriteWorkId);
   const originalCalendarOptions = useMemo(
     () =>
       calendarAllItems.map((item) => ({
@@ -483,10 +526,42 @@ export default function XiaohongshuPage() {
             ? "创作失败"
             : latestOriginalTask.taskStatus
     : "";
-  const heroTitle = activeSection === "original" ? "原创笔记工作区" : "小红书营销策划方案工作区";
-  const heroDescription = activeSection === "original"
-    ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
-    : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
+  const rewriteTasks = useMemo(
+    () =>
+      workspace.tasks
+        .filter((item) => item.taskType === "XHS_REWRITE_NOTE")
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [workspace.tasks],
+  );
+  const latestRewriteTask = rewriteTasks[0];
+  const isRewriteTaskActive = Boolean(
+    latestRewriteTask && (latestRewriteTask.taskStatus === "QUEUED" || latestRewriteTask.taskStatus === "RUNNING"),
+  );
+  const showRewriteSubmittingState = isRewriteSubmitting && !isRewriteTaskActive;
+  const rewriteInlineError = latestRewriteTask?.taskStatus === "FAILED" ? latestRewriteTask.errorMessage?.trim() || "" : "";
+  const rewriteTaskStatusText = latestRewriteTask
+    ? latestRewriteTask.taskStatus === "QUEUED"
+      ? "排队中"
+      : latestRewriteTask.taskStatus === "RUNNING"
+        ? "创作中"
+        : latestRewriteTask.taskStatus === "SUCCESS"
+          ? "已完成"
+          : latestRewriteTask.taskStatus === "FAILED"
+            ? "创作失败"
+            : latestRewriteTask.taskStatus
+    : "";
+  const heroTitle =
+    activeSection === "original"
+      ? "原创笔记工作区"
+      : activeSection === "remix"
+        ? "二创笔记工作区"
+        : "小红书营销策划方案工作区";
+  const heroDescription =
+    activeSection === "original"
+      ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
+      : activeSection === "remix"
+        ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
+        : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
   const publishedPreview = useMemo(
     () =>
       buildPublishedPreview({
@@ -513,6 +588,12 @@ export default function XiaohongshuPage() {
   }, [originalWorks, selectedOriginalWorkId]);
 
   useEffect(() => {
+    if (!selectedRewriteWorkId && rewriteWorks[0]) {
+      setSelectedRewriteWorkId(rewriteWorks[0].id);
+    }
+  }, [rewriteWorks, selectedRewriteWorkId]);
+
+  useEffect(() => {
     if (!originalProductValue || originalProductValue === NO_PRODUCT_OPTION) {
       return;
     }
@@ -531,6 +612,15 @@ export default function XiaohongshuPage() {
   }, [calendarAllItems, originalCalendarValue]);
 
   useEffect(() => {
+    if (!rewriteProductValue || rewriteProductValue === NO_PRODUCT_OPTION) {
+      return;
+    }
+    if (!workspace.archive.products.some((item) => item.id === rewriteProductValue)) {
+      setRewriteProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    }
+  }, [rewriteProductValue, workspace.archive.products]);
+
+  useEffect(() => {
     if (!materialNotes.length) {
       if (selectedMaterialId) {
         setSelectedMaterialId("");
@@ -542,6 +632,19 @@ export default function XiaohongshuPage() {
       setSelectedMaterialId(materialNotes[0].id);
     }
   }, [materialNotes, selectedMaterialId]);
+
+  useEffect(() => {
+    if (!materialNotes.length) {
+      if (rewriteMaterialValue) {
+        setRewriteMaterialValue("");
+      }
+      return;
+    }
+
+    if (!rewriteMaterialValue || !materialNotes.some((item) => item.id === rewriteMaterialValue)) {
+      setRewriteMaterialValue(materialNotes[0].id);
+    }
+  }, [materialNotes, rewriteMaterialValue]);
 
   useEffect(() => {
     if (!calendarAllItems.length) {
@@ -824,6 +927,143 @@ export default function XiaohongshuPage() {
 
   function openOriginalWorkLightbox(item: XiaohongshuOriginalWorkRecord, index: number) {
     const mediaUrls = getOriginalWorkMediaUrls(item);
+    const targetUrl = mediaUrls[index];
+    if (!targetUrl) {
+      return;
+    }
+    setMaterialLightbox({
+      title: `${item.title} · 图片 ${index + 1}`,
+      url: targetUrl,
+      type: "IMAGE",
+    });
+  }
+
+  function resetRewriteComposer() {
+    setRewriteMaterialValue(materialNotes[0]?.id || "");
+    setRewriteProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    setRewriteAdditionalInstruction("");
+  }
+
+  function handleOpenRewriteModal() {
+    resetRewriteComposer();
+    setIsRewriteModalOpen(true);
+  }
+
+  function handleCloseRewriteModal() {
+    setIsRewriteModalOpen(false);
+  }
+
+  async function handleCreateRewriteWork() {
+    if (!rewriteMaterialValue) {
+      setErrorMessage("请先从素材库里选择一个二创作品。");
+      return;
+    }
+
+    setIsPublishing(true);
+    setIsRewriteSubmitting(true);
+    setRewriteSubmittingLabel(
+      materialNotes.find((item) => item.id === rewriteMaterialValue)?.title || "二创笔记任务已提交",
+    );
+    setNotice("");
+    setErrorMessage("");
+    setIsRewriteModalOpen(false);
+
+    try {
+      const result = await generateXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
+        sourceMaterialId: rewriteMaterialValue,
+        productId: rewriteProductValue === NO_PRODUCT_OPTION ? undefined : rewriteProductValue,
+        additionalInstruction: rewriteAdditionalInstruction.trim() || undefined,
+      });
+
+      setRewriteWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
+      setSelectedRewriteWorkId(result.item.id);
+      setEditingRewriteWorkId("");
+      setEditingRewriteTitle("");
+      setEditingRewriteContent("");
+      setNotice("二创笔记已创作完成，并已同步保存到“我的作品”。");
+      resetRewriteComposer();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "二创笔记创作失败";
+      setErrorMessage(`创作失败：${message}`);
+    } finally {
+      setIsRewriteSubmitting(false);
+      setRewriteSubmittingLabel("");
+      setIsPublishing(false);
+    }
+  }
+
+  function handleStartEditRewriteWork(item: XiaohongshuRewriteWorkRecord) {
+    setSelectedRewriteWorkId(item.id);
+    setEditingRewriteWorkId(item.id);
+    setEditingRewriteTitle(item.title);
+    setEditingRewriteContent(item.content);
+  }
+
+  function handleCancelEditRewriteWork() {
+    setEditingRewriteWorkId("");
+    setEditingRewriteTitle("");
+    setEditingRewriteContent("");
+  }
+
+  async function handleSaveRewriteWork() {
+    if (!editingRewriteWorkId) {
+      return;
+    }
+
+    const title = editingRewriteTitle.trim();
+    const content = editingRewriteContent.trim();
+    if (!title || !content) {
+      setErrorMessage("标题和正文不能为空。");
+      return;
+    }
+
+    setSavingRewriteWorkId(editingRewriteWorkId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await updateXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingRewriteWorkId, {
+        title,
+        content,
+      });
+      setRewriteWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+      setSelectedRewriteWorkId(result.item.id);
+      handleCancelEditRewriteWork();
+      setNotice("二创笔记已更新。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "二创笔记更新失败";
+      setErrorMessage(`保存失败：${message}`);
+    } finally {
+      setSavingRewriteWorkId("");
+    }
+  }
+
+  async function handleDeleteRewriteWork(workId: string) {
+    setDeletingRewriteWorkId(workId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      await deleteXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
+      const remainingItems = rewriteWorks.filter((item) => item.id !== workId);
+      setRewriteWorks(remainingItems);
+      if (selectedRewriteWorkId === workId) {
+        setSelectedRewriteWorkId(remainingItems[0]?.id || "");
+      }
+      if (editingRewriteWorkId === workId) {
+        handleCancelEditRewriteWork();
+      }
+      setNotice("二创笔记已删除。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "二创笔记删除失败";
+      setErrorMessage(`删除失败：${message}`);
+    } finally {
+      setDeletingRewriteWorkId("");
+    }
+  }
+
+  function openRewriteWorkLightbox(item: XiaohongshuRewriteWorkRecord, index: number) {
+    const mediaUrls = getRewriteWorkMediaUrls(item);
     const targetUrl = mediaUrls[index];
     if (!targetUrl) {
       return;
@@ -1526,38 +1766,238 @@ export default function XiaohongshuPage() {
               <strong>{currentSection.label}</strong>
               <p className="panel-subtext">{currentSection.description}</p>
             </div>
-            <span className="archive-pill status-in_progress">{noteDrafts.length} 个版本</span>
+            <div className="strategy-inline-actions">
+              <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing || isRewriteTaskActive}>
+                刷新列表
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleOpenRewriteModal}
+                disabled={isPublishing || isRewriteTaskActive || !materialNotes.length}
+              >
+                添加二创笔记
+              </button>
+            </div>
           </div>
 
-          <div className="personal-list">
-            {noteDrafts.map((item, index) => (
-              <article className="entity-card personal-card" key={item.id}>
-                <div className="entity-card-head">
-                  <div>
-                    <strong>二创版本 {index + 1} · {item.title}</strong>
-                    <p className="personal-meta">基于原始主题延展出不同切角，适合做复投与多版本测试。</p>
+          <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+            <div className="report-editor-head">
+              <div>
+                <strong>二创笔记创作状态</strong>
+                <p>点击“一键创作”后，这里会持续显示二创笔记的排队、创作、失败和完成状态。</p>
+              </div>
+              <div className="report-editor-actions">
+                <span className={`archive-pill ${rewriteTasks.length ? "status-ready" : "status-in_progress"}`}>
+                  {rewriteTasks.length ? `累计 ${rewriteTasks.length} 条任务` : "暂无任务"}
+                </span>
+                {showRewriteSubmittingState ? (
+                  <span className="archive-pill status-in_progress">创作中</span>
+                ) : null}
+                {latestRewriteTask ? (
+                  <span className={`archive-pill ${getTaskStatusClass(latestRewriteTask.taskStatus)}`}>{rewriteTaskStatusText}</span>
+                ) : null}
+                {latestRewriteTask?.updatedAt ? (
+                  <span className="archive-pill status-pending">{formatDateTime(latestRewriteTask.updatedAt)}</span>
+                ) : null}
+              </div>
+            </div>
+            {showRewriteSubmittingState ? (
+              <div className="report-inline-tip">
+                {`二创笔记已提交，正在生成中：${rewriteSubmittingLabel || "本次二创笔记"}，请稍候。`}
+              </div>
+            ) : null}
+            {isRewriteTaskActive ? (
+              <div className="report-inline-tip">
+                {latestRewriteTask?.taskStatus === "QUEUED"
+                  ? "二创笔记任务已提交，正在排队。"
+                  : `二创笔记正在生成中：${latestRewriteTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+              </div>
+            ) : null}
+            {rewriteInlineError ? <div className="report-inline-tip report-inline-tip--error">{rewriteInlineError}</div> : null}
+          </article>
+
+          {!rewriteWorks.length ? (
+            <div className="empty-state">
+              {materialNotes.length
+                ? "当前还没有二创笔记，点击右上角“添加二创笔记”开始创作。"
+                : "素材库里还没有可用作品。请先到“小红书 → 素材库”确认已有作品加入素材库，再开始二创。"}
+            </div>
+          ) : (
+            <div className="xhs-material-library">
+              <div className="xhs-material-card-grid">
+                {rewriteWorks.map((item) => {
+                  const mediaUrls = getRewriteWorkMediaUrls(item);
+                  const previewIndex = getMaterialPreviewIndex(materialPreviewIndexMap, item.id, mediaUrls.length);
+                  const previewUrl = mediaUrls[previewIndex];
+                  return (
+                    <article key={item.id} className="xhs-material-card">
+                      <button
+                        type="button"
+                        className="xhs-material-card-stage"
+                        onClick={() => openRewriteWorkLightbox(item, previewIndex)}
+                      >
+                        {previewUrl ? (
+                          <img className="xhs-material-card-media" src={previewUrl} alt={item.title} />
+                        ) : (
+                          <span className="xhs-material-card-empty">暂无封面</span>
+                        )}
+                        <span className="xhs-material-card-badge">二创</span>
+                      </button>
+                      {mediaUrls.length > 1 ? (
+                        <div className="xhs-material-card-carousel">
+                          <button type="button" className="note-page-button" onClick={() => shiftMaterialPreview(item.id, mediaUrls.length, -1)}>
+                            ‹
+                          </button>
+                          <span>{previewIndex + 1}/{mediaUrls.length}</span>
+                          <button type="button" className="note-page-button" onClick={() => shiftMaterialPreview(item.id, mediaUrls.length, 1)}>
+                            ›
+                          </button>
+                        </div>
+                      ) : null}
+                      <div className="xhs-material-card-body">
+                        <strong>{item.title}</strong>
+                        <p>{item.sourceMaterialTitle}</p>
+                        <p>{formatDateTime(item.createdAt)}</p>
+                        <div className="xhs-material-card-actions">
+                          <button type="button" className="secondary-button" onClick={() => handleStartEditRewriteWork(item)}>
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleDeleteRewriteWork(item.id)}
+                            disabled={deletingRewriteWorkId === item.id}
+                          >
+                            {deletingRewriteWorkId === item.id ? "删除中..." : "删除"}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {rewriteEditingWork ? (
+            <div className="media-preview-overlay" onClick={handleCancelEditRewriteWork}>
+              <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="media-preview-close" onClick={handleCancelEditRewriteWork}>
+                  关闭
+                </button>
+                <article className="entity-card personal-card">
+                  <div className="entity-card-head">
+                    <div>
+                      <strong>编辑二创笔记</strong>
+                      <p className="personal-meta">
+                        {rewriteEditingWork.sourceMaterialTitle}
+                        {rewriteEditingWork.productName ? ` · 产品：${rewriteEditingWork.productName}` : ""}
+                      </p>
+                    </div>
+                    <div className="report-editor-actions">
+                      <span className="archive-pill status-ready">{rewriteEditingWork.noteCategory}</span>
+                      <span className="archive-pill status-pending">{rewriteEditingWork.noteType}</span>
+                      <span className={`archive-pill ${getOriginalTaskStatusClass(rewriteEditingWork.taskStatus)}`}>
+                        {getOriginalTaskStatusText(rewriteEditingWork.taskStatus)}
+                      </span>
+                    </div>
                   </div>
-                  <button type="button" className="secondary-button" onClick={() => setSelectedNoteId(item.id)}>
-                    作为当前草稿
-                  </button>
-                </div>
-                <div className="personal-grid">
-                  <div>
-                    <span>切角方向</span>
-                    <strong>{topicIdeas[index]?.angle || "体验测评 / 场景化改写"}</strong>
+                  <div className="personal-list">
+                    <label className="report-editor-pane">
+                      <span>标题</span>
+                      <input
+                        className="report-title-input"
+                        value={editingRewriteTitle}
+                        onChange={(event) => setEditingRewriteTitle(event.target.value)}
+                        placeholder="请输入二创笔记标题"
+                      />
+                    </label>
+                    <label className="report-editor-pane">
+                      <span>正文</span>
+                      <textarea
+                        className="report-content-textarea"
+                        value={editingRewriteContent}
+                        onChange={(event) => setEditingRewriteContent(event.target.value)}
+                        placeholder="请输入二创笔记正文"
+                      />
+                    </label>
+                    <div className="strategy-inline-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleSaveRewriteWork()}
+                        disabled={savingRewriteWorkId === rewriteEditingWork.id}
+                      >
+                        {savingRewriteWorkId === rewriteEditingWork.id ? "保存中..." : "保存"}
+                      </button>
+                      <button type="button" className="secondary-button" onClick={handleCancelEditRewriteWork}>
+                        取消
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <span>承接动作</span>
-                    <strong>{topicIdeas[index]?.cta || "评论互动"}</strong>
+                </article>
+              </div>
+            </div>
+          ) : null}
+
+          {isRewriteModalOpen ? (
+            <div className="media-preview-overlay" onClick={handleCloseRewriteModal}>
+              <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="media-preview-close" onClick={handleCloseRewriteModal}>
+                  关闭
+                </button>
+                <article className="entity-card personal-card">
+                  <div className="entity-card-head">
+                    <div>
+                      <strong>添加二创笔记</strong>
+                      <p className="personal-meta">从素材库选择参考作品，结合产品与用户要求，直接触发完整二创图文生成链路。</p>
+                    </div>
                   </div>
-                  <div className="field-full">
-                    <span>二创说明</span>
-                    <strong>保留原始产品卖点，改写开头与中段结构，用于多版本内容测试与平台复投。</strong>
+                  <div className="personal-grid">
+                    <label className="field-full">
+                      <span>素材库</span>
+                      <select value={rewriteMaterialValue} onChange={(event) => setRewriteMaterialValue(event.target.value)}>
+                        {materialNotes.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>产品</span>
+                      <select value={rewriteProductValue} onChange={(event) => setRewriteProductValue(event.target.value)}>
+                        {workspace.archive.products.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.productName}
+                          </option>
+                        ))}
+                        <option value={NO_PRODUCT_OPTION}>不植入产品</option>
+                      </select>
+                    </label>
+                    <label className="field-full">
+                      <span>用户要求</span>
+                      <textarea
+                        className="report-markdown-textarea"
+                        value={rewriteAdditionalInstruction}
+                        onChange={(event) => setRewriteAdditionalInstruction(event.target.value)}
+                        placeholder="例如：保留原作品的爆点结构，但语气更像品牌官方账号，图片更高级一点。"
+                      />
+                    </label>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                  <div className="strategy-inline-actions">
+                    <button type="button" className="primary-button" onClick={() => void handleCreateRewriteWork()} disabled={isPublishing || !materialNotes.length}>
+                      {isPublishing ? "创作中..." : "一键创作"}
+                    </button>
+                    <button type="button" className="secondary-button" onClick={handleCloseRewriteModal} disabled={isPublishing}>
+                      取消
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          ) : null}
         </article>
       );
     }
@@ -2164,6 +2604,14 @@ function getMaterialMediaItems(item?: XhsCollectedNoteRecord): XhsMaterialMediaI
 }
 
 function getOriginalWorkMediaUrls(item?: XiaohongshuOriginalWorkRecord) {
+  if (!item) {
+    return [];
+  }
+  const urls = [item.coverImageUrl, ...item.imageUrls].filter((value): value is string => Boolean(value));
+  return Array.from(new Set(urls));
+}
+
+function getRewriteWorkMediaUrls(item?: XiaohongshuRewriteWorkRecord) {
   if (!item) {
     return [];
   }
