@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
-import { type MediaRecord, createMedia, createTask, type TaskRecord } from "../../../services/personal-center";
+import { type MediaRecord, type TaskRecord } from "../../../services/personal-center";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
@@ -34,6 +34,13 @@ import {
   type XiaohongshuNoteDraft,
   type XiaohongshuTone,
 } from "../../../services/xiaohongshu";
+import {
+  deleteXiaohongshuOriginalWork,
+  generateXiaohongshuOriginalWork,
+  getXiaohongshuOriginalWorks,
+  type XiaohongshuOriginalWorkRecord,
+  updateXiaohongshuOriginalWork,
+} from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
 
@@ -41,10 +48,14 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
   { key: "plan", label: "营销策划方案", description: "围绕品牌、产品和目标快速生成小红书策划与选题方案。" },
   { key: "assets", label: "素材库", description: "沉淀已生成的笔记、封面、源文件与作品记录。" },
   { key: "calendar", label: "营销日历", description: "按周查看当前内容节奏、发布时间与主题排期。" },
-  { key: "original", label: "原创笔记", description: "查看原创图文笔记草稿、正文结构与发布动作。" },
+  { key: "original", label: "原创笔记", description: "统一管理原创图文笔记成品，支持新增、编辑、删除与查看配图结果。" },
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
   { key: "video", label: "视频笔记", description: "把现有主题整理成视频脚本、镜头结构和封面文案。" },
 ];
+
+const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
+const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
+const AUTO_IMAGE_COUNT_OPTION = "__AUTO__";
 
 export default function XiaohongshuPage() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
@@ -80,6 +91,21 @@ export default function XiaohongshuPage() {
   const [noteDrafts, setNoteDrafts] = useState(defaultPlan.noteDrafts);
   const [selectedNoteId, setSelectedNoteId] = useState(defaultPlan.noteDrafts[0]?.id || "");
   const [selectedWorkId, setSelectedWorkId] = useState("");
+  const [originalWorks, setOriginalWorks] = useState<XiaohongshuOriginalWorkRecord[]>([]);
+  const [selectedOriginalWorkId, setSelectedOriginalWorkId] = useState("");
+  const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
+  const [originalCalendarValue, setOriginalCalendarValue] = useState("");
+  const [originalCustomTopic, setOriginalCustomTopic] = useState("");
+  const [originalProductValue, setOriginalProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
+  const [originalImageCountValue, setOriginalImageCountValue] = useState(AUTO_IMAGE_COUNT_OPTION);
+  const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
+  const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
+  const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
+  const [editingOriginalWorkId, setEditingOriginalWorkId] = useState("");
+  const [editingOriginalTitle, setEditingOriginalTitle] = useState("");
+  const [editingOriginalContent, setEditingOriginalContent] = useState("");
+  const [savingOriginalWorkId, setSavingOriginalWorkId] = useState("");
+  const [deletingOriginalWorkId, setDeletingOriginalWorkId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<{ title: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
@@ -164,12 +190,14 @@ export default function XiaohongshuPage() {
     setNotice("");
     setErrorMessage("");
 
-    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult] = await Promise.allSettled([
+    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult] =
+      await Promise.allSettled([
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
       getAnnualMarketingPlanWorkspace(),
       getXiaohongshuMarketingPlanWorkspace(),
       getXiaohongshuMarketingCalendarWorkspace(),
+      getXiaohongshuOriginalWorks(DEMO_BRAND_ID),
     ]);
 
     const messages: string[] = [];
@@ -225,6 +253,12 @@ export default function XiaohongshuPage() {
       }
     } else {
       messages.push("营销日历读取失败。");
+    }
+
+    if (originalWorksResult.status === "fulfilled") {
+      setOriginalWorks(originalWorksResult.value.items);
+    } else {
+      messages.push("原创笔记作品读取失败。");
     }
 
     if (workspaceResult.status === "fulfilled") {
@@ -307,7 +341,6 @@ export default function XiaohongshuPage() {
   }
 
   const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
-  const selectedNote = noteDrafts.find((item) => item.id === selectedNoteId) || noteDrafts[0];
 
   const xhsTasks = useMemo(() => getXiaohongshuTasks(workspace.tasks), [workspace.tasks]);
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
@@ -374,6 +407,15 @@ export default function XiaohongshuPage() {
 
     return Array.from(byDate.values()).sort((left, right) => left.date.localeCompare(right.date));
   }, [calendarWorkspace.history, latestCalendar]);
+  const originalSelectedWork = originalWorks.find((item) => item.id === selectedOriginalWorkId) || originalWorks[0];
+  const originalCalendarOptions = useMemo(
+    () =>
+      calendarAllItems.map((item) => ({
+        value: item.id,
+        label: `${item.date}｜${item.topicName}`,
+      })),
+    [calendarAllItems],
+  );
   const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
   const calendarMonthKeys = useMemo(() => {
     const values = new Set<string>();
@@ -418,6 +460,30 @@ export default function XiaohongshuPage() {
       setSelectedWorkId(xhsMedia[0].id);
     }
   }, [selectedWorkId, xhsMedia]);
+
+  useEffect(() => {
+    if (!selectedOriginalWorkId && originalWorks[0]) {
+      setSelectedOriginalWorkId(originalWorks[0].id);
+    }
+  }, [originalWorks, selectedOriginalWorkId]);
+
+  useEffect(() => {
+    if (!originalProductValue || originalProductValue === NO_PRODUCT_OPTION) {
+      return;
+    }
+    if (!workspace.archive.products.some((item) => item.id === originalProductValue)) {
+      setOriginalProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    }
+  }, [originalProductValue, workspace.archive.products]);
+
+  useEffect(() => {
+    if (originalCalendarValue === CUSTOM_TOPIC_OPTION) {
+      return;
+    }
+    if (!originalCalendarValue || !calendarAllItems.some((item) => item.id === originalCalendarValue)) {
+      setOriginalCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
+    }
+  }, [calendarAllItems, originalCalendarValue]);
 
   useEffect(() => {
     if (!materialNotes.length) {
@@ -577,9 +643,36 @@ export default function XiaohongshuPage() {
     }
   }
 
-  async function handlePublish() {
-    if (!selectedProduct || !selectedNote) {
-      setErrorMessage("请先生成小红书笔记草稿。");
+  function resetOriginalComposer() {
+    setOriginalCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
+    setOriginalCustomTopic("");
+    setOriginalProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    setOriginalImageCountValue(AUTO_IMAGE_COUNT_OPTION);
+    setOriginalAdditionalInstruction("");
+    setCoverReferenceFile(null);
+    setGalleryReferenceFiles([]);
+  }
+
+  function handleOpenOriginalModal() {
+    resetOriginalComposer();
+    setIsOriginalModalOpen(true);
+  }
+
+  function handleCloseOriginalModal() {
+    setIsOriginalModalOpen(false);
+  }
+
+  async function handleCreateOriginalWork() {
+    const isCustomTopic = originalCalendarValue === CUSTOM_TOPIC_OPTION;
+    const customTopicName = originalCustomTopic.trim();
+
+    if (isCustomTopic && !customTopicName) {
+      setErrorMessage("请选择营销日历选题，或填写你自己的选题。");
+      return;
+    }
+
+    if (!isCustomTopic && !originalCalendarValue) {
+      setErrorMessage("请先选择一个营销日历选题。");
       return;
     }
 
@@ -587,102 +680,100 @@ export default function XiaohongshuPage() {
     setNotice("");
     setErrorMessage("");
 
-    const slug = `${Date.now()}`;
-
     try {
-      const task = await createTask({
-        brandId: workspace.archive.brand.id,
-        taskType: "XHS_NOTE_GENERATION",
-        taskTitle: `生成小红书笔记：${selectedNote.title}`,
-        modelName: "gpt-5.5",
-        pointsCost: 180,
+      const result = await generateXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
+        calendarItemId: isCustomTopic ? undefined : originalCalendarValue,
+        customTopicName: isCustomTopic ? customTopicName : undefined,
+        productId: originalProductValue === NO_PRODUCT_OPTION ? undefined : originalProductValue,
+        imageCount: originalImageCountValue === AUTO_IMAGE_COUNT_OPTION ? undefined : Number(originalImageCountValue),
+        additionalInstruction: originalAdditionalInstruction.trim() || undefined,
+        coverReferenceFile,
+        galleryReferenceFiles,
       });
 
-      const noteMedia = await createMedia({
-        brandId: workspace.archive.brand.id,
-        taskId: task.id,
-        title: `小红书笔记 - ${selectedNote.title}`,
-        mediaType: "HTML",
-        storageKey: `works/${workspace.archive.brand.id}/xiaohongshu-note-${slug}.html`,
-        sourceUrl: `https://oss.example.com/works/${workspace.archive.brand.id}/xiaohongshu-note-${slug}.html`,
-        mimeType: "text/html",
-      });
-
-      const coverMedia = await createMedia({
-        brandId: workspace.archive.brand.id,
-        taskId: task.id,
-        title: `小红书封面图 - ${selectedNote.title}`,
-        mediaType: "IMAGE",
-        storageKey: `works/${workspace.archive.brand.id}/xiaohongshu-cover-${slug}.png`,
-        sourceUrl: `https://oss.example.com/works/${workspace.archive.brand.id}/xiaohongshu-cover-${slug}.png`,
-        mimeType: "image/png",
-      });
-
-      setWorkspace((current) => ({
-        ...current,
-        tasks: [task, ...current.tasks],
-        media: [coverMedia, noteMedia, ...current.media],
-      }));
-      setSelectedWorkId(noteMedia.id);
-      setNotice("已创建小红书任务，并同步产出到“我的作品”。");
+      setOriginalWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
+      setSelectedOriginalWorkId(result.item.id);
+      setIsOriginalModalOpen(false);
+      setEditingOriginalWorkId("");
+      setEditingOriginalTitle("");
+      setEditingOriginalContent("");
+      setNotice("原创笔记已创作完成，并已同步保存到“我的作品”。");
+      resetOriginalComposer();
     } catch (error) {
-      if (dataSource === "seed") {
-        const now = new Date().toISOString();
-        const localTask: TaskRecord = {
-          id: `tsk_local_${slug}`,
-          userId: "usr_demo_001",
-          brandId: workspace.archive.brand.id,
-          taskType: "XHS_NOTE_GENERATION",
-          taskTitle: `生成小红书笔记：${selectedNote.title}`,
-          taskStatus: "QUEUED",
-          modelName: "gpt-5.5",
-          pointsCost: 180,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        const localWorks: MediaRecord[] = [
-          {
-            id: `med_local_cover_${slug}`,
-            userId: "usr_demo_001",
-            brandId: workspace.archive.brand.id,
-            taskId: localTask.id,
-            title: `小红书封面图 - ${selectedNote.title}`,
-            mediaType: "IMAGE",
-            storageKey: `works/${workspace.archive.brand.id}/xiaohongshu-cover-${slug}.png`,
-            sourceUrl: `https://oss.example.com/works/${workspace.archive.brand.id}/xiaohongshu-cover-${slug}.png`,
-            mimeType: "image/png",
-            createdAt: now,
-            updatedAt: now,
-          },
-          {
-            id: `med_local_note_${slug}`,
-            userId: "usr_demo_001",
-            brandId: workspace.archive.brand.id,
-            taskId: localTask.id,
-            title: `小红书笔记 - ${selectedNote.title}`,
-            mediaType: "HTML",
-            storageKey: `works/${workspace.archive.brand.id}/xiaohongshu-note-${slug}.html`,
-            sourceUrl: `https://oss.example.com/works/${workspace.archive.brand.id}/xiaohongshu-note-${slug}.html`,
-            mimeType: "text/html",
-            createdAt: now,
-            updatedAt: now,
-          },
-        ];
-
-        setWorkspace((current) => ({
-          ...current,
-          tasks: [localTask, ...current.tasks],
-          media: [...localWorks, ...current.media],
-        }));
-        setSelectedWorkId(localWorks[1].id);
-        setNotice("已在本地演示数据中创建小红书任务和作品。");
-      } else {
-        const message = error instanceof Error ? error.message : "小红书任务创建失败";
-        setErrorMessage(`发布失败：${message}`);
-      }
+      const message = error instanceof Error ? error.message : "原创笔记创作失败";
+      setErrorMessage(`创作失败：${message}`);
     } finally {
       setIsPublishing(false);
+    }
+  }
+
+  function handleStartEditOriginalWork(item: XiaohongshuOriginalWorkRecord) {
+    setSelectedOriginalWorkId(item.id);
+    setEditingOriginalWorkId(item.id);
+    setEditingOriginalTitle(item.title);
+    setEditingOriginalContent(item.content);
+  }
+
+  function handleCancelEditOriginalWork() {
+    setEditingOriginalWorkId("");
+    setEditingOriginalTitle("");
+    setEditingOriginalContent("");
+  }
+
+  async function handleSaveOriginalWork() {
+    if (!editingOriginalWorkId) {
+      return;
+    }
+
+    const title = editingOriginalTitle.trim();
+    const content = editingOriginalContent.trim();
+    if (!title || !content) {
+      setErrorMessage("标题和正文不能为空。");
+      return;
+    }
+
+    setSavingOriginalWorkId(editingOriginalWorkId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await updateXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingOriginalWorkId, {
+        title,
+        content,
+      });
+      setOriginalWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+      setSelectedOriginalWorkId(result.item.id);
+      handleCancelEditOriginalWork();
+      setNotice("原创笔记已更新。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "原创笔记更新失败";
+      setErrorMessage(`保存失败：${message}`);
+    } finally {
+      setSavingOriginalWorkId("");
+    }
+  }
+
+  async function handleDeleteOriginalWork(workId: string) {
+    setDeletingOriginalWorkId(workId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      await deleteXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
+      const remainingItems = originalWorks.filter((item) => item.id !== workId);
+      setOriginalWorks(remainingItems);
+      if (selectedOriginalWorkId === workId) {
+        setSelectedOriginalWorkId(remainingItems[0]?.id || "");
+      }
+      if (editingOriginalWorkId === workId) {
+        handleCancelEditOriginalWork();
+      }
+      setNotice("原创笔记已删除。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "原创笔记删除失败";
+      setErrorMessage(`删除失败：${message}`);
+    } finally {
+      setDeletingOriginalWorkId("");
     }
   }
 
@@ -1108,54 +1199,287 @@ export default function XiaohongshuPage() {
               <p className="panel-subtext">{currentSection.description}</p>
             </div>
             <div className="strategy-inline-actions">
-              <button type="button" className="secondary-button" onClick={() => setActiveSection("plan")}>
-                返回策划
+              <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing}>
+                刷新列表
               </button>
-              <button type="button" className="primary-button" onClick={() => void handlePublish()} disabled={isPublishing || !selectedNote}>
-                {isPublishing ? "发布中..." : "创建任务并产出作品"}
+              <button type="button" className="primary-button" onClick={handleOpenOriginalModal} disabled={isPublishing}>
+                添加原创笔记
               </button>
             </div>
           </div>
 
-          {selectedNote ? (
-            <article className="entity-card personal-card">
-              <div className="entity-card-head">
-                <div>
-                  <strong>{selectedNote.title}</strong>
-                  <p className="personal-meta">{selectedNote.summary}</p>
-                </div>
-                <span className="archive-pill status-ready">{goal}</span>
+          {!originalWorks.length ? (
+            <div className="empty-state">当前还没有原创笔记，点击右上角“添加原创笔记”开始创作。</div>
+          ) : (
+            <div className="personal-list">
+              <div className="xhs-material-card-grid">
+                {originalWorks.map((item) => {
+                  const isActive = selectedOriginalWorkId === item.id;
+                  const isEditing = editingOriginalWorkId === item.id;
+                  return (
+                    <article key={item.id} className={`xhs-material-card ${isActive ? "is-active" : ""}`}>
+                      <button
+                        type="button"
+                        className="xhs-material-card-stage"
+                        onClick={() => setSelectedOriginalWorkId(item.id)}
+                      >
+                        {item.coverImageUrl ? (
+                          <img className="xhs-material-card-media" src={item.coverImageUrl} alt={item.title} />
+                        ) : (
+                          <span className="xhs-material-card-empty">暂无封面</span>
+                        )}
+                        <span className="xhs-material-card-badge">原创</span>
+                      </button>
+                      <div className="xhs-material-card-body">
+                        <strong>{item.title}</strong>
+                        <p>{item.calendarLabel || item.customTopicName || "自定义选题"}</p>
+                        <p>{formatDateTime(item.createdAt)}</p>
+                        <div className="xhs-material-card-actions">
+                          <button type="button" className="secondary-button" onClick={() => handleStartEditOriginalWork(item)}>
+                            {isEditing ? "编辑中" : "编辑"}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleDeleteOriginalWork(item.id)}
+                            disabled={deletingOriginalWorkId === item.id}
+                          >
+                            {deletingOriginalWorkId === item.id ? "删除中..." : "删除"}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-              <div className="personal-list">
-                <p>{selectedNote.opening}</p>
-                {selectedNote.outline.map((item) => (
-                  <div className="entity-card admin-rule-card" key={item}>
-                    <strong>{item}</strong>
-                  </div>
-                ))}
-                <div className="field-full">
-                  <span>推荐话题</span>
-                  <strong>{selectedNote.hashtags.join(" ")}</strong>
-                </div>
-              </div>
-            </article>
-          ) : null}
 
-          <div className="personal-list">
-            {noteDrafts.map((item) => (
-              <article className="entity-card personal-card" key={item.id}>
-                <div className="entity-card-head">
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p className="personal-meta">{item.summary}</p>
+              {originalSelectedWork ? (
+                <article className="entity-card personal-card">
+                  <div className="entity-card-head">
+                    <div>
+                      <strong>{editingOriginalWorkId === originalSelectedWork.id ? "编辑原创笔记" : originalSelectedWork.title}</strong>
+                      <p className="personal-meta">
+                        {originalSelectedWork.calendarLabel || originalSelectedWork.customTopicName || "自定义选题"}
+                        {originalSelectedWork.productName ? ` · 产品：${originalSelectedWork.productName}` : ""}
+                      </p>
+                    </div>
+                    <div className="report-editor-actions">
+                      <span className="archive-pill status-ready">{originalSelectedWork.noteCategory}</span>
+                      <span className="archive-pill status-pending">{originalSelectedWork.noteType}</span>
+                      <span className={`archive-pill ${getOriginalTaskStatusClass(originalSelectedWork.taskStatus)}`}>
+                        {getOriginalTaskStatusText(originalSelectedWork.taskStatus)}
+                      </span>
+                    </div>
                   </div>
-                  <button type="button" className="secondary-button" onClick={() => setSelectedNoteId(item.id)}>
-                    切换查看
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+
+                  {editingOriginalWorkId === originalSelectedWork.id ? (
+                    <div className="personal-list">
+                      <label className="report-editor-pane">
+                        <span>标题</span>
+                        <input
+                          className="report-markdown-textarea"
+                          value={editingOriginalTitle}
+                          onChange={(event) => setEditingOriginalTitle(event.target.value)}
+                        />
+                      </label>
+                      <label className="report-editor-pane">
+                        <span>正文</span>
+                        <textarea
+                          className="report-markdown-textarea"
+                          value={editingOriginalContent}
+                          onChange={(event) => setEditingOriginalContent(event.target.value)}
+                          placeholder="请输入原创笔记正文"
+                        />
+                      </label>
+                      <div className="strategy-inline-actions">
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={() => void handleSaveOriginalWork()}
+                          disabled={savingOriginalWorkId === originalSelectedWork.id}
+                        >
+                          {savingOriginalWorkId === originalSelectedWork.id ? "保存中..." : "保存"}
+                        </button>
+                        <button type="button" className="secondary-button" onClick={handleCancelEditOriginalWork}>
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="personal-list">
+                      <div className="personal-grid">
+                        <div>
+                          <span>创建时间</span>
+                          <strong>{formatDateTime(originalSelectedWork.createdAt)}</strong>
+                        </div>
+                        <div>
+                          <span>最近更新</span>
+                          <strong>{formatDateTime(originalSelectedWork.updatedAt)}</strong>
+                        </div>
+                        <div>
+                          <span>封面提示词模型</span>
+                          <strong>{originalSelectedWork.imagePromptModel || "未记录"}</strong>
+                        </div>
+                        <div>
+                          <span>文案模型</span>
+                          <strong>{originalSelectedWork.copyModel || "未记录"}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>用户要求</span>
+                          <strong>{originalSelectedWork.additionalInstruction || "未填写"}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>正文</span>
+                          <strong style={{ whiteSpace: "pre-wrap" }}>{originalSelectedWork.content}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>标签</span>
+                          <strong>{originalSelectedWork.hashtags.length ? originalSelectedWork.hashtags.join(" ") : "未生成"}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>封面提示词</span>
+                          <strong>{originalSelectedWork.coverPrompt || "未生成"}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>配图提示词</span>
+                          <strong>{originalSelectedWork.imagePrompts.length ? originalSelectedWork.imagePrompts.join("\n\n") : "未生成"}</strong>
+                        </div>
+                        <div className="field-full">
+                          <span>参考图风格档案</span>
+                          <strong>
+                            {[originalSelectedWork.coverReferenceStyle, ...originalSelectedWork.galleryReferenceStyles].filter(Boolean).join("\n\n") || "未上传参考图"}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {originalSelectedWork.coverImageUrl ? (
+                        <div className="generated-work-cover">
+                          <span>封面</span>
+                          <img src={originalSelectedWork.coverImageUrl} alt={originalSelectedWork.title} className="media-lightbox-image" />
+                        </div>
+                      ) : null}
+
+                      {originalSelectedWork.imageUrls.length ? (
+                        <div className="xhs-material-card-grid">
+                          {originalSelectedWork.imageUrls.map((url, index) => (
+                            <article key={`${originalSelectedWork.id}-image-${index}`} className="xhs-material-card">
+                              <div className="xhs-material-card-stage">
+                                <img className="xhs-material-card-media" src={url} alt={`${originalSelectedWork.title} 配图 ${index + 1}`} />
+                                <span className="xhs-material-card-badge">配图 {index + 1}</span>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </article>
+              ) : null}
+            </div>
+          )}
+
+          {isOriginalModalOpen ? (
+            <div className="media-preview-overlay" onClick={handleCloseOriginalModal}>
+              <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="media-preview-close" onClick={handleCloseOriginalModal}>
+                  关闭
+                </button>
+                <article className="entity-card personal-card">
+                  <div className="entity-card-head">
+                    <div>
+                      <strong>添加原创笔记</strong>
+                      <p className="personal-meta">选择营销日历选题、产品与参考图后，直接触发完整原创图文生成链路。</p>
+                    </div>
+                  </div>
+                  <div className="personal-grid">
+                    <label>
+                      <span>营销日历</span>
+                      <select value={originalCalendarValue} onChange={(event) => setOriginalCalendarValue(event.target.value)}>
+                        {originalCalendarOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                        <option value={CUSTOM_TOPIC_OPTION}>自己有选题，不使用系统选题</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>产品</span>
+                      <select value={originalProductValue} onChange={(event) => setOriginalProductValue(event.target.value)}>
+                        {workspace.archive.products.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.productName}
+                          </option>
+                        ))}
+                        <option value={NO_PRODUCT_OPTION}>不植入产品</option>
+                      </select>
+                    </label>
+                    {originalCalendarValue === CUSTOM_TOPIC_OPTION ? (
+                      <label className="field-full">
+                        <span>自定义选题</span>
+                        <input
+                          value={originalCustomTopic}
+                          onChange={(event) => setOriginalCustomTopic(event.target.value)}
+                          placeholder="请输入你的原创笔记选题"
+                        />
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>封面参考图</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => setCoverReferenceFile(event.target.files?.[0] || null)}
+                      />
+                      <strong>{coverReferenceFile?.name || "未上传"}</strong>
+                    </label>
+                    <label>
+                      <span>配图数量</span>
+                      <select value={originalImageCountValue} onChange={(event) => setOriginalImageCountValue(event.target.value)}>
+                        <option value={AUTO_IMAGE_COUNT_OPTION}>自由发挥</option>
+                        {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => (
+                          <option key={count} value={String(count)}>
+                            {count}张
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field-full">
+                      <span>配图参考图</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(event) => setGalleryReferenceFiles(Array.from(event.target.files || []))}
+                      />
+                      <strong>
+                        {galleryReferenceFiles.length
+                          ? galleryReferenceFiles.map((item) => item.name).join("、")
+                          : "未上传"}
+                      </strong>
+                    </label>
+                    <label className="field-full">
+                      <span>用户要求</span>
+                      <textarea
+                        className="report-markdown-textarea"
+                        value={originalAdditionalInstruction}
+                        onChange={(event) => setOriginalAdditionalInstruction(event.target.value)}
+                        placeholder="例如：更偏生活方式感、门店场景感更强、语气更克制。"
+                      />
+                    </label>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <button type="button" className="primary-button" onClick={() => void handleCreateOriginalWork()} disabled={isPublishing}>
+                      {isPublishing ? "创作中..." : "一键创作"}
+                    </button>
+                    <button type="button" className="secondary-button" onClick={handleCloseOriginalModal} disabled={isPublishing}>
+                      取消
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          ) : null}
         </article>
       );
     }
@@ -1639,6 +1963,46 @@ function getTaskStatusClass(status?: TaskRecord["taskStatus"]) {
   }
 
   return "status-pending";
+}
+
+function getOriginalTaskStatusClass(status?: XiaohongshuOriginalWorkRecord["taskStatus"]) {
+  if (status === "SUCCESS") {
+    return "status-ready";
+  }
+
+  if (status === "RUNNING" || status === "QUEUED" || status === "PENDING") {
+    return "status-in_progress";
+  }
+
+  if (status === "FAILED" || status === "CANCELLED") {
+    return "status-pending";
+  }
+
+  return "status-pending";
+}
+
+function getOriginalTaskStatusText(status?: XiaohongshuOriginalWorkRecord["taskStatus"]) {
+  if (status === "SUCCESS") {
+    return "已完成";
+  }
+
+  if (status === "RUNNING") {
+    return "生成中";
+  }
+
+  if (status === "QUEUED" || status === "PENDING") {
+    return "排队中";
+  }
+
+  if (status === "FAILED") {
+    return "失败";
+  }
+
+  if (status === "CANCELLED") {
+    return "已取消";
+  }
+
+  return "状态未知";
 }
 
 function escapeHtml(value: string) {

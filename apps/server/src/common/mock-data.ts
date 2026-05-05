@@ -92,6 +92,7 @@ export type MediaRecord = {
   storageKey: string;
   mimeType?: string;
   fileSize?: number;
+  metadataJson?: Record<string, unknown>;
   createdAt: string;
   updatedAt?: string;
 };

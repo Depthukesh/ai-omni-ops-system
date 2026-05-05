@@ -14,6 +14,7 @@ import { MediaModule } from "./modules/media/media.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { WorksModule } from "./modules/works/works.module";
 import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
@@ -32,6 +33,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     MediaModule,
     OrdersModule,
     ReportsModule,
+    WorksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
