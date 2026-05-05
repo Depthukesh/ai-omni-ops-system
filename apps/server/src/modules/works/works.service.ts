@@ -783,46 +783,50 @@ export class WorksService {
   }) {
     const providers = this.loadImageGenerationProviders();
     let lastError = "";
+    const promptsToTry = this.buildImagePromptCandidates(params.prompt);
 
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
-            try {
-              const response = await this.requestModelCompletion(
-                baseUrl,
-                provider.completionPath,
-                apiKey,
-                this.buildImageGenerationPayload(modelName, params.prompt, params.referenceImageUrls),
-                provider.requestTimeoutMs ?? 180000,
-              );
-              if (!response.ok) {
-                lastError = `${modelName} 请求失败：${response.status}`;
-                continue;
-              }
-              const payload = await response.json() as Record<string, unknown>;
-              const asset = this.extractGeneratedImagePayload(payload);
-              if (!asset) {
-                lastError = `${modelName} 未返回图片`;
-                continue;
-              }
+            for (const promptCandidate of promptsToTry) {
+              try {
+                const response = await this.requestModelCompletion(
+                  baseUrl,
+                  provider.completionPath,
+                  apiKey,
+                  this.buildImageGenerationPayload(modelName, promptCandidate, params.referenceImageUrls),
+                  provider.requestTimeoutMs ?? 180000,
+                );
+                if (!response.ok) {
+                  const responseSnippet = await this.readResponseSnippet(response);
+                  lastError = `${modelName} 请求失败：${response.status}${responseSnippet ? `，${responseSnippet}` : ""}`;
+                  continue;
+                }
+                const payload = await response.json() as Record<string, unknown>;
+                const asset = this.extractGeneratedImagePayload(payload);
+                if (!asset) {
+                  lastError = `${modelName} 未返回图片`;
+                  continue;
+                }
 
-              const fileName = `${params.taskId}-${params.role.toLowerCase()}-${params.order + 1}${asset.extension}`;
-              const finalUrl = asset.url
-                || (asset.base64
-                  ? this.writeGeneratedBinaryFile(params.brandId, fileName, asset.base64, asset.contentType).url
-                  : "");
-              if (!finalUrl) {
-                lastError = `${modelName} 未返回可保存的图片内容`;
-                continue;
+                const fileName = `${params.taskId}-${params.role.toLowerCase()}-${params.order + 1}${asset.extension}`;
+                const finalUrl = asset.url
+                  || (asset.base64
+                    ? this.writeGeneratedBinaryFile(params.brandId, fileName, asset.base64, asset.contentType).url
+                    : "");
+                if (!finalUrl) {
+                  lastError = `${modelName} 未返回可保存的图片内容`;
+                  continue;
+                }
+                return {
+                  url: finalUrl,
+                  modelName,
+                  prompt: promptCandidate,
+                };
+              } catch (error) {
+                lastError = error instanceof Error ? error.message : "图片生成失败";
               }
-              return {
-                url: finalUrl,
-                modelName,
-                prompt: params.prompt,
-              };
-            } catch (error) {
-              lastError = error instanceof Error ? error.message : "图片生成失败";
             }
           }
         }
@@ -841,7 +845,7 @@ export class WorksService {
           taskType: "XHS_ORIGINAL_NOTE",
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: "gemini-3.1-pro-preview",
+          modelName: "deepseek-v4-pro",
           pointsCost: 260,
         },
       });
@@ -855,7 +859,7 @@ export class WorksService {
       taskType: "XHS_ORIGINAL_NOTE",
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: "gemini-3.1-pro-preview",
+      modelName: "deepseek-v4-pro",
       pointsCost: 260,
       createdAt: now,
       updatedAt: now,
@@ -1330,7 +1334,6 @@ export class WorksService {
   }
 
   private loadOriginalCopyProviders() {
-    const thirdParty = this.loadThirdPartyChatConfig(this.resolveThirdPartyApiConfigPath());
     const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
     const deepseekSection = this.extractProviderSection(domesticContent, "deepseek", ["kimi", "GLM"]);
     const kimiSection = this.extractProviderSection(domesticContent, "kimi", ["GLM"]);
@@ -1339,18 +1342,19 @@ export class WorksService {
     const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
 
     const providers: TextProviderConfig[] = [];
-    if (thirdParty.baseUrls.length && thirdParty.apiKeys.length) {
+    if (deepseekApiKeys.length) {
       providers.push({
-        provider: "THIRD_PARTY",
-        baseUrls: thirdParty.baseUrls,
-        completionPath: thirdParty.completionPath,
-        apiKeys: thirdParty.apiKeys.slice(0, 4),
-        models: ["gemini-3.1-pro-preview"],
-        temperature: 0.7,
+        provider: "DEEPSEEK",
+        baseUrls: ["https://api.deepseek.com"],
+        completionPath: "/chat/completions",
+        apiKeys: deepseekApiKeys.slice(0, 2),
+        models: ["deepseek-v4-pro"],
+        temperature: 0.3,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         payloadExtras: {
           response_format: { type: "json_object" },
+          thinking: { type: "disabled" },
         },
       });
     }
@@ -1385,22 +1389,6 @@ export class WorksService {
         },
       });
     }
-    if (deepseekApiKeys.length) {
-      providers.push({
-        provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
-        models: ["deepseek-v4-pro"],
-        temperature: 0.3,
-        maxTokens: 2200,
-        requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-          thinking: { type: "disabled" },
-        },
-      });
-    }
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
     }
@@ -1408,7 +1396,6 @@ export class WorksService {
   }
 
   private loadOriginalImagePromptProviders() {
-    const thirdParty = this.loadThirdPartyChatConfig(this.resolveThirdPartyApiConfigPath());
     const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
     const deepseekSection = this.extractProviderSection(domesticContent, "deepseek", ["kimi", "GLM"]);
     const kimiSection = this.extractProviderSection(domesticContent, "kimi", ["GLM"]);
@@ -1417,18 +1404,19 @@ export class WorksService {
     const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
 
     const providers: TextProviderConfig[] = [];
-    if (thirdParty.baseUrls.length && thirdParty.apiKeys.length) {
+    if (deepseekApiKeys.length) {
       providers.push({
-        provider: "THIRD_PARTY",
-        baseUrls: thirdParty.baseUrls,
-        completionPath: thirdParty.completionPath,
-        apiKeys: thirdParty.apiKeys.slice(0, 4),
-        models: ["gpt-5.4-nano"],
-        temperature: 0.5,
+        provider: "DEEPSEEK",
+        baseUrls: ["https://api.deepseek.com"],
+        completionPath: "/chat/completions",
+        apiKeys: deepseekApiKeys.slice(0, 2),
+        models: ["deepseek-v4-pro"],
+        temperature: 0.3,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         payloadExtras: {
           response_format: { type: "json_object" },
+          thinking: { type: "disabled" },
         },
       });
     }
@@ -1460,22 +1448,6 @@ export class WorksService {
         requestTimeoutMs: 180000,
         payloadExtras: {
           response_format: { type: "json_object" },
-        },
-      });
-    }
-    if (deepseekApiKeys.length) {
-      providers.push({
-        provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
-        models: ["deepseek-v4-pro"],
-        temperature: 0.3,
-        maxTokens: 2800,
-        requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-          thinking: { type: "disabled" },
         },
       });
     }
@@ -1539,37 +1511,27 @@ export class WorksService {
   }
 
   private buildImageGenerationPayload(modelName: string, prompt: string, referenceImageUrls: string[]) {
-    if (!referenceImageUrls.length) {
-      return {
-        model: modelName,
-        stream: false,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      };
+    const content: Array<Record<string, unknown>> = [
+      {
+        type: "text",
+        text: prompt,
+      },
+    ];
+    for (const url of referenceImageUrls) {
+      content.push({
+        type: "image_url",
+        image_url: {
+          url,
+        },
+      });
     }
-
     return {
       model: modelName,
       stream: false,
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt,
-            },
-            ...referenceImageUrls.map((url) => ({
-              type: "image_url",
-              image_url: {
-                url,
-              },
-            })),
-          ],
+          content,
         },
       ],
     };
@@ -1611,33 +1573,81 @@ export class WorksService {
       }
       const content = message.content;
       if (typeof content === "string") {
-        const jsonCandidate = this.tryParseJson(content);
-        if (jsonCandidate && typeof jsonCandidate === "object") {
-          const jsonRecord = this.asRecord(jsonCandidate);
-          const jsonUrl = this.readOptionalString(jsonRecord?.url);
-          const jsonBase64 = this.readOptionalString(jsonRecord?.b64_json) || this.readOptionalString(jsonRecord?.base64);
-          if (jsonUrl || jsonBase64) {
-            return {
-              url: jsonUrl,
-              base64: jsonBase64,
-              extension: ".png",
-              contentType: "image/png",
-            };
-          }
+        const asset = this.extractGeneratedImageFromText(content);
+        if (asset) {
+          return asset;
         }
-        const matchedUrl = content.match(/https?:\/\/[^\s)"']+/)?.[0];
-        if (matchedUrl) {
-          return {
-            url: matchedUrl,
-            base64: undefined,
-            extension: this.resolveImageExtensionFromUrl(matchedUrl),
-            contentType: this.getContentTypeByExtension(matchedUrl),
-          };
+      }
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          const partRecord = this.asRecord(part);
+          const text = this.readOptionalString(partRecord?.text);
+          if (!text) {
+            continue;
+          }
+          const asset = this.extractGeneratedImageFromText(text);
+          if (asset) {
+            return asset;
+          }
         }
       }
     }
 
     return undefined;
+  }
+
+  private extractGeneratedImageFromText(content: string) {
+    const jsonCandidate = this.tryParseJson(content);
+    if (jsonCandidate && typeof jsonCandidate === "object") {
+      const jsonRecord = this.asRecord(jsonCandidate);
+      const jsonUrl = this.readOptionalString(jsonRecord?.url);
+      const jsonBase64 = this.readOptionalString(jsonRecord?.b64_json) || this.readOptionalString(jsonRecord?.base64);
+      if (jsonUrl || jsonBase64) {
+        return {
+          url: jsonUrl,
+          base64: jsonBase64,
+          extension: ".png",
+          contentType: "image/png",
+        };
+      }
+    }
+
+    const markdownImageMatch = content.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+    const markdownLinkMatch = content.match(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/);
+    const matchedUrl =
+      markdownImageMatch?.[1]
+      || markdownLinkMatch?.[1]
+      || content.match(/https?:\/\/[^\s)"']+/)?.[0];
+    if (!matchedUrl) {
+      return undefined;
+    }
+    return {
+      url: matchedUrl,
+      base64: undefined,
+      extension: this.resolveImageExtensionFromUrl(matchedUrl),
+      contentType: this.getContentTypeByExtension(matchedUrl),
+    };
+  }
+
+  private buildImagePromptCandidates(prompt: string) {
+    const normalized = prompt.trim();
+    const compact = normalized
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/[{}[\]<>]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const concise = compact.length > 360 ? `${compact.slice(0, 360)}。` : compact;
+    const fallback = `请根据以下中文描述生成一张高质量社媒图片：${concise}`;
+    return Array.from(new Set([normalized, fallback].filter(Boolean)));
+  }
+
+  private async readResponseSnippet(response: Response) {
+    try {
+      const text = await response.text();
+      return text.replace(/\s+/g, " ").trim().slice(0, 180);
+    } catch {
+      return "";
+    }
   }
 
   private normalizeFixedImagePromptCount(imagePrompts: string[], coverPrompt: string, imageCount: number) {

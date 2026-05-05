@@ -31,6 +31,9 @@ export class TasksService {
         taskStatus: task.taskStatus,
         modelName: task.modelName ?? "",
         pointsCost: task.pointsCost,
+        errorMessage: task.errorMessage ?? undefined,
+        startedAt: task.startedAt?.toISOString(),
+        finishedAt: task.finishedAt?.toISOString(),
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       }));
@@ -68,6 +71,9 @@ export class TasksService {
         taskStatus: task.taskStatus,
         modelName: task.modelName ?? "",
         pointsCost: task.pointsCost,
+        errorMessage: task.errorMessage ?? undefined,
+        startedAt: task.startedAt?.toISOString(),
+        finishedAt: task.finishedAt?.toISOString(),
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       };
@@ -120,6 +126,9 @@ export class TasksService {
         taskStatus: task.taskStatus,
         modelName: task.modelName ?? "",
         pointsCost: task.pointsCost,
+        errorMessage: task.errorMessage ?? undefined,
+        startedAt: task.startedAt?.toISOString(),
+        finishedAt: task.finishedAt?.toISOString(),
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       };

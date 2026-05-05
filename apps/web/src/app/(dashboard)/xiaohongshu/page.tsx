@@ -184,6 +184,22 @@ export default function XiaohongshuPage() {
     return () => window.clearTimeout(timer);
   }, [calendarWorkspace.latestTask?.taskStatus, calendarWorkspace.latestTask?.updatedAt]);
 
+  useEffect(() => {
+    const latestTask = workspace.tasks
+      .filter((item) => item.taskType === "XHS_ORIGINAL_NOTE")
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
+    if (!isTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadWorkspace();
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [workspace.tasks]);
+
   async function loadWorkspace() {
     setIsLoading(true);
     setDataSource("loading");
@@ -341,9 +357,18 @@ export default function XiaohongshuPage() {
   }
 
   const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
+  const currentSection = xiaohongshuSections.find((item) => item.key === activeSection) ?? xiaohongshuSections[0];
 
   const xhsTasks = useMemo(() => getXiaohongshuTasks(workspace.tasks), [workspace.tasks]);
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
+  const originalTasks = useMemo(
+    () =>
+      workspace.tasks
+        .filter((item) => item.taskType === "XHS_ORIGINAL_NOTE")
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [workspace.tasks],
+  );
+  const latestOriginalTask = originalTasks[0];
   const materialNotes = useMemo(() => workspace.materialNotes, [workspace.materialNotes]);
   const selectedWork = xhsMedia.find((item) => item.id === selectedWorkId) || xhsMedia[0];
   const selectedWorkTask = workspace.tasks.find((item) => item.id === selectedWork?.taskId);
@@ -408,6 +433,7 @@ export default function XiaohongshuPage() {
     return Array.from(byDate.values()).sort((left, right) => left.date.localeCompare(right.date));
   }, [calendarWorkspace.history, latestCalendar]);
   const originalSelectedWork = originalWorks.find((item) => item.id === selectedOriginalWorkId) || originalWorks[0];
+  const originalEditingWork = originalWorks.find((item) => item.id === editingOriginalWorkId);
   const originalCalendarOptions = useMemo(
     () =>
       calendarAllItems.map((item) => ({
@@ -442,6 +468,25 @@ export default function XiaohongshuPage() {
             ? "生成失败"
             : latestCalendarTask.taskStatus
     : "";
+  const isOriginalTaskActive = Boolean(
+    latestOriginalTask && (latestOriginalTask.taskStatus === "QUEUED" || latestOriginalTask.taskStatus === "RUNNING"),
+  );
+  const originalInlineError = latestOriginalTask?.taskStatus === "FAILED" ? latestOriginalTask.errorMessage?.trim() || "" : "";
+  const originalTaskStatusText = latestOriginalTask
+    ? latestOriginalTask.taskStatus === "QUEUED"
+      ? "排队中"
+      : latestOriginalTask.taskStatus === "RUNNING"
+        ? "创作中"
+        : latestOriginalTask.taskStatus === "SUCCESS"
+          ? "已完成"
+          : latestOriginalTask.taskStatus === "FAILED"
+            ? "创作失败"
+            : latestOriginalTask.taskStatus
+    : "";
+  const heroTitle = activeSection === "original" ? "原创笔记工作区" : "小红书营销策划方案工作区";
+  const heroDescription = activeSection === "original"
+    ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
+    : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
   const publishedPreview = useMemo(
     () =>
       buildPublishedPreview({
@@ -777,9 +822,20 @@ export default function XiaohongshuPage() {
     }
   }
 
-  function renderSectionCard() {
-    const currentSection = xiaohongshuSections.find((item) => item.key === activeSection) ?? xiaohongshuSections[0];
+  function openOriginalWorkLightbox(item: XiaohongshuOriginalWorkRecord, index: number) {
+    const mediaUrls = getOriginalWorkMediaUrls(item);
+    const targetUrl = mediaUrls[index];
+    if (!targetUrl) {
+      return;
+    }
+    setMaterialLightbox({
+      title: `${item.title} · 图片 ${index + 1}`,
+      url: targetUrl,
+      type: "IMAGE",
+    });
+  }
 
+  function renderSectionCard() {
     if (activeSection === "plan") {
       return (
         <article className="workspace-panel strategy-page-card">
@@ -1199,44 +1255,84 @@ export default function XiaohongshuPage() {
               <p className="panel-subtext">{currentSection.description}</p>
             </div>
             <div className="strategy-inline-actions">
-              <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing}>
+              <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing || isOriginalTaskActive}>
                 刷新列表
               </button>
-              <button type="button" className="primary-button" onClick={handleOpenOriginalModal} disabled={isPublishing}>
+              <button type="button" className="primary-button" onClick={handleOpenOriginalModal} disabled={isPublishing || isOriginalTaskActive}>
                 添加原创笔记
               </button>
             </div>
           </div>
 
+          <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+            <div className="report-editor-head">
+              <div>
+                <strong>原创笔记创作状态</strong>
+                <p>点击“一键创作”后，这里会持续显示原创笔记的排队、创作、失败和完成状态。</p>
+              </div>
+              <div className="report-editor-actions">
+                <span className={`archive-pill ${originalTasks.length ? "status-ready" : "status-in_progress"}`}>
+                  {originalTasks.length ? `累计 ${originalTasks.length} 条任务` : "暂无任务"}
+                </span>
+                {latestOriginalTask ? (
+                  <span className={`archive-pill ${getTaskStatusClass(latestOriginalTask.taskStatus)}`}>{originalTaskStatusText}</span>
+                ) : null}
+                {latestOriginalTask?.updatedAt ? (
+                  <span className="archive-pill status-pending">{formatDateTime(latestOriginalTask.updatedAt)}</span>
+                ) : null}
+              </div>
+            </div>
+            {isOriginalTaskActive ? (
+              <div className="report-inline-tip">
+                {latestOriginalTask?.taskStatus === "QUEUED"
+                  ? "原创笔记任务已提交，正在排队。"
+                  : `原创笔记正在生成中：${latestOriginalTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+              </div>
+            ) : null}
+            {originalInlineError ? <div className="report-inline-tip report-inline-tip--error">{originalInlineError}</div> : null}
+          </article>
+
           {!originalWorks.length ? (
             <div className="empty-state">当前还没有原创笔记，点击右上角“添加原创笔记”开始创作。</div>
           ) : (
-            <div className="personal-list">
+            <div className="xhs-material-library">
               <div className="xhs-material-card-grid">
                 {originalWorks.map((item) => {
-                  const isActive = selectedOriginalWorkId === item.id;
-                  const isEditing = editingOriginalWorkId === item.id;
+                  const mediaUrls = getOriginalWorkMediaUrls(item);
+                  const previewIndex = getMaterialPreviewIndex(materialPreviewIndexMap, item.id, mediaUrls.length);
+                  const previewUrl = mediaUrls[previewIndex];
                   return (
-                    <article key={item.id} className={`xhs-material-card ${isActive ? "is-active" : ""}`}>
+                    <article key={item.id} className="xhs-material-card">
                       <button
                         type="button"
                         className="xhs-material-card-stage"
-                        onClick={() => setSelectedOriginalWorkId(item.id)}
+                        onClick={() => openOriginalWorkLightbox(item, previewIndex)}
                       >
-                        {item.coverImageUrl ? (
-                          <img className="xhs-material-card-media" src={item.coverImageUrl} alt={item.title} />
+                        {previewUrl ? (
+                          <img className="xhs-material-card-media" src={previewUrl} alt={item.title} />
                         ) : (
                           <span className="xhs-material-card-empty">暂无封面</span>
                         )}
                         <span className="xhs-material-card-badge">原创</span>
                       </button>
+                      {mediaUrls.length > 1 ? (
+                        <div className="xhs-material-card-carousel">
+                          <button type="button" className="note-page-button" onClick={() => shiftMaterialPreview(item.id, mediaUrls.length, -1)}>
+                            ‹
+                          </button>
+                          <span>{previewIndex + 1}/{mediaUrls.length}</span>
+                          <button type="button" className="note-page-button" onClick={() => shiftMaterialPreview(item.id, mediaUrls.length, 1)}>
+                            ›
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="xhs-material-card-body">
                         <strong>{item.title}</strong>
                         <p>{item.calendarLabel || item.customTopicName || "自定义选题"}</p>
                         <p>{formatDateTime(item.createdAt)}</p>
                         <div className="xhs-material-card-actions">
                           <button type="button" className="secondary-button" onClick={() => handleStartEditOriginalWork(item)}>
-                            {isEditing ? "编辑中" : "编辑"}
+                            编辑
                           </button>
                           <button
                             type="button"
@@ -1252,131 +1348,69 @@ export default function XiaohongshuPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
 
-              {originalSelectedWork ? (
+          {originalEditingWork ? (
+            <div className="media-preview-overlay" onClick={handleCancelEditOriginalWork}>
+              <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="media-preview-close" onClick={handleCancelEditOriginalWork}>
+                  关闭
+                </button>
                 <article className="entity-card personal-card">
                   <div className="entity-card-head">
                     <div>
-                      <strong>{editingOriginalWorkId === originalSelectedWork.id ? "编辑原创笔记" : originalSelectedWork.title}</strong>
+                      <strong>编辑原创笔记</strong>
                       <p className="personal-meta">
-                        {originalSelectedWork.calendarLabel || originalSelectedWork.customTopicName || "自定义选题"}
-                        {originalSelectedWork.productName ? ` · 产品：${originalSelectedWork.productName}` : ""}
+                        {originalEditingWork.calendarLabel || originalEditingWork.customTopicName || "自定义选题"}
+                        {originalEditingWork.productName ? ` · 产品：${originalEditingWork.productName}` : ""}
                       </p>
                     </div>
                     <div className="report-editor-actions">
-                      <span className="archive-pill status-ready">{originalSelectedWork.noteCategory}</span>
-                      <span className="archive-pill status-pending">{originalSelectedWork.noteType}</span>
-                      <span className={`archive-pill ${getOriginalTaskStatusClass(originalSelectedWork.taskStatus)}`}>
-                        {getOriginalTaskStatusText(originalSelectedWork.taskStatus)}
+                      <span className="archive-pill status-ready">{originalEditingWork.noteCategory}</span>
+                      <span className="archive-pill status-pending">{originalEditingWork.noteType}</span>
+                      <span className={`archive-pill ${getOriginalTaskStatusClass(originalEditingWork.taskStatus)}`}>
+                        {getOriginalTaskStatusText(originalEditingWork.taskStatus)}
                       </span>
                     </div>
                   </div>
-
-                  {editingOriginalWorkId === originalSelectedWork.id ? (
-                    <div className="personal-list">
-                      <label className="report-editor-pane">
-                        <span>标题</span>
-                        <input
-                          className="report-markdown-textarea"
-                          value={editingOriginalTitle}
-                          onChange={(event) => setEditingOriginalTitle(event.target.value)}
-                        />
-                      </label>
-                      <label className="report-editor-pane">
-                        <span>正文</span>
-                        <textarea
-                          className="report-markdown-textarea"
-                          value={editingOriginalContent}
-                          onChange={(event) => setEditingOriginalContent(event.target.value)}
-                          placeholder="请输入原创笔记正文"
-                        />
-                      </label>
-                      <div className="strategy-inline-actions">
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() => void handleSaveOriginalWork()}
-                          disabled={savingOriginalWorkId === originalSelectedWork.id}
-                        >
-                          {savingOriginalWorkId === originalSelectedWork.id ? "保存中..." : "保存"}
-                        </button>
-                        <button type="button" className="secondary-button" onClick={handleCancelEditOriginalWork}>
-                          取消
-                        </button>
-                      </div>
+                  <div className="personal-list">
+                    <label className="report-editor-pane">
+                      <span>标题</span>
+                      <input
+                        className="report-title-input"
+                        value={editingOriginalTitle}
+                        onChange={(event) => setEditingOriginalTitle(event.target.value)}
+                        placeholder="请输入原创笔记标题"
+                      />
+                    </label>
+                    <label className="report-editor-pane">
+                      <span>正文</span>
+                      <textarea
+                        className="report-content-textarea"
+                        value={editingOriginalContent}
+                        onChange={(event) => setEditingOriginalContent(event.target.value)}
+                        placeholder="请输入原创笔记正文"
+                      />
+                    </label>
+                    <div className="strategy-inline-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleSaveOriginalWork()}
+                        disabled={savingOriginalWorkId === originalEditingWork.id}
+                      >
+                        {savingOriginalWorkId === originalEditingWork.id ? "保存中..." : "保存"}
+                      </button>
+                      <button type="button" className="secondary-button" onClick={handleCancelEditOriginalWork}>
+                        取消
+                      </button>
                     </div>
-                  ) : (
-                    <div className="personal-list">
-                      <div className="personal-grid">
-                        <div>
-                          <span>创建时间</span>
-                          <strong>{formatDateTime(originalSelectedWork.createdAt)}</strong>
-                        </div>
-                        <div>
-                          <span>最近更新</span>
-                          <strong>{formatDateTime(originalSelectedWork.updatedAt)}</strong>
-                        </div>
-                        <div>
-                          <span>封面提示词模型</span>
-                          <strong>{originalSelectedWork.imagePromptModel || "未记录"}</strong>
-                        </div>
-                        <div>
-                          <span>文案模型</span>
-                          <strong>{originalSelectedWork.copyModel || "未记录"}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>用户要求</span>
-                          <strong>{originalSelectedWork.additionalInstruction || "未填写"}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>正文</span>
-                          <strong style={{ whiteSpace: "pre-wrap" }}>{originalSelectedWork.content}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>标签</span>
-                          <strong>{originalSelectedWork.hashtags.length ? originalSelectedWork.hashtags.join(" ") : "未生成"}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>封面提示词</span>
-                          <strong>{originalSelectedWork.coverPrompt || "未生成"}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>配图提示词</span>
-                          <strong>{originalSelectedWork.imagePrompts.length ? originalSelectedWork.imagePrompts.join("\n\n") : "未生成"}</strong>
-                        </div>
-                        <div className="field-full">
-                          <span>参考图风格档案</span>
-                          <strong>
-                            {[originalSelectedWork.coverReferenceStyle, ...originalSelectedWork.galleryReferenceStyles].filter(Boolean).join("\n\n") || "未上传参考图"}
-                          </strong>
-                        </div>
-                      </div>
-
-                      {originalSelectedWork.coverImageUrl ? (
-                        <div className="generated-work-cover">
-                          <span>封面</span>
-                          <img src={originalSelectedWork.coverImageUrl} alt={originalSelectedWork.title} className="media-lightbox-image" />
-                        </div>
-                      ) : null}
-
-                      {originalSelectedWork.imageUrls.length ? (
-                        <div className="xhs-material-card-grid">
-                          {originalSelectedWork.imageUrls.map((url, index) => (
-                            <article key={`${originalSelectedWork.id}-image-${index}`} className="xhs-material-card">
-                              <div className="xhs-material-card-stage">
-                                <img className="xhs-material-card-media" src={url} alt={`${originalSelectedWork.title} 配图 ${index + 1}`} />
-                                <span className="xhs-material-card-badge">配图 {index + 1}</span>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  </div>
                 </article>
-              ) : null}
+              </div>
             </div>
-          )}
+          ) : null}
 
           {isOriginalModalOpen ? (
             <div className="media-preview-overlay" onClick={handleCloseOriginalModal}>
@@ -1596,8 +1630,8 @@ export default function XiaohongshuPage() {
             <section className="dashboard-hero xiaohongshu-hero">
               <div>
                 <span className="hero-badge">小红书工作台</span>
-                <h1>小红书营销策划方案工作区</h1>
-                <p>当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。</p>
+                <h1>{heroTitle}</h1>
+                <p>{heroDescription}</p>
                 <div className="workspace-toolbar top-toolbar">
                   <div className="workspace-status">
                     <span className={`archive-pill ${dataSource === "api" ? "status-ready" : "status-in_progress"}`}>
@@ -2127,6 +2161,14 @@ function getMaterialMediaItems(item?: XhsCollectedNoteRecord): XhsMaterialMediaI
   }
 
   return items;
+}
+
+function getOriginalWorkMediaUrls(item?: XiaohongshuOriginalWorkRecord) {
+  if (!item) {
+    return [];
+  }
+  const urls = [item.coverImageUrl, ...item.imageUrls].filter((value): value is string => Boolean(value));
+  return Array.from(new Set(urls));
 }
 
 function getMaterialPreviewIndex(indexMap: Record<string, number>, noteId?: string, total = 0) {

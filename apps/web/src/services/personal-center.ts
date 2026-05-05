@@ -12,6 +12,9 @@ export type TaskRecord = {
   taskStatus: TaskStatus;
   modelName: string;
   pointsCost: number;
+  errorMessage?: string;
+  startedAt?: string;
+  finishedAt?: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -1135,6 +1135,42 @@ button {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+.report-title-input {
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid #dfe5f2;
+  border-radius: 14px;
+  background: #fbfcff;
+  padding: 14px 16px;
+  color: #31374d;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.report-content-textarea {
+  width: 100%;
+  min-height: 360px;
+  max-height: 60vh;
+  border: 1px solid #dfe5f2;
+  border-radius: 16px;
+  background: #fbfcff;
+  padding: 16px;
+  color: #31374d;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-y: auto;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.report-title-input:focus,
+.report-content-textarea:focus,
+.report-markdown-textarea:focus {
+  outline: 2px solid rgba(91, 109, 255, 0.16);
+  border-color: #5b6dff;
+}
+
 .generated-report-html {
   display: block;
   color: #31374d;

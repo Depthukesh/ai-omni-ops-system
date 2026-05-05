@@ -12,6 +12,8 @@
     "dev:web:stable": "node scripts/dev-web-stable.cjs",
     "dev:web:stop": "node scripts/stop-web-stable.cjs",
     "dev:server": "npm --workspace apps/server run start:dev",
+    "dev:server:stable": "node scripts/dev-server-stable.cjs",
+    "dev:server:stop": "node scripts/stop-server-stable.cjs",
     "build:web": "npm --workspace apps/web run build",
     "build:server": "npm --workspace apps/server run build",
     "kimi:lab": "node scripts/kimi-lab.cjs",

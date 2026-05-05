@@ -9,6 +9,14 @@ const expressBodyParser: {
   urlencoded: (options: { extended: boolean; limit: string }) => unknown;
 } = require("express");
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[bootstrap] unhandledRejection", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[bootstrap] uncaughtException", error);
+});
+
 function loadLocalEnvFiles() {
   if (typeof process.loadEnvFile !== "function") {
     return;

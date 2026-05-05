@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
@@ -5073,10 +5074,17 @@ ${normalizedMarkdown}`;
     const normalized = items
       .map((item) => this.asRecord(item))
       .filter((item): item is Record<string, unknown> => Boolean(item))
-      .map((item, index) => ({
-        id: createId("cal"),
-        date: String(item.date ?? "").trim() || this.shiftDate(startDate, index),
-        topicName: String(item.topicName ?? "").trim(),
+      .map((item, index) => {
+        const date = String(item.date ?? "").trim() || this.shiftDate(startDate, index);
+        const topicName = String(item.topicName ?? "").trim();
+        return {
+        id: this.resolveCalendarItemId(item, {
+          index,
+          date,
+          topicName,
+        }),
+        date,
+        topicName,
         productName: String(item.productName ?? "").trim() || undefined,
         noteType: String(item.noteType ?? "").trim() || undefined,
         targetAudience: String(item.targetAudience ?? "").trim() || undefined,
@@ -5088,9 +5096,28 @@ ${normalizedMarkdown}`;
         coverFormat: String(item.coverFormat ?? "").trim() || undefined,
         coverKeywords: this.normalizeStringArray(item.coverKeywords, [], 6),
         imageBrief: String(item.imageBrief ?? "").trim() || undefined,
-      }))
+      };
+      })
       .filter((item) => item.date && item.topicName);
     return normalized;
+  }
+
+  private resolveCalendarItemId(
+    item: Record<string, unknown>,
+    params: {
+      index: number;
+      date: string;
+      topicName: string;
+    },
+  ) {
+    const rawId = String(item.id ?? "").trim();
+    if (rawId) {
+      return rawId;
+    }
+
+    const seed = `${params.date}|${params.topicName}|${params.index}`;
+    const digest = createHash("sha1").update(seed).digest("hex").slice(0, 12);
+    return `cal_${digest}`;
   }
 
   private shiftDate(startDate: string | undefined, offset: number) {
