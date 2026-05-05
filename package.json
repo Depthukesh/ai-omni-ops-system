@@ -1,0 +1,31 @@
+{
+  "name": "ai-omni-ops-system",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:web:stable": "node scripts/dev-web-stable.cjs",
+    "dev:web:stop": "node scripts/stop-web-stable.cjs",
+    "dev:server": "npm --workspace apps/server run start:dev",
+    "build:web": "npm --workspace apps/web run build",
+    "build:server": "npm --workspace apps/server run build",
+    "kimi:lab": "node scripts/kimi-lab.cjs",
+    "lint:web": "npm --workspace apps/web run lint",
+    "lint:server": "npm --workspace apps/server run lint",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "prisma:seed": "node scripts/seed-demo.cjs",
+    "db:init": "npm run prisma:generate && npm run prisma:db:push && npm run prisma:seed"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.16.1",
+    "prisma": "^6.16.1"
+  }
+}

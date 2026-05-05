@@ -1,0 +1,1 @@
+# Config\n\n用于沉淀 ESLint、Prettier、TypeScript 等共享配置。\n

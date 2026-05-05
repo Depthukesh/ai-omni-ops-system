@@ -1,0 +1,15 @@
+node_modules
+.pnpm-store
+.next
+dist
+coverage
+.env
+.env.local
+.DS_Store
+*.log
+*.pid
+.runtime
+.lark-cli
+.trae
+.tmp*
+prisma/dev.db
