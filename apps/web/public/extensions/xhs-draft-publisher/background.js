@@ -47,6 +47,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "AI_OMNI_XHS_EXTENSION_HEALTHCHECK") {
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.type === "AI_OMNI_XHS_RESOLVE_DRAFT_PAYLOAD") {
     void buildDraftPayload(message.payload)
       .then((draftPayload) => sendResponse({ draftPayload }))

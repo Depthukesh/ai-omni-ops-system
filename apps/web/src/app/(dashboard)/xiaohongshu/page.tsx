@@ -1544,21 +1544,28 @@ export default function XiaohongshuPage() {
     });
   }
 
+  function buildDesktopCreatorLaunchUrl(session: XiaohongshuDesktopDraftSession) {
+    const baseUrl = String(session.creatorUrl || "https://creator.xiaohongshu.com/publish/publish").trim();
+    const url = new URL(baseUrl);
+    url.hash = new URLSearchParams({
+      ai_omni_token: String(session.token || ""),
+      ai_omni_api: API_BASE_URL,
+    }).toString();
+    return url.toString();
+  }
+
   async function handleCreateDesktopPublishSession() {
     if (!publishingTarget) {
       return;
     }
+
+    const creatorPopup = typeof window !== "undefined" ? window.open("", "_blank", "noopener") : null;
 
     setIsCreatingDesktopPublishSession(true);
     setNotice("");
     setErrorMessage("");
 
     try {
-      const installed = await probeDesktopPublisher();
-      if (!installed) {
-        throw new Error("未检测到电脑端发布扩展。请先在浏览器开发者模式加载 `apps/web/public/extensions/xhs-draft-publisher`。");
-      }
-
       const result = await createXiaohongshuDesktopDraftSession(
         workspace.archive.brand.id || DEMO_BRAND_ID,
         publishingTarget.id,
@@ -1568,20 +1575,35 @@ export default function XiaohongshuPage() {
       );
 
       setActiveDesktopPublishSession(result.session);
-      setNotice(`${publishingTarget.noteCategory}笔记的电脑端一键发布任务已创建，正在自动写入小红书草稿箱。`);
-      window.postMessage(
-        {
-          source: WEB_DESKTOP_PUBLISH_SOURCE,
-          type: "AI_OMNI_XHS_EXTENSION_START_DRAFT",
-          payload: {
-            apiBaseUrl: API_BASE_URL,
-            session: result.session,
+      const creatorLaunchUrl = buildDesktopCreatorLaunchUrl(result.session);
+      if (creatorPopup && !creatorPopup.closed) {
+        creatorPopup.location.href = creatorLaunchUrl;
+      } else if (typeof window !== "undefined") {
+        window.open(creatorLaunchUrl, "_blank", "noopener");
+      }
+
+      const installed = await probeDesktopPublisher(800);
+      if (installed) {
+        setNotice(`${publishingTarget.noteCategory}笔记的电脑端一键发布任务已创建，正在自动打开小红书创作者中心并写入草稿箱。`);
+        window.postMessage(
+          {
+            source: WEB_DESKTOP_PUBLISH_SOURCE,
+            type: "AI_OMNI_XHS_EXTENSION_START_DRAFT",
+            payload: {
+              apiBaseUrl: API_BASE_URL,
+              session: result.session,
+            },
           },
-        },
-        "*",
-      );
+          "*",
+        );
+      } else {
+        setNotice("已直接打开小红书创作者页。若扩展已正常加载，页面会自动接管并写入草稿；若未自动执行，请先重载扩展后重试。");
+      }
       await loadWorkspace({ preserveMessages: true });
     } catch (error) {
+      if (creatorPopup && !creatorPopup.closed) {
+        creatorPopup.close();
+      }
       const message = error instanceof Error ? error.message : "电脑端一键发布失败";
       setErrorMessage(`发布失败：${message}`);
     } finally {

@@ -22,7 +22,18 @@ function setupWorkspaceBridge() {
     }
 
     if (payload.type === "AI_OMNI_XHS_EXTENSION_PING") {
-      window.postMessage({ source: EXTENSION_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PONG" }, "*");
+      chrome.runtime.sendMessage(
+        {
+          source: EXTENSION_SOURCE,
+          type: "AI_OMNI_XHS_EXTENSION_HEALTHCHECK",
+        },
+        (response) => {
+          if (chrome.runtime.lastError || !response?.ok) {
+            return;
+          }
+          window.postMessage({ source: EXTENSION_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PONG" }, "*");
+        },
+      );
       return;
     }
 
@@ -68,7 +79,18 @@ function setupWorkspaceBridge() {
     window.postMessage(message, "*");
   });
 
-  window.postMessage({ source: EXTENSION_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PONG" }, "*");
+  chrome.runtime.sendMessage(
+    {
+      source: EXTENSION_SOURCE,
+      type: "AI_OMNI_XHS_EXTENSION_HEALTHCHECK",
+    },
+    (response) => {
+      if (chrome.runtime.lastError || !response?.ok) {
+        return;
+      }
+      window.postMessage({ source: EXTENSION_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PONG" }, "*");
+    },
+  );
 }
 
 function setupCreatorBridge() {

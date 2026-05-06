@@ -1,5 +1,5 @@
 import { networkInterfaces } from "node:os";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -67,6 +67,7 @@ export class PublishingService {
 
   async createXiaohongshuMobileDraftSession(brandId: string, workId: string, payload: CreateMobileDraftSessionPayload) {
     const work = await this.worksService.getXiaohongshuPublishableWork(brandId, workId);
+    await this.assertDraftImagesAccessible(work);
     const archive = await this.brandsService.getArchive(brandId);
     const xhsAccounts = archive.platformAccounts.filter((item) => item.platform === "XIAOHONGSHU");
     const selectedAccount = payload.accountId
@@ -115,6 +116,7 @@ export class PublishingService {
 
   async createXiaohongshuDesktopDraftSession(brandId: string, workId: string, payload: CreateMobileDraftSessionPayload) {
     const work = await this.worksService.getXiaohongshuPublishableWork(brandId, workId);
+    await this.assertDraftImagesAccessible(work);
     const archive = await this.brandsService.getArchive(brandId);
     const xhsAccounts = archive.platformAccounts.filter((item) => item.platform === "XIAOHONGSHU");
     const selectedAccount = payload.accountId
@@ -570,6 +572,59 @@ export class PublishingService {
     } catch {
       return raw;
     }
+  }
+
+  private async assertDraftImagesAccessible(work: XiaohongshuPublishableWorkRecord) {
+    const imageUrls = Array.isArray(work.allImageUrls) ? work.allImageUrls.filter(Boolean) : [];
+    if (!imageUrls.length) {
+      throw new BadRequestException("当前作品没有可发布的配图，请先重新生成图片后再发布。");
+    }
+
+    const invalidUrls: string[] = [];
+    for (const url of imageUrls.slice(0, 4)) {
+      const ok = await this.checkRemoteAssetAccessible(url);
+      if (!ok) {
+        invalidUrls.push(url);
+      }
+    }
+    if (invalidUrls.length) {
+      throw new BadRequestException("当前作品的历史配图已失效，无法一键发布。请先重新生成该作品图片，或编辑后重新创作一版。");
+    }
+  }
+
+  private async checkRemoteAssetAccessible(url: string) {
+    const raw = String(url || "").trim();
+    if (!raw) {
+      return false;
+    }
+    const methods: Array<"HEAD" | "GET"> = ["HEAD", "GET"];
+    for (const method of methods) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      try {
+        const response = await fetch(raw, {
+          method,
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          return true;
+        }
+        if (method === "HEAD" && (response.status === 403 || response.status === 405)) {
+          continue;
+        }
+        return false;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new ServiceUnavailableException("发布前校验配图超时，请稍后重试。");
+        }
+        if (method === "GET") {
+          throw new ServiceUnavailableException("发布前校验配图失败，请检查网络后重试。");
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return false;
   }
 }
 

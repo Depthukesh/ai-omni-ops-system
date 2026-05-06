@@ -1686,7 +1686,8 @@ export class WorksService {
 
                 const fileName = `${params.taskId}-${params.role.toLowerCase()}-${params.order + 1}${asset.extension}`;
                 const finalUrl = asset.url
-                  || (asset.base64
+                  ? await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType)
+                  : (asset.base64
                     ? this.writeGeneratedBinaryFile(params.brandId, fileName, asset.base64, asset.contentType).url
                     : "");
                 if (!finalUrl) {
@@ -1708,6 +1709,31 @@ export class WorksService {
     }
 
     throw new ServiceUnavailableException(`原创笔记图片生成失败：${lastError || "未获取到有效图片"}`);
+  }
+
+  private async cacheRemoteGeneratedImage(brandId: string, fileName: string, remoteUrl: string, fallbackContentType: string) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    try {
+      const response = await fetch(remoteUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`下载生成图片失败：${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") || fallbackContentType || "image/png";
+      const extension = this.resolveImageExtensionFromMimeType(contentType, fileName);
+      const targetName = fileName.endsWith(extension)
+        ? fileName
+        : `${fileName.replace(/\.[^.]+$/, "")}${extension}`;
+      return this.writeGeneratedBinaryFile(brandId, targetName, buffer.toString("base64"), contentType).url;
+    } catch (error) {
+      throw this.describeFetchError(error, `下载远程生成图片 ${remoteUrl}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async createOriginalTask(params: { userId: string; brandId: string; taskTitle: string }) {
@@ -4339,6 +4365,23 @@ export class WorksService {
   private resolveExtensionFromFileName(fileName: string, fallback = ".bin") {
     const extension = extname(fileName || "").toLowerCase();
     return extension || fallback;
+  }
+
+  private resolveImageExtensionFromMimeType(mimeType: string, fallbackFileName = "") {
+    const normalized = String(mimeType || "").toLowerCase();
+    if (normalized.includes("jpeg") || normalized.includes("jpg")) {
+      return ".jpg";
+    }
+    if (normalized.includes("webp")) {
+      return ".webp";
+    }
+    if (normalized.includes("gif")) {
+      return ".gif";
+    }
+    if (normalized.includes("png")) {
+      return ".png";
+    }
+    return this.resolveExtensionFromFileName(fallbackFileName, ".png");
   }
 
   private extractLocalAssetFileName(url: string, brandId: string) {
