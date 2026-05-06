@@ -1,0 +1,163 @@
+"use client";
+
+import { useState } from "react";
+
+type CalendarOption = {
+  id?: string;
+  topicName?: string;
+};
+
+type MaterialOption = {
+  id?: string;
+};
+
+type ProductOption = {
+  id?: string;
+};
+
+export function useNoteComposerForms(options: {
+  defaultProductId?: string;
+  noProductOption: string;
+  autoImageCountOption: string;
+  customTopicOption: string;
+}) {
+  const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
+  const [originalCalendarValue, setOriginalCalendarValue] = useState("");
+  const [originalCustomTopic, setOriginalCustomTopic] = useState("");
+  const [originalProductValue, setOriginalProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [originalImageCountValue, setOriginalImageCountValue] = useState(options.autoImageCountOption);
+  const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
+  const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
+  const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
+
+  const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
+  const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
+  const [rewriteProductValue, setRewriteProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [rewriteAdditionalInstruction, setRewriteAdditionalInstruction] = useState("");
+
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [videoCalendarValue, setVideoCalendarValue] = useState("");
+  const [videoCustomTopic, setVideoCustomTopic] = useState("");
+  const [videoProductValue, setVideoProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
+  const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
+  const [videoProviderValue, setVideoProviderValue] = useState("seedance2.0");
+  const [videoCustomModelName, setVideoCustomModelName] = useState("");
+  const [videoDurationValue, setVideoDurationValue] = useState("10");
+  const [videoOutputPromptValue, setVideoOutputPromptValue] = useState("yes");
+  const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
+
+  function resetOriginalComposer(calendarItems: CalendarOption[], products: ProductOption[]) {
+    setOriginalCalendarValue(calendarItems[0]?.id || options.customTopicOption);
+    setOriginalCustomTopic("");
+    setOriginalProductValue(products[0]?.id || options.noProductOption);
+    setOriginalImageCountValue(options.autoImageCountOption);
+    setOriginalAdditionalInstruction("");
+    setCoverReferenceFile(null);
+    setGalleryReferenceFiles([]);
+  }
+
+  function openOriginalModal(calendarItems: CalendarOption[], products: ProductOption[]) {
+    resetOriginalComposer(calendarItems, products);
+    setIsOriginalModalOpen(true);
+  }
+
+  function closeOriginalModal() {
+    setIsOriginalModalOpen(false);
+  }
+
+  function resetRewriteComposer(materials: MaterialOption[], products: ProductOption[]) {
+    setRewriteMaterialValue(materials[0]?.id || "");
+    setRewriteProductValue(products[0]?.id || options.noProductOption);
+    setRewriteAdditionalInstruction("");
+  }
+
+  function openRewriteModal(materials: MaterialOption[], products: ProductOption[]) {
+    resetRewriteComposer(materials, products);
+    setIsRewriteModalOpen(true);
+  }
+
+  function closeRewriteModal() {
+    setIsRewriteModalOpen(false);
+  }
+
+  function resetVideoComposer(calendarItems: CalendarOption[], products: ProductOption[]) {
+    setVideoCalendarValue(calendarItems[0]?.id || options.customTopicOption);
+    setVideoCustomTopic("");
+    setVideoProductValue(products[0]?.id || options.noProductOption);
+    setVideoReferenceImageFile(null);
+    setVideoCopyAdditionalInstruction("");
+    setVideoProviderValue("seedance2.0");
+    setVideoCustomModelName("");
+    setVideoDurationValue("10");
+    setVideoOutputPromptValue("yes");
+    setVideoAdditionalInstruction("");
+  }
+
+  function openVideoModal(calendarItems: CalendarOption[], products: ProductOption[]) {
+    resetVideoComposer(calendarItems, products);
+    setIsVideoModalOpen(true);
+  }
+
+  function closeVideoModal() {
+    setIsVideoModalOpen(false);
+  }
+
+  return {
+    isOriginalModalOpen,
+    originalCalendarValue,
+    originalCustomTopic,
+    originalProductValue,
+    originalImageCountValue,
+    originalAdditionalInstruction,
+    coverReferenceFile,
+    galleryReferenceFiles,
+    isRewriteModalOpen,
+    rewriteMaterialValue,
+    rewriteProductValue,
+    rewriteAdditionalInstruction,
+    isVideoModalOpen,
+    videoCalendarValue,
+    videoCustomTopic,
+    videoProductValue,
+    videoReferenceImageFile,
+    videoCopyAdditionalInstruction,
+    videoProviderValue,
+    videoCustomModelName,
+    videoDurationValue,
+    videoOutputPromptValue,
+    videoAdditionalInstruction,
+    setOriginalCalendarValue,
+    setOriginalCustomTopic,
+    setOriginalProductValue,
+    setOriginalImageCountValue,
+    setOriginalAdditionalInstruction,
+    setCoverReferenceFile,
+    setGalleryReferenceFiles,
+    setIsOriginalModalOpen,
+    setRewriteMaterialValue,
+    setRewriteProductValue,
+    setRewriteAdditionalInstruction,
+    setIsRewriteModalOpen,
+    setVideoCalendarValue,
+    setVideoCustomTopic,
+    setVideoProductValue,
+    setVideoReferenceImageFile,
+    setVideoCopyAdditionalInstruction,
+    setVideoProviderValue,
+    setVideoCustomModelName,
+    setVideoDurationValue,
+    setVideoOutputPromptValue,
+    setVideoAdditionalInstruction,
+    setIsVideoModalOpen,
+    resetOriginalComposer,
+    openOriginalModal,
+    closeOriginalModal,
+    resetRewriteComposer,
+    openRewriteModal,
+    closeRewriteModal,
+    resetVideoComposer,
+    openVideoModal,
+    closeVideoModal,
+  };
+}

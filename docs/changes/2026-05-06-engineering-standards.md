@@ -42,7 +42,25 @@
 - 将小红书工作台中的发布弹窗状态、电脑端发布、手机接力二维码、发布完成回写等逻辑抽为独立 hook
 - 新增 `publish-types.ts`，把发布目标类型从页面文件中独立出来
 
-### 3.6 本次评估纳入的重点范围
+### 3.6 第五轮代码收敛
+
+- 新增 `use-note-composer-forms.ts`
+- 将原创、二创、视频三套创作表单的状态、重置逻辑、打开关闭逻辑从页面文件中抽为统一 hook
+- 页面文件继续保留创作提交编排，但不再直接承载大段表单状态初始化代码
+
+### 3.7 第六轮代码收敛
+
+- 新增 `use-work-editors.ts`
+- 将原创、二创、视频三套作品编辑弹窗的状态、开始编辑、取消编辑等逻辑从页面文件中抽为统一 hook
+- 页面文件继续保留保存接口调用与作品列表更新，但不再直接承载大段编辑状态初始化逻辑
+
+### 3.8 第七轮代码收敛
+
+- 新增 `use-work-composer-actions.ts`
+- 将原创、二创、视频三套作品创建时的参数校验、接口调用、提交中状态、列表回写、编辑态清理与提示文案从页面文件中抽为统一 hook
+- 页面文件继续保留弹窗展示与卡片渲染，但不再直接承载三大段创作提交流程
+
+### 3.9 本次评估纳入的重点范围
 
 - 前端页面与 service
 - 浏览器扩展工作台桥接与创作者页自动化
@@ -62,6 +80,9 @@
 - 影响小红书工作台中桌面发布桥接逻辑的组织方式
 - 影响小红书工作台中任务轮询逻辑的组织方式
 - 影响小红书工作台中发布弹窗状态与发布动作的组织方式
+- 影响小红书工作台中原创/二创/视频创作表单状态的组织方式
+- 影响小红书工作台中原创/二创/视频创作提交流程的组织方式
+- 影响小红书工作台中原创/二创/视频编辑弹窗状态的组织方式
 - 不直接修改线上业务逻辑，但会影响后续开发时的默认落点和审查标准
 - 不影响已有数据库数据
 
@@ -78,6 +99,12 @@
 - 再次执行 `npm run build:web` 通过
 - `GetDiagnostics` 检查 `use-publish-flow.ts` 与 `xiaohongshu/page.tsx`
 - 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `use-note-composer-forms.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `use-work-editors.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `use-work-composer-actions.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
 
 ## 7. 风险与后续
 
@@ -86,7 +113,7 @@
 - 下一阶段建议优先处理配置收口、共享协议、资源本站缓存和页面拆分
 - 当前只先收口了 `publishing` 与 `works` 的配置读取，其他模块仍需继续迁移
 - `xiaohongshu/page.tsx` 体量仍然很大，本次只先切出了发布桥接热点，后续还需继续拆任务轮询、作品弹窗和表单状态
-- 当前虽然已抽出发布桥接、任务轮询和发布状态机，但页面仍保留大量表单状态与渲染逻辑，后续应继续按“作品编辑弹窗、原创/二创/视频表单状态”两个方向拆分
+- 当前虽然已抽出发布桥接、任务轮询、发布状态机、创作表单状态、创作提交流程和编辑弹窗状态，但页面仍保留大量卡片渲染与分区视图逻辑，后续应继续按“卡片渲染分区、营销方案工作区子组件”两个方向拆分
 
 ## 8. 相关文件
 
@@ -100,5 +127,8 @@
 - `apps/web/src/app/(dashboard)/xiaohongshu/publish-types.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/task-polling.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-work-editors.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - `.env.example`

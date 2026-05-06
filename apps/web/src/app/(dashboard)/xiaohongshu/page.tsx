@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { type PublishableWorkTarget } from "./publish-types";
 import { findLatestTaskByTypes, isTaskActive, useDelayedTaskPolling } from "./task-polling";
+import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
+import { useWorkComposerActions } from "./use-work-composer-actions";
+import { useWorkEditors } from "./use-work-editors";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
@@ -41,9 +44,6 @@ import {
   deleteXiaohongshuVideoWork,
   deleteXiaohongshuOriginalWork,
   deleteXiaohongshuRewriteWork,
-  generateXiaohongshuVideoWork,
-  generateXiaohongshuOriginalWork,
-  generateXiaohongshuRewriteWork,
   getXiaohongshuVideoWorks,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
@@ -105,53 +105,13 @@ export default function XiaohongshuPage() {
   const [selectedWorkId, setSelectedWorkId] = useState("");
   const [originalWorks, setOriginalWorks] = useState<XiaohongshuOriginalWorkRecord[]>([]);
   const [selectedOriginalWorkId, setSelectedOriginalWorkId] = useState("");
-  const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
-  const [originalCalendarValue, setOriginalCalendarValue] = useState("");
-  const [originalCustomTopic, setOriginalCustomTopic] = useState("");
-  const [originalProductValue, setOriginalProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
-  const [originalImageCountValue, setOriginalImageCountValue] = useState(AUTO_IMAGE_COUNT_OPTION);
-  const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
-  const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
-  const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
-  const [editingOriginalWorkId, setEditingOriginalWorkId] = useState("");
-  const [editingOriginalTitle, setEditingOriginalTitle] = useState("");
-  const [editingOriginalContent, setEditingOriginalContent] = useState("");
-  const [savingOriginalWorkId, setSavingOriginalWorkId] = useState("");
   const [deletingOriginalWorkId, setDeletingOriginalWorkId] = useState("");
   const [rewriteWorks, setRewriteWorks] = useState<XiaohongshuRewriteWorkRecord[]>([]);
   const [selectedRewriteWorkId, setSelectedRewriteWorkId] = useState("");
-  const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
-  const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
-  const [rewriteProductValue, setRewriteProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
-  const [rewriteAdditionalInstruction, setRewriteAdditionalInstruction] = useState("");
-  const [editingRewriteWorkId, setEditingRewriteWorkId] = useState("");
-  const [editingRewriteTitle, setEditingRewriteTitle] = useState("");
-  const [editingRewriteContent, setEditingRewriteContent] = useState("");
-  const [savingRewriteWorkId, setSavingRewriteWorkId] = useState("");
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
-  const [isRewriteSubmitting, setIsRewriteSubmitting] = useState(false);
-  const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
   const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
   const [selectedVideoWorkId, setSelectedVideoWorkId] = useState("");
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [videoCalendarValue, setVideoCalendarValue] = useState("");
-  const [videoCustomTopic, setVideoCustomTopic] = useState("");
-  const [videoProductValue, setVideoProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
-  const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
-  const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
-  const [videoProviderValue, setVideoProviderValue] = useState("seedance2.0");
-  const [videoCustomModelName, setVideoCustomModelName] = useState("");
-  const [videoDurationValue, setVideoDurationValue] = useState("10");
-  const [videoOutputPromptValue, setVideoOutputPromptValue] = useState("yes");
-  const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
-  const [editingVideoWorkId, setEditingVideoWorkId] = useState("");
-  const [editingVideoTitle, setEditingVideoTitle] = useState("");
-  const [editingVideoContent, setEditingVideoContent] = useState("");
-  const [editingVideoPrompt, setEditingVideoPrompt] = useState("");
-  const [savingVideoWorkId, setSavingVideoWorkId] = useState("");
   const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
-  const [isVideoSubmitting, setIsVideoSubmitting] = useState(false);
-  const [videoSubmittingLabel, setVideoSubmittingLabel] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<{ title: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
@@ -160,7 +120,6 @@ export default function XiaohongshuPage() {
   const [isGeneratingCalendar, setIsGeneratingCalendar] = useState(false);
   const [isSavingMarketingPlan, setIsSavingMarketingPlan] = useState(false);
   const [isDeletingMarketingPlan, setIsDeletingMarketingPlan] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
   const [isEditingMarketingPlan, setIsEditingMarketingPlan] = useState(false);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
@@ -169,6 +128,101 @@ export default function XiaohongshuPage() {
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "seed" | "error" | "loading">("loading");
+
+  const composerForms = useNoteComposerForms({
+    defaultProductId: defaultProduct?.id,
+    noProductOption: NO_PRODUCT_OPTION,
+    autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
+    customTopicOption: CUSTOM_TOPIC_OPTION,
+  });
+
+  const {
+    isOriginalModalOpen,
+    originalCalendarValue,
+    originalCustomTopic,
+    originalProductValue,
+    originalImageCountValue,
+    originalAdditionalInstruction,
+    coverReferenceFile,
+    galleryReferenceFiles,
+    isRewriteModalOpen,
+    rewriteMaterialValue,
+    rewriteProductValue,
+    rewriteAdditionalInstruction,
+    isVideoModalOpen,
+    videoCalendarValue,
+    videoCustomTopic,
+    videoProductValue,
+    videoReferenceImageFile,
+    videoCopyAdditionalInstruction,
+    videoProviderValue,
+    videoCustomModelName,
+    videoDurationValue,
+    videoOutputPromptValue,
+    videoAdditionalInstruction,
+    setOriginalCalendarValue,
+    setOriginalCustomTopic,
+    setOriginalProductValue,
+    setOriginalImageCountValue,
+    setOriginalAdditionalInstruction,
+    setCoverReferenceFile,
+    setGalleryReferenceFiles,
+    setRewriteMaterialValue,
+    setRewriteProductValue,
+    setRewriteAdditionalInstruction,
+    setVideoCalendarValue,
+    setVideoCustomTopic,
+    setVideoProductValue,
+    setVideoReferenceImageFile,
+    setVideoCopyAdditionalInstruction,
+    setVideoProviderValue,
+    setVideoCustomModelName,
+    setVideoDurationValue,
+    setVideoOutputPromptValue,
+    setVideoAdditionalInstruction,
+    resetOriginalComposer,
+    openOriginalModal,
+    closeOriginalModal,
+    resetRewriteComposer,
+    openRewriteModal,
+    closeRewriteModal,
+    resetVideoComposer,
+    openVideoModal,
+    closeVideoModal,
+  } = composerForms;
+
+  const workEditors = useWorkEditors();
+  const {
+    editingOriginalWorkId,
+    editingOriginalTitle,
+    editingOriginalContent,
+    savingOriginalWorkId,
+    editingRewriteWorkId,
+    editingRewriteTitle,
+    editingRewriteContent,
+    savingRewriteWorkId,
+    editingVideoWorkId,
+    editingVideoTitle,
+    editingVideoContent,
+    editingVideoPrompt,
+    savingVideoWorkId,
+    setEditingOriginalTitle,
+    setEditingOriginalContent,
+    setSavingOriginalWorkId,
+    setEditingRewriteTitle,
+    setEditingRewriteContent,
+    setSavingRewriteWorkId,
+    setEditingVideoTitle,
+    setEditingVideoContent,
+    setEditingVideoPrompt,
+    setSavingVideoWorkId,
+    startEditOriginalWork,
+    cancelEditOriginalWork: handleCancelEditOriginalWork,
+    startEditRewriteWork,
+    cancelEditRewriteWork: handleCancelEditRewriteWork,
+    startEditVideoWork,
+    cancelEditVideoWork: handleCancelEditVideoWork,
+  } = workEditors;
 
   useEffect(() => {
     void loadWorkspace();
@@ -520,6 +574,67 @@ export default function XiaohongshuPage() {
       })),
     [calendarAllItems],
   );
+  const {
+    isPublishing,
+    isRewriteSubmitting,
+    rewriteSubmittingLabel,
+    isVideoSubmitting,
+    videoSubmittingLabel,
+    createOriginalWork: handleCreateOriginalWork,
+    createRewriteWork: handleCreateRewriteWork,
+    createVideoWork: handleCreateVideoWork,
+  } = useWorkComposerActions({
+    brandId: workspace.archive.brand.id,
+    calendarItems: calendarAllItems,
+    products: workspace.archive.products,
+    materialNotes,
+    noProductOption: NO_PRODUCT_OPTION,
+    customTopicOption: CUSTOM_TOPIC_OPTION,
+    autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
+    setNotice,
+    setErrorMessage,
+    original: {
+      calendarValue: originalCalendarValue,
+      customTopic: originalCustomTopic,
+      productValue: originalProductValue,
+      imageCountValue: originalImageCountValue,
+      additionalInstruction: originalAdditionalInstruction,
+      coverReferenceFile,
+      galleryReferenceFiles,
+      closeModal: closeOriginalModal,
+      resetComposer: resetOriginalComposer,
+      cancelEdit: handleCancelEditOriginalWork,
+      setWorks: setOriginalWorks,
+      setSelectedWorkId: setSelectedOriginalWorkId,
+    },
+    rewrite: {
+      materialValue: rewriteMaterialValue,
+      productValue: rewriteProductValue,
+      additionalInstruction: rewriteAdditionalInstruction,
+      closeModal: closeRewriteModal,
+      resetComposer: resetRewriteComposer,
+      cancelEdit: handleCancelEditRewriteWork,
+      setWorks: setRewriteWorks,
+      setSelectedWorkId: setSelectedRewriteWorkId,
+    },
+    video: {
+      calendarValue: videoCalendarValue,
+      customTopic: videoCustomTopic,
+      productValue: videoProductValue,
+      referenceImageFile: videoReferenceImageFile,
+      copyAdditionalInstruction: videoCopyAdditionalInstruction,
+      providerValue: videoProviderValue,
+      customModelName: videoCustomModelName,
+      durationValue: videoDurationValue,
+      outputPromptValue: videoOutputPromptValue,
+      additionalInstruction: videoAdditionalInstruction,
+      closeModal: closeVideoModal,
+      resetComposer: resetVideoComposer,
+      cancelEdit: handleCancelEditVideoWork,
+      setWorks: setVideoWorks,
+      setSelectedWorkId: setSelectedVideoWorkId,
+    },
+  });
   const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
   const calendarMonthKeys = useMemo(() => {
     const values = new Set<string>();
@@ -871,81 +986,16 @@ export default function XiaohongshuPage() {
     }
   }
 
-  function resetOriginalComposer() {
-    setOriginalCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
-    setOriginalCustomTopic("");
-    setOriginalProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    setOriginalImageCountValue(AUTO_IMAGE_COUNT_OPTION);
-    setOriginalAdditionalInstruction("");
-    setCoverReferenceFile(null);
-    setGalleryReferenceFiles([]);
-  }
-
   function handleOpenOriginalModal() {
-    resetOriginalComposer();
-    setIsOriginalModalOpen(true);
+    openOriginalModal(calendarAllItems, workspace.archive.products);
   }
 
   function handleCloseOriginalModal() {
-    setIsOriginalModalOpen(false);
-  }
-
-  async function handleCreateOriginalWork() {
-    const isCustomTopic = originalCalendarValue === CUSTOM_TOPIC_OPTION;
-    const customTopicName = originalCustomTopic.trim();
-
-    if (isCustomTopic && !customTopicName) {
-      setErrorMessage("请选择营销日历选题，或填写你自己的选题。");
-      return;
-    }
-
-    if (!isCustomTopic && !originalCalendarValue) {
-      setErrorMessage("请先选择一个营销日历选题。");
-      return;
-    }
-
-    setIsPublishing(true);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await generateXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
-        calendarItemId: isCustomTopic ? undefined : originalCalendarValue,
-        customTopicName: isCustomTopic ? customTopicName : undefined,
-        productId: originalProductValue === NO_PRODUCT_OPTION ? undefined : originalProductValue,
-        imageCount: originalImageCountValue === AUTO_IMAGE_COUNT_OPTION ? undefined : Number(originalImageCountValue),
-        additionalInstruction: originalAdditionalInstruction.trim() || undefined,
-        coverReferenceFile,
-        galleryReferenceFiles,
-      });
-
-      setOriginalWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
-      setSelectedOriginalWorkId(result.item.id);
-      setIsOriginalModalOpen(false);
-      setEditingOriginalWorkId("");
-      setEditingOriginalTitle("");
-      setEditingOriginalContent("");
-      setNotice("原创笔记已创作完成，并已同步保存到“我的作品”。");
-      resetOriginalComposer();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "原创笔记创作失败";
-      setErrorMessage(`创作失败：${message}`);
-    } finally {
-      setIsPublishing(false);
-    }
+    closeOriginalModal();
   }
 
   function handleStartEditOriginalWork(item: XiaohongshuOriginalWorkRecord) {
-    setSelectedOriginalWorkId(item.id);
-    setEditingOriginalWorkId(item.id);
-    setEditingOriginalTitle(item.title);
-    setEditingOriginalContent(item.content);
-  }
-
-  function handleCancelEditOriginalWork() {
-    setEditingOriginalWorkId("");
-    setEditingOriginalTitle("");
-    setEditingOriginalContent("");
+    startEditOriginalWork(item, setSelectedOriginalWorkId);
   }
 
   async function handleSaveOriginalWork() {
@@ -1018,71 +1068,16 @@ export default function XiaohongshuPage() {
     });
   }
 
-  function resetRewriteComposer() {
-    setRewriteMaterialValue(materialNotes[0]?.id || "");
-    setRewriteProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    setRewriteAdditionalInstruction("");
-  }
-
   function handleOpenRewriteModal() {
-    resetRewriteComposer();
-    setIsRewriteModalOpen(true);
+    openRewriteModal(materialNotes, workspace.archive.products);
   }
 
   function handleCloseRewriteModal() {
-    setIsRewriteModalOpen(false);
-  }
-
-  async function handleCreateRewriteWork() {
-    if (!rewriteMaterialValue) {
-      setErrorMessage("请先从素材库里选择一个二创作品。");
-      return;
-    }
-
-    setIsPublishing(true);
-    setIsRewriteSubmitting(true);
-    setRewriteSubmittingLabel(
-      materialNotes.find((item) => item.id === rewriteMaterialValue)?.title || "二创笔记任务已提交",
-    );
-    setNotice("");
-    setErrorMessage("");
-    setIsRewriteModalOpen(false);
-
-    try {
-      const result = await generateXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
-        sourceMaterialId: rewriteMaterialValue,
-        productId: rewriteProductValue === NO_PRODUCT_OPTION ? undefined : rewriteProductValue,
-        additionalInstruction: rewriteAdditionalInstruction.trim() || undefined,
-      });
-
-      setRewriteWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
-      setSelectedRewriteWorkId(result.item.id);
-      setEditingRewriteWorkId("");
-      setEditingRewriteTitle("");
-      setEditingRewriteContent("");
-      setNotice("二创笔记已创作完成，并已同步保存到“我的作品”。");
-      resetRewriteComposer();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "二创笔记创作失败";
-      setErrorMessage(`创作失败：${message}`);
-    } finally {
-      setIsRewriteSubmitting(false);
-      setRewriteSubmittingLabel("");
-      setIsPublishing(false);
-    }
+    closeRewriteModal();
   }
 
   function handleStartEditRewriteWork(item: XiaohongshuRewriteWorkRecord) {
-    setSelectedRewriteWorkId(item.id);
-    setEditingRewriteWorkId(item.id);
-    setEditingRewriteTitle(item.title);
-    setEditingRewriteContent(item.content);
-  }
-
-  function handleCancelEditRewriteWork() {
-    setEditingRewriteWorkId("");
-    setEditingRewriteTitle("");
-    setEditingRewriteContent("");
+    startEditRewriteWork(item, setSelectedRewriteWorkId);
   }
 
   async function handleSaveRewriteWork() {
@@ -1155,99 +1150,16 @@ export default function XiaohongshuPage() {
     });
   }
 
-  function resetVideoComposer() {
-    setVideoCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
-    setVideoCustomTopic("");
-    setVideoProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    setVideoReferenceImageFile(null);
-    setVideoCopyAdditionalInstruction("");
-    setVideoProviderValue("seedance2.0");
-    setVideoCustomModelName("");
-    setVideoDurationValue("10");
-    setVideoOutputPromptValue("yes");
-    setVideoAdditionalInstruction("");
-  }
-
   function handleOpenVideoModal() {
-    resetVideoComposer();
-    setIsVideoModalOpen(true);
+    openVideoModal(calendarAllItems, workspace.archive.products);
   }
 
   function handleCloseVideoModal() {
-    setIsVideoModalOpen(false);
-  }
-
-  async function handleCreateVideoWork() {
-    const isCustomTopic = videoCalendarValue === CUSTOM_TOPIC_OPTION;
-    const customTopicName = videoCustomTopic.trim();
-
-    if (isCustomTopic && !customTopicName) {
-      setErrorMessage("请选择营销日历选题，或填写你自己的选题。");
-      return;
-    }
-
-    if (!isCustomTopic && !videoCalendarValue) {
-      setErrorMessage("请先选择一个营销日历选题。");
-      return;
-    }
-
-    if (videoReferenceImageFile && videoProductValue !== NO_PRODUCT_OPTION) {
-      setErrorMessage("参考图和产品不能同时选择，请二选一。");
-      return;
-    }
-
-    setIsPublishing(true);
-    setIsVideoSubmitting(true);
-    setVideoSubmittingLabel(customTopicName || calendarAllItems.find((item) => item.id === videoCalendarValue)?.topicName || "视频笔记任务已提交");
-    setNotice("");
-    setErrorMessage("");
-    setIsVideoModalOpen(false);
-
-    try {
-      const result = await generateXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
-        calendarItemId: isCustomTopic ? undefined : videoCalendarValue,
-        customTopicName: isCustomTopic ? customTopicName : undefined,
-        productId: videoProductValue === NO_PRODUCT_OPTION ? undefined : videoProductValue,
-        referenceImageFile: videoReferenceImageFile,
-        copyAdditionalInstruction: videoCopyAdditionalInstruction.trim() || undefined,
-        videoProvider: videoProviderValue,
-        customVideoModelName: videoCustomModelName.trim() || undefined,
-        durationSec: Number(videoDurationValue),
-        outputVideoPrompt: videoOutputPromptValue === "yes",
-        videoAdditionalInstruction: videoAdditionalInstruction.trim() || undefined,
-      });
-
-      setVideoWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
-      setSelectedVideoWorkId(result.item.id);
-      setEditingVideoWorkId("");
-      setEditingVideoTitle("");
-      setEditingVideoContent("");
-      setEditingVideoPrompt("");
-      setNotice("视频笔记已创作完成，并已同步保存到“我的作品”。");
-      resetVideoComposer();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "视频笔记创作失败";
-      setErrorMessage(`创作失败：${message}`);
-    } finally {
-      setIsVideoSubmitting(false);
-      setVideoSubmittingLabel("");
-      setIsPublishing(false);
-    }
+    closeVideoModal();
   }
 
   function handleStartEditVideoWork(item: XiaohongshuVideoWorkRecord) {
-    setSelectedVideoWorkId(item.id);
-    setEditingVideoWorkId(item.id);
-    setEditingVideoTitle(item.title);
-    setEditingVideoContent(item.content);
-    setEditingVideoPrompt(item.videoPrompt || item.fullVideoPrompt || "");
-  }
-
-  function handleCancelEditVideoWork() {
-    setEditingVideoWorkId("");
-    setEditingVideoTitle("");
-    setEditingVideoContent("");
-    setEditingVideoPrompt("");
+    startEditVideoWork(item, setSelectedVideoWorkId);
   }
 
   async function handleSaveVideoWork() {
