@@ -1715,28 +1715,14 @@ export class WorksService {
   }
 
   private async cacheRemoteGeneratedImage(brandId: string, fileName: string, remoteUrl: string, fallbackContentType: string) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
-    try {
-      const response = await fetch(remoteUrl, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new ServiceUnavailableException(`下载生成图片失败：${response.status}`);
-      }
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get("content-type") || fallbackContentType || "image/png";
-      const extension = this.resolveImageExtensionFromMimeType(contentType, fileName);
-      const targetName = fileName.endsWith(extension)
-        ? fileName
-        : `${fileName.replace(/\.[^.]+$/, "")}${extension}`;
-      return this.writeGeneratedBinaryFile(brandId, targetName, buffer.toString("base64"), contentType).url;
-    } catch (error) {
-      throw this.describeFetchError(error, `下载远程生成图片 ${remoteUrl}`);
-    } finally {
-      clearTimeout(timer);
-    }
+    return this.cacheRemoteGeneratedFile({
+      brandId,
+      fileName,
+      remoteUrl,
+      fallbackContentType: fallbackContentType || "image/png",
+      resolveExtension: (contentType, nextFileName) => this.resolveImageExtensionFromMimeType(contentType, nextFileName),
+      requestLabel: `下载远程生成图片 ${remoteUrl}`,
+    });
   }
 
   private async createOriginalTask(params: { userId: string; brandId: string; taskTitle: string }) {
@@ -3712,9 +3698,22 @@ export class WorksService {
             if (!result.videoUrl) {
               throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
             }
+            const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+              params.brandId,
+              `${params.taskId}-video-${config.backend}.mp4`,
+              result.videoUrl,
+            );
+            const cachedCoverImageUrl = result.coverImageUrl
+              ? await this.cacheRemoteGeneratedImage(
+                params.brandId,
+                `${params.taskId}-video-cover-${config.backend}.png`,
+                result.coverImageUrl,
+                "image/png",
+              )
+              : undefined;
             return {
-              url: result.videoUrl,
-              coverImageUrl: result.coverImageUrl,
+              url: cachedVideoUrl,
+              coverImageUrl: cachedCoverImageUrl,
               provider: config.backend,
               modelName,
               providerTaskId: taskId,
@@ -4385,6 +4384,63 @@ export class WorksService {
       return ".png";
     }
     return this.resolveExtensionFromFileName(fallbackFileName, ".png");
+  }
+
+  private resolveVideoExtensionFromMimeType(mimeType: string, fallbackFileName = "") {
+    const normalized = String(mimeType || "").toLowerCase();
+    if (normalized.includes("webm")) {
+      return ".webm";
+    }
+    if (normalized.includes("quicktime") || normalized.includes("mov")) {
+      return ".mov";
+    }
+    if (normalized.includes("mp4")) {
+      return ".mp4";
+    }
+    return this.resolveExtensionFromFileName(fallbackFileName, ".mp4");
+  }
+
+  private async cacheRemoteGeneratedVideo(brandId: string, fileName: string, remoteUrl: string) {
+    return this.cacheRemoteGeneratedFile({
+      brandId,
+      fileName,
+      remoteUrl,
+      fallbackContentType: "video/mp4",
+      resolveExtension: (contentType, nextFileName) => this.resolveVideoExtensionFromMimeType(contentType, nextFileName),
+      requestLabel: `下载远程生成视频 ${remoteUrl}`,
+    });
+  }
+
+  private async cacheRemoteGeneratedFile(params: {
+    brandId: string;
+    fileName: string;
+    remoteUrl: string;
+    fallbackContentType: string;
+    resolveExtension: (contentType: string, fileName: string) => string;
+    requestLabel: string;
+  }) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const response = await fetch(params.remoteUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`${params.requestLabel}失败：${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") || params.fallbackContentType;
+      const extension = params.resolveExtension(contentType, params.fileName);
+      const targetName = params.fileName.endsWith(extension)
+        ? params.fileName
+        : `${params.fileName.replace(/\.[^.]+$/, "")}${extension}`;
+      return this.writeGeneratedBinaryFile(params.brandId, targetName, buffer.toString("base64"), contentType).url;
+    } catch (error) {
+      throw this.describeFetchError(error, params.requestLabel);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private extractLocalAssetFileName(url: string, brandId: string) {
