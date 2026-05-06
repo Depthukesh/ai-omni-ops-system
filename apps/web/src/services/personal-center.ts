@@ -15,6 +15,8 @@ export type TaskRecord = {
   errorMessage?: string;
   startedAt?: string;
   finishedAt?: string;
+  inputJson?: Record<string, unknown>;
+  outputJson?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 };

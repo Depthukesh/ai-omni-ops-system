@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "AI全域运营 - 小红书草稿发布扩展",
+  "version": "0.1.0",
+  "description": "接收 AI全域运营工作台里的发布指令，自动写入小红书创作者中心草稿箱。",
+  "permissions": ["tabs", "storage", "scripting"],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://creator.xiaohongshu.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AI全域运营小红书发布扩展"
+  }
+}

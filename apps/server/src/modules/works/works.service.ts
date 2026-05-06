@@ -185,6 +185,25 @@ export type XiaohongshuRewriteWorkRecord = {
   updatedAt: string;
 };
 
+export type XiaohongshuPublishableWorkRecord = {
+  id: string;
+  brandId?: string;
+  taskId: string;
+  workKind: "ORIGINAL" | "REWRITE";
+  noteCategory: "原创" | "二创";
+  noteType: "图文";
+  title: string;
+  content: string;
+  coverImageUrl?: string;
+  imageUrls: string[];
+  allImageUrls: string[];
+  hashtags: string[];
+  productName?: string;
+  sourceLabel: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type OriginalCopyModelResult = {
   title: string;
   content: string;
@@ -298,6 +317,74 @@ export class WorksService {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
+  }
+
+  async getXiaohongshuPublishableWork(brandId: string, workId: string): Promise<XiaohongshuPublishableWorkRecord> {
+    try {
+      const target = await this.getOriginalWorkRowById(brandId, workId);
+      const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
+      const record = this.mapOriginalWorkRecord(
+        target.id,
+        target.brandId ?? undefined,
+        target.taskId ?? meta.taskId,
+        meta,
+        targetTaskStatus(target),
+        normalizeMaybeDate(target.createdAt),
+        normalizeMaybeDate(target.updatedAt),
+      );
+      return {
+        id: record.id,
+        brandId: record.brandId,
+        taskId: record.taskId,
+        workKind: "ORIGINAL",
+        noteCategory: record.noteCategory,
+        noteType: record.noteType,
+        title: record.title,
+        content: record.content,
+        coverImageUrl: record.coverImageUrl,
+        imageUrls: record.imageUrls,
+        allImageUrls: mergeWorkImageUrls(record.coverImageUrl, record.imageUrls),
+        hashtags: record.hashtags,
+        productName: record.productName,
+        sourceLabel: record.calendarLabel || record.customTopicName || "原创笔记",
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      };
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) {
+        throw error;
+      }
+    }
+
+    const target = await this.getRewriteWorkRowById(brandId, workId);
+    const meta = this.readRewriteWorkMeta(this.getMediaMetadata(target));
+    const record = this.mapRewriteWorkRecord(
+      target.id,
+      target.brandId ?? undefined,
+      target.taskId ?? meta.taskId,
+      meta,
+      targetTaskStatus(target),
+      normalizeMaybeDate(target.createdAt),
+      normalizeMaybeDate(target.updatedAt),
+    );
+    return {
+      id: record.id,
+      brandId: record.brandId,
+      taskId: record.taskId,
+      workKind: "REWRITE",
+      noteCategory: record.noteCategory,
+      noteType: record.noteType,
+      title: record.title,
+      content: record.content,
+      coverImageUrl: record.coverImageUrl,
+      imageUrls: record.imageUrls,
+      allImageUrls: mergeWorkImageUrls(record.coverImageUrl, record.imageUrls),
+      hashtags: record.hashtags,
+      productName: record.productName,
+      sourceLabel: record.sourceMaterialTitle || "二创素材",
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
   }
 
   async generateXiaohongshuOriginalNote(brandId: string, payload: GenerateXiaohongshuOriginalNotePayload) {
@@ -2780,4 +2867,15 @@ export class WorksService {
 function targetTaskStatus(item: { taskId?: string | null }) {
   const task = database.tasks.find((entry) => entry.id === item.taskId);
   return task?.taskStatus;
+}
+
+function mergeWorkImageUrls(coverImageUrl: string | undefined, imageUrls: string[]) {
+  return Array.from(new Set([coverImageUrl, ...imageUrls].filter((item): item is string => Boolean(item))));
+}
+
+function normalizeMaybeDate(value: string | Date | undefined | null) {
+  if (!value) {
+    return undefined;
+  }
+  return typeof value === "string" ? value : value.toISOString();
 }

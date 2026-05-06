@@ -178,7 +178,7 @@ async function main() {
 
   const outFd = fs.openSync(outLog, "a");
   const errFd = fs.openSync(errLog, "a");
-  const child = spawn(process.execPath, [nextBin, "start", "-H", "127.0.0.1", "-p", String(port)], {
+  const child = spawn(process.execPath, [nextBin, "start", "-H", "0.0.0.0", "-p", String(port)], {
     cwd: webRoot,
     env: {
       ...process.env,

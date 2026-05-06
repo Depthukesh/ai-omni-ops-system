@@ -2,11 +2,19 @@
 
 import { Lunar, Solar } from "lunar-javascript";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
 import { type MediaRecord, type TaskRecord } from "../../../services/personal-center";
+import {
+  createXiaohongshuDesktopDraftSession,
+  completeXiaohongshuMobileDraftSession,
+  createXiaohongshuMobileDraftSession,
+  type XiaohongshuDesktopDraftSession,
+  type XiaohongshuMobileDraftSession,
+} from "../../../services/publishing";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
@@ -48,6 +56,13 @@ import {
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
+type PublishableWorkTarget = {
+  id: string;
+  workKind: "ORIGINAL" | "REWRITE";
+  noteCategory: "原创" | "二创";
+  title: string;
+  sourceLabel: string;
+};
 
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌、产品和目标快速生成小红书策划与选题方案。" },
@@ -61,6 +76,8 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
 const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
 const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
 const AUTO_IMAGE_COUNT_OPTION = "__AUTO__";
+const WEB_DESKTOP_PUBLISH_SOURCE = "ai-omni-ops-web";
+const EXTENSION_DESKTOP_PUBLISH_SOURCE = "ai-omni-xhs-extension";
 
 export default function XiaohongshuPage() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
@@ -124,6 +141,15 @@ export default function XiaohongshuPage() {
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [isRewriteSubmitting, setIsRewriteSubmitting] = useState(false);
   const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
+  const [publishingTarget, setPublishingTarget] = useState<PublishableWorkTarget | null>(null);
+  const [publishingAccountValue, setPublishingAccountValue] = useState(defaultAccount?.id || "");
+  const [isDesktopExtensionReady, setIsDesktopExtensionReady] = useState(false);
+  const [isCreatingDesktopPublishSession, setIsCreatingDesktopPublishSession] = useState(false);
+  const [activeDesktopPublishSession, setActiveDesktopPublishSession] = useState<XiaohongshuDesktopDraftSession | null>(null);
+  const [isCreatingMobilePublishSession, setIsCreatingMobilePublishSession] = useState(false);
+  const [activeMobilePublishSession, setActiveMobilePublishSession] = useState<XiaohongshuMobileDraftSession | null>(null);
+  const [mobilePublishQrDataUrl, setMobilePublishQrDataUrl] = useState("");
+  const [isCompletingMobilePublishSession, setIsCompletingMobilePublishSession] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<{ title: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
@@ -173,6 +199,88 @@ export default function XiaohongshuPage() {
     const latestPlan = marketingPlanWorkspace.latest;
     setMarketingPlanDraft(latestPlan?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
+
+  useEffect(() => {
+    if (!publishingAccountValue && defaultAccount?.id) {
+      setPublishingAccountValue(defaultAccount.id);
+    }
+  }, [defaultAccount?.id, publishingAccountValue]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || typeof payload !== "object" || payload.source !== EXTENSION_DESKTOP_PUBLISH_SOURCE) {
+        return;
+      }
+
+      if (payload.type === "AI_OMNI_XHS_EXTENSION_PONG") {
+        setIsDesktopExtensionReady(true);
+        return;
+      }
+
+      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_STARTED") {
+        setNotice("电脑端发布扩展已接管本次发布，正在自动打开小红书创作者中心并写入草稿。");
+        setErrorMessage("");
+        return;
+      }
+
+      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_PROGRESS") {
+        const detail = typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : "电脑端发布扩展正在执行。";
+        setNotice(detail);
+        setErrorMessage("");
+        return;
+      }
+
+      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_SUCCESS") {
+        setNotice("电脑端一键发布已完成，标题、正文和配图已自动写入小红书草稿箱。");
+        setErrorMessage("");
+        void loadWorkspace({ preserveMessages: true });
+        return;
+      }
+
+      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_FAILED") {
+        const detail = typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : "请检查扩展日志和小红书创作者页是否已登录。";
+        setErrorMessage(`电脑端一键发布失败：${detail}`);
+        void loadWorkspace({ preserveMessages: true });
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    window.postMessage({ source: WEB_DESKTOP_PUBLISH_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PING" }, "*");
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!activeMobilePublishSession?.mobileUrl) {
+      setMobilePublishQrDataUrl("");
+      return;
+    }
+
+    let cancelled = false;
+    void QRCode.toDataURL(activeMobilePublishSession.mobileUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 220,
+    })
+      .then((value: string) => {
+        if (!cancelled) {
+          setMobilePublishQrDataUrl(value);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMobilePublishQrDataUrl("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMobilePublishSession?.mobileUrl]);
 
   useEffect(() => {
     const taskStatus = marketingPlanWorkspace.latestTask?.taskStatus;
@@ -234,11 +342,29 @@ export default function XiaohongshuPage() {
     return () => window.clearTimeout(timer);
   }, [workspace.tasks]);
 
-  async function loadWorkspace() {
+  useEffect(() => {
+    const latestTask = workspace.tasks
+      .filter((item) => item.taskType === "XHS_PUBLISH_MOBILE_DRAFT")
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
+    if (!isTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadWorkspace();
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [workspace.tasks]);
+
+  async function loadWorkspace(options?: { preserveMessages?: boolean }) {
     setIsLoading(true);
     setDataSource("loading");
-    setNotice("");
-    setErrorMessage("");
+    if (!options?.preserveMessages) {
+      setNotice("");
+      setErrorMessage("");
+    }
 
     const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult] =
       await Promise.allSettled([
@@ -550,6 +676,16 @@ export default function XiaohongshuPage() {
             ? "创作失败"
             : latestRewriteTask.taskStatus
     : "";
+  const mobilePublishTasks = useMemo(
+    () =>
+      workspace.tasks
+        .filter((item) => item.taskType === "XHS_PUBLISH_MOBILE_DRAFT" || item.taskType === "XHS_PUBLISH_DESKTOP_DRAFT")
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [workspace.tasks],
+  );
+  const latestOriginalPublishTask = mobilePublishTasks.find((item) => readTaskWorkKind(item) === "ORIGINAL");
+  const latestRewritePublishTask = mobilePublishTasks.find((item) => readTaskWorkKind(item) === "REWRITE");
+  const publishTaskMap = useMemo(() => buildPublishTaskMap(mobilePublishTasks), [mobilePublishTasks]);
   const heroTitle =
     activeSection === "original"
       ? "原创笔记工作区"
@@ -1075,6 +1211,162 @@ export default function XiaohongshuPage() {
     });
   }
 
+  function handleOpenPublishModal(target: PublishableWorkTarget) {
+    setPublishingTarget(target);
+    setPublishingAccountValue(defaultAccount?.id || workspace.archive.platformAccounts.find((item) => item.platform === "XIAOHONGSHU")?.id || "");
+    setActiveDesktopPublishSession(null);
+    setActiveMobilePublishSession(null);
+    setMobilePublishQrDataUrl("");
+    setNotice("");
+    setErrorMessage("");
+    void probeDesktopPublisher();
+  }
+
+  function handleClosePublishModal() {
+    setPublishingTarget(null);
+    setActiveDesktopPublishSession(null);
+    setActiveMobilePublishSession(null);
+    setMobilePublishQrDataUrl("");
+    setIsCreatingDesktopPublishSession(false);
+    setIsCreatingMobilePublishSession(false);
+    setIsCompletingMobilePublishSession(false);
+  }
+
+  async function probeDesktopPublisher(timeoutMs = 1200) {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      let finished = false;
+      const cleanup = () => {
+        window.removeEventListener("message", onMessage);
+        window.clearTimeout(timer);
+      };
+      const onMessage = (event: MessageEvent) => {
+        const payload = event.data;
+        if (!payload || typeof payload !== "object") {
+          return;
+        }
+        if (payload.source === EXTENSION_DESKTOP_PUBLISH_SOURCE && payload.type === "AI_OMNI_XHS_EXTENSION_PONG") {
+          finished = true;
+          setIsDesktopExtensionReady(true);
+          cleanup();
+          resolve(true);
+        }
+      };
+      const timer = window.setTimeout(() => {
+        if (finished) {
+          return;
+        }
+        setIsDesktopExtensionReady(false);
+        cleanup();
+        resolve(false);
+      }, timeoutMs);
+
+      window.addEventListener("message", onMessage);
+      window.postMessage({ source: WEB_DESKTOP_PUBLISH_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PING" }, "*");
+    });
+  }
+
+  async function handleCreateDesktopPublishSession() {
+    if (!publishingTarget) {
+      return;
+    }
+
+    setIsCreatingDesktopPublishSession(true);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const installed = await probeDesktopPublisher();
+      if (!installed) {
+        throw new Error("未检测到电脑端发布扩展。请先在浏览器开发者模式加载 `apps/web/public/extensions/xhs-draft-publisher`。");
+      }
+
+      const result = await createXiaohongshuDesktopDraftSession(
+        workspace.archive.brand.id || DEMO_BRAND_ID,
+        publishingTarget.id,
+        {
+          accountId: publishingAccountValue || undefined,
+        },
+      );
+
+      setActiveDesktopPublishSession(result.session);
+      setNotice(`${publishingTarget.noteCategory}笔记的电脑端一键发布任务已创建，正在自动写入小红书草稿箱。`);
+      window.postMessage(
+        {
+          source: WEB_DESKTOP_PUBLISH_SOURCE,
+          type: "AI_OMNI_XHS_EXTENSION_START_DRAFT",
+          payload: {
+            apiBaseUrl: API_BASE_URL,
+            session: result.session,
+          },
+        },
+        "*",
+      );
+      await loadWorkspace({ preserveMessages: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "电脑端一键发布失败";
+      setErrorMessage(`发布失败：${message}`);
+    } finally {
+      setIsCreatingDesktopPublishSession(false);
+    }
+  }
+
+  async function handleCreateMobilePublishSession() {
+    if (!publishingTarget) {
+      return;
+    }
+
+    setIsCreatingMobilePublishSession(true);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await createXiaohongshuMobileDraftSession(
+        workspace.archive.brand.id || DEMO_BRAND_ID,
+        publishingTarget.id,
+        {
+          accountId: publishingAccountValue || undefined,
+        },
+      );
+      setActiveMobilePublishSession(result.session);
+      setNotice(`${publishingTarget.noteCategory}笔记的手机扫码接力二维码已生成。`);
+      await loadWorkspace({ preserveMessages: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成手机接力二维码失败";
+      setErrorMessage(`生成失败：${message}`);
+    } finally {
+      setIsCreatingMobilePublishSession(false);
+    }
+  }
+
+  async function handleCompleteMobilePublishSession() {
+    if (!activeMobilePublishSession?.token) {
+      return;
+    }
+
+    setIsCompletingMobilePublishSession(true);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await completeXiaohongshuMobileDraftSession(activeMobilePublishSession.token, {
+        result: "SUCCESS",
+        note: "已在手机端完成草稿接力",
+      });
+      setActiveMobilePublishSession(result.session);
+      setNotice("已将本次手机接力保存草稿标记为完成。");
+      await loadWorkspace({ preserveMessages: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新发布状态失败";
+      setErrorMessage(`更新失败：${message}`);
+    } finally {
+      setIsCompletingMobilePublishSession(false);
+    }
+  }
+
   function renderSectionCard() {
     if (activeSection === "plan") {
       return (
@@ -1531,6 +1823,27 @@ export default function XiaohongshuPage() {
             ) : null}
             {originalInlineError ? <div className="report-inline-tip report-inline-tip--error">{originalInlineError}</div> : null}
           </article>
+          <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+            <div className="report-editor-head">
+              <div>
+                <strong>原创笔记发布状态</strong>
+                <p>优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。</p>
+              </div>
+              <div className="report-editor-actions">
+                <span className={`archive-pill ${latestOriginalPublishTask ? getTaskStatusClass(latestOriginalPublishTask.taskStatus) : "status-in_progress"}`}>
+                  {latestOriginalPublishTask ? getPublishTaskStatusText(latestOriginalPublishTask) : "暂无发布任务"}
+                </span>
+                {latestOriginalPublishTask?.updatedAt ? (
+                  <span className="archive-pill status-pending">{formatDateTime(latestOriginalPublishTask.updatedAt)}</span>
+                ) : null}
+              </div>
+            </div>
+            {latestOriginalPublishTask ? (
+              <div className="report-inline-tip">
+                {getPublishTaskSummaryText(latestOriginalPublishTask, "原创")}
+              </div>
+            ) : null}
+          </article>
 
           {!originalWorks.length ? (
             <div className="empty-state">当前还没有原创笔记，点击右上角“添加原创笔记”开始创作。</div>
@@ -1571,6 +1884,21 @@ export default function XiaohongshuPage() {
                         <p>{item.calendarLabel || item.customTopicName || "自定义选题"}</p>
                         <p>{formatDateTime(item.createdAt)}</p>
                         <div className="xhs-material-card-actions">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() =>
+                              handleOpenPublishModal({
+                                id: item.id,
+                                workKind: "ORIGINAL",
+                                noteCategory: "原创",
+                                title: item.title,
+                                sourceLabel: item.calendarLabel || item.customTopicName || "原创笔记",
+                              })
+                            }
+                          >
+                            {getWorkPublishTaskLabel(publishTaskMap[item.id])}
+                          </button>
                           <button type="button" className="secondary-button" onClick={() => handleStartEditOriginalWork(item)}>
                             编辑
                           </button>
@@ -1816,6 +2144,27 @@ export default function XiaohongshuPage() {
             ) : null}
             {rewriteInlineError ? <div className="report-inline-tip report-inline-tip--error">{rewriteInlineError}</div> : null}
           </article>
+          <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+            <div className="report-editor-head">
+              <div>
+                <strong>二创笔记发布状态</strong>
+                <p>优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。</p>
+              </div>
+              <div className="report-editor-actions">
+                <span className={`archive-pill ${latestRewritePublishTask ? getTaskStatusClass(latestRewritePublishTask.taskStatus) : "status-in_progress"}`}>
+                  {latestRewritePublishTask ? getPublishTaskStatusText(latestRewritePublishTask) : "暂无发布任务"}
+                </span>
+                {latestRewritePublishTask?.updatedAt ? (
+                  <span className="archive-pill status-pending">{formatDateTime(latestRewritePublishTask.updatedAt)}</span>
+                ) : null}
+              </div>
+            </div>
+            {latestRewritePublishTask ? (
+              <div className="report-inline-tip">
+                {getPublishTaskSummaryText(latestRewritePublishTask, "二创")}
+              </div>
+            ) : null}
+          </article>
 
           {!rewriteWorks.length ? (
             <div className="empty-state">
@@ -1860,6 +2209,21 @@ export default function XiaohongshuPage() {
                         <p>{item.sourceMaterialTitle}</p>
                         <p>{formatDateTime(item.createdAt)}</p>
                         <div className="xhs-material-card-actions">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() =>
+                              handleOpenPublishModal({
+                                id: item.id,
+                                workKind: "REWRITE",
+                                noteCategory: "二创",
+                                title: item.title,
+                                sourceLabel: item.sourceMaterialTitle,
+                              })
+                            }
+                          >
+                            {getWorkPublishTaskLabel(publishTaskMap[item.id])}
+                          </button>
                           <button type="button" className="secondary-button" onClick={() => handleStartEditRewriteWork(item)}>
                             编辑
                           </button>
@@ -2105,6 +2469,130 @@ export default function XiaohongshuPage() {
           </div>
         </div>
       </section>
+      {publishingTarget ? (
+        <div className="media-preview-overlay" onClick={handleClosePublishModal}>
+          <div className="media-preview-dialog calendar-detail-dialog publish-dialog" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="media-preview-close" onClick={handleClosePublishModal}>
+              关闭
+            </button>
+            <article className="entity-card personal-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>{publishingTarget.noteCategory}笔记发布</strong>
+                  <p className="personal-meta">
+                    {publishingTarget.title}
+                    {publishingTarget.sourceLabel ? ` · ${publishingTarget.sourceLabel}` : ""}
+                  </p>
+                </div>
+                <div className="report-editor-actions">
+                  <span className="archive-pill status-ready">小红书</span>
+                  <span className="archive-pill status-pending">保存草稿</span>
+                  <span className={`archive-pill ${isDesktopExtensionReady ? "status-ready" : "status-in_progress"}`}>
+                    {isDesktopExtensionReady ? "电脑端扩展已连接" : "等待电脑端扩展"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="personal-list publish-dialog-stack">
+                <label>
+                  <span>发布账号</span>
+                  <select value={publishingAccountValue} onChange={(event) => setPublishingAccountValue(event.target.value)}>
+                    {workspace.archive.platformAccounts
+                      .filter((item) => item.platform === "XIAOHONGSHU")
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.accountName || item.accountLink}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <div className="publish-dialog-actions">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleCreateDesktopPublishSession()}
+                    disabled={isCreatingDesktopPublishSession}
+                  >
+                    {isCreatingDesktopPublishSession ? "发布中..." : "电脑端一键发布到草稿箱"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleCreateMobilePublishSession()}
+                    disabled={isCreatingMobilePublishSession}
+                  >
+                    {isCreatingMobilePublishSession ? "生成中..." : "生成手机扫码接力码"}
+                  </button>
+                  <div className="publish-dialog-hint">
+                    电脑端一键发布会调用本地浏览器扩展，自动把标题、正文和配图写入小红书草稿箱。手机扫码接力保留为备用方案。
+                  </div>
+                  {!isDesktopExtensionReady ? (
+                    <div className="publish-dialog-hint">
+                      若当前按钮提示未检测到扩展，请先在 Chrome/Edge 的开发者模式里加载：
+                      `apps/web/public/extensions/xhs-draft-publisher`
+                    </div>
+                  ) : null}
+                </div>
+
+                {activeDesktopPublishSession ? (
+                  <div className="publish-qr-panel">
+                    <div className="publish-qr-copy publish-qr-copy--single">
+                      <strong>电脑端自动发布进行中</strong>
+                      <p>扩展会自动打开小红书创作者中心，切到图文发布页，上传配图并填写标题、正文，然后保存到草稿箱。</p>
+                      {notice ? <p className="publish-qr-meta">{notice}</p> : null}
+                      {errorMessage ? <p className="publish-qr-meta publish-qr-meta--warn">{errorMessage}</p> : null}
+                      <p className="publish-qr-meta">有效期至：{formatDateTime(activeDesktopPublishSession.expiresAt)}</p>
+                      {activeDesktopPublishSession.accessHint ? (
+                        <p className="publish-qr-meta publish-qr-meta--warn">{activeDesktopPublishSession.accessHint}</p>
+                      ) : null}
+                      <a className="xhs-material-detail-button" href={activeDesktopPublishSession.creatorUrl} target="_blank" rel="noreferrer">
+                        手动打开小红书创作者页
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeMobilePublishSession ? (
+                  <div className="publish-qr-panel">
+                    <div className="publish-qr-code">
+                      {mobilePublishQrDataUrl ? (
+                        <img src={mobilePublishQrDataUrl} alt="手机扫码接力二维码" />
+                      ) : (
+                        <div className="publish-qr-placeholder">二维码生成中</div>
+                      )}
+                    </div>
+                    <div className="publish-qr-copy">
+                      <strong>手机扫码接力保存草稿</strong>
+                      <p>
+                        用手机扫码后，会打开接力页，里面已准备好标题、正文和图片素材。你只需要在小红书 App
+                        里粘贴并保存到草稿箱。
+                      </p>
+                      <p className="publish-qr-meta">会话有效期至：{formatDateTime(activeMobilePublishSession.expiresAt)}</p>
+                      {activeMobilePublishSession.accessHint ? (
+                        <p className="publish-qr-meta publish-qr-meta--warn">{activeMobilePublishSession.accessHint}</p>
+                      ) : null}
+                      <a className="xhs-material-detail-button" href={activeMobilePublishSession.mobileUrl} target="_blank" rel="noreferrer">
+                        打开手机接力页
+                      </a>
+                      <div className="strategy-inline-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleCompleteMobilePublishSession()}
+                          disabled={isCompletingMobilePublishSession}
+                        >
+                          {isCompletingMobilePublishSession ? "更新中..." : "我已在手机完成保存"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </article>
+          </div>
+        </div>
+      ) : null}
       {materialLightbox ? (
         <div className="media-lightbox" role="dialog" aria-modal="true" onClick={() => setMaterialLightbox(null)}>
           <div className="media-lightbox-panel" onClick={(event) => event.stopPropagation()}>
@@ -2477,6 +2965,88 @@ function getOriginalTaskStatusText(status?: XiaohongshuOriginalWorkRecord["taskS
   }
 
   return "状态未知";
+}
+
+function buildPublishTaskMap(tasks: TaskRecord[]) {
+  const map: Record<string, TaskRecord> = {};
+  for (const task of tasks) {
+    const workId = readTaskWorkId(task);
+    if (workId && !map[workId]) {
+      map[workId] = task;
+    }
+  }
+  return map;
+}
+
+function readTaskWorkId(task?: TaskRecord) {
+  const inputJson = task?.inputJson;
+  if (!inputJson || typeof inputJson !== "object" || Array.isArray(inputJson)) {
+    return "";
+  }
+  return String(inputJson.workId ?? "").trim();
+}
+
+function readTaskWorkKind(task?: TaskRecord) {
+  const inputJson = task?.inputJson;
+  if (!inputJson || typeof inputJson !== "object" || Array.isArray(inputJson)) {
+    return "";
+  }
+  return String(inputJson.workKind ?? "").trim();
+}
+
+function getPublishTaskStatusText(task?: TaskRecord) {
+  if (!task) {
+    return "暂无发布任务";
+  }
+  const desktop = isDesktopPublishTask(task);
+  if (task.taskStatus === "SUCCESS") {
+    return desktop ? "电脑端草稿已保存" : "手机接力已完成";
+  }
+  if (task.taskStatus === "FAILED" || task.taskStatus === "CANCELLED") {
+    return desktop ? "电脑端发布失败" : "手机接力失败";
+  }
+  if (task.taskStatus === "RUNNING") {
+    return desktop ? "电脑端发布中" : "接力进行中";
+  }
+  if (task.taskStatus === "QUEUED" || task.taskStatus === "PENDING") {
+    return desktop ? "等待扩展执行" : "等待扫码接力";
+  }
+  return task.taskStatus;
+}
+
+function getWorkPublishTaskLabel(task?: TaskRecord) {
+  if (!task) {
+    return "一键发布";
+  }
+  const desktop = isDesktopPublishTask(task);
+  if (task.taskStatus === "SUCCESS") {
+    return "再次发布";
+  }
+  if (task.taskStatus === "FAILED" || task.taskStatus === "CANCELLED") {
+    return "重新发布";
+  }
+  return desktop ? "继续发布" : "查看发布码";
+}
+
+function getPublishTaskSummaryText(task: TaskRecord, noteCategory: "原创" | "二创") {
+  const desktop = isDesktopPublishTask(task);
+  if (task.taskStatus === "SUCCESS") {
+    return desktop
+      ? `最近一次${noteCategory}笔记已由电脑端自动写入小红书草稿箱。`
+      : `最近一次${noteCategory}笔记手机接力已标记为完成。`;
+  }
+  if (task.taskStatus === "FAILED" || task.taskStatus === "CANCELLED") {
+    return desktop
+      ? `最近一次${noteCategory}笔记电脑端一键发布失败：${task.errorMessage || "请检查扩展是否已安装，并确认当前浏览器已登录小红书创作者中心。"}`
+      : `最近一次${noteCategory}笔记手机接力失败：${task.errorMessage || "请重新生成二维码后再试。"}`
+  }
+  return desktop
+    ? `最近一次${noteCategory}笔记电脑端一键发布任务已创建，等待浏览器扩展自动写入草稿箱。`
+    : `最近一次${noteCategory}笔记手机接力二维码已生成，等待手机扫码接力。`;
+}
+
+function isDesktopPublishTask(task?: TaskRecord) {
+  return task?.taskType === "XHS_PUBLISH_DESKTOP_DRAFT";
 }
 
 function escapeHtml(value: string) {

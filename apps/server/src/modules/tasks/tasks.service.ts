@@ -34,6 +34,8 @@ export class TasksService {
         errorMessage: task.errorMessage ?? undefined,
         startedAt: task.startedAt?.toISOString(),
         finishedAt: task.finishedAt?.toISOString(),
+        inputJson: (task.inputJson as Record<string, unknown> | null) ?? undefined,
+        outputJson: (task.outputJson as Record<string, unknown> | null) ?? undefined,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       }));
@@ -74,6 +76,8 @@ export class TasksService {
         errorMessage: task.errorMessage ?? undefined,
         startedAt: task.startedAt?.toISOString(),
         finishedAt: task.finishedAt?.toISOString(),
+        inputJson: (task.inputJson as Record<string, unknown> | null) ?? undefined,
+        outputJson: (task.outputJson as Record<string, unknown> | null) ?? undefined,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       };
@@ -129,6 +133,8 @@ export class TasksService {
         errorMessage: task.errorMessage ?? undefined,
         startedAt: task.startedAt?.toISOString(),
         finishedAt: task.finishedAt?.toISOString(),
+        inputJson: (task.inputJson as Record<string, unknown> | null) ?? undefined,
+        outputJson: (task.outputJson as Record<string, unknown> | null) ?? undefined,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
       };

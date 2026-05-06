@@ -1,0 +1,114 @@
+import { jsonRequest, request } from "./http";
+
+export type XiaohongshuMobileDraftSession = {
+  taskId: string;
+  token: string;
+  platform: "XIAOHONGSHU";
+  mode: "SAVE_DRAFT";
+  channel: "MOBILE_QR";
+  status: "QUEUED" | "SUCCESS" | "FAILED";
+  title: string;
+  content: string;
+  imageUrls: string[];
+  coverImageUrl?: string;
+  hashtags: string[];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  workId: string;
+  workKind: "ORIGINAL" | "REWRITE";
+  noteCategory: "原创" | "二创";
+  noteType: "图文";
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
+  apiBaseUrl: string;
+  mobileUrl: string;
+  openAppUrl: string;
+  completedAt?: string;
+  note?: string;
+  accessHint?: string;
+};
+
+export type XiaohongshuDesktopDraftSession = {
+  taskId: string;
+  token: string;
+  platform: "XIAOHONGSHU";
+  mode: "SAVE_DRAFT";
+  channel: "BROWSER_EXTENSION";
+  status: "QUEUED" | "SUCCESS" | "FAILED";
+  title: string;
+  content: string;
+  imageUrls: string[];
+  coverImageUrl?: string;
+  hashtags: string[];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  workId: string;
+  workKind: "ORIGINAL" | "REWRITE";
+  noteCategory: "原创" | "二创";
+  noteType: "图文";
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
+  creatorUrl: string;
+  launchStrategy: "BROWSER_EXTENSION_AUTOFILL";
+  completedAt?: string;
+  note?: string;
+  accessHint?: string;
+};
+
+export async function createXiaohongshuMobileDraftSession(
+  brandId: string,
+  workId: string,
+  payload: { accountId?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuMobileDraftSession }>(
+    `/publishing/brands/${brandId}/xiaohongshu/works/${workId}/mobile-draft-session`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getXiaohongshuMobileDraftSession(token: string) {
+  return request<{ session: XiaohongshuMobileDraftSession }>(`/publishing/xiaohongshu/mobile-sessions/${token}`);
+}
+
+export async function createXiaohongshuDesktopDraftSession(
+  brandId: string,
+  workId: string,
+  payload: { accountId?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuDesktopDraftSession }>(
+    `/publishing/brands/${brandId}/xiaohongshu/works/${workId}/desktop-draft-session`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getXiaohongshuDesktopDraftSession(token: string) {
+  return request<{ session: XiaohongshuDesktopDraftSession }>(`/publishing/xiaohongshu/desktop-sessions/${token}`);
+}
+
+export async function completeXiaohongshuMobileDraftSession(
+  token: string,
+  payload: { result?: "SUCCESS" | "FAILED"; note?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuMobileDraftSession }>(
+    `/publishing/xiaohongshu/mobile-sessions/${token}/complete`,
+    "POST",
+    payload,
+  );
+}
+
+export async function completeXiaohongshuDesktopDraftSession(
+  token: string,
+  payload: { result?: "SUCCESS" | "FAILED"; note?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuDesktopDraftSession }>(
+    `/publishing/xiaohongshu/desktop-sessions/${token}/complete`,
+    "POST",
+    payload,
+  );
+}
