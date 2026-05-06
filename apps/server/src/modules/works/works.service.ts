@@ -41,6 +41,25 @@ export type UpdateXiaohongshuRewriteNotePayload = {
   content?: string;
 };
 
+export type GenerateXiaohongshuVideoNotePayload = {
+  calendarItemId?: string;
+  customTopicName?: string;
+  productId?: string;
+  referenceImage?: UploadFilePayload;
+  copyAdditionalInstruction?: string;
+  videoProvider?: string;
+  customVideoModelName?: string;
+  durationSec?: number;
+  outputVideoPrompt?: boolean;
+  videoAdditionalInstruction?: string;
+};
+
+export type UpdateXiaohongshuVideoNotePayload = {
+  title?: string;
+  content?: string;
+  videoPrompt?: string;
+};
+
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
 type OriginalWorkAssetMeta = {
@@ -127,6 +146,52 @@ type RewriteImageAssetMeta = {
   createdAt: string;
 };
 
+type VideoWorkAssetMeta = {
+  kind: "XHS_VIDEO_NOTE";
+  taskId: string;
+  noteCategory: "原创";
+  noteType: "视频";
+  title: string;
+  content: string;
+  htmlContent: string;
+  hashtags: string[];
+  calendarItemId?: string;
+  calendarLabel?: string;
+  customTopicName?: string;
+  productId?: string;
+  productName?: string;
+  referenceImageUrl?: string;
+  copyAdditionalInstruction?: string;
+  videoAdditionalInstruction?: string;
+  requestedVideoProvider: string;
+  resolvedVideoProvider: string;
+  resolvedVideoModel?: string;
+  requestedDurationSec: number;
+  renderedDurationSec?: number;
+  outputVideoPrompt: boolean;
+  videoPrompt?: string;
+  fullVideoPrompt?: string;
+  videoReasoning?: string;
+  segmentPrompts: string[];
+  providerTaskId?: string;
+  videoAssetId?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type VideoAssetMeta = {
+  kind: "XHS_VIDEO_NOTE_VIDEO";
+  workId: string;
+  taskId: string;
+  providerTaskId?: string;
+  provider: string;
+  modelName?: string;
+  durationSec?: number;
+  createdAt: string;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -185,6 +250,39 @@ export type XiaohongshuRewriteWorkRecord = {
   updatedAt: string;
 };
 
+export type XiaohongshuVideoWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  title: string;
+  content: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  noteCategory: "原创";
+  noteType: "视频";
+  calendarItemId?: string;
+  calendarLabel?: string;
+  customTopicName?: string;
+  productId?: string;
+  productName?: string;
+  referenceImageUrl?: string;
+  copyAdditionalInstruction?: string;
+  videoAdditionalInstruction?: string;
+  requestedVideoProvider: string;
+  resolvedVideoProvider: string;
+  resolvedVideoModel?: string;
+  requestedDurationSec: number;
+  renderedDurationSec?: number;
+  outputVideoPrompt: boolean;
+  videoPrompt?: string;
+  fullVideoPrompt?: string;
+  videoReasoning?: string;
+  segmentPrompts: string[];
+  taskStatus?: WorkTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type XiaohongshuPublishableWorkRecord = {
   id: string;
   brandId?: string;
@@ -222,6 +320,24 @@ type GeneratedImageResult = {
   modelName: string;
 };
 
+type VideoPromptModelResult = {
+  videoReasoning: string;
+  videoPrompt: string;
+  fullVideoPrompt: string;
+  negativePrompt?: string;
+  segmentPrompts: string[];
+  modelName: string;
+};
+
+type GeneratedVideoResult = {
+  url: string;
+  coverImageUrl?: string;
+  provider: string;
+  modelName: string;
+  providerTaskId: string;
+  renderedDurationSec?: number;
+};
+
 type ThirdPartyChatConfig = {
   baseUrls: string[];
   completionPath: string;
@@ -241,6 +357,27 @@ type TextProviderConfig = ThirdPartyChatConfig & {
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
   models: string[];
+  requestTimeoutMs?: number;
+};
+
+type VideoBackendKey = "hailuo" | "kling" | "seedance" | "veo" | "wan";
+
+type VideoProviderConfig = {
+  backend: VideoBackendKey;
+  baseUrls: string[];
+  apiKeys: string[];
+  createPath: string;
+  queryPath: string;
+  textModel: string;
+  imageModel: string;
+  fastModel?: string;
+  proModel?: string;
+  multiImageModel?: string;
+  modelName?: string;
+  textCreatePath?: string;
+  imageCreatePath?: string;
+  textQueryPath?: string;
+  imageQueryPath?: string;
   requestTimeoutMs?: number;
 };
 
@@ -314,6 +451,37 @@ export class WorksService {
       .filter((item) => this.isRewriteWorkMeta((item as { metadataJson?: unknown }).metadataJson))
       .map((item) => this.mapRewriteWorkFromMock(item))
       .filter((item): item is XiaohongshuRewriteWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return { items };
+  }
+
+  async listXiaohongshuVideoWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const items = await Promise.all(
+        workRows
+          .filter((item) => this.isVideoWorkMeta(item.metadataJson))
+          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+      );
+
+      return {
+        items: items.filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => this.mapVideoWorkFromMock(item))
+      .filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
@@ -774,6 +942,188 @@ export class WorksService {
     }
   }
 
+  async generateXiaohongshuVideoNote(brandId: string, payload: GenerateXiaohongshuVideoNotePayload) {
+    const archive = await this.brandsService.getArchive(brandId);
+    const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (!latestMarketingPlan) {
+      throw new BadRequestException("请先生成小红书营销策划方案，再创作视频笔记。");
+    }
+
+    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
+    if (!selectedCalendarItem && !payload.customTopicName?.trim()) {
+      throw new BadRequestException("请选择营销日历选题，或填写自定义选题。");
+    }
+
+    if (payload.productId && payload.referenceImage?.dataBase64) {
+      throw new BadRequestException("上传参考图时不能同时选择产品，请二选一。");
+    }
+
+    const selectedProduct = payload.productId
+      ? archive.products.find((item) => item.id === payload.productId)
+      : undefined;
+    const normalizedProduct = selectedProduct
+      ? {
+          id: selectedProduct.id,
+          productName: selectedProduct.productName,
+          detailDescription: selectedProduct.detailDescription || "",
+          usageScenario: selectedProduct.usageScenario || "",
+          targetAudience: selectedProduct.targetAudience || "",
+          differentiators: selectedProduct.differentiators || "",
+          imageUrl: selectedProduct.imageUrl || undefined,
+        }
+      : undefined;
+
+    const userId = await this.getBrandOwnerUserId(brandId);
+    const topicLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题";
+    const requestedVideoProvider = this.normalizeVideoProvider(payload.videoProvider);
+    const requestedDurationSec = this.normalizeRequestedVideoDuration(payload.durationSec);
+    const outputVideoPrompt = payload.outputVideoPrompt !== false;
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskTitle: `生成小红书视频笔记：${topicLabel}`,
+      requestedVideoProvider,
+    });
+
+    try {
+      await this.markTaskRunning(task.id);
+
+      const referenceImageFile = payload.referenceImage?.dataBase64
+        ? this.persistUploadFile(
+            brandId,
+            `${task.id}-video-reference${this.resolveExtensionFromFileName(payload.referenceImage.fileName, ".png")}`,
+            payload.referenceImage,
+          )
+        : undefined;
+
+      const copyResult = await this.generateVideoCopy({
+        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        selectedCalendarItem,
+        customTopicName: payload.customTopicName?.trim(),
+        product: normalizedProduct,
+        additionalInstruction: payload.copyAdditionalInstruction?.trim(),
+      });
+
+      const promptResult = await this.generateVideoPromptPack({
+        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        selectedCalendarItem,
+        customTopicName: payload.customTopicName?.trim(),
+        product: normalizedProduct,
+        noteTitle: copyResult.title,
+        noteContent: copyResult.content,
+        requestedVideoProvider,
+        requestedDurationSec,
+        referenceImageUrl: referenceImageFile?.url,
+        additionalInstruction: payload.videoAdditionalInstruction?.trim(),
+      });
+
+      const videoResult = await this.generateVideoAsset({
+        brandId,
+        taskId: task.id,
+        title: `视频笔记视频 - ${copyResult.title}`,
+        requestedVideoProvider,
+        customVideoModelName: payload.customVideoModelName?.trim(),
+        prompt: promptResult.videoPrompt,
+        negativePrompt: promptResult.negativePrompt,
+        requestedDurationSec,
+        referenceImageUrl: referenceImageFile?.url,
+      });
+
+      const now = new Date().toISOString();
+      const coverImageUrl = referenceImageFile?.url || videoResult.coverImageUrl || selectedProduct?.imageUrl || undefined;
+      const htmlContent = this.renderGeneratedVideoNoteHtml({
+        title: copyResult.title,
+        content: copyResult.content,
+        hashtags: copyResult.hashtags,
+        coverImageUrl,
+        videoUrl: videoResult.url,
+        videoPrompt: outputVideoPrompt ? promptResult.fullVideoPrompt : undefined,
+        noteLabel: "原创视频笔记",
+      });
+      const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-video-note.html`, htmlContent);
+
+      const metadata: VideoWorkAssetMeta = {
+        kind: "XHS_VIDEO_NOTE",
+        taskId: task.id,
+        noteCategory: "原创",
+        noteType: "视频",
+        title: copyResult.title,
+        content: copyResult.content,
+        htmlContent,
+        hashtags: copyResult.hashtags,
+        calendarItemId: selectedCalendarItem?.id,
+        calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date}｜${selectedCalendarItem.topicName}` : undefined,
+        customTopicName: selectedCalendarItem ? undefined : payload.customTopicName?.trim(),
+        productId: selectedProduct?.id,
+        productName: selectedProduct?.productName,
+        referenceImageUrl: referenceImageFile?.url,
+        copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
+        videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
+        requestedVideoProvider,
+        resolvedVideoProvider: videoResult.provider,
+        resolvedVideoModel: videoResult.modelName,
+        requestedDurationSec,
+        renderedDurationSec: videoResult.renderedDurationSec,
+        outputVideoPrompt,
+        videoPrompt: promptResult.videoPrompt,
+        fullVideoPrompt: promptResult.fullVideoPrompt,
+        videoReasoning: promptResult.videoReasoning,
+        segmentPrompts: promptResult.segmentPrompts,
+        providerTaskId: videoResult.providerTaskId,
+        videoUrl: videoResult.url,
+        coverImageUrl,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const workMedia = await this.createWorkHtmlMedia({
+        userId,
+        brandId,
+        taskId: task.id,
+        title: `小红书视频笔记 - ${copyResult.title}`,
+        storageKey: htmlFile.storageKey,
+        sourceUrl: htmlFile.url,
+        metadata,
+      });
+
+      const videoMedia = await this.createWorkVideoMedia({
+        userId,
+        brandId,
+        taskId: task.id,
+        workId: workMedia.id,
+        title: `视频笔记视频 - ${copyResult.title}`,
+        sourceUrl: videoResult.url,
+        provider: videoResult.provider,
+        modelName: videoResult.modelName,
+        providerTaskId: videoResult.providerTaskId,
+        durationSec: videoResult.renderedDurationSec,
+      });
+
+      const updatedMetadata: VideoWorkAssetMeta = {
+        ...metadata,
+        videoAssetId: videoMedia.id,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
+      await this.markTaskSuccess(task.id, {
+        workId: workMedia.id,
+        title: copyResult.title,
+        videoProvider: videoResult.provider,
+        videoDurationSec: videoResult.renderedDurationSec ?? requestedDurationSec,
+      });
+
+      return {
+        item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
+      };
+    } catch (error) {
+      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "视频笔记生成失败");
+      throw error;
+    }
+  }
+
   async updateXiaohongshuOriginalNote(brandId: string, workId: string, payload: UpdateXiaohongshuOriginalNotePayload) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
@@ -825,6 +1175,37 @@ export class WorksService {
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书二创笔记 - ${nextTitle}`);
     return {
       item: this.mapRewriteWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
+    };
+  }
+
+  async updateXiaohongshuVideoNote(brandId: string, workId: string, payload: UpdateXiaohongshuVideoNotePayload) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    const nextTitle = payload.title?.trim() || meta.title;
+    const nextContent = payload.content?.trim() || meta.content;
+    const nextVideoPrompt = payload.videoPrompt?.trim() || meta.videoPrompt;
+    const nextHtmlContent = this.renderGeneratedVideoNoteHtml({
+      title: nextTitle,
+      content: nextContent,
+      hashtags: meta.hashtags,
+      coverImageUrl: meta.coverImageUrl,
+      videoUrl: meta.videoUrl,
+      videoPrompt: meta.outputVideoPrompt ? nextVideoPrompt : undefined,
+      noteLabel: "原创视频笔记",
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      title: nextTitle,
+      content: nextContent,
+      htmlContent: nextHtmlContent,
+      videoPrompt: nextVideoPrompt,
+      fullVideoPrompt: nextVideoPrompt || meta.fullVideoPrompt,
+      updatedAt: new Date().toISOString(),
+    };
+    this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextTitle}`);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
     };
   }
 
@@ -896,6 +1277,44 @@ export class WorksService {
     }
 
     this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    return { success: true };
+  }
+
+  async deleteXiaohongshuVideoNote(brandId: string, workId: string) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
+    const localReferenceFileName = meta.referenceImageUrl ? this.extractLocalAssetFileName(meta.referenceImageUrl, brandId) : "";
+    this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
+    this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
     return { success: true };
   }
 
@@ -1355,6 +1774,43 @@ export class WorksService {
     return task;
   }
 
+  private async createVideoTask(params: {
+    userId: string;
+    brandId: string;
+    taskTitle: string;
+    requestedVideoProvider: string;
+  }) {
+    if (await this.prismaService.canUseDatabase()) {
+      return this.prismaService.task.create({
+        data: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskType: "XHS_VIDEO_NOTE",
+          taskTitle: params.taskTitle,
+          taskStatus: TaskStatus.QUEUED,
+          modelName: `deepseek-v4-pro + ${params.requestedVideoProvider}`,
+          pointsCost: 360,
+        },
+      });
+    }
+
+    const now = new Date().toISOString();
+    const task = {
+      id: createId("tsk"),
+      userId: params.userId,
+      brandId: params.brandId,
+      taskType: "XHS_VIDEO_NOTE",
+      taskTitle: params.taskTitle,
+      taskStatus: "QUEUED" as const,
+      modelName: `deepseek-v4-pro + ${params.requestedVideoProvider}`,
+      pointsCost: 360,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return task;
+  }
+
   private async markTaskRunning(taskId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
@@ -1427,7 +1883,7 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta;
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -1519,10 +1975,69 @@ export class WorksService {
     return record;
   }
 
+  private async createWorkVideoMedia(params: {
+    userId: string;
+    brandId: string;
+    taskId: string;
+    workId: string;
+    title: string;
+    sourceUrl: string;
+    provider: string;
+    modelName?: string;
+    providerTaskId?: string;
+    durationSec?: number;
+  }) {
+    const metadata: VideoAssetMeta = {
+      kind: "XHS_VIDEO_NOTE_VIDEO",
+      workId: params.workId,
+      taskId: params.taskId,
+      providerTaskId: params.providerTaskId,
+      provider: params.provider,
+      modelName: params.modelName,
+      durationSec: params.durationSec,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      return this.prismaService.mediaAsset.create({
+        data: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskId: params.taskId,
+          title: params.title,
+          mediaType: MediaType.VIDEO,
+          sourceUrl: params.sourceUrl,
+          storageKey: this.toStorageKeyFromUrl(params.sourceUrl),
+          mimeType: "video/mp4",
+          durationSec: params.durationSec,
+          metadataJson: metadata as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    const record = {
+      id: createId("med"),
+      userId: params.userId,
+      brandId: params.brandId,
+      taskId: params.taskId,
+      title: params.title,
+      mediaType: "VIDEO" as const,
+      sourceUrl: params.sourceUrl,
+      storageKey: this.toStorageKeyFromUrl(params.sourceUrl),
+      mimeType: "video/mp4",
+      durationSec: params.durationSec,
+      metadataJson: metadata,
+      createdAt: metadata.createdAt,
+      updatedAt: metadata.createdAt,
+    };
+    database.media.unshift(record);
+    return record;
+  }
+
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta,
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -1630,6 +2145,57 @@ export class WorksService {
       paragraphs,
       tags,
       gallery,
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private renderGeneratedVideoNoteHtml(params: {
+    title: string;
+    content: string;
+    hashtags: string[];
+    coverImageUrl?: string;
+    videoUrl?: string;
+    videoPrompt?: string;
+    noteLabel: string;
+  }) {
+    const paragraphs = params.content
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.9;">${this.escapeHtml(item)}</p>`)
+      .join("");
+    const tags = params.hashtags.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;">${params.hashtags.map((item) => `<span style="display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#f3f5ff;color:#5166ff;font-size:13px;font-weight:700;">#${this.escapeHtml(item.replace(/^#/, ""))}</span>`).join("")}</div>`
+      : "";
+    const cover = params.coverImageUrl
+      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="width:100%;aspect-ratio:0.82;object-fit:cover;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
+      : "";
+    const video = params.videoUrl
+      ? `<video controls preload="metadata" src="${this.escapeHtml(params.videoUrl)}" style="width:100%;margin-top:20px;border-radius:24px;background:#0f1525;box-shadow:0 18px 40px rgba(24,36,68,0.16);"></video>`
+      : "";
+    const videoPrompt = params.videoPrompt
+      ? [
+          '<section style="margin-top:24px;padding:18px 20px;border-radius:24px;background:#111827;color:#e5eefc;">',
+          '<div style="font-size:13px;letter-spacing:0.04em;color:#8ea3d6;text-transform:uppercase;">视频生成提示词</div>',
+          `<pre style="margin:12px 0 0;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.8;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;">${this.escapeHtml(params.videoPrompt)}</pre>`,
+          "</section>",
+        ].join("")
+      : "";
+
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>',
+      this.escapeHtml(params.title),
+      '</title></head><body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:\'PingFang SC\',\'Microsoft YaHei\',sans-serif;">',
+      '<main style="max-width:880px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      cover,
+      `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="color:#63708a;font-size:13px;margin-bottom:18px;">${this.escapeHtml(params.noteLabel)}</div>`,
+      paragraphs,
+      tags,
+      video,
+      videoPrompt,
       "</section></main></body></html>",
     ].join("");
   }
@@ -1906,6 +2472,149 @@ export class WorksService {
     return row;
   }
 
+  private mapVideoWorkFromDatabase(
+    item: {
+      id: string;
+      brandId: string | null;
+      taskId: string | null;
+      metadataJson: Prisma.JsonValue | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+  ) {
+    const meta = this.readVideoWorkMeta(item.metadataJson);
+    return this.mapVideoWorkRecord(
+      item.id,
+      item.brandId ?? undefined,
+      item.taskId ?? meta.taskId,
+      meta,
+      undefined,
+      item.createdAt.toISOString(),
+      item.updatedAt.toISOString(),
+    );
+  }
+
+  private mapVideoWorkFromMock(item: { id: string; brandId?: string; taskId?: string; metadataJson?: unknown; createdAt: string; updatedAt?: string }) {
+    const meta = this.readVideoWorkMeta(item.metadataJson);
+    const task = database.tasks.find((entry) => entry.id === (item.taskId || meta.taskId));
+    return this.mapVideoWorkRecord(
+      item.id,
+      item.brandId,
+      item.taskId || meta.taskId,
+      meta,
+      task?.taskStatus,
+      item.createdAt,
+      item.updatedAt || item.createdAt,
+    );
+  }
+
+  private mapVideoWorkRecord(
+    id: string,
+    brandId: string | undefined,
+    taskId: string | undefined,
+    meta: VideoWorkAssetMeta,
+    taskStatus?: WorkTaskStatus,
+    createdAt?: string,
+    updatedAt?: string,
+  ): XiaohongshuVideoWorkRecord {
+    return {
+      id,
+      taskId: taskId || meta.taskId,
+      brandId,
+      title: meta.title,
+      content: meta.content,
+      coverImageUrl: meta.coverImageUrl,
+      videoUrl: meta.videoUrl,
+      noteCategory: "原创",
+      noteType: "视频",
+      calendarItemId: meta.calendarItemId,
+      calendarLabel: meta.calendarLabel,
+      customTopicName: meta.customTopicName,
+      productId: meta.productId,
+      productName: meta.productName,
+      referenceImageUrl: meta.referenceImageUrl,
+      copyAdditionalInstruction: meta.copyAdditionalInstruction,
+      videoAdditionalInstruction: meta.videoAdditionalInstruction,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      resolvedVideoProvider: meta.resolvedVideoProvider,
+      resolvedVideoModel: meta.resolvedVideoModel,
+      requestedDurationSec: meta.requestedDurationSec,
+      renderedDurationSec: meta.renderedDurationSec,
+      outputVideoPrompt: meta.outputVideoPrompt,
+      videoPrompt: meta.outputVideoPrompt ? meta.videoPrompt : undefined,
+      fullVideoPrompt: meta.outputVideoPrompt ? meta.fullVideoPrompt : undefined,
+      videoReasoning: meta.videoReasoning,
+      segmentPrompts: meta.segmentPrompts || [],
+      taskStatus,
+      createdAt: createdAt || meta.createdAt,
+      updatedAt: updatedAt || meta.updatedAt,
+    };
+  }
+
+  private isVideoWorkMeta(metadataJson: unknown) {
+    const meta = this.asRecord(metadataJson);
+    return meta?.kind === "XHS_VIDEO_NOTE";
+  }
+
+  private readVideoWorkMeta(metadataJson: unknown): VideoWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    if (!meta || meta.kind !== "XHS_VIDEO_NOTE") {
+      throw new NotFoundException("视频笔记不存在");
+    }
+    return {
+      kind: "XHS_VIDEO_NOTE",
+      taskId: String(meta.taskId ?? ""),
+      noteCategory: "原创",
+      noteType: "视频",
+      title: String(meta.title ?? "").trim(),
+      content: String(meta.content ?? "").trim(),
+      htmlContent: String(meta.htmlContent ?? "").trim(),
+      hashtags: this.normalizeStringArray(meta.hashtags, [], 12),
+      calendarItemId: this.readOptionalString(meta.calendarItemId),
+      calendarLabel: this.readOptionalString(meta.calendarLabel),
+      customTopicName: this.readOptionalString(meta.customTopicName),
+      productId: this.readOptionalString(meta.productId),
+      productName: this.readOptionalString(meta.productName),
+      referenceImageUrl: this.readOptionalString(meta.referenceImageUrl),
+      copyAdditionalInstruction: this.readOptionalString(meta.copyAdditionalInstruction),
+      videoAdditionalInstruction: this.readOptionalString(meta.videoAdditionalInstruction),
+      requestedVideoProvider: this.readOptionalString(meta.requestedVideoProvider) || "seedance",
+      resolvedVideoProvider: this.readOptionalString(meta.resolvedVideoProvider) || this.readOptionalString(meta.requestedVideoProvider) || "seedance",
+      resolvedVideoModel: this.readOptionalString(meta.resolvedVideoModel),
+      requestedDurationSec: Number(meta.requestedDurationSec || 10),
+      renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
+      outputVideoPrompt: meta.outputVideoPrompt !== false,
+      videoPrompt: this.readOptionalString(meta.videoPrompt),
+      fullVideoPrompt: this.readOptionalString(meta.fullVideoPrompt),
+      videoReasoning: this.readOptionalString(meta.videoReasoning),
+      segmentPrompts: this.normalizeStringArray(meta.segmentPrompts, [], 12),
+      providerTaskId: this.readOptionalString(meta.providerTaskId),
+      videoAssetId: this.readOptionalString(meta.videoAssetId),
+      videoUrl: this.readOptionalString(meta.videoUrl),
+      coverImageUrl: this.readOptionalString(meta.coverImageUrl),
+      createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
+      updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private async getVideoWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isVideoWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("视频笔记不存在");
+      }
+      return row;
+    }
+
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isVideoWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("视频笔记不存在");
+    }
+    return row;
+  }
+
   private getMediaMetadata(item: { metadataJson?: unknown }) {
     return item.metadataJson;
   }
@@ -1975,6 +2684,40 @@ export class WorksService {
       "# 小红书二创配图提示词生成器",
       "你需要根据素材库作品、二创文案、营销策划方案和产品信息，输出二创封面提示词与配图提示词。",
       "请保证画面有明显差异化，但仍能承接素材作品的爆款结构与品牌调性。",
+    ].join("\n");
+  }
+
+  private loadVideoCopyPrompt() {
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
+      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return [
+      "# 小红书视频笔记文案生成器",
+      "你需要基于营销策划方案、营销日历选题、产品信息和用户要求，生成适合小红书视频笔记的标题与正文。",
+      "标题要适合做视频封面标题，正文要适合配合短视频发布。",
+    ].join("\n");
+  }
+
+  private loadShortVideoPromptSkill() {
+    const candidates = [
+      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
+      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return [
+      "# short-video-api-studio",
+      "你需要把短视频需求转成结构化视频生成提示词，并给出分段提示词和完整版提示词。",
+      "请优先适配小红书竖屏短视频，输出适合第三方视频生成接口调用的提示词。",
     ].join("\n");
   }
 
@@ -2346,6 +3089,254 @@ export class WorksService {
     throw new ServiceUnavailableException(`二创笔记配图提示词生成失败：${lastError || "未获取到有效响应"}`);
   }
 
+  private async generateVideoCopy(params: {
+    marketingPlanMarkdown: string;
+    selectedCalendarItem?: {
+      id: string;
+      date: string;
+      topicName: string;
+      topicContent?: string;
+      titleDirections: string[];
+      contentGoal?: string;
+      targetAudience?: string;
+      expressionFocus?: string;
+    };
+    customTopicName?: string;
+    product?: {
+      id: string;
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+      imageUrl?: string;
+    };
+    additionalInstruction?: string;
+  }): Promise<OriginalCopyModelResult> {
+    const skillPrompt = this.loadVideoCopyPrompt();
+    const providers = this.loadOriginalCopyProviders();
+    const inputPayload = {
+      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      topic_context: params.selectedCalendarItem
+        ? {
+            date: params.selectedCalendarItem.date,
+            topicName: params.selectedCalendarItem.topicName,
+            topicContent: params.selectedCalendarItem.topicContent,
+            titleDirections: params.selectedCalendarItem.titleDirections,
+            contentGoal: params.selectedCalendarItem.contentGoal,
+            targetAudience: params.selectedCalendarItem.targetAudience,
+            expressionFocus: params.selectedCalendarItem.expressionFocus,
+          }
+        : null,
+      customTopicName: params.customTopicName,
+      product: params.product
+        ? {
+            productName: params.product.productName,
+            detailDescription: params.product.detailDescription,
+            usageScenario: params.product.usageScenario,
+            targetAudience: params.product.targetAudience,
+            differentiators: params.product.differentiators,
+          }
+        : null,
+      additional_instruction: params.additionalInstruction,
+      note_type: "VIDEO",
+      platform: "XIAOHONGSHU",
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前要输出一篇可直接发布的小红书原创视频笔记文案。",
+      "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "20字以内标题",',
+      '  "content": "适合小红书视频笔记的正文，建议包含镜头/情绪承接和结尾互动",',
+      '  "hashtags": ["标签1", "标签2"]',
+      "}",
+    ].join("\n");
+    const userPrompt = ["以下是本次视频笔记文案输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 180000,
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const title = String(parsed.title ?? "").trim();
+              const body = String(parsed.content ?? "").trim();
+              const hashtags = this.normalizeStringArray(parsed.hashtags ?? parsed.tags, [], 8);
+              if (!title || !body) {
+                lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                continue;
+              }
+              return {
+                title,
+                content: body,
+                hashtags: hashtags.length ? hashtags : this.extractHashtagsFromContent(body),
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "视频笔记文案生成失败";
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(`视频笔记文案生成失败：${lastError || "未获取到有效响应"}`);
+  }
+
+  private async generateVideoPromptPack(params: {
+    marketingPlanMarkdown: string;
+    selectedCalendarItem?: {
+      id: string;
+      date: string;
+      topicName: string;
+      topicContent?: string;
+      titleDirections: string[];
+      contentGoal?: string;
+      targetAudience?: string;
+      expressionFocus?: string;
+    };
+    customTopicName?: string;
+    product?: {
+      id: string;
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+      imageUrl?: string;
+    };
+    noteTitle: string;
+    noteContent: string;
+    requestedVideoProvider: string;
+    requestedDurationSec: number;
+    referenceImageUrl?: string;
+    additionalInstruction?: string;
+  }): Promise<VideoPromptModelResult> {
+    const skillPrompt = this.loadShortVideoPromptSkill();
+    const providers = this.loadOriginalCopyProviders();
+    const inputPayload = {
+      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      topic_context: params.selectedCalendarItem
+        ? {
+            date: params.selectedCalendarItem.date,
+            topicName: params.selectedCalendarItem.topicName,
+            topicContent: params.selectedCalendarItem.topicContent,
+            titleDirections: params.selectedCalendarItem.titleDirections,
+            contentGoal: params.selectedCalendarItem.contentGoal,
+            targetAudience: params.selectedCalendarItem.targetAudience,
+            expressionFocus: params.selectedCalendarItem.expressionFocus,
+          }
+        : null,
+      customTopicName: params.customTopicName,
+      product: params.product
+        ? {
+            productName: params.product.productName,
+            detailDescription: params.product.detailDescription,
+            usageScenario: params.product.usageScenario,
+            targetAudience: params.product.targetAudience,
+            differentiators: params.product.differentiators,
+          }
+        : null,
+      noteTitle: params.noteTitle,
+      noteContent: params.noteContent,
+      requestedVideoProvider: params.requestedVideoProvider,
+      requestedDurationSec: params.requestedDurationSec,
+      referenceImageUrl: params.referenceImageUrl,
+      additional_instruction: params.additionalInstruction,
+      output_language: "zh-CN",
+      aspect_ratio: "9:16",
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前需要输出短视频生成所需的结构化提示词。",
+      "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "video_reasoning": "说明为什么这样设计视频",',
+      '  "video_prompt": "用于直接调用视频接口的精简提示词",',
+      '  "full_video_prompt": "完整版本视频提示词",',
+      '  "negative_prompt": "可选，不希望出现的内容",',
+      '  "segment_prompts": ["分镜提示词1", "分镜提示词2"]',
+      "}",
+    ].join("\n");
+    const userPrompt = ["以下是本次视频提示词输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 180000,
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const videoPrompt = String(parsed.video_prompt ?? parsed.videoPrompt ?? "").trim();
+              const fullVideoPrompt = String(parsed.full_video_prompt ?? parsed.fullVideoPrompt ?? "").trim() || videoPrompt;
+              const segmentPrompts = this.normalizeStringArray(parsed.segment_prompts ?? parsed.segmentPrompts, [], 8);
+              if (!videoPrompt) {
+                lastError = `${provider.provider}/${modelName} 视频提示词为空`;
+                continue;
+              }
+              return {
+                videoReasoning: String(parsed.video_reasoning ?? parsed.videoReasoning ?? "").trim(),
+                videoPrompt,
+                fullVideoPrompt,
+                negativePrompt: this.readOptionalString(parsed.negative_prompt ?? parsed.negativePrompt),
+                segmentPrompts: segmentPrompts.length ? segmentPrompts : [videoPrompt],
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "视频提示词生成失败";
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(`视频提示词生成失败：${lastError || "未获取到有效响应"}`);
+  }
+
   private loadDoubaoImageAnalysisProvider() {
     const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
     const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
@@ -2377,6 +3368,523 @@ export class WorksService {
         requestTimeoutMs: 240000,
       },
     ];
+  }
+
+  private resolveVideoGenerationConfigPath(backend: VideoBackendKey) {
+    const fileNameMap: Record<VideoBackendKey, string> = {
+      hailuo: "第三方api接口hailuo文生视频或图生视频.txt",
+      kling: "第三方api接口kling文生视频或图生视频.txt",
+      seedance: "第三方api接口seedance文生视频或图生视频.txt",
+      veo: "第三方api接口VEO文生视频或图生视频.txt",
+      wan: "第三方api接口WAN文生视频或图生视频.txt",
+    };
+    const fileName = fileNameMap[backend];
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), fileName),
+      resolve(this.resolveOperationRoot(), fileName),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return filePath;
+      }
+    }
+    throw new ServiceUnavailableException(`未找到 ${backend} 视频接口配置文件`);
+  }
+
+  private loadVideoProviderConfig(backend: VideoBackendKey): VideoProviderConfig {
+    const content = readFileSync(this.resolveVideoGenerationConfigPath(backend), "utf8");
+    const baseUrls = this.collectRegexMatches(content, /https?:\/\/[^\s)]+/g).slice(0, 3);
+    const apiKeys = this.collectRegexMatches(content, /sk-[A-Za-z0-9]+/g).slice(0, 4);
+    if (!baseUrls.length || !apiKeys.length) {
+      throw new ServiceUnavailableException(`${backend} 视频接口配置读取失败`);
+    }
+
+    switch (backend) {
+      case "hailuo":
+        return {
+          backend,
+          baseUrls,
+          apiKeys,
+          createPath: "/minimax/v1/video_generation",
+          queryPath: "/minimax/v1/query/video_generation",
+          textCreatePath: "/minimax/v1/video_generation",
+          imageCreatePath: "/minimax/v1/video_generation",
+          textQueryPath: "/minimax/v1/query/video_generation",
+          imageQueryPath: "/minimax/v1/query/video_generation",
+          textModel: "MiniMax-Hailuo-02",
+          imageModel: "I2V-01",
+          fastModel: "MiniMax-Hailuo-02",
+          proModel: "MiniMax-Hailuo-02",
+          requestTimeoutMs: 180000,
+        };
+      case "kling":
+        return {
+          backend,
+          baseUrls,
+          apiKeys,
+          createPath: "/kling/v1/videos/text2video",
+          queryPath: "/kling/v1/images/text2video/{task_id}",
+          textCreatePath: "/kling/v1/videos/text2video",
+          imageCreatePath: "/kling/v1/videos/image2video",
+          textQueryPath: "/kling/v1/images/text2video/{task_id}",
+          imageQueryPath: "/kling/v1/images/image2video/{task_id}",
+          textModel: "kling-v1-6",
+          imageModel: "kling-v1-6",
+          fastModel: "kling-v1-5",
+          proModel: "kling-v1-6",
+          requestTimeoutMs: 180000,
+        };
+      case "veo":
+        return {
+          backend,
+          baseUrls,
+          apiKeys,
+          createPath: "/v2/videos/generations",
+          queryPath: "/v2/videos/generations/{task_id}",
+          textModel: "veo3.1",
+          imageModel: "veo3-pro-frames",
+          fastModel: "veo3.1",
+          proModel: "veo3.1-pro",
+          multiImageModel: "veo3.1-components",
+          requestTimeoutMs: 240000,
+        };
+      case "wan":
+        return {
+          backend,
+          baseUrls,
+          apiKeys,
+          createPath: "/v2/videos/generations",
+          queryPath: "/v2/videos/generations/{task_id}",
+          textModel: "wan2.5-t2v-preview",
+          imageModel: "wan2.5-i2v-preview",
+          requestTimeoutMs: 240000,
+        };
+      case "seedance":
+      default:
+        return {
+          backend: "seedance",
+          baseUrls,
+          apiKeys,
+          createPath: "/v2/videos/generations",
+          queryPath: "/v2/videos/generations/{task_id}",
+          textModel: "doubao-seedance-1-0-pro-250528",
+          imageModel: "doubao-seedance-1-0-lite-i2v-250428",
+          fastModel: "doubao-seedance-1-0-lite-t2v-250428",
+          proModel: "doubao-seedance-1-0-pro-250528",
+          requestTimeoutMs: 240000,
+        };
+    }
+  }
+
+  private normalizeVideoProvider(value?: string): VideoBackendKey {
+    const normalized = String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/_/g, "")
+      .replace(/-/g, "");
+    if (!normalized) {
+      return "seedance";
+    }
+    if (normalized === "seedance" || normalized === "seedance20") {
+      return "seedance";
+    }
+    if (normalized === "hailuo") {
+      return "hailuo";
+    }
+    if (normalized === "kling") {
+      return "kling";
+    }
+    if (normalized === "veo") {
+      return "veo";
+    }
+    if (normalized === "wan") {
+      return "wan";
+    }
+    throw new BadRequestException("暂不支持所选视频模型，请从 hailuo、kling、veo、wan、seedance2.0 中选择。");
+  }
+
+  private normalizeRequestedVideoDuration(value?: number) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      return 10;
+    }
+    const normalized = Math.max(1, Math.round(value));
+    return normalized;
+  }
+
+  private normalizeProviderDuration(backend: VideoBackendKey, requestedDurationSec: number) {
+    const candidates = backend === "hailuo" ? [6, 10] : [5, 10];
+    return candidates.reduce((best, current) =>
+      Math.abs(current - requestedDurationSec) < Math.abs(best - requestedDurationSec) ? current : best,
+    );
+  }
+
+  private buildVideoProviderFallbackOrder(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
+    const stableFallbacks: VideoBackendKey[] = hasReferenceImage
+      ? ["seedance", "veo", "kling", "wan", "hailuo"]
+      : ["seedance", "veo", "wan", "kling", "hailuo"];
+    return Array.from(new Set([requestedBackend, ...stableFallbacks]));
+  }
+
+  private resolveVideoModelName(
+    config: VideoProviderConfig,
+    requestedVideoProvider: string,
+    customVideoModelName?: string,
+    hasReferenceImage?: boolean,
+  ) {
+    const customModel = customVideoModelName?.trim();
+    if (customModel) {
+      return customModel;
+    }
+    if (hasReferenceImage) {
+      return config.imageModel || config.modelName || requestedVideoProvider;
+    }
+    return config.proModel || config.textModel || config.modelName || requestedVideoProvider;
+  }
+
+  private buildVideoCreatePayload(params: {
+    config: VideoProviderConfig;
+    modelName: string;
+    prompt: string;
+    negativePrompt?: string;
+    requestedDurationSec: number;
+    referenceImageUrl?: string;
+  }) {
+    const normalizedDuration = this.normalizeProviderDuration(params.config.backend, params.requestedDurationSec);
+    const hasReferenceImage = Boolean(params.referenceImageUrl);
+
+    switch (params.config.backend) {
+      case "hailuo":
+        return {
+          payload: {
+            model: params.modelName,
+            prompt: params.prompt,
+            duration: normalizedDuration,
+            resolution: "768P",
+            ...(hasReferenceImage ? { first_frame_image: params.referenceImageUrl } : {}),
+          } as Record<string, unknown>,
+          createPath: hasReferenceImage ? params.config.imageCreatePath || params.config.createPath : params.config.textCreatePath || params.config.createPath,
+          queryPath: hasReferenceImage ? params.config.imageQueryPath || params.config.queryPath : params.config.textQueryPath || params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "kling":
+        return {
+          payload: {
+            prompt: params.prompt,
+            negative_prompt: params.negativePrompt,
+            aspect_ratio: "9:16",
+            duration: String(normalizedDuration),
+            model_name: params.modelName,
+            mode: "std",
+            ...(hasReferenceImage ? { image: params.referenceImageUrl } : {}),
+          } as Record<string, unknown>,
+          createPath: hasReferenceImage ? params.config.imageCreatePath || params.config.createPath : params.config.textCreatePath || params.config.createPath,
+          queryPath: hasReferenceImage ? params.config.imageQueryPath || params.config.queryPath : params.config.textQueryPath || params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "veo":
+        return {
+          payload: {
+            prompt: params.prompt,
+            model: params.modelName,
+            aspect_ratio: "9:16",
+            enhance_prompt: false,
+            ...(hasReferenceImage ? { images: [params.referenceImageUrl] } : {}),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "wan":
+        return {
+          payload: {
+            prompt: params.prompt,
+            model: params.modelName,
+            duration: normalizedDuration,
+            size: "720*1280",
+            watermark: false,
+            prompt_extend: true,
+            negative_prompt: params.negativePrompt,
+            ...(hasReferenceImage ? { images: [params.referenceImageUrl] } : { audio: false }),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "seedance":
+      default:
+        return {
+          payload: {
+            prompt: params.prompt,
+            model: params.modelName,
+            duration: normalizedDuration,
+            resolution: "720p",
+            ratio: "9:16",
+            watermark: false,
+            ...(hasReferenceImage ? { images: [params.referenceImageUrl] } : {}),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+    }
+  }
+
+  private async generateVideoAsset(params: {
+    brandId: string;
+    taskId: string;
+    title: string;
+    requestedVideoProvider: string;
+    customVideoModelName?: string;
+    prompt: string;
+    negativePrompt?: string;
+    requestedDurationSec: number;
+    referenceImageUrl?: string;
+  }): Promise<GeneratedVideoResult> {
+    const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
+    const providerOrder = this.buildVideoProviderFallbackOrder(requestedBackend, Boolean(params.referenceImageUrl));
+    const providerErrors: string[] = [];
+
+    for (const backend of providerOrder) {
+      const config = this.loadVideoProviderConfig(backend);
+      const modelName = this.resolveVideoModelName(
+        config,
+        backend,
+        backend === requestedBackend ? params.customVideoModelName : undefined,
+        Boolean(params.referenceImageUrl),
+      );
+      const requestConfig = this.buildVideoCreatePayload({
+        config,
+        modelName,
+        prompt: params.prompt,
+        negativePrompt: params.negativePrompt,
+        requestedDurationSec: params.requestedDurationSec,
+        referenceImageUrl: params.referenceImageUrl,
+      });
+
+      let lastError = "";
+      for (const baseUrl of config.baseUrls) {
+        for (const apiKey of config.apiKeys) {
+          try {
+            const createResponse = await this.requestAuthorizedJson(baseUrl, requestConfig.createPath, apiKey, {
+              method: "POST",
+              body: requestConfig.payload,
+              timeoutMs: config.requestTimeoutMs ?? 240000,
+            });
+            const taskId = this.extractVideoTaskId(createResponse);
+            if (!taskId) {
+              lastError = `${config.backend} 未返回任务 ID`;
+              continue;
+            }
+
+            const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
+              fallbackDurationSec: requestConfig.renderedDurationSec,
+            });
+            if (!result.videoUrl) {
+              throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
+            }
+            return {
+              url: result.videoUrl,
+              coverImageUrl: result.coverImageUrl,
+              provider: config.backend,
+              modelName,
+              providerTaskId: taskId,
+              renderedDurationSec: result.renderedDurationSec || requestConfig.renderedDurationSec,
+            };
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : "视频生成失败";
+          }
+        }
+      }
+
+      if (lastError) {
+        providerErrors.push(`${backend}：${lastError}`);
+      }
+    }
+
+    throw new ServiceUnavailableException(`视频生成失败：${providerErrors.join("；") || "未获取到有效视频"}`);
+  }
+
+  private describeFetchError(error: unknown, requestLabel: string) {
+    if (error instanceof ServiceUnavailableException) {
+      return error;
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      return new ServiceUnavailableException(`${requestLabel} 超时`);
+    }
+    const topLevel = this.asRecord(error);
+    const cause = this.asRecord(topLevel?.cause);
+    const detail = this.readOptionalString(cause?.code)
+      || this.readOptionalString(topLevel?.code)
+      || this.readOptionalString(cause?.message);
+    return new ServiceUnavailableException(
+      `${requestLabel} 网络请求失败${detail && detail !== "fetch failed" ? `：${detail}` : ""}`,
+    );
+  }
+
+  private async requestAuthorizedJson(
+    baseUrl: string,
+    requestPath: string,
+    apiKey: string,
+    options: {
+      method: "GET" | "POST";
+      body?: Record<string, unknown>;
+      timeoutMs?: number;
+    },
+  ) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60000);
+    try {
+      const response = await fetch(`${baseUrl}${requestPath}`, {
+        method: options.method,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          ...(options.method === "POST" ? { "Content-Type": "application/json" } : {}),
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const snippet = await this.readResponseSnippet(response);
+        throw new ServiceUnavailableException(`${options.method} ${requestPath} 失败：${response.status}${snippet ? `，${snippet}` : ""}`);
+      }
+      return await response.json() as Record<string, unknown>;
+    } catch (error) {
+      throw this.describeFetchError(error, `${options.method} ${baseUrl}${requestPath}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async pollVideoGenerationResult(
+    baseUrl: string,
+    apiKey: string,
+    backend: VideoBackendKey,
+    queryPath: string,
+    taskId: string,
+    options: { fallbackDurationSec?: number },
+  ) {
+    let lastState = "";
+    let lastError = "";
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await this.requestAuthorizedJson(
+        baseUrl,
+        this.resolveVideoQueryPath(queryPath, backend, taskId),
+        apiKey,
+        {
+          method: "GET",
+          timeoutMs: 120000,
+        },
+      );
+      const snapshot = this.readVideoTaskSnapshot(response, backend, options.fallbackDurationSec);
+      lastState = snapshot.status;
+      if (snapshot.status === "SUCCESS" && snapshot.videoUrl) {
+        return snapshot;
+      }
+      if (snapshot.status === "FAILED") {
+        throw new ServiceUnavailableException(snapshot.failReason || "第三方视频生成任务失败");
+      }
+      if (snapshot.status === "SUCCESS" && !snapshot.videoUrl) {
+        lastError = "视频任务完成，但未返回视频地址";
+      } else {
+        lastError = snapshot.failReason || "";
+      }
+      await wait(4000);
+    }
+
+    throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
+  }
+
+  private resolveVideoQueryPath(queryPath: string, backend: VideoBackendKey, taskId: string) {
+    if (backend === "hailuo") {
+      return `${queryPath}?task_id=${encodeURIComponent(taskId)}`;
+    }
+    return queryPath.replace("{task_id}", encodeURIComponent(taskId));
+  }
+
+  private extractVideoTaskId(payload: Record<string, unknown>) {
+    return this.readOptionalString(payload.task_id)
+      || this.readOptionalString(payload.id)
+      || this.readOptionalString(this.asRecord(payload.data)?.task_id)
+      || this.readOptionalString(this.asRecord(payload.data)?.id);
+  }
+
+  private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {
+    const topLevelData = this.asRecord(payload.data);
+    const taskStatusRaw = String(
+      topLevelData?.task_status
+      || payload.status
+      || this.readOptionalString(topLevelData?.status)
+      || "",
+    ).trim();
+    const normalizedStatus = this.normalizeVideoTaskStatus(taskStatusRaw);
+
+    const directVideoUrl = this.readOptionalString(topLevelData?.output)
+      || this.readOptionalString(topLevelData?.video_url)
+      || this.readOptionalString(this.asRecord(topLevelData?.task_result)?.url);
+    const firstVideo = Array.isArray(this.asRecord(topLevelData?.task_result)?.videos)
+      ? this.asRecord((this.asRecord(topLevelData?.task_result)?.videos as unknown[])[0])
+      : null;
+    const videoUrl = directVideoUrl
+      || this.readOptionalString(firstVideo?.url)
+      || this.readOptionalString(payload.output)
+      || this.readOptionalString(payload.download_url);
+    const coverImageUrl = this.readOptionalString(topLevelData?.last_frame_url)
+      || this.readOptionalString(topLevelData?.cover_url)
+      || this.readOptionalString(payload.cover_url);
+    const failReason = this.readOptionalString(payload.fail_reason)
+      || this.readOptionalString(payload.message)
+      || this.readOptionalString(topLevelData?.task_status_msg)
+      || this.readOptionalString(this.asRecord(payload.base_resp)?.status_msg);
+    const renderedDurationSec = this.parseDurationValue(
+      topLevelData?.duration
+      || firstVideo?.duration
+      || payload.duration,
+      fallbackDurationSec,
+    );
+
+    return {
+      status: normalizedStatus,
+      videoUrl,
+      coverImageUrl,
+      failReason,
+      renderedDurationSec,
+      backend,
+    };
+  }
+
+  private normalizeVideoTaskStatus(rawStatus: string) {
+    const normalized = rawStatus.toUpperCase();
+    if (!normalized) {
+      return "IN_PROGRESS";
+    }
+    if (normalized.includes("SUCCESS") || normalized.includes("SUCCEED")) {
+      return "SUCCESS";
+    }
+    if (normalized.includes("FAIL")) {
+      return "FAILED";
+    }
+    if (normalized.includes("NOT_START") || normalized.includes("SUBMITTED") || normalized.includes("PROCESS") || normalized.includes("PROGRESS") || normalized.includes("QUEUE")) {
+      return "IN_PROGRESS";
+    }
+    return "IN_PROGRESS";
+  }
+
+  private parseDurationValue(value: unknown, fallback?: number) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    const text = String(value ?? "").trim();
+    if (!text) {
+      return fallback;
+    }
+    const matched = text.match(/\d+/);
+    if (!matched) {
+      return fallback;
+    }
+    const duration = Number(matched[0]);
+    return Number.isFinite(duration) ? duration : fallback;
   }
 
   private buildTextProviderPayload(
@@ -2809,6 +4317,10 @@ export class WorksService {
     };
   }
 
+  private persistUploadFile(brandId: string, fileName: string, payload: UploadFilePayload) {
+    return this.writeGeneratedBinaryFile(brandId, fileName, payload.dataBase64, payload.contentType || "application/octet-stream");
+  }
+
   private deleteGeneratedFileIfExists(brandId: string, fileName: string) {
     if (!fileName) {
       return;
@@ -2822,6 +4334,19 @@ export class WorksService {
   private extractFileName(storageKey: string) {
     const parts = storageKey.split("/").filter(Boolean);
     return parts[parts.length - 1] || storageKey;
+  }
+
+  private resolveExtensionFromFileName(fileName: string, fallback = ".bin") {
+    const extension = extname(fileName || "").toLowerCase();
+    return extension || fallback;
+  }
+
+  private extractLocalAssetFileName(url: string, brandId: string) {
+    const expectedPrefix = `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/`;
+    if (!url.startsWith(expectedPrefix)) {
+      return "";
+    }
+    return decodeURIComponent(url.slice(expectedPrefix.length));
   }
 
   private resolveServerBaseUrl() {
@@ -2845,6 +4370,11 @@ export class WorksService {
   private getContentTypeByExtension(fileName: string) {
     const extension = extname(fileName).toLowerCase();
     switch (extension) {
+      case ".mp4":
+        return "video/mp4";
+      case ".jpg":
+      case ".jpeg":
+        return "image/jpeg";
       case ".png":
         return "image/png";
       case ".webp":
@@ -2862,6 +4392,10 @@ export class WorksService {
     const extension = extname(url.split("?")[0] || "").toLowerCase();
     return extension || ".png";
   }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function targetTaskStatus(item: { taskId?: string | null }) {

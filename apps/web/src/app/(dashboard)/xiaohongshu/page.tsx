@@ -43,14 +43,19 @@ import {
   type XiaohongshuTone,
 } from "../../../services/xiaohongshu";
 import {
+  deleteXiaohongshuVideoWork,
   deleteXiaohongshuOriginalWork,
   deleteXiaohongshuRewriteWork,
+  generateXiaohongshuVideoWork,
   generateXiaohongshuOriginalWork,
   generateXiaohongshuRewriteWork,
+  getXiaohongshuVideoWorks,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
+  type XiaohongshuVideoWorkRecord,
+  updateXiaohongshuVideoWork,
   updateXiaohongshuOriginalWork,
   updateXiaohongshuRewriteWork,
 } from "../../../services/works";
@@ -141,6 +146,27 @@ export default function XiaohongshuPage() {
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [isRewriteSubmitting, setIsRewriteSubmitting] = useState(false);
   const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
+  const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
+  const [selectedVideoWorkId, setSelectedVideoWorkId] = useState("");
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [videoCalendarValue, setVideoCalendarValue] = useState("");
+  const [videoCustomTopic, setVideoCustomTopic] = useState("");
+  const [videoProductValue, setVideoProductValue] = useState(defaultProduct?.id || NO_PRODUCT_OPTION);
+  const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
+  const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
+  const [videoProviderValue, setVideoProviderValue] = useState("seedance2.0");
+  const [videoCustomModelName, setVideoCustomModelName] = useState("");
+  const [videoDurationValue, setVideoDurationValue] = useState("10");
+  const [videoOutputPromptValue, setVideoOutputPromptValue] = useState("yes");
+  const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
+  const [editingVideoWorkId, setEditingVideoWorkId] = useState("");
+  const [editingVideoTitle, setEditingVideoTitle] = useState("");
+  const [editingVideoContent, setEditingVideoContent] = useState("");
+  const [editingVideoPrompt, setEditingVideoPrompt] = useState("");
+  const [savingVideoWorkId, setSavingVideoWorkId] = useState("");
+  const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
+  const [isVideoSubmitting, setIsVideoSubmitting] = useState(false);
+  const [videoSubmittingLabel, setVideoSubmittingLabel] = useState("");
   const [publishingTarget, setPublishingTarget] = useState<PublishableWorkTarget | null>(null);
   const [publishingAccountValue, setPublishingAccountValue] = useState(defaultAccount?.id || "");
   const [isDesktopExtensionReady, setIsDesktopExtensionReady] = useState(false);
@@ -344,6 +370,22 @@ export default function XiaohongshuPage() {
 
   useEffect(() => {
     const latestTask = workspace.tasks
+      .filter((item) => item.taskType === "XHS_VIDEO_NOTE")
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
+    if (!isTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadWorkspace();
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [workspace.tasks]);
+
+  useEffect(() => {
+    const latestTask = workspace.tasks
       .filter((item) => item.taskType === "XHS_PUBLISH_MOBILE_DRAFT")
       .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
     const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
@@ -366,7 +408,7 @@ export default function XiaohongshuPage() {
       setErrorMessage("");
     }
 
-    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult] =
+    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult, videoWorksResult] =
       await Promise.allSettled([
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
@@ -375,6 +417,7 @@ export default function XiaohongshuPage() {
       getXiaohongshuMarketingCalendarWorkspace(),
       getXiaohongshuOriginalWorks(DEMO_BRAND_ID),
       getXiaohongshuRewriteWorks(DEMO_BRAND_ID),
+      getXiaohongshuVideoWorks(DEMO_BRAND_ID),
     ]);
 
     const messages: string[] = [];
@@ -442,6 +485,12 @@ export default function XiaohongshuPage() {
       setRewriteWorks(rewriteWorksResult.value.items);
     } else {
       messages.push("二创笔记作品读取失败。");
+    }
+
+    if (videoWorksResult.status === "fulfilled") {
+      setVideoWorks(videoWorksResult.value.items);
+    } else {
+      messages.push("视频笔记作品读取失败。");
     }
 
     if (workspaceResult.status === "fulfilled") {
@@ -603,6 +652,8 @@ export default function XiaohongshuPage() {
   const originalEditingWork = originalWorks.find((item) => item.id === editingOriginalWorkId);
   const rewriteSelectedWork = rewriteWorks.find((item) => item.id === selectedRewriteWorkId) || rewriteWorks[0];
   const rewriteEditingWork = rewriteWorks.find((item) => item.id === editingRewriteWorkId);
+  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId) || videoWorks[0];
+  const videoEditingWork = videoWorks.find((item) => item.id === editingVideoWorkId);
   const originalCalendarOptions = useMemo(
     () =>
       calendarAllItems.map((item) => ({
@@ -676,6 +727,30 @@ export default function XiaohongshuPage() {
             ? "创作失败"
             : latestRewriteTask.taskStatus
     : "";
+  const videoTasks = useMemo(
+    () =>
+      workspace.tasks
+        .filter((item) => item.taskType === "XHS_VIDEO_NOTE")
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [workspace.tasks],
+  );
+  const latestVideoTask = videoTasks[0];
+  const isVideoTaskActive = Boolean(
+    latestVideoTask && (latestVideoTask.taskStatus === "QUEUED" || latestVideoTask.taskStatus === "RUNNING"),
+  );
+  const showVideoSubmittingState = isVideoSubmitting && !isVideoTaskActive;
+  const videoInlineError = latestVideoTask?.taskStatus === "FAILED" ? latestVideoTask.errorMessage?.trim() || "" : "";
+  const videoTaskStatusText = latestVideoTask
+    ? latestVideoTask.taskStatus === "QUEUED"
+      ? "排队中"
+      : latestVideoTask.taskStatus === "RUNNING"
+        ? "创作中"
+        : latestVideoTask.taskStatus === "SUCCESS"
+          ? "已完成"
+          : latestVideoTask.taskStatus === "FAILED"
+            ? "创作失败"
+            : latestVideoTask.taskStatus
+    : "";
   const mobilePublishTasks = useMemo(
     () =>
       workspace.tasks
@@ -691,12 +766,16 @@ export default function XiaohongshuPage() {
       ? "原创笔记工作区"
       : activeSection === "remix"
         ? "二创笔记工作区"
+        : activeSection === "video"
+          ? "视频笔记工作区"
         : "小红书营销策划方案工作区";
   const heroDescription =
     activeSection === "original"
       ? "当前聚焦【原创笔记】主链路：选择营销日历选题与产品，生成图文内容和图片作品，并统一管理已完成作品。"
       : activeSection === "remix"
         ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
+        : activeSection === "video"
+          ? "当前聚焦【视频笔记】主链路：选择营销日历选题、产品或参考图，生成视频笔记文案、短视频提示词与成片，并统一管理成品。"
         : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
   const publishedPreview = useMemo(
     () =>
@@ -728,6 +807,12 @@ export default function XiaohongshuPage() {
       setSelectedRewriteWorkId(rewriteWorks[0].id);
     }
   }, [rewriteWorks, selectedRewriteWorkId]);
+
+  useEffect(() => {
+    if (!selectedVideoWorkId && videoWorks[0]) {
+      setSelectedVideoWorkId(videoWorks[0].id);
+    }
+  }, [selectedVideoWorkId, videoWorks]);
 
   useEffect(() => {
     if (!originalProductValue || originalProductValue === NO_PRODUCT_OPTION) {
@@ -781,6 +866,25 @@ export default function XiaohongshuPage() {
       setRewriteMaterialValue(materialNotes[0].id);
     }
   }, [materialNotes, rewriteMaterialValue]);
+
+  useEffect(() => {
+    if (!workspace.archive.products.length) {
+      setVideoProductValue(NO_PRODUCT_OPTION);
+      return;
+    }
+    if (videoProductValue !== NO_PRODUCT_OPTION && !workspace.archive.products.some((item) => item.id === videoProductValue)) {
+      setVideoProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    }
+  }, [videoProductValue, workspace.archive.products]);
+
+  useEffect(() => {
+    if (videoCalendarValue === CUSTOM_TOPIC_OPTION) {
+      return;
+    }
+    if (!videoCalendarValue || !calendarAllItems.some((item) => item.id === videoCalendarValue)) {
+      setVideoCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
+    }
+  }, [calendarAllItems, videoCalendarValue]);
 
   useEffect(() => {
     if (!calendarAllItems.length) {
@@ -1209,6 +1313,177 @@ export default function XiaohongshuPage() {
       url: targetUrl,
       type: "IMAGE",
     });
+  }
+
+  function resetVideoComposer() {
+    setVideoCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
+    setVideoCustomTopic("");
+    setVideoProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
+    setVideoReferenceImageFile(null);
+    setVideoCopyAdditionalInstruction("");
+    setVideoProviderValue("seedance2.0");
+    setVideoCustomModelName("");
+    setVideoDurationValue("10");
+    setVideoOutputPromptValue("yes");
+    setVideoAdditionalInstruction("");
+  }
+
+  function handleOpenVideoModal() {
+    resetVideoComposer();
+    setIsVideoModalOpen(true);
+  }
+
+  function handleCloseVideoModal() {
+    setIsVideoModalOpen(false);
+  }
+
+  async function handleCreateVideoWork() {
+    const isCustomTopic = videoCalendarValue === CUSTOM_TOPIC_OPTION;
+    const customTopicName = videoCustomTopic.trim();
+
+    if (isCustomTopic && !customTopicName) {
+      setErrorMessage("请选择营销日历选题，或填写你自己的选题。");
+      return;
+    }
+
+    if (!isCustomTopic && !videoCalendarValue) {
+      setErrorMessage("请先选择一个营销日历选题。");
+      return;
+    }
+
+    if (videoReferenceImageFile && videoProductValue !== NO_PRODUCT_OPTION) {
+      setErrorMessage("参考图和产品不能同时选择，请二选一。");
+      return;
+    }
+
+    setIsPublishing(true);
+    setIsVideoSubmitting(true);
+    setVideoSubmittingLabel(customTopicName || calendarAllItems.find((item) => item.id === videoCalendarValue)?.topicName || "视频笔记任务已提交");
+    setNotice("");
+    setErrorMessage("");
+    setIsVideoModalOpen(false);
+
+    try {
+      const result = await generateXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, {
+        calendarItemId: isCustomTopic ? undefined : videoCalendarValue,
+        customTopicName: isCustomTopic ? customTopicName : undefined,
+        productId: videoProductValue === NO_PRODUCT_OPTION ? undefined : videoProductValue,
+        referenceImageFile: videoReferenceImageFile,
+        copyAdditionalInstruction: videoCopyAdditionalInstruction.trim() || undefined,
+        videoProvider: videoProviderValue,
+        customVideoModelName: videoCustomModelName.trim() || undefined,
+        durationSec: Number(videoDurationValue),
+        outputVideoPrompt: videoOutputPromptValue === "yes",
+        videoAdditionalInstruction: videoAdditionalInstruction.trim() || undefined,
+      });
+
+      setVideoWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
+      setSelectedVideoWorkId(result.item.id);
+      setEditingVideoWorkId("");
+      setEditingVideoTitle("");
+      setEditingVideoContent("");
+      setEditingVideoPrompt("");
+      setNotice("视频笔记已创作完成，并已同步保存到“我的作品”。");
+      resetVideoComposer();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频笔记创作失败";
+      setErrorMessage(`创作失败：${message}`);
+    } finally {
+      setIsVideoSubmitting(false);
+      setVideoSubmittingLabel("");
+      setIsPublishing(false);
+    }
+  }
+
+  function handleStartEditVideoWork(item: XiaohongshuVideoWorkRecord) {
+    setSelectedVideoWorkId(item.id);
+    setEditingVideoWorkId(item.id);
+    setEditingVideoTitle(item.title);
+    setEditingVideoContent(item.content);
+    setEditingVideoPrompt(item.videoPrompt || item.fullVideoPrompt || "");
+  }
+
+  function handleCancelEditVideoWork() {
+    setEditingVideoWorkId("");
+    setEditingVideoTitle("");
+    setEditingVideoContent("");
+    setEditingVideoPrompt("");
+  }
+
+  async function handleSaveVideoWork() {
+    if (!editingVideoWorkId) {
+      return;
+    }
+
+    const title = editingVideoTitle.trim();
+    const content = editingVideoContent.trim();
+    if (!title || !content) {
+      setErrorMessage("标题和正文不能为空。");
+      return;
+    }
+
+    setSavingVideoWorkId(editingVideoWorkId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await updateXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingVideoWorkId, {
+        title,
+        content,
+        videoPrompt: editingVideoPrompt.trim() || undefined,
+      });
+      setVideoWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+      setSelectedVideoWorkId(result.item.id);
+      handleCancelEditVideoWork();
+      setNotice("视频笔记已更新。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频笔记更新失败";
+      setErrorMessage(`保存失败：${message}`);
+    } finally {
+      setSavingVideoWorkId("");
+    }
+  }
+
+  async function handleDeleteVideoWork(workId: string) {
+    setDeletingVideoWorkId(workId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      await deleteXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
+      const remainingItems = videoWorks.filter((item) => item.id !== workId);
+      setVideoWorks(remainingItems);
+      if (selectedVideoWorkId === workId) {
+        setSelectedVideoWorkId(remainingItems[0]?.id || "");
+      }
+      if (editingVideoWorkId === workId) {
+        handleCancelEditVideoWork();
+      }
+      setNotice("视频笔记已删除。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频笔记删除失败";
+      setErrorMessage(`删除失败：${message}`);
+    } finally {
+      setDeletingVideoWorkId("");
+    }
+  }
+
+  function openVideoWorkLightbox(item: XiaohongshuVideoWorkRecord) {
+    if (item.videoUrl) {
+      setMaterialLightbox({
+        title: `${item.title} · 视频`,
+        url: item.videoUrl,
+        type: "VIDEO",
+      });
+      return;
+    }
+    if (item.coverImageUrl) {
+      setMaterialLightbox({
+        title: `${item.title} · 封面`,
+        url: item.coverImageUrl,
+        type: "IMAGE",
+      });
+    }
   }
 
   function handleOpenPublishModal(target: PublishableWorkTarget) {
@@ -2373,42 +2648,308 @@ export default function XiaohongshuPage() {
             <strong>{currentSection.label}</strong>
             <p className="panel-subtext">{currentSection.description}</p>
           </div>
-          <span className="archive-pill status-ready">{noteDrafts.length} 组脚本</span>
+          <div className="strategy-inline-actions">
+            <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing || isVideoTaskActive}>
+              刷新列表
+            </button>
+            <button type="button" className="primary-button" onClick={handleOpenVideoModal} disabled={isPublishing || isVideoTaskActive}>
+              添加视频笔记
+            </button>
+          </div>
         </div>
 
-        <div className="personal-list">
-          {noteDrafts.map((item, index) => (
-            <article className="entity-card personal-card" key={item.id}>
-              <div className="entity-card-head">
-                <div>
-                  <strong>视频笔记脚本 {index + 1}</strong>
-                  <p className="personal-meta">{item.title}</p>
+        <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+          <div className="report-editor-head">
+            <div>
+              <strong>视频笔记创作状态</strong>
+              <p>点击“一键创作”后，这里会持续显示视频笔记的排队、创作、失败和完成状态。</p>
+            </div>
+            <div className="report-editor-actions">
+              <span className={`archive-pill ${videoTasks.length ? "status-ready" : "status-in_progress"}`}>
+                {videoTasks.length ? `累计 ${videoTasks.length} 条任务` : "暂无任务"}
+              </span>
+              {showVideoSubmittingState ? (
+                <span className="archive-pill status-in_progress">创作中</span>
+              ) : null}
+              {latestVideoTask ? (
+                <span className={`archive-pill ${getTaskStatusClass(latestVideoTask.taskStatus)}`}>{videoTaskStatusText}</span>
+              ) : null}
+              {latestVideoTask?.updatedAt ? (
+                <span className="archive-pill status-pending">{formatDateTime(latestVideoTask.updatedAt)}</span>
+              ) : null}
+            </div>
+          </div>
+          {showVideoSubmittingState ? (
+            <div className="report-inline-tip">
+              {`视频笔记已提交，正在生成中：${videoSubmittingLabel || "本次视频笔记"}，请稍候。`}
+            </div>
+          ) : null}
+          {isVideoTaskActive ? (
+            <div className="report-inline-tip">
+              {latestVideoTask?.taskStatus === "QUEUED"
+                ? "视频笔记任务已提交，正在排队。"
+                : `视频笔记正在生成中：${latestVideoTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+            </div>
+          ) : null}
+          {videoInlineError ? <div className="report-inline-tip report-inline-tip--error">{videoInlineError}</div> : null}
+        </article>
+
+        {!videoWorks.length ? (
+          <div className="empty-state">当前还没有视频笔记，点击右上角“添加视频笔记”开始创作。</div>
+        ) : (
+          <div className="xhs-material-library">
+            <div className="xhs-material-card-grid">
+              {videoWorks.map((item) => {
+                const previewImageUrl = item.coverImageUrl || "";
+                return (
+                  <article key={item.id} className="xhs-material-card">
+                    <button
+                      type="button"
+                      className="xhs-material-card-stage"
+                      onClick={() => openVideoWorkLightbox(item)}
+                    >
+                      {previewImageUrl ? (
+                        <img className="xhs-material-card-media" src={previewImageUrl} alt={item.title} />
+                      ) : item.videoUrl ? (
+                        <video className="xhs-material-card-media" src={item.videoUrl} muted preload="metadata" />
+                      ) : (
+                        <span className="xhs-material-card-empty">暂无封面</span>
+                      )}
+                      <span className="xhs-material-card-badge">视频</span>
+                    </button>
+                    <div className="xhs-material-card-body">
+                      <strong>{item.title}</strong>
+                      <p>{item.calendarLabel || item.customTopicName || "自定义选题"}</p>
+                      <p>{formatDateTime(item.createdAt)}</p>
+                      <div className="xhs-material-card-actions">
+                        <button type="button" className="secondary-button" onClick={() => openVideoWorkLightbox(item)}>
+                          预览
+                        </button>
+                        <button type="button" className="secondary-button" onClick={() => handleStartEditVideoWork(item)}>
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleDeleteVideoWork(item.id)}
+                          disabled={deletingVideoWorkId === item.id}
+                        >
+                          {deletingVideoWorkId === item.id ? "删除中..." : "删除"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {videoEditingWork ? (
+          <div className="media-preview-overlay" onClick={handleCancelEditVideoWork}>
+            <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="media-preview-close" onClick={handleCancelEditVideoWork}>
+                关闭
+              </button>
+              <article className="entity-card personal-card">
+                <div className="entity-card-head">
+                  <div>
+                    <strong>编辑视频笔记</strong>
+                    <p className="personal-meta">
+                      {videoEditingWork.calendarLabel || videoEditingWork.customTopicName || "自定义选题"}
+                      {videoEditingWork.productName ? ` · 产品：${videoEditingWork.productName}` : ""}
+                    </p>
+                  </div>
+                  <div className="report-editor-actions">
+                    <span className="archive-pill status-ready">{videoEditingWork.noteCategory}</span>
+                    <span className="archive-pill status-pending">{videoEditingWork.noteType}</span>
+                    <span className={`archive-pill ${getOriginalTaskStatusClass(videoEditingWork.taskStatus)}`}>
+                      {getOriginalTaskStatusText(videoEditingWork.taskStatus)}
+                    </span>
+                  </div>
                 </div>
-                <button type="button" className="secondary-button" onClick={() => setSelectedNoteId(item.id)}>
-                  查看关联文案
-                </button>
-              </div>
-              <div className="personal-grid">
-                <div>
-                  <span>片头钩子</span>
-                  <strong>{item.opening}</strong>
+                <div className="personal-list">
+                  <label className="report-editor-pane">
+                    <span>标题</span>
+                    <input
+                      className="report-title-input"
+                      value={editingVideoTitle}
+                      onChange={(event) => setEditingVideoTitle(event.target.value)}
+                      placeholder="请输入视频笔记标题"
+                    />
+                  </label>
+                  <label className="report-editor-pane">
+                    <span>正文</span>
+                    <textarea
+                      className="report-content-textarea"
+                      value={editingVideoContent}
+                      onChange={(event) => setEditingVideoContent(event.target.value)}
+                      placeholder="请输入视频笔记正文"
+                    />
+                  </label>
+                  <label className="report-editor-pane">
+                    <span>视频生成提示词</span>
+                    <textarea
+                      className="report-markdown-textarea"
+                      value={editingVideoPrompt}
+                      onChange={(event) => setEditingVideoPrompt(event.target.value)}
+                      placeholder="可选：调整短视频生成提示词"
+                    />
+                  </label>
+                  <div className="strategy-inline-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleSaveVideoWork()}
+                      disabled={savingVideoWorkId === videoEditingWork.id}
+                    >
+                      {savingVideoWorkId === videoEditingWork.id ? "保存中..." : "保存"}
+                    </button>
+                    <button type="button" className="secondary-button" onClick={handleCancelEditVideoWork}>
+                      取消
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <span>目标动作</span>
-                  <strong>{topicIdeas[index]?.cta || "点击主页 / 评论互动"}</strong>
+              </article>
+            </div>
+          </div>
+        ) : null}
+
+        {isVideoModalOpen ? (
+          <div className="media-preview-overlay" onClick={handleCloseVideoModal}>
+            <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="media-preview-close" onClick={handleCloseVideoModal}>
+                关闭
+              </button>
+              <article className="entity-card personal-card">
+                <div className="entity-card-head">
+                  <div>
+                    <strong>添加视频笔记</strong>
+                    <p className="personal-meta">选择营销日历、产品或参考图后，直接触发视频笔记文案、短视频提示词和成片生成链路。</p>
+                  </div>
                 </div>
-                <div className="field-full">
-                  <span>镜头结构</span>
-                  <strong>{item.outline.join(" / ")}</strong>
+                <div className="personal-grid">
+                  <label>
+                    <span>营销日历</span>
+                    <select value={videoCalendarValue} onChange={(event) => setVideoCalendarValue(event.target.value)}>
+                      {originalCalendarOptions.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_TOPIC_OPTION}>自己有选题，不使用系统选题</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>产品</span>
+                    <select
+                      value={videoProductValue}
+                      onChange={(event) => {
+                        setVideoProductValue(event.target.value);
+                        if (event.target.value !== NO_PRODUCT_OPTION && videoReferenceImageFile) {
+                          setVideoReferenceImageFile(null);
+                        }
+                      }}
+                    >
+                      {workspace.archive.products.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.productName}
+                        </option>
+                      ))}
+                      <option value={NO_PRODUCT_OPTION}>不植入产品</option>
+                    </select>
+                  </label>
+                  {videoCalendarValue === CUSTOM_TOPIC_OPTION ? (
+                    <label className="field-full">
+                      <span>自定义选题</span>
+                      <input
+                        value={videoCustomTopic}
+                        onChange={(event) => setVideoCustomTopic(event.target.value)}
+                        placeholder="请输入你的视频笔记选题"
+                      />
+                    </label>
+                  ) : null}
+                  <label className="field-full">
+                    <span>上传参考图</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        setVideoReferenceImageFile(file);
+                        if (file) {
+                          setVideoProductValue(NO_PRODUCT_OPTION);
+                        }
+                      }}
+                    />
+                    <strong>{videoReferenceImageFile?.name || "未上传"}</strong>
+                  </label>
+                  <label className="field-full">
+                    <span>用户要求</span>
+                    <textarea
+                      className="report-markdown-textarea"
+                      value={videoCopyAdditionalInstruction}
+                      onChange={(event) => setVideoCopyAdditionalInstruction(event.target.value)}
+                      placeholder="例如：标题更有冲击力，正文更像口播文案。"
+                    />
+                  </label>
+                  <label>
+                    <span>视频大模型</span>
+                    <select value={videoProviderValue} onChange={(event) => setVideoProviderValue(event.target.value)}>
+                      <option value="hailuo">hailuo</option>
+                      <option value="kling">kling</option>
+                      <option value="veo">veo</option>
+                      <option value="wan">wan</option>
+                      <option value="seedance2.0">seedance2.0</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>视频时长</span>
+                    <select value={videoDurationValue} onChange={(event) => setVideoDurationValue(event.target.value)}>
+                      {["6", "8", "10", "12", "15", "30"].map((value) => (
+                        <option key={value} value={value}>
+                          {value}s
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>自定义模型名</span>
+                    <input
+                      value={videoCustomModelName}
+                      onChange={(event) => setVideoCustomModelName(event.target.value)}
+                      placeholder="可选：手动输入 provider 的具体 model"
+                    />
+                  </label>
+                  <label>
+                    <span>输出视频提示词</span>
+                    <select value={videoOutputPromptValue} onChange={(event) => setVideoOutputPromptValue(event.target.value)}>
+                      <option value="yes">是</option>
+                      <option value="no">否</option>
+                    </select>
+                  </label>
+                  <label className="field-full">
+                    <span>短视频补充要求</span>
+                    <textarea
+                      className="report-markdown-textarea"
+                      value={videoAdditionalInstruction}
+                      onChange={(event) => setVideoAdditionalInstruction(event.target.value)}
+                      placeholder="例如：镜头节奏更快，氛围更轻盈，尽量突出产品使用瞬间。"
+                    />
+                  </label>
                 </div>
-                <div className="field-full">
-                  <span>封面话术</span>
-                  <strong>{publishedPreview.coverLine}</strong>
+                <div className="strategy-inline-actions">
+                  <button type="button" className="primary-button" onClick={() => void handleCreateVideoWork()} disabled={isPublishing}>
+                    {isPublishing ? "创作中..." : "一键创作"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={handleCloseVideoModal} disabled={isPublishing}>
+                    取消
+                  </button>
                 </div>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            </div>
+          </div>
+        ) : null}
       </article>
     );
   }
