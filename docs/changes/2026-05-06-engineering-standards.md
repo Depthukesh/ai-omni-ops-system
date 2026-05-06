@@ -60,7 +60,114 @@
 - 将原创、二创、视频三套作品创建时的参数校验、接口调用、提交中状态、列表回写、编辑态清理与提示文案从页面文件中抽为统一 hook
 - 页面文件继续保留弹窗展示与卡片渲染，但不再直接承载三大段创作提交流程
 
-### 3.9 本次评估纳入的重点范围
+### 3.9 第八轮代码收敛
+
+- 新增 `docs/generated-content-storage-standards.md`
+- 明确原创、二创、视频三类作品的“Task + MediaAsset + 本地副本”统一存储规则
+- 将视频生成结果中的成片视频和视频封面统一补到本站副本链路，避免继续依赖第三方临时地址
+- 新增 `work-card-grids.tsx`，将原创、二创、视频三套作品卡片列表从页面主文件中抽为独立子组件
+
+### 3.10 第九轮代码收敛
+
+- 新增 `plan-workspace.tsx`
+- 新增 `calendar-workspace.tsx`
+- 将小红书工作台中的“营销策划方案工作区”和“营销日历工作区”从 `page.tsx` 主文件中抽为独立子组件
+- 页面主文件继续保留工作区切换与状态编排，但不再直接承载这两大块长段 JSX
+
+### 3.11 第十轮代码收敛
+
+- 新增 `note-create-modals.tsx`
+- 将原创、二创、视频三套“创建弹窗”从 `page.tsx` 主文件中抽为独立子组件
+- 页面主文件继续保留弹窗开关、表单状态与提交流程编排，但不再直接承载三套创建表单的长段 JSX
+
+### 3.12 第十一轮代码收敛
+
+- 新增 `note-edit-modals.tsx`
+- 将原创、二创、视频三套“编辑弹窗”从 `page.tsx` 主文件中抽为独立子组件
+- 页面主文件继续保留保存接口调用、状态提示与列表回写编排，但不再直接承载三套编辑弹窗的长段 JSX
+
+### 3.13 第十二轮代码收敛
+
+- 新增 `assets-workspace.tsx`
+- 将小红书工作台中的“素材库工作区”从 `page.tsx` 主文件中抽为独立子组件
+- 素材卡片列表、预览切换、灯箱入参组装与指标展示逻辑统一转入素材库子组件
+- 页面主文件继续保留素材选中态、预览索引状态与全局灯箱状态编排
+
+### 3.14 第十三轮代码收敛
+
+- 新增 `note-workspaces.tsx`
+- 将原创笔记、二创笔记、视频笔记三个分区工作区从 `page.tsx` 主文件中抽为独立子组件
+- 三个分区的状态面板、作品卡片区、编辑弹窗、创建弹窗装配逻辑统一迁入分区组件
+- 页面主文件继续保留任务状态计算、作品列表状态、发布弹窗与全局灯箱编排
+
+### 3.15 第十四轮代码收敛
+
+- 新增 `publish-modal.tsx`
+- 将小红书一键发布弹窗从 `page.tsx` 主文件中抽为独立子组件
+- 发布账号选择、电脑端扩展提示、桌面发布会话区、手机接力二维码区统一迁入发布弹窗组件
+- 页面主文件继续保留 `use-publish-flow` 状态机与全局提示文案编排
+
+### 3.16 第十五轮代码收敛
+
+- 新增 `media-lightbox.tsx`
+- 将全局图片/视频预览灯箱从 `page.tsx` 主文件中抽为独立子组件
+- 页面主文件继续保留灯箱状态与打开关闭动作编排，不再直接承载预览弹层 JSX
+
+### 3.17 第十六轮代码收敛
+
+- 新增 `markdown-render.ts`
+- 将小红书页面内的 Markdown 渲染、表格/list 转换与行内格式化 helper 从 `page.tsx` 主文件中抽为独立工具模块
+- 页面主文件继续只保留 `marketingPlanPreviewHtml` 的调用点，不再直接承载这组纯工具函数
+
+### 3.18 第十七轮代码收敛
+
+- 新增 `shared-types.ts`
+- 将 `SelectOption`、`ProductOption`、`MaterialOption`、`PlatformAccount`、`MediaLightboxState` 等重复小类型统一收口为共享定义
+- 将 `PublishModal`、`MediaLightbox`、`AssetsWorkspace`、`OriginalWorkspace`、`RewriteWorkspace`、`VideoWorkspace`、三套创建弹窗与三套编辑弹窗改为显式 `Props` 接口
+- 将 `PublishModal` 的 `target` 改为 `publishTarget`、`MediaLightbox` 的 `lightbox` 改为 `state`，统一 props 命名可读性
+- `use-note-composer-forms`、`use-work-composer-actions`、`use-publish-flow` 同步改为复用共享类型，减少局部重复声明
+
+### 3.19 第十八轮代码收敛
+
+- 将 `plan-workspace.tsx`、`calendar-workspace.tsx`、`work-card-grids.tsx` 统一改为显式 `Props` 接口
+- 三个剩余工作区/卡片组件同步复用 `shared-types.ts` 中的通用 handler 与格式化类型
+- 至此，小红书工作台本轮新拆出去的核心组件已基本统一到“共享类型 + 显式 Props 接口 + 更直白 prop 命名”的同一套风格
+
+### 3.20 第十九轮代码收敛
+
+- 新增 `calendar-helpers.ts`
+- 将日期格式化、月份标签、节日标签、日历矩阵构建与日历可选值/list 展示 helper 从 `page.tsx` 主文件中抽为独立工具模块
+- 页面主文件继续只保留营销日历数据编排与传参，不再直接承载这组日期/日历纯工具函数
+
+### 3.21 第二十轮代码收敛
+
+- 新增 `publish-status-helpers.ts`
+- 将任务状态样式、作品状态文案、发布状态文案与发布按钮标签 helper 从 `page.tsx` 主文件中抽为独立工具模块
+- 页面主文件改为直接复用 `getTaskStatusClass`、`getWorkTaskStatusClass`、`getWorkTaskStatusText`、`getPublishTaskStatusText`、`getWorkPublishTaskLabel`、`getPublishTaskSummaryText`
+- 页面内调用点同步从旧的 `getOriginalTaskStatusClass / Text` 名称过渡到更直白的 `getWorkTaskStatusClass / Text`
+
+### 3.22 第二十一轮代码收敛
+
+- 新增 `work-media-helpers.ts`
+- 新增 `work-task-helpers.ts`
+- 将素材代理 URL、作品图片数组、预览索引、作品标题基线、草稿匹配、关联作品查找、发布任务映射与任务输入解析 helper 从 `page.tsx` 主文件中抽为独立工具模块
+- `assets-workspace.tsx` 同步复用新的媒体 helper，去掉本地重复的素材代理与预览索引实现
+- 页面主文件继续只保留作品工作区状态编排与预览数据组装，不再直接承载这组媒体/任务辅助函数
+
+### 3.23 第二十二轮代码收敛
+
+- 新增 `datetime-helpers.ts`
+- 新增 `preview-builders.ts`
+- 将页面级 `formatDateTime` 与发布预览拼装 `buildPublishedPreview` 从 `page.tsx` 主文件中抽为独立工具模块
+- 页面主文件继续只保留发布预览的入参准备与状态编排，不再直接承载时间格式化和发布预览文案拼装细节
+
+### 3.24 第二十三轮代码收敛
+
+- 新增 `task-status-text-helpers.ts`
+- 将营销策划方案、营销日历、原创/二创/视频创作任务的状态文案判断从 `page.tsx` 主文件中抽为独立工具模块
+- 页面主文件统一改为复用 `getPhaseTaskStatusText` 与 `getComposeTaskStatusText`，减少多段重复的状态文案三元判断
+
+### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
 - 浏览器扩展工作台桥接与创作者页自动化
@@ -83,6 +190,9 @@
 - 影响小红书工作台中原创/二创/视频创作表单状态的组织方式
 - 影响小红书工作台中原创/二创/视频创作提交流程的组织方式
 - 影响小红书工作台中原创/二创/视频编辑弹窗状态的组织方式
+- 影响生成内容的文案、图片、视频存储规则与副本策略
+- 影响小红书工作台中原创/二创/视频作品卡片区的组织方式
+- 影响小红书工作台中营销策划方案与营销日历工作区的组织方式
 - 不直接修改线上业务逻辑，但会影响后续开发时的默认落点和审查标准
 - 不影响已有数据库数据
 
@@ -105,6 +215,39 @@
 - 再次执行 `npm run build:web` 通过
 - `GetDiagnostics` 检查 `use-work-composer-actions.ts` 与 `xiaohongshu/page.tsx`
 - 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `works.service.ts`
+- `GetDiagnostics` 检查 `work-card-grids.tsx` 与 `xiaohongshu/page.tsx`
+- 执行前后端构建验证
+- `GetDiagnostics` 检查 `plan-workspace.tsx`、`calendar-workspace.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `note-create-modals.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `note-edit-modals.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `assets-workspace.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `note-workspaces.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `publish-modal.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `media-lightbox.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `markdown-render.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `shared-types.ts`、`note-create-modals.tsx`、`note-edit-modals.tsx`、`note-workspaces.tsx`、`assets-workspace.tsx`、`publish-modal.tsx`、`media-lightbox.tsx`、`use-note-composer-forms.ts`、`use-work-composer-actions.ts`、`use-publish-flow.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `plan-workspace.tsx`、`calendar-workspace.tsx`、`work-card-grids.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `calendar-helpers.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `publish-status-helpers.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `work-media-helpers.ts`、`work-task-helpers.ts`、`assets-workspace.tsx` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `datetime-helpers.ts`、`preview-builders.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `task-status-text-helpers.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
 
 ## 7. 风险与后续
 
@@ -114,10 +257,12 @@
 - 当前只先收口了 `publishing` 与 `works` 的配置读取，其他模块仍需继续迁移
 - `xiaohongshu/page.tsx` 体量仍然很大，本次只先切出了发布桥接热点，后续还需继续拆任务轮询、作品弹窗和表单状态
 - 当前虽然已抽出发布桥接、任务轮询、发布状态机、创作表单状态、创作提交流程和编辑弹窗状态，但页面仍保留大量卡片渲染与分区视图逻辑，后续应继续按“卡片渲染分区、营销方案工作区子组件”两个方向拆分
+- 当前已开始收口生成内容存储规则，并拆出作品卡片区、营销方案工作区、营销日历工作区、素材库工作区、原创/二创/视频三个分区工作区、三套创建弹窗、三套编辑弹窗、发布弹窗、全局灯箱、markdown/render helper、共享类型、日期/日历 helper、发布状态 helper、作品媒体 helper、任务关联 helper、时间格式 helper、发布预览 builder 与任务状态文案 helper；后续重点转到 `page.tsx` 内极少量剩余局部逻辑的最终收口与整体复盘
 
 ## 8. 相关文件
 
 - `docs/engineering-standards.md`
+- `docs/generated-content-storage-standards.md`
 - `docs/README.md`
 - `apps/server/src/config/app-config.module.ts`
 - `apps/server/src/config/app-config.service.ts`
@@ -130,5 +275,23 @@
 - `apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/use-work-editors.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/plan-workspace.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/calendar-workspace.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspaces.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/publish-modal.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/media-lightbox.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/markdown-render.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/shared-types.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/calendar-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/publish-status-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/work-media-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/work-task-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/datetime-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/preview-builders.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/task-status-text-helpers.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/work-card-grids.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-edit-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - `.env.example`

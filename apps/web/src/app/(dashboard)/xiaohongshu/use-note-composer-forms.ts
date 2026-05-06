@@ -1,19 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-type CalendarOption = {
-  id?: string;
-  topicName?: string;
-};
-
-type MaterialOption = {
-  id?: string;
-};
-
-type ProductOption = {
-  id?: string;
-};
+import { type CalendarOption, type MaterialOption, type ProductOption } from "./shared-types";
 
 export function useNoteComposerForms(options: {
   defaultProductId?: string;

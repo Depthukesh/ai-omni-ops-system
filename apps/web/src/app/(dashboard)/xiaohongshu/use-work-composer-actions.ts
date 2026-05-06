@@ -11,15 +11,7 @@ import {
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
 } from "../../../services/works";
-
-type CalendarOption = {
-  id?: string;
-  topicName?: string;
-};
-
-type ProductOption = {
-  id?: string;
-};
+import { type CalendarOption, type ProductOption } from "./shared-types";
 
 type OriginalComposerState = {
   calendarValue: string;

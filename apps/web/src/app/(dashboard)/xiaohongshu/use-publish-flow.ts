@@ -9,6 +9,7 @@ import {
   startDesktopPublisherBridge,
 } from "./desktop-publish-bridge";
 import { type PublishableWorkTarget } from "./publish-types";
+import { type PlatformAccount } from "./shared-types";
 import {
   completeXiaohongshuMobileDraftSession,
   createXiaohongshuDesktopDraftSession,
@@ -16,13 +17,6 @@ import {
   type XiaohongshuDesktopDraftSession,
   type XiaohongshuMobileDraftSession,
 } from "../../../services/publishing";
-
-type PlatformAccount = {
-  id?: string;
-  platform: string;
-  accountName?: string;
-  accountLink?: string;
-};
 
 export function usePublishFlow(options: {
   brandId: string;
