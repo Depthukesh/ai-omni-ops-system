@@ -4,6 +4,7 @@ import { extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
@@ -384,6 +385,8 @@ type VideoProviderConfig = {
 @Injectable()
 export class WorksService {
   constructor(
+    @Inject(AppConfigService)
+    private readonly appConfigService: AppConfigService,
     @Inject(PrismaService)
     private readonly prismaService: PrismaService,
     @Inject(BrandsService)
@@ -4393,9 +4396,7 @@ export class WorksService {
   }
 
   private resolveServerBaseUrl() {
-    return process.env.API_PUBLIC_BASE_URL
-      || process.env.WEB_API_BASE_URL
-      || `http://localhost:${Number(process.env.PORT || 3011)}`;
+    return this.appConfigService.getServerBaseUrl();
   }
 
   private toStorageKeyFromUrl(url: string) {

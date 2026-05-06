@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
+import { AppConfigModule } from "./config/app-config.module";
 import { ApiProvidersModule } from "./modules/admin/api-providers.module";
 import { BillingRulesModule } from "./modules/admin/billing-rules.module";
 import { KnowledgeBasesModule } from "./modules/admin/knowledge-bases.module";
@@ -20,6 +21,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
   imports: [
+    AppConfigModule,
     PrismaModule,
     ApiProvidersModule,
     BillingRulesModule,

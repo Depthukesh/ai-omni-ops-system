@@ -19,7 +19,30 @@
 - 新增 `docs/engineering-standards.md`
 - 将当前前端、后端、扩展、资源、文档与 Git 规则统一沉淀为规范
 
-### 3.2 本次评估纳入的重点范围
+### 3.2 第一轮代码收敛
+
+- 新增后端全局 `AppConfigModule` 与 `AppConfigService`
+- 将 `publishing.service.ts` 和 `works.service.ts` 中分散的 URL、端口、Web/API 基地址解析收口到统一配置服务
+- 同步补齐 `.env.example` 中当前发布链路与飞书授权链路常用但未显式列出的环境变量
+
+### 3.3 第二轮代码收敛
+
+- 将小红书工作台中“电脑端发布桥接”相关的协议探测、消息监听、启动发布逻辑抽离为独立 `desktop-publish-bridge.ts`
+- 页面文件继续保留业务编排，但不再直接承载整段扩展桥接细节
+
+### 3.4 第三轮代码收敛
+
+- 新增通用 `task-polling.ts`
+- 将小红书工作台中营销方案、营销日历、原创笔记、二创笔记、视频笔记、发布任务的重复轮询逻辑统一收口
+- 页面内不再保留 6 段重复的 `useEffect + setTimeout + taskStatus` 轮询模板
+
+### 3.5 第四轮代码收敛
+
+- 新增 `use-publish-flow.ts`
+- 将小红书工作台中的发布弹窗状态、电脑端发布、手机接力二维码、发布完成回写等逻辑抽为独立 hook
+- 新增 `publish-types.ts`，把发布目标类型从页面文件中独立出来
+
+### 3.6 本次评估纳入的重点范围
 
 - 前端页面与 service
 - 浏览器扩展工作台桥接与创作者页自动化
@@ -35,6 +58,10 @@
 ## 5. 影响范围
 
 - 影响后续所有前端、后端、扩展相关开发
+- 影响 `publishing`、`works` 两个热点模块的配置读取方式
+- 影响小红书工作台中桌面发布桥接逻辑的组织方式
+- 影响小红书工作台中任务轮询逻辑的组织方式
+- 影响小红书工作台中发布弹窗状态与发布动作的组织方式
 - 不直接修改线上业务逻辑，但会影响后续开发时的默认落点和审查标准
 - 不影响已有数据库数据
 
@@ -43,14 +70,35 @@
 - 人工复核当前代码热点
 - 按前端与后端两个方向分别做结构评估
 - 将评估结果转化为稳定规则并落入 `docs/`
+- `GetDiagnostics` 检查新增配置模块与已改服务文件
+- `npm run build:server` 通过
+- `GetDiagnostics` 检查 `desktop-publish-bridge.ts` 与 `xiaohongshu/page.tsx`
+- `npm run build:web` 通过
+- `GetDiagnostics` 检查 `task-polling.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `use-publish-flow.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
 
 ## 7. 风险与后续
 
 - 规范文档已经落地，但代码本身仍需要分阶段按 P0/P1/P2 逐步整改
 - 若后续开发不按文档执行，仍可能继续产生重复实现和结构膨胀
 - 下一阶段建议优先处理配置收口、共享协议、资源本站缓存和页面拆分
+- 当前只先收口了 `publishing` 与 `works` 的配置读取，其他模块仍需继续迁移
+- `xiaohongshu/page.tsx` 体量仍然很大，本次只先切出了发布桥接热点，后续还需继续拆任务轮询、作品弹窗和表单状态
+- 当前虽然已抽出发布桥接、任务轮询和发布状态机，但页面仍保留大量表单状态与渲染逻辑，后续应继续按“作品编辑弹窗、原创/二创/视频表单状态”两个方向拆分
 
 ## 8. 相关文件
 
 - `docs/engineering-standards.md`
 - `docs/README.md`
+- `apps/server/src/config/app-config.module.ts`
+- `apps/server/src/config/app-config.service.ts`
+- `apps/server/src/modules/publishing/publishing.service.ts`
+- `apps/server/src/modules/works/works.service.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/desktop-publish-bridge.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/publish-types.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/task-polling.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+- `.env.example`

@@ -1,7 +1,7 @@
-import { networkInterfaces } from "node:os";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { BrandsService } from "../brands/brands.service";
 import { WorksService, type XiaohongshuPublishableWorkRecord } from "../works/works.service";
@@ -57,6 +57,8 @@ type DraftTaskOutput = {
 @Injectable()
 export class PublishingService {
   constructor(
+    @Inject(AppConfigService)
+    private readonly appConfigService: AppConfigService,
     @Inject(PrismaService)
     private readonly prismaService: PrismaService,
     @Inject(BrandsService)
@@ -517,40 +519,11 @@ export class PublishingService {
   }
 
   private resolveMobileWebBaseUrl() {
-    const explicit = process.env.WEB_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_WEB_BASE_URL;
-    if (explicit?.trim()) {
-      return explicit.trim().replace(/\/$/, "");
-    }
-
-    const networkList = networkInterfaces();
-    for (const name of Object.keys(networkList)) {
-      for (const item of networkList[name] || []) {
-        if (item.family === "IPv4" && !item.internal && isPrivateIPv4(item.address)) {
-          return `http://${item.address}:3001`;
-        }
-      }
-    }
-
-    return "http://127.0.0.1:3001";
+    return this.appConfigService.getWebPublicBaseUrl();
   }
 
   private resolveMobileApiBaseUrl() {
-    const explicit = process.env.API_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (explicit?.trim()) {
-      return explicit.trim().replace(/\/$/, "");
-    }
-
-    const webBaseUrl = this.resolveMobileWebBaseUrl();
-    try {
-      const parsed = new URL(webBaseUrl);
-      parsed.port = String(Number(process.env.PORT || 3011));
-      parsed.pathname = "/api";
-      parsed.search = "";
-      parsed.hash = "";
-      return parsed.toString().replace(/\/$/, "");
-    } catch {
-      return "http://127.0.0.1:3011/api";
-    }
+    return this.appConfigService.getPublicApiBaseUrl();
   }
 
   private toMobileAccessibleUrl(url: string, mobileApiOrigin: string) {
@@ -672,10 +645,6 @@ function mapPublishTaskStatus(taskStatus: string, outputStatus?: DraftTaskOutput
     return "FAILED";
   }
   return "QUEUED";
-}
-
-function isPrivateIPv4(value: string) {
-  return /^10\./.test(value) || /^192\.168\./.test(value) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(value);
 }
 
 function buildAccessHint(baseUrl: string) {

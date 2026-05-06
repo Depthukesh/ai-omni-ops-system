@@ -2,19 +2,14 @@
 
 import { Lunar, Solar } from "lunar-javascript";
 import Link from "next/link";
-import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
+import { type PublishableWorkTarget } from "./publish-types";
+import { findLatestTaskByTypes, isTaskActive, useDelayedTaskPolling } from "./task-polling";
+import { usePublishFlow } from "./use-publish-flow";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
 import { type MediaRecord, type TaskRecord } from "../../../services/personal-center";
-import {
-  createXiaohongshuDesktopDraftSession,
-  completeXiaohongshuMobileDraftSession,
-  createXiaohongshuMobileDraftSession,
-  type XiaohongshuDesktopDraftSession,
-  type XiaohongshuMobileDraftSession,
-} from "../../../services/publishing";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
@@ -61,14 +56,6 @@ import {
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
-type PublishableWorkTarget = {
-  id: string;
-  workKind: "ORIGINAL" | "REWRITE";
-  noteCategory: "原创" | "二创";
-  title: string;
-  sourceLabel: string;
-};
-
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌、产品和目标快速生成小红书策划与选题方案。" },
   { key: "assets", label: "素材库", description: "沉淀已生成的笔记、封面、源文件与作品记录。" },
@@ -81,8 +68,6 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
 const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
 const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
 const AUTO_IMAGE_COUNT_OPTION = "__AUTO__";
-const WEB_DESKTOP_PUBLISH_SOURCE = "ai-omni-ops-web";
-const EXTENSION_DESKTOP_PUBLISH_SOURCE = "ai-omni-xhs-extension";
 
 export default function XiaohongshuPage() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
@@ -167,15 +152,6 @@ export default function XiaohongshuPage() {
   const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
   const [isVideoSubmitting, setIsVideoSubmitting] = useState(false);
   const [videoSubmittingLabel, setVideoSubmittingLabel] = useState("");
-  const [publishingTarget, setPublishingTarget] = useState<PublishableWorkTarget | null>(null);
-  const [publishingAccountValue, setPublishingAccountValue] = useState(defaultAccount?.id || "");
-  const [isDesktopExtensionReady, setIsDesktopExtensionReady] = useState(false);
-  const [isCreatingDesktopPublishSession, setIsCreatingDesktopPublishSession] = useState(false);
-  const [activeDesktopPublishSession, setActiveDesktopPublishSession] = useState<XiaohongshuDesktopDraftSession | null>(null);
-  const [isCreatingMobilePublishSession, setIsCreatingMobilePublishSession] = useState(false);
-  const [activeMobilePublishSession, setActiveMobilePublishSession] = useState<XiaohongshuMobileDraftSession | null>(null);
-  const [mobilePublishQrDataUrl, setMobilePublishQrDataUrl] = useState("");
-  const [isCompletingMobilePublishSession, setIsCompletingMobilePublishSession] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<{ title: string; url: string; type: "IMAGE" | "VIDEO" } | null>(null);
@@ -226,179 +202,46 @@ export default function XiaohongshuPage() {
     setMarketingPlanDraft(latestPlan?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
 
-  useEffect(() => {
-    if (!publishingAccountValue && defaultAccount?.id) {
-      setPublishingAccountValue(defaultAccount.id);
-    }
-  }, [defaultAccount?.id, publishingAccountValue]);
+  const pollingOriginalTask = findLatestTaskByTypes(workspace.tasks, "XHS_ORIGINAL_NOTE");
+  const pollingRewriteTask = findLatestTaskByTypes(workspace.tasks, "XHS_REWRITE_NOTE");
+  const pollingVideoTask = findLatestTaskByTypes(workspace.tasks, "XHS_VIDEO_NOTE");
+  const pollingPublishTask = findLatestTaskByTypes(workspace.tasks, ["XHS_PUBLISH_MOBILE_DRAFT", "XHS_PUBLISH_DESKTOP_DRAFT"]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+  useDelayedTaskPolling({
+    active: isTaskActive(marketingPlanWorkspace.latestTask?.taskStatus),
+    updatedAt: marketingPlanWorkspace.latestTask?.updatedAt,
+    onPoll: () => refreshMarketingPlanWorkspace(true),
+  });
 
-    const handleMessage = (event: MessageEvent) => {
-      const payload = event.data;
-      if (!payload || typeof payload !== "object" || payload.source !== EXTENSION_DESKTOP_PUBLISH_SOURCE) {
-        return;
-      }
+  useDelayedTaskPolling({
+    active: isTaskActive(calendarWorkspace.latestTask?.taskStatus),
+    updatedAt: calendarWorkspace.latestTask?.updatedAt,
+    onPoll: () => refreshCalendarWorkspace(true),
+  });
 
-      if (payload.type === "AI_OMNI_XHS_EXTENSION_PONG") {
-        setIsDesktopExtensionReady(true);
-        return;
-      }
+  useDelayedTaskPolling({
+    active: isTaskActive(pollingOriginalTask?.taskStatus),
+    updatedAt: pollingOriginalTask?.updatedAt,
+    onPoll: () => loadWorkspace(),
+  });
 
-      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_STARTED") {
-        setNotice("电脑端发布扩展已接管本次发布，正在自动打开小红书创作者中心并写入草稿。");
-        setErrorMessage("");
-        return;
-      }
+  useDelayedTaskPolling({
+    active: isTaskActive(pollingRewriteTask?.taskStatus),
+    updatedAt: pollingRewriteTask?.updatedAt,
+    onPoll: () => loadWorkspace(),
+  });
 
-      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_PROGRESS") {
-        const detail = typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : "电脑端发布扩展正在执行。";
-        setNotice(detail);
-        setErrorMessage("");
-        return;
-      }
+  useDelayedTaskPolling({
+    active: isTaskActive(pollingVideoTask?.taskStatus),
+    updatedAt: pollingVideoTask?.updatedAt,
+    onPoll: () => loadWorkspace(),
+  });
 
-      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_SUCCESS") {
-        setNotice("电脑端一键发布已完成，标题、正文和配图已自动写入小红书草稿箱。");
-        setErrorMessage("");
-        void loadWorkspace({ preserveMessages: true });
-        return;
-      }
-
-      if (payload.type === "AI_OMNI_XHS_EXTENSION_DRAFT_FAILED") {
-        const detail = typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : "请检查扩展日志和小红书创作者页是否已登录。";
-        setErrorMessage(`电脑端一键发布失败：${detail}`);
-        void loadWorkspace({ preserveMessages: true });
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    window.postMessage({ source: WEB_DESKTOP_PUBLISH_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PING" }, "*");
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  useEffect(() => {
-    if (!activeMobilePublishSession?.mobileUrl) {
-      setMobilePublishQrDataUrl("");
-      return;
-    }
-
-    let cancelled = false;
-    void QRCode.toDataURL(activeMobilePublishSession.mobileUrl, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 220,
-    })
-      .then((value: string) => {
-        if (!cancelled) {
-          setMobilePublishQrDataUrl(value);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMobilePublishQrDataUrl("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeMobilePublishSession?.mobileUrl]);
-
-  useEffect(() => {
-    const taskStatus = marketingPlanWorkspace.latestTask?.taskStatus;
-    const isTaskActive = taskStatus === "QUEUED" || taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void refreshMarketingPlanWorkspace(true);
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [marketingPlanWorkspace.latestTask?.taskStatus, marketingPlanWorkspace.latestTask?.updatedAt]);
-
-  useEffect(() => {
-    const taskStatus = calendarWorkspace.latestTask?.taskStatus;
-    const isTaskActive = taskStatus === "QUEUED" || taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void refreshCalendarWorkspace(true);
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [calendarWorkspace.latestTask?.taskStatus, calendarWorkspace.latestTask?.updatedAt]);
-
-  useEffect(() => {
-    const latestTask = workspace.tasks
-      .filter((item) => item.taskType === "XHS_ORIGINAL_NOTE")
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
-    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void loadWorkspace();
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [workspace.tasks]);
-
-  useEffect(() => {
-    const latestTask = workspace.tasks
-      .filter((item) => item.taskType === "XHS_REWRITE_NOTE")
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
-    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void loadWorkspace();
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [workspace.tasks]);
-
-  useEffect(() => {
-    const latestTask = workspace.tasks
-      .filter((item) => item.taskType === "XHS_VIDEO_NOTE")
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
-    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void loadWorkspace();
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [workspace.tasks]);
-
-  useEffect(() => {
-    const latestTask = workspace.tasks
-      .filter((item) => item.taskType === "XHS_PUBLISH_MOBILE_DRAFT")
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
-    const isTaskActive = latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "RUNNING";
-    if (!isTaskActive) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void loadWorkspace();
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [workspace.tasks]);
+  useDelayedTaskPolling({
+    active: isTaskActive(pollingPublishTask?.taskStatus),
+    updatedAt: pollingPublishTask?.updatedAt,
+    onPoll: () => loadWorkspace(),
+  });
 
   async function loadWorkspace(options?: { preserveMessages?: boolean }) {
     setIsLoading(true);
@@ -505,6 +348,31 @@ export default function XiaohongshuPage() {
     setIsLoading(false);
   }
 
+  const {
+    publishingTarget,
+    publishingAccountValue,
+    setPublishingAccountValue,
+    isDesktopExtensionReady,
+    isCreatingDesktopPublishSession,
+    activeDesktopPublishSession,
+    isCreatingMobilePublishSession,
+    activeMobilePublishSession,
+    mobilePublishQrDataUrl,
+    isCompletingMobilePublishSession,
+    openPublishModal: handleOpenPublishModal,
+    closePublishModal: handleClosePublishModal,
+    createDesktopPublishSession: handleCreateDesktopPublishSession,
+    createMobilePublishSession: handleCreateMobilePublishSession,
+    completeMobilePublishSession: handleCompleteMobilePublishSession,
+  } = usePublishFlow({
+    brandId: workspace.archive.brand.id || DEMO_BRAND_ID,
+    defaultAccountId: defaultAccount?.id,
+    platformAccounts: workspace.archive.platformAccounts,
+    onRefreshWorkspace: loadWorkspace,
+    setNotice,
+    setErrorMessage,
+  });
+
   function setMaterialPreviewIndex(noteId: string, nextIndex: number, total: number) {
     if (!noteId || total <= 0) {
       return;
@@ -577,14 +445,8 @@ export default function XiaohongshuPage() {
 
   const xhsTasks = useMemo(() => getXiaohongshuTasks(workspace.tasks), [workspace.tasks]);
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
-  const originalTasks = useMemo(
-    () =>
-      workspace.tasks
-        .filter((item) => item.taskType === "XHS_ORIGINAL_NOTE")
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
-    [workspace.tasks],
-  );
-  const latestOriginalTask = originalTasks[0];
+  const originalTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_ORIGINAL_NOTE").length, [workspace.tasks]);
+  const latestOriginalTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_ORIGINAL_NOTE"), [workspace.tasks]);
   const materialNotes = useMemo(() => workspace.materialNotes, [workspace.materialNotes]);
   const selectedWork = xhsMedia.find((item) => item.id === selectedWorkId) || xhsMedia[0];
   const selectedWorkTask = workspace.tasks.find((item) => item.id === selectedWork?.taskId);
@@ -598,12 +460,8 @@ export default function XiaohongshuPage() {
   const latestCalendarTask = calendarWorkspace.latestTask;
   const canGenerateMarketingPlan = Boolean(latestGrowthReport && latestAnnualPlan);
   const canGenerateCalendar = Boolean(latestGrowthReport && latestAnnualPlan && latestMarketingPlan);
-  const isMarketingPlanTaskActive = Boolean(
-    latestMarketingPlanTask && (latestMarketingPlanTask.taskStatus === "QUEUED" || latestMarketingPlanTask.taskStatus === "RUNNING"),
-  );
-  const isCalendarTaskActive = Boolean(
-    latestCalendarTask && (latestCalendarTask.taskStatus === "QUEUED" || latestCalendarTask.taskStatus === "RUNNING"),
-  );
+  const isMarketingPlanTaskActive = Boolean(latestMarketingPlanTask && isTaskActive(latestMarketingPlanTask.taskStatus));
+  const isCalendarTaskActive = Boolean(latestCalendarTask && isTaskActive(latestCalendarTask.taskStatus));
   const marketingPlanInlineError =
     latestMarketingPlanTask?.taskStatus === "FAILED" ? latestMarketingPlanTask.errorMessage?.trim() || "" : "";
   const calendarInlineError = latestCalendarTask?.taskStatus === "FAILED" ? latestCalendarTask.errorMessage?.trim() || "" : "";
@@ -688,9 +546,7 @@ export default function XiaohongshuPage() {
             ? "生成失败"
             : latestCalendarTask.taskStatus
     : "";
-  const isOriginalTaskActive = Boolean(
-    latestOriginalTask && (latestOriginalTask.taskStatus === "QUEUED" || latestOriginalTask.taskStatus === "RUNNING"),
-  );
+  const isOriginalTaskActive = Boolean(latestOriginalTask && isTaskActive(latestOriginalTask.taskStatus));
   const originalInlineError = latestOriginalTask?.taskStatus === "FAILED" ? latestOriginalTask.errorMessage?.trim() || "" : "";
   const originalTaskStatusText = latestOriginalTask
     ? latestOriginalTask.taskStatus === "QUEUED"
@@ -703,17 +559,9 @@ export default function XiaohongshuPage() {
             ? "创作失败"
             : latestOriginalTask.taskStatus
     : "";
-  const rewriteTasks = useMemo(
-    () =>
-      workspace.tasks
-        .filter((item) => item.taskType === "XHS_REWRITE_NOTE")
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
-    [workspace.tasks],
-  );
-  const latestRewriteTask = rewriteTasks[0];
-  const isRewriteTaskActive = Boolean(
-    latestRewriteTask && (latestRewriteTask.taskStatus === "QUEUED" || latestRewriteTask.taskStatus === "RUNNING"),
-  );
+  const rewriteTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_REWRITE_NOTE").length, [workspace.tasks]);
+  const latestRewriteTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_REWRITE_NOTE"), [workspace.tasks]);
+  const isRewriteTaskActive = Boolean(latestRewriteTask && isTaskActive(latestRewriteTask.taskStatus));
   const showRewriteSubmittingState = isRewriteSubmitting && !isRewriteTaskActive;
   const rewriteInlineError = latestRewriteTask?.taskStatus === "FAILED" ? latestRewriteTask.errorMessage?.trim() || "" : "";
   const rewriteTaskStatusText = latestRewriteTask
@@ -727,17 +575,9 @@ export default function XiaohongshuPage() {
             ? "创作失败"
             : latestRewriteTask.taskStatus
     : "";
-  const videoTasks = useMemo(
-    () =>
-      workspace.tasks
-        .filter((item) => item.taskType === "XHS_VIDEO_NOTE")
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
-    [workspace.tasks],
-  );
-  const latestVideoTask = videoTasks[0];
-  const isVideoTaskActive = Boolean(
-    latestVideoTask && (latestVideoTask.taskStatus === "QUEUED" || latestVideoTask.taskStatus === "RUNNING"),
-  );
+  const videoTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_VIDEO_NOTE").length, [workspace.tasks]);
+  const latestVideoTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_VIDEO_NOTE"), [workspace.tasks]);
+  const isVideoTaskActive = Boolean(latestVideoTask && isTaskActive(latestVideoTask.taskStatus));
   const showVideoSubmittingState = isVideoSubmitting && !isVideoTaskActive;
   const videoInlineError = latestVideoTask?.taskStatus === "FAILED" ? latestVideoTask.errorMessage?.trim() || "" : "";
   const videoTaskStatusText = latestVideoTask
@@ -1486,184 +1326,6 @@ export default function XiaohongshuPage() {
     }
   }
 
-  function handleOpenPublishModal(target: PublishableWorkTarget) {
-    setPublishingTarget(target);
-    setPublishingAccountValue(defaultAccount?.id || workspace.archive.platformAccounts.find((item) => item.platform === "XIAOHONGSHU")?.id || "");
-    setActiveDesktopPublishSession(null);
-    setActiveMobilePublishSession(null);
-    setMobilePublishQrDataUrl("");
-    setNotice("");
-    setErrorMessage("");
-    void probeDesktopPublisher();
-  }
-
-  function handleClosePublishModal() {
-    setPublishingTarget(null);
-    setActiveDesktopPublishSession(null);
-    setActiveMobilePublishSession(null);
-    setMobilePublishQrDataUrl("");
-    setIsCreatingDesktopPublishSession(false);
-    setIsCreatingMobilePublishSession(false);
-    setIsCompletingMobilePublishSession(false);
-  }
-
-  async function probeDesktopPublisher(timeoutMs = 1200) {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return new Promise<boolean>((resolve) => {
-      let finished = false;
-      const cleanup = () => {
-        window.removeEventListener("message", onMessage);
-        window.clearTimeout(timer);
-      };
-      const onMessage = (event: MessageEvent) => {
-        const payload = event.data;
-        if (!payload || typeof payload !== "object") {
-          return;
-        }
-        if (payload.source === EXTENSION_DESKTOP_PUBLISH_SOURCE && payload.type === "AI_OMNI_XHS_EXTENSION_PONG") {
-          finished = true;
-          setIsDesktopExtensionReady(true);
-          cleanup();
-          resolve(true);
-        }
-      };
-      const timer = window.setTimeout(() => {
-        if (finished) {
-          return;
-        }
-        setIsDesktopExtensionReady(false);
-        cleanup();
-        resolve(false);
-      }, timeoutMs);
-
-      window.addEventListener("message", onMessage);
-      window.postMessage({ source: WEB_DESKTOP_PUBLISH_SOURCE, type: "AI_OMNI_XHS_EXTENSION_PING" }, "*");
-    });
-  }
-
-  function buildDesktopCreatorLaunchUrl(session: XiaohongshuDesktopDraftSession) {
-    const baseUrl = String(session.creatorUrl || "https://creator.xiaohongshu.com/publish/publish").trim();
-    const url = new URL(baseUrl);
-    url.hash = new URLSearchParams({
-      ai_omni_token: String(session.token || ""),
-      ai_omni_api: API_BASE_URL,
-    }).toString();
-    return url.toString();
-  }
-
-  async function handleCreateDesktopPublishSession() {
-    if (!publishingTarget) {
-      return;
-    }
-
-    const creatorPopup = typeof window !== "undefined" ? window.open("", "_blank", "noopener") : null;
-
-    setIsCreatingDesktopPublishSession(true);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await createXiaohongshuDesktopDraftSession(
-        workspace.archive.brand.id || DEMO_BRAND_ID,
-        publishingTarget.id,
-        {
-          accountId: publishingAccountValue || undefined,
-        },
-      );
-
-      setActiveDesktopPublishSession(result.session);
-      const creatorLaunchUrl = buildDesktopCreatorLaunchUrl(result.session);
-      if (creatorPopup && !creatorPopup.closed) {
-        creatorPopup.location.href = creatorLaunchUrl;
-      } else if (typeof window !== "undefined") {
-        window.open(creatorLaunchUrl, "_blank", "noopener");
-      }
-
-      const installed = await probeDesktopPublisher(800);
-      if (installed) {
-        setNotice(`${publishingTarget.noteCategory}笔记的电脑端一键发布任务已创建，正在自动打开小红书创作者中心并写入草稿箱。`);
-        window.postMessage(
-          {
-            source: WEB_DESKTOP_PUBLISH_SOURCE,
-            type: "AI_OMNI_XHS_EXTENSION_START_DRAFT",
-            payload: {
-              apiBaseUrl: API_BASE_URL,
-              session: result.session,
-            },
-          },
-          "*",
-        );
-      } else {
-        setNotice("已直接打开小红书创作者页。若扩展已正常加载，页面会自动接管并写入草稿；若未自动执行，请先重载扩展后重试。");
-      }
-      await loadWorkspace({ preserveMessages: true });
-    } catch (error) {
-      if (creatorPopup && !creatorPopup.closed) {
-        creatorPopup.close();
-      }
-      const message = error instanceof Error ? error.message : "电脑端一键发布失败";
-      setErrorMessage(`发布失败：${message}`);
-    } finally {
-      setIsCreatingDesktopPublishSession(false);
-    }
-  }
-
-  async function handleCreateMobilePublishSession() {
-    if (!publishingTarget) {
-      return;
-    }
-
-    setIsCreatingMobilePublishSession(true);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await createXiaohongshuMobileDraftSession(
-        workspace.archive.brand.id || DEMO_BRAND_ID,
-        publishingTarget.id,
-        {
-          accountId: publishingAccountValue || undefined,
-        },
-      );
-      setActiveMobilePublishSession(result.session);
-      setNotice(`${publishingTarget.noteCategory}笔记的手机扫码接力二维码已生成。`);
-      await loadWorkspace({ preserveMessages: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "生成手机接力二维码失败";
-      setErrorMessage(`生成失败：${message}`);
-    } finally {
-      setIsCreatingMobilePublishSession(false);
-    }
-  }
-
-  async function handleCompleteMobilePublishSession() {
-    if (!activeMobilePublishSession?.token) {
-      return;
-    }
-
-    setIsCompletingMobilePublishSession(true);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await completeXiaohongshuMobileDraftSession(activeMobilePublishSession.token, {
-        result: "SUCCESS",
-        note: "已在手机端完成草稿接力",
-      });
-      setActiveMobilePublishSession(result.session);
-      setNotice("已将本次手机接力保存草稿标记为完成。");
-      await loadWorkspace({ preserveMessages: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "更新发布状态失败";
-      setErrorMessage(`更新失败：${message}`);
-    } finally {
-      setIsCompletingMobilePublishSession(false);
-    }
-  }
-
   function renderSectionCard() {
     if (activeSection === "plan") {
       return (
@@ -2100,8 +1762,8 @@ export default function XiaohongshuPage() {
                 <p>点击“一键创作”后，这里会持续显示原创笔记的排队、创作、失败和完成状态。</p>
               </div>
               <div className="report-editor-actions">
-                <span className={`archive-pill ${originalTasks.length ? "status-ready" : "status-in_progress"}`}>
-                  {originalTasks.length ? `累计 ${originalTasks.length} 条任务` : "暂无任务"}
+                <span className={`archive-pill ${originalTaskCount ? "status-ready" : "status-in_progress"}`}>
+                  {originalTaskCount ? `累计 ${originalTaskCount} 条任务` : "暂无任务"}
                 </span>
                 {latestOriginalTask ? (
                   <span className={`archive-pill ${getTaskStatusClass(latestOriginalTask.taskStatus)}`}>{originalTaskStatusText}</span>
@@ -2413,8 +2075,8 @@ export default function XiaohongshuPage() {
                 <p>点击“一键创作”后，这里会持续显示二创笔记的排队、创作、失败和完成状态。</p>
               </div>
               <div className="report-editor-actions">
-                <span className={`archive-pill ${rewriteTasks.length ? "status-ready" : "status-in_progress"}`}>
-                  {rewriteTasks.length ? `累计 ${rewriteTasks.length} 条任务` : "暂无任务"}
+                <span className={`archive-pill ${rewriteTaskCount ? "status-ready" : "status-in_progress"}`}>
+                  {rewriteTaskCount ? `累计 ${rewriteTaskCount} 条任务` : "暂无任务"}
                 </span>
                 {showRewriteSubmittingState ? (
                   <span className="archive-pill status-in_progress">创作中</span>
@@ -2687,8 +2349,8 @@ export default function XiaohongshuPage() {
               <p>点击“一键创作”后，这里会持续显示视频笔记的排队、创作、失败和完成状态。</p>
             </div>
             <div className="report-editor-actions">
-              <span className={`archive-pill ${videoTasks.length ? "status-ready" : "status-in_progress"}`}>
-                {videoTasks.length ? `累计 ${videoTasks.length} 条任务` : "暂无任务"}
+              <span className={`archive-pill ${videoTaskCount ? "status-ready" : "status-in_progress"}`}>
+                {videoTaskCount ? `累计 ${videoTaskCount} 条任务` : "暂无任务"}
               </span>
               {showVideoSubmittingState ? (
                 <span className="archive-pill status-in_progress">创作中</span>
