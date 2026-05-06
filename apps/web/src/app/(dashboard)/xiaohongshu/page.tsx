@@ -30,6 +30,8 @@ import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
 import { useWorkComposerActions } from "./use-work-composer-actions";
 import { useWorkEditors } from "./use-work-editors";
+import { useWorkMutationActions } from "./use-work-mutation-actions";
+import { useWorkspaceSelectionSync } from "./use-workspace-selection-sync";
 import { AssetsWorkspace } from "./assets-workspace";
 import { CalendarWorkspace } from "./calendar-workspace";
 import { renderMarkdownToHtml } from "./markdown-render";
@@ -81,18 +83,12 @@ import {
   type XiaohongshuTone,
 } from "../../../services/xiaohongshu";
 import {
-  deleteXiaohongshuVideoWork,
-  deleteXiaohongshuOriginalWork,
-  deleteXiaohongshuRewriteWork,
   getXiaohongshuVideoWorks,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
-  updateXiaohongshuVideoWork,
-  updateXiaohongshuOriginalWork,
-  updateXiaohongshuRewriteWork,
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
@@ -267,29 +263,6 @@ export default function XiaohongshuPage() {
   useEffect(() => {
     void loadWorkspace();
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const productId = params.get("productId");
-    const accountId = params.get("accountId");
-    const workId = params.get("workId");
-
-    if (productId && workspace.archive.products.some((item) => item.id === productId)) {
-      setSelectedProductId(productId);
-    }
-
-    if (accountId && workspace.archive.platformAccounts.some((item) => item.id === accountId)) {
-      setSelectedAccountId(accountId);
-    }
-
-    if (workId && workspace.media.some((item) => item.id === workId)) {
-      setSelectedWorkId(workId);
-    }
-  }, [workspace.archive.platformAccounts, workspace.archive.products, workspace.media]);
 
   useEffect(() => {
     const latestPlan = marketingPlanWorkspace.latest;
@@ -663,6 +636,59 @@ export default function XiaohongshuPage() {
       setSelectedWorkId: setSelectedVideoWorkId,
     },
   });
+  const {
+    saveOriginalWork: handleSaveOriginalWork,
+    deleteOriginalWork: handleDeleteOriginalWork,
+    saveRewriteWork: handleSaveRewriteWork,
+    deleteRewriteWork: handleDeleteRewriteWork,
+    saveVideoWork: handleSaveVideoWork,
+    deleteVideoWork: handleDeleteVideoWork,
+  } = useWorkMutationActions({
+    brandId: workspace.archive.brand.id,
+    demoBrandId: DEMO_BRAND_ID,
+    setNotice,
+    setErrorMessage,
+    original: {
+      works: originalWorks,
+      setWorks: setOriginalWorks,
+      selectedWorkId: selectedOriginalWorkId,
+      setSelectedWorkId: setSelectedOriginalWorkId,
+      deletingWorkId: deletingOriginalWorkId,
+      setDeletingWorkId: setDeletingOriginalWorkId,
+      editingWorkId: editingOriginalWorkId,
+      editingTitle: editingOriginalTitle,
+      editingContent: editingOriginalContent,
+      setSavingWorkId: setSavingOriginalWorkId,
+      cancelEdit: handleCancelEditOriginalWork,
+    },
+    rewrite: {
+      works: rewriteWorks,
+      setWorks: setRewriteWorks,
+      selectedWorkId: selectedRewriteWorkId,
+      setSelectedWorkId: setSelectedRewriteWorkId,
+      deletingWorkId: deletingRewriteWorkId,
+      setDeletingWorkId: setDeletingRewriteWorkId,
+      editingWorkId: editingRewriteWorkId,
+      editingTitle: editingRewriteTitle,
+      editingContent: editingRewriteContent,
+      setSavingWorkId: setSavingRewriteWorkId,
+      cancelEdit: handleCancelEditRewriteWork,
+    },
+    video: {
+      works: videoWorks,
+      setWorks: setVideoWorks,
+      selectedWorkId: selectedVideoWorkId,
+      setSelectedWorkId: setSelectedVideoWorkId,
+      deletingWorkId: deletingVideoWorkId,
+      setDeletingWorkId: setDeletingVideoWorkId,
+      editingWorkId: editingVideoWorkId,
+      editingTitle: editingVideoTitle,
+      editingContent: editingVideoContent,
+      editingPrompt: editingVideoPrompt,
+      setSavingWorkId: setSavingVideoWorkId,
+      cancelEdit: handleCancelEditVideoWork,
+    },
+  });
   const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
   const calendarMonthKeys = useMemo(() => {
     const values = new Set<string>();
@@ -733,127 +759,48 @@ export default function XiaohongshuPage() {
       }),
     [campaignBrief, goal, selectedProduct?.productName, selectedWork, selectedWorkDraft, tone, workspace.archive.brand.brandName],
   );
-  useEffect(() => {
-    if (!selectedWorkId && xhsMedia[0]) {
-      setSelectedWorkId(xhsMedia[0].id);
-    }
-  }, [selectedWorkId, xhsMedia]);
-
-  useEffect(() => {
-    if (!selectedOriginalWorkId && originalWorks[0]) {
-      setSelectedOriginalWorkId(originalWorks[0].id);
-    }
-  }, [originalWorks, selectedOriginalWorkId]);
-
-  useEffect(() => {
-    if (!selectedRewriteWorkId && rewriteWorks[0]) {
-      setSelectedRewriteWorkId(rewriteWorks[0].id);
-    }
-  }, [rewriteWorks, selectedRewriteWorkId]);
-
-  useEffect(() => {
-    if (!selectedVideoWorkId && videoWorks[0]) {
-      setSelectedVideoWorkId(videoWorks[0].id);
-    }
-  }, [selectedVideoWorkId, videoWorks]);
-
-  useEffect(() => {
-    if (!originalProductValue || originalProductValue === NO_PRODUCT_OPTION) {
-      return;
-    }
-    if (!workspace.archive.products.some((item) => item.id === originalProductValue)) {
-      setOriginalProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    }
-  }, [originalProductValue, workspace.archive.products]);
-
-  useEffect(() => {
-    if (originalCalendarValue === CUSTOM_TOPIC_OPTION) {
-      return;
-    }
-    if (!originalCalendarValue || !calendarAllItems.some((item) => item.id === originalCalendarValue)) {
-      setOriginalCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
-    }
-  }, [calendarAllItems, originalCalendarValue]);
-
-  useEffect(() => {
-    if (!rewriteProductValue || rewriteProductValue === NO_PRODUCT_OPTION) {
-      return;
-    }
-    if (!workspace.archive.products.some((item) => item.id === rewriteProductValue)) {
-      setRewriteProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    }
-  }, [rewriteProductValue, workspace.archive.products]);
-
-  useEffect(() => {
-    if (!materialNotes.length) {
-      if (selectedMaterialId) {
-        setSelectedMaterialId("");
-      }
-      return;
-    }
-
-    if (!selectedMaterialId || !materialNotes.some((item) => item.id === selectedMaterialId)) {
-      setSelectedMaterialId(materialNotes[0].id);
-    }
-  }, [materialNotes, selectedMaterialId]);
-
-  useEffect(() => {
-    if (!materialNotes.length) {
-      if (rewriteMaterialValue) {
-        setRewriteMaterialValue("");
-      }
-      return;
-    }
-
-    if (!rewriteMaterialValue || !materialNotes.some((item) => item.id === rewriteMaterialValue)) {
-      setRewriteMaterialValue(materialNotes[0].id);
-    }
-  }, [materialNotes, rewriteMaterialValue]);
-
-  useEffect(() => {
-    if (!workspace.archive.products.length) {
-      setVideoProductValue(NO_PRODUCT_OPTION);
-      return;
-    }
-    if (videoProductValue !== NO_PRODUCT_OPTION && !workspace.archive.products.some((item) => item.id === videoProductValue)) {
-      setVideoProductValue(workspace.archive.products[0]?.id || NO_PRODUCT_OPTION);
-    }
-  }, [videoProductValue, workspace.archive.products]);
-
-  useEffect(() => {
-    if (videoCalendarValue === CUSTOM_TOPIC_OPTION) {
-      return;
-    }
-    if (!videoCalendarValue || !calendarAllItems.some((item) => item.id === videoCalendarValue)) {
-      setVideoCalendarValue(calendarAllItems[0]?.id || CUSTOM_TOPIC_OPTION);
-    }
-  }, [calendarAllItems, videoCalendarValue]);
-
-  useEffect(() => {
-    if (!calendarAllItems.length) {
-      if (selectedCalendarItemId) {
-        setSelectedCalendarItemId("");
-      }
-      return;
-    }
-
-    if (!selectedCalendarItemId || !calendarAllItems.some((item) => item.id === selectedCalendarItemId)) {
-      setSelectedCalendarItemId(calendarAllItems[0].id);
-    }
-  }, [calendarAllItems, selectedCalendarItemId]);
-
-  useEffect(() => {
-    if (!calendarMonthKeys.length) {
-      if (activeCalendarMonth) {
-        setActiveCalendarMonth("");
-      }
-      return;
-    }
-
-    if (!activeCalendarMonth || !calendarMonthKeys.includes(activeCalendarMonth)) {
-      setActiveCalendarMonth(calendarMonthKeys[calendarMonthKeys.length - 1]);
-    }
-  }, [activeCalendarMonth, calendarMonthKeys]);
+  useWorkspaceSelectionSync({
+    products: workspace.archive.products,
+    platformAccounts: workspace.archive.platformAccounts,
+    media: workspace.media,
+    xhsMedia,
+    setSelectedProductId,
+    setSelectedAccountId,
+    selectedWorkId,
+    setSelectedWorkId,
+    originalWorks,
+    selectedOriginalWorkId,
+    setSelectedOriginalWorkId,
+    rewriteWorks,
+    selectedRewriteWorkId,
+    setSelectedRewriteWorkId,
+    videoWorks,
+    selectedVideoWorkId,
+    setSelectedVideoWorkId,
+    noProductOption: NO_PRODUCT_OPTION,
+    customTopicOption: CUSTOM_TOPIC_OPTION,
+    originalProductValue,
+    setOriginalProductValue,
+    originalCalendarValue,
+    setOriginalCalendarValue,
+    rewriteProductValue,
+    setRewriteProductValue,
+    materialNotes,
+    selectedMaterialId,
+    setSelectedMaterialId,
+    rewriteMaterialValue,
+    setRewriteMaterialValue,
+    videoProductValue,
+    setVideoProductValue,
+    videoCalendarValue,
+    setVideoCalendarValue,
+    calendarAllItems,
+    selectedCalendarItemId,
+    setSelectedCalendarItemId,
+    activeCalendarMonth,
+    setActiveCalendarMonth,
+    calendarMonthKeys,
+  });
 
   async function handleGeneratePlan() {
     if (!growthReportWorkspace.latest) {
@@ -986,63 +933,6 @@ export default function XiaohongshuPage() {
     startEditOriginalWork(item, setSelectedOriginalWorkId);
   }
 
-  async function handleSaveOriginalWork() {
-    if (!editingOriginalWorkId) {
-      return;
-    }
-
-    const title = editingOriginalTitle.trim();
-    const content = editingOriginalContent.trim();
-    if (!title || !content) {
-      setErrorMessage("标题和正文不能为空。");
-      return;
-    }
-
-    setSavingOriginalWorkId(editingOriginalWorkId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await updateXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingOriginalWorkId, {
-        title,
-        content,
-      });
-      setOriginalWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
-      setSelectedOriginalWorkId(result.item.id);
-      handleCancelEditOriginalWork();
-      setNotice("原创笔记已更新。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "原创笔记更新失败";
-      setErrorMessage(`保存失败：${message}`);
-    } finally {
-      setSavingOriginalWorkId("");
-    }
-  }
-
-  async function handleDeleteOriginalWork(workId: string) {
-    setDeletingOriginalWorkId(workId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      await deleteXiaohongshuOriginalWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
-      const remainingItems = originalWorks.filter((item) => item.id !== workId);
-      setOriginalWorks(remainingItems);
-      if (selectedOriginalWorkId === workId) {
-        setSelectedOriginalWorkId(remainingItems[0]?.id || "");
-      }
-      if (editingOriginalWorkId === workId) {
-        handleCancelEditOriginalWork();
-      }
-      setNotice("原创笔记已删除。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "原创笔记删除失败";
-      setErrorMessage(`删除失败：${message}`);
-    } finally {
-      setDeletingOriginalWorkId("");
-    }
-  }
-
   function openOriginalWorkLightbox(item: XiaohongshuOriginalWorkRecord, index: number) {
     const mediaUrls = getOriginalWorkMediaUrls(item);
     const targetUrl = mediaUrls[index];
@@ -1068,63 +958,6 @@ export default function XiaohongshuPage() {
     startEditRewriteWork(item, setSelectedRewriteWorkId);
   }
 
-  async function handleSaveRewriteWork() {
-    if (!editingRewriteWorkId) {
-      return;
-    }
-
-    const title = editingRewriteTitle.trim();
-    const content = editingRewriteContent.trim();
-    if (!title || !content) {
-      setErrorMessage("标题和正文不能为空。");
-      return;
-    }
-
-    setSavingRewriteWorkId(editingRewriteWorkId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await updateXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingRewriteWorkId, {
-        title,
-        content,
-      });
-      setRewriteWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
-      setSelectedRewriteWorkId(result.item.id);
-      handleCancelEditRewriteWork();
-      setNotice("二创笔记已更新。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "二创笔记更新失败";
-      setErrorMessage(`保存失败：${message}`);
-    } finally {
-      setSavingRewriteWorkId("");
-    }
-  }
-
-  async function handleDeleteRewriteWork(workId: string) {
-    setDeletingRewriteWorkId(workId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      await deleteXiaohongshuRewriteWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
-      const remainingItems = rewriteWorks.filter((item) => item.id !== workId);
-      setRewriteWorks(remainingItems);
-      if (selectedRewriteWorkId === workId) {
-        setSelectedRewriteWorkId(remainingItems[0]?.id || "");
-      }
-      if (editingRewriteWorkId === workId) {
-        handleCancelEditRewriteWork();
-      }
-      setNotice("二创笔记已删除。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "二创笔记删除失败";
-      setErrorMessage(`删除失败：${message}`);
-    } finally {
-      setDeletingRewriteWorkId("");
-    }
-  }
-
   function openRewriteWorkLightbox(item: XiaohongshuRewriteWorkRecord, index: number) {
     const mediaUrls = getRewriteWorkMediaUrls(item);
     const targetUrl = mediaUrls[index];
@@ -1148,64 +981,6 @@ export default function XiaohongshuPage() {
 
   function handleStartEditVideoWork(item: XiaohongshuVideoWorkRecord) {
     startEditVideoWork(item, setSelectedVideoWorkId);
-  }
-
-  async function handleSaveVideoWork() {
-    if (!editingVideoWorkId) {
-      return;
-    }
-
-    const title = editingVideoTitle.trim();
-    const content = editingVideoContent.trim();
-    if (!title || !content) {
-      setErrorMessage("标题和正文不能为空。");
-      return;
-    }
-
-    setSavingVideoWorkId(editingVideoWorkId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      const result = await updateXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, editingVideoWorkId, {
-        title,
-        content,
-        videoPrompt: editingVideoPrompt.trim() || undefined,
-      });
-      setVideoWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
-      setSelectedVideoWorkId(result.item.id);
-      handleCancelEditVideoWork();
-      setNotice("视频笔记已更新。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "视频笔记更新失败";
-      setErrorMessage(`保存失败：${message}`);
-    } finally {
-      setSavingVideoWorkId("");
-    }
-  }
-
-  async function handleDeleteVideoWork(workId: string) {
-    setDeletingVideoWorkId(workId);
-    setNotice("");
-    setErrorMessage("");
-
-    try {
-      await deleteXiaohongshuVideoWork(workspace.archive.brand.id || DEMO_BRAND_ID, workId);
-      const remainingItems = videoWorks.filter((item) => item.id !== workId);
-      setVideoWorks(remainingItems);
-      if (selectedVideoWorkId === workId) {
-        setSelectedVideoWorkId(remainingItems[0]?.id || "");
-      }
-      if (editingVideoWorkId === workId) {
-        handleCancelEditVideoWork();
-      }
-      setNotice("视频笔记已删除。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "视频笔记删除失败";
-      setErrorMessage(`删除失败：${message}`);
-    } finally {
-      setDeletingVideoWorkId("");
-    }
   }
 
   function openVideoWorkLightbox(item: XiaohongshuVideoWorkRecord) {

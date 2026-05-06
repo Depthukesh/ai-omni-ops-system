@@ -201,6 +201,18 @@
 - 将 `brand-growth/workspace.tsx` 中剩余的时间格式化、热点热度格式化、收集结果排序、Markdown 渲染、可视化预览文档拼装与状态文案 helper 统一外移
 - 删除 `workspace.tsx` 内已无调用的预览图片 URL helper，让主文件继续收口为状态编排与动作装配层
 
+### 3.30 第二十九轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/xiaohongshu/use-work-mutation-actions.ts`
+- 将小红书工作台中原创、二创、视频三套作品的“保存编辑 + 删除作品”动作从 `page.tsx` 主文件中抽为独立 hook
+- 页面主文件继续只保留选中态、弹窗开关与工作区装配，不再直接承载 6 段高度重复的作品更新/删除流程
+
+### 3.31 第三十轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/xiaohongshu/use-workspace-selection-sync.ts`
+- 将小红书工作台中 URL 入参回填、默认作品选中、表单产品/素材/日历值兜底、营销日历月份与详情选中等一组同步型 `useEffect` 从 `page.tsx` 主文件中抽为独立 hook
+- 页面主文件继续只保留任务轮询、工作区数据装配与动作传参，不再直接承载这一组选择态校验与默认值回填细节
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
@@ -292,6 +304,10 @@
 - 再次执行 `npm run build:web` 通过
 - `GetDiagnostics` 检查 `brand-growth/datetime-helpers.ts`、`markdown-render.ts`、`task-status-helpers.ts` 与 `workspace.tsx`
 - 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `xiaohongshu/use-work-mutation-actions.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `xiaohongshu/use-workspace-selection-sync.ts` 与 `xiaohongshu/page.tsx`
+- 再次执行 `npm run build:web` 通过
 
 ## 7. 风险与后续
 
@@ -344,6 +360,8 @@
 - `apps/web/src/app/(dashboard)/brand-growth/markdown-render.ts`
 - `apps/web/src/app/(dashboard)/brand-growth/task-status-helpers.ts`
 - `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-work-mutation-actions.ts`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-workspace-selection-sync.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-edit-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
