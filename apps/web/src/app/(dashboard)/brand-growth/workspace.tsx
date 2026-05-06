@@ -1,7 +1,32 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  BrandGrowthCollectionWorkspace,
+  type XiaohongshuCollectionCardKey,
+} from "./collection-workspace";
+import {
+  formatCount,
+  formatDateLabel,
+  formatDateTime,
+  formatHotspotHeat,
+  formatMetric,
+  sortByCollectedAtDesc,
+} from "./datetime-helpers";
+import { BrandGrowthLibraryWorkspace } from "./library-workspace";
+import {
+  buildVisualReportPreviewDocument,
+  renderMarkdownToHtml,
+} from "./markdown-render";
+import { BrandGrowthReportWorkspace } from "./report-workspace";
+import type {
+  BrandGrowthLibraryPageKey,
+  MediaPreviewState,
+} from "./shared-types";
+import {
+  getBrandArchiveStatusText,
+  getReportTaskStatusText,
+} from "./task-status-helpers";
 import {
   addBenchmarkNoteToMaterialLibrary,
   getXiaohongshuCollectionWorkspace,
@@ -10,7 +35,6 @@ import {
 } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
 import {
-  BRAND_SURVEY_SECTIONS,
   brandArchiveSeed,
   createBrandProduct,
   getCurrentUserProfile,
@@ -32,7 +56,6 @@ import {
   type FeishuAuthStatusRecord,
   type FeishuBindingRecord,
   type BrandProduct,
-  type BrandSurveyAnswer,
   normalizeBrandArchiveBundle,
   upsertFeishuAppConfig,
   upsertBrandFeishuBinding,
@@ -75,18 +98,6 @@ type StrategyPageKey =
   | "growthReport"
   | "visualGrowthReport"
   | "annualMarketingPlan";
-type XiaohongshuCollectionCardKey = "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
-type MediaPreviewState = {
-  url: string;
-  title: string;
-};
-
-const xiaohongshuCollectionCards: Array<{ key: XiaohongshuCollectionCardKey; label: string }> = [
-  { key: "brandAccount", label: "品牌账号信息" },
-  { key: "competitorAccount", label: "竞品账号信息" },
-  { key: "brandWorks", label: "品牌作品信息及数据" },
-  { key: "benchmarkWorks", label: "对标作品信息及数据" },
-];
 
 const strategySections: Array<{
   key: StrategySectionKey;
@@ -122,219 +133,6 @@ const strategySections: Array<{
     ],
   },
 ];
-
-function statusText(status: BrandArchiveBundle["steps"][number]["status"]) {
-  if (status === "ready") return "已完成";
-  if (status === "in_progress") return "进行中";
-  return "待开始";
-}
-
-function formatDateTime(value?: string) {
-  if (!value) {
-    return "未记录";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")} ${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`;
-}
-
-function formatDateLabel(value?: string) {
-  if (!value) {
-    return "未记录";
-  }
-
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")}`;
-}
-
-function formatCount(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "0";
-  }
-  return value.toLocaleString("zh-CN");
-}
-
-function formatMetric(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "-";
-  }
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function renderInlineMarkdown(value: string) {
-  const escaped = escapeHtml(value);
-
-  return escaped
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-}
-
-function renderMarkdownToHtml(markdown: string) {
-  const lines = markdown.split(/\r?\n/);
-  const html: string[] = [];
-  let listType: "ul" | "ol" | null = null;
-  let inCodeBlock = false;
-  const codeLines: string[] = [];
-
-  function closeList() {
-    if (listType) {
-      html.push(`</${listType}>`);
-      listType = null;
-    }
-  }
-
-  function closeCodeBlock() {
-    if (inCodeBlock) {
-      html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
-      codeLines.length = 0;
-      inCodeBlock = false;
-    }
-  }
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    const trimmedLine = line.trim();
-
-    if (trimmedLine.startsWith("```")) {
-      closeList();
-      if (inCodeBlock) {
-        closeCodeBlock();
-      } else {
-        inCodeBlock = true;
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeLines.push(rawLine);
-      continue;
-    }
-
-    if (!trimmedLine) {
-      closeList();
-      continue;
-    }
-
-    const unorderedListMatch = trimmedLine.match(/^[-*]\s+(.*)$/);
-    if (unorderedListMatch) {
-      if (listType !== "ul") {
-        closeList();
-        html.push("<ul>");
-        listType = "ul";
-      }
-      html.push(`<li>${renderInlineMarkdown(unorderedListMatch[1])}</li>`);
-      continue;
-    }
-
-    const orderedListMatch = trimmedLine.match(/^\d+\.\s+(.*)$/);
-    if (orderedListMatch) {
-      if (listType !== "ol") {
-        closeList();
-        html.push("<ol>");
-        listType = "ol";
-      }
-      html.push(`<li>${renderInlineMarkdown(orderedListMatch[1])}</li>`);
-      continue;
-    }
-
-    closeList();
-
-    const headingMatch = trimmedLine.match(/^(#{1,6})\s*(.+)$/);
-    if (headingMatch) {
-      const level = Math.min(6, headingMatch[1].length);
-      const content = renderInlineMarkdown(headingMatch[2]);
-      html.push(`<h${level}>${content}</h${level}>`);
-      continue;
-    }
-
-    const blockquoteMatch = trimmedLine.match(/^>\s?(.*)$/);
-    if (blockquoteMatch) {
-      html.push(`<blockquote><p>${renderInlineMarkdown(blockquoteMatch[1])}</p></blockquote>`);
-      continue;
-    }
-
-    if (trimmedLine === "---" || trimmedLine === "***") {
-      html.push("<hr />");
-      continue;
-    }
-
-    html.push(`<p>${renderInlineMarkdown(trimmedLine)}</p>`);
-  }
-
-  closeList();
-  closeCodeBlock();
-
-  return `<section class="generated-report-markdown">${html.join("")}</section>`;
-}
-
-function buildVisualReportPreviewDocument(title: string, htmlBody: string) {
-  return [
-    "<!DOCTYPE html>",
-    '<html lang="zh-CN">',
-    "<head>",
-    '  <meta charset="utf-8" />',
-    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    `  <title>${escapeHtml(title)}</title>`,
-    '  <style>html,body{margin:0;padding:0;background:#f5f7fb;font-family:"PingFang SC","Microsoft YaHei",sans-serif;}*{box-sizing:border-box;}</style>',
-    "</head>",
-    `<body>${htmlBody}</body>`,
-    "</html>",
-  ].join("");
-}
-
-function sortByCollectedAtDesc<T extends { collectedAt?: string }>(items: T[]) {
-  return [...items].sort((left, right) => {
-    const leftTime = left.collectedAt ? new Date(left.collectedAt).getTime() : 0;
-    const rightTime = right.collectedAt ? new Date(right.collectedAt).getTime() : 0;
-    return rightTime - leftTime;
-  });
-}
-
-function getPreviewImageUrl(url?: string) {
-  if (!url) {
-    return "";
-  }
-
-  // Rednote image links often default to HEIF, which many desktop browsers do not preview reliably.
-  return url.replace("format/heif", "format/jpg");
-}
-
-function formatHotspotHeat(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "接口未返回";
-  }
-
-  if (value >= 100000000) {
-    return `${(value / 100000000).toFixed(1)} 亿`;
-  }
-
-  if (value >= 10000) {
-    return `${(value / 10000).toFixed(1)} 万`;
-  }
-
-  return value.toLocaleString("zh-CN");
-}
 
 const FEISHU_XHS_TEMPLATE_URL = "https://my.feishu.cn/wiki/Zqv9wiSNIiwGxVkCYwpcHOFUnEd?from=from_copylink";
 
@@ -493,6 +291,10 @@ function getCompletion(bundle: BrandArchiveBundle) {
 
 function isBrandArchiveStep(key: StrategyPageKey): key is BrandArchiveStepKey {
   return stepOrder.includes(key as BrandArchiveStepKey);
+}
+
+function isLibraryPageKey(key?: BrandArchiveStepKey): key is BrandGrowthLibraryPageKey {
+  return key === "background" || key === "products" || key === "survey" || key === "industryFeeds" || key === "businessAssets";
 }
 
 export function BrandGrowthWorkspace() {
@@ -1272,1251 +1074,129 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
   }
 
   function renderLibraryPage() {
-    if (activeBrandPage === "background") {
-      return (
-        <article className="workspace-panel strategy-page-card">
-          <article className="reference-info-panel">
-            <div className="reference-info-head">
-              <div>
-                <strong>{archive.brand.brandName || "品牌背景资料"}</strong>
-                <p>这里用于维护品牌名称、行业、门店规模、品牌介绍和企业介绍。</p>
-              </div>
-              <span className="archive-pill status-ready">{activeStepMeta?.name}</span>
-            </div>
-            <div className="reference-info-grid">
-              <div>
-                <span>行业</span>
-                <strong>{archive.brand.industry || "未填写"}</strong>
-              </div>
-              <div>
-                <span>门店数量</span>
-                <strong>{archive.brand.storeCount}</strong>
-              </div>
-              <div>
-                <span>品牌成立时间</span>
-                <strong>{archive.brand.foundedYear}</strong>
-              </div>
-              <div>
-                <span>当前状态</span>
-                <strong>{statusText(activeStepMeta?.status ?? "pending")}</strong>
-              </div>
-            </div>
-          </article>
-          <div className="form-grid two-column">
-            <label className="field">
-              <span>品牌名称</span>
-              <input value={archive.brand.brandName} onChange={(e) => updateBackground("brandName", e.target.value)} />
-            </label>
-            <label className="field">
-              <span>行业</span>
-              <input value={archive.brand.industry} onChange={(e) => updateBackground("industry", e.target.value)} />
-            </label>
-            <label className="field">
-              <span>门店数量</span>
-              <input type="number" value={archive.brand.storeCount} onChange={(e) => updateBackground("storeCount", Number(e.target.value))} />
-            </label>
-            <label className="field">
-              <span>品牌成立时间</span>
-              <input type="number" value={archive.brand.foundedYear} onChange={(e) => updateBackground("foundedYear", Number(e.target.value))} />
-            </label>
-            <label className="field field-full">
-              <span>品牌介绍</span>
-              <textarea value={archive.brand.brandDescription} onChange={(e) => updateBackground("brandDescription", e.target.value)} />
-            </label>
-            <label className="field field-full">
-              <span>企业介绍</span>
-              <textarea value={archive.brand.enterpriseIntro} onChange={(e) => updateBackground("enterpriseIntro", e.target.value)} />
-            </label>
-          </div>
-        </article>
-      );
-    }
-
-    if (activeBrandPage === "products") {
-      return (
-        <article className="workspace-panel strategy-page-card">
-          <div className="strategy-card-toolbar">
-            <div>
-              <strong>产品资料库</strong>
-              <p>每个产品单独成卡，字段自动换行，保证当前屏宽内可编辑。</p>
-            </div>
-            <button type="button" className="primary-button" onClick={() => setArchive((current) => ({ ...current, products: [...current.products, emptyProduct()] }))}>
-              新增产品
-            </button>
-          </div>
-          <div className="product-library-grid">
-            {archive.products.map((product, index) => (
-              <div className="product-library-card" key={product.id}>
-                <div className="entity-card-head compact-card-head">
-                  <div>
-                    <strong>{product.productName || `产品 ${index + 1}`}</strong>
-                    <p className="compact-meta-line">
-                      {product.productType || "未填写类型"} · {product.price || 0} 元
-                    </p>
-                  </div>
-                  <div className="compact-card-actions">
-                    <button type="button" className="ghost-danger-button" onClick={() => removeProduct(product.id)}>
-                      删除
-                    </button>
-                  </div>
-                </div>
-                <div className="form-grid two-column product-library-fields">
-                  <label className="field">
-                    <span>产品名称</span>
-                    <input value={product.productName} onChange={(e) => updateProduct(index, "productName", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>产品类型</span>
-                    <input value={product.productType} onChange={(e) => updateProduct(index, "productType", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>价格</span>
-                    <input type="number" value={product.price} onChange={(e) => updateProduct(index, "price", Number(e.target.value))} />
-                  </label>
-                  <label className="field">
-                    <span>产品定位</span>
-                    <input value={product.productPositioning} onChange={(e) => updateProduct(index, "productPositioning", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>目标人群</span>
-                    <input value={product.targetAudience} onChange={(e) => updateProduct(index, "targetAudience", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>解决痛点</span>
-                    <input value={product.painPoint} onChange={(e) => updateProduct(index, "painPoint", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>使用场景</span>
-                    <input value={product.usageScenario} onChange={(e) => updateProduct(index, "usageScenario", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>差异化优势</span>
-                    <input value={product.differentiators} onChange={(e) => updateProduct(index, "differentiators", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>市场地位</span>
-                    <input value={product.marketPosition} onChange={(e) => updateProduct(index, "marketPosition", e.target.value)} />
-                  </label>
-                  <label className="field field-full">
-                    <span>产品详细介绍</span>
-                    <textarea rows={4} value={product.detailDescription} onChange={(e) => updateProduct(index, "detailDescription", e.target.value)} />
-                  </label>
-                  <label className="field field-full">
-                    <span>产品图片</span>
-                    <div className="product-image-upload-row">
-                      <label className="secondary-button product-upload-trigger">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="sr-only-file-input"
-                          onChange={(event) => {
-                            void handleUploadProductImage(product.id, event.target.files?.[0] ?? null);
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                        {uploadingProductId === product.id ? "上传中..." : "上传图片"}
-                      </label>
-                      {product.imageUrl ? (
-                        <a href={product.imageUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                          查看原图
-                        </a>
-                      ) : null}
-                    </div>
-                    {product.imageUrl ? (
-                      <div className="product-image-preview-shell">
-                        <img src={product.imageUrl} alt={`${product.productName || `产品 ${index + 1}`} 图片`} className="product-image-preview" />
-                      </div>
-                    ) : (
-                      <span className="field-hint">支持上传图片文件，上传后会自动回填并在保存时写入数据库。</span>
-                    )}
-                  </label>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-      );
-    }
-
-    if (activeBrandPage === "survey") {
-      return (
-        <article className="workspace-panel strategy-page-card">
-          <div className="strategy-card-toolbar">
-            <div>
-              <strong>品牌运营情况</strong>
-              <p>严格按既定调研参数填写，保存后写入数据库。</p>
-            </div>
-          </div>
-          <div className="survey-section-list">
-            {BRAND_SURVEY_SECTIONS.map((section) => (
-              <section className="survey-section-card" key={section.title}>
-                <div className="survey-section-title">{section.title}</div>
-                {section.fields?.map((field) => {
-                  const answer = archive.survey.find((item) => item.key === field.key);
-                  return (
-                    <label className="field" key={field.key}>
-                      <span>{field.label}</span>
-                      <textarea value={answer?.value ?? ""} onChange={(e) => updateSurvey(field.key, e.target.value)} />
-                    </label>
-                  );
-                })}
-                {section.groups?.map((group) => (
-                  <div className="survey-subgroup" key={group.title}>
-                    <div className="survey-subgroup-title">{group.title}</div>
-                    {group.fields.map((field) => {
-                      const answer = archive.survey.find((item) => item.key === field.key);
-                      return (
-                        <label className="field" key={field.key}>
-                          <span>{field.label}</span>
-                          <textarea value={answer?.value ?? ""} onChange={(e) => updateSurvey(field.key, e.target.value)} />
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
-              </section>
-            ))}
-          </div>
-        </article>
-      );
-    }
-
-    if (activeBrandPage === "industryFeeds" || activeBrandPage === "businessAssets") {
-      const assetTarget = activeBrandPage;
-      const assetTitle = activeBrandPage === "industryFeeds" ? "第三方数据" : "企业经营数据";
-
-      return (
-        <article className="workspace-panel strategy-page-card">
-          <div className="strategy-card-toolbar">
-            <div>
-              <strong>{assetTitle}</strong>
-              <p>{activeBrandPage === "industryFeeds" ? "这里维护行业报告、市场资料与外部数据。" : "这里维护经营报表、业务系统和门店经营数据。"}</p>
-            </div>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() =>
-                setArchive((current) => ({
-                  ...current,
-                  [assetTarget]: [...current[assetTarget], emptyAsset()],
-                }))
-              }
-            >
-              新增资料
-            </button>
-          </div>
-          <div className="entity-list">
-            {archive[assetTarget].map((asset, index) => (
-              <div className="entity-card compact-entity-card" key={asset.id ?? `${assetTarget}-${index}`}>
-                <div className="entity-card-head compact-card-head">
-                  <div>
-                    <strong>{asset.title || `资料 ${index + 1}`}</strong>
-                    <p className="compact-meta-line">{asset.sourceName || "未填写来源"} · {asset.fileUrl || "未填写文件地址"}</p>
-                  </div>
-                </div>
-                <div className="form-grid two-column">
-                  <label className="field">
-                    <span>资料标题</span>
-                    <input value={asset.title} onChange={(e) => updateAsset(assetTarget, index, "title", e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>来源名称</span>
-                    <input value={asset.sourceName ?? ""} onChange={(e) => updateAsset(assetTarget, index, "sourceName", e.target.value)} />
-                  </label>
-                  <label className="field field-full">
-                    <span>资料说明</span>
-                    <textarea value={asset.description} onChange={(e) => updateAsset(assetTarget, index, "description", e.target.value)} />
-                  </label>
-                  <label className="field field-full">
-                    <span>文件地址</span>
-                    <div className="asset-file-upload-row">
-                      <label className="secondary-button product-upload-trigger">
-                        <input
-                          type="file"
-                          className="sr-only-file-input"
-                          onChange={(event) => {
-                            void handleUploadAssetFile(assetTarget, asset.id ?? `${assetTarget}-${index}`, event.target.files?.[0] ?? null);
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                        {uploadingAssetKey === `${assetTarget}:${asset.id ?? `${assetTarget}-${index}`}` ? "上传中..." : "上传文档"}
-                      </label>
-                      {asset.fileUrl ? (
-                        <a href={asset.fileUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                          查看文件
-                        </a>
-                      ) : null}
-                    </div>
-                    <input value={asset.fileUrl ?? ""} onChange={(e) => updateAsset(assetTarget, index, "fileUrl", e.target.value)} />
-                    <span className="field-hint">支持上传 PDF、Word、Excel、PPT、CSV、TXT、ZIP 等文档，上传后会自动回填文件地址。</span>
-                  </label>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-      );
-    }
-
-    return null;
-  }
-
-  function renderCollectionPage() {
-    if (activePage === "xiaohongshuCollection") {
-      return (
-        <>
-          <article className="workspace-panel strategy-page-card feishu-binding-panel">
-            <div className="strategy-card-toolbar">
-              <div>
-                <strong>飞书多维表格收集入口</strong>
-                <p>填写应用信息和飞书多维表格链接后，按顺序完成连接与同步即可。</p>
-              </div>
-              <a href={FEISHU_XHS_TEMPLATE_URL} target="_blank" rel="noreferrer" className="secondary-button">
-                打开飞书模板
-              </a>
-            </div>
-            <div className="feishu-compact-steps">
-              <span>01 配置应用</span>
-              <span>02 连接飞书</span>
-              <span>03 绑定副本</span>
-              <span>04 同步数据</span>
-            </div>
-            <div className="form-grid two-column">
-              <label className="field">
-                <span>App ID</span>
-                <input
-                  value={feishuAppConfigForm.appId}
-                  onChange={(event) => setFeishuAppConfigForm((current) => ({ ...current, appId: event.target.value }))}
-                  placeholder="请输入当前用户自己的飞书 App ID"
-                />
-              </label>
-              <label className="field">
-                <span>App Secret</span>
-                <input
-                  type="password"
-                  value={feishuAppConfigForm.appSecret}
-                  onChange={(event) => setFeishuAppConfigForm((current) => ({ ...current, appSecret: event.target.value }))}
-                  placeholder={feishuAppConfig?.appSecretMasked || "请输入当前用户自己的飞书 App Secret"}
-                />
-              </label>
-              <label className="field field-full">
-                <span>授权回调地址</span>
-                <input
-                  value={feishuAppConfigForm.redirectUri}
-                  onChange={(event) => setFeishuAppConfigForm((current) => ({ ...current, redirectUri: event.target.value }))}
-                  placeholder="例如 http://localhost:3011/api/auth/feishu/oauth/callback"
-                />
-              </label>
-              <label className="field field-full">
-                <span>授权 Scope</span>
-                <input
-                  value={feishuAppConfigForm.scope}
-                  onChange={(event) => setFeishuAppConfigForm((current) => ({ ...current, scope: event.target.value }))}
-                  placeholder="默认会自动填入读取 Base/Wiki 所需 scope"
-                />
-              </label>
-              <label className="field field-full">
-                <span>飞书多维表格链接</span>
-                <input
-                  value={feishuBindingForm.wikiUrl}
-                  onChange={(event) => setFeishuBindingForm((current) => ({ ...current, wikiUrl: event.target.value }))}
-                  placeholder="粘贴飞书 wiki 或多维表格副本链接，例如 https://.../wiki/... 或 https://.../base/..."
-                />
-              </label>
-            </div>
-            <div className="feishu-binding-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void handleSaveFeishuAppConfig()}
-                disabled={isHydrating || isSavingFeishuAppConfig}
-              >
-                {isSavingFeishuAppConfig ? "保存中..." : "保存应用配置"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleStartFeishuAuth()}
-              >
-                {feishuAuthStatus?.connected ? "更换飞书账号" : "连接飞书"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleSaveFeishuBinding()}
-                disabled={isHydrating || isSavingFeishuBinding}
-              >
-                {isSavingFeishuBinding ? "绑定中..." : "保存绑定"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleSyncFeishuWorkspace()}
-                disabled={isHydrating || isSyncingFeishuWorkspace || !canSyncFeishuWorkspace}
-              >
-                {isSyncingFeishuWorkspace ? "同步中..." : "从飞书同步"}
-              </button>
-            </div>
-          </article>
-          <div className="strategy-chip-row">
-            {xiaohongshuCollectionCards.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`filter-chip ${activeXhsCollectionCard === item.key ? "is-active" : ""}`}
-                onClick={() => setActiveXhsCollectionCard(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <article className="workspace-panel strategy-page-card strategy-collection-page-card">
-            {activeXhsCollectionCard === "brandAccount" ? (
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>品牌账号信息</h3>
-                    <p>直接展示飞书多维表格同步回来的品牌账号结果。</p>
-                  </div>
-                  <span className={`archive-pill ${sortedBrandAccounts.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {sortedBrandAccounts.length} 条
-                  </span>
-                </div>
-                <div className="collection-card-list">
-                  {sortedBrandAccounts.length ? (
-                    sortedBrandAccounts.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.accountName || "-"}</strong>
-                            <span>{item.sourceAccountLink ? <a href={item.sourceAccountLink} target="_blank" rel="noreferrer">{item.sourceAccountLink}</a> : "未提供主页链接"}</span>
-                          </div>
-                          <span className="collection-sync-time">{formatDateTime(item.collectedAt)}</span>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>外部用户 ID</span>
-                            <strong className="collection-sync-code">{item.externalUserId || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>作品数</span>
-                            <strong>{formatCount(item.postedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>粉丝数</span>
-                            <strong>{formatCount(item.fanCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>获赞数</span>
-                            <strong>{formatCount(item.likedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>收藏数</span>
-                            <strong>{formatCount(item.collectedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>IP 属地</span>
-                            <strong>{item.ipLocation || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>关注数</span>
-                            <strong>{formatCount(item.followCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>账号简介</span>
-                            <strong>{item.description || "未提供简介"}</strong>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有同步到品牌账号结果。</div>
-                  )}
-                </div>
-              </article>
-            ) : null}
-
-            {activeXhsCollectionCard === "competitorAccount" ? (
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>竞品账号信息</h3>
-                    <p>直接展示飞书多维表格同步回来的竞品账号结果。</p>
-                  </div>
-                  <span className={`archive-pill ${sortedCompetitorAccounts.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {sortedCompetitorAccounts.length} 条
-                  </span>
-                </div>
-                <div className="collection-card-list">
-                  {sortedCompetitorAccounts.length ? (
-                    sortedCompetitorAccounts.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.accountName || "-"}</strong>
-                            <span>{item.sourceAccountLink ? <a href={item.sourceAccountLink} target="_blank" rel="noreferrer">{item.sourceAccountLink}</a> : "未提供主页链接"}</span>
-                          </div>
-                          <span className="collection-sync-time">{formatDateTime(item.collectedAt)}</span>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>外部用户 ID</span>
-                            <strong className="collection-sync-code">{item.externalUserId || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>作品数</span>
-                            <strong>{formatCount(item.postedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>粉丝数</span>
-                            <strong>{formatCount(item.fanCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>获赞数</span>
-                            <strong>{formatCount(item.likedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>收藏数</span>
-                            <strong>{formatCount(item.collectedCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>IP 属地</span>
-                            <strong>{item.ipLocation || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>关注数</span>
-                            <strong>{formatCount(item.followCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>账号简介</span>
-                            <strong>{item.description || "未提供简介"}</strong>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有同步到竞品账号结果。</div>
-                  )}
-                </div>
-              </article>
-            ) : null}
-
-            {activeXhsCollectionCard === "brandWorks" ? (
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>品牌作品信息及数据</h3>
-                    <p>直接展示飞书多维表格同步回来的品牌作品内容。</p>
-                  </div>
-                  <span className={`archive-pill ${sortedBrandNotes.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {sortedBrandNotes.length} 条
-                  </span>
-                </div>
-                <div className="note-results-list">
-                  {sortedBrandNotes.length ? (
-                    paginatedBrandNotes.map((item) => (
-                      <article key={item.id} className="note-result-card">
-                        <div className="note-result-top">
-                          <div className="note-result-title-block">
-                            <div className="note-title-meta">
-                              <span className={`note-type-badge ${item.noteType === "video" ? "is-video" : "is-normal"}`}>
-                                {item.noteType || "-"}
-                              </span>
-                              <span className="note-id-text">{item.noteId}</span>
-                            </div>
-                            <strong>{item.title}</strong>
-                          </div>
-                          <div className="note-result-summary-grid">
-                            <div className="note-summary-item">
-                              <span>作者</span>
-                              <strong>{item.nickname || "-"}</strong>
-                            </div>
-                            <div className="note-summary-item">
-                              <span>用户 ID</span>
-                              <strong className="note-summary-code">{item.externalUserId || "-"}</strong>
-                            </div>
-                            <div className="note-summary-item">
-                              <span>创建时间</span>
-                              <strong>{item.createdAtText || "-"}</strong>
-                            </div>
-                            <div className="note-summary-item">
-                              <span>来源账号</span>
-                              <strong className="note-summary-code">{item.sourceAccountId}</strong>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="note-result-middle">
-                          <div className="note-metric-grid note-metric-grid--compact">
-                            <div>
-                              <span>点赞</span>
-                              <strong>{item.likeCount ?? 0}</strong>
-                            </div>
-                            <div>
-                              <span>收藏</span>
-                              <strong>{item.collectCount ?? 0}</strong>
-                            </div>
-                            <div>
-                              <span>分享</span>
-                              <strong>{item.shareCount ?? 0}</strong>
-                            </div>
-                            <div>
-                              <span>评论</span>
-                              <strong>{item.commentCount ?? 0}</strong>
-                            </div>
-                          </div>
-                          <div className="note-description-panel">
-                            <span className="note-panel-label">正文</span>
-                            <div className="note-description-inline">{item.description || "暂无正文内容"}</div>
-                          </div>
-                        </div>
-                        <div className="note-result-bottom">
-                          <div className="note-media-panel">
-                            <span className="note-panel-label">附件</span>
-                            {item.imageList?.length ? (
-                              <div className="note-image-grid">
-                                {item.imageList.map((mediaUrl, index) => {
-                                  const previewUrl = buildFeishuMediaProxyUrl(mediaUrl);
-                                  const downloadUrl = buildFeishuMediaProxyUrl(mediaUrl, true);
-                                  return (
-                                  <div key={`${item.id}-image-${index}`} className="note-image-card">
-                                    <button
-                                      type="button"
-                                      className="note-image-thumb"
-                                      title={`查看附件 ${index + 1}`}
-                                      onClick={() => setMediaPreview({ url: previewUrl, title: `${item.title}-附件-${index + 1}` })}
-                                    >
-                                      <img src={previewUrl} alt={`${item.title}-附件-${index + 1}`} />
-                                    </button>
-                                    <a href={downloadUrl} className="note-data-link">
-                                      下载附件
-                                    </a>
-                                  </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="note-empty-media">暂无附件</div>
-                            )}
-                            {item.videoUrl ? (
-                              <div className="note-video-shell">
-                                <video
-                                  controls
-                                  preload="metadata"
-                                  className="note-video-player"
-                                  src={buildFeishuMediaProxyUrl(item.videoUrl)}
-                                />
-                              </div>
-                            ) : null}
-                            <div className="note-media-actions">
-                              {item.videoUrl ? (
-                                <a href={buildFeishuMediaProxyUrl(item.videoUrl)} target="_blank" rel="noreferrer" className="note-data-link">
-                                  查看视频附件
-                                </a>
-                              ) : null}
-                              {item.videoUrl ? (
-                                <a href={buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
-                                  下载视频附件
-                                </a>
-                              ) : null}
-                              {item.noteUrl ? (
-                                <a href={item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                                  查看作品链接
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有同步到品牌作品结果，先在飞书副本里执行插件收集，再回到本站查看。</div>
-                  )}
-                </div>
-                {sortedBrandNotes.length ? (
-                  <div className="note-pagination-bar">
-                    <div className="note-pagination-summary">
-                      <span>共 {sortedBrandNotes.length} 条</span>
-                      <span>第 {brandNotesPage} / {brandNotesPageCount} 页</span>
-                    </div>
-                    <div className="note-pagination-actions">
-                      <button
-                        type="button"
-                        className="note-inline-button"
-                        onClick={() => setBrandNotesPage((current) => Math.max(1, current - 1))}
-                        disabled={brandNotesPage === 1}
-                      >
-                        上一页
-                      </button>
-                      {Array.from({ length: brandNotesPageCount }, (_, index) => index + 1).map((page) => (
-                        <button
-                          key={`brand-note-page-${page}`}
-                          type="button"
-                          className={`note-page-button ${page === brandNotesPage ? "is-active" : ""}`}
-                          onClick={() => setBrandNotesPage(page)}
-                        >
-                          {page}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="note-inline-button"
-                        onClick={() => setBrandNotesPage((current) => Math.min(brandNotesPageCount, current + 1))}
-                        disabled={brandNotesPage === brandNotesPageCount}
-                      >
-                        下一页
-                      </button>
-                      <label className="note-page-size-picker">
-                        <span>每页</span>
-                        <select value={brandNotesPageSize} onChange={(event) => setBrandNotesPageSize(Number(event.target.value))}>
-                          {[10, 20, 30, 50].map((size) => (
-                            <option key={`page-size-${size}`} value={size}>
-                              {size}
-                            </option>
-                          ))}
-                        </select>
-                        <span>个</span>
-                      </label>
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            ) : null}
-
-            {activeXhsCollectionCard === "benchmarkWorks" ? (
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>对标作品信息及数据</h3>
-                    <p>直接展示飞书多维表格同步回来的对标作品内容。</p>
-                  </div>
-                  <span className={`archive-pill ${sortedBenchmarkNotes.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {sortedBenchmarkNotes.length} 条
-                  </span>
-                </div>
-                <div className="collection-card-list">
-                  {sortedBenchmarkNotes.length ? (
-                    sortedBenchmarkNotes.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.title || "-"}</strong>
-                            <span>{item.sourceUrl || item.noteUrl ? <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer">{item.sourceUrl || item.noteUrl}</a> : "未提供来源链接"}</span>
-                          </div>
-                          <div className="collection-sync-actions">
-                            <span className="collection-sync-time">{formatDateTime(item.collectedAt)}</span>
-                            <button
-                              type="button"
-                              className={`secondary-button ${item.isInMaterialLibrary ? "is-disabled" : ""}`}
-                              onClick={() => void handleAddBenchmarkNoteToMaterial(item.id)}
-                              disabled={addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
-                            >
-                              {item.isInMaterialLibrary ? "已加入素材库" : addingMaterialAssetId === item.id ? "加入中..." : "加入素材库"}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>作者</span>
-                            <strong>{item.nickname || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>笔记类型</span>
-                            <strong>{item.noteType || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>赞藏率</span>
-                            <strong>{formatMetric(item.likeCollectRatio)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>赞评率</span>
-                            <strong>{formatMetric(item.likeCommentRatio)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>分享率</span>
-                            <strong>{formatMetric(item.shareRatio)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>是否爆款</span>
-                            <strong>{item.isExplosive || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>是否选用</span>
-                            <strong>{item.followUpDecision || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>点赞</span>
-                            <strong>{formatCount(item.likeCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>收藏</span>
-                            <strong>{formatCount(item.collectCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>评论</span>
-                            <strong>{formatCount(item.commentCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>分享</span>
-                            <strong>{formatCount(item.shareCount)}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>正文</span>
-                            <strong>{item.description || "暂无正文内容"}</strong>
-                          </div>
-                        </div>
-                        <div className="note-result-bottom">
-                          <div className="note-media-panel">
-                            <span className="note-panel-label">附件</span>
-                            {item.imageList?.length ? (
-                              <div className="note-image-grid">
-                                {item.imageList.map((mediaUrl, index) => {
-                                  const previewUrl = buildFeishuMediaProxyUrl(mediaUrl);
-                                  const downloadUrl = buildFeishuMediaProxyUrl(mediaUrl, true);
-                                  return (
-                                  <div key={`${item.id}-benchmark-image-${index}`} className="note-image-card">
-                                    <button
-                                      type="button"
-                                      className="note-image-thumb"
-                                      title={`查看附件 ${index + 1}`}
-                                      onClick={() => setMediaPreview({ url: previewUrl, title: `${item.title}-附件-${index + 1}` })}
-                                    >
-                                      <img src={previewUrl} alt={`${item.title}-附件-${index + 1}`} />
-                                    </button>
-                                    <a href={downloadUrl} className="note-data-link">
-                                      下载附件
-                                    </a>
-                                  </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="note-empty-media">暂无附件</div>
-                            )}
-                            {item.videoUrl ? (
-                              <div className="note-video-shell">
-                                <video
-                                  controls
-                                  preload="metadata"
-                                  className="note-video-player"
-                                  src={buildFeishuMediaProxyUrl(item.videoUrl)}
-                                />
-                              </div>
-                            ) : null}
-                            <div className="note-media-actions">
-                              {item.videoUrl ? (
-                                <a href={buildFeishuMediaProxyUrl(item.videoUrl)} target="_blank" rel="noreferrer" className="note-data-link">
-                                  查看视频附件
-                                </a>
-                              ) : null}
-                              {item.videoUrl ? (
-                                <a href={buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
-                                  下载视频附件
-                                </a>
-                              ) : null}
-                              {(item.sourceUrl || item.noteUrl) ? (
-                                <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                                  查看作品链接
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有同步到对标作品结果。</div>
-                  )}
-                </div>
-              </article>
-            ) : null}
-          </article>
-        </>
-      );
+    if (!isLibraryPageKey(activeBrandPage)) {
+      return null;
     }
 
     return (
-      <article className="workspace-panel strategy-page-card hotspot-page-card">
-        <article className="light-data-panel hotspot-overview-panel">
-          <div className="hotspot-panel-head">
-            <div className="hotspot-panel-copy">
-              <h3>{activeHotspotRecord?.title || "热搜榜"}</h3>
-              <p>{activeHotspotRecord?.description || "这里展示每日热点搜索结果。"}</p>
-              <span className="hotspot-auto-tip">每天 4:00 自动更新当天热搜榜</span>
-            </div>
-            <div className="hotspot-panel-actions">
-              <label className="hotspot-date-picker">
-                <span>查看日期</span>
-                <select
-                  value={selectedHotspotDate}
-                  onChange={(event) => void handleDailyHotspotDateChange(event.target.value)}
-                  disabled={isSyncingDailyHotspots || !hotspotAvailableDates.length}
-                >
-                  {hotspotAvailableDates.map((date) => (
-                    <option key={date} value={date}>
-                      {formatDateLabel(date)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <span className={`archive-pill ${activeHotspotRecord?.syncStatus === "SUCCESS" ? "status-ready" : activeHotspotRecord?.syncStatus === "FAILED" ? "status-pending" : "status-in_progress"}`}>
-                {activeHotspotRecord?.syncStatus || "IDLE"}
-              </span>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void handleSyncDailyHotspotWorkspace(activeHotspotRecord ? [activeHotspotRecord.title] : undefined)}
-                disabled={isSyncingDailyHotspots}
-              >
-                {isSyncingDailyHotspots ? "搜索中..." : "手动搜索"}
-              </button>
-            </div>
-          </div>
+      <BrandGrowthLibraryWorkspace
+        activeBrandPage={activeBrandPage}
+        activeStepName={activeStepMeta?.name}
+        activeStepStatus={activeStepMeta?.status ?? "pending"}
+        archive={archive}
+        statusText={getBrandArchiveStatusText}
+        onUpdateBackground={updateBackground}
+        onAddProduct={() => setArchive((current) => ({ ...current, products: [...current.products, emptyProduct()] }))}
+        onUpdateProduct={updateProduct}
+        onRemoveProduct={removeProduct}
+        onUploadProductImage={handleUploadProductImage}
+        uploadingProductId={uploadingProductId}
+        onUpdateSurvey={updateSurvey}
+        onAddAsset={(target) =>
+          setArchive((current) => ({
+            ...current,
+            [target]: [...current[target], emptyAsset()],
+          }))
+        }
+        onUpdateAsset={updateAsset}
+        onUploadAssetFile={handleUploadAssetFile}
+        uploadingAssetKey={uploadingAssetKey}
+      />
+    );
+  }
 
-          {activeHotspotRecord?.lastError ? (
-            <div className="hotspot-error-banner">
-              <strong>最近一次搜索失败</strong>
-              <p>{activeHotspotRecord.lastError}</p>
-            </div>
-          ) : null}
-        </article>
-
-        <article className="light-data-panel">
-          <div className="hotspot-list-head">
-            <h3>热点榜单</h3>
-            <div className="hotspot-list-tools">
-              <span className="archive-pill status-ready">
-                共 {sortedHotspotItems.length} 条
-              </span>
-              <label className="note-page-size-picker hotspot-page-size-picker">
-                <span>每页</span>
-                <select value={hotspotPageSize} onChange={(event) => setHotspotPageSize(Number(event.target.value))}>
-                  {[10, 20].map((size) => (
-                    <option key={`hotspot-page-size-${size}`} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-                <span>条</span>
-              </label>
-            </div>
-          </div>
-          <div className="hotspot-ranking-list">
-            {sortedHotspotItems.length ? (
-              paginatedHotspotItems.map((item) => (
-                  <article key={item.id} className="hotspot-ranking-card">
-                    <div className="hotspot-ranking-rank">#{item.rank}</div>
-                    <div className="hotspot-ranking-body">
-                      <strong>{item.title}</strong>
-                      <div className="hotspot-ranking-meta">
-                        <span>热度 {formatHotspotHeat(item.hot)}</span>
-                        <span>时间 {formatDateTime(item.timestamp ? new Date(item.timestamp).toISOString() : activeHotspotRecord?.updateTime || activeHotspotRecord?.collectedAt)}</span>
-                      </div>
-                    </div>
-                    {item.url ? (
-                      <a href={item.url} target="_blank" rel="noreferrer" className="table-link-pill">
-                        查看源链接
-                      </a>
-                    ) : (
-                      <span className="archive-pill status-pending">无直达链接</span>
-                    )}
-                  </article>
-                ))
-            ) : (
-              <div className="empty-state">当前榜单还没有可展示的热点条目。若刚执行过搜索但仍为空，通常表示接口权限不足或返回结构为空。</div>
-            )}
-          </div>
-          {sortedHotspotItems.length ? (
-            <div className="note-pagination-bar hotspot-pagination-bar">
-              <div className="note-pagination-summary">
-                <span>第 {hotspotPage} / {hotspotPageCount} 页</span>
-                <span>当前显示 {paginatedHotspotItems.length} 条</span>
-              </div>
-              <div className="note-pagination-actions">
-                <button
-                  type="button"
-                  className="note-inline-button"
-                  onClick={() => setHotspotPage((current) => Math.max(1, current - 1))}
-                  disabled={hotspotPage === 1}
-                >
-                  上一页
-                </button>
-                {Array.from({ length: hotspotPageCount }, (_, index) => index + 1).map((page) => (
-                  <button
-                    key={`hotspot-page-${page}`}
-                    type="button"
-                    className={`note-page-button ${page === hotspotPage ? "is-active" : ""}`}
-                    onClick={() => setHotspotPage(page)}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="note-inline-button"
-                  onClick={() => setHotspotPage((current) => Math.min(hotspotPageCount, current + 1))}
-                  disabled={hotspotPage === hotspotPageCount}
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </article>
-      </article>
+  function renderCollectionPage() {
+    return (
+      <BrandGrowthCollectionWorkspace
+        activePage={activePage === "dailyHotspot" ? "dailyHotspot" : "xiaohongshuCollection"}
+        templateUrl={FEISHU_XHS_TEMPLATE_URL}
+        activeXhsCollectionCard={activeXhsCollectionCard}
+        onXhsCollectionCardChange={setActiveXhsCollectionCard}
+        feishuBinding={feishuBinding}
+        feishuAppConfig={feishuAppConfig}
+        feishuAuthStatus={feishuAuthStatus}
+        feishuBindingForm={feishuBindingForm}
+        setFeishuBindingForm={setFeishuBindingForm}
+        feishuAppConfigForm={feishuAppConfigForm}
+        setFeishuAppConfigForm={setFeishuAppConfigForm}
+        canSyncFeishuWorkspace={canSyncFeishuWorkspace}
+        isHydrating={isHydrating}
+        isSavingFeishuAppConfig={isSavingFeishuAppConfig}
+        isSavingFeishuBinding={isSavingFeishuBinding}
+        isSyncingFeishuWorkspace={isSyncingFeishuWorkspace}
+        onSaveFeishuAppConfig={handleSaveFeishuAppConfig}
+        onStartFeishuAuth={handleStartFeishuAuth}
+        onSaveFeishuBinding={handleSaveFeishuBinding}
+        onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
+        sortedBrandAccounts={sortedBrandAccounts}
+        sortedCompetitorAccounts={sortedCompetitorAccounts}
+        sortedBrandNotes={sortedBrandNotes}
+        sortedBenchmarkNotes={sortedBenchmarkNotes}
+        brandNotesPage={brandNotesPage}
+        setBrandNotesPage={setBrandNotesPage}
+        brandNotesPageCount={brandNotesPageCount}
+        brandNotesPageSize={brandNotesPageSize}
+        setBrandNotesPageSize={setBrandNotesPageSize}
+        paginatedBrandNotes={paginatedBrandNotes}
+        addingMaterialAssetId={addingMaterialAssetId}
+        onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
+        onPreviewMedia={setMediaPreview}
+        buildFeishuMediaProxyUrl={buildFeishuMediaProxyUrl}
+        formatDateTime={formatDateTime}
+        formatDateLabel={formatDateLabel}
+        formatCount={formatCount}
+        formatMetric={formatMetric}
+        selectedHotspotDate={selectedHotspotDate}
+        hotspotAvailableDates={hotspotAvailableDates}
+        activeHotspotRecord={activeHotspotRecord}
+        sortedHotspotItems={sortedHotspotItems}
+        paginatedHotspotItems={paginatedHotspotItems}
+        hotspotPage={hotspotPage}
+        setHotspotPage={setHotspotPage}
+        hotspotPageCount={hotspotPageCount}
+        hotspotPageSize={hotspotPageSize}
+        setHotspotPageSize={setHotspotPageSize}
+        isSyncingDailyHotspots={isSyncingDailyHotspots}
+        onDailyHotspotDateChange={handleDailyHotspotDateChange}
+        onSyncDailyHotspots={handleSyncDailyHotspotWorkspace}
+        formatHotspotHeat={formatHotspotHeat}
+      />
     );
   }
 
   function renderReportPage() {
-    if (activePage === "growthReport") {
-      const latestReport = reportWorkspace.latest;
-      const previewHtml = renderMarkdownToHtml(reportMarkdownDraft || latestReport?.reportMarkdown || "");
-      return (
-        <article className="workspace-panel strategy-page-card">
-          {latestReport ? (
-            <article className="light-data-panel report-editor-panel">
-              <div className="report-editor-head">
-                <div>
-                  <strong>{latestReport.title}</strong>
-                  <p>Markdown 格式，可直接修改并保存这份品牌增长报告。</p>
-                </div>
-                <div className="report-editor-actions">
-                  <span className="archive-pill status-ready">{formatDateTime(latestReport.generatedAt)}</span>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleGenerateReport()}
-                    disabled={isGeneratingReport || isHydrating}
-                  >
-                    {isGeneratingReport ? "重新生成中..." : "重新生成"}
-                  </button>
-                </div>
-              </div>
-              <div className="report-editor-grid">
-                <label className="report-editor-pane">
-                  <span>Markdown 编辑器</span>
-                  <textarea
-                    className="report-markdown-textarea"
-                    value={reportMarkdownDraft}
-                    onChange={(event) => setReportMarkdownDraft(event.target.value)}
-                    placeholder="这里显示并编辑品牌增长报告 Markdown 内容"
-                  />
-                </label>
-                <article className="report-editor-pane">
-                  <span>预览</span>
-                  <div className="generated-report-html" dangerouslySetInnerHTML={{ __html: previewHtml }} />
-                </article>
-              </div>
-            </article>
-          ) : (
-            <article className="light-data-panel">
-              <h3>当前还没有品牌增长报告</h3>
-              <p>点击右上角“生成报告”后，会在这里生成并进入 Markdown 编辑状态。</p>
-            </article>
-          )}
-        </article>
-      );
-    }
-
-    if (activePage === "visualGrowthReport") {
-      const sourceReport = reportWorkspace.latest;
-      const latestVisualReport = visualReportWorkspace.latest;
-      const previewDocument = buildVisualReportPreviewDocument(
-        latestVisualReport?.title || "品牌增长可视化报告",
-        latestVisualReport?.htmlBody || "",
-      );
-      const visualTaskStatusText = latestVisualTask?.taskStatus === "QUEUED"
-        ? "排队中"
-        : latestVisualTask?.taskStatus === "RUNNING"
-          ? "生成中"
-          : latestVisualTask?.taskStatus === "FAILED"
-            ? "生成失败"
-            : latestVisualTask?.taskStatus === "SUCCESS"
-              ? "已完成"
-              : "";
-      return (
-        <article className="workspace-panel strategy-page-card">
-          {!sourceReport ? (
-            <article className="light-data-panel">
-              <h3>请先生成品牌增长报告</h3>
-              <p>当前可视化报告的输入来源是【品牌增长报告】，生成完成后才能继续生成这一板块。</p>
-            </article>
-          ) : isVisualReportTaskActive && !latestVisualReport ? (
-            <article className="light-data-panel">
-              <h3>品牌增长可视化报告{latestVisualTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
-              <p>
-                当前任务已提交，正在后台调用模型生成。{latestVisualTask?.sourceReportTitle ? `输入来源：${latestVisualTask.sourceReportTitle}。` : ""}
-              </p>
-            </article>
-          ) : latestVisualReport ? (
-            <article className="light-data-panel report-editor-panel">
-              <div className="report-editor-head">
-                <div>
-                  <strong>{latestVisualReport.title}</strong>
-                  <p>调用 article-visual-report-designer，将品牌增长报告转成嵌入式可视化 HTML 报告。</p>
-                </div>
-                <div className="report-editor-actions">
-                  <span className="archive-pill status-ready">{formatDateTime(latestVisualReport.generatedAt)}</span>
-                  {visualTaskStatusText ? <span className="archive-pill status-pending">{visualTaskStatusText}</span> : null}
-                </div>
-              </div>
-              <div className="visual-report-source-card">
-                <span>输入来源</span>
-                <strong>{latestVisualReport.sourceReportTitle || sourceReport.title}</strong>
-                <p>{sourceReport.summary}</p>
-              </div>
-              {latestVisualTask?.taskStatus === "FAILED" && latestVisualTask.errorMessage ? (
-                <div className="visual-report-source-card">
-                  <span>最近失败原因</span>
-                  <strong>{latestVisualTask.errorMessage}</strong>
-                  <p>请检查外部模型接口可用性，或重新点击生成可视化报告。</p>
-                </div>
-              ) : null}
-              {isVisualReportTaskActive ? (
-                <div className="visual-report-source-card">
-                  <span>当前任务状态</span>
-                  <strong>{latestVisualTask?.taskStatus === "QUEUED" ? "排队中" : "后台生成中"}</strong>
-                  <p>页面会自动刷新结果，无需停留在当前接口请求中等待。</p>
-                </div>
-              ) : null}
-              <article className="report-editor-pane">
-                <span>可视化报告</span>
-                <iframe
-                  title="品牌增长可视化报告预览"
-                  className="visual-report-preview-frame visual-report-preview-frame--single"
-                  srcDoc={previewDocument}
-                />
-              </article>
-            </article>
-          ) : (
-            <article className="light-data-panel">
-              <h3>当前还没有品牌增长可视化报告</h3>
-              <p>点击右上角“生成可视化报告”后，会调用 article-visual-report-designer 生成可直接预览的 HTML 报告。</p>
-            </article>
-          )}
-        </article>
-      );
-    }
-
-    const sourceReport = reportWorkspace.latest;
+    const latestReport = reportWorkspace.latest;
+    const latestVisualReport = visualReportWorkspace.latest;
     const latestPlan = annualMarketingPlanWorkspace.latest;
-    const annualTaskStatusText = latestAnnualMarketingTask?.taskStatus === "QUEUED"
-      ? "排队中"
-      : latestAnnualMarketingTask?.taskStatus === "RUNNING"
-        ? "生成中"
-        : latestAnnualMarketingTask?.taskStatus === "FAILED"
-          ? "生成失败"
-          : latestAnnualMarketingTask?.taskStatus === "SUCCESS"
-            ? "已完成"
-            : "";
-    const previewRows = latestPlan?.items ?? [];
+    const previewHtml = renderMarkdownToHtml(reportMarkdownDraft || latestReport?.reportMarkdown || "");
+    const previewDocument = buildVisualReportPreviewDocument(
+      latestVisualReport?.title || "品牌增长可视化报告",
+      latestVisualReport?.htmlBody || "",
+    );
+    const visualTaskStatusText = getReportTaskStatusText(latestVisualTask?.taskStatus);
+    const annualTaskStatusText = getReportTaskStatusText(latestAnnualMarketingTask?.taskStatus);
 
     return (
-      <article className="workspace-panel strategy-page-card">
-        {!sourceReport ? (
-          <article className="light-data-panel">
-            <h3>请先生成品牌增长报告</h3>
-            <p>当前全年营销规划的输入来源是【品牌增长报告】和【品牌商家建档】，需要先完成报告生成后才能继续。</p>
-          </article>
-        ) : isAnnualMarketingPlanTaskActive && !latestPlan ? (
-          <article className="light-data-panel">
-            <h3>全年营销规划{latestAnnualMarketingTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
-            <p>
-              当前任务已提交，正在后台调用模型生成。{latestAnnualMarketingTask?.sourceReportTitle ? `输入来源：${latestAnnualMarketingTask.sourceReportTitle}。` : ""}
-            </p>
-          </article>
-        ) : latestPlan ? (
-          <article className="light-data-panel report-editor-panel">
-            <div className="report-editor-head">
-              <div>
-                <strong>{latestPlan.title}</strong>
-                <p>大模型先输出结构化 JSON，再由后端渲染为年度营销规划 HTML 表格。</p>
-              </div>
-              <div className="report-editor-actions">
-                <span className="archive-pill status-ready">{formatDateTime(latestPlan.generatedAt)}</span>
-                <span className="archive-pill status-pending">{latestPlan.planningYear || "年度未识别"}</span>
-                {annualTaskStatusText ? <span className="archive-pill status-pending">{annualTaskStatusText}</span> : null}
-              </div>
-            </div>
-            <div className="visual-report-source-card">
-              <span>输入来源</span>
-              <strong>{latestPlan.sourceReportTitle || sourceReport.title}</strong>
-              <p>{latestPlan.summary}</p>
-            </div>
-            {latestAnnualMarketingTask?.taskStatus === "FAILED" && latestAnnualMarketingTask.errorMessage ? (
-              <div className="visual-report-source-card">
-                <span>最近失败原因</span>
-                <strong>{latestAnnualMarketingTask.errorMessage}</strong>
-                <p>请检查外部模型接口可用性，或重新点击生成规划。</p>
-              </div>
-            ) : null}
-            {isAnnualMarketingPlanTaskActive ? (
-              <div className="visual-report-source-card">
-                <span>当前任务状态</span>
-                <strong>{latestAnnualMarketingTask?.taskStatus === "QUEUED" ? "排队中" : "后台生成中"}</strong>
-                <p>页面会自动刷新结果，无需停留在当前接口请求中等待。</p>
-              </div>
-            ) : null}
-            {latestPlan.planningFocus.length ? (
-              <div className="strategy-chip-row">
-                {latestPlan.planningFocus.map((item, index) => (
-                  <span key={`annual-focus-${index}`} className="filter-chip is-active">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <div className="card-grid">
-              <article className="metric-card">
-                <span>规划年份</span>
-                <strong>{latestPlan.planningYear || "未识别"}</strong>
-                <p>按品牌增长报告的当前输入，输出对应年度的营销排期。</p>
-              </article>
-              <article className="metric-card">
-                <span>规划条目</span>
-                <strong>{latestPlan.items.length}</strong>
-                <p>覆盖节日、节气与重点营销节点，便于后续拆解月度执行。</p>
-              </article>
-              <article className="metric-card">
-                <span>平台矩阵</span>
-                <strong>5 类</strong>
-                <p>小红书、抖音、视频号、私域与线下门店统一联动。</p>
-              </article>
-            </div>
-            <article className="light-data-panel" style={{ padding: 0, background: "transparent", border: "none", boxShadow: "none" }}>
-              <div className="hotspot-list-head">
-                <h3>规划条目预览</h3>
-                <span className="archive-pill status-ready">共 {previewRows.length} 条</span>
-              </div>
-              {previewRows.length ? (
-                <div className="hotspot-ranking-list">
-                  {previewRows.map((item, index) => (
-                    <article key={`${item.month}-${item.node}-${index}`} className="hotspot-ranking-card">
-                      <div className="hotspot-ranking-rank">{item.month}</div>
-                      <div className="hotspot-ranking-body">
-                        <strong>{item.node} · {item.marketingTheme}</strong>
-                        <div className="hotspot-ranking-meta">
-                          <span>{item.type}</span>
-                          <span>{item.date}</span>
-                          <span>{item.platforms.join("、")}</span>
-                        </div>
-                        <div className="note-description-inline">{item.strategy}</div>
-                      </div>
-                      <span className="archive-pill status-pending">{item.products.join("、") || "产品待定"}</span>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">当前规划结果还没有可展示的条目。</div>
-              )}
-            </article>
-          </article>
-        ) : (
-          <article className="light-data-panel">
-            <h3>当前还没有全年营销规划</h3>
-            <p>点击右上角“生成规划”后，会根据【品牌商家建档】和【品牌增长报告】生成 JSON，再由后端渲染成 HTML 规划表。</p>
-          </article>
-        )}
-      </article>
+      <BrandGrowthReportWorkspace
+        activePage={activePage === "growthReport" ? "growthReport" : activePage === "visualGrowthReport" ? "visualGrowthReport" : "annualMarketingPlan"}
+        reportWorkspace={reportWorkspace}
+        visualReportWorkspace={visualReportWorkspace}
+        annualMarketingPlanWorkspace={annualMarketingPlanWorkspace}
+        reportMarkdownDraft={reportMarkdownDraft}
+        onReportMarkdownDraftChange={setReportMarkdownDraft}
+        previewHtml={previewHtml}
+        previewDocument={previewDocument}
+        visualTaskStatusText={visualTaskStatusText}
+        annualTaskStatusText={annualTaskStatusText}
+        previewRows={latestPlan?.items ?? []}
+        isHydrating={isHydrating}
+        isGeneratingReport={isGeneratingReport}
+        isGeneratingVisualReport={isGeneratingVisualReport}
+        isVisualReportTaskActive={isVisualReportTaskActive}
+        isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
+        onGenerateReport={handleGenerateReport}
+        formatDateTime={formatDateTime}
+      />
     );
   }
 

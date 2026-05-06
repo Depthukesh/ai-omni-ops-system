@@ -167,6 +167,40 @@
 - 将营销策划方案、营销日历、原创/二创/视频创作任务的状态文案判断从 `page.tsx` 主文件中抽为独立工具模块
 - 页面主文件统一改为复用 `getPhaseTaskStatusText` 与 `getComposeTaskStatusText`，减少多段重复的状态文案三元判断
 
+### 3.25 第二十四轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
+- 将 `brand-growth/workspace.tsx` 中“收集数据”板块的大段 JSX 抽为独立组件，统一承载飞书绑定、小红书收集结果和每日热点工作区
+- `workspace.tsx` 主文件改为只保留数据装配、状态编排与动作回调，不再直接维护该板块的大段渲染细节
+
+### 3.26 第二十五轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/library-workspace.tsx`
+- 将 `brand-growth/workspace.tsx` 中“品牌资料库”板块的大段 JSX 抽为独立组件，统一承载品牌背景、产品资料、品牌运营情况、第三方数据和企业经营数据工作区
+- `workspace.tsx` 主文件改为只保留资料库的状态装配与动作回调，不再直接维护该板块的大段渲染细节
+- 补充 `isLibraryPageKey` 类型收窄，避免资料库组件接收超出当前板块范围的步骤类型
+
+### 3.27 第二十六轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/report-workspace.tsx`
+- 将 `brand-growth/workspace.tsx` 中“品牌增长报告”板块的大段 JSX 抽为独立组件，统一承载品牌增长报告、品牌增长可视化报告和全年营销规划三个工作区
+- `workspace.tsx` 主文件改为只保留报告区的状态装配、预览字符串准备与动作回调，不再直接维护该板块的大段渲染细节
+
+### 3.28 第二十七轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/shared-types.ts`
+- 将 `brand-growth` 新拆组件中的重复小类型统一收口，包括异步动作类型、可选日期/数字格式化器、飞书表单结构、媒体预览结构，以及资料库/报告页 key 类型
+- `collection-workspace.tsx`、`library-workspace.tsx`、`report-workspace.tsx` 统一改为显式 `Props` 接口风格，减少局部重复定义
+- `report-workspace.tsx` 中年度规划预览行类型改为直接复用 `AnnualMarketingPlanRow[]`，降低条件类型推导复杂度
+
+### 3.29 第二十八轮代码收敛
+
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/datetime-helpers.ts`
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/markdown-render.ts`
+- 新增 `apps/web/src/app/(dashboard)/brand-growth/task-status-helpers.ts`
+- 将 `brand-growth/workspace.tsx` 中剩余的时间格式化、热点热度格式化、收集结果排序、Markdown 渲染、可视化预览文档拼装与状态文案 helper 统一外移
+- 删除 `workspace.tsx` 内已无调用的预览图片 URL helper，让主文件继续收口为状态编排与动作装配层
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
@@ -248,6 +282,16 @@
 - 再次执行 `npm run build:web` 通过
 - `GetDiagnostics` 检查 `task-status-text-helpers.ts` 与 `xiaohongshu/page.tsx`
 - 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `brand-growth/collection-workspace.tsx` 与 `brand-growth/workspace.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `brand-growth/library-workspace.tsx` 与 `brand-growth/workspace.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `brand-growth/report-workspace.tsx` 与 `brand-growth/workspace.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `brand-growth/shared-types.ts`、`collection-workspace.tsx`、`library-workspace.tsx`、`report-workspace.tsx` 与 `workspace.tsx`
+- 再次执行 `npm run build:web` 通过
+- `GetDiagnostics` 检查 `brand-growth/datetime-helpers.ts`、`markdown-render.ts`、`task-status-helpers.ts` 与 `workspace.tsx`
+- 再次执行 `npm run build:web` 通过
 
 ## 7. 风险与后续
 
@@ -258,6 +302,7 @@
 - `xiaohongshu/page.tsx` 体量仍然很大，本次只先切出了发布桥接热点，后续还需继续拆任务轮询、作品弹窗和表单状态
 - 当前虽然已抽出发布桥接、任务轮询、发布状态机、创作表单状态、创作提交流程和编辑弹窗状态，但页面仍保留大量卡片渲染与分区视图逻辑，后续应继续按“卡片渲染分区、营销方案工作区子组件”两个方向拆分
 - 当前已开始收口生成内容存储规则，并拆出作品卡片区、营销方案工作区、营销日历工作区、素材库工作区、原创/二创/视频三个分区工作区、三套创建弹窗、三套编辑弹窗、发布弹窗、全局灯箱、markdown/render helper、共享类型、日期/日历 helper、发布状态 helper、作品媒体 helper、任务关联 helper、时间格式 helper、发布预览 builder 与任务状态文案 helper；后续重点转到 `page.tsx` 内极少量剩余局部逻辑的最终收口与整体复盘
+- 当前已开始收口生成内容存储规则，并拆出作品卡片区、营销方案工作区、营销日历工作区、素材库工作区、原创/二创/视频三个分区工作区、三套创建弹窗、三套编辑弹窗、发布弹窗、全局灯箱、markdown/render helper、共享类型、日期/日历 helper、发布状态 helper、作品媒体 helper、任务关联 helper、时间格式 helper、发布预览 builder 与任务状态文案 helper；同时开始进入 `brand-growth` 板块规范化，已完成“收集数据工作区”“资料库工作区”“报告工作区”三轮拆分，并补齐共享类型与 `Props` 接口规范，主 `workspace.tsx` 已明显收口为编排层
 
 ## 8. 相关文件
 
@@ -291,6 +336,14 @@
 - `apps/web/src/app/(dashboard)/xiaohongshu/preview-builders.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/task-status-text-helpers.ts`
 - `apps/web/src/app/(dashboard)/xiaohongshu/work-card-grids.tsx`
+- `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
+- `apps/web/src/app/(dashboard)/brand-growth/library-workspace.tsx`
+- `apps/web/src/app/(dashboard)/brand-growth/report-workspace.tsx`
+- `apps/web/src/app/(dashboard)/brand-growth/shared-types.ts`
+- `apps/web/src/app/(dashboard)/brand-growth/datetime-helpers.ts`
+- `apps/web/src/app/(dashboard)/brand-growth/markdown-render.ts`
+- `apps/web/src/app/(dashboard)/brand-growth/task-status-helpers.ts`
+- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-edit-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
