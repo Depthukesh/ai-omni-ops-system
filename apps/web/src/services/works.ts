@@ -1,5 +1,10 @@
 import { jsonRequest, request } from "./http";
 
+export type ImageTextPlanEntry = {
+  title: string;
+  badges: string[];
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -17,6 +22,8 @@ export type XiaohongshuOriginalWorkRecord = {
   productName?: string;
   additionalInstruction?: string;
   hashtags: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   coverReferenceStyle?: string;
@@ -48,6 +55,8 @@ export type XiaohongshuRewriteWorkRecord = {
   productName?: string;
   additionalInstruction?: string;
   hashtags: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   copyModel?: string;

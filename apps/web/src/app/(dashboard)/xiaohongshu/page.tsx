@@ -1320,23 +1320,24 @@ export default function XiaohongshuPage() {
     <main className="dashboard-shell">
       <section className="strategy-shell">
         <div className="strategy-layout xiaohongshu-layout">
-          <aside className="strategy-level-panel">
-            {xiaohongshuSections.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
-                onClick={() => setActiveSection(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
+          <aside className="strategy-level-panel strategy-level-panel--directory">
+            <div className="strategy-level-button-list">
+              {xiaohongshuSections.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                  onClick={() => setActiveSection(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </aside>
 
           <div className="strategy-content-panel xiaohongshu-content-panel">
             <section className="dashboard-hero xiaohongshu-hero">
               <div>
-                <span className="hero-badge">小红书工作台</span>
                 <h1>{heroTitle}</h1>
                 <p>{heroDescription}</p>
                 <div className="workspace-toolbar top-toolbar">

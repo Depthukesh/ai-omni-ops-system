@@ -63,6 +63,11 @@ export type UpdateXiaohongshuVideoNotePayload = {
 
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
+type ImageTextPlanEntry = {
+  title: string;
+  badges: string[];
+};
+
 type OriginalWorkAssetMeta = {
   kind: "XHS_ORIGINAL_NOTE";
   taskId: string;
@@ -84,6 +89,8 @@ type OriginalWorkAssetMeta = {
   coverImageUrl?: string;
   galleryImageIds: string[];
   imageUrls: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts?: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   coverReferenceStyle?: string;
@@ -128,6 +135,8 @@ type RewriteWorkAssetMeta = {
   coverImageUrl?: string;
   galleryImageIds: string[];
   imageUrls: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts?: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   copyModel?: string;
@@ -210,6 +219,8 @@ export type XiaohongshuOriginalWorkRecord = {
   productName?: string;
   additionalInstruction?: string;
   hashtags: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   coverReferenceStyle?: string;
@@ -241,6 +252,8 @@ export type XiaohongshuRewriteWorkRecord = {
   productName?: string;
   additionalInstruction?: string;
   hashtags: string[];
+  coverText?: ImageTextPlanEntry;
+  imageTexts: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   copyModel?: string;
@@ -311,6 +324,8 @@ type OriginalCopyModelResult = {
 };
 
 type OriginalImagePromptResult = {
+  coverText: ImageTextPlanEntry;
+  imageTexts: ImageTextPlanEntry[];
   coverPrompt: string;
   imagePrompts: string[];
   modelName: string;
@@ -631,6 +646,7 @@ export class WorksService {
         role: "COVER",
         order: 0,
         prompt: imagePromptResult.coverPrompt,
+        textPlan: imagePromptResult.coverText,
         referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
       });
 
@@ -643,6 +659,7 @@ export class WorksService {
             role: "GALLERY",
             order: index + 1,
             prompt,
+            textPlan: imagePromptResult.imageTexts[index],
             referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
           }),
         ),
@@ -679,8 +696,10 @@ export class WorksService {
         coverImageUrl: coverImage.url,
         galleryImageIds: [],
         imageUrls: galleryImages.map((item) => item.url),
-        coverPrompt: imagePromptResult.coverPrompt,
-        imagePrompts: imagePromptResult.imagePrompts,
+        coverText: imagePromptResult.coverText,
+        imageTexts: imagePromptResult.imageTexts,
+        coverPrompt: coverImage.prompt,
+        imagePrompts: galleryImages.map((item) => item.prompt),
         coverReferenceStyle: referenceStyles.coverReferenceStyle,
         galleryReferenceStyles: referenceStyles.galleryReferenceStyles,
         styleAnalysisModel: referenceStyles.modelName,
@@ -711,7 +730,7 @@ export class WorksService {
         sourceUrl: coverImage.url,
         role: "COVER",
         order: 0,
-        prompt: imagePromptResult.coverPrompt,
+        prompt: coverImage.prompt,
       });
 
       const galleryMedia = await Promise.all(
@@ -726,7 +745,7 @@ export class WorksService {
             sourceUrl: item.url,
             role: "GALLERY",
             order: index + 1,
-            prompt: imagePromptResult.imagePrompts[index] || item.prompt,
+            prompt: item.prompt,
           }),
         ),
       );
@@ -790,6 +809,15 @@ export class WorksService {
         }
       : undefined;
 
+    const allowProductEmbedding = Boolean(normalizedProduct);
+    const rewritePromptSourceMaterial = this.buildRewritePromptSourceMaterial(sourceMaterial, allowProductEmbedding);
+    const rewriteMarketingPlanContext = this.buildRewriteMarketingPlanContext(
+      latestMarketingPlan.reportMarkdown,
+      allowProductEmbedding,
+    );
+    const rewriteTopicContext = this.buildRewriteTopicContext(sourceMaterial, allowProductEmbedding);
+    const rewriteReferenceImageUrls = this.collectRewriteReferenceImageUrls(sourceMaterial.imageList || [], selectedProduct);
+
     const userId = await this.getBrandOwnerUserId(brandId);
     const taskTitle = `生成小红书二创笔记：${sourceMaterial.title}`;
     const task = await this.createRewriteTask({
@@ -802,19 +830,21 @@ export class WorksService {
       await this.markTaskRunning(task.id);
 
       const copyResult = await this.generateRewriteCopy({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
-        sourceMaterial,
+        marketingPlanMarkdown: rewriteMarketingPlanContext,
+        sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
         additionalInstruction: payload.additionalInstruction?.trim(),
+        topicContext: rewriteTopicContext,
       });
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
-        sourceMaterial,
+        marketingPlanMarkdown: rewriteMarketingPlanContext,
+        sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
         additionalInstruction: payload.additionalInstruction?.trim(),
         noteTitle: copyResult.title,
         noteContent: copyResult.content,
+        topicContext: rewriteTopicContext,
       });
 
       const coverImage = await this.generateImageAsset({
@@ -824,7 +854,8 @@ export class WorksService {
         role: "COVER",
         order: 0,
         prompt: imagePromptResult.coverPrompt,
-        referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+        textPlan: imagePromptResult.coverText,
+        referenceImageUrls: rewriteReferenceImageUrls,
       });
 
       const galleryImages = await Promise.all(
@@ -836,7 +867,8 @@ export class WorksService {
             role: "GALLERY",
             order: index + 1,
             prompt,
-            referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+            textPlan: imagePromptResult.imageTexts[index],
+            referenceImageUrls: rewriteReferenceImageUrls,
           }),
         ),
       );
@@ -873,8 +905,10 @@ export class WorksService {
         coverImageUrl: coverImage.url,
         galleryImageIds: [],
         imageUrls: galleryImages.map((item) => item.url),
-        coverPrompt: imagePromptResult.coverPrompt,
-        imagePrompts: imagePromptResult.imagePrompts,
+        coverText: imagePromptResult.coverText,
+        imageTexts: imagePromptResult.imageTexts,
+        coverPrompt: coverImage.prompt,
+        imagePrompts: galleryImages.map((item) => item.prompt),
         copyModel: copyResult.modelName,
         imagePromptModel: imagePromptResult.modelName,
         imageGenerationModel: coverImage.modelName,
@@ -902,7 +936,7 @@ export class WorksService {
         sourceUrl: coverImage.url,
         role: "COVER",
         order: 0,
-        prompt: imagePromptResult.coverPrompt,
+        prompt: coverImage.prompt,
       });
 
       const galleryMedia = await Promise.all(
@@ -917,7 +951,7 @@ export class WorksService {
             sourceUrl: item.url,
             role: "GALLERY",
             order: index + 1,
-            prompt: imagePromptResult.imagePrompts[index] || item.prompt,
+            prompt: item.prompt,
           }),
         ),
       );
@@ -1590,8 +1624,14 @@ export class WorksService {
       params.imageCount
         ? `请严格生成 ${params.imageCount} 张图的提示词，其中第一张为封面，其余 ${Math.max(params.imageCount - 1, 0)} 张为配图。`
         : "图片张数可自由发挥，但至少返回 1 条封面提示词和 2 条配图提示词。",
+      "除封面与配图提示词外，你还必须先提取每张图要排版到画面上的中文标题和小标签。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "{",
+      '  "cover_text": { "title": "封面主标题", "badges": ["封面小标签1", "封面小标签2"] },',
+      '  "image_texts": [',
+      '    { "title": "第2张配图标题", "badges": ["第2张小标签1"] },',
+      '    { "title": "第3张配图标题", "badges": ["第3张小标签1"] }',
+      "  ],",
       '  "cover_prompt": "封面提示词",',
       '  "image_prompts": ["配图提示词1", "配图提示词2"]',
       "}",
@@ -1624,6 +1664,13 @@ export class WorksService {
                 continue;
               }
               const parsed = this.parseJsonObject(content);
+              const textPlan = this.normalizeImageTextPlan({
+                coverTextRaw: parsed.cover_text ?? parsed.coverText,
+                imageTextsRaw: parsed.image_texts ?? parsed.imageTexts,
+                noteTitle: params.noteTitle,
+                noteContent: params.noteContent,
+                imageCount: params.imageCount,
+              });
               const coverPrompt = String(parsed.cover_prompt ?? parsed.coverPrompt ?? "").trim();
               const imagePrompts = this.normalizeStringArray(parsed.image_prompts ?? parsed.imagePrompts, [], 10);
               if (!coverPrompt) {
@@ -1634,6 +1681,8 @@ export class WorksService {
                 ? this.normalizeFixedImagePromptCount(imagePrompts, coverPrompt, params.imageCount)
                 : (imagePrompts.length ? imagePrompts : this.normalizeFixedImagePromptCount([], coverPrompt, 3));
               return {
+                coverText: textPlan.coverText,
+                imageTexts: this.normalizeImageTextEntries(textPlan.imageTexts, textPlan.imageTexts, normalizedImagePrompts.length),
                 coverPrompt,
                 imagePrompts: normalizedImagePrompts,
                 modelName,
@@ -1656,11 +1705,14 @@ export class WorksService {
     role: "COVER" | "GALLERY";
     order: number;
     prompt: string;
+    textPlan?: ImageTextPlanEntry;
     referenceImageUrls: string[];
   }) {
     const providers = this.loadImageGenerationProviders();
     let lastError = "";
-    const promptsToTry = this.buildImagePromptCandidates(params.prompt);
+    const promptsToTry = this.buildImagePromptCandidates(
+      this.buildImagePromptWithTextPlan(params.prompt, params.textPlan, params.role, params.order),
+    );
 
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
@@ -1688,10 +1740,17 @@ export class WorksService {
                 }
 
                 const fileName = `${params.taskId}-${params.role.toLowerCase()}-${params.order + 1}${asset.extension}`;
+                const base64Content = asset.base64
+                  ? (await this.normalizeGeneratedImageBuffer(
+                    Buffer.from(asset.base64, "base64"),
+                    asset.contentType,
+                    fileName,
+                  )).toString("base64")
+                  : undefined;
                 const finalUrl = asset.url
                   ? await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType)
-                  : (asset.base64
-                    ? this.writeGeneratedBinaryFile(params.brandId, fileName, asset.base64, asset.contentType).url
+                  : (base64Content
+                    ? this.writeGeneratedBinaryFile(params.brandId, fileName, base64Content, asset.contentType).url
                     : "");
                 if (!finalUrl) {
                   lastError = `${modelName} 未返回可保存的图片内容`;
@@ -1722,6 +1781,7 @@ export class WorksService {
       fallbackContentType: fallbackContentType || "image/png",
       resolveExtension: (contentType, nextFileName) => this.resolveImageExtensionFromMimeType(contentType, nextFileName),
       requestLabel: `下载远程生成图片 ${remoteUrl}`,
+      normalizeImageAspectRatio: true,
     });
   }
 
@@ -2123,6 +2183,87 @@ export class WorksService {
     return product?.imageUrl ? [product.imageUrl] : [];
   }
 
+  private collectRewriteReferenceImageUrls(sourceMaterialImageUrls: string[], product?: { imageUrl?: string }) {
+    return Array.from(
+      new Set(
+        [...sourceMaterialImageUrls, ...this.collectImageReferenceUrls(product)]
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    ).slice(0, 6);
+  }
+
+  private buildRewritePromptSourceMaterial(
+    sourceMaterial: {
+      id: string;
+      title: string;
+      description?: string;
+      noteUrl?: string;
+      sourceUrl?: string;
+      imageList?: string[];
+      nickname?: string;
+      noteType?: string;
+      likeCount?: number;
+      collectCount?: number;
+      commentCount?: number;
+      shareCount?: number;
+    },
+    allowProductEmbedding: boolean,
+  ) {
+    if (allowProductEmbedding) {
+      return sourceMaterial;
+    }
+    return {
+      ...sourceMaterial,
+      description: this.sanitizeRewriteTextForNoProduct(sourceMaterial.description),
+    };
+  }
+
+  private buildRewriteTopicContext(
+    sourceMaterial: { title: string; description?: string },
+    allowProductEmbedding: boolean,
+  ) {
+    const topicContent = allowProductEmbedding
+      ? String(sourceMaterial.description || "").trim()
+      : this.sanitizeRewriteTextForNoProduct(sourceMaterial.description);
+    return {
+      topicName: sourceMaterial.title,
+      topicContent: topicContent || sourceMaterial.title,
+      contentGoal: allowProductEmbedding
+        ? "围绕对标素材主事件做二创，并只在必要时自然融合已选产品。"
+        : "围绕对标素材主事件、人物情绪和城市氛围做二创，不植入任何具体产品。",
+      expressionFocus: allowProductEmbedding
+        ? "优先保留原素材的事件主线、情绪张力和场景体验，产品不能压过主事件。"
+        : "优先突出原素材的事件主线、人物状态、城市氛围和情绪变化，背景品牌露出不能抬升为主卖点。",
+    };
+  }
+
+  private buildRewriteMarketingPlanContext(markdown: string, allowProductEmbedding: boolean) {
+    if (allowProductEmbedding) {
+      return markdown;
+    }
+    const blockedPattern = /(牛角包|提拉米苏|蛋糕|面包|奶油|门店|核销|价格|优惠|下单|购买|早餐|下午茶|礼赠|自提|团购|爆浆|现烤|产品|sku|SKU)/;
+    const filteredLines = String(markdown || "")
+      .split(/\r?\n/)
+      .map((item) => item.trimEnd())
+      .filter((item) => item.trim() && !blockedPattern.test(item))
+      .slice(0, 120);
+    return [
+      "本次二创未选择产品，营销策划内容仅允许参考品牌调性、城市事件联动、人群洞察、内容结构和情绪表达。",
+      "严禁引用策划方案里的具体产品、价格、门店核销、购买路径、福利促销和商品卖点。",
+      ...filteredLines,
+    ].join("\n");
+  }
+
+  private sanitizeRewriteTextForNoProduct(value?: string) {
+    const blockedPattern = /(牛角包|提拉米苏|蛋糕|面包|奶油|门店|价格|优惠|兑换券|下单|购买|现烤|爆浆|产品|SKU|sku)/;
+    const filteredLines = String(value || "")
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter((item) => item && !blockedPattern.test(item));
+    return filteredLines.join("\n").trim();
+  }
+
   private renderGeneratedNoteHtml(params: {
     title: string;
     content: string;
@@ -2277,6 +2418,8 @@ export class WorksService {
       productName: meta.productName,
       additionalInstruction: meta.additionalInstruction,
       hashtags: meta.hashtags || [],
+      coverText: meta.coverText,
+      imageTexts: meta.imageTexts || [],
       coverPrompt: meta.coverPrompt,
       imagePrompts: meta.imagePrompts || [],
       coverReferenceStyle: meta.coverReferenceStyle,
@@ -2300,6 +2443,7 @@ export class WorksService {
     if (!meta || meta.kind !== "XHS_ORIGINAL_NOTE") {
       throw new NotFoundException("原创笔记不存在");
     }
+    const normalizedImagePrompts = this.normalizeStringArray(meta.imagePrompts, [], 12);
     return {
       kind: "XHS_ORIGINAL_NOTE",
       taskId: String(meta.taskId ?? ""),
@@ -2321,8 +2465,14 @@ export class WorksService {
       coverImageUrl: this.readOptionalString(meta.coverImageUrl),
       galleryImageIds: this.normalizeStringArray(meta.galleryImageIds, [], 20),
       imageUrls: this.normalizeStringArray(meta.imageUrls, [], 20),
+      coverText: this.normalizeImageTextEntry(meta.coverText, { title: String(meta.title ?? "").trim(), badges: [] }),
+      imageTexts: this.normalizeImageTextEntries(
+        meta.imageTexts,
+        [],
+        normalizedImagePrompts.length || (typeof meta.imageCount === "number" ? Math.max(meta.imageCount - 1, 0) : undefined),
+      ),
       coverPrompt: String(meta.coverPrompt ?? "").trim(),
-      imagePrompts: this.normalizeStringArray(meta.imagePrompts, [], 12),
+      imagePrompts: normalizedImagePrompts,
       coverReferenceStyle: this.readOptionalString(meta.coverReferenceStyle),
       galleryReferenceStyles: this.normalizeStringArray(meta.galleryReferenceStyles, [], 12),
       styleAnalysisModel: this.readOptionalString(meta.styleAnalysisModel),
@@ -2416,6 +2566,8 @@ export class WorksService {
       productName: meta.productName,
       additionalInstruction: meta.additionalInstruction,
       hashtags: meta.hashtags || [],
+      coverText: meta.coverText,
+      imageTexts: meta.imageTexts || [],
       coverPrompt: meta.coverPrompt,
       imagePrompts: meta.imagePrompts || [],
       copyModel: meta.copyModel,
@@ -2437,6 +2589,7 @@ export class WorksService {
     if (!meta || meta.kind !== "XHS_REWRITE_NOTE") {
       throw new NotFoundException("二创笔记不存在");
     }
+    const normalizedImagePrompts = this.normalizeStringArray(meta.imagePrompts, [], 12);
     return {
       kind: "XHS_REWRITE_NOTE",
       taskId: String(meta.taskId ?? ""),
@@ -2459,8 +2612,10 @@ export class WorksService {
       coverImageUrl: this.readOptionalString(meta.coverImageUrl),
       galleryImageIds: this.normalizeStringArray(meta.galleryImageIds, [], 20),
       imageUrls: this.normalizeStringArray(meta.imageUrls, [], 20),
+      coverText: this.normalizeImageTextEntry(meta.coverText, { title: String(meta.title ?? "").trim(), badges: [] }),
+      imageTexts: this.normalizeImageTextEntries(meta.imageTexts, [], normalizedImagePrompts.length || undefined),
       coverPrompt: String(meta.coverPrompt ?? "").trim(),
-      imagePrompts: this.normalizeStringArray(meta.imagePrompts, [], 12),
+      imagePrompts: normalizedImagePrompts,
       copyModel: this.readOptionalString(meta.copyModel),
       imagePromptModel: this.readOptionalString(meta.imagePromptModel),
       imageGenerationModel: this.readOptionalString(meta.imageGenerationModel),
@@ -2889,6 +3044,12 @@ export class WorksService {
       commentCount?: number;
       shareCount?: number;
     };
+    topicContext?: {
+      topicName: string;
+      topicContent: string;
+      contentGoal: string;
+      expressionFocus: string;
+    };
     product?: {
       id: string;
       productName: string;
@@ -2917,6 +3078,7 @@ export class WorksService {
         commentCount: params.sourceMaterial.commentCount,
         shareCount: params.sourceMaterial.shareCount,
       },
+      topic_context: params.topicContext ?? null,
       product: params.product
         ? {
             productName: params.product.productName,
@@ -2933,6 +3095,11 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书二创图文笔记。",
+      "必须优先围绕 benchmark_note 的核心事件、场景、人物关系和情绪主题进行二创，不能脱离原素材主线另起题。",
+      "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，严禁把它升级为标题主钩子、核心卖点或主要带货内容。",
+      params.product
+        ? "本次已明确提供产品资料，可以在不破坏对标素材主线的前提下自然植入该产品。"
+        : "本次未提供产品资料，严禁自行引入任何具体产品 SKU、商品名、价格、门店购买引导、优惠信息、下单路径或强转化文案；如果原素材里有品牌露出，只能保留为背景信息，不能扩写成具体卖货笔记，也不能新增 benchmark_note 未明确出现的第二个产品。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
@@ -3005,6 +3172,12 @@ export class WorksService {
       nickname?: string;
       noteType?: string;
     };
+    topicContext?: {
+      topicName: string;
+      topicContent: string;
+      contentGoal: string;
+      expressionFocus: string;
+    };
     product?: {
       productName: string;
       detailDescription: string;
@@ -3030,6 +3203,7 @@ export class WorksService {
         nickname: params.sourceMaterial.nickname,
         noteType: params.sourceMaterial.noteType,
       },
+      topic_context: params.topicContext ?? null,
       noteTitle: params.noteTitle,
       noteContent: params.noteContent,
       product: params.product
@@ -3048,8 +3222,19 @@ export class WorksService {
       "",
       "你当前需要输出小红书二创图文的封面与配图提示词。",
       "请至少返回 1 条封面提示词和 2 条配图提示词。",
+      "图片主题必须服务于 benchmark_note 的核心事件和主场景，不能偏离到无关商品展示或纯带货画面。",
+      "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，画面中不得把它放大成核心产品海报或主视觉主体。",
+      params.product
+        ? "本次已明确提供产品资料，可以在画面中自然植入该产品形象。"
+        : "本次未提供产品资料，严禁在封面或配图中自行生成具体商品、SKU、价格牌、门店陈列、购买引导文案或卖货主视觉；若原素材本身含有品牌元素，只能保留事件相关的弱露出，不得强化成产品销售海报，也不得新增 benchmark_note 未明确出现的第二个产品。",
+      "除封面与配图提示词外，你还必须给出每张图要排版到画面上的中文标题和小标签。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "{",
+      '  "cover_text": { "title": "封面主标题", "badges": ["封面小标签1", "封面小标签2"] },',
+      '  "image_texts": [',
+      '    { "title": "第2张配图标题", "badges": ["第2张小标签1"] },',
+      '    { "title": "第3张配图标题", "badges": ["第3张小标签1"] }',
+      "  ],",
       '  "cover_prompt": "封面提示词",',
       '  "image_prompts": ["配图提示词1", "配图提示词2"]',
       "}",
@@ -3082,15 +3267,26 @@ export class WorksService {
                 continue;
               }
               const parsed = this.parseJsonObject(content);
+              const textPlan = this.normalizeImageTextPlan({
+                coverTextRaw: parsed.cover_text ?? parsed.coverText,
+                imageTextsRaw: parsed.image_texts ?? parsed.imageTexts,
+                noteTitle: params.noteTitle,
+                noteContent: params.noteContent,
+              });
               const coverPrompt = String(parsed.cover_prompt ?? parsed.coverPrompt ?? "").trim();
               const imagePrompts = this.normalizeStringArray(parsed.image_prompts ?? parsed.imagePrompts, [], 10);
               if (!coverPrompt) {
                 lastError = `${provider.provider}/${modelName} 封面提示词为空`;
                 continue;
               }
+              const normalizedImagePrompts = imagePrompts.length
+                ? imagePrompts
+                : this.normalizeFixedImagePromptCount([], coverPrompt, 3);
               return {
+                coverText: textPlan.coverText,
+                imageTexts: this.normalizeImageTextEntries(textPlan.imageTexts, textPlan.imageTexts, normalizedImagePrompts.length),
                 coverPrompt,
-                imagePrompts: imagePrompts.length ? imagePrompts : this.normalizeFixedImagePromptCount([], coverPrompt, 3),
+                imagePrompts: normalizedImagePrompts,
                 modelName,
               };
             } catch (error) {
@@ -4054,6 +4250,29 @@ export class WorksService {
     };
   }
 
+  private buildImagePromptWithTextPlan(
+    prompt: string,
+    textPlan: ImageTextPlanEntry | undefined,
+    role: "COVER" | "GALLERY",
+    order: number,
+  ) {
+    const title = this.normalizeImageTextValue(textPlan?.title, 20);
+    const badges = (textPlan?.badges || []).map((item) => this.normalizeImageTextValue(item, 16)).filter(Boolean);
+    const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
+    return [
+      prompt.trim(),
+      "",
+      `补充强制要求：这是一张${imageLabel}，必须输出带清晰中文排版的社媒成品图，不能只生成纯场景摄影图。`,
+      "画面必须为竖版小红书图文比例，严格按 1242x1660（宽3:高4）构图，禁止输出横图、方图或接近方图的比例。",
+      title ? `画面主标题必须直接排版为：${title}` : "",
+      badges.length ? `画面中还必须出现这些小标签：${badges.join("、")}` : "",
+      "文字必须直接出现在画面主体版式中，清晰可读，不能只写在手写卡片、包装角落、远处招牌或模糊背景里。",
+      "标题和小标签必须有明确的字号层级、颜色对比和留白，任何一项都不能省略。",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   private buildImagePromptCandidates(prompt: string) {
     const normalized = prompt.trim();
     const compact = normalized
@@ -4276,6 +4495,115 @@ export class WorksService {
     return (values.length ? values : fallback).slice(0, limit);
   }
 
+  private normalizeImageTextPlan(params: {
+    coverTextRaw: unknown;
+    imageTextsRaw: unknown;
+    noteTitle: string;
+    noteContent: string;
+    imageCount?: number;
+  }) {
+    const fallback = this.buildFallbackImageTextPlan(params.noteTitle, params.noteContent, params.imageCount);
+    return {
+      coverText: this.normalizeImageTextEntry(params.coverTextRaw, fallback.coverText),
+      imageTexts: this.normalizeImageTextEntries(params.imageTextsRaw, fallback.imageTexts, fallback.imageTexts.length),
+    };
+  }
+
+  private buildFallbackImageTextPlan(noteTitle: string, noteContent: string, imageCount?: number) {
+    const hashtags = this.extractHashtagsFromContent(noteContent)
+      .map((item) => item.replace(/^#/, "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const paragraphs = noteContent
+      .split(/\n+/)
+      .map((item) => item.replace(/#[^\s#]+/g, "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    const targetGalleryCount = imageCount !== undefined ? Math.max(imageCount - 1, 0) : Math.max(paragraphs.length, 2);
+    const coverText: ImageTextPlanEntry = {
+      title: this.normalizeImageTextValue(noteTitle, 20) || "推荐内容",
+      badges: hashtags.slice(0, 2),
+    };
+    const imageTexts = Array.from({ length: targetGalleryCount }, (_, index) => {
+      const paragraph = paragraphs[index] || paragraphs[index % Math.max(paragraphs.length, 1)] || noteTitle;
+      const title = this.extractImageTextTitle(paragraph) || coverText.title || `配图${index + 1}`;
+      const badgeStart = hashtags.length ? Math.min(index, Math.max(hashtags.length - 1, 0)) : 0;
+      return {
+        title,
+        badges: hashtags.length ? hashtags.slice(badgeStart, badgeStart + 2) : [],
+      } satisfies ImageTextPlanEntry;
+    });
+    return { coverText, imageTexts };
+  }
+
+  private normalizeImageTextEntries(raw: unknown, fallback: ImageTextPlanEntry[] = [], targetCount?: number) {
+    const values = Array.isArray(raw)
+      ? raw.map((item, index) => this.normalizeImageTextEntry(item, fallback[index] || fallback[fallback.length - 1]))
+      : [];
+    const next = values.length ? values : [...fallback];
+    const resolvedTargetCount = targetCount ?? next.length;
+    while (resolvedTargetCount && next.length < resolvedTargetCount) {
+      next.push(
+        next[next.length - 1]
+          ? {
+              title: next[next.length - 1].title,
+              badges: [...next[next.length - 1].badges],
+            }
+          : { title: `配图${next.length + 1}`, badges: [] },
+      );
+    }
+    return resolvedTargetCount ? next.slice(0, resolvedTargetCount) : next;
+  }
+
+  private normalizeImageTextEntry(raw: unknown, fallback?: ImageTextPlanEntry): ImageTextPlanEntry {
+    if (typeof raw === "string") {
+      return {
+        title: this.normalizeImageTextValue(raw, 20) || fallback?.title || "推荐内容",
+        badges: fallback?.badges || [],
+      };
+    }
+    const record = this.asRecord(raw);
+    const title = this.normalizeImageTextValue(
+      this.readOptionalString(record?.title)
+      || this.readOptionalString(record?.heading)
+      || this.readOptionalString(record?.main_title)
+      || this.readOptionalString(record?.mainTitle)
+      || this.readOptionalString(record?.text)
+      || fallback?.title,
+      20,
+    ) || "推荐内容";
+    const subtitle = this.normalizeImageTextValue(
+      this.readOptionalString(record?.subtitle)
+      || this.readOptionalString(record?.subTitle)
+      || this.readOptionalString(record?.label)
+      || this.readOptionalString(record?.small_label)
+      || this.readOptionalString(record?.smallLabel),
+      16,
+    );
+    const badges = this.normalizeStringArray(
+      record?.badges ?? record?.tags ?? record?.labels ?? record?.small_labels ?? record?.smallLabels,
+      subtitle ? [subtitle] : (fallback?.badges || []),
+      3,
+    ).map((item) => this.normalizeImageTextValue(item, 16)).filter(Boolean);
+    return { title, badges };
+  }
+
+  private extractImageTextTitle(content: string) {
+    const firstSegment = String(content || "").split(/[。！？!?]/)[0] || content;
+    return this.normalizeImageTextValue(firstSegment, 20);
+  }
+
+  private normalizeImageTextValue(value: string | undefined, maxLength: number) {
+    const text = String(value || "")
+      .replace(/#[^\s#]+/g, " ")
+      .replace(/[“”"'`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) {
+      return "";
+    }
+    return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
+  }
+
   private readOptionalString(value: unknown) {
     const text = String(value ?? "").trim();
     return text || undefined;
@@ -4411,6 +4739,50 @@ export class WorksService {
     });
   }
 
+  private async normalizeGeneratedImageBuffer(buffer: Buffer, contentType: string, fileName: string) {
+    const normalizedType = String(contentType || "").toLowerCase();
+    const fileExtension = extname(fileName).toLowerCase();
+    if (
+      !normalizedType.startsWith("image/")
+      || normalizedType.includes("gif")
+      || normalizedType.includes("svg")
+      || fileExtension === ".gif"
+      || fileExtension === ".svg"
+    ) {
+      return buffer;
+    }
+
+    try {
+      const { default: sharp } = await import("sharp");
+      const targetWidth = 1242;
+      const targetHeight = 1660;
+      const image = sharp(buffer, { animated: false, failOn: "none" }).rotate();
+      const metadata = await image.metadata();
+      if (!metadata.width || !metadata.height) {
+        return buffer;
+      }
+
+      let pipeline = image.resize({
+        width: targetWidth,
+        height: targetHeight,
+        fit: "cover",
+        position: "centre",
+      });
+
+      if (normalizedType.includes("jpeg") || normalizedType.includes("jpg") || fileExtension === ".jpg" || fileExtension === ".jpeg") {
+        pipeline = pipeline.jpeg({ quality: 92, mozjpeg: true });
+      } else if (normalizedType.includes("webp") || fileExtension === ".webp") {
+        pipeline = pipeline.webp({ quality: 92 });
+      } else {
+        pipeline = pipeline.png();
+      }
+
+      return await pipeline.toBuffer();
+    } catch {
+      return buffer;
+    }
+  }
+
   private async cacheRemoteGeneratedFile(params: {
     brandId: string;
     fileName: string;
@@ -4418,6 +4790,7 @@ export class WorksService {
     fallbackContentType: string;
     resolveExtension: (contentType: string, fileName: string) => string;
     requestLabel: string;
+    normalizeImageAspectRatio?: boolean;
   }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
@@ -4435,7 +4808,10 @@ export class WorksService {
       const targetName = params.fileName.endsWith(extension)
         ? params.fileName
         : `${params.fileName.replace(/\.[^.]+$/, "")}${extension}`;
-      return this.writeGeneratedBinaryFile(params.brandId, targetName, buffer.toString("base64"), contentType).url;
+      const normalizedBuffer = params.normalizeImageAspectRatio
+        ? await this.normalizeGeneratedImageBuffer(buffer, contentType, targetName)
+        : buffer;
+      return this.writeGeneratedBinaryFile(params.brandId, targetName, normalizedBuffer.toString("base64"), contentType).url;
     } catch (error) {
       throw this.describeFetchError(error, params.requestLabel);
     } finally {

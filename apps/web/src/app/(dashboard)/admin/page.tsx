@@ -58,7 +58,7 @@ import {
 } from "../../../services/admin";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
 
-type AdminTab = "orders" | "rules" | "users" | "usage" | "assets" | "knowledge" | "providers";
+type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "knowledge" | "providers";
 type UserEditDraft = {
   membership: MembershipLevel;
   pointsDelta: string;
@@ -111,19 +111,160 @@ type SyncRunEditDraft = {
   summary: string;
   errorDetail: string;
 };
+type SkillCenterLeafConfig = {
+  id: string;
+  label: string;
+  description: string;
+  skillSlug?: string;
+  promptScene?: string;
+};
+type SkillCenterSectionConfig = {
+  id: string;
+  label: string;
+  items: SkillCenterLeafConfig[];
+};
+type SkillCenterPrimaryConfig = {
+  id: string;
+  label: string;
+  sections: SkillCenterSectionConfig[];
+};
 
-const tabs: Array<{ key: AdminTab; label: string; description: string }> = [
-  { key: "orders", label: "订单管理", description: "查看会员购买和点数充值订单，支持后台支付与取消。" },
-  { key: "rules", label: "会员/积分规则", description: "维护会员方案、点数包与价格规则。" },
-  { key: "users", label: "用户管理", description: "调整会员等级、增减点数，并查看用户规模与活跃情况。" },
-  { key: "usage", label: "API/模型消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
-  { key: "assets", label: "技能/提示词", description: "维护技能默认模型、点数成本和核心提示词模板。" },
-  { key: "knowledge", label: "知识库管理", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
-  { key: "providers", label: "API Providers", description: "维护模型供应商状态、Base URL、模型白名单与密钥占位信息。" },
+const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabel: string }> = [
+  { key: "dashboard", label: "仪表盘", shortLabel: "总览", description: "统一查看后台运营状态、模块规模和当前数据来源。" },
+  { key: "orders", label: "订单管理", shortLabel: "订单", description: "查看会员购买和点数充值订单，支持后台支付与取消。" },
+  { key: "rules", label: "会员与积分规则", shortLabel: "规则", description: "维护会员方案、点数包与价格规则。" },
+  { key: "users", label: "用户管理", shortLabel: "用户", description: "调整会员等级、增减点数，并查看用户规模与活跃情况。" },
+  { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
+  { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
+  { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
+  { key: "providers", label: "接口供应商", shortLabel: "接口", description: "维护模型供应商状态、Base URL、模型白名单与密钥占位信息。" },
+];
+
+const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
+  {
+    id: "brand-growth",
+    label: "品牌增长策略",
+    sections: [
+      {
+        id: "growth-report",
+        label: "品牌增长报告",
+        items: [
+          {
+            id: "growth-report-main",
+            label: "品牌增长报告-生成品牌增长报告",
+            description: "用于生成品牌全域增长分析报告。",
+            skillSlug: "brand-omni-growth-analysis",
+            promptScene: "品牌增长报告生成",
+          },
+          {
+            id: "growth-report-visual",
+            label: "品牌增长可视化报告-生成可视化报告",
+            description: "用于把品牌增长报告转成前端可展示的可视化报告。",
+            skillSlug: "article-visual-report-designer",
+            promptScene: "HTML 可视化报告生成",
+          },
+        ],
+      },
+      {
+        id: "annual-plan",
+        label: "全年营销规划",
+        items: [
+          {
+            id: "annual-plan-main",
+            label: "全年营销规划-生成全年营销规划",
+            description: "用于输出全年节奏、节点和多平台联动规划。",
+            skillSlug: "enterprise-annual-plan",
+            promptScene: "全年营销规划生成",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "xiaohongshu",
+    label: "小红书",
+    sections: [
+      {
+        id: "xhs-planning",
+        label: "营销规划",
+        items: [
+          {
+            id: "xhs-plan-main",
+            label: "小红书营销规划-生成营销规划",
+            description: "用于输出小红书年度种草策略、内容支柱与排期建议。",
+            skillSlug: "xiaohongshu-brand-marketing-plan",
+            promptScene: "小红书营销规划",
+          },
+        ],
+      },
+      {
+        id: "xhs-content",
+        label: "内容生产",
+        items: [
+          {
+            id: "xhs-original-copy",
+            label: "原创笔记-原创文案",
+            description: "对应前台原创笔记工作台，生成可直接发布的标题、正文与标签。",
+            skillSlug: "original_copy",
+            promptScene: "小红书原创笔记文案",
+          },
+          {
+            id: "xhs-original-image",
+            label: "原创笔记-原创配图",
+            description: "对应前台原创笔记工作台，生成封面提示词与多张配图提示词。",
+            skillSlug: "xhs-original-image-prompt",
+            promptScene: "小红书原创笔记配图",
+          },
+          {
+            id: "xhs-rewrite-copy",
+            label: "二创笔记-二创文案",
+            description: "对应前台二创笔记工作台，生成二创标题、正文与标签。",
+            skillSlug: "rewrite_copy",
+            promptScene: "小红书二创笔记文案",
+          },
+          {
+            id: "xhs-rewrite-note",
+            label: "二创笔记-二创配图",
+            description: "对应前台二创笔记工作台，生成参考图拆解后的二创配图提示词。",
+            skillSlug: "rewrite_image",
+            promptScene: "小红书二创笔记配图",
+          },
+          {
+            id: "xhs-video-note",
+            label: "视频笔记-视频创作",
+            description: "对应前台视频笔记工作台，生成视频笔记文案、视频提示词与视频工作流配置。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "小红书视频笔记",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "douyin",
+    label: "抖音",
+    sections: [
+      {
+        id: "douyin-placeholder-section",
+        label: "抖音技能",
+        items: [
+          {
+            id: "douyin-placeholder",
+            label: "抖音技能-待接入",
+            description: "当前项目前台尚未接入抖音工作台，这里先预留一级/二级/三级分类结构。",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<AdminTab>("orders");
+  const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
+  const [activeSkillPrimaryId, setActiveSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
+  const [activeSkillSectionId, setActiveSkillSectionId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.id || "");
+  const [activeSkillLeafId, setActiveSkillLeafId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.items[0]?.id || "");
+  const [expandedSkillPrimaryId, setExpandedSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
   const [orders, setOrders] = useState<OrderRecord[]>(adminOrderSeed);
   const [rules, setRules] = useState<BillingRules>(billingRulesSeed);
   const [users, setUsers] = useState<AdminUserRecord[]>(adminUserSeed);
@@ -544,6 +685,49 @@ export default function AdminPage() {
         ...patch,
       },
     }));
+  }
+
+  function handleSkillCenterStatusChange(status: SkillConfigRecord["status"]) {
+    if (activeSkillConfig) {
+      handleSkillDraftChange(activeSkillConfig.id, { status });
+    }
+    if (activePromptConfig) {
+      handlePromptDraftChange(activePromptConfig.id, { status });
+    }
+  }
+
+  function handleSkillCenterModelChange(modelName: string) {
+    if (activeSkillConfig) {
+      handleSkillDraftChange(activeSkillConfig.id, { defaultModel: modelName });
+    }
+    if (activePromptConfig) {
+      handlePromptDraftChange(activePromptConfig.id, { modelName });
+    }
+  }
+
+  function handleSkillCenterPointsCostChange(pointsCost: string) {
+    if (activeSkillConfig) {
+      handleSkillDraftChange(activeSkillConfig.id, { pointsCost });
+    }
+  }
+
+  function handleSkillCenterPromptChange(value: string) {
+    if (activePromptConfig) {
+      handlePromptDraftChange(activePromptConfig.id, { content: value });
+      return;
+    }
+    if (activeSkillConfig) {
+      handleSkillDraftChange(activeSkillConfig.id, { description: value });
+    }
+  }
+
+  async function handleSaveSkillCenter() {
+    if (activeSkillConfig) {
+      await handleSaveSkill(activeSkillConfig.id);
+    }
+    if (activePromptConfig) {
+      await handleSavePrompt(activePromptConfig.id);
+    }
   }
 
   async function handleSaveKnowledgeBase(knowledgeBaseId: string) {
@@ -1376,103 +1560,246 @@ export default function AdminPage() {
     ],
   );
 
+  const activeTabMeta = tabs.find((item) => item.key === activeTab) || tabs[0];
+  const overviewCards = [
+    { label: "订单池", value: summary.orderCount, detail: `${summary.pendingCount} 个待支付 / ${summary.paidCount} 个已完成` },
+    { label: "平台用户", value: summary.userCount, detail: `共覆盖 ${summary.userCount} 个可运营账户` },
+    { label: "模型资产", value: summary.modelCount, detail: `累计消耗 ${summary.usagePoints} 点` },
+    { label: "知识资产", value: summary.knowledgeBaseCount, detail: `共维护 ${summary.providerCount} 个接口供应商` },
+  ];
+  const moduleHighlights = [
+    { key: "orders" as const, count: summary.orderCount, note: `${summary.pendingCount} 个订单待处理` },
+    { key: "rules" as const, count: summary.planCount + summary.packageCount, note: `${summary.planCount} 个会员方案 / ${summary.packageCount} 个点数包` },
+    { key: "users" as const, count: summary.userCount, note: `当前后台可管理 ${summary.userCount} 个用户` },
+    { key: "usage" as const, count: summary.modelCount, note: `累计模型点数 ${summary.usagePoints}` },
+    { key: "assets" as const, count: summary.skillCount + summary.promptCount, note: `${summary.skillCount} 个技能 / ${summary.promptCount} 套提示词` },
+    { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `当前共有 ${summary.knowledgeBaseCount} 个知识库` },
+    { key: "providers" as const, count: summary.providerCount, note: `接口供应商 ${summary.providerCount} 个` },
+  ];
+  const operationPulse = [
+    { label: "订单履约", value: summary.orderCount ? Math.round((summary.paidCount / summary.orderCount) * 100) : 0 },
+    { label: "知识同步", value: knowledgeBases.length ? Math.round((knowledgeBases.filter((item) => item.syncStatus === "SUCCESS").length / knowledgeBases.length) * 100) : 0 },
+    { label: "接口健康", value: providers.length ? Math.round(providers.filter((item) => item.status === "ACTIVE").length / providers.length * 100) : 0 },
+  ];
+  const latestKnowledgeRun = knowledgeBaseSyncRuns[0];
+  const activeSkillPrimary = SKILL_CENTER_TREE.find((item) => item.id === activeSkillPrimaryId) || SKILL_CENTER_TREE[0];
+  const activeSkillSection = activeSkillPrimary?.sections.find((item) => item.id === activeSkillSectionId) || activeSkillPrimary?.sections[0];
+  const activeSkillLeaf = activeSkillSection?.items.find((item) => item.id === activeSkillLeafId) || activeSkillSection?.items[0];
+  const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
+  const activePromptConfig = activeSkillLeaf?.promptScene ? prompts.find((item) => item.scene === activeSkillLeaf.promptScene) : undefined;
+  const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
+  const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
+  const skillModelOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            ...providers.flatMap((item) => item.modelWhitelist),
+            ...usage.map((item) => item.modelName),
+            activeSkillDraft?.defaultModel,
+            activePromptDraft?.modelName,
+          ].filter(Boolean),
+        ),
+      ),
+    [providers, usage, activePromptDraft?.modelName, activeSkillDraft?.defaultModel],
+  );
+  const skillCenterStatus = activeSkillDraft?.status || activePromptDraft?.status || "DRAFT";
+  const skillCenterModel = activeSkillDraft?.defaultModel || activePromptDraft?.modelName || "";
+  const skillCenterPointsCost = activeSkillDraft?.pointsCost || `${activeSkillConfig?.pointsCost || 180}`;
+  const skillCenterUpdatedAt = activeSkillConfig?.updatedAt || activePromptConfig?.updatedAt;
+  const skillCenterPromptValue = activePromptDraft?.content || activeSkillDraft?.description || activeSkillLeaf?.description || "";
+  const skillCenterName = activeSkillConfig?.name || activeSkillLeaf?.label || activePromptConfig?.name || "-";
+  const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
+  const isSkillPrimaryExpanded = (primaryId: string) => expandedSkillPrimaryId === primaryId;
+  const isSavingSkillCenter =
+    (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
+    (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
+
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-hero">
-        <div>
-          <span className="hero-badge">管理后台</span>
-          <h1>后台运营管理台</h1>
-          <p>当前后台已经扩展到七块核心运营能力：订单、计费规则、用户管理、API/模型消耗、技能与提示词、知识库管理、API Provider 管理，方便继续往真实产品形态推进。</p>
-          <div className="workspace-toolbar top-toolbar">
-            <div className="workspace-status">
-              <span className="status-pill">{dataSource === "api" ? "接口数据" : "演示数据"}</span>
-              {notice ? <span className="status-text success-text">{notice}</span> : null}
-              {errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
+    <main className="dashboard-shell admin-console-shell">
+      <section className="admin-console-layout">
+        <aside className="admin-console-sidebar">
+          <div className="admin-sidebar-brand">
+            <div>
+              <span className="admin-sidebar-brand-kicker">AI 全域运营</span>
+              <strong>后台导航</strong>
+              <p>按栏目快速进入后台模块</p>
             </div>
-            <button type="button" className="secondary-button" onClick={() => void loadAdminData()}>
-              {isLoading ? "刷新中..." : "刷新数据"}
-            </button>
           </div>
-        </div>
-      </section>
+          <nav className="admin-sidebar-nav" aria-label="后台导航">
+            {tabs.map((tab) => (
+              <button
+                type="button"
+                key={tab.key}
+                className={`admin-sidebar-link ${activeTab === tab.key ? "active" : ""}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <span className="admin-sidebar-link-badge">{tab.shortLabel}</span>
+                <span className="admin-sidebar-link-copy">
+                  <strong>{tab.label}</strong>
+                </span>
+                <span className="admin-sidebar-link-arrow">{activeTab === tab.key ? "⌄" : "›"}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="admin-sidebar-foot">
+            <span className={`status-pill ${dataSource === "api" ? "" : "status-pill-muted"}`}>{dataSource === "api" ? "接口数据" : "演示数据"}</span>
+            <p>当前后台以简洁目录为主，后续继续补筛选和图表。</p>
+          </div>
+        </aside>
 
-      <section className="metric-grid">
-        <article className="metric-card">
-          <span>订单总数</span>
-          <strong>{summary.orderCount}</strong>
-          <p>包含会员购买与点数充值订单。</p>
-        </article>
-        <article className="metric-card">
-          <span>用户总数</span>
-          <strong>{summary.userCount}</strong>
-          <p>覆盖后台可管理的账户数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>待支付订单</span>
-          <strong>{summary.pendingCount}</strong>
-          <p>当前仍处于 `PENDING` 的订单数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>已支付订单</span>
-          <strong>{summary.paidCount}</strong>
-          <p>已经完成支付的订单数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>会员方案数</span>
-          <strong>{summary.planCount}</strong>
-          <p>当前配置中的会员方案数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>点数包数</span>
-          <strong>{summary.packageCount}</strong>
-          <p>当前配置中的点数包数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>模型数</span>
-          <strong>{summary.modelCount}</strong>
-          <p>当前纳入统计的模型与接口项。</p>
-        </article>
-        <article className="metric-card">
-          <span>累计模型点数</span>
-          <strong>{summary.usagePoints}</strong>
-          <p>用于估算 API 调用的总消耗规模。</p>
-        </article>
-        <article className="metric-card">
-          <span>技能数</span>
-          <strong>{summary.skillCount}</strong>
-          <p>当前已纳入后台配置的技能数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>提示词数</span>
-          <strong>{summary.promptCount}</strong>
-          <p>当前可维护的核心提示词模板数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>知识库数</span>
-          <strong>{summary.knowledgeBaseCount}</strong>
-          <p>当前已纳入后台管理的知识库数量。</p>
-        </article>
-        <article className="metric-card">
-          <span>Provider 数</span>
-          <strong>{summary.providerCount}</strong>
-          <p>当前纳入平台配置的模型供应商数量。</p>
-        </article>
-      </section>
+        <div className="admin-console-main">
+          <section className="admin-console-hero">
+            <div className="admin-console-hero-copy">
+              <span className="hero-badge">后台运营中台</span>
+              <h1>{activeTabMeta.label}</h1>
+              <p>{activeTab === "dashboard" ? "先把后台做成真正的中文管理台：左侧栏目清晰，中间聚焦主任务，右侧总览帮助快速判断系统状态。" : activeTabMeta.description}</p>
+            </div>
+            <div className="admin-console-toolbar">
+              <div className="admin-console-status-card">
+                <span>当前数据源</span>
+                <strong>{dataSource === "api" ? "实时接口" : "本地演示"}</strong>
+                <p>{dataSource === "api" ? "当前页面读取接口结果，可直接用于后台联调。" : "接口异常时自动回退为演示数据，方便先看界面和流程。"}</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => void loadAdminData()}>
+                {isLoading ? "刷新中..." : "刷新后台数据"}
+              </button>
+            </div>
+          </section>
 
-      <section className="panel personal-center-panel">
-        <div className="personal-tabs">
-          {tabs.map((tab) => (
-            <button
-              type="button"
-              key={tab.key}
-              className={`personal-tab ${activeTab === tab.key ? "active" : ""}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <strong>{tab.label}</strong>
-              <span>{tab.description}</span>
-            </button>
-          ))}
-        </div>
+          {notice ? <div className="admin-console-message success">{notice}</div> : null}
+          {errorMessage ? <div className="admin-console-message error">{errorMessage}</div> : null}
+
+          {activeTab === "dashboard" ? (
+            <div className="admin-dashboard-stack">
+              <section className="admin-overview-grid">
+                {overviewCards.map((item) => (
+                  <article className="admin-overview-card" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </section>
+
+              <section className="admin-dashboard-split">
+                <article className="admin-dashboard-panel">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <strong>运营脉冲</strong>
+                      <p>用最短时间看出后台是否在健康运转。</p>
+                    </div>
+                    <span>总览</span>
+                  </div>
+                  <div className="admin-pulse-bars">
+                    {operationPulse.map((item) => (
+                      <div className="admin-pulse-item" key={item.label}>
+                        <div className="admin-pulse-track">
+                          <div className="admin-pulse-fill" style={{ width: `${item.value}%` }} />
+                        </div>
+                        <div className="admin-pulse-copy">
+                          <span>{item.label}</span>
+                          <strong>{item.value}%</strong>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="admin-dashboard-panel">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <strong>栏目速览</strong>
+                      <p>每个后台项目单独成栏目，方便逐块进入。</p>
+                    </div>
+                    <span>模块</span>
+                  </div>
+                  <div className="admin-spotlight-list">
+                    {moduleHighlights.map((item) => {
+                      const tab = tabs.find((entry) => entry.key === item.key);
+                      return (
+                        <button
+                          type="button"
+                          key={item.key}
+                          className="admin-spotlight-item"
+                          onClick={() => setActiveTab(item.key)}
+                        >
+                          <span>{tab?.label}</span>
+                          <strong>{item.count}</strong>
+                          <small>{item.note}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </article>
+              </section>
+
+              <section className="admin-dashboard-split">
+                <article className="admin-dashboard-panel">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <strong>今日摘要</strong>
+                      <p>保留管理台应有的商务感和一眼可读性。</p>
+                    </div>
+                    <span>摘要</span>
+                  </div>
+                  <div className="admin-summary-list">
+                    <div>
+                      <span>待支付订单</span>
+                      <strong>{summary.pendingCount}</strong>
+                    </div>
+                    <div>
+                      <span>在线知识库</span>
+                      <strong>{knowledgeBases.filter((item) => item.status === "ACTIVE").length}</strong>
+                    </div>
+                    <div>
+                      <span>启用技能</span>
+                      <strong>{skills.filter((item) => item.status === "ACTIVE").length}</strong>
+                    </div>
+                    <div>
+                      <span>活跃供应商</span>
+                      <strong>{providers.filter((item) => item.status === "ACTIVE").length}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="admin-dashboard-panel">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <strong>最近动态</strong>
+                      <p>把知识库同步和模型调用的最新情况放到首页。</p>
+                    </div>
+                    <span>动态</span>
+                  </div>
+                  <div className="admin-recent-feed">
+                    <div>
+                      <span>最近同步</span>
+                      <strong>{latestKnowledgeRun ? getSyncRunTitle(latestKnowledgeRun) : "暂无同步记录"}</strong>
+                      <small>{latestKnowledgeRun ? formatDateTime(latestKnowledgeRun.startedAt) : "等首次触发后展示"}</small>
+                    </div>
+                    <div>
+                      <span>最近模型调用</span>
+                      <strong>{usage[0]?.modelName || "暂无模型数据"}</strong>
+                      <small>{usage[0]?.lastCalledAt ? formatDateTime(usage[0].lastCalledAt) : "未记录"}</small>
+                    </div>
+                    <div>
+                      <span>当前建议</span>
+                      <strong>{summary.pendingCount > 0 ? "优先处理待支付订单" : "继续打磨各栏目细节"}</strong>
+                      <small>下一轮可继续补图表、筛选和批量操作。</small>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            </div>
+          ) : (
+            <section className="panel personal-center-panel admin-module-panel">
+              <div className="admin-module-heading">
+                <div>
+                  <span className="admin-module-tag">{activeTabMeta.shortLabel}</span>
+                  <h2>{activeTabMeta.label}</h2>
+                  <p>{activeTabMeta.description}</p>
+                </div>
+              </div>
 
         {activeTab === "orders" ? (
           <div className="personal-list">
@@ -1659,196 +1986,75 @@ export default function AdminPage() {
             ))}
           </div>
         ) : activeTab === "assets" ? (
-          <div className="admin-rules-layout">
-            <section className="panel personal-center-panel">
-              <div className="panel-header">
-                <h2>技能配置</h2>
-                <span>Skills</span>
-              </div>
-              <div className="admin-rules-stack">
-                {skills.map((item) => {
-                  const draft = skillDrafts[item.id] || buildSkillDraft(item);
-
-                  return (
-                    <article className="entity-card admin-rule-card" key={item.id}>
-                      <div className="entity-card-head">
-                        <div>
-                          <strong>{item.name}</strong>
-                          <p className="personal-meta">
-                            {item.slug} · {item.category} · {item.provider}
-                          </p>
-                        </div>
-                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
-                      </div>
-                      <div className="admin-rule-grid">
-                        <label>
-                          <span>状态</span>
-                          <select
-                            value={draft.status}
-                            onChange={(event) =>
-                              handleSkillDraftChange(item.id, {
-                                status: event.target.value as SkillConfigRecord["status"],
-                              })
-                            }
-                          >
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="DRAFT">DRAFT</option>
-                            <option value="DISABLED">DISABLED</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>默认模型</span>
-                          <input
-                            value={draft.defaultModel}
-                            onChange={(event) =>
-                              handleSkillDraftChange(item.id, {
-                                defaultModel: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>点数成本</span>
-                          <input
-                            type="number"
-                            value={draft.pointsCost}
-                            onChange={(event) =>
-                              handleSkillDraftChange(item.id, {
-                                pointsCost: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>更新时间</span>
-                          <input value={formatDateTime(item.updatedAt)} readOnly />
-                        </label>
-                      </div>
-                      <label className="admin-rule-description">
-                        <span>技能说明</span>
-                        <textarea
-                          value={draft.description}
-                          onChange={(event) =>
-                            handleSkillDraftChange(item.id, {
-                              description: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <div className="personal-actions">
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() => void handleSaveSkill(item.id)}
-                          disabled={updatingSkillId === item.id}
-                        >
-                          {updatingSkillId === item.id ? "保存中..." : "保存技能配置"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel personal-center-panel">
-              <div className="panel-header">
-                <h2>提示词模板</h2>
-                <span>Prompts</span>
-              </div>
-              <div className="admin-rules-stack">
-                {prompts.map((item) => {
-                  const draft = promptDrafts[item.id] || buildPromptDraft(item);
-
-                  return (
-                    <article className="entity-card admin-rule-card" key={item.id}>
-                      <div className="entity-card-head">
-                        <div>
-                          <strong>{item.name}</strong>
-                          <p className="personal-meta">
-                            {item.scene} · {item.version} · {item.modelName}
-                          </p>
-                        </div>
-                        <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
-                      </div>
-                      <div className="admin-rule-grid">
-                        <label>
-                          <span>状态</span>
-                          <select
-                            value={draft.status}
-                            onChange={(event) =>
-                              handlePromptDraftChange(item.id, {
-                                status: event.target.value as PromptTemplateRecord["status"],
-                              })
-                            }
-                          >
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="DRAFT">DRAFT</option>
-                            <option value="DISABLED">DISABLED</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>模型</span>
-                          <input
-                            value={draft.modelName}
-                            onChange={(event) =>
-                              handlePromptDraftChange(item.id, {
-                                modelName: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>Temperature</span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={draft.temperature}
-                            onChange={(event) =>
-                              handlePromptDraftChange(item.id, {
-                                temperature: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>Max Tokens</span>
-                          <input
-                            type="number"
-                            value={draft.maxTokens}
-                            onChange={(event) =>
-                              handlePromptDraftChange(item.id, {
-                                maxTokens: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                      <label className="admin-rule-description">
-                        <span>提示词内容</span>
-                        <textarea
-                          value={draft.content}
-                          onChange={(event) =>
-                            handlePromptDraftChange(item.id, {
-                              content: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <div className="personal-actions">
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() => void handleSavePrompt(item.id)}
-                          disabled={updatingPromptId === item.id}
-                        >
-                          {updatingPromptId === item.id ? "保存中..." : "保存提示词"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+          <div className="admin-skill-center-layout">
+            <section className="panel personal-center-panel admin-skill-center-panel">
+              {activeSkillLeaf ? (
+                <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
+                  <div className="admin-skill-card-topline">
+                    <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "技能中心"}</span>
+                    <span className={`archive-pill ${getStatusClassName(skillCenterStatus)}`}>{getStatusLabel(skillCenterStatus)}</span>
+                  </div>
+                  <div className="admin-skill-card-header">
+                    <div>
+                      <strong>{activeSkillLeaf.label}</strong>
+                      <p>{activeSkillSection?.label || "技能分类"}</p>
+                    </div>
+                  </div>
+                  <div className="admin-skill-simple-grid">
+                    <label className="admin-skill-field">
+                      <span>技能名称</span>
+                      <input value={skillCenterName} readOnly />
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>状态</span>
+                      <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
+                        <option value="ACTIVE">启用中</option>
+                        <option value="DRAFT">草稿</option>
+                        <option value="DISABLED">停用</option>
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>默认模型</span>
+                      <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
+                        {(skillModelOptions.length ? skillModelOptions : [skillCenterModel || "gpt-5.4-nano"]).map((model) => (
+                          <option value={model} key={model}>
+                            {model}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>点数成本</span>
+                      <input
+                        type="number"
+                        value={skillCenterPointsCost}
+                        onChange={(event) => handleSkillCenterPointsCostChange(event.target.value)}
+                        disabled={!activeSkillConfig}
+                      />
+                    </label>
+                    <label className="admin-skill-field admin-skill-field--wide">
+                      <span>更新时间</span>
+                      <input value={skillCenterUpdatedAtLabel} readOnly />
+                    </label>
+                  </div>
+                  <label className="admin-skill-field admin-skill-field--full">
+                    <span>技能提示词</span>
+                    <textarea value={skillCenterPromptValue} onChange={(event) => handleSkillCenterPromptChange(event.target.value)} />
+                  </label>
+                  <div className="admin-skill-form-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleSaveSkillCenter()}
+                      disabled={isSavingSkillCenter || (!activeSkillConfig && !activePromptConfig)}
+                    >
+                      {isSavingSkillCenter ? "保存中..." : "保存技能"}
+                    </button>
+                  </div>
+                </article>
+              ) : (
+                <div className="admin-skill-empty">请先从右侧选择一个三级技能项。</div>
+              )}
             </section>
           </div>
         ) : activeTab === "knowledge" ? (
@@ -2749,6 +2955,132 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+            </section>
+          )}
+        </div>
+
+        <aside className="admin-console-rail">
+          {activeTab === "assets" ? (
+            <article className="admin-rail-card admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
+              <div className="admin-skill-nav-title">
+                <strong>技能导航</strong>
+                <span>目录式导航 · 一级展开</span>
+              </div>
+
+              <div className="admin-skill-primary-list">
+                {SKILL_CENTER_TREE.map((primary) => {
+                  const expanded = isSkillPrimaryExpanded(primary.id);
+                  return (
+                    <section className={`admin-skill-primary-group ${expanded ? "expanded" : ""}`} key={primary.id}>
+                      <button
+                        type="button"
+                        className={`admin-skill-primary-button ${activeSkillPrimaryId === primary.id ? "active" : ""}`}
+                        onClick={() => {
+                          setExpandedSkillPrimaryId(primary.id);
+                          setActiveSkillPrimaryId(primary.id);
+                          setActiveSkillSectionId(primary.sections[0]?.id || "");
+                          setActiveSkillLeafId(primary.sections[0]?.items[0]?.id || "");
+                        }}
+                      >
+                        <span className="admin-skill-primary-mark">{getSkillPrimaryMark(primary.id, primary.label)}</span>
+                        <span className="admin-skill-primary-button-copy">
+                          <strong>{primary.label}</strong>
+                          <small>{primary.sections.length} 个二级分类</small>
+                        </span>
+                        <span className={`admin-skill-primary-arrow ${expanded ? "expanded" : ""}`}>⌃</span>
+                      </button>
+
+                      {expanded ? (
+                        <div className="admin-skill-tree-sections">
+                          {primary.sections.map((section) => (
+                            <section className="admin-skill-tree-section" key={section.id}>
+                              <button
+                                type="button"
+                                className={`admin-skill-tree-section-button ${activeSkillSectionId === section.id ? "active" : ""}`}
+                                onClick={() => {
+                                  setActiveSkillPrimaryId(primary.id);
+                                  setActiveSkillSectionId(section.id);
+                                  setActiveSkillLeafId(section.items[0]?.id || "");
+                                }}
+                              >
+                                <span className="admin-skill-tree-section-label">{section.label}</span>
+                                <small>{section.items.length}</small>
+                              </button>
+                              <div className="admin-skill-tree-leaf-list">
+                                {section.items.map((leaf) => (
+                                  <button
+                                    type="button"
+                                    key={leaf.id}
+                                    className={`admin-skill-tree-leaf-button ${activeSkillLeafId === leaf.id ? "active" : ""}`}
+                                    onClick={() => {
+                                      setExpandedSkillPrimaryId(primary.id);
+                                      setActiveSkillPrimaryId(primary.id);
+                                      setActiveSkillSectionId(section.id);
+                                      setActiveSkillLeafId(leaf.id);
+                                    }}
+                                  >
+                                    <span className="admin-skill-tree-leaf-dot" aria-hidden="true" />
+                                    <strong>{leaf.label}</strong>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+            </article>
+          ) : (
+            <>
+              <article className="admin-rail-card admin-rail-highlight">
+                <span>系统总览</span>
+                <strong>后台运营管理台</strong>
+                <p>第一版先统一视觉框架，再逐块补齐图表、筛选和更细的操作体验。</p>
+              </article>
+
+              <article className="admin-rail-card">
+                <div className="admin-rail-card-head">
+                  <strong>右侧速览</strong>
+                  <span>核心数据</span>
+                </div>
+                <div className="admin-rail-metrics">
+                  <div>
+                    <span>订单</span>
+                    <strong>{summary.orderCount}</strong>
+                  </div>
+                  <div>
+                    <span>用户</span>
+                    <strong>{summary.userCount}</strong>
+                  </div>
+                  <div>
+                    <span>知识库</span>
+                    <strong>{summary.knowledgeBaseCount}</strong>
+                  </div>
+                  <div>
+                    <span>供应商</span>
+                    <strong>{summary.providerCount}</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article className="admin-rail-card">
+                <div className="admin-rail-card-head">
+                  <strong>本轮设计目标</strong>
+                  <span>第一版</span>
+                </div>
+                <ul className="admin-rail-list">
+                  <li>第一个栏目是仪表盘</li>
+                  <li>其余每个后台项目单独成栏目</li>
+                  <li>保持中文化表达和管理感</li>
+                  <li>先优化整体壳子，再继续做深</li>
+                </ul>
+              </article>
+            </>
+          )}
+        </aside>
       </section>
     </main>
   );
@@ -2799,6 +3131,19 @@ function buildPromptDraft(item: PromptTemplateRecord): PromptEditDraft {
 
 function buildPromptDrafts(list: PromptTemplateRecord[]) {
   return Object.fromEntries(list.map((item) => [item.id, buildPromptDraft(item)])) as Record<string, PromptEditDraft>;
+}
+
+function groupItemsByLabel<T>(items: T[], getLabel: (item: T) => string) {
+  const grouped = new Map<string, T[]>();
+
+  for (const item of items) {
+    const label = getLabel(item);
+    const current = grouped.get(label) || [];
+    current.push(item);
+    grouped.set(label, current);
+  }
+
+  return Array.from(grouped.entries());
 }
 
 function buildKnowledgeBaseDraft(item: KnowledgeBaseRecord): KnowledgeBaseEditDraft {
@@ -2924,6 +3269,29 @@ function getStatusClassName(status: "ACTIVE" | "DISABLED" | "DRAFT") {
     return "status-paused";
   }
   return "status-in_progress";
+}
+
+function getStatusLabel(status: "ACTIVE" | "DISABLED" | "DRAFT") {
+  if (status === "ACTIVE") {
+    return "启用中";
+  }
+  if (status === "DISABLED") {
+    return "已停用";
+  }
+  return "草稿";
+}
+
+function getSkillPrimaryMark(primaryId: string, label: string) {
+  if (primaryId === "brand-growth") {
+    return "策";
+  }
+  if (primaryId === "xiaohongshu") {
+    return "红";
+  }
+  if (primaryId === "douyin") {
+    return "抖";
+  }
+  return label.slice(0, 1);
 }
 
 function formatDateTime(value: string) {

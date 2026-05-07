@@ -37,6 +37,10 @@ flowchart TD
     B --> B6["登录注册 /login /register"]
     B --> B7["会员/点数/订单"]
     B --> B8["移动发布 /publish/mobile/[token]"]
+    B --> B9["共享浅底导航壳"]
+    B9 --> B91["前台顶部导航（仅保留横向主导航）"]
+    B9 --> B92["前台左侧目录导航（仅保留按钮本体）"]
+    B9 --> B93["后台目录导航"]
 
     C --> C1["AuthModule"]
     C --> C2["BrandsModule"]
@@ -256,6 +260,7 @@ flowchart LR
     A --> A4["加入素材库"]
 
     B["营销策划方案"]
+    B --> B0["简化 Hero 与重复说明"]
     B --> B1["生成"]
     B --> B2["编辑"]
     B --> B3["保存"]
@@ -307,6 +312,28 @@ flowchart TD
 
     Admin["/admin"]
     Admin --> AS1["admin.ts"]
+    Admin --> AUI1["仪表盘"]
+    Admin --> AUI2["订单管理"]
+    Admin --> AUI3["会员与积分规则"]
+    Admin --> AUI4["用户管理"]
+    Admin --> AUI5["模型消耗"]
+    Admin --> AUI6["技能中心"]
+    Admin --> AUI7["知识库管理"]
+    Admin --> AUI8["接口供应商"]
+    AUI6 --> AUI61["右侧一级分类：点击后展开"]
+    AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
+    AUI6 --> AUI62["右侧二级分类：业务模块"]
+    AUI6 --> AUI63["右侧三级分类：具体技能项"]
+    AUI63 --> AUI631["原创笔记-原创文案 / 原创笔记-原创配图"]
+    AUI63 --> AUI632["二创笔记-二创文案 / 二创笔记-二创配图"]
+    AUI63 --> AUI633["视频笔记-视频创作"]
+    AUI6 --> AUI65["右侧目录式技能导航"]
+    AUI6 --> AUI64["中间单技能精简卡"]
+    AUI64 --> AUI641["技能名称 / 状态 / 默认模型"]
+    AUI64 --> AUI642["点数成本 / 更新时间"]
+    AUI64 --> AUI643["技能提示词 / 保存技能"]
+    AUI643 --> AUI6431["优先展示真实 SKILL.md / .txt 全文"]
+    Admin --> AUI9["左侧浅底目录导航"]
     AS1 --> AAPI1["/orders/admin/list"]
     AS1 --> AAPI2["/admin/billing-rules"]
     AS1 --> AAPI3["/admin/users"]
@@ -358,6 +385,7 @@ flowchart TD
     M5 --> M2
     M5 --> M7
     M5 --> M8
+    M5 --> M51["原创/二创成品图保存前统一规范为 1242x1660 竖版 3:4"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

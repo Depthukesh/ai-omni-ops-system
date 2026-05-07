@@ -239,6 +239,140 @@
 - 明确该清单不是在用户说“继续”时才触发，而是适用于每一次实际开发动作，包括排查、改动、验证、提交与交接
 - 同步更新 `docs/engineering-standards.md`，把“逐步执行开发交付清单”提升为默认规则，避免后续按关键词选择性执行
 
+### 3.36 第三十五轮后台界面收敛
+
+- 更新 `apps/web/src/app/(dashboard)/admin/page.tsx`
+- 将后台首栏改为真正的“仪表盘”，并把原有后台项目统一整理为左侧栏目导航
+- 重做后台页面整体视觉骨架，形成“深色左侧栏目 + 中央主内容 + 右侧总览卡片”的首版中文管理台样式
+- 保留现有订单、规则、用户、模型消耗、技能/提示词、知识库、接口供应商等业务逻辑，仅优先优化整体界面与信息分层
+- 更新 `apps/web/src/styles/globals.css`，补充后台专属布局、概览卡、栏目导航、右侧速览卡和移动端响应式样式
+
+### 3.37 第三十六轮后台界面收敛
+
+- 更新 `apps/web/src/app/(dashboard)/layout.tsx`
+- 对 `/admin` 路由单独隐藏前台共用的顶部横向主导航，避免后台页面同时出现顶栏导航和左侧后台栏目，保证后台界面更像独立管理台
+
+### 3.38 第三十七轮后台界面收敛
+
+- 更新 `apps/web/src/app/(dashboard)/admin/page.tsx`
+- 在后台【技能与提示词】栏目中新增首版分类工作区：技能按 `category` 分组筛选，提示词按 `scene` 分组筛选
+- 保留现有提示词编辑与保存逻辑，并把提示词卡片统一整理为“按场景板块浏览 -> 直接修改内容 -> 单条保存”的首版后台编辑体验
+- 更新 `apps/web/src/styles/globals.css`，补充技能/提示词板块的筛选芯片、分组容器和提示词编辑区样式
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台管理台中【技能与提示词】的内部颗粒度结构
+
+### 3.39 第三十八轮后台界面收敛
+
+- 继续更新 `apps/web/src/app/(dashboard)/admin/page.tsx`
+- 将后台【技能与提示词】重构为统一的【技能中心】：左侧栏目更名为“技能中心”，不再把技能和提示词拆成两个中间板块
+- 调整为“右侧一级 / 二级 / 三级分类树 + 中间单技能详情卡”的结构：点击三级技能项后，中间只展示当前技能的一张完整配置卡
+- 统一把原提示词内容收口到“技能执行内容”分区，并与技能基础配置一并展示、修改和保存
+- 更新 `apps/web/src/styles/globals.css`，补充技能中心的单卡片详情、分类树、路径条和空状态样式
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，把后台【技能中心】改为三级分类导航与单技能详情结构
+
+### 3.40 第三十九轮技能中心瘦身
+
+- 继续更新 `apps/web/src/app/(dashboard)/admin/page.tsx`
+- 将技能中心中间区域进一步收口为单张精简编辑卡：只保留标题、技能名称、状态、默认模型、点数成本、更新时间、技能提示词和【保存技能】按钮
+- 移除原先的路径条、分区说明、供应商、版本、Temperature、Max Tokens 等冗余块，并将状态文案改为中文化显示
+- 将右侧导航重做为更直观的“一级分类点击展开 -> 二级分类 -> 三级技能项”结构，并补齐 `全年营销规划` 对应的独立技能配置映射
+- 更新 `apps/web/src/styles/globals.css`，重做技能中心单卡片与右侧树导航的视觉层级、间距和选中态
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台【技能中心】最新的瘦身卡片与展开树导航结构
+
+### 3.41 第四十轮技能中心接入真实提示词
+
+- 继续更新 `apps/server/src/common/mock-data.ts`
+- 将后台技能中心提示词数据从短句演示文案切换为真实文件内容：优先读取 `SKILL.md` / `.txt`，品牌增长报告、小红书营销规划、可视化报告三项直接展示系统内已有全文
+- 修正后端稳定启动时的路径基准，改为按 `apps/server` 运行目录解析真实提示词文件
+- 为 `enterprise-annual-plan` 补齐后端技能配置映射，并统一若干技能的默认模型为单个可选值，避免下拉框出现整串模型名
+- 继续调整 `apps/web/src/app/(dashboard)/admin/page.tsx` 与 `apps/web/src/styles/globals.css`：去掉技能卡片上方说明区，把右侧导航进一步压向目录式手风琴样式
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步技能中心“真实提示词全文 + 目录式分级导航”的最新结构
+
+### 3.42 第四十一轮补齐小红书内容生产技能与左侧导航
+
+- 继续更新 `apps/web/src/app/(dashboard)/admin/page.tsx`
+- 将小红书 `内容生产` 二级分类从单一占位项拆成三条独立三级技能：`原创笔记-原创配图`、`二创笔记-二创配图`、`视频笔记-视频创作`
+- 更新 `apps/server/src/common/mock-data.ts` 与 `apps/web/src/services/admin.ts`，为上述三条技能补齐技能配置与提示词记录；其中原创、二创接入真实技能文件内容，视频笔记接入真实工作流文档内容
+- 重做 `apps/web/src/styles/globals.css` 左侧后台导航：去掉深色大卡片堆叠感，改为更接近目录导航的浅底轻量样式，并压缩导航项说明信息
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台技能中心的小红书三级技能拆分和左侧导航结构调整
+
+### 3.43 第四十二轮统一右侧技能导航风格
+
+- 继续更新 `apps/web/src/app/(dashboard)/admin/page.tsx` 与 `apps/web/src/styles/globals.css`
+- 将右侧技能导航从卡片树样式改成与左侧导航同语言的目录式展开结构
+- 一级分类改为浅蓝标题条，二级分类改为分组标题行，三级技能改为缩进文本项，仅保留当前选中高亮
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台技能导航的目录式呈现方式
+
+### 3.44 第四十三轮统一前后台视觉语言
+
+- 更新 `apps/web/src/app/(dashboard)/layout.tsx`，将前台顶部导航改为与后台相同的浅底导航壳、图标短标签和高亮逻辑
+- 更新 `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx` 与 `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`，为前台左侧工作区导航补齐目录式导航头部与分组容器
+- 更新 `apps/web/src/styles/globals.css`，统一前台 `dashboard` 顶栏、左侧目录、主内容卡片、Hero 和按钮的视觉语言到后台当前使用的浅底圆角风格
+- 验证 `http://localhost:3001/brand-growth` 与 `http://localhost:3001/xiaohongshu`，确认前台主工作台已切换到与后台一致的视觉体系
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，补记前后台共享视觉壳层与前台工作台目录式导航
+
+### 3.45 第四十四轮收口前台多余导航区块
+
+- 根据页面标注，继续更新 `apps/web/src/app/(dashboard)/layout.tsx`、`apps/web/src/app/(dashboard)/brand-growth/workspace.tsx` 与 `apps/web/src/styles/globals.css`
+- 去掉前台顶部左侧的品牌说明大卡，仅保留横向主导航
+- 去掉品牌增长页左侧两列导航上方的“功能分区 / 页面导航”标题头，仅保留目录按钮本体
+- 同步压缩前台顶部导航与左侧导航宽度、圆角、间距和阴影，减少视觉占位，让主内容区更突出
+
+### 3.46 第四十五轮继续简化小红书工作台
+
+- 继续更新 `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`、`apps/web/src/app/(dashboard)/xiaohongshu/plan-workspace.tsx` 与 `apps/web/src/styles/globals.css`
+- 去掉小红书页左侧残留的“前台导航 / 小红书工作台”标题头
+- 去掉小红书 Hero 顶部的“小红书工作台”徽标，减少重复标题信息
+- 去掉营销策划方案卡片中的两段重复说明文案，仅保留标题、动作按钮、状态与编辑区域
+- 继续压缩小红书左侧导航、Hero、内容卡圆角和内边距，使页面更接近简洁文字目录界面
+
+### 3.47 第四十六轮拆分原创笔记文案与配图提示词
+
+- 更新 `apps/web/src/app/(dashboard)/admin/page.tsx`，将小红书内容生产下的原创笔记拆为 `原创笔记-原创文案` 与 `原创笔记-原创配图` 两条三级技能
+- 更新 `apps/web/src/services/admin.ts`，为原创笔记补齐两条独立的技能配置与两条独立的提示词记录，分别对应标题正文和配图提示词
+- 更新 `apps/server/src/common/mock-data.ts`，为后台 API/mock 数据源补齐 `original_copy` 与 `xhs-original-image-prompt` 两条原创笔记技能及其真实内容回填
+- 更新 `docs/site-map.md`，同步后台技能中心中原创笔记文案链路与原创配图链路已分开展示
+
+### 3.48 第四十七轮接通原创笔记真实 SKILL 文件读写
+
+- 更新 `apps/server/src/common/mock-data.ts`，将 `original_copy` 与 `original_image` 的候选路径补齐到真实 `提示词` 目录，服务启动时优先读取真实 `SKILL.md`
+- 更新 `apps/server/src/modules/admin/skills-prompts.service.ts`，让后台 `/admin/prompts` 在读取时主动从真实 `SKILL.md` 回填内容
+- 同时让后台保存 `小红书原创笔记文案` 与 `小红书原创笔记配图` 时，直接回写对应的真实 `SKILL.md` 文件，而不是只停留在内存里的 mock 数据
+
+### 3.49 第四十八轮补齐原创配图文字结构与强制注字
+
+- 更新 `apps/server/src/modules/works/works.service.ts`，要求 `original_image` 与二创配图链路除返回 `cover_prompt`、`image_prompts` 外，还必须返回 `cover_text`、`image_texts`
+- 为原创/二创图文作品元数据新增 `coverText`、`imageTexts` 结构，保存每张图的标题与小标签，便于后台排查和后续前端展示
+- 在实际发送给文生图模型前，统一将“主标题必须直接排版到画面中”“小标签必须清晰可读”这类强约束注入最终出图 prompt，避免只生成纯场景摄影图
+- 更新 `apps/web/src/services/works.ts` 类型定义，使前端工作台可获取作品的封面文字与配图文字结构
+
+### 3.50 第四十九轮修正二创技能拆分与无产品约束
+
+- 更新 `apps/server/src/modules/works/works.service.ts`，为 `rewrite_copy` 与 `rewrite_image` 增加“未选产品时不得自行引入具体商品 SKU、价格、门店购买引导和卖货主视觉”的系统约束，要求二创必须优先围绕对标素材主事件与主场景展开
+- 更新 `apps/server/src/common/mock-data.ts`、`apps/web/src/services/admin.ts` 与 `apps/web/src/app/(dashboard)/admin/page.tsx`，将后台技能中心中的二创能力拆分为 `二创笔记-二创文案` 与 `二创笔记-二创配图`
+- 更新 `apps/server/src/modules/admin/skills-prompts.service.ts`，让后台可直接读取和保存 `rewrite_copy`、`rewrite_image` 两份真实 `SKILL.md`
+- 收口二创作品读取逻辑，按实际 `imagePrompts` 数量裁剪 `imageTexts`，避免历史记录中的冗余图片文字条目继续影响前端展示与排查
+
+### 3.51 第五十轮修正二创运行时上下文污染
+
+- 定位到二创链路虽然已改系统约束，但仍然无条件把整份 `xiaohongshu-marketing-plan` 传给 `rewrite_copy`、`rewrite_image`，而该规划中包含多个具体产品、价格与核销信息，持续污染模型输出
+- 更新 `apps/server/src/modules/works/works.service.ts`，在“未选产品”时对二创运行时上下文做去产品化处理：过滤营销规划中的商品/价格/核销信息，并对对标素材正文做去产品化摘要，补充事件导向的 `topic_context`
+- 修正二创最终出图的参考图来源，改为优先使用对标素材 `imageList`，并在有产品时再附加产品图，避免 `rewrite_image` 实际不吃参考图导致画面风格跑偏
+- 以“吉吉陪伴汉马的第十一年！ + 不植入产品”重跑验收后，新结果已收口到汉马、跑者状态、城市氛围与品牌陪伴感，不再扩写牛角包、提拉米苏、价格与门店购买导向
+
+### 3.52 第五十一轮收口小红书配图 3:4 比例
+
+- 更新 `apps/server/src/modules/works/works.service.ts`，补齐 `normalizeGeneratedImageBuffer(...)`，在原创/二创图片落盘前统一用 `1242x1660` 强制裁切为竖版 `3:4`
+- 远程 URL 下载保存与 base64 直存两条图片链路现在都会经过比例规范化，避免模型偶发返回横图、方图后直接进入作品库
+- 保留生成前 prompt 中“严格按 1242x1660（宽3:高4）构图”的硬约束，同时把服务端规范化作为最终兜底，减少第三方模型不稳定导致的比例漂移
+- 更新 `apps/web/src/styles/globals.css`，将小红书作品卡片媒体展示从近似竖图改为严格 `aspect-ratio: 3 / 4`
+- 本地用历史横图样本 `cmovnu5ki0001aidwpwvqz4x8-gallery-3.png` 验证后，尺寸已可稳定从 `1402x1122` 规范为 `1242x1660`
+
+### 3.53 第五十二轮补齐规范文档、Git 规则与网站地图
+
+- 更新 `docs/engineering-standards.md`，把“小红书成品图不能只靠 prompt 口头约束比例，必须有保存前服务端兜底”固化为通用资源规范
+- 更新 `docs/git-workflow.md`，补充“混合工作区改动时只按本次任务文件暂存和备份”的规则，避免把无关改动混入同一提交
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台技能中心中二创文案/配图的拆分状态，以及 `WorksModule` 对原创/二创成品图统一收口 `1242x1660` 竖版 `3:4` 的真实链路
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service

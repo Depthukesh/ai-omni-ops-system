@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 export type UserRecord = {
   id: string;
   mobile: string;
@@ -234,6 +237,79 @@ export type ApiProviderRecord = {
   lastCalledAt: string;
   updatedAt: string;
 };
+
+function readTextFromCandidates(candidates: string[], fallback: string) {
+  for (const candidate of candidates) {
+    try {
+      const filePath = resolve(process.cwd(), candidate);
+      if (!existsSync(filePath)) {
+        continue;
+      }
+      const content = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim();
+      if (content) {
+        return content;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return fallback;
+}
+
+const brandGrowthSkillContent = readTextFromCandidates(
+  [
+    "../../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
+    "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",
+  ],
+  "你是品牌全域增长顾问，需要基于品牌资料、行业资料和经营数据生成增长分析报告。",
+);
+
+const visualReportSkillContent = readTextFromCandidates(
+  ["../../../提示词/article-visual-report-designer/SKILL.md"],
+  "你是数据可视化设计师，需要将结构化洞察转化为适合前端渲染的 HTML 报告。",
+);
+
+const xiaohongshuPlanSkillContent = readTextFromCandidates(
+  ["../../../提示词/_xhs-plan-skill/xiaohongshu-brand-marketing-plan/SKILL.md"],
+  "你是小红书品牌营销顾问，需要输出年度种草策略、内容支柱和月度排期建议。",
+);
+
+const xiaohongshuOriginalCopySkillContent = readTextFromCandidates(
+  [
+    "../../../提示词/original_copy/original_copy/SKILL.md",
+    "../提示词/original_copy/original_copy/SKILL.md",
+  ],
+  "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成可直接发布的小红书原创标题、正文与标签。",
+);
+
+const xiaohongshuOriginalNoteSkillContent = readTextFromCandidates(
+  [
+    "../../../提示词/original_image/SKILL.md",
+    "../提示词/original_image/SKILL.md",
+  ],
+  "根据营销规划方案、营销日历、原创笔记正文、产品信息和用户要求，生成封面提示词与原创配图提示词。",
+);
+
+const xiaohongshuRewriteNoteSkillContent = readTextFromCandidates(
+  [
+    "../../../提示词/rewrite_image/SKILL.md",
+    "../提示词/rewrite_image/SKILL.md",
+  ],
+  "根据用户输入的小红书对标配图及二创文案，生成全新的二创配图提示词。",
+);
+
+const xiaohongshuRewriteCopySkillContent = readTextFromCandidates(
+  [
+    "../../../提示词/rewrite_copy/SKILL.md",
+    "../提示词/rewrite_copy/SKILL.md",
+  ],
+  "根据对标作品、营销规划和用户要求，生成小红书二创笔记标题、正文与标签。",
+);
+
+const xiaohongshuVideoNoteSkillContent = readTextFromCandidates(
+  ["../../../ai-omni-ops-system/docs/changes/2026-05-06-video-note-workflow.md"],
+  "当前视频笔记已接入真实工作流：根据营销策划方案、营销日历、产品或参考图输入，生成视频笔记标题、正文和视频提示词。",
+);
 
 export type MockDatabase = {
   users: UserRecord[];
@@ -759,13 +835,25 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-02T02:03:00.000Z",
     },
     {
+      id: "skill_annual_plan",
+      name: "全年营销规划",
+      slug: "enterprise-annual-plan",
+      category: "品牌增长",
+      status: "ACTIVE",
+      provider: "OpenAI Proxy",
+      defaultModel: "gpt-5.5",
+      pointsCost: 280,
+      description: "用于输出全年营销节点、活动主题和多平台协同规划。",
+      updatedAt: "2026-05-04T12:00:00.000Z",
+    },
+    {
       id: "skill_xhs_plan",
       name: "小红书营销规划",
       slug: "xiaohongshu-brand-marketing-plan",
       category: "内容营销",
       status: "ACTIVE",
       provider: "OpenAI Proxy",
-      defaultModel: "gpt-5.5, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, doubao-seed-2-0-pro-260215",
+      defaultModel: "gpt-5.5",
       pointsCost: 260,
       description: "用于输出小红书品牌规划、内容选题和种草策略。",
       updatedAt: "2026-05-01T18:45:00.000Z",
@@ -777,10 +865,70 @@ export const database: MockDatabase = {
       category: "可视化报告",
       status: "ACTIVE",
       provider: "OpenAI Proxy",
-      defaultModel: "gpt-5.5, gpt-5.4-nano, claude-sonnet-4-6, gemini-3.1-pro-preview",
+      defaultModel: "gpt-5.5",
       pointsCost: 180,
       description: "用于将长文转化为可视化信息报告页面。",
       updatedAt: "2026-05-01T11:20:00.000Z",
+    },
+    {
+      id: "skill_xhs_original_copy",
+      name: "小红书原创笔记文案",
+      slug: "original_copy",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "OpenAI Proxy",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 140,
+      description: "用于生成小红书原创笔记标题、正文与标签。",
+      updatedAt: "2026-05-07T10:30:00.000Z",
+    },
+    {
+      id: "skill_xhs_original_note",
+      name: "小红书原创笔记配图",
+      slug: "xhs-original-image-prompt",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "OpenAI Proxy",
+      defaultModel: "gpt-5.5",
+      pointsCost: 160,
+      description: "用于生成小红书原创笔记封面提示词与原创配图提示词。",
+      updatedAt: "2026-05-06T09:00:00.000Z",
+    },
+    {
+      id: "skill_xhs_rewrite_copy",
+      name: "小红书二创笔记文案",
+      slug: "rewrite_copy",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "OpenAI Proxy",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 160,
+      description: "用于根据对标内容、营销规划和用户要求生成二创标题、正文与标签。",
+      updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "skill_xhs_rewrite_note",
+      name: "小红书二创笔记配图",
+      slug: "rewrite_image",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "OpenAI Proxy",
+      defaultModel: "gpt-5.5",
+      pointsCost: 180,
+      description: "用于根据对标内容与二创文案生成全新的二创配图提示词。",
+      updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "skill_xhs_video_note",
+      name: "小红书视频笔记",
+      slug: "short-video-api-studio",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "Video Pipeline",
+      defaultModel: "seedance",
+      pointsCost: 240,
+      description: "用于生成视频笔记文案、视频提示词并衔接第三方视频模型。",
+      updatedAt: "2026-05-06T09:10:00.000Z",
     },
   ],
   promptTemplates: [
@@ -793,7 +941,7 @@ export const database: MockDatabase = {
       modelName: "gpt-5.5",
       temperature: 0.6,
       maxTokens: 6000,
-      content: "你是品牌全域增长顾问，需要基于品牌资料、行业资料和经营数据生成增长分析报告。",
+      content: brandGrowthSkillContent,
       updatedAt: "2026-05-02T02:03:00.000Z",
     },
     {
@@ -802,23 +950,83 @@ export const database: MockDatabase = {
       scene: "小红书营销规划",
       version: "v1.1",
       status: "ACTIVE",
-      modelName: "gpt-5.5, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, doubao-seed-2-0-pro-260215",
+      modelName: "gpt-5.5",
       temperature: 0.7,
       maxTokens: 12000,
-      content: "你是小红书品牌营销顾问，需要输出年度种草策略、内容支柱和月度排期建议。",
+      content: xiaohongshuPlanSkillContent,
       updatedAt: "2026-05-01T18:45:00.000Z",
     },
     {
       id: "prompt_visual_report",
       name: "可视化报告提示词",
-      scene: "品牌增长可视化报告生成",
+      scene: "HTML 可视化报告生成",
       version: "v0.9",
       status: "ACTIVE",
-      modelName: "gpt-5.5, gpt-5.4-nano, claude-sonnet-4-6, gemini-3.1-pro-preview",
+      modelName: "gpt-5.5",
       temperature: 0.4,
       maxTokens: 3200,
-      content: "你是 article-visual-report-designer，需要把品牌增长报告转成 body 内 HTML 可视化报告，全部使用行内样式并保留核心信息。",
+      content: visualReportSkillContent,
       updatedAt: "2026-05-01T11:20:00.000Z",
+    },
+    {
+      id: "prompt_xhs_original_copy",
+      name: "小红书原创笔记文案提示词",
+      scene: "小红书原创笔记文案",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.3,
+      maxTokens: 2200,
+      content: xiaohongshuOriginalCopySkillContent,
+      updatedAt: "2026-05-07T10:30:00.000Z",
+    },
+    {
+      id: "prompt_xhs_original_note",
+      name: "小红书原创笔记配图提示词",
+      scene: "小红书原创笔记配图",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "gpt-5.5",
+      temperature: 0.7,
+      maxTokens: 6000,
+      content: xiaohongshuOriginalNoteSkillContent,
+      updatedAt: "2026-05-06T09:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_rewrite_copy",
+      name: "小红书二创笔记文案提示词",
+      scene: "小红书二创笔记文案",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.3,
+      maxTokens: 3200,
+      content: xiaohongshuRewriteCopySkillContent,
+      updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "prompt_xhs_rewrite_note",
+      name: "小红书二创笔记配图提示词",
+      scene: "小红书二创笔记配图",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "gpt-5.5",
+      temperature: 0.7,
+      maxTokens: 6000,
+      content: xiaohongshuRewriteNoteSkillContent,
+      updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_note",
+      name: "小红书视频笔记提示词",
+      scene: "小红书视频笔记",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "seedance",
+      temperature: 0.6,
+      maxTokens: 5000,
+      content: xiaohongshuVideoNoteSkillContent,
+      updatedAt: "2026-05-06T09:10:00.000Z",
     },
     {
       id: "prompt_annual_marketing_plan",
@@ -826,7 +1034,7 @@ export const database: MockDatabase = {
       scene: "全年营销规划生成",
       version: "v1.0",
       status: "ACTIVE",
-      modelName: "gpt-5.5, claude-sonnet-4-6, deepseek-v4-flash, doubao-seed-2-0-mini-260215",
+      modelName: "gpt-5.5",
       temperature: 0.5,
       maxTokens: 4200,
       content:

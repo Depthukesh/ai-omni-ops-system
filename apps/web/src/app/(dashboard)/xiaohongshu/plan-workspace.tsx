@@ -61,7 +61,6 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
       <div className="strategy-card-toolbar">
         <div>
           <strong>{sectionLabel}</strong>
-          <p className="panel-subtext">只保留 Markdown 编辑与预览，聚焦生成、编辑、保存这条主链路。</p>
         </div>
         <div className="strategy-inline-actions">
           <button
@@ -107,7 +106,6 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
         <div className="report-editor-head">
           <div>
             <strong>{latestMarketingPlan?.title || "小红书营销策划方案"}</strong>
-            <p>调用 `xiaohongshu-brand-marketing-plan` 技能生成 Markdown 长文，左侧编辑，右侧预览。</p>
           </div>
           <div className="report-editor-actions">
             <span className={`archive-pill ${canGenerateMarketingPlan ? "status-ready" : "status-in_progress"}`}>
