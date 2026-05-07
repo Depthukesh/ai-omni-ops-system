@@ -381,6 +381,14 @@
 - 视频生成调用改为优先使用 `fullVideoPrompt`，并把新增结构字段通过视频作品接口返回，便于后续核对真实执行路径
 - 本地已验证 `/api/admin/prompts` 返回的视频提示词内容切换为真实 `short-video-api-studio` 全文，长度约 `5850` 字符
 
+### 3.55 第五十四轮补齐视频分段执行链
+
+- 更新 `apps/server/src/modules/works/works.service.ts`，在保留 `fullVideoPrompt` 主成片的同时，新增按 `segmentPrompts` 顺序逐段发起真实视频任务的链路，并将上一段封帧作为下一段参考图承接
+- 新增分段执行结果回写：视频作品元数据与接口返回补充 `segmentExecutionStatus`、`segmentExecutionError`、`segmentAssets`
+- 更新 `apps/web/src/services/works.ts`，同步视频作品类型中的分段执行状态与分段视频资产结构，避免前后端类型继续错位
+- 当前环境未安装 `ffmpeg`，因此暂不在服务端自动拼接多段 MP4；现阶段会保留一条主成片，并额外沉淀每段真实生成的视频资产用于校验执行路径
+- 重启 `3011` 后端并验证视频作品接口，历史旧作品会默认返回 `segmentAssets: []`；新生成的视频任务才会带入新的分段执行结果字段
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service

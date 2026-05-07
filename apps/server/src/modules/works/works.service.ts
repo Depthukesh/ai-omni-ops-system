@@ -189,6 +189,9 @@ type VideoWorkAssetMeta = {
   padImageStrategy?: string;
   continuityRules?: string[];
   segmentPrompts: string[];
+  segmentExecutionStatus?: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
+  segmentExecutionError?: string;
+  segmentAssets?: VideoSegmentAssetEntry[];
   providerTaskId?: string;
   videoAssetId?: string;
   videoUrl?: string;
@@ -206,6 +209,19 @@ type VideoAssetMeta = {
   modelName?: string;
   durationSec?: number;
   createdAt: string;
+};
+
+type VideoSegmentAssetEntry = {
+  order: number;
+  prompt: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  provider: string;
+  modelName?: string;
+  providerTaskId?: string;
+  renderedDurationSec?: number;
+  referenceImageUrl?: string;
+  videoAssetId?: string;
 };
 
 export type XiaohongshuOriginalWorkRecord = {
@@ -304,6 +320,9 @@ export type XiaohongshuVideoWorkRecord = {
   padImageStrategy?: string;
   continuityRules: string[];
   segmentPrompts: string[];
+  segmentExecutionStatus?: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
+  segmentExecutionError?: string;
+  segmentAssets: VideoSegmentAssetEntry[];
   taskStatus?: WorkTaskStatus;
   createdAt: string;
   updatedAt: string;
@@ -1085,6 +1104,17 @@ export class WorksService {
         requestedDurationSec,
         referenceImageUrl: referenceImageFile?.url,
       });
+      const segmentExecution = await this.generateVideoSegmentAssets({
+        brandId,
+        taskId: task.id,
+        title: copyResult.title,
+        requestedVideoProvider,
+        customVideoModelName: payload.customVideoModelName?.trim(),
+        requestedDurationSec,
+        referenceImageUrl: referenceImageFile?.url,
+        negativePrompt: promptResult.negativePrompt,
+        segmentPrompts: promptResult.segmentPrompts,
+      });
 
       const now = new Date().toISOString();
       const coverImageUrl = referenceImageFile?.url || videoResult.coverImageUrl || selectedProduct?.imageUrl || undefined;
@@ -1132,6 +1162,9 @@ export class WorksService {
         padImageStrategy: promptResult.padImageStrategy,
         continuityRules: promptResult.continuityRules,
         segmentPrompts: promptResult.segmentPrompts,
+        segmentExecutionStatus: segmentExecution.status,
+        segmentExecutionError: segmentExecution.error,
+        segmentAssets: segmentExecution.assets,
         providerTaskId: videoResult.providerTaskId,
         videoUrl: videoResult.url,
         coverImageUrl,
@@ -1161,10 +1194,19 @@ export class WorksService {
         providerTaskId: videoResult.providerTaskId,
         durationSec: videoResult.renderedDurationSec,
       });
+      const segmentAssetsWithMedia = await this.createVideoSegmentMediaAssets({
+        userId,
+        brandId,
+        taskId: task.id,
+        workId: workMedia.id,
+        title: copyResult.title,
+        assets: segmentExecution.assets,
+      });
 
       const updatedMetadata: VideoWorkAssetMeta = {
         ...metadata,
         videoAssetId: videoMedia.id,
+        segmentAssets: segmentAssetsWithMedia,
         updatedAt: new Date().toISOString(),
       };
 
@@ -2133,6 +2175,119 @@ export class WorksService {
     return record;
   }
 
+  private buildVideoSegmentDurations(totalDurationSec: number, segmentCount: number) {
+    const safeCount = Math.max(1, Math.min(segmentCount, 3));
+    const safeTotal = Math.max(6, Math.min(totalDurationSec || 10, 15));
+    const base = Math.floor(safeTotal / safeCount);
+    const remainder = safeTotal % safeCount;
+    return Array.from({ length: safeCount }, (_, index) => {
+      const duration = base + (index < remainder ? 1 : 0);
+      return Math.max(4, Math.min(duration, 6));
+    });
+  }
+
+  private async generateVideoSegmentAssets(params: {
+    brandId: string;
+    taskId: string;
+    title: string;
+    requestedVideoProvider: string;
+    customVideoModelName?: string;
+    requestedDurationSec: number;
+    referenceImageUrl?: string;
+    negativePrompt?: string;
+    segmentPrompts: string[];
+  }): Promise<{
+    status: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
+    error?: string;
+    assets: VideoSegmentAssetEntry[];
+  }> {
+    const prompts = params.segmentPrompts.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3);
+    if (prompts.length < 2) {
+      return {
+        status: "SKIPPED",
+        error: prompts.length ? "分段提示词少于 2 段，跳过逐段生成" : "未返回可执行的分段提示词",
+        assets: [],
+      };
+    }
+
+    const durations = this.buildVideoSegmentDurations(params.requestedDurationSec, prompts.length);
+    const assets: VideoSegmentAssetEntry[] = [];
+    let carryReferenceImageUrl = params.referenceImageUrl;
+    let lastError = "";
+
+    for (let index = 0; index < prompts.length; index += 1) {
+      const prompt = prompts[index];
+      try {
+        const result = await this.generateVideoAsset({
+          brandId: params.brandId,
+          taskId: `${params.taskId}-segment-${index + 1}`,
+          title: `视频片段 ${index + 1} - ${params.title}`,
+          requestedVideoProvider: params.requestedVideoProvider,
+          customVideoModelName: params.customVideoModelName,
+          prompt,
+          negativePrompt: params.negativePrompt,
+          requestedDurationSec: durations[index] || 5,
+          referenceImageUrl: carryReferenceImageUrl,
+        });
+        assets.push({
+          order: index,
+          prompt,
+          videoUrl: result.url,
+          coverImageUrl: result.coverImageUrl,
+          provider: result.provider,
+          modelName: result.modelName,
+          providerTaskId: result.providerTaskId,
+          renderedDurationSec: result.renderedDurationSec,
+          referenceImageUrl: carryReferenceImageUrl,
+        });
+        if (result.coverImageUrl) {
+          carryReferenceImageUrl = result.coverImageUrl;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : `视频片段 ${index + 1} 生成失败`;
+        break;
+      }
+    }
+
+    if (assets.length === prompts.length) {
+      return { status: "SUCCESS", assets };
+    }
+    if (assets.length > 0) {
+      return { status: "PARTIAL", error: lastError || "仅部分视频片段生成成功", assets };
+    }
+    return { status: "FAILED", error: lastError || "视频分段生成失败", assets };
+  }
+
+  private async createVideoSegmentMediaAssets(params: {
+    userId: string;
+    brandId: string;
+    taskId: string;
+    workId: string;
+    title: string;
+    assets: VideoSegmentAssetEntry[];
+  }) {
+    const result: VideoSegmentAssetEntry[] = [];
+    for (const asset of params.assets) {
+      const media = await this.createWorkVideoMedia({
+        userId: params.userId,
+        brandId: params.brandId,
+        taskId: params.taskId,
+        workId: params.workId,
+        title: `视频片段 ${asset.order + 1} - ${params.title}`,
+        sourceUrl: asset.videoUrl,
+        provider: asset.provider,
+        modelName: asset.modelName,
+        providerTaskId: asset.providerTaskId,
+        durationSec: asset.renderedDurationSec,
+      });
+      result.push({
+        ...asset,
+        videoAssetId: media.id,
+      });
+    }
+    return result;
+  }
+
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
@@ -2745,6 +2900,9 @@ export class WorksService {
       padImageStrategy: meta.padImageStrategy,
       continuityRules: meta.continuityRules || [],
       segmentPrompts: meta.segmentPrompts || [],
+      segmentExecutionStatus: meta.segmentExecutionStatus,
+      segmentExecutionError: meta.segmentExecutionError,
+      segmentAssets: meta.segmentAssets || [],
       taskStatus,
       createdAt: createdAt || meta.createdAt,
       updatedAt: updatedAt || meta.updatedAt,
@@ -2794,6 +2952,9 @@ export class WorksService {
       padImageStrategy: this.readOptionalString(meta.padImageStrategy),
       continuityRules: this.normalizeStringArray(meta.continuityRules, [], 8),
       segmentPrompts: this.normalizeStringArray(meta.segmentPrompts, [], 12),
+      segmentExecutionStatus: this.readOptionalString(meta.segmentExecutionStatus) as VideoWorkAssetMeta["segmentExecutionStatus"],
+      segmentExecutionError: this.readOptionalString(meta.segmentExecutionError),
+      segmentAssets: this.normalizeVideoSegmentAssets(meta.segmentAssets),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
       videoAssetId: this.readOptionalString(meta.videoAssetId),
       videoUrl: this.readOptionalString(meta.videoUrl),
@@ -2801,6 +2962,34 @@ export class WorksService {
       createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
       updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
     };
+  }
+
+  private normalizeVideoSegmentAssets(value: unknown) {
+    const items = Array.isArray(value) ? value : [];
+    const result: VideoSegmentAssetEntry[] = [];
+    items.forEach((item, index) => {
+      const record = this.asRecord(item);
+      if (!record) {
+        return;
+      }
+      const videoUrl = this.readOptionalString(record.videoUrl);
+      if (!videoUrl) {
+        return;
+      }
+      result.push({
+        order: typeof record.order === "number" ? record.order : index,
+        prompt: String(record.prompt ?? "").trim(),
+        videoUrl,
+        coverImageUrl: this.readOptionalString(record.coverImageUrl),
+        provider: this.readOptionalString(record.provider) || "seedance",
+        modelName: this.readOptionalString(record.modelName),
+        providerTaskId: this.readOptionalString(record.providerTaskId),
+        renderedDurationSec: typeof record.renderedDurationSec === "number" ? record.renderedDurationSec : undefined,
+        referenceImageUrl: this.readOptionalString(record.referenceImageUrl),
+        videoAssetId: this.readOptionalString(record.videoAssetId),
+      });
+    });
+    return result;
   }
 
   private async getVideoWorkRowById(brandId: string, workId: string) {

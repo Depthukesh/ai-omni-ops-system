@@ -387,6 +387,7 @@ flowchart TD
     M5 --> M8
     M5 --> M51["原创/二创成品图保存前统一规范为 1242x1660 竖版 3:4"]
     M5 --> M52["视频笔记统一读取 short-video-api-studio 并保存结构化视频提示词字段"]
+    M5 --> M53["视频笔记按 segmentPrompts 逐段生成并回写分段视频资产；当前无 ffmpeg 自动拼接"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

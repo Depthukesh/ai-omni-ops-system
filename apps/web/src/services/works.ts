@@ -5,6 +5,19 @@ export type ImageTextPlanEntry = {
   badges: string[];
 };
 
+export type VideoSegmentAssetEntry = {
+  order: number;
+  prompt: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  provider: string;
+  modelName?: string;
+  providerTaskId?: string;
+  renderedDurationSec?: number;
+  referenceImageUrl?: string;
+  videoAssetId?: string;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -101,6 +114,9 @@ export type XiaohongshuVideoWorkRecord = {
   padImageStrategy?: string;
   continuityRules: string[];
   segmentPrompts: string[];
+  segmentExecutionStatus?: "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED";
+  segmentExecutionError?: string;
+  segmentAssets: VideoSegmentAssetEntry[];
   taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   createdAt: string;
   updatedAt: string;
