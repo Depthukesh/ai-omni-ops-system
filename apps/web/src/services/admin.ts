@@ -506,7 +506,7 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     modelName: "seedance",
     temperature: 0.6,
     maxTokens: 5000,
-    content: "当前视频笔记工作流会根据营销策划方案、营销日历、产品或参考图输入生成视频笔记文案和视频提示词。",
+    content: "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
     updatedAt: "2026-05-06T09:10:00.000Z",
   },
 ];

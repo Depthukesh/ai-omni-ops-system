@@ -37,6 +37,10 @@ export class SkillsPromptsService {
       "../../../提示词/rewrite_image/SKILL.md",
       "../提示词/rewrite_image/SKILL.md",
     ],
+    prompt_xhs_video_note: [
+      "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
+      "../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
+    ],
   };
 
   listSkills() {

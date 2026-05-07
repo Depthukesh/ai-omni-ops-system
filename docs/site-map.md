@@ -191,8 +191,10 @@
 
 1. 用户在 `/xiaohongshu` 的“视频笔记”中选择营销日历选题或自定义选题
 2. 页面可选带入产品或参考图，并指定视频模型、时长、是否输出视频提示词与附加要求
-3. 后端 `WorksModule` 先生成视频笔记标题正文，再生成短视频提示词，并调用第三方视频接口创建任务与轮询结果
-4. 成品视频、视频提示词与图文内容保存到作品记录，并同步沉淀到“我的作品”
+3. 后端 `WorksModule` 现在统一读取真实 `提示词/short-video-api-studio/short-video-api-studio/SKILL.md` 作为视频文案和视频提示词的共同基准，不再误读 `rewrite_copy` 或工作流说明文档
+4. 视频提示词阶段会结构化产出 `businessScene`、`videoType`、`segmentBrief`、`referenceStrategy`、`padImageStrategy`、`continuityRules`、`segmentPrompts`、`fullVideoPrompt`
+5. 后端基于完整视频提示词调用第三方视频接口创建任务与轮询结果，并把视频结构化字段一并写回作品元数据
+6. 成品视频、视频提示词与图文内容保存到作品记录，并同步沉淀到“我的作品”
 
 ## 6. 当前已确认的真实能力
 

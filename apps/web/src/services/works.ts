@@ -94,6 +94,12 @@ export type XiaohongshuVideoWorkRecord = {
   videoPrompt?: string;
   fullVideoPrompt?: string;
   videoReasoning?: string;
+  businessScene?: string;
+  videoType?: string;
+  segmentBrief?: string;
+  referenceStrategy?: string;
+  padImageStrategy?: string;
+  continuityRules: string[];
   segmentPrompts: string[];
   taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   createdAt: string;

@@ -182,6 +182,12 @@ type VideoWorkAssetMeta = {
   videoPrompt?: string;
   fullVideoPrompt?: string;
   videoReasoning?: string;
+  businessScene?: string;
+  videoType?: string;
+  segmentBrief?: string;
+  referenceStrategy?: string;
+  padImageStrategy?: string;
+  continuityRules?: string[];
   segmentPrompts: string[];
   providerTaskId?: string;
   videoAssetId?: string;
@@ -291,6 +297,12 @@ export type XiaohongshuVideoWorkRecord = {
   videoPrompt?: string;
   fullVideoPrompt?: string;
   videoReasoning?: string;
+  businessScene?: string;
+  videoType?: string;
+  segmentBrief?: string;
+  referenceStrategy?: string;
+  padImageStrategy?: string;
+  continuityRules: string[];
   segmentPrompts: string[];
   taskStatus?: WorkTaskStatus;
   createdAt: string;
@@ -341,6 +353,12 @@ type VideoPromptModelResult = {
   videoPrompt: string;
   fullVideoPrompt: string;
   negativePrompt?: string;
+  businessScene?: string;
+  videoType?: string;
+  segmentBrief?: string;
+  referenceStrategy?: string;
+  padImageStrategy?: string;
+  continuityRules: string[];
   segmentPrompts: string[];
   modelName: string;
 };
@@ -1062,7 +1080,7 @@ export class WorksService {
         title: `视频笔记视频 - ${copyResult.title}`,
         requestedVideoProvider,
         customVideoModelName: payload.customVideoModelName?.trim(),
-        prompt: promptResult.videoPrompt,
+        prompt: promptResult.fullVideoPrompt || promptResult.videoPrompt,
         negativePrompt: promptResult.negativePrompt,
         requestedDurationSec,
         referenceImageUrl: referenceImageFile?.url,
@@ -1107,6 +1125,12 @@ export class WorksService {
         videoPrompt: promptResult.videoPrompt,
         fullVideoPrompt: promptResult.fullVideoPrompt,
         videoReasoning: promptResult.videoReasoning,
+        businessScene: promptResult.businessScene,
+        videoType: promptResult.videoType,
+        segmentBrief: promptResult.segmentBrief,
+        referenceStrategy: promptResult.referenceStrategy,
+        padImageStrategy: promptResult.padImageStrategy,
+        continuityRules: promptResult.continuityRules,
         segmentPrompts: promptResult.segmentPrompts,
         providerTaskId: videoResult.providerTaskId,
         videoUrl: videoResult.url,
@@ -2714,6 +2738,12 @@ export class WorksService {
       videoPrompt: meta.outputVideoPrompt ? meta.videoPrompt : undefined,
       fullVideoPrompt: meta.outputVideoPrompt ? meta.fullVideoPrompt : undefined,
       videoReasoning: meta.videoReasoning,
+      businessScene: meta.businessScene,
+      videoType: meta.videoType,
+      segmentBrief: meta.segmentBrief,
+      referenceStrategy: meta.referenceStrategy,
+      padImageStrategy: meta.padImageStrategy,
+      continuityRules: meta.continuityRules || [],
       segmentPrompts: meta.segmentPrompts || [],
       taskStatus,
       createdAt: createdAt || meta.createdAt,
@@ -2757,6 +2787,12 @@ export class WorksService {
       videoPrompt: this.readOptionalString(meta.videoPrompt),
       fullVideoPrompt: this.readOptionalString(meta.fullVideoPrompt),
       videoReasoning: this.readOptionalString(meta.videoReasoning),
+      businessScene: this.readOptionalString(meta.businessScene),
+      videoType: this.readOptionalString(meta.videoType),
+      segmentBrief: this.readOptionalString(meta.segmentBrief),
+      referenceStrategy: this.readOptionalString(meta.referenceStrategy),
+      padImageStrategy: this.readOptionalString(meta.padImageStrategy),
+      continuityRules: this.normalizeStringArray(meta.continuityRules, [], 8),
       segmentPrompts: this.normalizeStringArray(meta.segmentPrompts, [], 12),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
       videoAssetId: this.readOptionalString(meta.videoAssetId),
@@ -2858,37 +2894,41 @@ export class WorksService {
   }
 
   private loadVideoCopyPrompt() {
-    const candidates = [
-      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
-      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
-    ];
-    for (const filePath of candidates) {
-      if (existsSync(filePath)) {
-        return readFileSync(filePath, "utf8").trim();
-      }
-    }
-    return [
-      "# 小红书视频笔记文案生成器",
-      "你需要基于营销策划方案、营销日历选题、产品信息和用户要求，生成适合小红书视频笔记的标题与正文。",
-      "标题要适合做视频封面标题，正文要适合配合短视频发布。",
-    ].join("\n");
+    return this.loadVideoSkillPrompt();
   }
 
   private loadShortVideoPromptSkill() {
-    const candidates = [
-      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
-      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
-    ];
-    for (const filePath of candidates) {
-      if (existsSync(filePath)) {
-        return readFileSync(filePath, "utf8").trim();
-      }
+    return this.loadVideoSkillPrompt();
+  }
+
+  private loadVideoSkillPrompt() {
+    const skillPrompt = this.readFirstExistingTextFromCandidates(this.resolveVideoSkillPromptCandidates());
+    if (skillPrompt) {
+      return skillPrompt;
     }
     return [
       "# short-video-api-studio",
       "你需要把短视频需求转成结构化视频生成提示词，并给出分段提示词和完整版提示词。",
       "请优先适配小红书竖屏短视频，输出适合第三方视频生成接口调用的提示词。",
     ].join("\n");
+  }
+
+  private resolveVideoSkillPromptCandidates() {
+    return [
+      resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
+      resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "short-video-api-studio", "SKILL.md"),
+      resolve(this.resolveAiWorkspaceRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "SKILL.md"),
+      resolve(this.resolveOperationRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "SKILL.md"),
+    ];
+  }
+
+  private readFirstExistingTextFromCandidates(candidates: string[]) {
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return "";
   }
 
   private loadImageAnalysisPrompt() {
@@ -3357,6 +3397,8 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书原创视频笔记文案。",
+      "请先按 short-video-api-studio 的方法完成商业场景、任务类型、镜头节奏和情绪结构理解，再生成与后续视频镜头相匹配的标题与正文。",
+      "正文不能退化成普通图文种草稿，必须和后续 10-15 秒短视频的开场钩子、镜头承接和结尾互动一致。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
@@ -3479,15 +3521,24 @@ export class WorksService {
       additional_instruction: params.additionalInstruction,
       output_language: "zh-CN",
       aspect_ratio: "9:16",
+      segment_count_hint: params.requestedDurationSec >= 13 ? 3 : 2,
     };
     const systemPrompt = [
       skillPrompt,
       "",
       "你当前需要输出短视频生成所需的结构化提示词。",
+      "必须尽量遵循 short-video-api-studio 的执行结构，先识别商业场景与任务类型，再给出分段 brief、连续性规则和最终视频提示词。",
+      "本次输出至少要覆盖：business_scene、video_type、segment_brief、reference_strategy、pad_image_strategy、continuity_rules、segment_prompts、video_prompt、full_video_prompt。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
+      '  "business_scene": "品牌广告类/电商投放类/种草视频类/服务展示类/短剧类 之一",',
+      '  "video_type": "完整故事短片/产品展示/参考视频复刻/创意特效短片/视频延长/口播/分镜图转视频/沉浸式/卡点MV 等",',
       '  "video_reasoning": "说明为什么这样设计视频",',
+      '  "segment_brief": "用 2-4 句话概括视频用途、第一眼钩子、分段推进方式与结尾承接",',
+      '  "reference_strategy": "参考图/产品图/参考视频在本次生成中的作用；没有则写无",',
+      '  "pad_image_strategy": "是否需要垫图以及为什么；没有则写无需垫图",',
+      '  "continuity_rules": ["片段连续性规则1", "片段连续性规则2"],',
       '  "video_prompt": "用于直接调用视频接口的精简提示词",',
       '  "full_video_prompt": "完整版本视频提示词",',
       '  "negative_prompt": "可选，不希望出现的内容",',
@@ -3530,7 +3581,13 @@ export class WorksService {
                 continue;
               }
               return {
+                businessScene: this.readOptionalString(parsed.business_scene ?? parsed.businessScene),
+                videoType: this.readOptionalString(parsed.video_type ?? parsed.videoType),
                 videoReasoning: String(parsed.video_reasoning ?? parsed.videoReasoning ?? "").trim(),
+                segmentBrief: this.readOptionalString(parsed.segment_brief ?? parsed.segmentBrief),
+                referenceStrategy: this.readOptionalString(parsed.reference_strategy ?? parsed.referenceStrategy),
+                padImageStrategy: this.readOptionalString(parsed.pad_image_strategy ?? parsed.padImageStrategy),
+                continuityRules: this.normalizeStringArray(parsed.continuity_rules ?? parsed.continuityRules, [], 8),
                 videoPrompt,
                 fullVideoPrompt,
                 negativePrompt: this.readOptionalString(parsed.negative_prompt ?? parsed.negativePrompt),

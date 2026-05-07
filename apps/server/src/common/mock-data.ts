@@ -307,8 +307,11 @@ const xiaohongshuRewriteCopySkillContent = readTextFromCandidates(
 );
 
 const xiaohongshuVideoNoteSkillContent = readTextFromCandidates(
-  ["../../../ai-omni-ops-system/docs/changes/2026-05-06-video-note-workflow.md"],
-  "当前视频笔记已接入真实工作流：根据营销策划方案、营销日历、产品或参考图输入，生成视频笔记标题、正文和视频提示词。",
+  [
+    "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
+    "../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
+  ],
+  "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
 );
 
 export type MockDatabase = {

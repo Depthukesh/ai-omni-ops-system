@@ -373,6 +373,14 @@
 - 更新 `docs/git-workflow.md`，补充“混合工作区改动时只按本次任务文件暂存和备份”的规则，避免把无关改动混入同一提交
 - 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步后台技能中心中二创文案/配图的拆分状态，以及 `WorksModule` 对原创/二创成品图统一收口 `1242x1660` 竖版 `3:4` 的真实链路
 
+### 3.54 第五十三轮修正视频笔记技能接线
+
+- 更新 `apps/server/src/modules/admin/skills-prompts.service.ts` 与 `apps/server/src/common/mock-data.ts`，让后台 `prompt_xhs_video_note` 直接读取真实 `提示词/short-video-api-studio/short-video-api-studio/SKILL.md`，不再展示工作流说明文档
+- 更新 `apps/server/src/modules/works/works.service.ts`，将视频文案阶段与视频提示词阶段统一改为读取同一份真实 `short-video-api-studio` 技能，修复此前误读 `rewrite_copy` 的问题
+- 扩展视频提示词结构化输出与作品元数据，新增 `businessScene`、`videoType`、`segmentBrief`、`referenceStrategy`、`padImageStrategy`、`continuityRules` 等字段，避免视频链路退化为单条简化 prompt
+- 视频生成调用改为优先使用 `fullVideoPrompt`，并把新增结构字段通过视频作品接口返回，便于后续核对真实执行路径
+- 本地已验证 `/api/admin/prompts` 返回的视频提示词内容切换为真实 `short-video-api-studio` 全文，长度约 `5850` 字符
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
