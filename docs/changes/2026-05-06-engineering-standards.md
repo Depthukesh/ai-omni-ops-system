@@ -213,6 +213,19 @@
 - 将小红书工作台中 URL 入参回填、默认作品选中、表单产品/素材/日历值兜底、营销日历月份与详情选中等一组同步型 `useEffect` 从 `page.tsx` 主文件中抽为独立 hook
 - 页面主文件继续只保留任务轮询、工作区数据装配与动作传参，不再直接承载这一组选择态校验与默认值回填细节
 
+### 3.32 第三十一轮文档收敛
+
+- 新增 `docs/site-map-mermaid.md`
+- 基于当前真实代码结构，补充一份 Mermaid 版“全站板块与内部关联地图”
+- 地图覆盖 monorepo 总图、前端路由树、`brand-growth` 和 `xiaohongshu` 的工作区/组件/hook 深度结构、前端 service 到后端 API 关系、后端模块关系、核心数据模型关系，以及运行与文档维护脉络
+- 更新 `docs/README.md` 与 `docs/site-map.md`，把 Mermaid 可视化地图纳入现有文档中心与站点地图基线
+
+### 3.33 第三十二轮文档收敛
+
+- 继续增强 `docs/site-map-mermaid.md`
+- 新增“代码定位索引”，把前端页面入口、`brand-growth` 与 `xiaohongshu` 的工作区/组件/hook、前端 service、后端 API controller、后台管理接口、数据模型与运行脚本映射到真实文件路径
+- 新增“常用追踪路径”，约定从页面到 service、从 service 到 API、从 API 到 schema 的阅读顺序，方便后续从全局图快速落到具体代码
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
