@@ -233,6 +233,12 @@
 - 更新 `docs/README.md`，把开发交付清单纳入文档中心
 - 更新 `docs/engineering-standards.md`，把交付清单与开发闭环要求提升为默认执行规则
 
+### 3.35 第三十四轮规范收敛
+
+- 继续增强 `docs/development-delivery-checklist.md`
+- 明确该清单不是在用户说“继续”时才触发，而是适用于每一次实际开发动作，包括排查、改动、验证、提交与交接
+- 同步更新 `docs/engineering-standards.md`，把“逐步执行开发交付清单”提升为默认规则，避免后续按关键词选择性执行
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
