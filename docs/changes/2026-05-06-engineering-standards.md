@@ -226,6 +226,13 @@
 - 新增“代码定位索引”，把前端页面入口、`brand-growth` 与 `xiaohongshu` 的工作区/组件/hook、前端 service、后端 API controller、后台管理接口、数据模型与运行脚本映射到真实文件路径
 - 新增“常用追踪路径”，约定从页面到 service、从 service 到 API、从 API 到 schema 的阅读顺序，方便后续从全局图快速落到具体代码
 
+### 3.34 第三十三轮规范收敛
+
+- 新增 `docs/development-delivery-checklist.md`
+- 明确“每次开发前必须带上的信息”和“每次开发完成后必须更新的信息”，把任务范围、验证方式、Git 边界、网站地图、规范更新、变更记录、待解决事项等纳入统一清单
+- 更新 `docs/README.md`，把开发交付清单纳入文档中心
+- 更新 `docs/engineering-standards.md`，把交付清单与开发闭环要求提升为默认执行规则
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service
