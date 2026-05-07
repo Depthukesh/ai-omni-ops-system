@@ -9,6 +9,8 @@ export function useNoteComposerForms(options: {
   autoImageCountOption: string;
   customTopicOption: string;
 }) {
+  const customVideoProviderOption = "__custom_video_provider__";
+  const customVideoDurationOption = "__custom_video_duration__";
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
@@ -30,8 +32,11 @@ export function useNoteComposerForms(options: {
   const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
   const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
   const [videoProviderValue, setVideoProviderValue] = useState("seedance2.0");
+  const [videoCustomProviderValue, setVideoCustomProviderValue] = useState("seedance2.0");
   const [videoCustomModelName, setVideoCustomModelName] = useState("");
   const [videoDurationValue, setVideoDurationValue] = useState("10");
+  const [videoCustomDurationValue, setVideoCustomDurationValue] = useState("10");
+  const [videoInjectMarketingPlanValue, setVideoInjectMarketingPlanValue] = useState("yes");
   const [videoOutputPromptValue, setVideoOutputPromptValue] = useState("yes");
   const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
 
@@ -76,8 +81,11 @@ export function useNoteComposerForms(options: {
     setVideoReferenceImageFile(null);
     setVideoCopyAdditionalInstruction("");
     setVideoProviderValue("seedance2.0");
+    setVideoCustomProviderValue("seedance2.0");
     setVideoCustomModelName("");
     setVideoDurationValue("10");
+    setVideoCustomDurationValue("10");
+    setVideoInjectMarketingPlanValue("yes");
     setVideoOutputPromptValue("yes");
     setVideoAdditionalInstruction("");
   }
@@ -111,10 +119,15 @@ export function useNoteComposerForms(options: {
     videoReferenceImageFile,
     videoCopyAdditionalInstruction,
     videoProviderValue,
+    videoCustomProviderValue,
     videoCustomModelName,
     videoDurationValue,
+    videoCustomDurationValue,
+    videoInjectMarketingPlanValue,
     videoOutputPromptValue,
     videoAdditionalInstruction,
+    customVideoProviderOption,
+    customVideoDurationOption,
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
@@ -133,8 +146,11 @@ export function useNoteComposerForms(options: {
     setVideoReferenceImageFile,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
+    setVideoCustomProviderValue,
     setVideoCustomModelName,
     setVideoDurationValue,
+    setVideoCustomDurationValue,
+    setVideoInjectMarketingPlanValue,
     setVideoOutputPromptValue,
     setVideoAdditionalInstruction,
     setIsVideoModalOpen,

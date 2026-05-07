@@ -225,6 +225,8 @@ export interface VideoCreateModalProps {
   calendarOptions: SelectOption[];
   customTopicOption: string;
   noProductOption: string;
+  customVideoProviderOption: string;
+  customVideoDurationOption: string;
   products: ProductOption[];
   calendarValue: string;
   customTopic: string;
@@ -232,8 +234,11 @@ export interface VideoCreateModalProps {
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
+  customProviderValue: string;
   customModelName: string;
   durationValue: string;
+  customDurationValue: string;
+  injectMarketingPlanValue: string;
   outputPromptValue: string;
   additionalInstruction: string;
   onClose: () => void;
@@ -244,8 +249,11 @@ export interface VideoCreateModalProps {
   onReferenceImageFileChange: (file: File | null) => void;
   onCopyAdditionalInstructionChange: StringChangeHandler;
   onProviderChange: StringChangeHandler;
+  onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
+  onCustomDurationChange: StringChangeHandler;
+  onInjectMarketingPlanChange: StringChangeHandler;
   onOutputPromptChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
 }
@@ -306,18 +314,15 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
               <input
                 type="file"
                 accept="image/*"
+                disabled={props.productValue !== props.noProductOption}
                 onChange={(event) => props.onReferenceImageFileChange(event.target.files?.[0] || null)}
               />
               <strong>{props.referenceImageFile?.name || "未上传"}</strong>
-            </label>
-            <label className="field-full">
-              <span>用户要求</span>
-              <textarea
-                className="report-markdown-textarea"
-                value={props.copyAdditionalInstruction}
-                onChange={(event) => props.onCopyAdditionalInstructionChange(event.target.value)}
-                placeholder="例如：标题更有冲击力，正文更像口播文案。"
-              />
+              <p className="panel-subtext">
+                {props.productValue !== props.noProductOption
+                  ? "已选择产品，若要上传参考图，请先切换为“不植入产品”。"
+                  : "参考图与产品不可同时选择。"}
+              </p>
             </label>
             <label>
               <span>视频大模型</span>
@@ -327,8 +332,31 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                 <option value="veo">veo</option>
                 <option value="wan">wan</option>
                 <option value="seedance2.0">seedance2.0</option>
+                <option value={props.customVideoProviderOption}>自行选择</option>
               </select>
             </label>
+            {props.providerValue === props.customVideoProviderOption ? (
+              <>
+                <label>
+                  <span>自选视频后端</span>
+                  <select value={props.customProviderValue} onChange={(event) => props.onCustomProviderChange(event.target.value)}>
+                    <option value="hailuo">hailuo</option>
+                    <option value="kling">kling</option>
+                    <option value="veo">veo</option>
+                    <option value="wan">wan</option>
+                    <option value="seedance2.0">seedance2.0</option>
+                  </select>
+                </label>
+                <label>
+                  <span>自定义模型名</span>
+                  <input
+                    value={props.customModelName}
+                    onChange={(event) => props.onCustomModelNameChange(event.target.value)}
+                    placeholder="可选：手动输入该后端的具体 model"
+                  />
+                </label>
+              </>
+            ) : null}
             <label>
               <span>视频时长</span>
               <select value={props.durationValue} onChange={(event) => props.onDurationChange(event.target.value)}>
@@ -337,15 +365,26 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                     {value}s
                   </option>
                 ))}
+                <option value={props.customVideoDurationOption}>自行选择</option>
               </select>
             </label>
+            {props.durationValue === props.customVideoDurationOption ? (
+              <label>
+                <span>自定义视频时长</span>
+                <input
+                  value={props.customDurationValue}
+                  onChange={(event) => props.onCustomDurationChange(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="请输入秒数，例如 18"
+                />
+              </label>
+            ) : null}
             <label>
-              <span>自定义模型名</span>
-              <input
-                value={props.customModelName}
-                onChange={(event) => props.onCustomModelNameChange(event.target.value)}
-                placeholder="可选：手动输入 provider 的具体 model"
-              />
+              <span>植入营销策划方案</span>
+              <select value={props.injectMarketingPlanValue} onChange={(event) => props.onInjectMarketingPlanChange(event.target.value)}>
+                <option value="yes">是</option>
+                <option value="no">否</option>
+              </select>
             </label>
             <label>
               <span>输出视频提示词</span>
@@ -355,9 +394,18 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
               </select>
             </label>
             <label className="field-full">
-              <span>短视频补充要求</span>
+              <span>用户要求（文案）</span>
               <textarea
-                className="report-markdown-textarea"
+                className="report-markdown-textarea composer-form-textarea"
+                value={props.copyAdditionalInstruction}
+                onChange={(event) => props.onCopyAdditionalInstructionChange(event.target.value)}
+                placeholder="例如：标题更有冲击力，正文更像口播文案。"
+              />
+            </label>
+            <label className="field-full">
+              <span>用户要求（视频生成）</span>
+              <textarea
+                className="report-markdown-textarea composer-form-textarea"
                 value={props.additionalInstruction}
                 onChange={(event) => props.onAdditionalInstructionChange(event.target.value)}
                 placeholder="例如：镜头节奏更快，氛围更轻盈，尽量突出产品使用瞬间。"

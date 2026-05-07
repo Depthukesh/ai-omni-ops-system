@@ -1221,6 +1221,11 @@ button {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+.composer-form-textarea {
+  height: 180px;
+  min-height: 180px;
+}
+
 .report-title-input {
   width: 100%;
   min-height: 56px;

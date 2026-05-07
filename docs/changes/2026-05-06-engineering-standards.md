@@ -389,6 +389,32 @@
 - 当前环境未安装 `ffmpeg`，因此暂不在服务端自动拼接多段 MP4；现阶段会保留一条主成片，并额外沉淀每段真实生成的视频资产用于校验执行路径
 - 重启 `3011` 后端并验证视频作品接口，历史旧作品会默认返回 `segmentAssets: []`；新生成的视频任务才会带入新的分段执行结果字段
 
+### 3.56 第五十五轮补充视频营销策划方案注入开关
+
+- 更新 `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`、`use-note-composer-forms.ts`、`use-work-composer-actions.ts`、`page.tsx`、`note-workspaces.tsx`，在“添加视频笔记”弹窗新增 `是否植入营销策划方案` 开关，并打通前端表单与提交参数
+- 更新 `apps/web/src/services/works.ts` 与 `apps/server/src/modules/works/works.service.ts`，为视频笔记生成接口新增 `includeMarketingPlan` 入参与作品元数据字段，支持记录每条视频创建时是否带入营销策划方案
+- 当 `includeMarketingPlan=false` 时，视频文案阶段与视频提示词阶段不再向 `short-video-api-studio` 输入营销策划方案摘要，并额外在系统提示中禁止吸收策划方案中的产品矩阵、卖点、价格、门店、促销与投放口径
+- 当前视频生成仍保留“1 条主成片 + 2 到 3 条分段视频”的执行模式，因此一次视频笔记创建会对应多条视频模型调用记录；如需进一步收口成本，后续需继续调整主成片与分段生成策略
+
+### 3.57 第五十六轮收口视频为单成片输出
+
+- 更新 `apps/server/src/modules/works/works.service.ts`，停止视频笔记链路中的自动分段视频生成；当前一次创建只保留 1 条主成片输出，不再额外按 `segmentPrompts` 继续打 2 到 3 条分段视频
+- 保留 `segmentPrompts`、`segmentBrief` 等结构化提示词字段用于核对方法论输出，但作品元数据中的 `segmentExecutionStatus` 将写为 `SKIPPED`，并明确标记已关闭自动分段生成
+- 视频后端仍保留串行失败回退：只有当前所选后端请求失败，才会继续尝试下一个后端，不会并发生成多个短视频
+
+### 3.58 第五十七轮修复营销日历生成与乱码错误
+
+- 更新 `apps/server/src/modules/reports/reports.service.ts`，修复国内文生文配置文件 `第三方api接口文生文国内.txt` 的行解析正则；此前 `readProviderInlineValue()` 与 `extractProviderSection()` 未正确识别 `:` / `：`，导致营销日历、小红书营销策划方案、全年营销规划都可能读不到 provider 配置并直接返回 `503`
+- 将营销日历链路中关键前置校验、模型配置读取失败、解析失败等异常文案改回正常中文，避免前端展示乱码报错
+- 重启 `3011` 后端并复测 `/reports/brands/br_demo_001/xiaohongshu-marketing-calendar/generate`，接口已恢复创建任务，任务状态可进入 `QUEUED/RUNNING`
+
+### 3.59 第五十八轮同步默认文档闭环与 Git 备份规则
+
+- 更新 `docs/engineering-standards.md`，明确用户只说“更新一下”时，默认执行开发规范、Git 备份、文字网站地图、Mermaid 网站地图、变更记录这一整套交付闭环
+- 更新 `docs/git-workflow.md`，把“更新一下”默认包含 Git 备份写入基本规则，并要求在混合工作区中核对上述文档文件是否已一并纳入本次提交范围
+- 更新 `docs/site-map.md` 与 `docs/site-map-mermaid.md`，同步营销日历当前通过后台任务异步生成、依赖三项前置输入与国内文生文 provider 配置，以及视频笔记当前只保留单主成片串行回退的真实链路
+- 本轮 Git 备份只纳入本次相关文档与此前同一链路下已完成的代码修复，不混入工作区中的其他无关改动
+
 ### 3.11 本次评估纳入的重点范围
 
 - 前端页面与 service

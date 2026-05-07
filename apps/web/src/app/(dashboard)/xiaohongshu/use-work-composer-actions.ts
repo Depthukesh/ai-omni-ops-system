@@ -46,8 +46,11 @@ type VideoComposerState = {
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
+  customProviderValue: string;
   customModelName: string;
   durationValue: string;
+  customDurationValue: string;
+  injectMarketingPlanValue: string;
   outputPromptValue: string;
   additionalInstruction: string;
   closeModal: () => void;
@@ -64,6 +67,8 @@ export function useWorkComposerActions(options: {
   materialNotes: XhsCollectedNoteRecord[];
   noProductOption: string;
   customTopicOption: string;
+  customVideoProviderOption: string;
+  customVideoDurationOption: string;
   autoImageCountOption: string;
   setNotice: (value: string) => void;
   setErrorMessage: (value: string) => void;
@@ -179,6 +184,23 @@ export function useWorkComposerActions(options: {
       return;
     }
 
+    const resolvedProvider = options.video.providerValue === options.customVideoProviderOption
+      ? options.video.customProviderValue
+      : options.video.providerValue;
+    const resolvedDuration = options.video.durationValue === options.customVideoDurationOption
+      ? Number(options.video.customDurationValue)
+      : Number(options.video.durationValue);
+
+    if (!resolvedProvider) {
+      options.setErrorMessage("请先选择一个视频大模型。");
+      return;
+    }
+
+    if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
+      options.setErrorMessage("请输入有效的视频时长。");
+      return;
+    }
+
     setIsPublishing(true);
     setIsVideoSubmitting(true);
     setVideoSubmittingLabel(
@@ -195,9 +217,10 @@ export function useWorkComposerActions(options: {
         productId: options.video.productValue === options.noProductOption ? undefined : options.video.productValue,
         referenceImageFile: options.video.referenceImageFile,
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
-        videoProvider: options.video.providerValue,
+        videoProvider: resolvedProvider,
         customVideoModelName: options.video.customModelName.trim() || undefined,
-        durationSec: Number(options.video.durationValue),
+        durationSec: resolvedDuration,
+        includeMarketingPlan: options.video.injectMarketingPlanValue === "yes",
         outputVideoPrompt: options.video.outputPromptValue === "yes",
         videoAdditionalInstruction: options.video.additionalInstruction.trim() || undefined,
       });

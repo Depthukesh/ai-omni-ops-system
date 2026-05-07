@@ -98,6 +98,7 @@ export type XiaohongshuVideoWorkRecord = {
   referenceImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
+  includeMarketingPlan: boolean;
   requestedVideoProvider: string;
   resolvedVideoProvider: string;
   resolvedVideoModel?: string;
@@ -147,6 +148,7 @@ export type GenerateXiaohongshuVideoNoteForm = {
   videoProvider?: string;
   customVideoModelName?: string;
   durationSec?: number;
+  includeMarketingPlan?: boolean;
   outputVideoPrompt?: boolean;
   videoAdditionalInstruction?: string;
 };
@@ -242,6 +244,7 @@ export async function generateXiaohongshuVideoWork(brandId: string, form: Genera
     videoProvider: form.videoProvider,
     customVideoModelName: form.customVideoModelName,
     durationSec: form.durationSec,
+    includeMarketingPlan: form.includeMarketingPlan,
     outputVideoPrompt: form.outputVideoPrompt,
     videoAdditionalInstruction: form.videoAdditionalInstruction,
   });

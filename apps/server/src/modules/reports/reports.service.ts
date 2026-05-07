@@ -1012,13 +1012,13 @@ export class ReportsService {
     const annualPlan = annualPlanWorkspace.latest;
     const marketingPlan = marketingPlanWorkspace.latest;
     if (!sourceReport) {
-      throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
+      throw new NotFoundException("请先生成品牌增长报告");
     }
     if (!annualPlan) {
-      throw new NotFoundException("璇峰厛鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝");
+      throw new NotFoundException("请先生成全年营销规划");
     }
     if (!marketingPlan) {
-      throw new NotFoundException("璇峰厛鐢熸垚灏忕孩涔﹁惀閿€绛栧垝鏂规");
+      throw new NotFoundException("请先生成小红书营销策划方案");
     }
     const workspace = await this.getXiaohongshuMarketingCalendarWorkspace(brandId);
     const runningTask = workspace.latestTask;
@@ -1817,13 +1817,13 @@ export class ReportsService {
       const annualPlan = annualPlanWorkspace.history.find((item) => item.id === sourceAnnualPlanId) || annualPlanWorkspace.latest;
       const marketingPlan = marketingPlanWorkspace.history.find((item) => item.id === sourceMarketingPlanId) || marketingPlanWorkspace.latest;
       if (!sourceReport) {
-        throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
+        throw new NotFoundException("请先生成品牌增长报告");
       }
       if (!annualPlan) {
-        throw new NotFoundException("璇峰厛鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝");
+        throw new NotFoundException("请先生成全年营销规划");
       }
       if (!marketingPlan) {
-        throw new NotFoundException("璇峰厛鐢熸垚灏忕孩涔﹁惀閿€绛栧垝鏂规");
+        throw new NotFoundException("请先生成小红书营销策划方案");
       }
 
       currentPhaseStatus = this.buildXiaohongshuMarketingCalendarPhaseStatus("GENERATING");
@@ -1873,7 +1873,7 @@ export class ReportsService {
       });
     } catch (error) {
       clearInterval(heartbeat);
-      const message = error instanceof Error ? error.message : "钀ラ攢鏃ュ巻鐢熸垚澶辫触";
+      const message = error instanceof Error ? error.message : "营销日历生成失败";
       await this.updateXiaohongshuMarketingCalendarTaskStatus(brandId, taskId, {
         taskStatus: "FAILED",
         startedAt,
@@ -4046,7 +4046,7 @@ ${normalizedMarkdown}`;
   }
 
   private readProviderInlineValue(content: string, label: string) {
-    const matcher = new RegExp(`^\\s*${label}\\s*[锛?]\\s*(.+)$`, "im");
+    const matcher = new RegExp(`^\\s*${label}\\s*[:：]\\s*(.+)$`, "im");
     return content.match(matcher)?.[1]?.trim() || "";
   }
 
@@ -4076,9 +4076,9 @@ ${normalizedMarkdown}`;
 
   private extractProviderSection(content: string, startLabel: string, nextLabels: string[] = []) {
     const lines = content.split(/\r?\n/);
-    const startRegex = new RegExp(`^\\s*${startLabel}\\s*[锛?]`, "i");
+    const startRegex = new RegExp(`^\\s*${startLabel}\\s*[:：]`, "i");
     const nextRegex = nextLabels.length
-      ? new RegExp(`^\\s*(?:${nextLabels.join("|")})\\s*[锛?]`, "i")
+      ? new RegExp(`^\\s*(?:${nextLabels.join("|")})\\s*[:：]`, "i")
       : null;
     let started = false;
     const section: string[] = [];
@@ -4453,7 +4453,7 @@ ${normalizedMarkdown}`;
       });
     }
     if (!providers.length) {
-      throw new ServiceUnavailableException("鍏ㄥ勾钀ラ攢瑙勫垝妯″瀷閰嶇疆璇诲彇澶辫触");
+      throw new ServiceUnavailableException("全年营销规划模型配置读取失败");
     }
     return providers;
   }
@@ -4526,7 +4526,7 @@ ${normalizedMarkdown}`;
       });
     }
     if (!providers.length) {
-      throw new ServiceUnavailableException("灏忕孩涔﹁惀閿€绛栧垝鏂规妯″瀷閰嶇疆璇诲彇澶辫触");
+      throw new ServiceUnavailableException("小红书营销策划方案模型配置读取失败");
     }
     return providers;
   }
@@ -4613,7 +4613,7 @@ ${normalizedMarkdown}`;
       });
     }
     if (!providers.length) {
-      throw new ServiceUnavailableException("钀ラ攢鏃ュ巻妯″瀷閰嶇疆璇诲彇澶辫触");
+      throw new ServiceUnavailableException("营销日历模型配置读取失败");
     }
     return providers;
   }
@@ -4659,7 +4659,7 @@ ${normalizedMarkdown}`;
   }
 
   private buildManualReportResult(reportMarkdown: string, nextTitle?: string) {
-    const title = nextTitle?.trim() || this.extractMarkdownTitle(reportMarkdown) || "鍝佺墝澧為暱鎶ュ憡";
+    const title = nextTitle?.trim() || this.extractMarkdownTitle(reportMarkdown) || "品牌增长报告";
     const summary = this.extractMarkdownSummary(reportMarkdown) || "品牌增长报告已更新。";
     return {
       title,
@@ -5052,14 +5052,14 @@ ${normalizedMarkdown}`;
     try {
       parsed = JSON.parse(this.extractJsonObject(this.stripMarkdownCodeFence(content))) as Record<string, unknown>;
     } catch {
-      throw new ServiceUnavailableException("钀ラ攢鏃ュ巻瑙ｆ瀽澶辫触锛氭ā鍨嬫湭杩斿洖鏈夋晥 JSON");
+      throw new ServiceUnavailableException("营销日历解析失败：模型未返回有效 JSON");
     }
 
     const startDate = String(inputPayload.startDate ?? "").trim();
-    const title = String(parsed.title ?? "").trim() || "钀ラ攢鏃ュ巻";
+    const title = String(parsed.title ?? "").trim() || "营销日历";
     const items = this.normalizeXiaohongshuMarketingCalendarItems(parsed.items, startDate);
     if (items.length < 7) {
-      throw new ServiceUnavailableException("钀ラ攢鏃ュ巻瑙ｆ瀽澶辫触锛氳繑鍥炲ぉ鏁颁笉瓒?7 澶");
+      throw new ServiceUnavailableException("营销日历解析失败：返回天数不足 7 天");
     }
     return {
       title,

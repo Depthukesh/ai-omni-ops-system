@@ -411,6 +411,8 @@ export interface VideoWorkspaceProps {
   calendarOptions: SelectOption[];
   customTopicOption: string;
   noProductOption: string;
+  customVideoProviderOption: string;
+  customVideoDurationOption: string;
   products: ProductOption[];
   calendarValue: string;
   customTopic: string;
@@ -418,8 +420,11 @@ export interface VideoWorkspaceProps {
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
+  customProviderValue: string;
   customModelName: string;
   durationValue: string;
+  customDurationValue: string;
+  injectMarketingPlanValue: string;
   outputPromptValue: string;
   additionalInstruction: string;
   onRefresh: AsyncAction;
@@ -440,8 +445,11 @@ export interface VideoWorkspaceProps {
   onReferenceImageFileChange: (file: File | null) => void;
   onCopyAdditionalInstructionChange: StringChangeHandler;
   onProviderChange: StringChangeHandler;
+  onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
+  onCustomDurationChange: StringChangeHandler;
+  onInjectMarketingPlanChange: StringChangeHandler;
   onOutputPromptChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
   getTaskStatusClass: (status?: TaskRecord["taskStatus"]) => string;
@@ -534,6 +542,8 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         calendarOptions={props.calendarOptions}
         customTopicOption={props.customTopicOption}
         noProductOption={props.noProductOption}
+        customVideoProviderOption={props.customVideoProviderOption}
+        customVideoDurationOption={props.customVideoDurationOption}
         products={props.products}
         calendarValue={props.calendarValue}
         customTopic={props.customTopic}
@@ -541,8 +551,11 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         referenceImageFile={props.referenceImageFile}
         copyAdditionalInstruction={props.copyAdditionalInstruction}
         providerValue={props.providerValue}
+        customProviderValue={props.customProviderValue}
         customModelName={props.customModelName}
         durationValue={props.durationValue}
+        customDurationValue={props.customDurationValue}
+        injectMarketingPlanValue={props.injectMarketingPlanValue}
         outputPromptValue={props.outputPromptValue}
         additionalInstruction={props.additionalInstruction}
         onClose={props.onCloseCreate}
@@ -553,8 +566,11 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         onReferenceImageFileChange={props.onReferenceImageFileChange}
         onCopyAdditionalInstructionChange={props.onCopyAdditionalInstructionChange}
         onProviderChange={props.onProviderChange}
+        onCustomProviderChange={props.onCustomProviderChange}
         onCustomModelNameChange={props.onCustomModelNameChange}
         onDurationChange={props.onDurationChange}
+        onCustomDurationChange={props.onCustomDurationChange}
+        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onOutputPromptChange={props.onOutputPromptChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
       />

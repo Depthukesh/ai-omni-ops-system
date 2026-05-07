@@ -192,10 +192,15 @@ export default function XiaohongshuPage() {
     videoReferenceImageFile,
     videoCopyAdditionalInstruction,
     videoProviderValue,
+    videoCustomProviderValue,
     videoCustomModelName,
     videoDurationValue,
+    videoCustomDurationValue,
+    videoInjectMarketingPlanValue,
     videoOutputPromptValue,
     videoAdditionalInstruction,
+    customVideoProviderOption,
+    customVideoDurationOption,
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
@@ -212,8 +217,11 @@ export default function XiaohongshuPage() {
     setVideoReferenceImageFile,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
+    setVideoCustomProviderValue,
     setVideoCustomModelName,
     setVideoDurationValue,
+    setVideoCustomDurationValue,
+    setVideoInjectMarketingPlanValue,
     setVideoOutputPromptValue,
     setVideoAdditionalInstruction,
     resetOriginalComposer,
@@ -591,6 +599,8 @@ export default function XiaohongshuPage() {
     materialNotes,
     noProductOption: NO_PRODUCT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
+    customVideoProviderOption,
+    customVideoDurationOption,
     autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
     setNotice,
     setErrorMessage,
@@ -625,8 +635,11 @@ export default function XiaohongshuPage() {
       referenceImageFile: videoReferenceImageFile,
       copyAdditionalInstruction: videoCopyAdditionalInstruction,
       providerValue: videoProviderValue,
+      customProviderValue: videoCustomProviderValue,
       customModelName: videoCustomModelName,
       durationValue: videoDurationValue,
+      customDurationValue: videoCustomDurationValue,
+      injectMarketingPlanValue: videoInjectMarketingPlanValue,
       outputPromptValue: videoOutputPromptValue,
       additionalInstruction: videoAdditionalInstruction,
       closeModal: closeVideoModal,
@@ -1265,6 +1278,8 @@ export default function XiaohongshuPage() {
         calendarOptions={originalCalendarOptions}
         customTopicOption={CUSTOM_TOPIC_OPTION}
         noProductOption={NO_PRODUCT_OPTION}
+        customVideoProviderOption={customVideoProviderOption}
+        customVideoDurationOption={customVideoDurationOption}
         products={workspace.archive.products}
         calendarValue={videoCalendarValue}
         customTopic={videoCustomTopic}
@@ -1272,8 +1287,11 @@ export default function XiaohongshuPage() {
         referenceImageFile={videoReferenceImageFile}
         copyAdditionalInstruction={videoCopyAdditionalInstruction}
         providerValue={videoProviderValue}
+        customProviderValue={videoCustomProviderValue}
         customModelName={videoCustomModelName}
         durationValue={videoDurationValue}
+        customDurationValue={videoCustomDurationValue}
+        injectMarketingPlanValue={videoInjectMarketingPlanValue}
         outputPromptValue={videoOutputPromptValue}
         additionalInstruction={videoAdditionalInstruction}
         onRefresh={() => loadWorkspace()}
@@ -1304,8 +1322,11 @@ export default function XiaohongshuPage() {
         }}
         onCopyAdditionalInstructionChange={setVideoCopyAdditionalInstruction}
         onProviderChange={setVideoProviderValue}
+        onCustomProviderChange={setVideoCustomProviderValue}
         onCustomModelNameChange={setVideoCustomModelName}
         onDurationChange={setVideoDurationValue}
+        onCustomDurationChange={setVideoCustomDurationValue}
+        onInjectMarketingPlanChange={setVideoInjectMarketingPlanValue}
         onOutputPromptChange={setVideoOutputPromptValue}
         onAdditionalInstructionChange={setVideoAdditionalInstruction}
         getTaskStatusClass={getTaskStatusClass}

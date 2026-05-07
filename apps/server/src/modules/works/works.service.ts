@@ -51,6 +51,7 @@ export type GenerateXiaohongshuVideoNotePayload = {
   videoProvider?: string;
   customVideoModelName?: string;
   durationSec?: number;
+  includeMarketingPlan?: boolean;
   outputVideoPrompt?: boolean;
   videoAdditionalInstruction?: string;
 };
@@ -173,6 +174,7 @@ type VideoWorkAssetMeta = {
   referenceImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
+  includeMarketingPlan: boolean;
   requestedVideoProvider: string;
   resolvedVideoProvider: string;
   resolvedVideoModel?: string;
@@ -304,6 +306,7 @@ export type XiaohongshuVideoWorkRecord = {
   referenceImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
+  includeMarketingPlan: boolean;
   requestedVideoProvider: string;
   resolvedVideoProvider: string;
   resolvedVideoModel?: string;
@@ -352,6 +355,17 @@ type OriginalCopyModelResult = {
   content: string;
   hashtags: string[];
   modelName: string;
+};
+
+type VideoCopyModelResult = OriginalCopyModelResult & {
+  businessScene?: string;
+  videoType?: string;
+  communicationGoal?: string;
+  storyHook?: string;
+  motionLanguage?: string;
+  shotLanguage?: string;
+  segmentStrategy?: string;
+  antiErrorRules: string[];
 };
 
 type OriginalImagePromptResult = {
@@ -1053,7 +1067,9 @@ export class WorksService {
     const topicLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题";
     const requestedVideoProvider = this.normalizeVideoProvider(payload.videoProvider);
     const requestedDurationSec = this.normalizeRequestedVideoDuration(payload.durationSec);
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
     const outputVideoPrompt = payload.outputVideoPrompt !== false;
+    const videoMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan.reportMarkdown : "";
     const task = await this.createVideoTask({
       userId,
       brandId,
@@ -1073,23 +1089,33 @@ export class WorksService {
         : undefined;
 
       const copyResult = await this.generateVideoCopy({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
         product: normalizedProduct,
+        includeMarketingPlan,
         additionalInstruction: payload.copyAdditionalInstruction?.trim(),
       });
 
       const promptResult = await this.generateVideoPromptPack({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
         product: normalizedProduct,
         noteTitle: copyResult.title,
         noteContent: copyResult.content,
+        copyBusinessScene: copyResult.businessScene,
+        copyVideoType: copyResult.videoType,
+        copyCommunicationGoal: copyResult.communicationGoal,
+        copyStoryHook: copyResult.storyHook,
+        copyMotionLanguage: copyResult.motionLanguage,
+        copyShotLanguage: copyResult.shotLanguage,
+        copySegmentStrategy: copyResult.segmentStrategy,
+        copyAntiErrorRules: copyResult.antiErrorRules,
         requestedVideoProvider,
         requestedDurationSec,
         referenceImageUrl: referenceImageFile?.url,
+        includeMarketingPlan,
         additionalInstruction: payload.videoAdditionalInstruction?.trim(),
       });
 
@@ -1104,17 +1130,11 @@ export class WorksService {
         requestedDurationSec,
         referenceImageUrl: referenceImageFile?.url,
       });
-      const segmentExecution = await this.generateVideoSegmentAssets({
-        brandId,
-        taskId: task.id,
-        title: copyResult.title,
-        requestedVideoProvider,
-        customVideoModelName: payload.customVideoModelName?.trim(),
-        requestedDurationSec,
-        referenceImageUrl: referenceImageFile?.url,
-        negativePrompt: promptResult.negativePrompt,
-        segmentPrompts: promptResult.segmentPrompts,
-      });
+      const segmentExecution = {
+        status: "SKIPPED" as const,
+        error: "已关闭自动分段生成，当前仅保留主成片生成",
+        assets: [],
+      };
 
       const now = new Date().toISOString();
       const coverImageUrl = referenceImageFile?.url || videoResult.coverImageUrl || selectedProduct?.imageUrl || undefined;
@@ -1146,6 +1166,7 @@ export class WorksService {
         referenceImageUrl: referenceImageFile?.url,
         copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
         videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
+        includeMarketingPlan,
         requestedVideoProvider,
         resolvedVideoProvider: videoResult.provider,
         resolvedVideoModel: videoResult.modelName,
@@ -2884,6 +2905,7 @@ export class WorksService {
       referenceImageUrl: meta.referenceImageUrl,
       copyAdditionalInstruction: meta.copyAdditionalInstruction,
       videoAdditionalInstruction: meta.videoAdditionalInstruction,
+      includeMarketingPlan: meta.includeMarketingPlan,
       requestedVideoProvider: meta.requestedVideoProvider,
       resolvedVideoProvider: meta.resolvedVideoProvider,
       resolvedVideoModel: meta.resolvedVideoModel,
@@ -2936,6 +2958,7 @@ export class WorksService {
       referenceImageUrl: this.readOptionalString(meta.referenceImageUrl),
       copyAdditionalInstruction: this.readOptionalString(meta.copyAdditionalInstruction),
       videoAdditionalInstruction: this.readOptionalString(meta.videoAdditionalInstruction),
+      includeMarketingPlan: meta.includeMarketingPlan !== false,
       requestedVideoProvider: this.readOptionalString(meta.requestedVideoProvider) || "seedance",
       resolvedVideoProvider: this.readOptionalString(meta.resolvedVideoProvider) || this.readOptionalString(meta.requestedVideoProvider) || "seedance",
       resolvedVideoModel: this.readOptionalString(meta.resolvedVideoModel),
@@ -3092,8 +3115,9 @@ export class WorksService {
 
   private loadVideoSkillPrompt() {
     const skillPrompt = this.readFirstExistingTextFromCandidates(this.resolveVideoSkillPromptCandidates());
+    const referenceExcerpt = this.loadVideoSkillReferenceExcerpt();
     if (skillPrompt) {
-      return skillPrompt;
+      return [skillPrompt, referenceExcerpt].filter(Boolean).join("\n\n");
     }
     return [
       "# short-video-api-studio",
@@ -3111,6 +3135,48 @@ export class WorksService {
     ];
   }
 
+  private loadVideoSkillReferenceExcerpt() {
+    const candidates = [
+      {
+        title: "商业短片五大场景参考",
+        paths: [
+          resolve(this.resolveAiWorkspaceRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "03_商业短片五大场景参考.md"),
+          resolve(this.resolveOperationRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "03_商业短片五大场景参考.md"),
+        ],
+        maxChars: 1600,
+      },
+      {
+        title: "社媒创意营销短片参考",
+        paths: [
+          resolve(this.resolveAiWorkspaceRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "04_社媒创意营销短片参考.md"),
+          resolve(this.resolveOperationRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "04_社媒创意营销短片参考.md"),
+        ],
+        maxChars: 1400,
+      },
+      {
+        title: "10到15秒分段生成参考",
+        paths: [
+          resolve(this.resolveAiWorkspaceRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "05_API调用与10到15秒分段生成参考.md"),
+          resolve(this.resolveOperationRoot(), "提示词", "short-video-api-studio", "short-video-api-studio", "05_API调用与10到15秒分段生成参考.md"),
+        ],
+        maxChars: 1400,
+      },
+    ];
+    const sections = candidates
+      .map((item) => {
+        const content = this.readFirstExistingTextFromCandidates(item.paths);
+        if (!content) {
+          return "";
+        }
+        return [`## ${item.title} 摘录`, content.slice(0, item.maxChars).trim()].join("\n");
+      })
+      .filter(Boolean);
+    if (!sections.length) {
+      return "";
+    }
+    return ["# short-video-api-studio 参考摘录", ...sections].join("\n\n");
+  }
+
   private readFirstExistingTextFromCandidates(candidates: string[]) {
     for (const filePath of candidates) {
       if (existsSync(filePath)) {
@@ -3118,6 +3184,20 @@ export class WorksService {
       }
     }
     return "";
+  }
+
+  private buildVideoMarketingPlanContext(markdown: string) {
+    const blockedPattern = /(¥|￥|\b\d+\s*元\b|优惠|折扣|券|抽[0-9一二三四五六七八九十]+位|门店|核销|下单|购买|团购|自提|直播|sku|SKU|价格|限时|促销)/i;
+    const filteredLines = String(markdown || "")
+      .split(/\r?\n/)
+      .map((item) => item.trimEnd())
+      .filter((item) => item.trim() && !blockedPattern.test(item))
+      .slice(0, 80);
+    return [
+      "视频笔记文案和视频提示词阶段，只允许参考营销策划中的品牌调性、人群洞察、情绪目标、内容结构与场景方向。",
+      "默认不要把价格、门店数、优惠、抽奖、购买路径、促销口号直接写进正文或镜头脚本，除非用户额外明确要求。",
+      ...filteredLines,
+    ].join("\n");
   }
 
   private loadImageAnalysisPrompt() {
@@ -3551,12 +3631,13 @@ export class WorksService {
       differentiators: string;
       imageUrl?: string;
     };
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
-  }): Promise<OriginalCopyModelResult> {
+  }): Promise<VideoCopyModelResult> {
     const skillPrompt = this.loadVideoCopyPrompt();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
-      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -3579,6 +3660,7 @@ export class WorksService {
           }
         : null,
       additional_instruction: params.additionalInstruction,
+      include_marketing_plan: params.includeMarketingPlan !== false,
       note_type: "VIDEO",
       platform: "XIAOHONGSHU",
     };
@@ -3587,10 +3669,22 @@ export class WorksService {
       "",
       "你当前要输出一篇可直接发布的小红书原创视频笔记文案。",
       "请先按 short-video-api-studio 的方法完成商业场景、任务类型、镜头节奏和情绪结构理解，再生成与后续视频镜头相匹配的标题与正文。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能使用营销日历选题、产品资料、参考图和用户要求，禁止自行吸收营销策划方案里的卖点、产品矩阵、价格、门店、促销或投放口径。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，禁止把产品卖点表、价格、门店、促销口径直接写进正文。",
       "正文不能退化成普通图文种草稿，必须和后续 10-15 秒短视频的开场钩子、镜头承接和结尾互动一致。",
+      "正文默认禁止写成硬广口播、价格播报、优惠券通知、门店数量宣传、抽奖送券或直接下单引导，除非用户额外明确要求。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
+      '  "business_scene": "商业场景",',
+      '  "video_type": "任务类型",',
+      '  "communication_goal": "这条视频和正文要完成的传播目标",',
+      '  "story_hook": "开场钩子",',
+      '  "motion_language": "运镜/节奏语言",',
+      '  "shot_language": "镜头组织方式",',
+      '  "segment_strategy": "10-15秒如何拆段推进",',
+      '  "anti_error_rules": ["不要写成什么", "不要出现什么"],',
       '  "title": "20字以内标题",',
       '  "content": "适合小红书视频笔记的正文，建议包含镜头/情绪承接和结尾互动",',
       '  "hashtags": ["标签1", "标签2"]',
@@ -3627,6 +3721,7 @@ export class WorksService {
               const title = String(parsed.title ?? "").trim();
               const body = String(parsed.content ?? "").trim();
               const hashtags = this.normalizeStringArray(parsed.hashtags ?? parsed.tags, [], 8);
+              const antiErrorRules = this.normalizeStringArray(parsed.anti_error_rules ?? parsed.antiErrorRules, [], 8);
               if (!title || !body) {
                 lastError = `${provider.provider}/${modelName} 返回字段不完整`;
                 continue;
@@ -3636,6 +3731,14 @@ export class WorksService {
                 content: body,
                 hashtags: hashtags.length ? hashtags : this.extractHashtagsFromContent(body),
                 modelName,
+                businessScene: this.readOptionalString(parsed.business_scene ?? parsed.businessScene),
+                videoType: this.readOptionalString(parsed.video_type ?? parsed.videoType),
+                communicationGoal: this.readOptionalString(parsed.communication_goal ?? parsed.communicationGoal),
+                storyHook: this.readOptionalString(parsed.story_hook ?? parsed.storyHook),
+                motionLanguage: this.readOptionalString(parsed.motion_language ?? parsed.motionLanguage),
+                shotLanguage: this.readOptionalString(parsed.shot_language ?? parsed.shotLanguage),
+                segmentStrategy: this.readOptionalString(parsed.segment_strategy ?? parsed.segmentStrategy),
+                antiErrorRules,
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "视频笔记文案生成失败";
@@ -3672,15 +3775,24 @@ export class WorksService {
     };
     noteTitle: string;
     noteContent: string;
+    copyBusinessScene?: string;
+    copyVideoType?: string;
+    copyCommunicationGoal?: string;
+    copyStoryHook?: string;
+    copyMotionLanguage?: string;
+    copyShotLanguage?: string;
+    copySegmentStrategy?: string;
+    copyAntiErrorRules?: string[];
     requestedVideoProvider: string;
     requestedDurationSec: number;
     referenceImageUrl?: string;
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<VideoPromptModelResult> {
     const skillPrompt = this.loadShortVideoPromptSkill();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
-      marketingPlanMarkdown: params.marketingPlanMarkdown,
+      marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -3704,9 +3816,20 @@ export class WorksService {
         : null,
       noteTitle: params.noteTitle,
       noteContent: params.noteContent,
+      copy_plan: {
+        businessScene: params.copyBusinessScene,
+        videoType: params.copyVideoType,
+        communicationGoal: params.copyCommunicationGoal,
+        storyHook: params.copyStoryHook,
+        motionLanguage: params.copyMotionLanguage,
+        shotLanguage: params.copyShotLanguage,
+        segmentStrategy: params.copySegmentStrategy,
+        antiErrorRules: params.copyAntiErrorRules || [],
+      },
       requestedVideoProvider: params.requestedVideoProvider,
       requestedDurationSec: params.requestedDurationSec,
       referenceImageUrl: params.referenceImageUrl,
+      include_marketing_plan: params.includeMarketingPlan !== false,
       additional_instruction: params.additionalInstruction,
       output_language: "zh-CN",
       aspect_ratio: "9:16",
@@ -3717,6 +3840,11 @@ export class WorksService {
       "",
       "你当前需要输出短视频生成所需的结构化提示词。",
       "必须尽量遵循 short-video-api-studio 的执行结构，先识别商业场景与任务类型，再给出分段 brief、连续性规则和最终视频提示词。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能基于营销日历选题、产品资料、参考图、正文和用户要求生成镜头，不要吸收营销策划方案中的产品矩阵、卖点清单、价格、门店、促销或投放表达。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，不要把产品卖点表、价格、门店、促销和投放表达直接翻译成视频提示词。",
+      "输入里的 copy_plan 是上一阶段已经完成的视频推理层，请优先沿用它，不要重新退化成普通带货稿或促销海报说明。",
+      "如果 copy_plan 已经明确禁止价格播报、优惠券、门店数量、抽奖送券、直接下单引导，你必须在视频提示词里继续遵守。",
       "本次输出至少要覆盖：business_scene、video_type、segment_brief、reference_strategy、pad_image_strategy、continuity_rules、segment_prompts、video_prompt、full_video_prompt。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
@@ -3924,10 +4052,10 @@ export class WorksService {
           apiKeys,
           createPath: "/v2/videos/generations",
           queryPath: "/v2/videos/generations/{task_id}",
-          textModel: "doubao-seedance-1-0-pro-250528",
-          imageModel: "doubao-seedance-1-0-lite-i2v-250428",
-          fastModel: "doubao-seedance-1-0-lite-t2v-250428",
-          proModel: "doubao-seedance-1-0-pro-250528",
+          textModel: "doubao-seedance-2-0-260128",
+          imageModel: "doubao-seedance-2-0-260128",
+          fastModel: "doubao-seedance-2-0-260128",
+          proModel: "doubao-seedance-2-0-260128",
           requestTimeoutMs: 240000,
         };
     }
@@ -3939,7 +4067,8 @@ export class WorksService {
       .toLowerCase()
       .replace(/\s+/g, "")
       .replace(/_/g, "")
-      .replace(/-/g, "");
+      .replace(/-/g, "")
+      .replace(/\./g, "");
     if (!normalized) {
       return "seedance";
     }
