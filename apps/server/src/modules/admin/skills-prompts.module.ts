@@ -5,5 +5,6 @@ import { SkillsPromptsService } from "./skills-prompts.service";
 @Module({
   controllers: [SkillsPromptsController],
   providers: [SkillsPromptsService],
+  exports: [SkillsPromptsService],
 })
 export class SkillsPromptsModule {}

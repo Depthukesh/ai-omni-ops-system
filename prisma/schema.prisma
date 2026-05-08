@@ -314,3 +314,31 @@ model UserFeishuIntegration {
 
   @@index([updatedAt])
 }
+
+model SkillConfig {
+  id           String   @id
+  name         String
+  slug         String   @unique
+  category     String
+  status       String
+  provider     String
+  defaultModel String
+  pointsCost   Int      @default(0)
+  description  String   @default("")
+  updatedAt    DateTime @default(now())
+}
+
+model PromptTemplate {
+  id          String   @id
+  name        String
+  scene       String
+  version     String
+  status      String
+  modelName   String
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(4000)
+  content     String   @default("")
+  updatedAt   DateTime @default(now())
+
+  @@index([scene, updatedAt(sort: Desc)])
+}

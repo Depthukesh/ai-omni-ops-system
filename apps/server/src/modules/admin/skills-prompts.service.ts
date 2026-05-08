@@ -1,7 +1,35 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
+import { PrismaService } from "../../prisma/prisma.service";
+
+type SkillConfigRow = {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  status: SkillConfigRecord["status"];
+  provider: string;
+  defaultModel: string;
+  pointsCost: number;
+  description: string;
+  updatedAt: Date | string;
+};
+
+type PromptTemplateRow = {
+  id: string;
+  name: string;
+  scene: string;
+  version: string;
+  status: PromptTemplateRecord["status"];
+  modelName: string;
+  temperature: number;
+  maxTokens: number;
+  content: string;
+  updatedAt: Date | string;
+};
 
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
@@ -20,6 +48,8 @@ export type UpdatePromptTemplatePayload = {
 
 @Injectable()
 export class SkillsPromptsService {
+  private registryBootstrapPromise?: Promise<void>;
+
   private readonly promptFileCandidates: Record<string, string[]> = {
     prompt_xhs_original_copy: [
       "../../../提示词/original_copy/original_copy/SKILL.md",
@@ -33,7 +63,7 @@ export class SkillsPromptsService {
       "../../../提示词/rewrite_copy/SKILL.md",
       "../提示词/rewrite_copy/SKILL.md",
     ],
-    prompt_xhs_rewrite_image: [
+    prompt_xhs_rewrite_note: [
       "../../../提示词/rewrite_image/SKILL.md",
       "../提示词/rewrite_image/SKILL.md",
     ],
@@ -41,18 +71,52 @@ export class SkillsPromptsService {
       "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
       "../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
     ],
+    prompt_growth_report: [
+      "../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
+      "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",
+    ],
+    prompt_visual_report: [
+      "../../../提示词/article-visual-report-designer/SKILL.md",
+    ],
+    prompt_xhs_plan: [
+      "../../../提示词/_xhs-plan-skill/xiaohongshu-brand-marketing-plan/SKILL.md",
+    ],
   };
 
-  listSkills() {
-    return [...database.skillConfigs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  constructor(
+    @Inject(PrismaService)
+    private readonly prismaService: PrismaService,
+  ) {}
+
+  async listSkills() {
+    return this.listSkillRows();
   }
 
-  updateSkill(id: string, payload: UpdateSkillConfigPayload) {
+  async updateSkill(id: string, payload: UpdateSkillConfigPayload) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const current = await this.findSkillByIdFromDatabase(id);
+      if (!current) {
+        throw new NotFoundException("技能配置不存在");
+      }
+      const updatedRows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+        UPDATE "SkillConfig"
+        SET
+          "status" = ${payload.status ?? current.status},
+          "defaultModel" = ${payload.defaultModel ?? current.defaultModel},
+          "pointsCost" = ${payload.pointsCost ?? current.pointsCost},
+          "description" = ${payload.description ?? current.description},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${id}
+        RETURNING *
+      `;
+      return this.normalizeSkillConfigRow(updatedRows[0] ?? current);
+    }
+
     const skill = database.skillConfigs.find((item) => item.id === id);
     if (!skill) {
       throw new NotFoundException("技能配置不存在");
     }
-
     if (payload.status) {
       skill.status = payload.status;
     }
@@ -66,23 +130,46 @@ export class SkillsPromptsService {
       skill.description = payload.description;
     }
     skill.updatedAt = new Date().toISOString();
-
-    return skill;
+    return { ...skill };
   }
 
-  listPrompts() {
-    database.promptTemplates.forEach((item) => {
-      this.syncPromptContentFromFile(item);
-    });
-    return [...database.promptTemplates].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  async listPrompts() {
+    return this.listPromptRows();
   }
 
-  updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
+  async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const current = await this.findPromptByIdFromDatabase(id);
+      if (!current) {
+        throw new NotFoundException("提示词模板不存在");
+      }
+
+      const nextContent =
+        payload.content !== undefined ? this.normalizePromptContent(payload.content) : current.content;
+      if (payload.content !== undefined) {
+        this.writePromptContentToFile(id, nextContent);
+      }
+
+      const updatedRows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+        UPDATE "PromptTemplate"
+        SET
+          "status" = ${payload.status ?? current.status},
+          "modelName" = ${payload.modelName ?? current.modelName},
+          "temperature" = ${payload.temperature ?? current.temperature},
+          "maxTokens" = ${payload.maxTokens ?? current.maxTokens},
+          "content" = ${nextContent},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${id}
+        RETURNING *
+      `;
+      return this.normalizePromptTemplateRow(updatedRows[0] ?? { ...current, content: nextContent });
+    }
+
     const prompt = database.promptTemplates.find((item) => item.id === id);
     if (!prompt) {
       throw new NotFoundException("提示词模板不存在");
     }
-
     if (payload.status) {
       prompt.status = payload.status;
     }
@@ -97,12 +184,244 @@ export class SkillsPromptsService {
     }
     if (payload.content !== undefined) {
       const nextContent = this.normalizePromptContent(payload.content);
-      this.writePromptContentToFile(prompt, nextContent);
+      this.writePromptContentToFile(id, nextContent);
       prompt.content = nextContent;
     }
     prompt.updatedAt = new Date().toISOString();
+    return { ...prompt };
+  }
 
-    return prompt;
+  async getActiveSkillBySlug(slug: string) {
+    const skill = await this.getSkillBySlug(slug);
+    return skill?.status === "ACTIVE" ? skill : undefined;
+  }
+
+  async getSkillBySlug(slug: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const row = await this.findSkillBySlugFromDatabase(slug);
+      if (row) {
+        return this.normalizeSkillConfigRow(row);
+      }
+    }
+    const skill = database.skillConfigs.find((item) => item.slug === slug);
+    return skill ? { ...skill } : undefined;
+  }
+
+  async getPromptById(id: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const row = await this.findPromptByIdFromDatabase(id);
+      if (row) {
+        return this.normalizePromptTemplateRow(row);
+      }
+    }
+    const prompt = database.promptTemplates.find((item) => item.id === id);
+    if (!prompt) {
+      return undefined;
+    }
+    const clone = { ...prompt };
+    this.syncPromptContentFromFile(clone);
+    return clone;
+  }
+
+  async getActivePromptById(id: string) {
+    const prompt = await this.getPromptById(id);
+    return prompt?.status === "ACTIVE" ? prompt : undefined;
+  }
+
+  async getActivePromptByScene(scenes: string[]) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+        SELECT *
+        FROM "PromptTemplate"
+        WHERE "scene" = ANY(${scenes}::text[])
+          AND "status" = 'ACTIVE'
+        ORDER BY "updatedAt" DESC
+      `;
+      const row = rows[0];
+      if (row) {
+        return this.normalizePromptTemplateRow(row);
+      }
+    }
+
+    const prompt = database.promptTemplates.find(
+      (item) => scenes.includes(item.scene) && item.status === "ACTIVE",
+    );
+    if (!prompt) {
+      return undefined;
+    }
+    const clone = { ...prompt };
+    this.syncPromptContentFromFile(clone);
+    return clone;
+  }
+
+  private async listSkillRows() {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+        SELECT *
+        FROM "SkillConfig"
+        ORDER BY "updatedAt" DESC
+      `;
+      return rows.map((item) => this.normalizeSkillConfigRow(item));
+    }
+    return database.skillConfigs.map((item) => ({ ...item }));
+  }
+
+  private async listPromptRows() {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+        SELECT *
+        FROM "PromptTemplate"
+        ORDER BY "updatedAt" DESC
+      `;
+      return rows.map((item) => this.normalizePromptTemplateRow(item));
+    }
+    return database.promptTemplates.map((item) => {
+      const clone = { ...item };
+      this.syncPromptContentFromFile(clone);
+      return clone;
+    });
+  }
+
+  private async ensureRegistryTablesReady() {
+    if (!this.registryBootstrapPromise) {
+      this.registryBootstrapPromise = this.bootstrapRegistryTables();
+    }
+    await this.registryBootstrapPromise;
+  }
+
+  private async bootstrapRegistryTables() {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return;
+    }
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SkillConfig" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "slug" TEXT NOT NULL UNIQUE,
+        "category" TEXT NOT NULL,
+        "status" TEXT NOT NULL,
+        "provider" TEXT NOT NULL,
+        "defaultModel" TEXT NOT NULL,
+        "pointsCost" INTEGER NOT NULL DEFAULT 0,
+        "description" TEXT NOT NULL DEFAULT '',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "PromptTemplate" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "scene" TEXT NOT NULL,
+        "version" TEXT NOT NULL,
+        "status" TEXT NOT NULL,
+        "modelName" TEXT NOT NULL,
+        "temperature" DOUBLE PRECISION NOT NULL DEFAULT 0.7,
+        "maxTokens" INTEGER NOT NULL DEFAULT 4000,
+        "content" TEXT NOT NULL DEFAULT '',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "PromptTemplate_scene_updatedAt_idx" ON "PromptTemplate" ("scene", "updatedAt" DESC)`,
+    );
+
+    for (const skill of database.skillConfigs) {
+      await this.prismaService.$executeRaw`
+        INSERT INTO "SkillConfig" (
+          "id",
+          "name",
+          "slug",
+          "category",
+          "status",
+          "provider",
+          "defaultModel",
+          "pointsCost",
+          "description",
+          "updatedAt"
+        )
+        VALUES (
+          ${skill.id},
+          ${skill.name},
+          ${skill.slug},
+          ${skill.category},
+          ${skill.status},
+          ${skill.provider},
+          ${skill.defaultModel},
+          ${skill.pointsCost},
+          ${skill.description},
+          ${new Date(skill.updatedAt)}
+        )
+        ON CONFLICT ("id") DO NOTHING
+      `;
+    }
+
+    for (const prompt of database.promptTemplates) {
+      const seedPrompt = { ...prompt };
+      this.syncPromptContentFromFile(seedPrompt);
+      await this.prismaService.$executeRaw`
+        INSERT INTO "PromptTemplate" (
+          "id",
+          "name",
+          "scene",
+          "version",
+          "status",
+          "modelName",
+          "temperature",
+          "maxTokens",
+          "content",
+          "updatedAt"
+        )
+        VALUES (
+          ${seedPrompt.id},
+          ${seedPrompt.name},
+          ${seedPrompt.scene},
+          ${seedPrompt.version},
+          ${seedPrompt.status},
+          ${seedPrompt.modelName},
+          ${seedPrompt.temperature},
+          ${seedPrompt.maxTokens},
+          ${seedPrompt.content},
+          ${new Date(seedPrompt.updatedAt)}
+        )
+        ON CONFLICT ("id") DO NOTHING
+      `;
+    }
+  }
+
+  private async findSkillByIdFromDatabase(id: string) {
+    const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+      SELECT *
+      FROM "SkillConfig"
+      WHERE "id" = ${id}
+      LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  private async findSkillBySlugFromDatabase(slug: string) {
+    const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+      SELECT *
+      FROM "SkillConfig"
+      WHERE "slug" = ${slug}
+      LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  private async findPromptByIdFromDatabase(id: string) {
+    const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+      SELECT *
+      FROM "PromptTemplate"
+      WHERE "id" = ${id}
+      LIMIT 1
+    `;
+    return rows[0];
   }
 
   private syncPromptContentFromFile(prompt: PromptTemplateRecord) {
@@ -116,12 +435,12 @@ export class SkillsPromptsService {
         prompt.content = fileContent;
       }
     } catch {
-      // Ignore unreadable prompt files and keep in-memory content.
+      // Ignore unreadable prompt files and keep the current content.
     }
   }
 
-  private writePromptContentToFile(prompt: PromptTemplateRecord, content: string) {
-    const filePath = this.resolvePromptFilePath(prompt.id);
+  private writePromptContentToFile(promptId: string, content: string) {
+    const filePath = this.resolvePromptFilePath(promptId);
     if (!filePath) {
       return;
     }
@@ -156,5 +475,43 @@ export class SkillsPromptsService {
       return "";
     }
     return JSON.stringify(content, null, 2);
+  }
+
+  private normalizeSkillConfigRow(row: SkillConfigRow): SkillConfigRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      category: row.category,
+      status: row.status,
+      provider: row.provider,
+      defaultModel: row.defaultModel,
+      pointsCost: Number(row.pointsCost || 0),
+      description: row.description,
+      updatedAt: this.normalizeDate(row.updatedAt),
+    };
+  }
+
+  private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      scene: row.scene,
+      version: row.version,
+      status: row.status,
+      modelName: row.modelName,
+      temperature: Number(row.temperature || 0),
+      maxTokens: Number(row.maxTokens || 0),
+      content: row.content || "",
+      updatedAt: this.normalizeDate(row.updatedAt),
+    };
+  }
+
+  private normalizeDate(value: Date | string) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
   }
 }

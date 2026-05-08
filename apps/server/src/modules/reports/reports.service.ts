@@ -6,6 +6,7 @@ import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type AssetRecord } from "../../common/mock-data";
 import { CollectorsService } from "../collectors/collectors.service";
 import { BrandsService } from "../brands/brands.service";
+import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import { PrismaService } from "../../prisma/prisma.service";
 const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
@@ -398,6 +399,8 @@ export class ReportsService {
     private readonly brandsService: BrandsService,
     @Inject(CollectorsService)
     private readonly collectorsService: CollectorsService,
+    @Inject(SkillsPromptsService)
+    private readonly skillsPromptsService: SkillsPromptsService,
   ) {}
 
   async getGrowthReportWorkspace(brandId: string): Promise<GrowthReportWorkspace> {
@@ -1359,7 +1362,7 @@ export class ReportsService {
 
   private async createVisualGrowthReportTask(brandId: string, sourceReport: GrowthReportRecord) {
     const now = new Date().toISOString();
-    const settings = this.loadVisualReportGenerationSettings();
+    const settings = await this.loadVisualReportGenerationSettings();
     const modelName = this.loadDomesticVisualProviderConfigs(settings)[0]?.models[0] || "deepseek-v4-flash";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -1417,7 +1420,7 @@ export class ReportsService {
 
   private async createAnnualMarketingPlanTask(brandId: string, sourceReport: GrowthReportRecord) {
     const now = new Date().toISOString();
-    const settings = this.loadAnnualMarketingPlanGenerationSettings();
+    const settings = await this.loadAnnualMarketingPlanGenerationSettings();
     const modelName =
       this.loadAnnualMarketingProviderConfigs(settings)[0]?.models[0]
       || "gpt-5.5";
@@ -1481,7 +1484,7 @@ export class ReportsService {
     annualPlan: AnnualMarketingPlanRecord,
   ) {
     const now = new Date().toISOString();
-    const settings = this.loadXiaohongshuMarketingPlanGenerationSettings();
+    const settings = await this.loadXiaohongshuMarketingPlanGenerationSettings();
     const modelName =
       this.loadXiaohongshuMarketingProviderConfigs(settings)[0]?.models[0]
       || "gpt-5.5";
@@ -2464,7 +2467,7 @@ export class ReportsService {
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>;
     generatedAt: string;
   }) {
-    const prompt = this.loadGrowthAnalysisSkillPrompt();
+    const prompt = await this.loadGrowthAnalysisSkillPrompt();
     const inputPayload = this.buildGrowthAnalysisInput(params.archive, params.collection, params.generatedAt);
     const modelResult = await this.generateReportByModel(prompt, inputPayload);
     const metrics = {
@@ -2492,7 +2495,7 @@ export class ReportsService {
     sourceReport: GrowthReportRecord;
     generatedAt: string;
   }) {
-    const settings = this.loadVisualReportGenerationSettings();
+    const settings = await this.loadVisualReportGenerationSettings();
     const prompt = this.loadVisualReportSkillPrompt(settings);
     const inputPayload = this.buildVisualReportInput(params.sourceReport, params.generatedAt);
     const outline = await this.generateVisualReportByModel(prompt, inputPayload, settings);
@@ -2512,7 +2515,7 @@ export class ReportsService {
     sourceReport: GrowthReportRecord;
     generatedAt: string;
   }) {
-    const settings = this.loadAnnualMarketingPlanGenerationSettings();
+    const settings = await this.loadAnnualMarketingPlanGenerationSettings();
     const prompt = this.loadAnnualMarketingPlanPrompt(settings);
     const inputPayload = this.buildAnnualMarketingPlanInput(params.archive, params.sourceReport, params.generatedAt);
     const modelResult = await this.generateAnnualMarketingPlanByModel(prompt, inputPayload, settings);
@@ -2540,8 +2543,8 @@ export class ReportsService {
       },
     ) => Promise<void>;
   }) {
-    const settings = this.loadXiaohongshuMarketingPlanGenerationSettings();
-    const skillPrompt = this.loadXiaohongshuMarketingSkillMarkdown();
+    const settings = await this.loadXiaohongshuMarketingPlanGenerationSettings();
+    const skillPrompt = await this.loadXiaohongshuMarketingSkillMarkdown();
     const inputPayload = this.buildXiaohongshuMarketingPlanInput(
       params.archive,
       params.collection,
@@ -2633,7 +2636,7 @@ export class ReportsService {
   }
 
   private async generateReportByModel(skillPrompt: string, inputPayload: Record<string, unknown>): Promise<GrowthReportModelResult> {
-    const config = this.loadThirdPartyChatConfig(this.loadGrowthReportGenerationSettings());
+    const config = this.loadThirdPartyChatConfig(await this.loadGrowthReportGenerationSettings());
     const systemPrompt = [
       skillPrompt,
       "",
@@ -2979,14 +2982,26 @@ export class ReportsService {
     },
   ): Promise<XiaohongshuMarketingCalendarModelResult> {
     const providers = this.loadXiaohongshuMarketingCalendarProviderConfigs(settings);
+    const startDate = String(inputPayload.startDate ?? "").trim();
+    const expectedDates = this.normalizeStringArray(
+      inputPayload.expectedDates,
+      this.buildExpectedCalendarDates(startDate, Number(inputPayload.days ?? 7)),
+      7,
+    ).filter(Boolean);
     const systemPrompt = [
       skillPrompt,
       "",
       "请输出未来 7 天的营销日历。",
       "输入包含营销策划方案、全年规划、素材库、每日热点和历史记录。",
       "从 startDate 开始连续输出 7 天，不要遗漏日期，不要与历史日期重复。",
+      expectedDates.length
+        ? `必须严格覆盖这 7 个日期，且顺序保持一致：${expectedDates.join("、")}`
+        : "必须严格覆盖从 startDate 开始的连续 7 个日期，且顺序保持一致。",
+      "items 中每一项都必须包含非空的 date、topicName、contentGoal、expressionFocus、topicContent。",
+      "不允许合并日期、不允许跳过日期、不允许返回少于 7 条，也不允许输出历史日期。",
       "只输出 JSON 对象，不要输出 Markdown 或代码块。",
       "JSON 必须包含 title、summary、items；items 必须正好 7 条。",
+      "items 的 date 必须只从 expectedDates 中选取，每个日期只能出现一次。",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -3006,8 +3021,10 @@ export class ReportsService {
                 provider.requestTimeoutMs ?? 240000,
               );
               if (!response.ok) {
-                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=http_${response.status}`);
+                const responseText = this.truncateText(await response.text(), 240);
+                const responseDetail = responseText ? ` ${responseText}` : "";
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=http_${response.status}${responseText ? `:${responseText}` : ""}`);
                 continue;
               }
               const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
@@ -3770,6 +3787,7 @@ ${normalizedMarkdown}`;
       generatedAt,
       startDate,
       days: 7,
+      expectedDates: this.buildExpectedCalendarDates(startDate, 7),
       inputScope: {
         brandArchive: {
           background: archive.brand,
@@ -4098,8 +4116,8 @@ ${normalizedMarkdown}`;
     return section.join("\n");
   }
 
-  private loadGrowthAnalysisSkillPrompt() {
-    const backendSettings = this.loadGrowthReportGenerationSettings();
+  private async loadGrowthAnalysisSkillPrompt() {
+    const backendSettings = await this.loadGrowthReportGenerationSettings();
     if (backendSettings.promptContent) {
       return backendSettings.promptContent;
     }
@@ -4238,7 +4256,11 @@ ${normalizedMarkdown}`;
     ].join("\n");
   }
 
-  private loadXiaohongshuMarketingSkillMarkdown() {
+  private async loadXiaohongshuMarketingSkillMarkdown() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
+    if (prompt?.content?.trim()) {
+      return prompt.content.trim();
+    }
     const skillDir = resolve(this.resolveAiWorkspaceRoot(), "提示词", "_xhs-plan-skill", "xiaohongshu-brand-marketing-plan");
     const skillPath = resolve(skillDir, "SKILL.md");
     if (existsSync(skillPath)) {
@@ -4306,9 +4328,9 @@ ${normalizedMarkdown}`;
     return resolve(this.resolveAiWorkspaceRoot(), "..");
   }
 
-  private loadGrowthReportGenerationSettings(): ModelGenerationSettings {
-    const skill = database.skillConfigs.find((item) => item.slug === "brand-omni-growth-analysis" && item.status === "ACTIVE");
-    const prompt = database.promptTemplates.find((item) => item.scene === "鍝佺墝澧為暱鎶ュ憡鐢熸垚" && item.status === "ACTIVE");
+  private async loadGrowthReportGenerationSettings(): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("brand-omni-growth-analysis");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_growth_report");
     const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
     return {
       baseUrl: provider?.baseUrl || "",
@@ -4319,13 +4341,9 @@ ${normalizedMarkdown}`;
     };
   }
 
-  private loadVisualReportGenerationSettings(): ModelGenerationSettings {
-    const skill = database.skillConfigs.find((item) => item.slug === "article-visual-report-designer" && item.status === "ACTIVE");
-    const prompt = database.promptTemplates.find(
-      (item) =>
-        (item.scene === "品牌增长可视化报告生成" || item.scene === "HTML 可视化报告生成")
-        && item.status === "ACTIVE",
-    );
+  private async loadVisualReportGenerationSettings(): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("article-visual-report-designer");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_visual_report");
     const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
     return {
       baseUrl: provider?.baseUrl && !provider.baseUrl.includes(".local") ? provider.baseUrl : "",
@@ -4339,22 +4357,24 @@ ${normalizedMarkdown}`;
     };
   }
 
-  private loadAnnualMarketingPlanGenerationSettings(): ModelGenerationSettings {
-    const prompt = database.promptTemplates.find(
-      (item) => item.scene === "鍏ㄥ勾钀ラ攢瑙勫垝鐢熸垚" && item.status === "ACTIVE",
-    );
+  private async loadAnnualMarketingPlanGenerationSettings(): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("enterprise-annual-plan");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_annual_marketing_plan");
     return {
       baseUrl: "",
-      modelName: prompt?.modelName || "gpt-5.5, claude-sonnet-4-6, deepseek-v4-flash, doubao-seed-2-0-mini-260215",
+      modelName:
+        prompt?.modelName
+        || skill?.defaultModel
+        || "gpt-5.5, claude-sonnet-4-6, deepseek-v4-flash, doubao-seed-2-0-mini-260215",
       temperature: prompt?.temperature ?? 0.5,
       maxTokens: prompt?.maxTokens ?? 4200,
       promptContent: prompt?.content || "",
     };
   }
 
-  private loadXiaohongshuMarketingPlanGenerationSettings(): ModelGenerationSettings {
-    const skill = database.skillConfigs.find((item) => item.slug === "xiaohongshu-brand-marketing-plan" && item.status === "ACTIVE");
-    const prompt = database.promptTemplates.find((item) => item.scene === "灏忕孩涔﹁惀閿€瑙勫垝" && item.status === "ACTIVE");
+  private async loadXiaohongshuMarketingPlanGenerationSettings(): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-brand-marketing-plan");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
     const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
     return {
       baseUrl: provider?.baseUrl || "",
@@ -4590,7 +4610,7 @@ ${normalizedMarkdown}`;
         models: kimiModels,
         temperature: 1,
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
-        requestTimeoutMs: 240000,
+        requestTimeoutMs: 360000,
         tokenLimitField: "max_completion_tokens",
         payloadExtras: {
           response_format: { type: "json_object" },
@@ -5043,6 +5063,13 @@ ${normalizedMarkdown}`;
     return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
   }
 
+  private buildExpectedCalendarDates(startDate: string, days: number) {
+    if (!startDate || !Number.isFinite(days) || days <= 0) {
+      return [];
+    }
+    return Array.from({ length: days }, (_, index) => this.shiftDate(startDate, index)).filter(Boolean);
+  }
+
   private normalizeXiaohongshuMarketingCalendarModelResult(
     content: string,
     inputPayload: Record<string, unknown>,
@@ -5059,7 +5086,7 @@ ${normalizedMarkdown}`;
     const title = String(parsed.title ?? "").trim() || "营销日历";
     const items = this.normalizeXiaohongshuMarketingCalendarItems(parsed.items, startDate);
     if (items.length < 7) {
-      throw new ServiceUnavailableException("营销日历解析失败：返回天数不足 7 天");
+      throw new ServiceUnavailableException(`营销日历解析失败：返回天数不足 7 天（实际 ${items.length} 天）`);
     }
     return {
       title,

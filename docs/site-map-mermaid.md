@@ -59,11 +59,13 @@ flowchart TD
     D --> D4["任务域"]
     D --> D5["媒体资产域"]
     D --> D6["飞书授权域"]
+    D --> D7["技能/提示词注册域"]
 
     E --> E1["site-map.md 文字地图"]
     E --> E2["site-map-mermaid.md Mermaid 地图"]
     E --> E3["engineering-standards.md"]
     E --> E4["changes/*.md"]
+    E --> E5["database-archive.md"]
 
     F --> F1["dev:web:stable"]
     F --> F2["dev:server:stable"]
@@ -336,6 +338,7 @@ flowchart TD
     AUI64 --> AUI642["点数成本 / 更新时间"]
     AUI64 --> AUI643["技能提示词 / 保存技能"]
     AUI643 --> AUI6431["优先展示真实 SKILL.md / .txt 全文"]
+    AUI643 --> AUI6432["数据库优先：SkillConfig / PromptTemplate"]
     Admin --> AUI9["左侧浅底目录导航"]
     AS1 --> AAPI1["/orders/admin/list"]
     AS1 --> AAPI2["/admin/billing-rules"]
@@ -397,6 +400,9 @@ flowchart TD
     M10 --> M9
     M10 --> M1
     M10 --> M7
+    M10 --> M11["SkillsPromptsService"]
+    M11 --> M4
+    M11 --> M5
 ```
 
 ## 10. 核心数据模型关系图
@@ -416,6 +422,8 @@ flowchart TD
     T["Task"]
     MA["MediaAsset"]
     FI["UserFeishuIntegration"]
+    SC["SkillConfig"]
+    PT["PromptTemplate"]
 
     U --> MO
     U --> PL
@@ -434,6 +442,7 @@ flowchart TD
     B --> MA
 
     T --> MA
+    SC --> PT
 ```
 
 ## 11. 运行与维护地图
@@ -451,6 +460,7 @@ flowchart LR
     Docs --> D2["site-map-mermaid.md 结构图"]
     Docs --> D3["changes/*.md 变更记录"]
     Docs --> D4["engineering-standards.md 开发规范"]
+    Docs --> D5["database-archive.md 数据库存档"]
 ```
 
 ## 12. 维护规则

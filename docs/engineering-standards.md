@@ -186,6 +186,7 @@
 - 任何实际代码改动都要同步更新 `docs/changes/*.md`
 - 涉及结构、入口、主链路变化时同步更新 `docs/site-map.md`
 - 涉及结构关系和全局关联变化时同步更新 `docs/site-map-mermaid.md`
+- 涉及数据库 schema、迁移、正式持久化边界或业务板块入库路径变化时同步更新 `docs/database-archive.md`
 - 涉及通用约束变化时同步更新本规范文档
 - 涉及 Git 边界、暂存策略或备份流程变化时同步更新 `docs/git-workflow.md`
 - 涉及开发流程、交付闭环、记录清单变化时同步更新 `docs/development-delivery-checklist.md`

@@ -6,6 +6,7 @@ import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
@@ -461,6 +462,8 @@ export class WorksService {
     private readonly collectorsService: CollectorsService,
     @Inject(ReportsService)
     private readonly reportsService: ReportsService,
+    @Inject(SkillsPromptsService)
+    private readonly skillsPromptsService: SkillsPromptsService,
   ) {}
 
   async listXiaohongshuOriginalWorks(brandId: string) {
@@ -1236,7 +1239,10 @@ export class WorksService {
         workId: workMedia.id,
         title: copyResult.title,
         videoProvider: videoResult.provider,
+        videoModelName: videoResult.modelName,
         videoDurationSec: videoResult.renderedDurationSec ?? requestedDurationSec,
+      }, {
+        modelName: `deepseek-v4-pro + ${videoResult.provider}/${videoResult.modelName}`,
       });
 
       return {
@@ -1550,7 +1556,7 @@ export class WorksService {
     };
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
-    const skillPrompt = this.loadOriginalCopyPrompt();
+    const skillPrompt = await this.loadOriginalCopyPrompt();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
@@ -1672,7 +1678,7 @@ export class WorksService {
       galleryReferenceStyles?: string[];
     };
   }): Promise<OriginalImagePromptResult> {
-    const skillPrompt = this.loadOriginalImagePrompt();
+    const skillPrompt = await this.loadOriginalImagePrompt();
     const providers = this.loadOriginalImagePromptProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
@@ -1994,7 +2000,11 @@ export class WorksService {
     }
   }
 
-  private async markTaskSuccess(taskId: string, outputJson: Record<string, unknown>) {
+  private async markTaskSuccess(
+    taskId: string,
+    outputJson: Record<string, unknown>,
+    options?: { modelName?: string },
+  ) {
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
         where: { id: taskId },
@@ -2002,6 +2012,7 @@ export class WorksService {
           taskStatus: TaskStatus.SUCCESS,
           finishedAt: new Date(),
           outputJson: outputJson as Prisma.InputJsonValue,
+          ...(options?.modelName ? { modelName: options.modelName } : {}),
         },
       });
       return;
@@ -2012,6 +2023,9 @@ export class WorksService {
       task.taskStatus = "SUCCESS";
       task.finishedAt = new Date().toISOString();
       task.outputJson = outputJson;
+      if (options?.modelName) {
+        task.modelName = options.modelName;
+      }
       task.updatedAt = new Date().toISOString();
     }
   }
@@ -3037,7 +3051,11 @@ export class WorksService {
     return item.metadataJson;
   }
 
-  private loadOriginalCopyPrompt() {
+  private async loadOriginalCopyPrompt() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_original_copy");
+    if (prompt?.content?.trim()) {
+      return prompt.content.trim();
+    }
     const candidates = [
       resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "original_copy", "original_copy", "SKILL.md"),
       resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "original_copy", "original_copy", "SKILL.md"),
@@ -3054,7 +3072,11 @@ export class WorksService {
     ].join("\n");
   }
 
-  private loadOriginalImagePrompt() {
+  private async loadOriginalImagePrompt() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_original_note");
+    if (prompt?.content?.trim()) {
+      return prompt.content.trim();
+    }
     const candidates = [
       resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "original_image", "SKILL.md"),
       resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "original_image", "SKILL.md"),
@@ -3071,7 +3093,11 @@ export class WorksService {
     ].join("\n");
   }
 
-  private loadRewriteCopyPrompt() {
+  private async loadRewriteCopyPrompt() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_rewrite_copy");
+    if (prompt?.content?.trim()) {
+      return prompt.content.trim();
+    }
     const candidates = [
       resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
       resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_copy", "SKILL.md"),
@@ -3088,7 +3114,11 @@ export class WorksService {
     ].join("\n");
   }
 
-  private loadRewriteImagePrompt() {
+  private async loadRewriteImagePrompt() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_rewrite_note");
+    if (prompt?.content?.trim()) {
+      return prompt.content.trim();
+    }
     const candidates = [
       resolve(this.resolveAiWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_image", "SKILL.md"),
       resolve(this.resolveWorkspaceRoot(), ".runtime", "prompt_extract", "rewrite_image", "SKILL.md"),
@@ -3105,16 +3135,17 @@ export class WorksService {
     ].join("\n");
   }
 
-  private loadVideoCopyPrompt() {
+  private async loadVideoCopyPrompt() {
     return this.loadVideoSkillPrompt();
   }
 
-  private loadShortVideoPromptSkill() {
+  private async loadShortVideoPromptSkill() {
     return this.loadVideoSkillPrompt();
   }
 
-  private loadVideoSkillPrompt() {
-    const skillPrompt = this.readFirstExistingTextFromCandidates(this.resolveVideoSkillPromptCandidates());
+  private async loadVideoSkillPrompt() {
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_video_note");
+    const skillPrompt = prompt?.content?.trim() || this.readFirstExistingTextFromCandidates(this.resolveVideoSkillPromptCandidates());
     const referenceExcerpt = this.loadVideoSkillReferenceExcerpt();
     if (skillPrompt) {
       return [skillPrompt, referenceExcerpt].filter(Boolean).join("\n\n");
@@ -3370,7 +3401,7 @@ export class WorksService {
     };
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
-    const skillPrompt = this.loadRewriteCopyPrompt();
+    const skillPrompt = await this.loadRewriteCopyPrompt();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
@@ -3499,7 +3530,7 @@ export class WorksService {
     noteTitle: string;
     noteContent: string;
   }): Promise<OriginalImagePromptResult> {
-    const skillPrompt = this.loadRewriteImagePrompt();
+    const skillPrompt = await this.loadRewriteImagePrompt();
     const providers = this.loadOriginalImagePromptProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
@@ -3634,7 +3665,7 @@ export class WorksService {
     includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<VideoCopyModelResult> {
-    const skillPrompt = this.loadVideoCopyPrompt();
+    const skillPrompt = await this.loadVideoCopyPrompt();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
@@ -3789,7 +3820,7 @@ export class WorksService {
     includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<VideoPromptModelResult> {
-    const skillPrompt = this.loadShortVideoPromptSkill();
+    const skillPrompt = await this.loadShortVideoPromptSkill();
     const providers = this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
@@ -4106,10 +4137,8 @@ export class WorksService {
   }
 
   private buildVideoProviderFallbackOrder(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
-    const stableFallbacks: VideoBackendKey[] = hasReferenceImage
-      ? ["seedance", "veo", "kling", "wan", "hailuo"]
-      : ["seedance", "veo", "wan", "kling", "hailuo"];
-    return Array.from(new Set([requestedBackend, ...stableFallbacks]));
+    void hasReferenceImage;
+    return [requestedBackend];
   }
 
   private resolveVideoModelName(
@@ -4248,52 +4277,49 @@ export class WorksService {
         referenceImageUrl: params.referenceImageUrl,
       });
 
+      const baseUrl = config.baseUrls[0];
+      const apiKey = config.apiKeys[0];
       let lastError = "";
-      for (const baseUrl of config.baseUrls) {
-        for (const apiKey of config.apiKeys) {
-          try {
-            const createResponse = await this.requestAuthorizedJson(baseUrl, requestConfig.createPath, apiKey, {
-              method: "POST",
-              body: requestConfig.payload,
-              timeoutMs: config.requestTimeoutMs ?? 240000,
-            });
-            const taskId = this.extractVideoTaskId(createResponse);
-            if (!taskId) {
-              lastError = `${config.backend} 未返回任务 ID`;
-              continue;
-            }
-
-            const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
-              fallbackDurationSec: requestConfig.renderedDurationSec,
-            });
-            if (!result.videoUrl) {
-              throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
-            }
-            const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
-              params.brandId,
-              `${params.taskId}-video-${config.backend}.mp4`,
-              result.videoUrl,
-            );
-            const cachedCoverImageUrl = result.coverImageUrl
-              ? await this.cacheRemoteGeneratedImage(
-                params.brandId,
-                `${params.taskId}-video-cover-${config.backend}.png`,
-                result.coverImageUrl,
-                "image/png",
-              )
-              : undefined;
-            return {
-              url: cachedVideoUrl,
-              coverImageUrl: cachedCoverImageUrl,
-              provider: config.backend,
-              modelName,
-              providerTaskId: taskId,
-              renderedDurationSec: result.renderedDurationSec || requestConfig.renderedDurationSec,
-            };
-          } catch (error) {
-            lastError = error instanceof Error ? error.message : "视频生成失败";
-          }
+      try {
+        const createResponse = await this.requestAuthorizedJson(baseUrl, requestConfig.createPath, apiKey, {
+          method: "POST",
+          body: requestConfig.payload,
+          timeoutMs: config.requestTimeoutMs ?? 240000,
+        });
+        const taskId = this.extractVideoTaskId(createResponse);
+        if (!taskId) {
+          throw new ServiceUnavailableException(`${config.backend} 未返回任务 ID`);
         }
+
+        const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
+          fallbackDurationSec: requestConfig.renderedDurationSec,
+        });
+        if (!result.videoUrl) {
+          throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
+        }
+        const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+          params.brandId,
+          `${params.taskId}-video-${config.backend}.mp4`,
+          result.videoUrl,
+        );
+        const cachedCoverImageUrl = result.coverImageUrl
+          ? await this.cacheRemoteGeneratedImage(
+            params.brandId,
+            `${params.taskId}-video-cover-${config.backend}.png`,
+            result.coverImageUrl,
+            "image/png",
+          )
+          : undefined;
+        return {
+          url: cachedVideoUrl,
+          coverImageUrl: cachedCoverImageUrl,
+          provider: config.backend,
+          modelName,
+          providerTaskId: taskId,
+          renderedDurationSec: result.renderedDurationSec || requestConfig.renderedDurationSec,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "视频生成失败";
       }
 
       if (lastError) {
