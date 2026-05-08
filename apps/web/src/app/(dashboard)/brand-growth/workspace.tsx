@@ -1289,30 +1289,34 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
   return (
     <main className="archive-shell strategy-shell">
       <section className="strategy-layout">
-        <aside className="strategy-level-panel">
-          {strategySections.map((section) => (
-            <button
-              key={section.key}
-              type="button"
-              className={`strategy-level-button ${section.key === activeSection ? "is-active" : ""}`}
-              onClick={() => switchSection(section.key)}
-            >
-              {section.label}
-            </button>
-          ))}
+        <aside className="strategy-level-panel strategy-level-panel--directory">
+          <div className="strategy-level-button-list">
+            {strategySections.map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                className={`strategy-level-button ${section.key === activeSection ? "is-active" : ""}`}
+                onClick={() => switchSection(section.key)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
         </aside>
 
-        <aside className="strategy-level-panel strategy-level-panel--tertiary">
-          {currentSection.pages.map((page) => (
-            <button
-              key={page.key}
-              type="button"
-              className={`strategy-level-button ${page.key === activePage ? "is-active" : ""}`}
-              onClick={() => switchPage(page.key)}
-            >
-              {page.label}
-            </button>
-          ))}
+        <aside className="strategy-level-panel strategy-level-panel--directory strategy-level-panel--tertiary">
+          <div className="strategy-level-button-list">
+            {currentSection.pages.map((page) => (
+              <button
+                key={page.key}
+                type="button"
+                className={`strategy-level-button ${page.key === activePage ? "is-active" : ""}`}
+                onClick={() => switchPage(page.key)}
+              >
+                {page.label}
+              </button>
+            ))}
+          </div>
         </aside>
 
         <section className="strategy-content-panel">
