@@ -16,6 +16,11 @@ const routeItems = [
     description: "查看当前用户的所有大模型任务与执行状态",
   },
   {
+    href: "/personal-center/orders",
+    label: "订单中心",
+    description: "查看会员订单、点数充值记录和当前订单状态",
+  },
+  {
     href: "/personal-center/team",
     label: "团队协作",
     description: "查看当前品牌、协作角色和品牌成员管理入口",
@@ -36,7 +41,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
         <div className="panel-header">
           <div>
             <h2>个人中心工作区</h2>
-            <p className="panel-subtext">从单页聚合态切到可扩展的二级路由，后续继续承接任务中心、团队协作和技能中心。</p>
+            <p className="panel-subtext">从单页聚合态切到可扩展的二级路由，当前已拆出任务、订单、团队和邀请等独立工作区。</p>
           </div>
         </div>
         <div className="tab-switcher" aria-label="个人中心二级导航">

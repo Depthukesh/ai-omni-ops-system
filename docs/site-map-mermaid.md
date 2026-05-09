@@ -301,6 +301,10 @@ flowchart LR
 flowchart TD
     PC["/personal-center"]
     PC --> PCS1["personal-center.ts"]
+    PC --> PC1["/personal-center/orders"]
+    PC --> PC2["/personal-center/tasks"]
+    PC --> PC3["/personal-center/team"]
+    PC --> PC4["/personal-center/invites"]
     PCS1 --> PAPI1["/auth/profile"]
     PCS1 --> PAPI2["/auth/point-ledgers"]
     PCS1 --> PAPI3["/orders"]
@@ -482,6 +486,10 @@ flowchart LR
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
+- 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
+- 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
+- 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
+- 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`
 - 后台管理：`apps/web/src/app/(dashboard)/admin/page.tsx`
 - 会员购买：`apps/web/src/app/(dashboard)/membership-purchase/page.tsx`
 - 点数购买：`apps/web/src/app/(dashboard)/points-purchase/page.tsx`

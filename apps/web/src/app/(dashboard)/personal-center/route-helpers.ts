@@ -1,4 +1,4 @@
-import type { TaskRecord } from "../../../services/personal-center";
+import type { OrderRecord, TaskRecord } from "../../../services/personal-center";
 
 export const personalTaskStatusClassMap: Record<TaskRecord["taskStatus"], string> = {
   PENDING: "status-pending",
@@ -7,6 +7,14 @@ export const personalTaskStatusClassMap: Record<TaskRecord["taskStatus"], string
   SUCCESS: "status-ready",
   FAILED: "status-pending",
   CANCELLED: "status-pending",
+};
+
+export const personalOrderStatusClassMap: Record<OrderRecord["orderStatus"], string> = {
+  PENDING: "status-in_progress",
+  PAID: "status-ready",
+  FAILED: "status-pending",
+  REFUNDED: "status-paused",
+  CANCELLED: "status-paused",
 };
 
 export const brandInviteReadStateChangedEvent = "brand-invite-read-state-changed";
