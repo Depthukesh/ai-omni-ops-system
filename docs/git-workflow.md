@@ -12,6 +12,7 @@ Git 在本项目中的作用不是“备份一下代码”，而是：
 
 - 每次重要改动都要提交，不长期堆积大量未提交修改
 - 提交前先确认代码可运行、关键链路已验证
+- 提交前默认先完成本项目“开发前必读”基线：`docs/engineering-standards.md`、`docs/site-map.md`、`docs/site-map-mermaid.md`、`docs/development-delivery-checklist.md` 和当前任务最近的 `docs/changes/*.md`
 - 提交时同步补充 `docs/changes/*.md`
 - 涉及结构变化时同步更新 `docs/site-map.md`
 - 涉及结构关系变化时同步更新 `docs/site-map-mermaid.md`
@@ -36,6 +37,13 @@ Git 在本项目中的作用不是“备份一下代码”，而是：
 4. 提交说明里写清这次备份覆盖的范围
 5. 交付说明里补充剩余未纳入提交的文件和原因
 6. 若本次是按“更新一下”执行默认闭环，需同时确认规范文档、网站地图、Mermaid 地图、变更记录是否已一并纳入备份范围
+
+### 3.4 快照备份建议
+
+1. 在大批量暂存、拆分提交或首次推送远端前，优先先做一次时间戳快照
+2. 快照优先打包 Git 视角下的源码文件，避免把 `.runtime` 等运行中日志一起打入导致压缩失败
+3. 快照命名建议带日期和用途，例如 `ai-omni-ops-system-YYYY-MM-DD-git-snapshot.zip`
+4. 快照不能替代 Git 提交，但可以作为提交前的回滚保险
 
 ### 3.2 修 Bug 改动
 

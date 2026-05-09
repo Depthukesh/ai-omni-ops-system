@@ -77,3 +77,40 @@
 - 涉及数据库结构、持久化边界或模块入库路径变化时，必须同步更新 `docs/database-archive.md`
 - 涉及大模块技术路线、权限模型、数据分层或执行路径变化时，必须同步更新对应专项方案文档
 - 如果只是很小的样式或文案调整，可合并记录到最近一次相关变更中，但不能完全不记
+
+## 开发前必读
+
+每次进入实际开发、排查、联调、重构、提交流程前，默认至少先读下面这些文档：
+
+- `docs/engineering-standards.md`
+- `docs/site-map.md`
+- `docs/site-map-mermaid.md`
+- `docs/development-delivery-checklist.md`
+- 与当前任务最近的一条 `docs/changes/*.md`
+
+按任务类型追加必读：
+
+- 涉及 Git 边界、提交拆分、快照备份：`docs/git-workflow.md`
+- 涉及数据库 schema、迁移、正式入库边界：`docs/database-archive.md`
+- 涉及资源生成、作品副本、发布素材：`docs/generated-content-storage-standards.md`
+- 涉及个人中心、多用户、品牌协作：`docs/personal-center-multi-user-system-plan.md`
+
+## 开发后必更
+
+每次发生实际代码改动后，默认至少补齐下面这些记录：
+
+- 必更：`docs/changes/*.md`
+- 结构或入口变化：`docs/site-map.md`
+- 结构关系变化：`docs/site-map-mermaid.md`
+- schema、迁移、持久化边界变化：`docs/database-archive.md`
+- 通用工程规则变化：`docs/engineering-standards.md`
+- 开发流程或交付清单变化：`docs/development-delivery-checklist.md`
+- Git 规则、快照、暂存策略变化：`docs/git-workflow.md`
+- 新增文档类型或索引变化：`docs/README.md`
+
+交付时还必须说明：
+
+- 做了哪些验证、哪些通过、哪些没做
+- 本次提交范围与提交信息
+- 是否还有未纳入提交的剩余改动
+- 当前待解决事项和下一步建议

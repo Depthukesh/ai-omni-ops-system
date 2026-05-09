@@ -183,6 +183,11 @@
 
 ### 9.1 文档更新要求
 
+- 每次开始实际开发前，默认先读取 `docs/engineering-standards.md`、`docs/site-map.md`、`docs/site-map-mermaid.md`、`docs/development-delivery-checklist.md` 和当前任务最近的 `docs/changes/*.md`
+- 涉及 Git 边界、提交拆分或快照备份时，额外读取 `docs/git-workflow.md`
+- 涉及数据库 schema、迁移或正式入库边界时，额外读取 `docs/database-archive.md`
+- 涉及资源生成、作品副本、发布素材时，额外读取 `docs/generated-content-storage-standards.md`
+- 涉及个人中心、多用户、品牌协作时，额外读取 `docs/personal-center-multi-user-system-plan.md`
 - 任何实际代码改动都要同步更新 `docs/changes/*.md`
 - 涉及结构、入口、主链路变化时同步更新 `docs/site-map.md`
 - 涉及结构关系和全局关联变化时同步更新 `docs/site-map-mermaid.md`
@@ -190,6 +195,7 @@
 - 涉及通用约束变化时同步更新本规范文档
 - 涉及 Git 边界、暂存策略或备份流程变化时同步更新 `docs/git-workflow.md`
 - 涉及开发流程、交付闭环、记录清单变化时同步更新 `docs/development-delivery-checklist.md`
+- 涉及文档索引、新增文档类型或“开发前必读 / 开发后必更”入口说明变化时同步更新 `docs/README.md`
 - 用户只说“更新一下”时，默认按完整交付闭环执行：同步更新开发规范、Git 备份、文字网站地图、Mermaid 网站地图、变更记录，并在交付时说明验证结果与未纳入提交的剩余改动
 
 ### 9.2 提交规范

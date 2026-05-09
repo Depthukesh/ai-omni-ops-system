@@ -64,11 +64,24 @@
 - `docs/engineering-standards.md`
 - `docs/site-map.md`
 - `docs/site-map-mermaid.md`
+- `docs/development-delivery-checklist.md`
 - 与当前任务最近的一条 `docs/changes/*.md`
 
 如果改的是资源生成、作品存储、发布链路，还要额外看：
 
 - `docs/generated-content-storage-standards.md`
+
+如果改的是数据库、迁移、正式入库边界，还要额外看：
+
+- `docs/database-archive.md`
+
+如果改的是 Git 边界、提交拆分、备份策略，还要额外看：
+
+- `docs/git-workflow.md`
+
+如果改的是个人中心、多用户、品牌协作，还要额外看：
+
+- `docs/personal-center-multi-user-system-plan.md`
 
 ### 2.6 Git 基线信息
 
@@ -157,6 +170,14 @@
 - 通用规则变化：更新 `docs/engineering-standards.md`
 - 新增长期专题：新增专题文档并在 `docs/README.md` 纳入说明
 
+如果开发流程、交付要求、开发前必读 / 开发后必更规则发生变化，还必须同步更新：
+
+- `docs/development-delivery-checklist.md`
+
+如果 Git 备份流程、快照策略、暂存边界发生变化，还必须同步更新：
+
+- `docs/git-workflow.md`
+
 ### 4.4 Git 备份信息
 
 - 本次提交范围
@@ -215,6 +236,8 @@
 | 页面、模块、主链路变化 | `docs/site-map.md` |
 | 页面/模块/数据关系变化 | `docs/site-map-mermaid.md` |
 | 新的通用约束或流程 | `docs/engineering-standards.md` |
+| 开发流程、交付清单、必读规则变化 | `docs/development-delivery-checklist.md` |
+| Git 备份、快照、暂存策略变化 | `docs/git-workflow.md` |
 | 资源、发布、存储等专题规则变化 | 对应专题文档 |
 | 新增文档类型 | `docs/README.md` |
 
