@@ -302,9 +302,10 @@ flowchart TD
     PC["/personal-center"]
     PC --> PCS1["personal-center.ts"]
     PC --> PC1["/personal-center/orders"]
-    PC --> PC2["/personal-center/tasks"]
-    PC --> PC3["/personal-center/team"]
-    PC --> PC4["/personal-center/invites"]
+    PC --> PC2["/personal-center/works"]
+    PC --> PC3["/personal-center/tasks"]
+    PC --> PC4["/personal-center/team"]
+    PC --> PC5["/personal-center/invites"]
     PCS1 --> PAPI1["/auth/profile"]
     PCS1 --> PAPI2["/auth/point-ledgers"]
     PCS1 --> PAPI3["/orders"]
@@ -487,6 +488,7 @@ flowchart LR
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
+- 个人中心作品中心：`apps/web/src/app/(dashboard)/personal-center/works/page.tsx`
 - 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
 - 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`

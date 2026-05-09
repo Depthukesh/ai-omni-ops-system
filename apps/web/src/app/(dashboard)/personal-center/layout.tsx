@@ -21,6 +21,11 @@ const routeItems = [
     description: "查看会员订单、点数充值记录和当前订单状态",
   },
   {
+    href: "/personal-center/works",
+    label: "作品中心",
+    description: "查看当前用户沉淀的作品资产，并回跳到相关工作台继续处理",
+  },
+  {
     href: "/personal-center/team",
     label: "团队协作",
     description: "查看当前品牌、协作角色和品牌成员管理入口",
@@ -41,7 +46,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
         <div className="panel-header">
           <div>
             <h2>个人中心工作区</h2>
-            <p className="panel-subtext">从单页聚合态切到可扩展的二级路由，当前已拆出任务、订单、团队和邀请等独立工作区。</p>
+            <p className="panel-subtext">从单页聚合态切到可扩展的二级路由，当前已拆出任务、订单、作品、团队和邀请等独立工作区。</p>
           </div>
         </div>
         <div className="tab-switcher" aria-label="个人中心二级导航">
