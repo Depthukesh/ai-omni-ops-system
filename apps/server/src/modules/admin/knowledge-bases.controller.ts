@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
+import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   type CompleteKnowledgeBaseSyncRunPayload,
   KnowledgeBasesService,
@@ -9,55 +11,83 @@ import {
 
 @Controller("admin/knowledge-bases")
 export class KnowledgeBasesController {
-  constructor(private readonly knowledgeBasesService: KnowledgeBasesService) {}
+  constructor(
+    private readonly knowledgeBasesService: KnowledgeBasesService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
-  listKnowledgeBases() {
+  async listKnowledgeBases(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.knowledgeBasesService.listKnowledgeBases();
   }
 
   @Post()
-  createKnowledgeBase(@Body() payload: CreateKnowledgeBasePayload) {
+  async createKnowledgeBase(
+    @Body() payload: CreateKnowledgeBasePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.createKnowledgeBase(payload);
   }
 
   @Get(":id/files")
-  listKnowledgeBaseFiles(@Param("id") id: string) {
+  async listKnowledgeBaseFiles(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.knowledgeBasesService.listKnowledgeBaseFiles(id);
   }
 
   @Get(":id/sync-runs")
-  listKnowledgeBaseSyncRuns(@Param("id") id: string) {
+  async listKnowledgeBaseSyncRuns(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.knowledgeBasesService.listKnowledgeBaseSyncRuns(id);
   }
 
   @Post(":id/files")
-  createKnowledgeBaseFile(@Param("id") id: string, @Body() payload: CreateKnowledgeBaseFilePayload) {
+  async createKnowledgeBaseFile(
+    @Param("id") id: string,
+    @Body() payload: CreateKnowledgeBaseFilePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.createKnowledgeBaseFile(id, payload);
   }
 
   @Post(":id/sync")
-  startKnowledgeBaseFullSync(@Param("id") id: string) {
+  async startKnowledgeBaseFullSync(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.startKnowledgeBaseFullSync(id);
   }
 
   @Patch("sync-runs/:id")
-  completeKnowledgeBaseSyncRun(@Param("id") id: string, @Body() payload: CompleteKnowledgeBaseSyncRunPayload) {
+  async completeKnowledgeBaseSyncRun(
+    @Param("id") id: string,
+    @Body() payload: CompleteKnowledgeBaseSyncRunPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.completeKnowledgeBaseSyncRun(id, payload);
   }
 
   @Patch(":id")
-  updateKnowledgeBase(@Param("id") id: string, @Body() payload: UpdateKnowledgeBasePayload) {
+  async updateKnowledgeBase(
+    @Param("id") id: string,
+    @Body() payload: UpdateKnowledgeBasePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.updateKnowledgeBase(id, payload);
   }
 
   @Patch(":id/archive")
-  archiveKnowledgeBase(@Param("id") id: string) {
+  async archiveKnowledgeBase(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.archiveKnowledgeBase(id);
   }
 
   @Delete(":id")
-  deleteKnowledgeBase(@Param("id") id: string) {
+  async deleteKnowledgeBase(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.deleteKnowledgeBase(id);
   }
 }

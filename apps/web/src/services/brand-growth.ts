@@ -143,7 +143,158 @@ export type CurrentUserProfile = {
   nickname: string;
   status: string;
   membership: string;
+  systemRole?: string;
   pointsBalance: number;
+};
+
+export type BrandMemberRecord = {
+  id: string;
+  userId: string;
+  nickname: string;
+  mobile: string;
+  email: string;
+  role: string;
+  status: string;
+  joinedAt: string;
+  isCurrentUser: boolean;
+  isOwner: boolean;
+};
+
+export type BrandMemberListRecord = {
+  brandId: string;
+  brandName: string;
+  currentUserRole: string;
+  canManageMembers: boolean;
+  items: BrandMemberRecord[];
+};
+
+export type AddBrandMemberPayload = {
+  account: string;
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+};
+
+export type UpdateBrandMemberPayload = {
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  status?: "ACTIVE" | "DISABLED" | "REMOVED";
+};
+
+export type BrandInviteRecord = {
+  id: string;
+  inviteAccount: string;
+  inviteCode: string;
+  inviteLink: string;
+  inviteeUserId?: string;
+  inviteeNickname?: string;
+  inviteeMobile?: string;
+  inviteeEmail?: string;
+  role: string;
+  status: string;
+  note?: string;
+  invitedByUserId: string;
+  invitedByName: string;
+  expiresAt?: string;
+  createdAt: string;
+  revokedAt?: string;
+  isMatchedUser: boolean;
+  isRead?: boolean;
+  readAt?: string;
+};
+
+export type BrandInviteListRecord = {
+  brandId: string;
+  brandName: string;
+  items: BrandInviteRecord[];
+};
+
+export type PendingBrandInviteListRecord = {
+  items: Array<
+    BrandInviteRecord & {
+      brandId: string;
+      brandName: string;
+    }
+  >;
+};
+
+export type MyBrandInviteHistoryListRecord = {
+  items: Array<
+    BrandInviteRecord & {
+      brandId: string;
+      brandName: string;
+    }
+  >;
+};
+
+export type AcceptBrandInviteByCodePayload = {
+  inviteCode: string;
+};
+
+export type UpdateMyBrandInviteReadStatePayload = {
+  inviteIds: string[];
+  read?: boolean;
+};
+
+export type UpdateMyBrandInviteReadStateRecord = {
+  inviteIds: string[];
+  read: boolean;
+  updatedCount: number;
+};
+
+export type BrandInviteNotificationRecord = {
+  notificationId: string;
+  title: string;
+  summary: string;
+  actionUrl?: string;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  brandId: string;
+  brandName: string;
+  invite: BrandInviteRecord;
+};
+
+export type BrandInviteNotificationListRecord = {
+  unreadCount: number;
+  items: BrandInviteNotificationRecord[];
+};
+
+export type UpdateMyBrandInviteNotificationReadStatePayload = {
+  notificationIds: string[];
+  read?: boolean;
+};
+
+export type UpdateMyBrandInviteNotificationReadStateRecord = {
+  notificationIds: string[];
+  read: boolean;
+  updatedCount: number;
+};
+
+export type BrandRoleAuditLogRecord = {
+  id: string;
+  action: string;
+  summary: string;
+  operatorUserId: string;
+  operatorName: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetInviteId?: string;
+  createdAt: string;
+};
+
+export type BrandRoleAuditLogListRecord = {
+  brandId: string;
+  brandName: string;
+  items: BrandRoleAuditLogRecord[];
+};
+
+export type TransferBrandOwnerPayload = {
+  memberId: string;
+};
+
+export type CreateBrandInvitePayload = {
+  account: string;
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  note?: string;
+  expiresInDays?: number;
 };
 
 export type BrandArchiveBundle = {
@@ -403,6 +554,91 @@ export const brandArchiveSeed: BrandArchiveBundle = {
 
 export async function getBrandArchive(brandId: string) {
   return request<BrandArchiveBundle>(`/brands/${brandId}/archive`);
+}
+
+export async function getBrandMembers(brandId: string) {
+  return request<BrandMemberListRecord>(`/brands/${brandId}/members`);
+}
+
+export async function addBrandMember(brandId: string, payload: AddBrandMemberPayload) {
+  return request<BrandMemberListRecord>(`/brands/${brandId}/members`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateBrandMember(brandId: string, memberId: string, payload: UpdateBrandMemberPayload) {
+  return request<BrandMemberListRecord>(`/brands/${brandId}/members/${memberId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBrandInvites(brandId: string) {
+  return request<BrandInviteListRecord>(`/brands/${brandId}/invites`);
+}
+
+export async function createBrandInvite(brandId: string, payload: CreateBrandInvitePayload) {
+  return request<BrandInviteListRecord>(`/brands/${brandId}/invites`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function revokeBrandInvite(brandId: string, inviteId: string) {
+  return request<BrandInviteListRecord>(`/brands/${brandId}/invites/${inviteId}/revoke`, {
+    method: "PATCH",
+  });
+}
+
+export async function getMyBrandInvites() {
+  return request<PendingBrandInviteListRecord>("/brands/me/invites");
+}
+
+export async function getMyBrandInviteHistory() {
+  return request<MyBrandInviteHistoryListRecord>("/brands/me/invites/history");
+}
+
+export async function getMyBrandInviteNotifications() {
+  return request<BrandInviteNotificationListRecord>("/brands/me/invite-notifications");
+}
+
+export async function acceptMyBrandInvite(inviteId: string) {
+  return request<{ brandId: string; brandName: string; accepted: boolean }>(`/brands/me/invites/${inviteId}/accept`, {
+    method: "PATCH",
+  });
+}
+
+export async function acceptMyBrandInviteByCode(payload: AcceptBrandInviteByCodePayload) {
+  return request<{ brandId: string; brandName: string; accepted: boolean }>("/brands/me/invites/accept-by-code", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMyBrandInviteReadState(payload: UpdateMyBrandInviteReadStatePayload) {
+  return request<UpdateMyBrandInviteReadStateRecord>("/brands/me/invites/read-state", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMyBrandInviteNotificationReadState(payload: UpdateMyBrandInviteNotificationReadStatePayload) {
+  return request<UpdateMyBrandInviteNotificationReadStateRecord>("/brands/me/invite-notifications/read-state", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBrandRoleAuditLogs(brandId: string) {
+  return request<BrandRoleAuditLogListRecord>(`/brands/${brandId}/role-audit-logs`);
+}
+
+export async function transferBrandOwner(brandId: string, payload: TransferBrandOwnerPayload) {
+  return request<BrandMemberListRecord>(`/brands/${brandId}/transfer-owner`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateBrandBackground(brandId: string, payload: Partial<BrandBackground>) {

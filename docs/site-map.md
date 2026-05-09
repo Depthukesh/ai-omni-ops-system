@@ -23,8 +23,9 @@
 - `/xiaohongshu`：小红书工作台
 - `/personal-center`：个人中心
 - `/admin`：后台管理台
-- `/login`：登录页，占位
+- `/login`：登录页，已接入账号密码登录并保存前端 access/refresh 登录态
 - `/register`：注册页，占位
+- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
 
 ### 2.2 当前主要用户链路
 
@@ -95,6 +96,24 @@
 - 充值明细
 - 任务记录
 - 我的作品
+- 当前已接入真实登录态：
+  - 无登录态时跳转 `/login`
+  - 页面会通过 `/api/auth/me` 获取当前用户和品牌信息
+  - 已支持当前品牌切换与退出登录
+  - 请求层会自动附带 `Authorization` 和 `x-brand-id`
+- 当前采用“真数据优先、局部种子兜底”：
+  - 用户资料优先走真实接口
+  - 点数流水、订单、任务、作品任一接口失败时仅该部分回退演示数据
+- 当前已进入二级路由阶段：
+  - `/personal-center`：个人中心概览页，仍保留原聚合视图，并已开始露出“待处理品牌邀请”通知卡
+- `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
+  - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换和失败重试
+  - `/personal-center/team`：团队协作页第一版，已接真实 `/api/brands/:id/members`、`/api/brands/:id/invites`、`/api/brands/me/invites`、`/api/brands/me/invites/accept-by-code`、`/api/brands/:id/role-audit-logs`、`/api/brands/:id/transfer-owner`，支持成员列表、角色与状态管理、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；未登录点击邀请链接时会保留 `inviteCode` 并回流到登录后页面
+- 前台共享顶栏已新增全局待处理邀请提示条，登录后若存在待接受邀请，会在导航下方直接提醒，并每 60 秒自动刷新一次邀请状态；提示条已联动未读待处理数量
+  - 该提示条现默认跳转到 `/personal-center/invites`
+- 规划中：
+  - `/personal-center/skills`：用户技能中心，基于平台技能做个人覆盖、保存与重置
+  - `/personal-center/security`：登录态、密码、安全设置
 
 ### 3.4 后台管理 `/admin`
 
@@ -102,6 +121,8 @@
 - 订单管理
 - 会员/积分规则
 - 用户管理
+- 任务管理
+- 品牌成员与权限管理
 - API/模型消耗管理
 - 技能中心
   - 右侧一级分类：品牌增长策略 / 小红书 / 抖音，点击一级项后展开下级树
@@ -114,6 +135,11 @@
   - 技能提示词：优先展示系统内真实 `SKILL.md` / `.txt` 全文；原创笔记已拆分为“原创文案”和“原创配图”两套提示词分别呈现
 - 知识库管理
 - API Provider 管理
+- 当前后台入口已支持角色矩阵：
+  - `SUPER_ADMIN`：可见全部后台栏目
+  - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
+  - `FINANCE_OPERATOR`：侧重订单与会员/积分规则
+  - `SUPPORT_OPERATOR`：侧重订单、用户与模型消耗排查
 
 ### 后台左侧导航
 
@@ -136,7 +162,38 @@
 ### 4.2 业务模块
 
 - `AuthModule`：登录、注册、用户资料、飞书 OAuth、飞书应用配置
+- `AuthModule`
+  - 当前已接入基于签名 token 的 access/refresh 登录态
+  - 已支持 `me`、品牌列表、切换当前品牌、logout
+  - 兼容历史明文密码登录，并会在成功登录时自动升级为哈希密码
+- `apps/web/src/services/auth-session.ts`
+  - 前端登录态本地存储层
+  - 负责保存 `accessToken`、`refreshToken`、当前品牌和用户信息
+- `apps/web/src/services/auth.ts`
+  - 前端认证服务层
+  - 已接入 `login`、`me`、`brands`、`switch-brand`、`logout`
+- `apps/web/src/services/http.ts`
+  - 当前已支持自动附带 `Authorization`、`x-brand-id`
+  - `401` 时会自动尝试 `refresh`
+- `PersonalCenterModule`：规划中；负责个人中心聚合视图、我的任务、我的作品、我的技能、我的团队
 - `BrandsModule`：品牌档案、产品、调研、经营资产、飞书绑定
+- `BrandMembersModule`：规划中；负责品牌主账号、子用户邀请、品牌角色与权限
+- `BrandsModule`
+  - 当前已新增 `/api/brands/:id/members`
+  - 当前已新增 `POST /api/brands/:id/members`
+  - 当前已新增 `PATCH /api/brands/:id/members/:memberId`
+  - 当前已新增 `/api/brands/:id/invites`
+  - 当前已新增 `POST /api/brands/:id/invites`
+  - 当前已新增 `PATCH /api/brands/:id/invites/:inviteId/revoke`
+  - 当前已新增 `PATCH /api/brands/me/invites/read-state`
+  - 当前已新增 `PATCH /api/brands/me/invites/accept-by-code`
+  - 当前已新增 `GET /api/brands/me/invites/history`
+  - 当前已新增 `GET /api/brands/me/invite-notifications`
+  - 当前已新增 `PATCH /api/brands/me/invite-notifications/read-state`
+  - 已修复 `/api/brands/me/invites*` 与 `/:id/invites*` 的路由优先级冲突，当前终端用户邀请接口会优先命中 `me` 路由
+  - 当前已新增 `GET /api/brands/:id/role-audit-logs`
+  - 当前已新增 `PATCH /api/brands/:id/transfer-owner`
+  - 已开始按当前登录用户校验品牌成员访问范围，并返回当前品牌成员列表与当前用户角色
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
 - `ReportsModule`：品牌增长报告、可视化报告、全年营销规划、小红书策划与日历
 - `WorksModule`：原创笔记作品生成、列表、编辑、删除、作品文件读取
@@ -144,8 +201,16 @@
   - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
 - `TasksModule`：任务记录与重试
+- `TasksModule`
+  - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
+- `MembershipModule`：规划中；负责会员套餐、会员实例与权益判断
+- `PointsModule`：规划中；负责积分账户、积分规则、积分流水与返还
 - `MediaModule`：媒体资产
+- `MediaModule`
+  - 当前已开始按请求登录态过滤用户媒体，不再固定读取首个用户
 - `OrdersModule`：订单、支付、取消、后台订单视图
+- `OrdersModule`
+  - 当前已开始按请求登录态过滤订单访问，不再固定绑定首个用户
 - `admin/skills-prompts`：后台技能中心；当前技能与提示词已新增 `SkillConfig` / `PromptTemplate` 注册表，生成链路按“数据库优先、文件兜底”读取
 
 ### 4.3 管理模块
@@ -227,10 +292,14 @@
 
 ## 7. 当前仍属过渡或待完善部分
 
-- `/login`、`/register` 仍是占位页
+- `/register` 仍是占位页
 - 抖音/视频号/公众号/私域尚未独立落地
 - 多品牌切换未完全打开，前台仍偏演示品牌模式
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
+- 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/tasks`、`/team` 三段前端路由；其中 `team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；用户技能覆盖层和更细的任务中心能力仍待继续升级
+- 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页
+- 后台用户管理、会员/积分规则和品牌权限管理仍未形成正式多用户运营体系
+- P0 已完成两段半底座：后端登录态、`BrandMember`、`UserSession`、当前用户任务/订单/媒体过滤已落地；前端登录页、token 刷新、个人中心登录态校验与品牌切换已接入，并已开始拆个人中心二级路由
 
 ## 8. 维护规则
 

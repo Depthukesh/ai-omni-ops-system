@@ -41,6 +41,82 @@ body {
   margin: 0 auto 14px;
 }
 
+.dashboard-notice-bar {
+  max-width: 1320px;
+  margin: 0 auto 14px;
+}
+
+.dashboard-notice-bar-shell {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(108, 124, 255, 0.16);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, rgba(220, 227, 255, 0.52), transparent 28%),
+    linear-gradient(180deg, #fbfcff 0%, #f4f7ff 100%);
+  box-shadow: 0 12px 28px rgba(47, 73, 139, 0.08);
+}
+
+.dashboard-notice-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-notice-copy strong {
+  color: #2845a7;
+  font-size: 15px;
+}
+
+.dashboard-notice-copy span {
+  color: #66708a;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.dashboard-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.invite-read-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.invite-read-badge.is-unread {
+  background: rgba(108, 124, 255, 0.14);
+  color: #4d64e8;
+}
+
+.invite-read-badge.is-read {
+  background: rgba(122, 128, 151, 0.12);
+  color: #6f778c;
+}
+
+.table-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.table-status-stack {
+  display: grid;
+  gap: 6px;
+  justify-items: flex-start;
+}
+
 .dashboard-topbar-shell {
   padding: 10px;
   display: block;
@@ -4541,6 +4617,11 @@ button {
 
   .dashboard-topnav {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboard-notice-bar-shell {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

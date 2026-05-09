@@ -4,8 +4,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { AssetCategory, PlatformType, Prisma } from "@prisma/client";
+import { Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { AssetCategory, BrandInviteStatus, BrandMemberRole, BrandMemberStatus, PlatformType, Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -19,6 +19,41 @@ export type CreateBrandPayload = {
   foundedYear?: number;
   brandDescription?: string;
   enterpriseIntro?: string;
+};
+
+export type AddBrandMemberPayload = {
+  account: string;
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+};
+
+export type UpdateBrandMemberPayload = {
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  status?: "ACTIVE" | "DISABLED" | "REMOVED";
+};
+
+export type CreateBrandInvitePayload = {
+  account: string;
+  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  note?: string;
+  expiresInDays?: number;
+};
+
+export type AcceptBrandInviteByCodePayload = {
+  inviteCode: string;
+};
+
+export type UpdateMyBrandInviteReadStatePayload = {
+  inviteIds: string[];
+  read?: boolean;
+};
+
+export type UpdateMyBrandInviteNotificationReadStatePayload = {
+  notificationIds: string[];
+  read?: boolean;
+};
+
+export type TransferBrandOwnerPayload = {
+  memberId: string;
 };
 
 export type UpdateBackgroundPayload = {
@@ -121,6 +156,121 @@ export type FeishuAuthStartRecord = {
   expiresIn: number;
 };
 
+export type BrandMemberListItem = {
+  id: string;
+  userId: string;
+  nickname: string;
+  mobile: string;
+  email: string;
+  role: string;
+  status: string;
+  joinedAt: string;
+  isCurrentUser: boolean;
+  isOwner: boolean;
+};
+
+export type BrandMemberListRecord = {
+  brandId: string;
+  brandName: string;
+  currentUserRole: string;
+  canManageMembers: boolean;
+  items: BrandMemberListItem[];
+};
+
+export type BrandInviteListItem = {
+  id: string;
+  inviteAccount: string;
+  inviteCode: string;
+  inviteLink: string;
+  inviteeUserId?: string;
+  inviteeNickname?: string;
+  inviteeMobile?: string;
+  inviteeEmail?: string;
+  role: string;
+  status: string;
+  note?: string;
+  invitedByUserId: string;
+  invitedByName: string;
+  expiresAt?: string;
+  createdAt: string;
+  revokedAt?: string;
+  isMatchedUser: boolean;
+  isRead?: boolean;
+  readAt?: string;
+};
+
+export type BrandInviteListRecord = {
+  brandId: string;
+  brandName: string;
+  items: BrandInviteListItem[];
+};
+
+export type PendingBrandInviteListRecord = {
+  items: Array<
+    BrandInviteListItem & {
+      brandId: string;
+      brandName: string;
+    }
+  >;
+};
+
+export type MyBrandInviteHistoryListRecord = {
+  items: Array<
+    BrandInviteListItem & {
+      brandId: string;
+      brandName: string;
+    }
+  >;
+};
+
+export type UpdateMyBrandInviteReadStateRecord = {
+  inviteIds: string[];
+  read: boolean;
+  updatedCount: number;
+};
+
+export type BrandInviteNotificationItem = {
+  notificationId: string;
+  title: string;
+  summary: string;
+  actionUrl?: string;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  brandId: string;
+  brandName: string;
+  invite: BrandInviteListItem;
+};
+
+export type BrandInviteNotificationListRecord = {
+  unreadCount: number;
+  items: BrandInviteNotificationItem[];
+};
+
+export type UpdateMyBrandInviteNotificationReadStateRecord = {
+  notificationIds: string[];
+  read: boolean;
+  updatedCount: number;
+};
+
+export type BrandRoleAuditLogItem = {
+  id: string;
+  action: string;
+  summary: string;
+  operatorUserId: string;
+  operatorName: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetInviteId?: string;
+  createdAt: string;
+};
+
+export type BrandRoleAuditLogRecord = {
+  brandId: string;
+  brandName: string;
+  items: BrandRoleAuditLogItem[];
+};
+
 const FEISHU_BINDING_TITLE = "FEISHU_COPY_BINDING";
 const FEISHU_BINDING_KIND = "FEISHU_COPY_BINDING";
 
@@ -148,20 +298,922 @@ export class BrandsService {
     return this.getArchiveFromMock(id);
   }
 
+  async listBrandMembers(id: string, currentUserId?: string): Promise<BrandMemberListRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      return this.buildBrandMemberListFromDatabase(id, currentUserId);
+    }
+
+    return this.listBrandMembersFromMock(id, currentUserId);
+  }
+
+  async listBrandInvites(id: string, currentUserId?: string): Promise<BrandInviteListRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.listBrandInvitesFromMock(id, currentUserId);
+    }
+    await this.requireBrandMemberManager(id, currentUserId);
+    return this.buildBrandInviteListFromDatabase(id);
+  }
+
+  async createBrandInvite(id: string, payload: CreateBrandInvitePayload, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.createBrandInviteFromMock(id, payload, currentUserId);
+    }
+
+    const manager = await this.requireBrandMemberManager(id, currentUserId);
+    const account = payload.account.trim();
+    if (!account) {
+      throw new ServiceUnavailableException("请输入邀请账号");
+    }
+
+    const role = parseManageableBrandRole(payload.role);
+    this.assertCanAssignBrandRole(manager.role, role);
+
+    const inviteeUser = await this.prismaService.user.findFirst({
+      where: {
+        OR: [{ id: account }, { mobile: account }, { email: account }, { nickname: account }],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (inviteeUser) {
+      const existingMember = await this.prismaService.brandMember.findFirst({
+        where: {
+          brandId: id,
+          userId: inviteeUser.id,
+          status: {
+            in: [BrandMemberStatus.ACTIVE, BrandMemberStatus.INVITED, BrandMemberStatus.DISABLED],
+          },
+        },
+        select: { id: true },
+      });
+      if (existingMember) {
+        throw new ServiceUnavailableException("该账号已在当前品牌中，请直接在成员列表中管理");
+      }
+    }
+
+    const duplicateInvite = await this.prismaService.brandInvite.findFirst({
+      where: {
+        brandId: id,
+        status: BrandInviteStatus.PENDING,
+        OR: [
+          { inviteAccount: account },
+          ...(inviteeUser ? [{ inviteeUserId: inviteeUser.id }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (duplicateInvite) {
+      throw new ServiceUnavailableException("该账号已存在待处理邀请，请勿重复创建");
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + normalizeInviteExpiryDays(payload.expiresInDays));
+    const inviteCode = this.generateInviteCode();
+
+    await this.prismaService.$transaction(async (tx) => {
+      const createdInvite = await tx.brandInvite.create({
+        data: {
+          brandId: id,
+          inviteeUserId: inviteeUser?.id,
+          inviteAccount: account,
+          inviteCode,
+          role,
+          status: BrandInviteStatus.PENDING,
+          note: payload.note?.trim() || undefined,
+          invitedByUserId: currentUserId,
+          expiresAt,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        targetInviteId: createdInvite.id,
+        targetUserId: inviteeUser?.id,
+        action: "INVITE_CREATED",
+        summary: `创建品牌邀请：${account} -> ${role}`,
+        detailJson: {
+          inviteAccount: account,
+          inviteCode,
+          role,
+          expiresAt: expiresAt.toISOString(),
+        },
+      });
+
+      if (inviteeUser?.id) {
+        await this.syncBrandInviteNotificationByInviteId(tx, createdInvite.id, inviteeUser.id);
+      }
+    });
+
+    return this.buildBrandInviteListFromDatabase(id);
+  }
+
+  async revokeBrandInvite(id: string, inviteId: string, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.revokeBrandInviteFromMock(id, inviteId, currentUserId);
+    }
+
+    const manager = await this.requireBrandMemberManager(id, currentUserId);
+    const invite = await this.prismaService.brandInvite.findFirst({
+      where: {
+        id: inviteId,
+        brandId: id,
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException("邀请记录不存在");
+    }
+    if (invite.status !== BrandInviteStatus.PENDING) {
+      throw new ServiceUnavailableException("当前邀请已不可撤回");
+    }
+    this.assertCanAssignBrandRole(manager.role, invite.role);
+
+    const revokedAt = new Date();
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brandInvite.update({
+        where: { id: inviteId },
+        data: {
+          status: BrandInviteStatus.REVOKED,
+          revokedAt,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        targetInviteId: invite.id,
+        targetUserId: invite.inviteeUserId ?? undefined,
+        action: "INVITE_REVOKED",
+        summary: `撤回品牌邀请：${invite.inviteAccount}`,
+        detailJson: {
+          inviteAccount: invite.inviteAccount,
+          inviteCode: invite.inviteCode,
+          revokedAt: revokedAt.toISOString(),
+        },
+      });
+
+      if (invite.inviteeUserId) {
+        await this.syncBrandInviteNotificationByInviteId(tx, invite.id, invite.inviteeUserId);
+      }
+    });
+
+    return this.buildBrandInviteListFromDatabase(id);
+  }
+
+  async listMyPendingBrandInvites(currentUserId?: string): Promise<PendingBrandInviteListRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.listMyPendingBrandInvitesFromMock(currentUserId);
+    }
+
+    const now = new Date();
+    await this.prismaService.brandInvite.updateMany({
+      where: {
+        status: BrandInviteStatus.PENDING,
+        expiresAt: {
+          lt: now,
+        },
+      },
+      data: {
+        status: BrandInviteStatus.EXPIRED,
+      },
+    });
+
+    const currentUser = await this.prismaService.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        mobile: true,
+        email: true,
+        nickname: true,
+      },
+    });
+    if (!currentUser) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    const accountCandidates = [currentUser.id, currentUser.mobile, currentUser.email ?? "", currentUser.nickname ?? ""].filter(Boolean);
+    const invites = await this.prismaService.brandInvite.findMany({
+      where: {
+        status: BrandInviteStatus.PENDING,
+        OR: [{ inviteeUserId: currentUserId }, ...accountCandidates.map((item) => ({ inviteAccount: item }))],
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        inviteeUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+        readStates: {
+          where: {
+            userId: currentUserId,
+          },
+          select: {
+            userId: true,
+            readAt: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    await this.syncBrandInviteNotificationsForUser(currentUserId, invites);
+
+    return {
+      items: invites.map((item) => ({
+        brandId: item.brand.id,
+        brandName: item.brand.brandName,
+        ...this.mapBrandInviteListItem(item, { currentUserId }),
+      })),
+    };
+  }
+
+  async listMyBrandInviteHistory(currentUserId?: string): Promise<MyBrandInviteHistoryListRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.listMyBrandInviteHistoryFromMock(currentUserId);
+    }
+
+    const currentUser = await this.prismaService.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        mobile: true,
+        email: true,
+        nickname: true,
+      },
+    });
+    if (!currentUser) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    const now = new Date();
+    await this.prismaService.brandInvite.updateMany({
+      where: {
+        status: BrandInviteStatus.PENDING,
+        expiresAt: {
+          lt: now,
+        },
+      },
+      data: {
+        status: BrandInviteStatus.EXPIRED,
+      },
+    });
+
+    const accountCandidates = [currentUser.id, currentUser.mobile, currentUser.email ?? "", currentUser.nickname ?? ""].filter(Boolean);
+    const invites = await this.prismaService.brandInvite.findMany({
+      where: {
+        status: {
+          in: [
+            BrandInviteStatus.PENDING,
+            BrandInviteStatus.ACCEPTED,
+            BrandInviteStatus.EXPIRED,
+            BrandInviteStatus.REVOKED,
+          ],
+        },
+        OR: [{ inviteeUserId: currentUserId }, ...accountCandidates.map((item) => ({ inviteAccount: item }))],
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        inviteeUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+        readStates: {
+          where: {
+            userId: currentUserId,
+          },
+          select: {
+            userId: true,
+            readAt: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    await this.syncBrandInviteNotificationsForUser(currentUserId, invites);
+
+    return {
+      items: invites.map((item) => ({
+        brandId: item.brand.id,
+        brandName: item.brand.brandName,
+        ...this.mapBrandInviteListItem(item, { currentUserId }),
+      })),
+    };
+  }
+
+  async updateMyBrandInviteReadState(
+    payload: UpdateMyBrandInviteReadStatePayload,
+    currentUserId?: string,
+  ): Promise<UpdateMyBrandInviteReadStateRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请已读状态，请先连接数据库");
+    }
+
+    const inviteIds = Array.from(new Set((payload.inviteIds ?? []).map((item) => item.trim()).filter(Boolean)));
+    if (!inviteIds.length) {
+      throw new ServiceUnavailableException("请先选择要更新的邀请记录");
+    }
+
+    const currentUser = await this.prismaService.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        mobile: true,
+        email: true,
+        nickname: true,
+      },
+    });
+    if (!currentUser) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    const accountCandidates = this.buildInviteAccountCandidates(currentUser);
+    const matchedInvites = await this.prismaService.brandInvite.findMany({
+      where: {
+        id: {
+          in: inviteIds,
+        },
+        OR: [{ inviteeUserId: currentUserId }, ...accountCandidates.map((item) => ({ inviteAccount: item }))],
+      },
+      select: {
+        id: true,
+      },
+    });
+    if (!matchedInvites.length) {
+      throw new NotFoundException("未找到可更新的邀请记录");
+    }
+
+    const matchedInviteIds = matchedInvites.map((item) => item.id);
+    const read = payload.read !== false;
+    if (read) {
+      const readAt = new Date();
+      await this.prismaService.$transaction(async (tx) => {
+        for (const inviteId of matchedInviteIds) {
+          await tx.brandInviteReadState.upsert({
+            where: {
+              inviteId_userId: {
+                inviteId,
+                userId: currentUserId,
+              },
+            },
+            create: {
+              inviteId,
+              userId: currentUserId,
+              readAt,
+            },
+            update: {
+              readAt,
+            },
+          });
+        }
+        await tx.brandInviteNotification.updateMany({
+          where: {
+            userId: currentUserId,
+            inviteId: {
+              in: matchedInviteIds,
+            },
+          },
+          data: {
+            readAt,
+          },
+        });
+      });
+    } else {
+      await this.prismaService.$transaction(async (tx) => {
+        await tx.brandInviteReadState.deleteMany({
+          where: {
+            userId: currentUserId,
+            inviteId: {
+              in: matchedInviteIds,
+            },
+          },
+        });
+        await tx.brandInviteNotification.updateMany({
+          where: {
+            userId: currentUserId,
+            inviteId: {
+              in: matchedInviteIds,
+            },
+          },
+          data: {
+            readAt: null,
+          },
+        });
+      });
+    }
+
+    return {
+      inviteIds: matchedInviteIds,
+      read,
+      updatedCount: matchedInviteIds.length,
+    };
+  }
+
+  async listMyBrandInviteNotifications(currentUserId?: string): Promise<BrandInviteNotificationListRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      throw new ServiceUnavailableException("当前 mock 模式暂不支持站内邀请消息，请先连接数据库");
+    }
+
+    await this.syncBrandInviteNotificationsForUser(currentUserId);
+
+    const notifications = await this.prismaService.brandInviteNotification.findMany({
+      where: {
+        userId: currentUserId,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        invite: {
+          include: {
+            inviteeUser: {
+              select: {
+                id: true,
+                nickname: true,
+                mobile: true,
+                email: true,
+              },
+            },
+            invitedByUser: {
+              select: {
+                id: true,
+                nickname: true,
+                mobile: true,
+              },
+            },
+            readStates: {
+              where: {
+                userId: currentUserId,
+              },
+              select: {
+                userId: true,
+                readAt: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ readAt: "asc" }, { updatedAt: "desc" }],
+    });
+
+    return {
+      unreadCount: notifications.filter((item) => item.readAt == null).length,
+      items: notifications.map((item) => ({
+        notificationId: item.id,
+        title: item.title,
+        summary: item.summary,
+        actionUrl: item.actionUrl ?? undefined,
+        readAt: item.readAt?.toISOString(),
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+        brandId: item.brand.id,
+        brandName: item.brand.brandName,
+        invite: this.mapBrandInviteListItem(item.invite, { currentUserId }),
+      })),
+    };
+  }
+
+  async updateMyBrandInviteNotificationReadState(
+    payload: UpdateMyBrandInviteNotificationReadStatePayload,
+    currentUserId?: string,
+  ): Promise<UpdateMyBrandInviteNotificationReadStateRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      throw new ServiceUnavailableException("当前 mock 模式暂不支持站内邀请消息，请先连接数据库");
+    }
+
+    const notificationIds = Array.from(new Set((payload.notificationIds ?? []).map((item) => item.trim()).filter(Boolean)));
+    if (!notificationIds.length) {
+      throw new ServiceUnavailableException("请先选择要更新的消息记录");
+    }
+
+    const matchedNotifications = await this.prismaService.brandInviteNotification.findMany({
+      where: {
+        id: {
+          in: notificationIds,
+        },
+        userId: currentUserId,
+      },
+      select: {
+        id: true,
+        inviteId: true,
+      },
+    });
+    if (!matchedNotifications.length) {
+      throw new NotFoundException("未找到可更新的消息记录");
+    }
+
+    const read = payload.read !== false;
+    await this.updateMyBrandInviteReadState(
+      {
+        inviteIds: matchedNotifications.map((item) => item.inviteId),
+        read,
+      },
+      currentUserId,
+    );
+
+    return {
+      notificationIds: matchedNotifications.map((item) => item.id),
+      read,
+      updatedCount: matchedNotifications.length,
+    };
+  }
+
+  async acceptBrandInvite(inviteId: string, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.acceptBrandInviteFromMock(inviteId, currentUserId);
+    }
+
+    const invite = await this.prismaService.brandInvite.findFirst({
+      where: {
+        id: inviteId,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException("邀请记录不存在");
+    }
+    return this.acceptBrandInviteInternal(invite, currentUserId);
+  }
+
+  async acceptBrandInviteByCode(payload: AcceptBrandInviteByCodePayload, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.acceptBrandInviteByCodeFromMock(payload, currentUserId);
+    }
+
+    const inviteCode = payload.inviteCode.trim().toUpperCase();
+    if (!inviteCode) {
+      throw new ServiceUnavailableException("请输入邀请码");
+    }
+
+    const invite = await this.prismaService.brandInvite.findFirst({
+      where: {
+        inviteCode,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException("邀请码不存在");
+    }
+
+    return this.acceptBrandInviteInternal(invite, currentUserId);
+  }
+
+  async addBrandMember(id: string, payload: AddBrandMemberPayload, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.addBrandMemberFromMock(id, payload, currentUserId);
+    }
+
+    const manager = await this.requireBrandMemberManager(id, currentUserId);
+    const account = payload.account.trim();
+    if (!account) {
+      throw new ServiceUnavailableException("请输入要添加的成员账号");
+    }
+
+    const targetUser = await this.prismaService.user.findFirst({
+      where: {
+        OR: [
+          { id: account },
+          { mobile: account },
+          { email: account },
+          { nickname: account },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+    if (!targetUser) {
+      throw new NotFoundException("未找到对应用户，请先注册该账号");
+    }
+
+    const role = parseManageableBrandRole(payload.role);
+    this.assertCanAssignBrandRole(manager.role, role);
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brandMember.upsert({
+        where: {
+          brandId_userId: {
+            brandId: id,
+            userId: targetUser.id,
+          },
+        },
+        create: {
+          brandId: id,
+          userId: targetUser.id,
+          role,
+          status: BrandMemberStatus.ACTIVE,
+          invitedByUserId: currentUserId,
+        },
+        update: {
+          role,
+          status: BrandMemberStatus.ACTIVE,
+          invitedByUserId: currentUserId,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        targetUserId: targetUser.id,
+        action: "MEMBER_ADDED",
+        summary: `直接添加品牌成员：${account} -> ${role}`,
+        detailJson: {
+          account,
+          role,
+        },
+      });
+    });
+
+    return this.buildBrandMemberListFromDatabase(id, currentUserId);
+  }
+
+  async updateBrandMember(id: string, memberId: string, payload: UpdateBrandMemberPayload, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.updateBrandMemberFromMock(id, memberId, payload, currentUserId);
+    }
+
+    const manager = await this.requireBrandMemberManager(id, currentUserId);
+    const targetMember = await this.prismaService.brandMember.findFirst({
+      where: {
+        id: memberId,
+        brandId: id,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+    if (!targetMember) {
+      throw new NotFoundException("品牌成员不存在");
+    }
+    if (targetMember.user.id === currentUserId) {
+      throw new UnauthorizedException("暂不支持修改自己的品牌成员角色或状态");
+    }
+    if (targetMember.role === BrandMemberRole.OWNER) {
+      throw new UnauthorizedException("当前版本暂不支持修改主账号成员");
+    }
+    this.assertCanManageTargetMember(manager.role, targetMember.role);
+
+    const nextRole = payload.role ? parseManageableBrandRole(payload.role) : targetMember.role;
+    const nextStatus = payload.status ? parseManageableBrandStatus(payload.status) : targetMember.status;
+    this.assertCanAssignBrandRole(manager.role, nextRole);
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brandMember.update({
+        where: { id: memberId },
+        data: {
+          role: nextRole,
+          status: nextStatus,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        targetUserId: targetMember.user.id,
+        action: "MEMBER_UPDATED",
+        summary: `更新品牌成员：${targetMember.role}/${targetMember.status} -> ${nextRole}/${nextStatus}`,
+        detailJson: {
+          memberId,
+          beforeRole: targetMember.role,
+          beforeStatus: targetMember.status,
+          nextRole,
+          nextStatus,
+        },
+      });
+    });
+
+    return this.buildBrandMemberListFromDatabase(id, currentUserId);
+  }
+
+  async listBrandRoleAuditLogs(id: string, currentUserId?: string): Promise<BrandRoleAuditLogRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.listBrandRoleAuditLogsFromMock(id, currentUserId);
+    }
+
+    await this.requireBrandMemberManager(id, currentUserId);
+    return this.buildBrandRoleAuditLogsFromDatabase(id);
+  }
+
+  async transferBrandOwnership(id: string, payload: TransferBrandOwnerPayload, currentUserId?: string) {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.transferBrandOwnershipFromMock(id, payload, currentUserId);
+    }
+
+    const manager = await this.requireBrandMembership(id, currentUserId);
+    if (manager.role !== BrandMemberRole.OWNER) {
+      throw new UnauthorizedException("只有主账号可以转移品牌所有权");
+    }
+
+    const targetMember = await this.prismaService.brandMember.findFirst({
+      where: {
+        id: payload.memberId,
+        brandId: id,
+        status: BrandMemberStatus.ACTIVE,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+      },
+    });
+    if (!targetMember) {
+      throw new NotFoundException("待转移的成员不存在");
+    }
+    if (targetMember.user.id === currentUserId) {
+      throw new ServiceUnavailableException("当前成员已经是品牌主账号");
+    }
+    if (targetMember.role === BrandMemberRole.OWNER) {
+      throw new ServiceUnavailableException("目标成员已经是主账号");
+    }
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brand.update({
+        where: { id },
+        data: {
+          ownerUserId: targetMember.user.id,
+        },
+      });
+
+      await tx.brandMember.updateMany({
+        where: {
+          brandId: id,
+          userId: currentUserId,
+        },
+        data: {
+          role: BrandMemberRole.ADMIN,
+          status: BrandMemberStatus.ACTIVE,
+        },
+      });
+
+      await tx.brandMember.update({
+        where: {
+          id: targetMember.id,
+        },
+        data: {
+          role: BrandMemberRole.OWNER,
+          status: BrandMemberStatus.ACTIVE,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        targetUserId: targetMember.user.id,
+        action: "OWNER_TRANSFERRED",
+        summary: `品牌主账号已转移给 ${targetMember.user.nickname ?? targetMember.user.mobile}`,
+        detailJson: {
+          previousOwnerUserId: currentUserId,
+          nextOwnerUserId: targetMember.user.id,
+          demotedRole: BrandMemberRole.ADMIN,
+        },
+      });
+    });
+
+    return this.buildBrandMemberListFromDatabase(id, currentUserId);
+  }
+
   async createBrand(payload: CreateBrandPayload) {
     if (await this.prismaService.canUseDatabase()) {
       const ownerUserId = payload.ownerUserId ?? (await this.getDefaultUserId());
 
-      return this.prismaService.brand.create({
-        data: {
-          ownerUserId,
-          brandName: payload.brandName,
-          industry: payload.industry ?? "待补充",
-          storeCount: payload.storeCount ?? 0,
-          foundedYear: payload.foundedYear ?? new Date().getFullYear(),
-          brandDescription: payload.brandDescription ?? "",
-          enterpriseIntro: payload.enterpriseIntro ?? "",
-        },
+      return this.prismaService.$transaction(async (tx) => {
+        const brand = await tx.brand.create({
+          data: {
+            ownerUserId,
+            brandName: payload.brandName,
+            industry: payload.industry ?? "待补充",
+            storeCount: payload.storeCount ?? 0,
+            foundedYear: payload.foundedYear ?? new Date().getFullYear(),
+            brandDescription: payload.brandDescription ?? "",
+            enterpriseIntro: payload.enterpriseIntro ?? "",
+          },
+        });
+
+        await tx.brandMember.upsert({
+          where: {
+            brandId_userId: {
+              brandId: brand.id,
+              userId: ownerUserId,
+            },
+          },
+          create: {
+            brandId: brand.id,
+            userId: ownerUserId,
+            role: BrandMemberRole.OWNER,
+            status: BrandMemberStatus.ACTIVE,
+          },
+          update: {
+            role: BrandMemberRole.OWNER,
+            status: BrandMemberStatus.ACTIVE,
+          },
+        });
+
+        return brand;
       });
     }
 
@@ -717,6 +1769,801 @@ export class BrandsService {
       recentTasks: database.tasks.filter((item) => item.brandId === id).slice(0, 5),
       recentMedia: database.media.filter((item) => item.brandId === id).slice(0, 5),
     };
+  }
+
+  private listBrandMembersFromMock(id: string, currentUserId: string): BrandMemberListRecord {
+    const brand = this.getBrand(id);
+    if (brand.ownerUserId !== currentUserId) {
+      throw new UnauthorizedException("当前账号无权查看该品牌成员");
+    }
+
+    const owner = database.users.find((item) => item.id === brand.ownerUserId);
+    if (!owner) {
+      throw new NotFoundException("品牌主账号不存在");
+    }
+
+    return {
+      brandId: brand.id,
+      brandName: brand.brandName,
+      currentUserRole: BrandMemberRole.OWNER,
+      canManageMembers: true,
+      items: [
+        {
+          id: `mock_member_${brand.id}_${owner.id}`,
+          userId: owner.id,
+          nickname: owner.nickname || owner.mobile,
+          mobile: owner.mobile,
+          email: owner.email || "",
+          role: BrandMemberRole.OWNER,
+          status: BrandMemberStatus.ACTIVE,
+          joinedAt: new Date().toISOString(),
+          isCurrentUser: true,
+          isOwner: true,
+        },
+      ],
+    };
+  }
+
+  private listBrandInvitesFromMock(id: string, currentUserId: string): BrandInviteListRecord {
+    void id;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请流，请先连接数据库");
+  }
+
+  private listMyPendingBrandInvitesFromMock(currentUserId: string): PendingBrandInviteListRecord {
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请流，请先连接数据库");
+  }
+
+  private listMyBrandInviteHistoryFromMock(currentUserId: string): MyBrandInviteHistoryListRecord {
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请通知中心，请先连接数据库");
+  }
+
+  private createBrandInviteFromMock(id: string, payload: CreateBrandInvitePayload, currentUserId: string) {
+    void id;
+    void payload;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请流，请先连接数据库");
+  }
+
+  private acceptBrandInviteFromMock(inviteId: string, currentUserId: string) {
+    void inviteId;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请流，请先连接数据库");
+  }
+
+  private acceptBrandInviteByCodeFromMock(payload: AcceptBrandInviteByCodePayload, currentUserId: string) {
+    void payload;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请码，请先连接数据库");
+  }
+
+  private revokeBrandInviteFromMock(id: string, inviteId: string, currentUserId: string) {
+    void id;
+    void inviteId;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持邀请流，请先连接数据库");
+  }
+
+  private listBrandRoleAuditLogsFromMock(id: string, currentUserId: string): BrandRoleAuditLogRecord {
+    void id;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持品牌成员审计日志，请先连接数据库");
+  }
+
+  private transferBrandOwnershipFromMock(id: string, payload: TransferBrandOwnerPayload, currentUserId: string) {
+    void id;
+    void payload;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持主账号转移，请先连接数据库");
+  }
+
+  private async buildBrandMemberListFromDatabase(id: string, currentUserId: string): Promise<BrandMemberListRecord> {
+    await this.ensureBrandExistsInDatabase(id);
+    const currentMembership = await this.requireBrandMembership(id, currentUserId);
+    const members = await this.prismaService.brandMember.findMany({
+      where: {
+        brandId: id,
+        status: {
+          in: [BrandMemberStatus.ACTIVE, BrandMemberStatus.INVITED, BrandMemberStatus.DISABLED],
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        joinedAt: "asc",
+      },
+    });
+
+    return {
+      brandId: currentMembership.brand.id,
+      brandName: currentMembership.brand.brandName,
+      currentUserRole: currentMembership.role,
+      canManageMembers: canManageBrandMembers(currentMembership.role),
+      items: members
+        .map((item) => ({
+          id: item.id,
+          userId: item.user.id,
+          nickname: item.user.nickname ?? item.user.mobile,
+          mobile: item.user.mobile,
+          email: item.user.email ?? "",
+          role: item.role,
+          status: item.status,
+          joinedAt: item.joinedAt.toISOString(),
+          isCurrentUser: item.user.id === currentUserId,
+          isOwner: item.role === BrandMemberRole.OWNER,
+        }))
+        .sort((a, b) => compareBrandMemberRole(a.role, b.role) || a.joinedAt.localeCompare(b.joinedAt)),
+    };
+  }
+
+  private async buildBrandInviteListFromDatabase(id: string): Promise<BrandInviteListRecord> {
+    await this.ensureBrandExistsInDatabase(id);
+    const brand = await this.prismaService.brand.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        brandName: true,
+      },
+    });
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const now = new Date();
+    const expiredInviteIds = await this.prismaService.brandInvite.findMany({
+      where: {
+        brandId: id,
+        status: BrandInviteStatus.PENDING,
+        expiresAt: {
+          lt: now,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+    if (expiredInviteIds.length) {
+      await this.prismaService.brandInvite.updateMany({
+        where: {
+          id: {
+            in: expiredInviteIds.map((item) => item.id),
+          },
+        },
+        data: {
+          status: BrandInviteStatus.EXPIRED,
+        },
+      });
+    }
+
+    const invites = await this.prismaService.brandInvite.findMany({
+      where: {
+        brandId: id,
+        status: {
+          in: [BrandInviteStatus.PENDING, BrandInviteStatus.REVOKED, BrandInviteStatus.EXPIRED],
+        },
+      },
+      include: {
+        inviteeUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+
+    return {
+      brandId: brand.id,
+      brandName: brand.brandName,
+      items: invites.map((item) => this.mapBrandInviteListItem(item)),
+    };
+  }
+
+  private async buildBrandRoleAuditLogsFromDatabase(id: string): Promise<BrandRoleAuditLogRecord> {
+    await this.ensureBrandExistsInDatabase(id);
+    const brand = await this.prismaService.brand.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        brandName: true,
+      },
+    });
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const items = await this.prismaService.brandRoleAuditLog.findMany({
+      where: {
+        brandId: id,
+      },
+      include: {
+        operatorUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+        targetUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 30,
+    });
+
+    return {
+      brandId: brand.id,
+      brandName: brand.brandName,
+      items: items.map((item) => ({
+        id: item.id,
+        action: item.action,
+        summary: item.summary,
+        operatorUserId: item.operatorUser.id,
+        operatorName: item.operatorUser.nickname ?? item.operatorUser.mobile,
+        targetUserId: item.targetUser?.id ?? undefined,
+        targetUserName: item.targetUser ? item.targetUser.nickname ?? item.targetUser.mobile : undefined,
+        targetInviteId: item.targetInviteId ?? undefined,
+        createdAt: item.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  private async acceptBrandInviteInternal(
+    invite: {
+      id: string;
+      brandId: string;
+      inviteeUserId: string | null;
+      inviteAccount: string;
+      inviteCode: string;
+      role: BrandMemberRole;
+      status: BrandInviteStatus;
+      invitedByUserId: string;
+      expiresAt: Date | null;
+      brand: {
+        id: string;
+        brandName: string;
+      };
+    },
+    currentUserId: string,
+  ) {
+    const now = new Date();
+    if (invite.status !== BrandInviteStatus.PENDING) {
+      throw new ServiceUnavailableException("当前邀请已不可接受");
+    }
+    if (invite.expiresAt && invite.expiresAt < now) {
+      await this.prismaService.brandInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: BrandInviteStatus.EXPIRED,
+        },
+      });
+      throw new ServiceUnavailableException("当前邀请已过期");
+    }
+    if (invite.inviteeUserId && invite.inviteeUserId !== currentUserId) {
+      throw new UnauthorizedException("当前账号无权接受此邀请");
+    }
+
+    const currentUser = await this.prismaService.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        mobile: true,
+        email: true,
+        nickname: true,
+      },
+    });
+    if (!currentUser) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    if (
+      invite.inviteeUserId == null &&
+      ![currentUser.id, currentUser.mobile, currentUser.email ?? "", currentUser.nickname ?? ""]
+        .filter(Boolean)
+        .includes(invite.inviteAccount)
+    ) {
+      throw new UnauthorizedException("当前账号与邀请记录不匹配");
+    }
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brandMember.upsert({
+        where: {
+          brandId_userId: {
+            brandId: invite.brandId,
+            userId: currentUserId,
+          },
+        },
+        update: {
+          role: invite.role,
+          status: BrandMemberStatus.ACTIVE,
+          invitedByUserId: invite.invitedByUserId,
+        },
+        create: {
+          brandId: invite.brandId,
+          userId: currentUserId,
+          role: invite.role,
+          status: BrandMemberStatus.ACTIVE,
+          invitedByUserId: invite.invitedByUserId,
+        },
+      });
+
+      await tx.brandInvite.update({
+        where: { id: invite.id },
+        data: {
+          inviteeUserId: currentUserId,
+          status: BrandInviteStatus.ACCEPTED,
+          acceptedAt: now,
+        },
+      });
+
+      await tx.brandInviteReadState.upsert({
+        where: {
+          inviteId_userId: {
+            inviteId: invite.id,
+            userId: currentUserId,
+          },
+        },
+        create: {
+          inviteId: invite.id,
+          userId: currentUserId,
+          readAt: now,
+        },
+        update: {
+          readAt: now,
+        },
+      });
+
+      await this.syncBrandInviteNotificationByInviteId(tx, invite.id, currentUserId, now);
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: invite.brandId,
+        operatorUserId: currentUserId,
+        targetUserId: currentUserId,
+        targetInviteId: invite.id,
+        action: "INVITE_ACCEPTED",
+        summary: `接受品牌邀请：${invite.inviteAccount}`,
+        detailJson: {
+          inviteCode: invite.inviteCode,
+          acceptedAt: now.toISOString(),
+          role: invite.role,
+        },
+      });
+    });
+
+    return {
+      brandId: invite.brand.id,
+      brandName: invite.brand.brandName,
+      accepted: true,
+    };
+  }
+
+  private mapBrandInviteListItem(item: {
+    id: string;
+    inviteAccount: string;
+    inviteCode: string;
+    inviteeUser?: { id: string; nickname: string | null; mobile: string; email: string | null } | null;
+    role: BrandMemberRole;
+    status: BrandInviteStatus;
+    note: string | null;
+    invitedByUser: { id: string; nickname: string | null; mobile: string };
+    expiresAt: Date | null;
+    createdAt: Date;
+    revokedAt: Date | null;
+    readStates?: Array<{ userId: string; readAt: Date }>;
+  }, options?: { currentUserId?: string }): BrandInviteListItem {
+    const readState = options?.currentUserId
+      ? item.readStates?.find((readItem) => readItem.userId === options.currentUserId)
+      : undefined;
+
+    return {
+      id: item.id,
+      inviteAccount: item.inviteAccount,
+      inviteCode: item.inviteCode,
+      inviteLink: this.buildInviteLink(item.inviteCode),
+      inviteeUserId: item.inviteeUser?.id,
+      inviteeNickname: item.inviteeUser?.nickname ?? undefined,
+      inviteeMobile: item.inviteeUser?.mobile ?? undefined,
+      inviteeEmail: item.inviteeUser?.email ?? undefined,
+      role: item.role,
+      status: item.status,
+      note: item.note ?? undefined,
+      invitedByUserId: item.invitedByUser.id,
+      invitedByName: item.invitedByUser.nickname ?? item.invitedByUser.mobile,
+      expiresAt: item.expiresAt?.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+      revokedAt: item.revokedAt?.toISOString(),
+      isMatchedUser: Boolean(item.inviteeUser?.id),
+      isRead: Boolean(readState),
+      readAt: readState?.readAt.toISOString(),
+    };
+  }
+
+  private buildInviteLink(inviteCode: string) {
+    return `${this.getWebBaseUrl()}/personal-center/team?inviteCode=${encodeURIComponent(inviteCode)}`;
+  }
+
+  private getWebBaseUrl() {
+    return process.env.WEB_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_WEB_BASE_URL || "http://localhost:3001";
+  }
+
+  private generateInviteCode() {
+    return `BR${randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  }
+
+  private async logBrandRoleAudit(
+    tx: Prisma.TransactionClient | PrismaService,
+    payload: {
+      brandId: string;
+      operatorUserId: string;
+      targetUserId?: string;
+      targetInviteId?: string;
+      action: string;
+      summary: string;
+      detailJson?: Prisma.JsonObject;
+    },
+  ) {
+    await tx.brandRoleAuditLog.create({
+      data: {
+        brandId: payload.brandId,
+        operatorUserId: payload.operatorUserId,
+        targetUserId: payload.targetUserId,
+        targetInviteId: payload.targetInviteId,
+        action: payload.action,
+        summary: payload.summary,
+        detailJson: payload.detailJson,
+      },
+    });
+  }
+
+  private async syncBrandInviteNotificationsForUser(
+    currentUserId: string,
+    invites?: Array<{
+      id: string;
+      brandId: string;
+      inviteAccount: string;
+      inviteCode: string;
+      inviteeUser?: { id: string; nickname: string | null; mobile: string; email: string | null } | null;
+      role: BrandMemberRole;
+      status: BrandInviteStatus;
+      note: string | null;
+      invitedByUser: { id: string; nickname: string | null; mobile: string };
+      expiresAt: Date | null;
+      createdAt: Date;
+      revokedAt: Date | null;
+      acceptedAt?: Date | null;
+      brand: { id: string; brandName: string };
+      readStates?: Array<{ userId: string; readAt: Date }>;
+    }>,
+  ) {
+    const inviteItems = invites ?? (await this.loadMatchedBrandInvitesForUser(currentUserId));
+    for (const invite of inviteItems) {
+      await this.upsertBrandInviteNotification(this.prismaService, {
+        invite,
+        userId: currentUserId,
+        readAt: invite.readStates?.[0]?.readAt,
+      });
+    }
+  }
+
+  private async syncBrandInviteNotificationByInviteId(
+    tx: Prisma.TransactionClient | PrismaService,
+    inviteId: string,
+    userId: string,
+    readAt?: Date,
+  ) {
+    const invite = await tx.brandInvite.findFirst({
+      where: {
+        id: inviteId,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        inviteeUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+        readStates: {
+          where: {
+            userId,
+          },
+          select: {
+            userId: true,
+            readAt: true,
+          },
+        },
+      },
+    });
+    if (!invite) {
+      return;
+    }
+
+    await this.upsertBrandInviteNotification(tx, {
+      invite,
+      userId,
+      readAt: readAt ?? invite.readStates[0]?.readAt,
+    });
+  }
+
+  private async upsertBrandInviteNotification(
+    tx: Prisma.TransactionClient | PrismaService,
+    payload: {
+      invite: {
+        id: string;
+        brandId: string;
+        inviteAccount: string;
+        inviteCode: string;
+        inviteeUser?: { id: string; nickname: string | null; mobile: string; email: string | null } | null;
+        role: BrandMemberRole;
+        status: BrandInviteStatus;
+        note: string | null;
+        invitedByUser: { id: string; nickname: string | null; mobile: string };
+        expiresAt: Date | null;
+        createdAt: Date;
+        revokedAt: Date | null;
+        acceptedAt?: Date | null;
+        brand: { id: string; brandName: string };
+      };
+      userId: string;
+      readAt?: Date;
+    },
+  ) {
+    await tx.brandInviteNotification.upsert({
+      where: {
+        inviteId_userId: {
+          inviteId: payload.invite.id,
+          userId: payload.userId,
+        },
+      },
+      create: {
+        inviteId: payload.invite.id,
+        userId: payload.userId,
+        brandId: payload.invite.brand.id,
+        title: this.buildBrandInviteNotificationTitle(payload.invite),
+        summary: this.buildBrandInviteNotificationSummary(payload.invite),
+        actionUrl: "/personal-center/invites",
+        readAt: payload.readAt,
+      },
+      update: {
+        brandId: payload.invite.brand.id,
+        title: this.buildBrandInviteNotificationTitle(payload.invite),
+        summary: this.buildBrandInviteNotificationSummary(payload.invite),
+        actionUrl: "/personal-center/invites",
+        readAt: payload.readAt ?? null,
+      },
+    });
+  }
+
+  private async loadMatchedBrandInvitesForUser(currentUserId: string) {
+    const currentUser = await this.prismaService.user.findUnique({
+      where: { id: currentUserId },
+      select: {
+        id: true,
+        mobile: true,
+        email: true,
+        nickname: true,
+      },
+    });
+    if (!currentUser) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    const now = new Date();
+    await this.prismaService.brandInvite.updateMany({
+      where: {
+        status: BrandInviteStatus.PENDING,
+        expiresAt: {
+          lt: now,
+        },
+      },
+      data: {
+        status: BrandInviteStatus.EXPIRED,
+      },
+    });
+
+    const accountCandidates = this.buildInviteAccountCandidates(currentUser);
+    return this.prismaService.brandInvite.findMany({
+      where: {
+        status: {
+          in: [
+            BrandInviteStatus.PENDING,
+            BrandInviteStatus.ACCEPTED,
+            BrandInviteStatus.EXPIRED,
+            BrandInviteStatus.REVOKED,
+          ],
+        },
+        OR: [{ inviteeUserId: currentUserId }, ...accountCandidates.map((item) => ({ inviteAccount: item }))],
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+        inviteeUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+            email: true,
+          },
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            nickname: true,
+            mobile: true,
+          },
+        },
+        readStates: {
+          where: {
+            userId: currentUserId,
+          },
+          select: {
+            userId: true,
+            readAt: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+  }
+
+  private buildBrandInviteNotificationTitle(invite: {
+    brand: { brandName: string };
+    status: BrandInviteStatus;
+  }) {
+    if (invite.status === BrandInviteStatus.ACCEPTED) {
+      return `你已加入 ${invite.brand.brandName}`;
+    }
+    if (invite.status === BrandInviteStatus.REVOKED) {
+      return `${invite.brand.brandName} 的品牌邀请已撤回`;
+    }
+    if (invite.status === BrandInviteStatus.EXPIRED) {
+      return `${invite.brand.brandName} 的品牌邀请已过期`;
+    }
+    return `${invite.brand.brandName} 邀请你加入品牌`;
+  }
+
+  private buildBrandInviteNotificationSummary(invite: {
+    brand: { brandName: string };
+    role: BrandMemberRole;
+    status: BrandInviteStatus;
+    invitedByUser: { nickname: string | null; mobile: string };
+  }) {
+    const inviterName = invite.invitedByUser.nickname ?? invite.invitedByUser.mobile;
+    if (invite.status === BrandInviteStatus.ACCEPTED) {
+      return `你已接受 ${invite.brand.brandName} 的 ${invite.role} 邀请，邀请人：${inviterName}`;
+    }
+    if (invite.status === BrandInviteStatus.REVOKED) {
+      return `原邀请角色：${invite.role}，邀请人：${inviterName}`;
+    }
+    if (invite.status === BrandInviteStatus.EXPIRED) {
+      return `原邀请角色：${invite.role}，邀请人：${inviterName}`;
+    }
+    return `邀请角色：${invite.role}，邀请人：${inviterName}`;
+  }
+
+  private buildInviteAccountCandidates(user: {
+    id: string;
+    mobile: string;
+    email: string | null;
+    nickname: string | null;
+  }) {
+    return [user.id, user.mobile, user.email ?? "", user.nickname ?? ""].filter(Boolean);
+  }
+
+  private async requireBrandMembership(id: string, userId: string) {
+    const membership = await this.prismaService.brandMember.findFirst({
+      where: {
+        brandId: id,
+        userId,
+        status: BrandMemberStatus.ACTIVE,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+          },
+        },
+      },
+    });
+    if (!membership) {
+      throw new UnauthorizedException("当前账号无权查看该品牌成员");
+    }
+    return membership;
+  }
+
+  private async requireBrandMemberManager(id: string, userId: string) {
+    const membership = await this.requireBrandMembership(id, userId);
+    if (!canManageBrandMembers(membership.role)) {
+      throw new UnauthorizedException("当前角色无权管理品牌成员");
+    }
+    return membership;
+  }
+
+  private addBrandMemberFromMock(id: string, payload: AddBrandMemberPayload, currentUserId: string) {
+    void id;
+    void payload;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持成员管理，请先连接数据库");
+  }
+
+  private updateBrandMemberFromMock(id: string, memberId: string, payload: UpdateBrandMemberPayload, currentUserId: string) {
+    void id;
+    void memberId;
+    void payload;
+    void currentUserId;
+    throw new ServiceUnavailableException("当前 mock 模式暂不支持成员管理，请先连接数据库");
+  }
+
+  private assertCanAssignBrandRole(managerRole: BrandMemberRole, targetRole: BrandMemberRole) {
+    if (managerRole === BrandMemberRole.OWNER) {
+      return;
+    }
+    if (managerRole === BrandMemberRole.ADMIN) {
+      if (targetRole === BrandMemberRole.OWNER || targetRole === BrandMemberRole.ADMIN) {
+        throw new UnauthorizedException("当前角色无权授予该成员角色");
+      }
+      return;
+    }
+    throw new UnauthorizedException("当前角色无权管理品牌成员");
+  }
+
+  private assertCanManageTargetMember(managerRole: BrandMemberRole, targetRole: BrandMemberRole) {
+    if (managerRole === BrandMemberRole.OWNER) {
+      return;
+    }
+    if (managerRole === BrandMemberRole.ADMIN) {
+      if (targetRole === BrandMemberRole.OWNER || targetRole === BrandMemberRole.ADMIN) {
+        throw new UnauthorizedException("当前角色无权修改该成员");
+      }
+      return;
+    }
+    throw new UnauthorizedException("当前角色无权管理品牌成员");
   }
 
   private async getArchiveFromDatabase(id: string) {
@@ -1507,4 +3354,54 @@ export class BrandsService {
 
     return brand;
   }
+}
+
+function compareBrandMemberRole(left: string, right: string) {
+  const order: Record<string, number> = {
+    OWNER: 0,
+    ADMIN: 1,
+    EDITOR: 2,
+    OPERATOR: 3,
+    VIEWER: 4,
+  };
+  return (order[left] ?? 99) - (order[right] ?? 99);
+}
+
+function canManageBrandMembers(role: string) {
+  return role === BrandMemberRole.OWNER || role === BrandMemberRole.ADMIN;
+}
+
+function parseManageableBrandRole(role?: string): BrandMemberRole {
+  switch (role) {
+    case BrandMemberRole.ADMIN:
+      return BrandMemberRole.ADMIN;
+    case BrandMemberRole.EDITOR:
+      return BrandMemberRole.EDITOR;
+    case BrandMemberRole.OPERATOR:
+      return BrandMemberRole.OPERATOR;
+    case BrandMemberRole.VIEWER:
+      return BrandMemberRole.VIEWER;
+    default:
+      return BrandMemberRole.EDITOR;
+  }
+}
+
+function parseManageableBrandStatus(status?: string): BrandMemberStatus {
+  switch (status) {
+    case BrandMemberStatus.ACTIVE:
+      return BrandMemberStatus.ACTIVE;
+    case BrandMemberStatus.DISABLED:
+      return BrandMemberStatus.DISABLED;
+    case BrandMemberStatus.REMOVED:
+      return BrandMemberStatus.REMOVED;
+    default:
+      return BrandMemberStatus.ACTIVE;
+  }
+}
+
+function normalizeInviteExpiryDays(days?: number) {
+  if (!days || Number.isNaN(days)) {
+    return 7;
+  }
+  return Math.min(Math.max(Math.round(days), 1), 30);
 }

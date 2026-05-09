@@ -52,7 +52,10 @@
 
 - `User`
   - 用途：账号、会员等级、点数余额、飞书绑定主实体
-  - 关键字段：`mobile`、`email`、`nickname`、`status`、`membership`、`pointsBalance`
+  - 关键字段：`mobile`、`email`、`nickname`、`status`、`membership`、`systemRole`、`pointsBalance`、`lastLoginAt`
+- `UserSession`
+  - 用途：登录态会话、refresh token、当前品牌工作区绑定
+  - 关键字段：`userId`、`refreshTokenHash`、`currentBrandId`、`expiresAt`、`revokedAt`
 - `MembershipOrder`
   - 用途：会员购买、点数充值订单
   - 关键字段：`orderNo`、`orderType`、`orderStatus`、`membership`、`pointsAmount`、`amountYuan`
@@ -65,6 +68,21 @@
 - `Brand`
   - 用途：品牌主档
   - 关键字段：`ownerUserId`、`brandName`、`industry`、`storeCount`、`foundedYear`、`brandDescription`
+- `BrandMember`
+  - 用途：品牌主账号与子用户协作关系
+  - 关键字段：`brandId`、`userId`、`role`、`status`、`joinedAt`、`invitedByUserId`
+- `BrandInvite`
+  - 用途：品牌成员邀请、邀请码、邀请链接与接受状态闭环
+  - 关键字段：`brandId`、`inviteAccount`、`inviteCode`、`inviteeUserId`、`role`、`status`、`invitedByUserId`、`expiresAt`、`acceptedAt`
+- `BrandInviteReadState`
+  - 用途：邀请通知中心未读/已读状态的用户级持久化，支撑跨设备同步
+  - 关键字段：`inviteId`、`userId`、`readAt`
+- `BrandInviteNotification`
+  - 用途：邀请站内消息表第一版，给邀请通知中心提供独立消息记录
+  - 关键字段：`inviteId`、`userId`、`brandId`、`title`、`summary`、`actionUrl`、`readAt`
+- `BrandRoleAuditLog`
+  - 用途：品牌成员邀请、角色修改、状态修改、主账号转移等成员域审计
+  - 关键字段：`brandId`、`operatorUserId`、`targetUserId`、`targetInviteId`、`action`、`summary`、`detailJson`
 - `Product`
   - 用途：品牌产品资料库
   - 关键字段：`brandId`、`productName`、`productType`、`price`、`productPositioning`、`targetAudience`、`usageScenario`、`differentiators`
@@ -141,16 +159,20 @@
 ### 4.3 个人中心 `/personal-center`
 
 - 用户资料：`User`
+- 登录态：`UserSession`
 - 点数流水：`PointLedger`
 - 会员订单 / 充值明细：`MembershipOrder`
 - 任务记录：`Task`
 - 我的作品：`MediaAsset`
+- 邀请通知已读状态：`BrandInviteReadState`
+- 邀请站内消息：`BrandInviteNotification`
 
 ### 4.4 后台管理 `/admin`
 
 - 订单管理：`MembershipOrder`
 - 会员/积分规则：当前仍主要来自 `mock-data`
-- 用户管理：`User`
+- 用户管理：`User`、`UserSession`
+- 品牌成员与权限：`Brand`、`BrandMember`
 - API Provider 管理：当前仍主要来自 `mock-data`
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
@@ -201,3 +223,50 @@
 - 只要 `prisma/schema.prisma` 有新增、删除或字段变更，必须同步更新本文件
 - 只要某个业务板块从 `mock-data` 切到正式数据库，必须同步更新“业务板块与数据表映射”
 - 只要后台技能中心新增数据库字段或改写读写链路，必须同步更新本文件与 `docs/site-map.md`
+
+## 8. 下一阶段规划中的目标模型
+
+> 本节是“规划目标”，不是当前已落地结构。后续真正进入开发并完成迁移后，再把对应内容合并进前文正式分层。
+
+### 8.1 多用户与品牌协作域
+
+- 当前已落地：
+  - `BrandInvite`
+  - `BrandInviteReadState`
+  - `BrandInviteNotification`
+  - `BrandRoleAuditLog`
+- 已落地作用：
+  - 支持一个品牌生成邀请码与邀请链接并完成接受闭环
+  - 支持品牌成员邀请、角色调整和主账号转移的成员域审计
+  - 支持同一品牌下多用户共享品牌数据空间并保留操作留痕
+
+### 8.2 用户技能覆盖域
+
+- 目标新增表：
+  - `UserSkillProfile`
+  - `UserPromptOverride`
+  - `UserSkillResetLog`
+- 目标作用：
+  - 平台统一维护基线技能
+  - 用户基于平台技能创建自己的覆盖层
+  - 用户不可删除平台技能，但可保存和重置自己的版本
+
+### 8.3 会员与积分正式规则域
+
+- 目标新增表：
+  - `MembershipPlan`
+  - `UserMembership`
+  - `PointsPlan`
+  - `PointsAccount`
+- 目标作用：
+  - 替换当前 `mock-data` 中的会员/积分规则
+  - 支持普通用户、会员用户、企业会员等账号等级
+  - 支持品牌公共点数池和操作用户留痕
+
+### 8.4 会话与审计域
+
+- 目标新增表：
+  - `AdminOperationLog`
+- 目标作用：
+  - 在已落地 `UserSession` 基础上继续补足管理员审计
+  - 记录后台管理员对用户、品牌、会员、积分、角色的操作审计

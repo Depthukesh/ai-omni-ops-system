@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
+import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   ApiProvidersService,
   type CreateApiProviderPayload,
@@ -7,30 +9,45 @@ import {
 
 @Controller("admin/api-providers")
 export class ApiProvidersController {
-  constructor(private readonly apiProvidersService: ApiProvidersService) {}
+  constructor(
+    private readonly apiProvidersService: ApiProvidersService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
-  listProviders() {
+  async listProviders(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.apiProvidersService.listProviders();
   }
 
   @Post()
-  createProvider(@Body() payload: CreateApiProviderPayload) {
+  async createProvider(
+    @Body() payload: CreateApiProviderPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.apiProvidersService.createProvider(payload);
   }
 
   @Patch(":id")
-  updateProvider(@Param("id") id: string, @Body() payload: UpdateApiProviderPayload) {
+  async updateProvider(
+    @Param("id") id: string,
+    @Body() payload: UpdateApiProviderPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.apiProvidersService.updateProvider(id, payload);
   }
 
   @Patch(":id/archive")
-  archiveProvider(@Param("id") id: string) {
+  async archiveProvider(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.apiProvidersService.archiveProvider(id);
   }
 
   @Delete(":id")
-  deleteProvider(@Param("id") id: string) {
+  async deleteProvider(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.apiProvidersService.deleteProvider(id);
   }
 }

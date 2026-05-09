@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   apiProviderSeed,
   archiveApiProvider,
@@ -56,9 +57,11 @@ import {
   type PromptTemplateRecord,
   type SkillConfigRecord,
 } from "../../../services/admin";
+import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "knowledge" | "providers";
+type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
 type UserEditDraft = {
   membership: MembershipLevel;
   pointsDelta: string;
@@ -139,6 +142,13 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
   { key: "providers", label: "接口供应商", shortLabel: "接口", description: "维护模型供应商状态、Base URL、模型白名单与密钥占位信息。" },
 ];
+
+const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
+  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "knowledge", "providers"],
+  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "knowledge", "providers"],
+  FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
+  SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
+};
 
 const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
   {
@@ -260,6 +270,7 @@ const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
 ];
 
 export default function AdminPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [activeSkillPrimaryId, setActiveSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
   const [activeSkillSectionId, setActiveSkillSectionId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.id || "");
@@ -304,15 +315,51 @@ export default function AdminPage() {
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [adminName, setAdminName] = useState("");
+  const [adminSystemRole, setAdminSystemRole] = useState<AdminSystemRole | "">("");
 
   useEffect(() => {
-    void loadAdminData();
+    void verifyAdminAccess();
   }, []);
 
-  async function loadAdminData() {
+  async function verifyAdminAccess() {
+    const session = readAuthSession();
+    if (!session?.accessToken && !session?.refreshToken) {
+      router.replace("/admin/login?next=/admin");
+      return;
+    }
+
+    try {
+      const result = await getMe();
+      const role = result.user.systemRole as AdminSystemRole;
+      if (!ADMIN_ROLE_TAB_MATRIX[role]) {
+        setErrorMessage("当前账号不是后台管理员，请使用后台角色账号登录。");
+        setIsCheckingAccess(false);
+        return;
+      }
+      setAdminSystemRole(role);
+      setAdminName(result.user.nickname || result.user.mobile);
+      await loadAdminData(role);
+    } catch {
+      await logoutSession();
+      router.replace("/admin/login?next=/admin");
+    }
+  }
+
+  async function loadAdminData(role: AdminSystemRole = adminSystemRole as AdminSystemRole) {
     setIsLoading(true);
     setNotice("");
     setErrorMessage("");
+
+    const allowedTabs = ADMIN_ROLE_TAB_MATRIX[role] ?? [];
+    const canReadOrders = allowedTabs.includes("orders");
+    const canReadRules = allowedTabs.includes("rules");
+    const canReadUsers = allowedTabs.includes("users");
+    const canReadUsage = allowedTabs.includes("usage");
+    const canReadAssets = allowedTabs.includes("assets");
+    const canReadKnowledge = allowedTabs.includes("knowledge");
+    const canReadProviders = allowedTabs.includes("providers");
 
     const [
       orderResult,
@@ -327,16 +374,16 @@ export default function AdminPage() {
       providerResult,
     ] =
       await Promise.allSettled([
-      getAdminOrders(),
-      getBillingRules(),
-      getAdminUsers(),
-      getModelUsage(),
-      getSkillConfigs(),
-      getPromptTemplates(),
-      getKnowledgeBases(),
-      getKnowledgeBaseFiles(),
-      getKnowledgeBaseSyncRuns(),
-      getApiProviders(),
+      canReadOrders ? getAdminOrders() : Promise.resolve([]),
+      canReadRules ? getBillingRules() : Promise.resolve({ membershipPlans: [], pointsPackages: [] }),
+      canReadUsers ? getAdminUsers() : Promise.resolve([]),
+      canReadUsage ? getModelUsage() : Promise.resolve([]),
+      canReadAssets ? getSkillConfigs() : Promise.resolve([]),
+      canReadAssets ? getPromptTemplates() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
+      canReadProviders ? getApiProviders() : Promise.resolve([]),
     ]);
     let usingSeed = false;
 
@@ -432,6 +479,7 @@ export default function AdminPage() {
     }
 
     setIsLoading(false);
+    setIsCheckingAccess(false);
   }
 
   async function handleOrderAction(orderId: string, action: "pay" | "cancel") {
@@ -1560,7 +1608,14 @@ export default function AdminPage() {
     ],
   );
 
-  const activeTabMeta = tabs.find((item) => item.key === activeTab) || tabs[0];
+  const accessibleTabs = tabs.filter((item) => {
+    if (!adminSystemRole) {
+      return item.key === "dashboard";
+    }
+    return ADMIN_ROLE_TAB_MATRIX[adminSystemRole].includes(item.key);
+  });
+  const resolvedActiveTab = accessibleTabs.some((item) => item.key === activeTab) ? activeTab : accessibleTabs[0]?.key || "dashboard";
+  const activeTabMeta = accessibleTabs.find((item) => item.key === resolvedActiveTab) || accessibleTabs[0] || tabs[0];
   const overviewCards = [
     { label: "订单池", value: summary.orderCount, detail: `${summary.pendingCount} 个待支付 / ${summary.paidCount} 个已完成` },
     { label: "平台用户", value: summary.userCount, detail: `共覆盖 ${summary.userCount} 个可运营账户` },
@@ -1575,7 +1630,7 @@ export default function AdminPage() {
     { key: "assets" as const, count: summary.skillCount + summary.promptCount, note: `${summary.skillCount} 个技能 / ${summary.promptCount} 套提示词` },
     { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `当前共有 ${summary.knowledgeBaseCount} 个知识库` },
     { key: "providers" as const, count: summary.providerCount, note: `接口供应商 ${summary.providerCount} 个` },
-  ];
+  ].filter((item) => accessibleTabs.some((tab) => tab.key === item.key));
   const operationPulse = [
     { label: "订单履约", value: summary.orderCount ? Math.round((summary.paidCount / summary.orderCount) * 100) : 0 },
     { label: "知识同步", value: knowledgeBases.length ? Math.round((knowledgeBases.filter((item) => item.syncStatus === "SUCCESS").length / knowledgeBases.length) * 100) : 0 },
@@ -1614,6 +1669,41 @@ export default function AdminPage() {
   const isSavingSkillCenter =
     (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
+
+  if (isCheckingAccess) {
+    return (
+      <main className="dashboard-shell admin-console-shell">
+        <section className="panel" style={{ margin: 24 }}>
+          <div className="panel-header">
+            <div>
+              <h1>后台管理台验证中</h1>
+              <p className="panel-subtext">正在检查当前登录态与后台角色权限矩阵。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (errorMessage && !adminName) {
+    return (
+      <main className="dashboard-shell admin-console-shell">
+        <section className="panel" style={{ margin: 24, maxWidth: 720 }}>
+          <div className="panel-header">
+            <div>
+              <h1>后台管理台暂不可进入</h1>
+              <p className="panel-subtext">{errorMessage}</p>
+            </div>
+          </div>
+          <div className="personal-actions">
+            <button type="button" className="primary-button" onClick={() => router.replace("/admin/login?next=/admin")}>
+              去后台登录
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="dashboard-shell admin-console-shell">
@@ -1660,6 +1750,7 @@ export default function AdminPage() {
                 <span>当前数据源</span>
                 <strong>{dataSource === "api" ? "实时接口" : "本地演示"}</strong>
                 <p>{dataSource === "api" ? "当前页面读取接口结果，可直接用于后台联调。" : "接口异常时自动回退为演示数据，方便先看界面和流程。"}</p>
+                <p>{adminName ? `当前管理员：${adminName}` : "当前管理员身份已验证"}</p>
               </div>
               <button type="button" className="secondary-button" onClick={() => void loadAdminData()}>
                 {isLoading ? "刷新中..." : "刷新后台数据"}

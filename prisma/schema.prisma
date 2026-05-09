@@ -19,6 +19,14 @@ enum MembershipLevel {
   ENTERPRISE
 }
 
+enum SystemRole {
+  USER
+  SUPER_ADMIN
+  ADMIN_OPERATOR
+  FINANCE_OPERATOR
+  SUPPORT_OPERATOR
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -51,6 +59,28 @@ enum MediaType {
   ARCHIVE
 }
 
+enum BrandMemberRole {
+  OWNER
+  ADMIN
+  EDITOR
+  OPERATOR
+  VIEWER
+}
+
+enum BrandMemberStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+  REMOVED
+}
+
+enum BrandInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 enum AssetCategory {
   INDUSTRY_REPORT
   BUSINESS_DATA
@@ -69,16 +99,45 @@ model User {
   passwordHash   String
   status         UserStatus         @default(ACTIVE)
   membership     MembershipLevel    @default(FREE)
+  systemRole     SystemRole         @default(USER)
   pointsBalance  Int                @default(0)
+  lastLoginAt    DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  brands         Brand[]
+  brands         Brand[]            @relation("BrandOwner")
+  brandMemberships BrandMember[]
+  sentBrandInvites BrandInvite[]    @relation("BrandInviter")
+  receivedBrandInvites BrandInvite[] @relation("BrandInvitee")
+  brandInviteReadStates BrandInviteReadState[]
+  brandInviteNotifications BrandInviteNotification[]
+  brandRoleAuditOperations BrandRoleAuditLog[] @relation("BrandRoleAuditOperator")
+  brandRoleAuditTargets BrandRoleAuditLog[] @relation("BrandRoleAuditTargetUser")
+  sessions       UserSession[]
   tasks          Task[]
   mediaAssets    MediaAsset[]
   orders         MembershipOrder[]
   pointLedgers   PointLedger[]
   feishuIntegration UserFeishuIntegration?
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String
+  currentBrandId   String?
+  deviceInfo       String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentBrand     Brand?    @relation(fields: [currentBrandId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model MembershipOrder {
@@ -127,7 +186,12 @@ model Brand {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  owner              User                @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  owner              User                @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members            BrandMember[]
+  invites            BrandInvite[]
+  inviteNotifications BrandInviteNotification[]
+  roleAuditLogs      BrandRoleAuditLog[]
+  currentSessions    UserSession[]
   products           Product[]
   surveys            BrandSurvey[]
   platformAccounts   PlatformAccount[]
@@ -138,6 +202,111 @@ model Brand {
   mediaAssets        MediaAsset[]
 
   @@index([ownerUserId, createdAt])
+}
+
+model BrandMember {
+  id              String            @id @default(cuid())
+  brandId         String
+  userId          String
+  role            BrandMemberRole   @default(OWNER)
+  status          BrandMemberStatus @default(ACTIVE)
+  joinedAt        DateTime          @default(now())
+  invitedByUserId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  brand           Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, userId])
+  @@index([userId, status])
+  @@index([brandId, role])
+}
+
+model BrandInvite {
+  id              String            @id @default(cuid())
+  brandId         String
+  inviteeUserId   String?
+  inviteAccount   String
+  inviteCode      String            @unique
+  role            BrandMemberRole   @default(EDITOR)
+  status          BrandInviteStatus @default(PENDING)
+  note            String?
+  invitedByUserId String
+  expiresAt       DateTime?
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  brand           Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  inviteeUser     User?             @relation("BrandInvitee", fields: [inviteeUserId], references: [id], onDelete: SetNull)
+  invitedByUser   User              @relation("BrandInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  notifications   BrandInviteNotification[]
+  readStates      BrandInviteReadState[]
+  roleAuditLogs   BrandRoleAuditLog[]
+
+  @@index([brandId, status, createdAt])
+  @@index([inviteeUserId, status])
+  @@index([invitedByUserId, createdAt])
+}
+
+model BrandInviteNotification {
+  id        String      @id @default(cuid())
+  inviteId   String
+  userId     String
+  brandId    String
+  title      String
+  summary    String
+  actionUrl  String?
+  readAt     DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  invite     BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand      Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, userId])
+  @@index([userId, readAt, createdAt])
+  @@index([brandId, updatedAt])
+}
+
+model BrandInviteReadState {
+  id        String      @id @default(cuid())
+  inviteId  String
+  userId    String
+  readAt    DateTime
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  invite     BrandInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, userId])
+  @@index([userId, readAt])
+  @@index([inviteId, readAt])
+}
+
+model BrandRoleAuditLog {
+  id             String      @id @default(cuid())
+  brandId        String
+  operatorUserId String
+  targetUserId   String?
+  targetInviteId String?
+  action         String
+  summary        String
+  detailJson     Json?
+  createdAt      DateTime    @default(now())
+
+  brand          Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  operatorUser   User        @relation("BrandRoleAuditOperator", fields: [operatorUserId], references: [id], onDelete: Cascade)
+  targetUser     User?       @relation("BrandRoleAuditTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetInvite   BrandInvite? @relation(fields: [targetInviteId], references: [id], onDelete: SetNull)
+
+  @@index([brandId, createdAt])
+  @@index([operatorUserId, createdAt])
+  @@index([targetUserId, createdAt])
 }
 
 model Product {

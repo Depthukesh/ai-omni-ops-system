@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../services/auth";
+import {
+  getMyBrandInvites,
+  type BrandInviteRecord,
+} from "../../../services/brand-growth";
 import {
   getPointLedgers,
-  getProfile,
   getOrders,
   getMedia,
   getTasks,
@@ -46,22 +51,34 @@ const personalReferenceTabs: Array<{ label: string; key: PersonalTab }> = [
 ];
 
 export default function PersonalCenterPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<PersonalTab>("profile");
   const [profile, setProfile] = useState<UserProfile>(profileSeed);
   const [pointLedgers, setPointLedgers] = useState<PointLedgerRecord[]>(pointLedgerSeed);
   const [orders, setOrders] = useState<OrderRecord[]>(orderSeed);
   const [tasks, setTasks] = useState<TaskRecord[]>(taskSeed);
   const [media, setMedia] = useState<MediaRecord[]>(mediaSeed);
+  const [brands, setBrands] = useState<MeResponse["brands"]>([]);
+  const [myPendingInvites, setMyPendingInvites] = useState<Array<BrandInviteRecord & { brandId: string; brandName: string }>>([]);
+  const [currentBrandId, setCurrentBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRetryingId, setIsRetryingId] = useState<string>("");
+  const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "seed">("seed");
 
   useEffect(() => {
+    const session = readAuthSession();
+    if (!session?.accessToken && !session?.refreshToken) {
+      router.replace(buildLoginPath());
+      return;
+    }
+
     void loadCenterData();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -79,35 +96,50 @@ export default function PersonalCenterPage() {
     setNotice("");
     setErrorMessage("");
 
-    const [profileResult, pointLedgersResult, ordersResult, tasksResult, mediaResult] = await Promise.allSettled([
-      getProfile(),
+    const [meResult, pointLedgersResult, ordersResult, tasksResult, mediaResult, myInvitesResult] = await Promise.allSettled([
+      getMe(),
       getPointLedgers(),
       getOrders(),
       getTasks(),
       getMedia(),
+      getMyBrandInvites(),
     ]);
 
-    if (
-      profileResult.status === "fulfilled"
-      && pointLedgersResult.status === "fulfilled"
-      && ordersResult.status === "fulfilled"
-      && tasksResult.status === "fulfilled"
-      && mediaResult.status === "fulfilled"
-    ) {
-      setProfile(profileResult.value);
-      setPointLedgers(pointLedgersResult.value);
-      setOrders(ordersResult.value);
-      setTasks(tasksResult.value);
-      setMedia(mediaResult.value);
-      setDataSource("api");
+    if (meResult.status === "rejected" && isAuthFailure(meResult.reason)) {
+      await handleSessionExpired();
+      return;
+    }
+
+    const hasSeedFallback =
+      meResult.status !== "fulfilled"
+      || pointLedgersResult.status !== "fulfilled"
+      || ordersResult.status !== "fulfilled"
+      || tasksResult.status !== "fulfilled"
+      || mediaResult.status !== "fulfilled";
+
+    if (meResult.status === "fulfilled") {
+      setProfile(meResult.value.user);
+      setBrands(meResult.value.brands);
+      setCurrentBrandId(meResult.value.currentBrandId || meResult.value.brands[0]?.id || "");
     } else {
       setProfile(profileSeed);
-      setPointLedgers(pointLedgerSeed);
-      setOrders(orderSeed);
-      setTasks(taskSeed);
-      setMedia(mediaSeed);
-      setDataSource("seed");
-      setErrorMessage("后端暂不可用，当前展示的是本地演示会员、点数、订单、任务与作品数据。");
+      setBrands([]);
+      setCurrentBrandId("");
+    }
+
+    setPointLedgers(pointLedgersResult.status === "fulfilled" ? pointLedgersResult.value : pointLedgerSeed);
+    setOrders(ordersResult.status === "fulfilled" ? ordersResult.value : orderSeed);
+    setTasks(tasksResult.status === "fulfilled" ? tasksResult.value : taskSeed);
+    setMedia(mediaResult.status === "fulfilled" ? mediaResult.value : mediaSeed);
+    setMyPendingInvites(myInvitesResult.status === "fulfilled" ? myInvitesResult.value.items : []);
+    setDataSource(hasSeedFallback ? "seed" : "api");
+
+    if (hasSeedFallback) {
+      setErrorMessage(
+        meResult.status === "fulfilled"
+          ? "部分接口暂不可用，当前页面已混合展示真实账号信息与本地演示数据。"
+          : "后端暂不可用，当前展示的是本地演示会员、点数、订单、任务与作品数据。",
+      );
     }
 
     setIsLoading(false);
@@ -130,6 +162,52 @@ export default function PersonalCenterPage() {
     } finally {
       setIsRetryingId("");
     }
+  }
+
+  async function handleBrandSwitch(nextBrandId: string) {
+    if (!nextBrandId || nextBrandId === currentBrandId) {
+      return;
+    }
+
+    setIsSwitchingBrand(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const result = await switchBrand(nextBrandId);
+      setBrands(result.brands);
+      setCurrentBrandId(result.currentBrandId || nextBrandId);
+      setNotice("品牌工作区已切换，正在刷新个人中心数据。");
+      await loadCenterData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "切换品牌失败";
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      setErrorMessage(`切换品牌失败：${message}`);
+    } finally {
+      setIsSwitchingBrand(false);
+    }
+  }
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      await logoutSession();
+      router.replace("/login");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "退出登录失败";
+      setErrorMessage(message);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
+
+  async function handleSessionExpired() {
+    await logoutSession();
+    router.replace(buildLoginPath());
   }
 
   const filteredTasks = useMemo(() => {
@@ -205,8 +283,14 @@ export default function PersonalCenterPage() {
       membershipOrderCount: orders.filter((item) => item.orderType === "MEMBERSHIP_PURCHASE").length,
       rechargeOrderCount: orders.filter((item) => item.orderType === "POINTS_RECHARGE").length,
       runningTasks: tasks.filter((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED").length,
+      pendingInviteCount: myPendingInvites.length,
     }),
-    [orders, pointLedgers.length, profile.membership, profile.pointsBalance, tasks],
+    [myPendingInvites.length, orders, pointLedgers.length, profile.membership, profile.pointsBalance, tasks],
+  );
+
+  const currentBrand = useMemo(
+    () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
+    [brands, currentBrandId],
   );
 
   return (
@@ -226,7 +310,28 @@ export default function PersonalCenterPage() {
             <button type="button" className="secondary-button" onClick={() => void loadCenterData()} disabled={isLoading || Boolean(isRetryingId)}>
               刷新数据
             </button>
-            <span className="personal-logout">退出登录</span>
+            <label className="field" style={{ minWidth: 220 }}>
+              <span>当前品牌</span>
+              <select
+                value={currentBrandId}
+                onChange={(event) => void handleBrandSwitch(event.target.value)}
+                disabled={!brands.length || isLoading || isSwitchingBrand || isLoggingOut}
+              >
+                {brands.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.brandName} · {item.role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleLogout()}
+              disabled={isLoggingOut || isSwitchingBrand}
+            >
+              {isLoggingOut ? "退出中..." : "退出登录"}
+            </button>
           </div>
         </div>
         <div className="personal-reference-divider" />
@@ -260,6 +365,16 @@ export default function PersonalCenterPage() {
             <div className="personal-reference-pair">
               <span>注册时间</span>
               <strong>{formatDateTime(orders[0]?.createdAt)}</strong>
+            </div>
+          </div>
+          <div className="personal-reference-info">
+            <div className="personal-reference-pair">
+              <span>当前品牌</span>
+              <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
+            </div>
+            <div className="personal-reference-pair">
+              <span>协作权限</span>
+              <strong>{currentBrand?.role || "未记录"}</strong>
             </div>
           </div>
         </div>
@@ -340,6 +455,40 @@ export default function PersonalCenterPage() {
                   </div>
                 </div>
               </article>
+
+              {summary.pendingInviteCount ? (
+                <article className="light-data-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h3>待处理品牌邀请</h3>
+                      <p className="panel-subtext">你当前有 {summary.pendingInviteCount} 条待接受邀请，可直接进入团队页处理。</p>
+                    </div>
+                    <Link href="/personal-center/invites" className="secondary-button">
+                      去邀请通知中心
+                    </Link>
+                  </div>
+                  <table className="soft-table">
+                    <thead>
+                      <tr>
+                        <th>品牌</th>
+                        <th>角色</th>
+                        <th>邀请人</th>
+                        <th>过期时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myPendingInvites.slice(0, 5).map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.brandName}</td>
+                          <td>{item.role}</td>
+                          <td>{item.invitedByName}</td>
+                          <td>{formatDateTime(item.expiresAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </article>
+              ) : null}
 
               <article className="light-data-panel">
                 <h3>我的点数明细变化:</h3>
@@ -790,4 +939,13 @@ function isReferenceTabActive(activeTab: PersonalTab, label: string, key: Person
 
 function isXiaohongshuWork(item: MediaRecord) {
   return item.title.includes("小红书") || item.storageKey.includes("xiaohongshu");
+}
+
+function isAuthFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return ["请先登录", "登录态", "访问凭证", "refresh token", "Unauthorized", "401"].some((keyword) => message.includes(keyword));
+}
+
+function buildLoginPath() {
+  return `/login?next=${encodeURIComponent("/personal-center")}`;
 }

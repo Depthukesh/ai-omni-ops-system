@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
+import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   SkillsPromptsService,
   type UpdatePromptTemplatePayload,
@@ -7,25 +9,40 @@ import {
 
 @Controller("admin")
 export class SkillsPromptsController {
-  constructor(private readonly skillsPromptsService: SkillsPromptsService) {}
+  constructor(
+    private readonly skillsPromptsService: SkillsPromptsService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get("skills")
-  listSkills() {
+  async listSkills(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.skillsPromptsService.listSkills();
   }
 
   @Patch("skills/:id")
-  updateSkill(@Param("id") id: string, @Body() payload: UpdateSkillConfigPayload) {
+  async updateSkill(
+    @Param("id") id: string,
+    @Body() payload: UpdateSkillConfigPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillsPromptsService.updateSkill(id, payload);
   }
 
   @Get("prompts")
-  listPrompts() {
+  async listPrompts(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.skillsPromptsService.listPrompts();
   }
 
   @Patch("prompts/:id")
-  updatePrompt(@Param("id") id: string, @Body() payload: UpdatePromptTemplatePayload) {
+  async updatePrompt(
+    @Param("id") id: string,
+    @Body() payload: UpdatePromptTemplatePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillsPromptsService.updatePrompt(id, payload);
   }
 }
