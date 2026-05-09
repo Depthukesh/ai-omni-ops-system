@@ -6,7 +6,7 @@ export const personalTaskStatusClassMap: Record<TaskRecord["taskStatus"], string
   RUNNING: "status-in_progress",
   SUCCESS: "status-ready",
   FAILED: "status-pending",
-  CANCELLED: "status-pending",
+  CANCELLED: "status-paused",
 };
 
 export const personalOrderStatusClassMap: Record<OrderRecord["orderStatus"], string> = {

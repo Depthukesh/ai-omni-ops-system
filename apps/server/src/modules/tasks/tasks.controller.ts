@@ -26,4 +26,10 @@ export class TasksController {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     return this.tasksService.retryTask(id, auth);
   }
+
+  @Patch(":id/cancel")
+  async cancel(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.tasksService.cancelTask(id, auth);
+  }
 }

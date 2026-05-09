@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { TaskStatus } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -160,6 +160,68 @@ export class TasksService {
 
     task.taskStatus = "QUEUED";
     task.updatedAt = new Date().toISOString();
+    return task;
+  }
+
+  async cancelTask(id: string, auth?: RequestAuthContext) {
+    if (await this.prismaService.canUseDatabase()) {
+      const existing = await this.prismaService.task.findUnique({
+        where: { id },
+      });
+
+      if (!existing) {
+        throw new NotFoundException("任务不存在");
+      }
+      if (auth?.userId && existing.userId !== auth.userId) {
+        throw new UnauthorizedException("当前用户无权取消该任务");
+      }
+      if (existing.taskStatus !== TaskStatus.QUEUED && existing.taskStatus !== TaskStatus.RUNNING) {
+        throw new BadRequestException("只有排队中或运行中的任务才可以取消");
+      }
+
+      const task = await this.prismaService.task.update({
+        where: { id },
+        data: {
+          taskStatus: TaskStatus.CANCELLED,
+          errorMessage: "用户已在任务中心取消任务",
+          finishedAt: new Date(),
+        },
+      });
+
+      return {
+        id: task.id,
+        userId: task.userId,
+        brandId: task.brandId ?? undefined,
+        taskType: task.taskType,
+        taskTitle: task.taskTitle ?? "",
+        taskStatus: task.taskStatus,
+        modelName: task.modelName ?? "",
+        pointsCost: task.pointsCost,
+        errorMessage: task.errorMessage ?? undefined,
+        startedAt: task.startedAt?.toISOString(),
+        finishedAt: task.finishedAt?.toISOString(),
+        inputJson: (task.inputJson as Record<string, unknown> | null) ?? undefined,
+        outputJson: (task.outputJson as Record<string, unknown> | null) ?? undefined,
+        createdAt: task.createdAt.toISOString(),
+        updatedAt: task.updatedAt.toISOString(),
+      };
+    }
+
+    const task = database.tasks.find((item) => item.id === id);
+    if (!task) {
+      throw new NotFoundException("任务不存在");
+    }
+    if (auth?.userId && task.userId !== auth.userId) {
+      throw new UnauthorizedException("当前用户无权取消该任务");
+    }
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      throw new BadRequestException("只有排队中或运行中的任务才可以取消");
+    }
+
+    task.taskStatus = "CANCELLED";
+    task.errorMessage = "用户已在任务中心取消任务";
+    task.finishedAt = new Date().toISOString();
+    task.updatedAt = task.finishedAt;
     return task;
   }
 

@@ -7,6 +7,7 @@ import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
+import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
@@ -627,7 +628,11 @@ export class WorksService {
     };
   }
 
-  async generateXiaohongshuOriginalNote(brandId: string, payload: GenerateXiaohongshuOriginalNotePayload) {
+  async generateXiaohongshuOriginalNote(
+    brandId: string,
+    payload: GenerateXiaohongshuOriginalNotePayload,
+    auth?: RequestAuthContext,
+  ) {
     const archive = await this.brandsService.getArchive(brandId);
     const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
     const latestMarketingPlan = marketingPlanWorkspace.latest;
@@ -657,7 +662,7 @@ export class WorksService {
         }
       : undefined;
 
-    const userId = await this.getBrandOwnerUserId(brandId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
     const taskTitle = `生成小红书原创笔记：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
     const task = await this.createOriginalTask({
       userId,
@@ -667,11 +672,13 @@ export class WorksService {
 
     try {
       await this.markTaskRunning(task.id);
+      await this.ensureTaskNotCancelled(task.id);
 
       const referenceFiles = this.normalizeReferenceFiles(payload);
       const referenceStyles = referenceFiles.length
         ? await this.analyzeReferenceImages(referenceFiles, latestMarketingPlan.reportMarkdown)
         : { coverReferenceStyle: undefined, galleryReferenceStyles: [], modelName: undefined };
+      await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateOriginalCopy({
         marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
@@ -680,6 +687,7 @@ export class WorksService {
         product: normalizedProduct,
         additionalInstruction: payload.additionalInstruction?.trim(),
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateOriginalImagePrompts({
         marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
@@ -692,6 +700,7 @@ export class WorksService {
         noteContent: copyResult.content,
         referenceStyles,
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const coverImage = await this.generateImageAsset({
         brandId,
@@ -718,6 +727,7 @@ export class WorksService {
           }),
         ),
       );
+      await this.ensureTaskNotCancelled(task.id);
 
       const now = new Date().toISOString();
       const htmlContent = this.renderGeneratedNoteHtml({
@@ -812,6 +822,7 @@ export class WorksService {
       };
 
       await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
+      await this.ensureTaskNotCancelled(task.id);
       await this.markTaskSuccess(task.id, {
         workId: workMedia.id,
         title: copyResult.title,
@@ -822,12 +833,18 @@ export class WorksService {
         item: this.mapOriginalWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
       };
     } catch (error) {
-      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "原创笔记生成失败");
+      if (!(await this.isTaskCancelled(task.id))) {
+        await this.markTaskFailed(task.id, error instanceof Error ? error.message : "原创笔记生成失败");
+      }
       throw error;
     }
   }
 
-  async generateXiaohongshuRewriteNote(brandId: string, payload: GenerateXiaohongshuRewriteNotePayload) {
+  async generateXiaohongshuRewriteNote(
+    brandId: string,
+    payload: GenerateXiaohongshuRewriteNotePayload,
+    auth?: RequestAuthContext,
+  ) {
     const sourceMaterialId = payload.sourceMaterialId?.trim();
     if (!sourceMaterialId) {
       throw new BadRequestException("请选择一个素材库作品，再开始二创。");
@@ -872,7 +889,7 @@ export class WorksService {
     const rewriteTopicContext = this.buildRewriteTopicContext(sourceMaterial, allowProductEmbedding);
     const rewriteReferenceImageUrls = this.collectRewriteReferenceImageUrls(sourceMaterial.imageList || [], selectedProduct);
 
-    const userId = await this.getBrandOwnerUserId(brandId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
     const taskTitle = `生成小红书二创笔记：${sourceMaterial.title}`;
     const task = await this.createRewriteTask({
       userId,
@@ -882,6 +899,7 @@ export class WorksService {
 
     try {
       await this.markTaskRunning(task.id);
+      await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateRewriteCopy({
         marketingPlanMarkdown: rewriteMarketingPlanContext,
@@ -890,6 +908,7 @@ export class WorksService {
         additionalInstruction: payload.additionalInstruction?.trim(),
         topicContext: rewriteTopicContext,
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
         marketingPlanMarkdown: rewriteMarketingPlanContext,
@@ -900,6 +919,7 @@ export class WorksService {
         noteContent: copyResult.content,
         topicContext: rewriteTopicContext,
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const coverImage = await this.generateImageAsset({
         brandId,
@@ -926,6 +946,7 @@ export class WorksService {
           }),
         ),
       );
+      await this.ensureTaskNotCancelled(task.id);
 
       const now = new Date().toISOString();
       const htmlContent = this.renderGeneratedNoteHtml({
@@ -1018,6 +1039,7 @@ export class WorksService {
       };
 
       await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
+      await this.ensureTaskNotCancelled(task.id);
       await this.markTaskSuccess(task.id, {
         workId: workMedia.id,
         title: copyResult.title,
@@ -1028,12 +1050,18 @@ export class WorksService {
         item: this.mapRewriteWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
       };
     } catch (error) {
-      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "二创笔记生成失败");
+      if (!(await this.isTaskCancelled(task.id))) {
+        await this.markTaskFailed(task.id, error instanceof Error ? error.message : "二创笔记生成失败");
+      }
       throw error;
     }
   }
 
-  async generateXiaohongshuVideoNote(brandId: string, payload: GenerateXiaohongshuVideoNotePayload) {
+  async generateXiaohongshuVideoNote(
+    brandId: string,
+    payload: GenerateXiaohongshuVideoNotePayload,
+    auth?: RequestAuthContext,
+  ) {
     const archive = await this.brandsService.getArchive(brandId);
     const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
     const latestMarketingPlan = marketingPlanWorkspace.latest;
@@ -1066,7 +1094,7 @@ export class WorksService {
         }
       : undefined;
 
-    const userId = await this.getBrandOwnerUserId(brandId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
     const topicLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题";
     const requestedVideoProvider = this.normalizeVideoProvider(payload.videoProvider);
     const requestedDurationSec = this.normalizeRequestedVideoDuration(payload.durationSec);
@@ -1082,6 +1110,7 @@ export class WorksService {
 
     try {
       await this.markTaskRunning(task.id);
+      await this.ensureTaskNotCancelled(task.id);
 
       const referenceImageFile = payload.referenceImage?.dataBase64
         ? this.persistUploadFile(
@@ -1090,6 +1119,7 @@ export class WorksService {
             payload.referenceImage,
           )
         : undefined;
+      await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateVideoCopy({
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
@@ -1099,6 +1129,7 @@ export class WorksService {
         includeMarketingPlan,
         additionalInstruction: payload.copyAdditionalInstruction?.trim(),
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const promptResult = await this.generateVideoPromptPack({
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
@@ -1121,6 +1152,7 @@ export class WorksService {
         includeMarketingPlan,
         additionalInstruction: payload.videoAdditionalInstruction?.trim(),
       });
+      await this.ensureTaskNotCancelled(task.id);
 
       const videoResult = await this.generateVideoAsset({
         brandId,
@@ -1133,6 +1165,7 @@ export class WorksService {
         requestedDurationSec,
         referenceImageUrl: referenceImageFile?.url,
       });
+      await this.ensureTaskNotCancelled(task.id);
       const segmentExecution = {
         status: "SKIPPED" as const,
         error: "已关闭自动分段生成，当前仅保留主成片生成",
@@ -1235,6 +1268,7 @@ export class WorksService {
       };
 
       await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
+      await this.ensureTaskNotCancelled(task.id);
       await this.markTaskSuccess(task.id, {
         workId: workMedia.id,
         title: copyResult.title,
@@ -1249,7 +1283,9 @@ export class WorksService {
         item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
       };
     } catch (error) {
-      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "视频笔记生成失败");
+      if (!(await this.isTaskCancelled(task.id))) {
+        await this.markTaskFailed(task.id, error instanceof Error ? error.message : "视频笔记生成失败");
+      }
       throw error;
     }
   }
@@ -1980,6 +2016,10 @@ export class WorksService {
   }
 
   private async markTaskRunning(taskId: string) {
+    if (await this.isTaskCancelled(taskId)) {
+      return;
+    }
+
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
         where: { id: taskId },
@@ -2005,6 +2045,10 @@ export class WorksService {
     outputJson: Record<string, unknown>,
     options?: { modelName?: string },
   ) {
+    if (await this.isTaskCancelled(taskId)) {
+      return;
+    }
+
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
         where: { id: taskId },
@@ -2031,6 +2075,10 @@ export class WorksService {
   }
 
   private async markTaskFailed(taskId: string, errorMessage: string) {
+    if (await this.isTaskCancelled(taskId)) {
+      return;
+    }
+
     if (await this.prismaService.canUseDatabase()) {
       await this.prismaService.task.update({
         where: { id: taskId },
@@ -2365,6 +2413,32 @@ export class WorksService {
       throw new NotFoundException("品牌不存在");
     }
     return brand.ownerUserId;
+  }
+
+  private async resolveTaskUserId(brandId: string, auth?: RequestAuthContext) {
+    if (auth?.userId) {
+      return auth.userId;
+    }
+
+    return this.getBrandOwnerUserId(brandId);
+  }
+
+  private async ensureTaskNotCancelled(taskId: string) {
+    if (await this.isTaskCancelled(taskId)) {
+      throw new BadRequestException("任务已取消，已停止继续执行。");
+    }
+  }
+
+  private async isTaskCancelled(taskId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const task = await this.prismaService.task.findUnique({
+        where: { id: taskId },
+        select: { taskStatus: true },
+      });
+      return task?.taskStatus === TaskStatus.CANCELLED;
+    }
+
+    return database.tasks.find((item) => item.id === taskId)?.taskStatus === "CANCELLED";
   }
 
   private findSelectedCalendarItem(history: XiaohongshuMarketingCalendarRecord[], calendarItemId?: string) {

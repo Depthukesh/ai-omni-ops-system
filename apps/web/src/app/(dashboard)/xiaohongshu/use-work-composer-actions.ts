@@ -72,6 +72,7 @@ export function useWorkComposerActions(options: {
   autoImageCountOption: string;
   setNotice: (value: string) => void;
   setErrorMessage: (value: string) => void;
+  onRefreshWorkspace: () => Promise<void>;
   original: OriginalComposerState;
   rewrite: RewriteComposerState;
   video: VideoComposerState;
@@ -118,7 +119,8 @@ export function useWorkComposerActions(options: {
       options.original.setSelectedWorkId(result.item.id);
       options.original.closeModal();
       options.original.cancelEdit();
-      options.setNotice("原创笔记已创作完成，并已同步保存到“我的作品”。");
+      await options.onRefreshWorkspace();
+      options.setNotice("原创笔记已创作完成，任务状态和“我的作品”已同步刷新。");
       options.original.resetComposer(options.calendarItems, options.products);
     } catch (error) {
       const message = error instanceof Error ? error.message : "原创笔记创作失败";
@@ -153,7 +155,8 @@ export function useWorkComposerActions(options: {
       options.rewrite.setWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
       options.rewrite.setSelectedWorkId(result.item.id);
       options.rewrite.cancelEdit();
-      options.setNotice("二创笔记已创作完成，并已同步保存到“我的作品”。");
+      await options.onRefreshWorkspace();
+      options.setNotice("二创笔记已创作完成，任务状态和“我的作品”已同步刷新。");
       options.rewrite.resetComposer(options.materialNotes, options.products);
     } catch (error) {
       const message = error instanceof Error ? error.message : "二创笔记创作失败";
@@ -228,7 +231,8 @@ export function useWorkComposerActions(options: {
       options.video.setWorks((current) => [result.item, ...current.filter((item) => item.id !== result.item.id)]);
       options.video.setSelectedWorkId(result.item.id);
       options.video.cancelEdit();
-      options.setNotice("视频笔记已创作完成，并已同步保存到“我的作品”。");
+      await options.onRefreshWorkspace();
+      options.setNotice("视频笔记已创作完成，任务状态和“我的作品”已同步刷新。");
       options.video.resetComposer(options.calendarItems, options.products);
     } catch (error) {
       const message = error instanceof Error ? error.message : "视频笔记创作失败";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
-import { getTasks, retryTask, taskSeed, type TaskRecord } from "../../../../services/personal-center";
+import { cancelTask, getTasks, retryTask, taskSeed, type TaskRecord } from "../../../../services/personal-center";
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure, personalTaskStatusClassMap } from "../route-helpers";
 
 export default function PersonalCenterTasksPage() {
@@ -15,6 +15,7 @@ export default function PersonalCenterTasksPage() {
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRetryingId, setIsRetryingId] = useState("");
+  const [isCancellingId, setIsCancellingId] = useState("");
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notice, setNotice] = useState("");
@@ -81,6 +82,27 @@ export default function PersonalCenterTasksPage() {
       setErrorMessage(`重试失败：${message}`);
     } finally {
       setIsRetryingId("");
+    }
+  }
+
+  async function handleCancel(taskId: string) {
+    setIsCancellingId(taskId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const updated = await cancelTask(taskId);
+      setTasks((current) => current.map((item) => (item.id === taskId ? updated : item)).sort(sortByUpdatedAtDesc));
+      setNotice(`任务已取消：${updated.taskTitle}`);
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "任务取消失败";
+      setErrorMessage(`取消失败：${message}`);
+    } finally {
+      setIsCancellingId("");
     }
   }
 
@@ -163,7 +185,7 @@ export default function PersonalCenterTasksPage() {
       <div className="panel-header">
         <div>
           <h2>任务中心</h2>
-          <p className="panel-subtext">集中查看当前用户在当前品牌工作区下发起的所有大模型任务，并可对失败任务重新排队。</p>
+          <p className="panel-subtext">集中查看当前用户在当前品牌工作区下发起的所有大模型任务，并可对失败任务重新排队、对运行中任务手动取消。</p>
         </div>
         <span>{summary.total} 条任务</span>
       </div>
@@ -177,7 +199,12 @@ export default function PersonalCenterTasksPage() {
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
           {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
         </div>
-        <button type="button" className="secondary-button" onClick={() => void loadTasksPage()} disabled={isLoading || Boolean(isRetryingId)}>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void loadTasksPage()}
+          disabled={isLoading || Boolean(isRetryingId) || Boolean(isCancellingId)}
+        >
           刷新任务
         </button>
         <label className="field" style={{ minWidth: 220 }}>
@@ -269,10 +296,20 @@ export default function PersonalCenterTasksPage() {
                 type="button"
                 className="secondary-button"
                 onClick={() => void handleRetry(task.id)}
-                disabled={Boolean(isRetryingId) || task.taskStatus === "RUNNING"}
+                disabled={Boolean(isRetryingId) || Boolean(isCancellingId) || (task.taskStatus !== "FAILED" && task.taskStatus !== "CANCELLED")}
               >
                 {isRetryingId === task.id ? "重试中..." : "再次运行"}
               </button>
+              {canCancelTask(task) ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleCancel(task.id)}
+                  disabled={Boolean(isRetryingId) || Boolean(isCancellingId)}
+                >
+                  {isCancellingId === task.id ? "取消中..." : "取消任务"}
+                </button>
+              ) : null}
             </div>
           </article>
         ))}
@@ -284,4 +321,8 @@ export default function PersonalCenterTasksPage() {
 
 function sortByUpdatedAtDesc(a: TaskRecord, b: TaskRecord) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+function canCancelTask(task: TaskRecord) {
+  return task.taskStatus === "QUEUED" || task.taskStatus === "RUNNING";
 }

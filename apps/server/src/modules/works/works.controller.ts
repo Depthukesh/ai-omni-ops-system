@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
 import {
   type GenerateXiaohongshuVideoNotePayload,
   WorksService,
@@ -11,7 +12,10 @@ import {
 
 @Controller("works")
 export class WorksController {
-  constructor(@Inject(WorksService) private readonly worksService: WorksService) {}
+  constructor(
+    @Inject(WorksService) private readonly worksService: WorksService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get("brands/:brandId/xiaohongshu/original")
   listXiaohongshuOriginalWorks(@Param("brandId") brandId: string) {
@@ -32,24 +36,33 @@ export class WorksController {
   generateXiaohongshuOriginalNote(
     @Param("brandId") brandId: string,
     @Body() payload: GenerateXiaohongshuOriginalNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.generateXiaohongshuOriginalNote(brandId, payload);
+    return this.authService
+      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
+      .then((auth) => this.worksService.generateXiaohongshuOriginalNote(brandId, payload, auth));
   }
 
   @Post("brands/:brandId/xiaohongshu/rewrite/generate")
   generateXiaohongshuRewriteNote(
     @Param("brandId") brandId: string,
     @Body() payload: GenerateXiaohongshuRewriteNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.generateXiaohongshuRewriteNote(brandId, payload);
+    return this.authService
+      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
+      .then((auth) => this.worksService.generateXiaohongshuRewriteNote(brandId, payload, auth));
   }
 
   @Post("brands/:brandId/xiaohongshu/video/generate")
   generateXiaohongshuVideoNote(
     @Param("brandId") brandId: string,
     @Body() payload: GenerateXiaohongshuVideoNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.generateXiaohongshuVideoNote(brandId, payload);
+    return this.authService
+      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
+      .then((auth) => this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth));
   }
 
   @Patch("brands/:brandId/xiaohongshu/original/:workId")

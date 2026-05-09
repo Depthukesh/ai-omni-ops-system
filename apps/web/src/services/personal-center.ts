@@ -309,6 +309,12 @@ export async function retryTask(taskId: string) {
   });
 }
 
+export async function cancelTask(taskId: string) {
+  return request<TaskRecord>(`/tasks/${taskId}/cancel`, {
+    method: "PATCH",
+  });
+}
+
 export async function createTask(payload: {
   brandId?: string;
   taskType: string;

@@ -54,7 +54,7 @@ import {
   readTaskWorkKind,
 } from "./work-task-helpers";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
-import { type MediaRecord, type TaskRecord } from "../../../services/personal-center";
+import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services/personal-center";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
@@ -164,6 +164,7 @@ export default function XiaohongshuPage() {
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "seed" | "error" | "loading">("loading");
+  const [isCancellingTaskId, setIsCancellingTaskId] = useState("");
 
   const composerForms = useNoteComposerForms({
     defaultProductId: defaultProduct?.id,
@@ -604,6 +605,7 @@ export default function XiaohongshuPage() {
     autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
     setNotice,
     setErrorMessage,
+    onRefreshWorkspace: () => loadWorkspace({ preserveMessages: true }),
     original: {
       calendarValue: originalCalendarValue,
       customTopic: originalCustomTopic,
@@ -733,6 +735,9 @@ export default function XiaohongshuPage() {
   const showVideoSubmittingState = isVideoSubmitting && !isVideoTaskActive;
   const videoInlineError = latestVideoTask?.taskStatus === "FAILED" ? latestVideoTask.errorMessage?.trim() || "" : "";
   const videoTaskStatusText = getComposeTaskStatusText(latestVideoTask);
+  const isCancellingOriginalTask = isCancellingTaskId === latestOriginalTask?.id;
+  const isCancellingRewriteTask = isCancellingTaskId === latestRewriteTask?.id;
+  const isCancellingVideoTask = isCancellingTaskId === latestVideoTask?.id;
   const mobilePublishTasks = useMemo(
     () =>
       workspace.tasks
@@ -759,6 +764,27 @@ export default function XiaohongshuPage() {
         : activeSection === "video"
           ? "当前聚焦【视频笔记】主链路：选择营销日历选题、产品或参考图，生成视频笔记文案、短视频提示词与成片，并统一管理成品。"
         : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
+
+  async function handleCancelComposeTask(task: TaskRecord | undefined, label: "原创笔记" | "二创笔记" | "视频笔记") {
+    if (!task || !isTaskActive(task.taskStatus)) {
+      return;
+    }
+
+    setIsCancellingTaskId(task.id);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      await cancelTask(task.id);
+      await loadWorkspace({ preserveMessages: true });
+      setNotice(`${label}任务已取消，当前工作区状态已刷新。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "取消任务失败";
+      setErrorMessage(`取消失败：${message}`);
+    } finally {
+      setIsCancellingTaskId("");
+    }
+  }
+
   const publishedPreview = useMemo(
     () =>
       buildPublishedPreview({
@@ -1130,6 +1156,8 @@ export default function XiaohongshuPage() {
           latestTask={latestOriginalTask}
           taskStatusText={originalTaskStatusText}
           inlineError={originalInlineError}
+          isCancellingTask={isCancellingOriginalTask}
+          canCancelTask={isTaskActive(latestOriginalTask?.taskStatus)}
           latestPublishTask={latestOriginalPublishTask}
           items={originalWorks}
           previewIndexMap={materialPreviewIndexMap}
@@ -1152,6 +1180,7 @@ export default function XiaohongshuPage() {
           coverReferenceFile={coverReferenceFile}
           galleryReferenceFiles={galleryReferenceFiles}
           onRefresh={() => loadWorkspace()}
+          onCancelTask={() => handleCancelComposeTask(latestOriginalTask, "原创笔记")}
           onOpenCreate={handleOpenOriginalModal}
           onShiftPreview={shiftMaterialPreview}
           onOpenLightbox={openOriginalWorkLightbox}
@@ -1204,6 +1233,8 @@ export default function XiaohongshuPage() {
           latestTask={latestRewriteTask}
           taskStatusText={rewriteTaskStatusText}
           inlineError={rewriteInlineError}
+          isCancellingTask={isCancellingRewriteTask}
+          canCancelTask={isTaskActive(latestRewriteTask?.taskStatus)}
           latestPublishTask={latestRewritePublishTask}
           items={rewriteWorks}
           materialNotes={materialNotes}
@@ -1220,6 +1251,7 @@ export default function XiaohongshuPage() {
           productValue={rewriteProductValue}
           additionalInstruction={rewriteAdditionalInstruction}
           onRefresh={() => loadWorkspace()}
+          onCancelTask={() => handleCancelComposeTask(latestRewriteTask, "二创笔记")}
           onOpenCreate={handleOpenRewriteModal}
           onShiftPreview={shiftMaterialPreview}
           onOpenLightbox={openRewriteWorkLightbox}
@@ -1267,6 +1299,8 @@ export default function XiaohongshuPage() {
         latestTask={latestVideoTask}
         taskStatusText={videoTaskStatusText}
         inlineError={videoInlineError}
+        isCancellingTask={isCancellingVideoTask}
+        canCancelTask={isTaskActive(latestVideoTask?.taskStatus)}
         items={videoWorks}
         deletingWorkId={deletingVideoWorkId}
         editingWork={videoEditingWork}
@@ -1295,6 +1329,7 @@ export default function XiaohongshuPage() {
         outputPromptValue={videoOutputPromptValue}
         additionalInstruction={videoAdditionalInstruction}
         onRefresh={() => loadWorkspace()}
+        onCancelTask={() => handleCancelComposeTask(latestVideoTask, "视频笔记")}
         onOpenCreate={handleOpenVideoModal}
         onPreview={openVideoWorkLightbox}
         onEdit={handleStartEditVideoWork}

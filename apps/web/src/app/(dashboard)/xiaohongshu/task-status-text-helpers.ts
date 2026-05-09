@@ -26,6 +26,10 @@ export function getPhaseTaskStatusText(task?: {
     return "生成失败";
   }
 
+  if (task.taskStatus === "CANCELLED") {
+    return "已取消";
+  }
+
   return task.taskStatus || "";
 }
 
@@ -50,6 +54,10 @@ export function getComposeTaskStatusText(task?: {
 
   if (task.taskStatus === "FAILED") {
     return "创作失败";
+  }
+
+  if (task.taskStatus === "CANCELLED") {
+    return "已取消";
   }
 
   return task.taskStatus || "";
