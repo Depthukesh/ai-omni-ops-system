@@ -1,5 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BrandMemberRole, BrandMemberStatus, SystemRole } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import {
   getFeishuUserAppConfig,
@@ -20,6 +21,22 @@ export type RegisterPayload = {
   password: string;
   email?: string;
   nickname?: string;
+};
+
+export type RefreshSessionPayload = {
+  refreshToken: string;
+};
+
+export type SwitchBrandPayload = {
+  brandId: string;
+};
+
+export type RequestAuthContext = {
+  userId: string;
+  sessionId?: string;
+  brandId?: string;
+  systemRole?: SystemRole | "USER";
+  source: "token" | "fallback";
 };
 
 export type FeishuOauthStartRecord = {
@@ -76,13 +93,35 @@ export class AuthService {
         },
       });
 
-      if (!user || user.passwordHash !== payload.password) {
+      const passwordCheck = user ? this.verifyPassword(payload.password, user.passwordHash) : { matched: false, needsUpgrade: false };
+      if (!user || !passwordCheck.matched) {
         throw new UnauthorizedException("账号或密码错误");
       }
 
+      if (passwordCheck.needsUpgrade) {
+        await this.prismaService.user.update({
+          where: { id: user.id },
+          data: {
+            passwordHash: this.hashPassword(payload.password),
+          },
+        });
+      }
+
+      await this.ensureOwnerBrandMemberships(user.id);
+      const brands = await this.listAccessibleBrands(user.id);
+      const currentBrandId = this.pickCurrentBrandId(brands);
+      const tokens = await this.issueSessionTokens(user.id, currentBrandId);
+      await this.prismaService.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: new Date(),
+        },
+      });
+
       return {
-        accessToken: `mock-token-${user.id}`,
-        refreshToken: `mock-refresh-${user.id}`,
+        ...tokens,
+        currentBrandId,
+        brands,
         user: this.toPublicDatabaseUser(user),
       };
     }
@@ -99,8 +138,10 @@ export class AuthService {
     }
 
     return {
-      accessToken: `mock-token-${user.id}`,
-      refreshToken: `mock-refresh-${user.id}`,
+      accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds() }),
+      refreshToken: this.signToken({ sub: user.id, typ: "refresh", exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds() }),
+      currentBrandId: database.brands.find((item) => item.ownerUserId === user.id)?.id,
+      brands: this.listMockBrands(user.id),
       user: this.toPublicUser(user),
     };
   }
@@ -120,20 +161,54 @@ export class AuthService {
         throw new ConflictException("该手机号或邮箱已存在");
       }
 
-      const user = await this.prismaService.user.create({
-        data: {
-          mobile: payload.mobile,
-          email: payload.email,
-          nickname: payload.nickname ?? `用户${Date.now().toString().slice(-4)}`,
-          passwordHash: payload.password,
-          pointsBalance: 300,
-        },
+      const created = await this.prismaService.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            mobile: payload.mobile,
+            email: payload.email,
+            nickname: payload.nickname ?? `用户${Date.now().toString().slice(-4)}`,
+            passwordHash: this.hashPassword(payload.password),
+            pointsBalance: 300,
+            lastLoginAt: new Date(),
+          },
+        });
+
+        const brand = await tx.brand.create({
+          data: {
+            ownerUserId: user.id,
+            brandName: payload.nickname ? `${payload.nickname}的品牌` : `${payload.mobile}的品牌`,
+            industry: "待补充",
+            storeCount: 0,
+            foundedYear: new Date().getFullYear(),
+            brandDescription: "",
+            enterpriseIntro: "",
+          },
+        });
+
+        await tx.brandMember.create({
+          data: {
+            brandId: brand.id,
+            userId: user.id,
+            role: BrandMemberRole.OWNER,
+            status: BrandMemberStatus.ACTIVE,
+          },
+        });
+
+        return {
+          user,
+          brand,
+        };
       });
 
+      const brands = await this.listAccessibleBrands(created.user.id);
+      const currentBrandId = created.brand.id;
+      const tokens = await this.issueSessionTokens(created.user.id, currentBrandId);
+
       return {
-        accessToken: `mock-token-${user.id}`,
-        refreshToken: `mock-refresh-${user.id}`,
-        user: this.toPublicDatabaseUser(user),
+        ...tokens,
+        currentBrandId,
+        brands,
+        user: this.toPublicDatabaseUser(created.user),
       };
     }
 
@@ -155,20 +230,172 @@ export class AuthService {
       membership: "FREE" as const,
       pointsBalance: 300,
     };
+    const brand = {
+      id: createId("brd"),
+      ownerUserId: user.id,
+      brandName: payload.nickname ? `${payload.nickname}的品牌` : `${payload.mobile}的品牌`,
+      industry: "待补充",
+      brandDescription: "",
+      enterpriseIntro: "",
+      storeCount: 0,
+      foundedYear: new Date().getFullYear(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     database.users.unshift(user);
+    database.brands.unshift(brand);
 
     return {
-      accessToken: `mock-token-${user.id}`,
-      refreshToken: `mock-refresh-${user.id}`,
+      accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(), bid: brand.id }),
+      refreshToken: this.signToken({ sub: user.id, typ: "refresh", exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds(), bid: brand.id }),
+      currentBrandId: brand.id,
+      brands: this.listMockBrands(user.id),
       user: this.toPublicUser(user),
     };
   }
 
-  async getProfile() {
+  async refreshSession(payload: RefreshSessionPayload) {
+    if (!(await this.prismaService.canUseDatabase())) {
+      const parsed = this.verifyToken(payload.refreshToken);
+      if (parsed.typ !== "refresh" || !parsed.sub) {
+        throw new UnauthorizedException("refresh token 无效");
+      }
+      return {
+        accessToken: this.signToken({
+          sub: parsed.sub,
+          typ: "access",
+          exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(),
+          bid: parsed.bid,
+        }),
+        refreshToken: this.signToken({
+          sub: parsed.sub,
+          typ: "refresh",
+          exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds(),
+          bid: parsed.bid,
+        }),
+      };
+    }
+
+    const parsed = this.verifyToken(payload.refreshToken);
+    if (parsed.typ !== "refresh" || !parsed.sub || !parsed.sid) {
+      throw new UnauthorizedException("refresh token 无效");
+    }
+
+    const session = await this.prismaService.userSession.findUnique({
+      where: { id: parsed.sid },
+      include: {
+        user: true,
+      },
+    });
+    if (!session || session.userId !== parsed.sub || session.revokedAt || session.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException("refresh token 已失效");
+    }
+    if (session.refreshTokenHash !== this.hashSessionToken(payload.refreshToken)) {
+      throw new UnauthorizedException("refresh token 不匹配");
+    }
+
+    await this.ensureOwnerBrandMemberships(session.userId);
+    const brands = await this.listAccessibleBrands(session.userId);
+    const currentBrandId = this.pickCurrentBrandId(brands, parsed.bid || session.currentBrandId || undefined);
+    const tokens = await this.rotateSessionTokens(session.id, session.userId, currentBrandId);
+
+    return {
+      ...tokens,
+      currentBrandId,
+      brands,
+      user: this.toPublicDatabaseUser(session.user),
+    };
+  }
+
+  async logout(auth?: RequestAuthContext) {
+    if (!auth?.sessionId || !(await this.prismaService.canUseDatabase())) {
+      return { success: true };
+    }
+
+    await this.prismaService.userSession.updateMany({
+      where: {
+        id: auth.sessionId,
+        userId: auth.userId,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    return { success: true };
+  }
+
+  async getMe(auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    const brands = await this.listAccessibleBrands(currentUser.id);
+    const currentBrandId = this.pickCurrentBrandId(brands, auth?.brandId);
+
+    return {
+      user: await this.getProfile(auth),
+      brands,
+      currentBrandId,
+    };
+  }
+
+  async getBrands(auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    const brands = await this.listAccessibleBrands(currentUser.id);
+    return {
+      brands,
+      currentBrandId: this.pickCurrentBrandId(brands, auth?.brandId),
+    };
+  }
+
+  async switchBrand(payload: SwitchBrandPayload, auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    const brands = await this.listAccessibleBrands(currentUser.id);
+    const currentBrandId = this.pickCurrentBrandId(brands, payload.brandId);
+    if (!currentBrandId) {
+      throw new UnauthorizedException("当前账号没有可切换的品牌");
+    }
+
     if (await this.prismaService.canUseDatabase()) {
-      const user = await this.prismaService.user.findFirst({
-        orderBy: { createdAt: "asc" },
+      const tokens = await this.rotateSessionTokens(auth?.sessionId, currentUser.id, currentBrandId);
+      return {
+        ...tokens,
+        currentBrandId,
+        brands,
+      };
+    }
+
+    return {
+      accessToken: this.signToken({
+        sub: currentUser.id,
+        typ: "access",
+        exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(),
+        bid: currentBrandId,
+      }),
+      refreshToken: this.signToken({
+        sub: currentUser.id,
+        typ: "refresh",
+        exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds(),
+        bid: currentBrandId,
+      }),
+      currentBrandId,
+      brands,
+    };
+  }
+
+  async getProfile(auth?: RequestAuthContext) {
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    if (await this.prismaService.canUseDatabase()) {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: currentUser.id },
       });
 
       if (!user) {
@@ -178,22 +405,14 @@ export class AuthService {
       return this.toPublicDatabaseUser(user);
     }
 
-    return this.toPublicUser(database.users[0]);
+    return this.toPublicUser(database.users.find((item) => item.id === currentUser.id) ?? database.users[0]);
   }
 
-  async getPointLedgers() {
+  async getPointLedgers(auth?: RequestAuthContext) {
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
     if (await this.prismaService.canUseDatabase()) {
-      const user = await this.prismaService.user.findFirst({
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-
-      if (!user) {
-        return [];
-      }
-
       const rows = await this.prismaService.pointLedger.findMany({
-        where: { userId: user.id },
+        where: { userId: currentUser.id },
         orderBy: { createdAt: "desc" },
       });
 
@@ -209,7 +428,9 @@ export class AuthService {
       }));
     }
 
-    return [...database.pointLedgers].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...database.pointLedgers]
+      .filter((item) => item.userId === currentUser.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async getFeishuAppConfig(userId?: string): Promise<FeishuAppConfigRecord> {
@@ -422,6 +643,7 @@ export class AuthService {
       nickname: user.nickname,
       status: user.status,
       membership: user.membership,
+      systemRole: "USER" as const,
       pointsBalance: user.pointsBalance,
     };
   }
@@ -433,6 +655,7 @@ export class AuthService {
     nickname: string | null;
     status: string;
     membership: string;
+    systemRole?: string;
     pointsBalance: number;
   }) {
     return {
@@ -442,11 +665,86 @@ export class AuthService {
       nickname: user.nickname ?? "",
       status: user.status,
       membership: user.membership,
+      systemRole: user.systemRole ?? "USER",
       pointsBalance: user.pointsBalance,
     };
   }
 
-  private async resolveCurrentUser(userId?: string) {
+  async resolveRequestAuthContext(
+    headers?: Record<string, string | string[] | undefined>,
+    options?: { fallbackToDefaultUser?: boolean },
+  ): Promise<RequestAuthContext | undefined> {
+    const authorizationHeader = this.readHeaderValue(headers, "authorization");
+    const token = authorizationHeader?.startsWith("Bearer ") ? authorizationHeader.slice(7).trim() : "";
+    if (!token) {
+      if (options?.fallbackToDefaultUser) {
+        return this.resolveFallbackAuthContext();
+      }
+      return undefined;
+    }
+
+    const parsed = this.verifyToken(token);
+    if (parsed.typ !== "access" || !parsed.sub) {
+      throw new UnauthorizedException("访问凭证无效");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      const session = parsed.sid
+        ? await this.prismaService.userSession.findUnique({
+            where: { id: parsed.sid },
+            select: {
+              userId: true,
+              currentBrandId: true,
+              revokedAt: true,
+              expiresAt: true,
+            },
+          })
+        : null;
+      if (parsed.sid && (!session || session.userId !== parsed.sub || session.revokedAt || session.expiresAt.getTime() <= Date.now())) {
+        throw new UnauthorizedException("登录态已失效，请重新登录");
+      }
+
+      const user = await this.prismaService.user.findUnique({
+        where: { id: parsed.sub },
+        select: {
+          id: true,
+          systemRole: true,
+        },
+      });
+      if (!user) {
+        throw new UnauthorizedException("当前用户不存在");
+      }
+
+      const requestedBrandId = this.readHeaderValue(headers, "x-brand-id") || parsed.bid || session?.currentBrandId || undefined;
+      const brands = await this.listAccessibleBrands(user.id);
+      const currentBrandId = this.pickCurrentBrandId(brands, requestedBrandId);
+      return {
+        userId: user.id,
+        sessionId: parsed.sid,
+        brandId: currentBrandId,
+        systemRole: user.systemRole,
+        source: "token",
+      };
+    }
+
+    const user = database.users.find((item) => item.id === parsed.sub);
+    if (!user) {
+      throw new UnauthorizedException("当前用户不存在");
+    }
+
+    return {
+      userId: user.id,
+      sessionId: parsed.sid,
+      brandId: this.readHeaderValue(headers, "x-brand-id") || parsed.bid || database.brands.find((item) => item.ownerUserId === user.id)?.id,
+      systemRole: "USER",
+      source: "token",
+    };
+  }
+
+  private async resolveCurrentUser(userId?: string, auth?: RequestAuthContext) {
+    if (auth?.userId) {
+      return { id: auth.userId };
+    }
     if (await this.prismaService.canUseDatabase()) {
       const user = userId
         ? await this.prismaService.user.findUnique({ where: { id: userId } })
@@ -462,6 +760,281 @@ export class AuthService {
       throw new UnauthorizedException("当前没有可用用户");
     }
     return { id: user.id };
+  }
+
+  private async resolveFallbackAuthContext(): Promise<RequestAuthContext | undefined> {
+    const currentUser = await this.resolveCurrentUser();
+    const brands = await this.listAccessibleBrands(currentUser.id);
+    return {
+      userId: currentUser.id,
+      brandId: this.pickCurrentBrandId(brands),
+      source: "fallback",
+      systemRole: "USER",
+    };
+  }
+
+  private async listAccessibleBrands(userId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureOwnerBrandMemberships(userId);
+      const memberships = await this.prismaService.brandMember.findMany({
+        where: {
+          userId,
+          status: BrandMemberStatus.ACTIVE,
+        },
+        include: {
+          brand: {
+            select: {
+              id: true,
+              brandName: true,
+              industry: true,
+            },
+          },
+        },
+        orderBy: {
+          joinedAt: "asc",
+        },
+      });
+
+      return memberships.map((item) => ({
+        id: item.brand.id,
+        brandName: item.brand.brandName,
+        industry: item.brand.industry ?? "",
+        role: item.role,
+      }));
+    }
+
+    return this.listMockBrands(userId);
+  }
+
+  private listMockBrands(userId: string) {
+    return database.brands
+      .filter((item) => item.ownerUserId === userId)
+      .map((item) => ({
+        id: item.id,
+        brandName: item.brandName,
+        industry: item.industry ?? "",
+        role: "OWNER",
+      }));
+  }
+
+  private pickCurrentBrandId(
+    brands: Array<{ id: string }>,
+    requestedBrandId?: string,
+  ) {
+    if (requestedBrandId && brands.some((item) => item.id === requestedBrandId)) {
+      return requestedBrandId;
+    }
+    return brands[0]?.id;
+  }
+
+  private async ensureOwnerBrandMemberships(userId: string) {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return;
+    }
+
+    const ownedBrands = await this.prismaService.brand.findMany({
+      where: { ownerUserId: userId },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      ownedBrands.map((brand) =>
+        this.prismaService.brandMember.upsert({
+          where: {
+            brandId_userId: {
+              brandId: brand.id,
+              userId,
+            },
+          },
+          create: {
+            brandId: brand.id,
+            userId,
+            role: BrandMemberRole.OWNER,
+            status: BrandMemberStatus.ACTIVE,
+          },
+          update: {
+            role: BrandMemberRole.OWNER,
+            status: BrandMemberStatus.ACTIVE,
+          },
+        }),
+      ),
+    );
+  }
+
+  private async issueSessionTokens(userId: string, brandId?: string) {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.buildTokenPair(userId, undefined, brandId);
+    }
+
+    const sessionId = await this.createSession(userId, brandId);
+    return this.rotateExistingSession(sessionId, userId, brandId);
+  }
+
+  private async rotateSessionTokens(sessionId: string | undefined, userId: string, brandId?: string) {
+    if (!(await this.prismaService.canUseDatabase()) || !sessionId) {
+      return this.buildTokenPair(userId, undefined, brandId);
+    }
+
+    return this.rotateExistingSession(sessionId, userId, brandId);
+  }
+
+  private async createSession(userId: string, brandId?: string) {
+    const session = await this.prismaService.userSession.create({
+      data: {
+        userId,
+        currentBrandId: brandId,
+        refreshTokenHash: this.hashSessionToken(randomBytes(24).toString("hex")),
+        expiresAt: new Date(Date.now() + this.getRefreshTokenTtlSeconds() * 1000),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return session.id;
+  }
+
+  private async rotateExistingSession(sessionId: string, userId: string, brandId?: string) {
+    const refreshToken = this.signToken({
+      sub: userId,
+      sid: sessionId,
+      typ: "refresh",
+      exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds(),
+      bid: brandId,
+    });
+    await this.prismaService.userSession.update({
+      where: { id: sessionId },
+      data: {
+        currentBrandId: brandId,
+        refreshTokenHash: this.hashSessionToken(refreshToken),
+        expiresAt: new Date(Date.now() + this.getRefreshTokenTtlSeconds() * 1000),
+        revokedAt: null,
+      },
+    });
+
+    return {
+      accessToken: this.signToken({
+        sub: userId,
+        sid: sessionId,
+        typ: "access",
+        exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(),
+        bid: brandId,
+      }),
+      refreshToken,
+    };
+  }
+
+  private buildTokenPair(userId: string, sessionId?: string, brandId?: string) {
+    const accessToken = this.signToken({
+      sub: userId,
+      sid: sessionId,
+      typ: "access",
+      exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(),
+      bid: brandId,
+    });
+    const refreshToken = this.signToken({
+      sub: userId,
+      sid: sessionId,
+      typ: "refresh",
+      exp: this.getUnixTime() + this.getRefreshTokenTtlSeconds(),
+      bid: brandId,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  private hashPassword(password: string) {
+    const salt = randomBytes(16).toString("hex");
+    const derived = scryptSync(password, salt, 64).toString("hex");
+    return `scrypt$${salt}$${derived}`;
+  }
+
+  private verifyPassword(password: string, storedHash: string) {
+    if (!storedHash.startsWith("scrypt$")) {
+      return {
+        matched: storedHash === password,
+        needsUpgrade: storedHash === password,
+      };
+    }
+
+    const [, salt, expected] = storedHash.split("$");
+    if (!salt || !expected) {
+      return { matched: false, needsUpgrade: false };
+    }
+
+    const actual = scryptSync(password, salt, 64);
+    const expectedBuffer = Buffer.from(expected, "hex");
+    return {
+      matched: expectedBuffer.length === actual.length && timingSafeEqual(expectedBuffer, actual),
+      needsUpgrade: false,
+    };
+  }
+
+  private hashSessionToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  private signToken(payload: { sub: string; sid?: string; typ: "access" | "refresh"; exp: number; bid?: string }) {
+    const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" }), "utf8").toString("base64url");
+    const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+    const signature = createHmac("sha256", this.getAuthSecret()).update(`${header}.${body}`).digest("base64url");
+    return `${header}.${body}.${signature}`;
+  }
+
+  private verifyToken(token: string) {
+    const [header, body, signature] = token.split(".");
+    if (!header || !body || !signature) {
+      throw new UnauthorizedException("访问凭证格式无效");
+    }
+
+    const expected = createHmac("sha256", this.getAuthSecret()).update(`${header}.${body}`).digest("base64url");
+    if (expected !== signature) {
+      throw new UnauthorizedException("访问凭证签名无效");
+    }
+
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Record<string, unknown>;
+    const exp = typeof parsed.exp === "number" ? parsed.exp : 0;
+    if (!exp || exp <= this.getUnixTime()) {
+      throw new UnauthorizedException("访问凭证已过期");
+    }
+
+    return {
+      sub: typeof parsed.sub === "string" ? parsed.sub : "",
+      sid: typeof parsed.sid === "string" ? parsed.sid : "",
+      typ: parsed.typ === "refresh" ? "refresh" : "access",
+      bid: typeof parsed.bid === "string" ? parsed.bid : "",
+      exp,
+    };
+  }
+
+  private getAccessTokenTtlSeconds() {
+    return Number(process.env.ACCESS_TOKEN_TTL_SECONDS || 60 * 60 * 12);
+  }
+
+  private getRefreshTokenTtlSeconds() {
+    return Number(process.env.REFRESH_TOKEN_TTL_SECONDS || 60 * 60 * 24 * 14);
+  }
+
+  private getUnixTime() {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  private getAuthSecret() {
+    return process.env.AUTH_TOKEN_SECRET || "ai-omni-ops-system-dev-secret";
+  }
+
+  private readHeaderValue(headers: Record<string, string | string[] | undefined> | undefined, key: string) {
+    if (!headers) {
+      return "";
+    }
+    const raw = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+    if (Array.isArray(raw)) {
+      return raw[0] ?? "";
+    }
+    return typeof raw === "string" ? raw : "";
   }
 
   private async getUserFeishuOauthConfig(userId: string) {

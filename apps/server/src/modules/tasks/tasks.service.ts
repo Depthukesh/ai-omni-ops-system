@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { TaskStatus } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
+import type { RequestAuthContext } from "../auth/auth.service";
 
 export type CreateTaskPayload = {
   userId?: string;
@@ -16,9 +17,11 @@ export type CreateTaskPayload = {
 export class TasksService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async listTasks() {
+  async listTasks(auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
+      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const tasks = await this.prismaService.task.findMany({
+        where: { userId },
         orderBy: { createdAt: "desc" },
       });
 
@@ -41,21 +44,25 @@ export class TasksService {
       }));
     }
 
-    return [...database.tasks].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const userId = auth?.userId ?? database.users[0]?.id;
+    return [...database.tasks]
+      .filter((item) => !userId || item.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async createTask(payload: CreateTaskPayload) {
+  async createTask(payload: CreateTaskPayload, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
-      const userId = payload.userId ?? (await this.getDefaultUserId());
+      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
+      const brandId = auth?.brandId ?? payload.brandId;
 
-      if (payload.brandId) {
-        await this.ensureBrandExists(payload.brandId);
+      if (brandId) {
+        await this.ensureBrandExists(brandId);
       }
 
       const task = await this.prismaService.task.create({
         data: {
           userId,
-          brandId: payload.brandId,
+          brandId,
           taskType: payload.taskType,
           taskTitle: payload.taskTitle,
           taskStatus: TaskStatus.QUEUED,
@@ -86,8 +93,8 @@ export class TasksService {
     const now = new Date().toISOString();
     const task = {
       id: createId("tsk"),
-      userId: payload.userId ?? database.users[0].id,
-      brandId: payload.brandId,
+      userId: auth?.userId ?? payload.userId ?? database.users[0].id,
+      brandId: auth?.brandId ?? payload.brandId,
       taskType: payload.taskType,
       taskTitle: payload.taskTitle,
       taskStatus: "QUEUED" as const,
@@ -101,7 +108,7 @@ export class TasksService {
     return task;
   }
 
-  async retryTask(id: string) {
+  async retryTask(id: string, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.task.findUnique({
         where: { id },
@@ -109,6 +116,9 @@ export class TasksService {
 
       if (!existing) {
         throw new NotFoundException("任务不存在");
+      }
+      if (auth?.userId && existing.userId !== auth.userId) {
+        throw new UnauthorizedException("当前用户无权重试该任务");
       }
 
       const task = await this.prismaService.task.update({
@@ -143,6 +153,9 @@ export class TasksService {
     const task = database.tasks.find((item) => item.id === id);
     if (!task) {
       throw new NotFoundException("任务不存在");
+    }
+    if (auth?.userId && task.userId !== auth.userId) {
+      throw new UnauthorizedException("当前用户无权重试该任务");
     }
 
     task.taskStatus = "QUEUED";

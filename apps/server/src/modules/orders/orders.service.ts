@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { MembershipLevel, OrderStatus, Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
+import type { RequestAuthContext } from "../auth/auth.service";
 
 export type CreateOrderPayload = {
   userId?: string;
@@ -15,9 +16,9 @@ export type CreateOrderPayload = {
 export class OrdersService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async listOrders() {
+  async listOrders(auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
-      const userId = await this.getDefaultUserId();
+      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const orders = await this.prismaService.membershipOrder.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -59,7 +60,7 @@ export class OrdersService {
       }));
   }
 
-  async getOrderById(id: string) {
+  async getOrderById(id: string, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
       const order = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -78,6 +79,9 @@ export class OrdersService {
       if (!order) {
         throw new NotFoundException("订单不存在");
       }
+      if (auth?.userId && order.userId !== auth.userId) {
+        throw new UnauthorizedException("当前用户无权查看该订单");
+      }
 
       return {
         ...this.mapOrder(order),
@@ -89,6 +93,9 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException("订单不存在");
     }
+    if (auth?.userId && order.userId !== auth.userId) {
+      throw new UnauthorizedException("当前用户无权查看该订单");
+    }
 
     return {
       ...order,
@@ -96,8 +103,8 @@ export class OrdersService {
     };
   }
 
-  async getOrderStatus(id: string) {
-    const order = await this.getOrderById(id);
+  async getOrderStatus(id: string, auth?: RequestAuthContext) {
+    const order = await this.getOrderById(id, auth);
     return {
       id: order.id,
       orderNo: order.orderNo,
@@ -107,9 +114,9 @@ export class OrdersService {
     };
   }
 
-  async createOrder(payload: CreateOrderPayload) {
+  async createOrder(payload: CreateOrderPayload, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
-      const userId = payload.userId ?? (await this.getDefaultUserId());
+      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
 
       const order = await this.prismaService.membershipOrder.create({
         data: {
@@ -147,7 +154,7 @@ export class OrdersService {
     return order;
   }
 
-  async markPaid(id: string) {
+  async markPaid(id: string, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -155,6 +162,9 @@ export class OrdersService {
 
       if (!existing) {
         throw new NotFoundException("订单不存在");
+      }
+      if (auth?.userId && existing.userId !== auth.userId) {
+        throw new UnauthorizedException("当前用户无权支付该订单");
       }
 
       if (existing.orderStatus === OrderStatus.PAID) {
@@ -224,6 +234,9 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException("订单不存在");
     }
+    if (auth?.userId && order.userId !== auth.userId) {
+      throw new UnauthorizedException("当前用户无权支付该订单");
+    }
 
     if (order.orderStatus === "PAID") {
       return order;
@@ -255,7 +268,7 @@ export class OrdersService {
     return order;
   }
 
-  async cancelOrder(id: string) {
+  async cancelOrder(id: string, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -263,6 +276,9 @@ export class OrdersService {
 
       if (!existing) {
         throw new NotFoundException("订单不存在");
+      }
+      if (auth?.userId && existing.userId !== auth.userId) {
+        throw new UnauthorizedException("当前用户无权取消该订单");
       }
 
       if (existing.orderStatus !== OrderStatus.PENDING) {
@@ -282,6 +298,9 @@ export class OrdersService {
     const order = database.orders.find((item) => item.id === id);
     if (!order) {
       throw new NotFoundException("订单不存在");
+    }
+    if (auth?.userId && order.userId !== auth.userId) {
+      throw new UnauthorizedException("当前用户无权取消该订单");
     }
 
     if (order.orderStatus !== "PENDING") {

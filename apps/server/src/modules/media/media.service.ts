@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { MediaType } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
+import type { RequestAuthContext } from "../auth/auth.service";
 
 export type CreateMediaPayload = {
   userId?: string;
@@ -19,9 +20,11 @@ export type CreateMediaPayload = {
 export class MediaService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async listMedia() {
+  async listMedia(auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
+      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const mediaAssets = await this.prismaService.mediaAsset.findMany({
+        where: { userId },
         orderBy: { createdAt: "desc" },
       });
 
@@ -41,15 +44,19 @@ export class MediaService {
       }));
     }
 
-    return [...database.media].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const userId = auth?.userId ?? database.users[0]?.id;
+    return [...database.media]
+      .filter((item) => !userId || item.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async createMedia(payload: CreateMediaPayload) {
+  async createMedia(payload: CreateMediaPayload, auth?: RequestAuthContext) {
     if (await this.prismaService.canUseDatabase()) {
-      const userId = payload.userId ?? (await this.getDefaultUserId());
+      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
+      const brandId = auth?.brandId ?? payload.brandId;
 
-      if (payload.brandId) {
-        await this.ensureBrandExists(payload.brandId);
+      if (brandId) {
+        await this.ensureBrandExists(brandId);
       }
 
       if (payload.taskId) {
@@ -59,7 +66,7 @@ export class MediaService {
       const media = await this.prismaService.mediaAsset.create({
         data: {
           userId,
-          brandId: payload.brandId,
+          brandId,
           taskId: payload.taskId,
           title: payload.title,
           mediaType: payload.mediaType as MediaType,
@@ -88,8 +95,8 @@ export class MediaService {
 
     const media = {
       id: createId("med"),
-      userId: payload.userId ?? database.users[0].id,
-      brandId: payload.brandId,
+      userId: auth?.userId ?? payload.userId ?? database.users[0].id,
+      brandId: auth?.brandId ?? payload.brandId,
       taskId: payload.taskId,
       title: payload.title,
       mediaType: payload.mediaType,

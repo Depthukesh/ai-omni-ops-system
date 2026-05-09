@@ -1,17 +1,23 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Post } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
 import { MediaService, type CreateMediaPayload } from "./media.service";
 
 @Controller("media")
 export class MediaController {
-  constructor(private readonly mediaService: MediaService) {}
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
-  list() {
-    return this.mediaService.listMedia();
+  async list(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.mediaService.listMedia(auth);
   }
 
   @Post()
-  create(@Body() payload: CreateMediaPayload) {
-    return this.mediaService.createMedia(payload);
+  async create(@Body() payload: CreateMediaPayload, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.mediaService.createMedia(payload, auth);
   }
 }

@@ -1,11 +1,16 @@
-import { Body, Controller, Get, Post, Query, Res } from "@nestjs/common";
-import { PrismaService } from "../../prisma/prisma.service";
-import { AuthService, type FeishuAppConfigPayload, type LoginPayload, type RegisterPayload } from "./auth.service";
+import { Body, Controller, Get, Headers, Patch, Post, Query, Res } from "@nestjs/common";
+import {
+  AuthService,
+  type FeishuAppConfigPayload,
+  type LoginPayload,
+  type RefreshSessionPayload,
+  type RegisterPayload,
+  type SwitchBrandPayload,
+} from "./auth.service";
 
 @Controller("auth")
 export class AuthController {
-  // Temporary direct construction to bypass unstable runtime injection in start:dev.
-  private readonly authService = new AuthService(new PrismaService());
+  constructor(private readonly authService: AuthService) {}
 
   @Post("login")
   login(@Body() payload: LoginPayload) {
@@ -17,34 +22,86 @@ export class AuthController {
     return this.authService.register(payload);
   }
 
+  @Post("refresh")
+  refresh(@Body() payload: RefreshSessionPayload) {
+    return this.authService.refreshSession(payload);
+  }
+
+  @Post("logout")
+  async logout(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    return this.authService.logout(auth);
+  }
+
+  @Get("me")
+  async me(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    return this.authService.getMe(auth);
+  }
+
+  @Get("brands")
+  async brands(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    return this.authService.getBrands(auth);
+  }
+
+  @Patch("switch-brand")
+  async switchBrand(
+    @Body() payload: SwitchBrandPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    return this.authService.switchBrand(payload, auth);
+  }
+
   @Get("profile")
-  profile() {
-    return this.authService.getProfile();
+  async profile(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.getProfile(auth);
   }
 
   @Get("point-ledgers")
-  pointLedgers() {
-    return this.authService.getPointLedgers();
+  async pointLedgers(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.getPointLedgers(auth);
   }
 
   @Get("feishu/oauth/start")
-  feishuOauthStart(@Query("userId") userId?: string, @Query("returnUrl") returnUrl?: string) {
-    return this.authService.getFeishuOauthStart(userId, returnUrl);
+  async feishuOauthStart(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("userId") userId?: string,
+    @Query("returnUrl") returnUrl?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.getFeishuOauthStart(userId || auth?.userId, returnUrl);
   }
 
   @Get("feishu/app-config")
-  feishuAppConfig(@Query("userId") userId?: string) {
-    return this.authService.getFeishuAppConfig(userId);
+  async feishuAppConfig(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("userId") userId?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.getFeishuAppConfig(userId || auth?.userId);
   }
 
   @Post("feishu/app-config")
-  upsertFeishuAppConfig(@Body() payload: FeishuAppConfigPayload, @Query("userId") userId?: string) {
-    return this.authService.upsertFeishuAppConfig(payload, userId);
+  async upsertFeishuAppConfig(
+    @Body() payload: FeishuAppConfigPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("userId") userId?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.upsertFeishuAppConfig(payload, userId || auth?.userId);
   }
 
   @Get("feishu/oauth/status")
-  feishuOauthStatus(@Query("userId") userId?: string) {
-    return this.authService.getFeishuOauthStatus(userId);
+  async feishuOauthStatus(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("userId") userId?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.getFeishuOauthStatus(userId || auth?.userId);
   }
 
   @Get("feishu/oauth/callback")
