@@ -2,7 +2,9 @@ export type AuthUser = {
   id: string;
   mobile: string;
   email: string;
+  emailVerified: boolean;
   nickname: string;
+  avatarUrl: string;
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
   systemRole: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
@@ -77,4 +79,9 @@ export function mergeStoredAuthSession(next: Partial<AuthSession>) {
   };
   setStoredAuthSession(merged);
   return merged;
+}
+
+export function getStoredCurrentBrandId(fallbackBrandId?: string) {
+  const session = getStoredAuthSession();
+  return session?.currentBrandId || session?.brands?.[0]?.id || fallbackBrandId;
 }

@@ -14,6 +14,33 @@ export type LoginPayload = {
   password: string;
 };
 
+export type RegisterPayload = {
+  mobile: string;
+  email: string;
+  emailCode: string;
+  password: string;
+  nickname?: string;
+};
+
+export type SendRegisterEmailCodePayload = {
+  email: string;
+};
+
+export type SendRegisterEmailCodeResponse = {
+  success: boolean;
+  email: string;
+  expiresInSec: number;
+  delivery: "smtp" | "dev-preview";
+  message: string;
+  devPreviewCode?: string;
+};
+
+export type UpdateProfilePayload = {
+  nickname: string;
+  mobile: string;
+  avatarUrl?: string;
+};
+
 export type AuthSuccessPayload = AuthSession & {
   user: AuthUser;
 };
@@ -36,12 +63,39 @@ export async function login(payload: LoginPayload) {
   return response;
 }
 
+export async function register(payload: RegisterPayload) {
+  const response = await jsonRequest<AuthSuccessPayload>("/auth/register", "POST", payload);
+  setStoredAuthSession({
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    currentBrandId: response.currentBrandId,
+    brands: response.brands,
+    user: response.user,
+  });
+  return response;
+}
+
+export async function sendRegisterEmailCode(payload: SendRegisterEmailCodePayload) {
+  return jsonRequest<SendRegisterEmailCodeResponse>("/auth/register/email-code", "POST", payload);
+}
+
 export async function getMe() {
   const response = await request<MeResponse>("/auth/me");
   mergeStoredAuthSession({
     brands: response.brands,
     currentBrandId: response.currentBrandId,
     user: response.user,
+  });
+  return response;
+}
+
+export async function updateProfile(payload: UpdateProfilePayload) {
+  const response = await request<AuthUser>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  mergeStoredAuthSession({
+    user: response,
   });
   return response;
 }

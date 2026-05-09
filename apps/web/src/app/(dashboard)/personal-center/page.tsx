@@ -257,6 +257,20 @@ export default function PersonalCenterPage() {
               </div>
               <span className="archive-pill status-ready">{currentBrand?.role || "未绑定品牌"}</span>
             </div>
+            <div className="profile-summary-inline">
+              {profile.avatarUrl ? (
+                <img className="profile-summary-avatar" src={profile.avatarUrl} alt={`${profile.nickname || "用户"}头像`} />
+              ) : (
+                <div className="profile-summary-avatar profile-summary-avatar-fallback">
+                  {(profile.nickname || profile.email || "U").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="personal-actions personal-actions--tight" style={{ justifyContent: "flex-start" }}>
+                <Link href="/personal-center/security" className="secondary-button">
+                  编辑账号资料
+                </Link>
+              </div>
+            </div>
             <div className="personal-grid">
               <div>
                 <span>用户昵称</span>

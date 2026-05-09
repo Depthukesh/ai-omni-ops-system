@@ -5,7 +5,9 @@ export type UserRecord = {
   id: string;
   mobile: string;
   email: string;
+  emailVerifiedAt?: string;
   nickname: string;
+  avatarUrl?: string;
   password: string;
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
@@ -342,7 +344,9 @@ export const database: MockDatabase = {
       id: "usr_demo_001",
       mobile: "13800000000",
       email: "demo@ai-omni.local",
+      emailVerifiedAt: "2026-05-08T00:00:00.000Z",
       nickname: "演示账号",
+      avatarUrl: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=clean%20minimal%20professional%20user%20avatar%20portrait%2C%20asian%20young%20adult%2C%20soft%20studio%20lighting%2C%20blue%20gray%20background%2C%20realistic%20headshot&image_size=square",
       password: "123456",
       status: "ACTIVE",
       membership: "PRO",

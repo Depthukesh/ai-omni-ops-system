@@ -1,47 +1,79 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
 import { CollectorsService } from "./collectors.service";
 
 @Controller("collectors/xiaohongshu")
 export class CollectorsController {
-  constructor(@Inject(CollectorsService) private readonly collectorsService: CollectorsService) {}
+  constructor(
+    @Inject(CollectorsService) private readonly collectorsService: CollectorsService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
 
   @Get("brands/:brandId/workspace")
-  workspace(@Param("brandId") brandId: string) {
+  async workspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.getXiaohongshuWorkspace(brandId);
   }
 
   @Post("brands/:brandId/brand-accounts/sync")
-  syncBrandAccounts(@Param("brandId") brandId: string) {
+  async syncBrandAccounts(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncBrandAccounts(brandId);
   }
 
   @Post("brands/:brandId/competitor-accounts/sync")
-  syncCompetitorAccounts(@Param("brandId") brandId: string) {
+  async syncCompetitorAccounts(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncCompetitorAccounts(brandId);
   }
 
   @Post("brands/:brandId/brand-notes/sync")
-  syncBrandNotes(@Param("brandId") brandId: string) {
+  async syncBrandNotes(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncBrandNotes(brandId);
   }
 
   @Post("brands/:brandId/benchmark-notes/sync")
-  syncBenchmarkNotes(@Param("brandId") brandId: string, @Body() payload: { sourceUrls?: string[] }) {
+  async syncBenchmarkNotes(
+    @Param("brandId") brandId: string,
+    @Body() payload: { sourceUrls?: string[] },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncBenchmarkNotes(brandId, payload.sourceUrls ?? []);
   }
 
   @Post("brands/:brandId/material-library")
-  addBenchmarkNoteToMaterialLibrary(@Param("brandId") brandId: string, @Body() payload: { assetId: string }) {
+  async addBenchmarkNoteToMaterialLibrary(
+    @Param("brandId") brandId: string,
+    @Body() payload: { assetId: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.addBenchmarkNoteToMaterialLibrary(brandId, payload.assetId);
   }
 
   @Post("brands/:brandId/target-users/sync")
-  syncTargetUsers(@Param("brandId") brandId: string, @Body() payload: { sourceUrls?: string[] }) {
+  async syncTargetUsers(
+    @Param("brandId") brandId: string,
+    @Body() payload: { sourceUrls?: string[] },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncTargetUsers(brandId, payload.sourceUrls ?? []);
   }
 
   @Post("brands/:brandId/feishu-sync")
-  syncFeishuWorkspace(@Param("brandId") brandId: string) {
+  async syncFeishuWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncFeishuWorkspace(brandId);
   }
 
@@ -50,11 +82,14 @@ export class CollectorsController {
     @Param("brandId") brandId: string,
     @Query("sourceUrl") sourceUrl: string,
     @Query("download") download: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Res() response: {
       setHeader(name: string, value: string): unknown;
       status(code: number): { send(body: Buffer): unknown };
     },
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     const file = await this.collectorsService.fetchFeishuMedia(brandId, sourceUrl);
     response.setHeader("Content-Type", file.contentType);
     response.setHeader("Cache-Control", "private, max-age=300");

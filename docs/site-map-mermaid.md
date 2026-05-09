@@ -34,7 +34,7 @@ flowchart TD
     B --> B3["小红书工作台 /xiaohongshu"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
-    B --> B6["登录注册 /login /register"]
+    B --> B6["登录注册 /login /register（注册含邮箱验证码）"]
     B --> B7["会员/点数/订单"]
     B --> B8["移动发布 /publish/mobile/[token]"]
     B --> B9["共享浅底导航壳"]
@@ -42,7 +42,7 @@ flowchart TD
     B9 --> B92["前台左侧目录导航（仅保留按钮本体）"]
     B9 --> B93["后台目录导航"]
 
-    C --> C1["AuthModule"]
+    C --> C1["AuthModule 登录/注册/邮箱验证"]
     C --> C2["BrandsModule"]
     C --> C3["CollectorsModule"]
     C --> C4["ReportsModule"]
@@ -110,9 +110,9 @@ flowchart TD
     BGW --> BGW6["markdown-render.ts"]
     BGW --> BGW7["task-status-helpers.ts"]
 
-    BGW1 --> S1["brand-growth.ts"]
-    BGW1 --> S2["collectors.ts"]
-    BGW1 --> S3["daily-hotspots.ts"]
+    BGW1 --> S1["brand-growth.ts 当前品牌优先"]
+    BGW1 --> S2["collectors.ts 当前品牌优先"]
+    BGW1 --> S3["daily-hotspots.ts 当前品牌优先"]
 
     BGW2 --> S1
     BGW3 --> S4["reports.ts"]
@@ -122,12 +122,16 @@ flowchart TD
     S2 --> API3["/collectors/xiaohongshu/*"]
     S3 --> API4["/collectors/daily-hotspots/*"]
     S4 --> API5["/reports/*"]
+    S1 --> S10["auth-session.ts 当前品牌解析"]
+    S2 --> S10
+    S3 --> S10
+    S4 --> S10
 
-    API1 --> M1["BrandsModule"]
+    API1 --> M1["BrandsModule 品牌访问校验"]
     API2 --> M2["AuthModule"]
-    API3 --> M3["CollectorsModule"]
+    API3 --> M3["CollectorsModule 品牌访问校验"]
     API4 --> M3
-    API5 --> M4["ReportsModule"]
+    API5 --> M4["ReportsModule 品牌访问校验"]
 
     M1 --> T1["Brand"]
     M1 --> T2["Product"]
@@ -139,6 +143,7 @@ flowchart TD
 
     M2 --> T8["User"]
     M2 --> T9["UserFeishuIntegration"]
+    M2 --> T12["EmailVerificationCode"]
 
     M3 --> T4
     M3 --> T5
@@ -226,17 +231,22 @@ flowchart TD
     HX1 --> SX4["collectors.ts"]
     HX2 --> SX5["reports.ts"]
     HX3 --> SX5
+    XHS --> SX0["auth-session.ts 当前品牌解析"]
 
     SX1 --> AX1["/brands/* + /reports/* + /collectors/* 聚合读取"]
     SX2 --> AX2["/publishing/xiaohongshu/*"]
     SX3 --> AX3["/works/brands/:brandId/xiaohongshu/*"]
     SX4 --> AX4["/collectors/xiaohongshu/*"]
     SX5 --> AX5["/reports/brands/:brandId/xiaohongshu-*"]
+    SX0 --> SX1
+    SX0 --> SX3
+    SX0 --> SX4
+    SX0 --> SX5
 
     AX2 --> MX1["PublishingModule"]
     AX3 --> MX2["WorksModule"]
-    AX4 --> MX3["CollectorsModule"]
-    AX5 --> MX4["ReportsModule"]
+    AX4 --> MX3["CollectorsModule 品牌访问校验"]
+    AX5 --> MX4["ReportsModule 品牌访问校验"]
 
     MX1 --> TX1["Task"]
     MX1 --> TX2["MediaAsset"]
@@ -308,7 +318,7 @@ flowchart TD
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team"]
     PC --> PC7["/personal-center/invites"]
-    PCS1 --> PAPI1["/auth/profile"]
+    PCS1 --> PAPI1["/auth/profile 读写"]
     PCS1 --> PAPI2["/auth/point-ledgers"]
     PCS1 --> PAPI3["/orders"]
     PCS1 --> PAPI4["/tasks"]
@@ -485,14 +495,14 @@ flowchart LR
 
 - 首页：`apps/web/src/app/page.tsx`
 - 登录页：`apps/web/src/app/(auth)/login/page.tsx`
-- 注册页：`apps/web/src/app/(auth)/register/page.tsx`
+- 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邮箱验证码）
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
 - 个人中心作品中心：`apps/web/src/app/(dashboard)/personal-center/works/page.tsx`
 - 个人中心技能中心：`apps/web/src/app/(dashboard)/personal-center/skills/page.tsx`
-- 个人中心安全设置：`apps/web/src/app/(dashboard)/personal-center/security/page.tsx`
+- 个人中心安全设置：`apps/web/src/app/(dashboard)/personal-center/security/page.tsx`（账号资料编辑 + 会话安全）
 - 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
 - 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`
@@ -566,7 +576,7 @@ flowchart LR
 - 启动入口：`apps/server/src/main.ts`
 - 健康检查：`apps/server/src/app.controller.ts`
 - 配置服务：`apps/server/src/config/app-config.service.ts`
-- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`
+- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`（含 `register/email-code`、`PATCH /auth/profile`）
 - 品牌资料：`apps/server/src/modules/brands/brands.controller.ts`
 - 小红书收集：`apps/server/src/modules/collectors/collectors.controller.ts`
 - 每日热点：`apps/server/src/modules/collectors/daily-hotspots.controller.ts`

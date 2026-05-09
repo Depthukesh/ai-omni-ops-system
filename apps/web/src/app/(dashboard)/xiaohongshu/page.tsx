@@ -53,8 +53,8 @@ import {
   getWorkBaseTitle,
   readTaskWorkKind,
 } from "./work-task-helpers";
-import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services/personal-center";
+import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
@@ -320,6 +320,7 @@ export default function XiaohongshuPage() {
   });
 
   async function loadWorkspace(options?: { preserveMessages?: boolean }) {
+    const activeBrandId = getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id;
     setIsLoading(true);
     setDataSource("loading");
     if (!options?.preserveMessages) {
@@ -334,9 +335,9 @@ export default function XiaohongshuPage() {
       getAnnualMarketingPlanWorkspace(),
       getXiaohongshuMarketingPlanWorkspace(),
       getXiaohongshuMarketingCalendarWorkspace(),
-      getXiaohongshuOriginalWorks(DEMO_BRAND_ID),
-      getXiaohongshuRewriteWorks(DEMO_BRAND_ID),
-      getXiaohongshuVideoWorks(DEMO_BRAND_ID),
+      getXiaohongshuOriginalWorks(activeBrandId),
+      getXiaohongshuRewriteWorks(activeBrandId),
+      getXiaohongshuVideoWorks(activeBrandId),
     ]);
 
     const messages: string[] = [];
@@ -441,7 +442,7 @@ export default function XiaohongshuPage() {
     createMobilePublishSession: handleCreateMobilePublishSession,
     completeMobilePublishSession: handleCompleteMobilePublishSession,
   } = usePublishFlow({
-    brandId: workspace.archive.brand.id || DEMO_BRAND_ID,
+    brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     defaultAccountId: defaultAccount?.id,
     platformAccounts: workspace.archive.platformAccounts,
     onRefreshWorkspace: loadWorkspace,
@@ -594,7 +595,7 @@ export default function XiaohongshuPage() {
     createRewriteWork: handleCreateRewriteWork,
     createVideoWork: handleCreateVideoWork,
   } = useWorkComposerActions({
-    brandId: workspace.archive.brand.id,
+    brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     calendarItems: calendarAllItems,
     products: workspace.archive.products,
     materialNotes,
@@ -659,8 +660,7 @@ export default function XiaohongshuPage() {
     saveVideoWork: handleSaveVideoWork,
     deleteVideoWork: handleDeleteVideoWork,
   } = useWorkMutationActions({
-    brandId: workspace.archive.brand.id,
-    demoBrandId: DEMO_BRAND_ID,
+    brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     setNotice,
     setErrorMessage,
     original: {

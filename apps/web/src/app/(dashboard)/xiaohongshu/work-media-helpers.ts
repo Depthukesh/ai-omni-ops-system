@@ -1,5 +1,6 @@
 "use client";
 
+import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { DEMO_BRAND_ID } from "../../../services/brand-growth";
 import { API_BASE_URL } from "../../../services/http";
 import {
@@ -7,7 +8,7 @@ import {
   type XiaohongshuRewriteWorkRecord,
 } from "../../../services/works";
 
-export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false) {
+export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false, brandId?: string) {
   if (!sourceUrl) {
     return "";
   }
@@ -19,7 +20,8 @@ export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false
       if (download) {
         params.set("download", "1");
       }
-      return `${API_BASE_URL}/collectors/xiaohongshu/brands/${DEMO_BRAND_ID}/feishu-media?${params.toString()}`;
+      const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+      return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
     }
   } catch {
     return sourceUrl;

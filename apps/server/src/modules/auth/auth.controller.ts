@@ -5,7 +5,9 @@ import {
   type LoginPayload,
   type RefreshSessionPayload,
   type RegisterPayload,
+  type SendRegisterEmailCodePayload,
   type SwitchBrandPayload,
+  type UpdateProfilePayload,
 } from "./auth.service";
 
 @Controller("auth")
@@ -20,6 +22,11 @@ export class AuthController {
   @Post("register")
   register(@Body() payload: RegisterPayload) {
     return this.authService.register(payload);
+  }
+
+  @Post("register/email-code")
+  sendRegisterEmailCode(@Body() payload: SendRegisterEmailCodePayload) {
+    return this.authService.sendRegisterEmailCode(payload);
   }
 
   @Post("refresh")
@@ -58,6 +65,15 @@ export class AuthController {
   async profile(@Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     return this.authService.getProfile(auth);
+  }
+
+  @Patch("profile")
+  async updateProfile(
+    @Body() payload: UpdateProfilePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.updateProfile(payload, auth);
   }
 
   @Get("point-ledgers")

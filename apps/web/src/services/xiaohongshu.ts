@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  DEMO_BRAND_ID,
   brandArchiveSeed,
   getBrandArchive,
   type BrandAccount,
@@ -43,10 +42,10 @@ export const xiaohongshuToneOptions: XiaohongshuTone[] = ["专业种草", "生�
 
 export async function getXiaohongshuWorkspace() {
   const [archive, tasks, media, collection] = await Promise.all([
-    getBrandArchive(DEMO_BRAND_ID),
+    getBrandArchive(),
     getTasks(),
     getMedia(),
-    getXiaohongshuCollectionWorkspace(DEMO_BRAND_ID),
+    getXiaohongshuCollectionWorkspace(),
   ]);
 
   return {

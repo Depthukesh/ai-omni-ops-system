@@ -1,3 +1,4 @@
+import { getStoredCurrentBrandId } from "./auth-session";
 import { DEMO_BRAND_ID } from "./brand-growth";
 import { jsonRequest, request } from "./http";
 
@@ -65,15 +66,19 @@ export const dailyHotspotSeed: DailyHotspotWorkspace = {
   ],
 };
 
-export async function getDailyHotspotWorkspace(brandId = DEMO_BRAND_ID, date?: string) {
-  const suffix = date ? `?date=${encodeURIComponent(date)}` : "";
-  return request<DailyHotspotWorkspace>(`/collectors/daily-hotspots/brands/${brandId}/workspace${suffix}`);
+function resolveBrandId(brandId?: string) {
+  return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
 
-export async function syncDailyHotspots(platformTitles?: string[], brandId = DEMO_BRAND_ID) {
+export async function getDailyHotspotWorkspace(brandId?: string, date?: string) {
+  const suffix = date ? `?date=${encodeURIComponent(date)}` : "";
+  return request<DailyHotspotWorkspace>(`/collectors/daily-hotspots/brands/${resolveBrandId(brandId)}/workspace${suffix}`);
+}
+
+export async function syncDailyHotspots(platformTitles?: string[], brandId?: string) {
   return jsonRequest<{
     syncedCount: number;
     results: DailyHotspotPlatformRecord[];
     workspace: DailyHotspotWorkspace;
-  }>(`/collectors/daily-hotspots/brands/${brandId}/sync`, "POST", { platformTitles });
+  }>(`/collectors/daily-hotspots/brands/${resolveBrandId(brandId)}/sync`, "POST", { platformTitles });
 }

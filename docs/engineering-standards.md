@@ -83,6 +83,7 @@
 - `Create*Payload`
 - `Update*Payload`
 - `*Record`
+- 用户态工作区的 service 不允许把品牌请求默认硬编码到 `DEMO_BRAND_ID`；若接口属于品牌域，默认优先解析当前登录品牌上下文
 
 ### 5.4 状态与轮询规范
 
@@ -163,6 +164,7 @@
 - `Prisma` 与 `mock-data` 双轨逻辑不应继续横向扩散到所有 service
 - 新功能优先通过 repository 层收口数据库与 mock 差异
 - 业务层不直接处理“数据库可用/不可用”分支细节
+- 任何按 `brandId` 读取或写入品牌数据的 controller，都必须先校验当前登录用户是否属于该品牌，不能只依赖前端传入的 `x-brand-id` 或路由参数
 
 ## 8. 资源与作品规范
 

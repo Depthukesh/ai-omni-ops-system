@@ -101,12 +101,16 @@ export class BrandsController {
   }
 
   @Get(":id")
-  detail(@Param("id") id: string) {
+  async detail(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.getBrandDetail(id);
   }
 
   @Get(":id/archive")
-  archive(@Param("id") id: string) {
+  async archive(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.getArchive(id);
   }
 
@@ -180,7 +184,9 @@ export class BrandsController {
   }
 
   @Get(":id/feishu-binding")
-  feishuBinding(@Param("id") id: string) {
+  async feishuBinding(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.getFeishuBinding(id);
   }
 
@@ -190,88 +196,163 @@ export class BrandsController {
   }
 
   @Patch(":id/background")
-  updateBackground(@Param("id") id: string, @Body() payload: UpdateBackgroundPayload) {
+  async updateBackground(
+    @Param("id") id: string,
+    @Body() payload: UpdateBackgroundPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.updateBackground(id, payload);
   }
 
   @Post(":id/products")
-  createProduct(@Param("id") id: string, @Body() payload: CreateProductPayload) {
+  async createProduct(
+    @Param("id") id: string,
+    @Body() payload: CreateProductPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.createProduct(id, payload);
   }
 
   @Post(":id/product-images")
-  uploadProductImage(@Param("id") id: string, @Body() payload: UploadBrandProductImagePayload): Promise<BrandProductImageUploadRecord> {
+  async uploadProductImage(
+    @Param("id") id: string,
+    @Body() payload: UploadBrandProductImagePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<BrandProductImageUploadRecord> {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.uploadProductImage(id, payload);
   }
 
   @Get(":id/product-images/:fileName")
-  getProductImage(
+  async getProductImage(
     @Param("id") id: string,
     @Param("fileName") fileName: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     const file = this.brandsService.getProductImage(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }
 
   @Post(":id/asset-files")
-  uploadAssetFile(@Param("id") id: string, @Body() payload: UploadBrandAssetFilePayload): Promise<BrandAssetFileUploadRecord> {
+  async uploadAssetFile(
+    @Param("id") id: string,
+    @Body() payload: UploadBrandAssetFilePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<BrandAssetFileUploadRecord> {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.uploadAssetFile(id, payload);
   }
 
   @Get(":id/asset-files/:fileName")
-  getAssetFile(
+  async getAssetFile(
     @Param("id") id: string,
     @Param("fileName") fileName: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     const file = this.brandsService.getAssetFile(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }
 
   @Patch(":id/products/:productId")
-  updateProduct(
+  async updateProduct(
     @Param("id") id: string,
     @Param("productId") productId: string,
     @Body() payload: UpdateProductPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.updateProduct(id, productId, payload);
   }
 
   @Delete(":id/products/:productId")
-  deleteProduct(@Param("id") id: string, @Param("productId") productId: string) {
+  async deleteProduct(
+    @Param("id") id: string,
+    @Param("productId") productId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.deleteProduct(id, productId);
   }
 
   @Patch(":id/survey")
-  updateSurvey(@Param("id") id: string, @Body() payload: UpsertSurveyPayload) {
+  async updateSurvey(
+    @Param("id") id: string,
+    @Body() payload: UpsertSurveyPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.upsertSurvey(id, payload);
   }
 
   @Patch(":id/platform-accounts")
-  replacePlatformAccounts(@Param("id") id: string, @Body() payload: ReplaceAccountsPayload) {
+  async replacePlatformAccounts(
+    @Param("id") id: string,
+    @Body() payload: ReplaceAccountsPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.replacePlatformAccounts(id, payload);
   }
 
   @Patch(":id/competitor-accounts")
-  replaceCompetitorAccounts(@Param("id") id: string, @Body() payload: ReplaceAccountsPayload) {
+  async replaceCompetitorAccounts(
+    @Param("id") id: string,
+    @Body() payload: ReplaceAccountsPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.replaceCompetitorAccounts(id, payload);
   }
 
   @Patch(":id/industry-feeds")
-  replaceIndustryFeeds(@Param("id") id: string, @Body() payload: CreateAssetPayload) {
+  async replaceIndustryFeeds(
+    @Param("id") id: string,
+    @Body() payload: CreateAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.replaceIndustryFeeds(id, payload);
   }
 
   @Patch(":id/business-assets")
-  replaceBusinessAssets(@Param("id") id: string, @Body() payload: CreateAssetPayload) {
+  async replaceBusinessAssets(
+    @Param("id") id: string,
+    @Body() payload: CreateAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.replaceBusinessAssets(id, payload);
   }
 
   @Patch(":id/feishu-binding")
-  upsertFeishuBinding(@Param("id") id: string, @Body() payload: FeishuBindingPayload) {
+  async upsertFeishuBinding(
+    @Param("id") id: string,
+    @Body() payload: FeishuBindingPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
     return this.brandsService.upsertFeishuBinding(id, payload);
   }
 }

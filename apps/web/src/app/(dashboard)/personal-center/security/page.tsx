@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, type MeResponse } from "../../../../services/auth";
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SecurityStatus = "SAFE" | "ATTENTION";
@@ -14,8 +14,11 @@ export default function PersonalCenterSecurityPage() {
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [systemRole, setSystemRole] = useState("USER");
   const [accountId, setAccountId] = useState("");
+  const [accountNickname, setAccountNickname] = useState("");
   const [accountMobile, setAccountMobile] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
+  const [accountAvatarUrl, setAccountAvatarUrl] = useState("");
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [accountMembership, setAccountMembership] = useState("");
   const [hasAccessToken, setHasAccessToken] = useState(false);
   const [hasRefreshToken, setHasRefreshToken] = useState(false);
@@ -24,9 +27,13 @@ export default function PersonalCenterSecurityPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
+  const [formNickname, setFormNickname] = useState("");
+  const [formMobile, setFormMobile] = useState("");
+  const [formAvatarUrl, setFormAvatarUrl] = useState("");
 
   useEffect(() => {
     const session = readAuthSession();
@@ -44,11 +51,25 @@ export default function PersonalCenterSecurityPage() {
     setHasRefreshToken(Boolean(session?.refreshToken));
     setAccessTokenPreview(maskToken(session?.accessToken));
     setRefreshTokenPreview(maskToken(session?.refreshToken));
-    setSystemRole(session?.user?.systemRole || "USER");
-    setAccountId(session?.user?.id || "");
-    setAccountMobile(session?.user?.mobile || "");
-    setAccountEmail(session?.user?.email || "");
-    setAccountMembership(session?.user?.membership || "");
+    applyUserSnapshot(session?.user);
+    hydrateProfileForm(session?.user);
+  }
+
+  function applyUserSnapshot(user?: MeResponse["user"]) {
+    setSystemRole(user?.systemRole || "USER");
+    setAccountId(user?.id || "");
+    setAccountNickname(user?.nickname || "");
+    setAccountMobile(user?.mobile || "");
+    setAccountEmail(user?.email || "");
+    setAccountAvatarUrl(user?.avatarUrl || "");
+    setIsEmailVerified(Boolean(user?.emailVerified));
+    setAccountMembership(user?.membership || "");
+  }
+
+  function hydrateProfileForm(user?: MeResponse["user"]) {
+    setFormNickname(user?.nickname || "");
+    setFormMobile(user?.mobile || "");
+    setFormAvatarUrl(user?.avatarUrl || "");
   }
 
   async function loadSecurityPage() {
@@ -72,11 +93,8 @@ export default function PersonalCenterSecurityPage() {
     if (meResult.status === "fulfilled") {
       setBrands(meResult.value.brands);
       setCurrentBrandId(meResult.value.currentBrandId || meResult.value.brands[0]?.id || "");
-      setSystemRole(meResult.value.user.systemRole || "USER");
-      setAccountId(meResult.value.user.id);
-      setAccountMobile(meResult.value.user.mobile);
-      setAccountEmail(meResult.value.user.email);
-      setAccountMembership(meResult.value.user.membership);
+      applyUserSnapshot(meResult.value.user);
+      hydrateProfileForm(meResult.value.user);
       setDataSource("api");
     } else {
       setBrands(session?.brands || []);
@@ -135,6 +153,46 @@ export default function PersonalCenterSecurityPage() {
     router.replace(buildPersonalCenterLoginPath("/personal-center/security"));
   }
 
+  async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!formNickname.trim()) {
+      setErrorMessage("请输入用户名");
+      return;
+    }
+    if (!/^1\d{10}$/.test(formMobile.trim())) {
+      setErrorMessage("请输入正确的手机号");
+      return;
+    }
+    if (formAvatarUrl.trim() && !/^https?:\/\/|^\//.test(formAvatarUrl.trim())) {
+      setErrorMessage("头像地址需使用 http(s) 链接或站内路径");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const updated = await updateProfile({
+        nickname: formNickname.trim(),
+        mobile: formMobile.trim(),
+        avatarUrl: formAvatarUrl.trim() || undefined,
+      });
+      applyUserSnapshot(updated);
+      hydrateProfileForm(updated);
+      setDataSource("api");
+      setNotice("账号资料已保存，个人中心已同步更新。");
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "保存账号资料失败";
+      setErrorMessage(`保存失败：${message}`);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
   const currentBrand = useMemo(
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
@@ -160,21 +218,22 @@ export default function PersonalCenterSecurityPage() {
         status: currentBrand ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
-        label: "密码修改能力",
-        value: "本轮未开放",
-        detail: "本页先聚焦登录态与会话安全；密码修改、设备管理与多端下线后续继续补齐。",
-        status: "ATTENTION" as SecurityStatus,
+        label: "邮箱验证状态",
+        value: isEmailVerified ? "已验证" : "未验证",
+        detail: isEmailVerified ? "当前邮箱已经通过注册验证。" : "当前邮箱还未完成验证，后续需要补邮箱改绑与再次验证流程。",
+        status: isEmailVerified ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
     ],
-    [currentBrand, hasAccessToken, hasRefreshToken],
+    [currentBrand, hasAccessToken, hasRefreshToken, isEmailVerified],
   );
+  const avatarFallback = (accountNickname || accountEmail || "U").trim().slice(0, 1).toUpperCase();
 
   return (
     <section className="panel personal-center-panel">
       <div className="panel-header">
         <div>
-          <h2>安全设置</h2>
-          <p className="panel-subtext">集中查看当前浏览器登录态、品牌上下文、token 持有状态与退出入口，先形成个人中心的会话安全页。</p>
+          <h2>账号资料与安全设置</h2>
+          <p className="panel-subtext">当前已支持用户自助维护用户名、头像和手机号，并继续保留登录态、品牌上下文、token 持有状态与退出入口。</p>
         </div>
         <span>{securityChecks.filter((item) => item.status === "SAFE").length} 项正常</span>
       </div>
@@ -233,36 +292,79 @@ export default function PersonalCenterSecurityPage() {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
-              <strong>当前账号与会话摘要</strong>
-              <p className="personal-meta">本区用于确认当前浏览器里保存的是谁的登录态，以及是否已经绑定品牌工作区。</p>
+              <strong>编辑账号资料</strong>
+              <p className="personal-meta">当前支持自助维护用户名、头像地址和手机号；邮箱先保持只读，避免绕过现有注册邮箱验证链路。</p>
             </div>
-            <span className="archive-pill status-ready">{systemRole}</span>
+            <span className="archive-pill status-ready">可编辑</span>
           </div>
-          <div className="personal-grid">
-            <div>
-              <span>账号 ID</span>
-              <strong>{accountId || "未记录"}</strong>
+          <div className="profile-editor-layout">
+            <div className="profile-avatar-panel">
+              {accountAvatarUrl ? (
+                <img className="profile-avatar-preview" src={accountAvatarUrl} alt={`${accountNickname || "用户"}头像`} />
+              ) : (
+                <div className="profile-avatar-fallback">{avatarFallback}</div>
+              )}
+              <div className="personal-grid">
+                <div>
+                  <span>账号 ID</span>
+                  <strong>{accountId || "未记录"}</strong>
+                </div>
+                <div>
+                  <span>系统角色</span>
+                  <strong>{systemRole}</strong>
+                </div>
+                <div>
+                  <span>邮箱</span>
+                  <strong>{accountEmail || "未记录"}</strong>
+                </div>
+                <div>
+                  <span>邮箱状态</span>
+                  <strong>{isEmailVerified ? "已验证" : "未验证"}</strong>
+                </div>
+                <div>
+                  <span>会员等级</span>
+                  <strong>{accountMembership || "未记录"}</strong>
+                </div>
+                <div>
+                  <span>当前品牌</span>
+                  <strong>{currentBrand?.brandName || "未记录"}</strong>
+                </div>
+              </div>
             </div>
-            <div>
-              <span>手机号</span>
-              <strong>{accountMobile || "未记录"}</strong>
-            </div>
-            <div>
-              <span>邮箱</span>
-              <strong>{accountEmail || "未记录"}</strong>
-            </div>
-            <div>
-              <span>会员等级</span>
-              <strong>{accountMembership || "未记录"}</strong>
-            </div>
-            <div>
-              <span>系统角色</span>
-              <strong>{systemRole}</strong>
-            </div>
-            <div>
-              <span>当前品牌</span>
-              <strong>{currentBrand?.brandName || "未记录"}</strong>
-            </div>
+            <form className="form-grid two-column" onSubmit={handleSaveProfile}>
+              <label className="field">
+                <span>用户名</span>
+                <input value={formNickname} onChange={(event) => setFormNickname(event.target.value)} placeholder="请输入用户名" maxLength={32} />
+              </label>
+              <label className="field">
+                <span>手机号</span>
+                <input value={formMobile} onChange={(event) => setFormMobile(event.target.value)} placeholder="请输入 11 位手机号" />
+              </label>
+              <label className="field field-full">
+                <span>头像地址</span>
+                <input
+                  value={formAvatarUrl}
+                  onChange={(event) => setFormAvatarUrl(event.target.value)}
+                  placeholder="支持 http(s) 链接或站内路径；留空则清除头像"
+                />
+              </label>
+              <label className="field">
+                <span>邮箱</span>
+                <input value={accountEmail} disabled />
+              </label>
+              <label className="field">
+                <span>邮箱改绑</span>
+                <input value="当前未开放，后续可接邮箱再次验证" disabled />
+              </label>
+              <div className="personal-actions personal-actions--tight field-full">
+                <button type="button" className="secondary-button" onClick={() => hydrateProfileForm(readAuthSession()?.user)} disabled={isSavingProfile}>
+                  重置输入
+                </button>
+                <button type="submit" className="primary-button" disabled={isSavingProfile}>
+                  {isSavingProfile ? "保存中..." : "保存账号资料"}
+                </button>
+              </div>
+            </form>
           </div>
         </article>
 
@@ -321,7 +423,7 @@ export default function PersonalCenterSecurityPage() {
             </div>
             <div className="field-full">
               <span>后续建议</span>
-              <strong>优先补 `change password`、`session list`、`revoke session` 三类接口，再把安全中心从只读态升级为可操作态。</strong>
+              <strong>优先补 `change password`、`session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
             </div>
             <div className="field-full">
               <span>本次已验证</span>

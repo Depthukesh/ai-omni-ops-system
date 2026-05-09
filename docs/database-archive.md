@@ -52,7 +52,10 @@
 
 - `User`
   - 用途：账号、会员等级、点数余额、飞书绑定主实体
-  - 关键字段：`mobile`、`email`、`nickname`、`status`、`membership`、`systemRole`、`pointsBalance`、`lastLoginAt`
+  - 关键字段：`mobile`、`email`、`emailVerifiedAt`、`nickname`、`status`、`membership`、`systemRole`、`pointsBalance`、`lastLoginAt`
+- `EmailVerificationCode`
+  - 用途：注册邮箱验证码持久化、过期控制与消费校验
+  - 关键字段：`email`、`purpose`、`codeHash`、`expiresAt`、`consumedAt`
 - `UserSession`
   - 用途：登录态会话、refresh token、当前品牌工作区绑定
   - 关键字段：`userId`、`refreshTokenHash`、`currentBrandId`、`expiresAt`、`revokedAt`
@@ -142,6 +145,8 @@
   - 任务：`Task`
   - 媒体结果：`MediaAsset`
   - 结果索引：`BusinessAsset`
+- 访问边界
+  - 当前品牌相关读取与写入已按 `BrandMember / ownerUserId` 校验当前登录用户访问权限，不再允许新账号通过旧 `brandId` 继续读取演示品牌数据
 
 ### 4.2 小红书 `/xiaohongshu`
 
@@ -155,10 +160,13 @@
   - 任务：`Task`
   - 成品 HTML / 图片 / 视频：`MediaAsset`
   - 作品工作区主记录：当前主要通过 `MediaAsset.metadataJson` 承载结构化作品元数据
+- 访问边界
+  - 小红书素材、营销方案、营销日历和飞书媒体代理等按 `brandId` 访问的接口，当前已统一校验当前登录用户是否属于该品牌
 
 ### 4.3 个人中心 `/personal-center`
 
 - 用户资料：`User`
+- 注册邮箱验证：`EmailVerificationCode`
 - 登录态：`UserSession`
 - 点数流水：`PointLedger`
 - 会员订单 / 充值明细：`MembershipOrder`
@@ -179,11 +187,21 @@
   - 文件镜像：真实 `SKILL.md` / `.txt`
 - 知识库管理：当前仍主要来自 `mock-data`
 
+### 4.5 认证 `/login` + `/register`
+
+- 登录
+  - 主表：`User`、`UserSession`
+  - 当前沿用账号密码登录，允许手机号 / 邮箱 / 昵称作为账号
+- 注册
+  - 主表：`User`、`EmailVerificationCode`、`Brand`、`BrandMember`
+  - 当前要求手机号必填、邮箱验证码验证通过后才创建用户与默认品牌
+
 ## 5. 当前仍未完全入库的部分
 
 - `apps/server/src/common/mock-data.ts`
   - 仍承载部分演示数据和兜底数据
   - 当前典型包括：`apiProviders`、`billingRules`、部分知识库配置
+  - 注册邮箱验证码在数据库不可用时也会暂存到内存兜底，不写入 `mock-data`
 - `提示词/` 与 `.trae/skills/`
   - 仍作为提示词文件真源和回填来源之一
 - `.runtime/generated-works/`

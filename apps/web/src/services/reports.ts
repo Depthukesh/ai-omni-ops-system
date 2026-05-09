@@ -1,3 +1,4 @@
+import { getStoredCurrentBrandId } from "./auth-session";
 import { DEMO_BRAND_ID } from "./brand-growth";
 import { jsonRequest, request } from "./http";
 
@@ -252,85 +253,89 @@ export const xiaohongshuMarketingPlanSeed: XiaohongshuMarketingPlanWorkspace = {
   history: [],
 };
 
-export async function getGrowthReportWorkspace(brandId = DEMO_BRAND_ID) {
-  return request<GrowthReportWorkspace>(`/reports/brands/${brandId}/growth-report`);
+function resolveBrandId(brandId?: string) {
+  return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
 
-export async function generateGrowthReport(brandId = DEMO_BRAND_ID) {
-  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${brandId}/growth-report/generate`, "POST", {});
+export async function getGrowthReportWorkspace(brandId?: string) {
+  return request<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report`);
 }
 
-export async function updateGrowthReport(reportId: string, reportMarkdown: string, title?: string, brandId = DEMO_BRAND_ID) {
-  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${brandId}/growth-report/${reportId}`, "PATCH", {
+export async function generateGrowthReport(brandId?: string) {
+  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report/generate`, "POST", {});
+}
+
+export async function updateGrowthReport(reportId: string, reportMarkdown: string, title?: string, brandId?: string) {
+  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report/${reportId}`, "PATCH", {
     title,
     reportMarkdown,
   });
 }
 
-export async function getVisualGrowthReportWorkspace(brandId = DEMO_BRAND_ID) {
-  return request<VisualGrowthReportWorkspace>(`/reports/brands/${brandId}/visual-growth-report`);
+export async function getVisualGrowthReportWorkspace(brandId?: string) {
+  return request<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report`);
 }
 
-export async function generateVisualGrowthReport(brandId = DEMO_BRAND_ID) {
-  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${brandId}/visual-growth-report/generate`, "POST", {});
+export async function generateVisualGrowthReport(brandId?: string) {
+  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report/generate`, "POST", {});
 }
 
-export async function updateVisualGrowthReport(reportId: string, htmlBody: string, title?: string, brandId = DEMO_BRAND_ID) {
-  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${brandId}/visual-growth-report/${reportId}`, "PATCH", {
+export async function updateVisualGrowthReport(reportId: string, htmlBody: string, title?: string, brandId?: string) {
+  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report/${reportId}`, "PATCH", {
     title,
     htmlBody,
   });
 }
 
-export async function getAnnualMarketingPlanWorkspace(brandId = DEMO_BRAND_ID) {
-  return request<AnnualMarketingPlanWorkspace>(`/reports/brands/${brandId}/annual-marketing-plan`);
+export async function getAnnualMarketingPlanWorkspace(brandId?: string) {
+  return request<AnnualMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/annual-marketing-plan`);
 }
 
-export async function generateAnnualMarketingPlan(brandId = DEMO_BRAND_ID) {
-  return jsonRequest<AnnualMarketingPlanWorkspace>(`/reports/brands/${brandId}/annual-marketing-plan/generate`, "POST", {});
+export async function generateAnnualMarketingPlan(brandId?: string) {
+  return jsonRequest<AnnualMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/annual-marketing-plan/generate`, "POST", {});
 }
 
-export async function getXiaohongshuMarketingPlanWorkspace(brandId = DEMO_BRAND_ID) {
-  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-plan`);
+export async function getXiaohongshuMarketingPlanWorkspace(brandId?: string) {
+  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan`);
 }
 
-export async function generateXiaohongshuMarketingPlan(brandId = DEMO_BRAND_ID) {
-  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-plan/generate`, "POST", {});
+export async function generateXiaohongshuMarketingPlan(brandId?: string) {
+  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/generate`, "POST", {});
 }
 
 export async function updateXiaohongshuMarketingPlan(
   reportId: string,
   reportMarkdown: string,
   title?: string,
-  brandId = DEMO_BRAND_ID,
+  brandId?: string,
 ) {
-  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-plan/${reportId}`, "PATCH", {
+  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/${reportId}`, "PATCH", {
     title,
     reportMarkdown,
   });
 }
 
-export async function deleteXiaohongshuMarketingPlan(reportId: string, brandId = DEMO_BRAND_ID) {
-  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-plan/${reportId}`, {
+export async function deleteXiaohongshuMarketingPlan(reportId: string, brandId?: string) {
+  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/${reportId}`, {
     method: "DELETE",
   });
 }
 
-export async function getXiaohongshuMarketingCalendarWorkspace(brandId = DEMO_BRAND_ID) {
-  return request<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-calendar`);
+export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string) {
+  return request<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar`);
 }
 
-export async function generateXiaohongshuMarketingCalendar(brandId = DEMO_BRAND_ID) {
-  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-calendar/generate`, "POST", {});
+export async function generateXiaohongshuMarketingCalendar(brandId?: string) {
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar/generate`, "POST", {});
 }
 
 export async function updateXiaohongshuMarketingCalendar(
   reportId: string,
   items: XiaohongshuMarketingCalendarItem[],
   title?: string,
-  brandId = DEMO_BRAND_ID,
+  brandId?: string,
 ) {
-  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${brandId}/xiaohongshu-marketing-calendar/${reportId}`, "PATCH", {
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar/${reportId}`, "PATCH", {
     title,
     items,
   });

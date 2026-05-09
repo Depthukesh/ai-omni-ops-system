@@ -64,14 +64,13 @@ type VideoMutationOptions = {
 
 export function useWorkMutationActions(options: {
   brandId?: string;
-  demoBrandId: string;
   setNotice: NoticeSetter;
   setErrorMessage: NoticeSetter;
   original: OriginalMutationOptions;
   rewrite: RewriteMutationOptions;
   video: VideoMutationOptions;
 }) {
-  const resolvedBrandId = options.brandId || options.demoBrandId;
+  const resolvedBrandId = options.brandId || "";
 
   async function saveOriginalWork() {
     if (!options.original.editingWorkId) {

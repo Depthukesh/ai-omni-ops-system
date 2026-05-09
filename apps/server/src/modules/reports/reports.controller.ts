@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
   type UpdateGrowthReportPayload,
@@ -9,96 +10,137 @@ import {
 
 @Controller("reports")
 export class ReportsController {
-  constructor(@Inject(ReportsService) private readonly reportsService: ReportsService) {}
+  constructor(
+    @Inject(ReportsService) private readonly reportsService: ReportsService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
 
   @Get("brands/:brandId/growth-report")
-  getGrowthReportWorkspace(@Param("brandId") brandId: string) {
+  async getGrowthReportWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getGrowthReportWorkspace(brandId);
   }
 
   @Post("brands/:brandId/growth-report/generate")
-  generateGrowthReport(@Param("brandId") brandId: string) {
+  async generateGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateGrowthReport(brandId);
   }
 
   @Patch("brands/:brandId/growth-report/:reportId")
-  updateGrowthReport(
+  async updateGrowthReport(
     @Param("brandId") brandId: string,
     @Param("reportId") reportId: string,
     @Body() payload: UpdateGrowthReportPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.updateGrowthReport(brandId, reportId, payload);
   }
 
   @Get("brands/:brandId/visual-growth-report")
-  getVisualGrowthReportWorkspace(@Param("brandId") brandId: string) {
+  async getVisualGrowthReportWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getVisualGrowthReportWorkspace(brandId);
   }
 
   @Post("brands/:brandId/visual-growth-report/generate")
-  generateVisualGrowthReport(@Param("brandId") brandId: string) {
+  async generateVisualGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateVisualGrowthReport(brandId);
   }
 
   @Patch("brands/:brandId/visual-growth-report/:reportId")
-  updateVisualGrowthReport(
+  async updateVisualGrowthReport(
     @Param("brandId") brandId: string,
     @Param("reportId") reportId: string,
     @Body() payload: UpdateVisualGrowthReportPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.updateVisualGrowthReport(brandId, reportId, payload);
   }
 
   @Get("brands/:brandId/annual-marketing-plan")
-  getAnnualMarketingPlanWorkspace(@Param("brandId") brandId: string) {
+  async getAnnualMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
   }
 
   @Post("brands/:brandId/annual-marketing-plan/generate")
-  generateAnnualMarketingPlan(@Param("brandId") brandId: string) {
+  async generateAnnualMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateAnnualMarketingPlan(brandId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-plan")
-  getXiaohongshuMarketingPlanWorkspace(@Param("brandId") brandId: string) {
+  async getXiaohongshuMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
   }
 
   @Post("brands/:brandId/xiaohongshu-marketing-plan/generate")
-  generateXiaohongshuMarketingPlan(@Param("brandId") brandId: string) {
+  async generateXiaohongshuMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateXiaohongshuMarketingPlan(brandId);
   }
 
   @Patch("brands/:brandId/xiaohongshu-marketing-plan/:reportId")
-  updateXiaohongshuMarketingPlan(
+  async updateXiaohongshuMarketingPlan(
     @Param("brandId") brandId: string,
     @Param("reportId") reportId: string,
     @Body() payload: UpdateXiaohongshuMarketingPlanPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.updateXiaohongshuMarketingPlan(brandId, reportId, payload);
   }
 
   @Delete("brands/:brandId/xiaohongshu-marketing-plan/:reportId")
-  deleteXiaohongshuMarketingPlan(@Param("brandId") brandId: string, @Param("reportId") reportId: string) {
+  async deleteXiaohongshuMarketingPlan(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.deleteXiaohongshuMarketingPlan(brandId, reportId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")
-  getXiaohongshuMarketingCalendarWorkspace(@Param("brandId") brandId: string) {
+  async getXiaohongshuMarketingCalendarWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
   }
 
   @Post("brands/:brandId/xiaohongshu-marketing-calendar/generate")
-  generateXiaohongshuMarketingCalendar(@Param("brandId") brandId: string) {
+  async generateXiaohongshuMarketingCalendar(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateXiaohongshuMarketingCalendar(brandId);
   }
 
   @Patch("brands/:brandId/xiaohongshu-marketing-calendar/:reportId")
-  updateXiaohongshuMarketingCalendar(
+  async updateXiaohongshuMarketingCalendar(
     @Param("brandId") brandId: string,
     @Param("reportId") reportId: string,
     @Body() payload: UpdateXiaohongshuMarketingCalendarPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.updateXiaohongshuMarketingCalendar(brandId, reportId, payload);
   }
 }

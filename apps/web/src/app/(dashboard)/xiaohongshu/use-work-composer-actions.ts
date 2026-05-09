@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { DEMO_BRAND_ID } from "../../../services/brand-growth";
+import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import {
   generateXiaohongshuVideoWork,
@@ -82,6 +82,7 @@ export function useWorkComposerActions(options: {
   const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
   const [isVideoSubmitting, setIsVideoSubmitting] = useState(false);
   const [videoSubmittingLabel, setVideoSubmittingLabel] = useState("");
+  const resolvedBrandId = getStoredCurrentBrandId(options.brandId);
 
   async function createOriginalWork() {
     const isCustomTopic = options.original.calendarValue === options.customTopicOption;
@@ -102,7 +103,7 @@ export function useWorkComposerActions(options: {
     options.setErrorMessage("");
 
     try {
-      const result = await generateXiaohongshuOriginalWork(options.brandId || DEMO_BRAND_ID, {
+      const result = await generateXiaohongshuOriginalWork(resolvedBrandId || "", {
         calendarItemId: isCustomTopic ? undefined : options.original.calendarValue,
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.original.productValue === options.noProductOption ? undefined : options.original.productValue,
@@ -146,7 +147,7 @@ export function useWorkComposerActions(options: {
     options.rewrite.closeModal();
 
     try {
-      const result = await generateXiaohongshuRewriteWork(options.brandId || DEMO_BRAND_ID, {
+      const result = await generateXiaohongshuRewriteWork(resolvedBrandId || "", {
         sourceMaterialId: options.rewrite.materialValue,
         productId: options.rewrite.productValue === options.noProductOption ? undefined : options.rewrite.productValue,
         additionalInstruction: options.rewrite.additionalInstruction.trim() || undefined,
@@ -214,7 +215,7 @@ export function useWorkComposerActions(options: {
     options.video.closeModal();
 
     try {
-      const result = await generateXiaohongshuVideoWork(options.brandId || DEMO_BRAND_ID, {
+      const result = await generateXiaohongshuVideoWork(resolvedBrandId || "", {
         calendarItemId: isCustomTopic ? undefined : options.video.calendarValue,
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.video.productValue === options.noProductOption ? undefined : options.video.productValue,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
   BrandGrowthCollectionWorkspace,
   type XiaohongshuCollectionCardKey,
@@ -471,6 +472,7 @@ export function BrandGrowthWorkspace() {
     setDataSource("loading");
 
     try {
+      const activeBrandId = getStoredCurrentBrandId(archive.brand.id) || archive.brand.id;
       const currentProfile = await getCurrentUserProfile().catch(() => null);
       const [
         archiveResult,
@@ -483,13 +485,13 @@ export function BrandGrowthWorkspace() {
         feishuAppConfigResult,
         feishuAuthStatusResult,
       ] = await Promise.allSettled([
-        getBrandArchive(DEMO_BRAND_ID),
-        getXiaohongshuCollectionWorkspace(DEMO_BRAND_ID),
-        getDailyHotspotWorkspace(DEMO_BRAND_ID),
-        getGrowthReportWorkspace(DEMO_BRAND_ID),
-        getVisualGrowthReportWorkspace(DEMO_BRAND_ID),
-        getAnnualMarketingPlanWorkspace(DEMO_BRAND_ID),
-        getBrandFeishuBinding(DEMO_BRAND_ID),
+        getBrandArchive(activeBrandId),
+        getXiaohongshuCollectionWorkspace(activeBrandId),
+        getDailyHotspotWorkspace(activeBrandId),
+        getGrowthReportWorkspace(activeBrandId),
+        getVisualGrowthReportWorkspace(activeBrandId),
+        getAnnualMarketingPlanWorkspace(activeBrandId),
+        getBrandFeishuBinding(activeBrandId),
         getFeishuAppConfig(currentProfile?.id),
         getFeishuAuthStatus(currentProfile?.id),
       ]);
@@ -568,7 +570,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshVisualReportWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getVisualGrowthReportWorkspace(DEMO_BRAND_ID);
+      const nextWorkspace = await getVisualGrowthReportWorkspace(archive.brand.id);
       setVisualReportWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
@@ -583,7 +585,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshAnnualMarketingPlanWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getAnnualMarketingPlanWorkspace(DEMO_BRAND_ID);
+      const nextWorkspace = await getAnnualMarketingPlanWorkspace(archive.brand.id);
       setAnnualMarketingPlanWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
@@ -596,7 +598,7 @@ export function BrandGrowthWorkspace() {
     }
   }
 
-function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
+function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?: string) {
   if (!sourceUrl) {
     return "";
   }
@@ -604,7 +606,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
   if (download) {
     params.set("download", "1");
   }
-  return `${API_BASE_URL}/collectors/xiaohongshu/brands/${DEMO_BRAND_ID}/feishu-media?${params.toString()}`;
+  const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+  return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
 }
 
   async function handleGenerateReport() {
@@ -617,7 +620,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const nextWorkspace = await generateGrowthReport(DEMO_BRAND_ID);
+      const nextWorkspace = await generateGrowthReport(archive.brand.id);
       setReportWorkspace(nextWorkspace);
       setNotice("品牌增长报告已生成，并已写入任务与产物记录。");
     } catch (error) {
@@ -664,7 +667,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const nextWorkspace = await generateVisualGrowthReport(DEMO_BRAND_ID);
+      const nextWorkspace = await generateVisualGrowthReport(archive.brand.id);
       setVisualReportWorkspace(nextWorkspace);
       setNotice("已提交可视化报告生成任务，正在后台生成。");
     } catch (error) {
@@ -685,7 +688,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const nextWorkspace = await generateAnnualMarketingPlan(DEMO_BRAND_ID);
+      const nextWorkspace = await generateAnnualMarketingPlan(archive.brand.id);
       setAnnualMarketingPlanWorkspace(nextWorkspace);
       setNotice("已提交全年营销规划生成任务，正在后台生成。");
     } catch (error) {
@@ -701,7 +704,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const response = await syncDailyHotspots(platformTitles, DEMO_BRAND_ID);
+      const response = await syncDailyHotspots(platformTitles, archive.brand.id);
       setDailyHotspotWorkspace(response.workspace);
       setSelectedHotspotDate(response.workspace.selectedDate || getDefaultHotspotDate());
       setNotice(
@@ -723,7 +726,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const workspace = await getDailyHotspotWorkspace(DEMO_BRAND_ID, date);
+      const workspace = await getDailyHotspotWorkspace(archive.brand.id, date);
       setDailyHotspotWorkspace(workspace);
     } catch (error) {
       const message = error instanceof Error ? error.message : "读取失败";
@@ -743,7 +746,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const nextBinding = await upsertBrandFeishuBinding(DEMO_BRAND_ID, {
+      const nextBinding = await upsertBrandFeishuBinding(archive.brand.id, {
         wikiUrl: feishuBindingForm.wikiUrl.trim(),
         templateUrl: FEISHU_XHS_TEMPLATE_URL,
       });
@@ -801,7 +804,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const response = await syncXiaohongshuFromFeishu(DEMO_BRAND_ID);
+      const response = await syncXiaohongshuFromFeishu(archive.brand.id);
       setCollectionWorkspace(response.workspace);
       await loadArchive();
       setNotice(`飞书同步完成，已更新 ${response.syncedCount} 条结果，命中 ${response.tableCount} 张数据表。`);
@@ -822,7 +825,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const response = await addBenchmarkNoteToMaterialLibrary(assetId, DEMO_BRAND_ID);
+      const response = await addBenchmarkNoteToMaterialLibrary(assetId, archive.brand.id);
       setCollectionWorkspace(response.workspace);
       setNotice("已加入小红书素材库。");
     } catch (error) {
@@ -884,7 +887,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const uploaded = await uploadBrandProductImage(DEMO_BRAND_ID, file);
+      const uploaded = await uploadBrandProductImage(archive.brand.id, file);
       setArchive((current) => ({
         ...current,
         products: current.products.map((item) => (
@@ -914,7 +917,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
     clearMessages();
 
     try {
-      const uploaded = await uploadBrandAssetFile(DEMO_BRAND_ID, file);
+      const uploaded = await uploadBrandAssetFile(archive.brand.id, file);
       setArchive((current) => ({
         ...current,
         [target]: current[target].map((item) => (
@@ -995,7 +998,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
 
     try {
       if (activeBrandPage === "background") {
-        await updateBrandBackground(DEMO_BRAND_ID, {
+        await updateBrandBackground(archive.brand.id, {
           brandName: archive.brand.brandName,
           industry: archive.brand.industry,
           storeCount: archive.brand.storeCount,
@@ -1007,7 +1010,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
 
       if (activeBrandPage === "products") {
         for (const productId of removedProductIds) {
-          await deleteBrandProduct(DEMO_BRAND_ID, productId);
+          await deleteBrandProduct(archive.brand.id, productId);
         }
 
         for (const product of archive.products) {
@@ -1026,15 +1029,15 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
           };
 
           if (product.id.startsWith("prd_local_")) {
-            await createBrandProduct(DEMO_BRAND_ID, payload);
+            await createBrandProduct(archive.brand.id, payload);
           } else {
-            await updateBrandProduct(DEMO_BRAND_ID, product.id, payload);
+            await updateBrandProduct(archive.brand.id, product.id, payload);
           }
         }
       }
 
       if (activeBrandPage === "survey") {
-        await replaceBrandSurvey(DEMO_BRAND_ID, archive.survey.map((item) => ({
+        await replaceBrandSurvey(archive.brand.id, archive.survey.map((item) => ({
           key: item.key,
           label: item.label,
           value: item.value,
@@ -1043,7 +1046,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
 
       if (activeBrandPage === "industryFeeds" || activeBrandPage === "businessAssets") {
         await replaceBrandAssets(
-          DEMO_BRAND_ID,
+          archive.brand.id,
           activeBrandPage === "industryFeeds" ? "industry-feeds" : "business-assets",
           archive[activeBrandPage].map((item) => ({
             id: item.id?.includes("_local_") ? undefined : item.id,
@@ -1141,7 +1144,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false) {
         addingMaterialAssetId={addingMaterialAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
         onPreviewMedia={setMediaPreview}
-        buildFeishuMediaProxyUrl={buildFeishuMediaProxyUrl}
+        buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, archive.brand.id)}
         formatDateTime={formatDateTime}
         formatDateLabel={formatDateLabel}
         formatCount={formatCount}

@@ -24,8 +24,8 @@
 - `/personal-center`：个人中心
 - `/admin`：后台管理台
 - `/login`：登录页，已接入账号密码登录并保存前端 access/refresh 登录态
-- `/register`：注册页，占位
-- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
+- `/register`：注册页，已接入真实注册表单，要求手机号必填、邮箱验证码校验、注册成功后自动进入个人中心
+- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/register`、`/api/auth/register/email-code`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
 
 ### 2.2 当前主要用户链路
 
@@ -48,6 +48,9 @@
 - 品牌资料库
 - 收集数据
 - 品牌增长报告
+- 当前品牌上下文：
+  - 前端请求默认优先读取当前登录品牌，不再把工作区硬编码到 `DEMO_BRAND_ID`
+  - 后端 `brands / reports / collectors / daily-hotspots` 相关品牌接口已补当前用户品牌访问校验，避免新账号继续读到演示品牌或其他品牌数据
 
 #### 品牌资料库
 
@@ -91,6 +94,9 @@
   - 已支持视频作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、视频模型、时长、提示词输出和双段用户要求
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
+- 当前品牌上下文：
+  - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
+  - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -110,10 +116,11 @@
   - 点数流水、订单、任务、作品任一接口失败时仅该部分回退演示数据
 - 当前已进入二级路由阶段：
   - `/personal-center`：个人中心概览页，已从旧聚合页收成简洁首页；当前只保留账号摘要、品牌上下文、待处理事项、最近动态和快捷入口，不再在根页堆点数流水、订单列表、任务列表与作品长列表，详细内容统一进入对应二级工作区
+- `/personal-center`：概览页中的“账号与品牌”卡现已补充“编辑账号资料”直达入口，便于从首页快速进入资料维护
 - `/personal-center/orders`：订单中心第一版，已接真实 `/orders` 列表接口，按当前登录用户查看会员订单和点数充值记录，支持状态筛选、类型筛选、关键词搜索、品牌上下文切换、筛选金额汇总和订单详情跳转；当前订单仍主要按用户维度过滤，品牌级订单归属后续继续扩展
 - `/personal-center/works`：作品中心第一版，已接真实 `/media` 列表接口，按当前登录用户查看 HTML、图片、视频与文档资产，支持作品范围筛选、类型筛选、关键词搜索、品牌上下文切换、小红书作品回跳与源文件打开；当前作品仍主要按用户维度过滤，品牌内共享与更细作品分类后续继续扩展
 - `/personal-center/skills`：技能中心第一版，当前聚焦“平台技能可见性”而非个人覆盖写入；管理员账号可读取真实 `/admin/skills` 与 `/admin/prompts` 注册表，普通账号先展示平台注册表快照，支持状态筛选、关键词搜索、品牌上下文切换、平台技能分类查看与提示词场景参考；真正的 `user-skills` 覆盖、保存、重置接口后续继续扩展
-- `/personal-center/security`：安全设置第一版，当前聚焦“当前浏览器登录态与会话可视化”而非真正的安全写操作；支持查看账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明、退出当前登录态入口和后续安全能力边界；真正的密码修改、会话列表、多端下线后续继续扩展
+- `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
 - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
   - `/personal-center/team`：团队协作页第一版，已接真实 `/api/brands/:id/members`、`/api/brands/:id/invites`、`/api/brands/me/invites`、`/api/brands/me/invites/accept-by-code`、`/api/brands/:id/role-audit-logs`、`/api/brands/:id/transfer-owner`，支持成员列表、角色与状态管理、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；未登录点击邀请链接时会保留 `inviteCode` 并回流到登录后页面
@@ -171,6 +178,9 @@
 - `AuthModule`：登录、注册、用户资料、飞书 OAuth、飞书应用配置
 - `AuthModule`
   - 当前已接入基于签名 token 的 access/refresh 登录态
+  - 已支持 `register/email-code` 注册验证码发送，优先走 SMTP 发信；未配置 SMTP 时回退开发态验证码回显，保证本地可测
+  - 已支持注册时邮箱验证码校验、`emailVerifiedAt` 入库和未验证邮箱账号登录拦截
+  - 已支持 `PATCH /auth/profile`，允许当前登录用户自助更新昵称、头像地址和手机号
   - 已支持 `me`、品牌列表、切换当前品牌、logout
   - 兼容历史明文密码登录，并会在成功登录时自动升级为哈希密码
 - `apps/web/src/services/auth-session.ts`
@@ -178,7 +188,7 @@
   - 负责保存 `accessToken`、`refreshToken`、当前品牌和用户信息
 - `apps/web/src/services/auth.ts`
   - 前端认证服务层
-  - 已接入 `login`、`me`、`brands`、`switch-brand`、`logout`
+  - 已接入 `login`、`register`、`register/email-code`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`
@@ -300,9 +310,9 @@
 
 ## 7. 当前仍属过渡或待完善部分
 
-- `/register` 仍是占位页
+- `/register` 已改为真实注册页，并支持开发态验证码自动回填；真实 SMTP 仍待后续按生产邮件环境启用
 - 抖音/视频号/公众号/私域尚未独立落地
-- 多品牌切换未完全打开，前台仍偏演示品牌模式
+- 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
 - 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/security`、`/tasks`、`/team`、`/invites` 八段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
 - 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页

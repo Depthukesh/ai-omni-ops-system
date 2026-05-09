@@ -41,6 +41,8 @@ export type UserProfile = {
   mobile: string;
   email: string;
   nickname: string;
+  avatarUrl: string;
+  emailVerified?: boolean;
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
   pointsBalance: number;
@@ -82,6 +84,8 @@ export const profileSeed: UserProfile = {
   mobile: "13800000000",
   email: "demo@ai-omni.local",
   nickname: "演示账号",
+  avatarUrl: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=clean%20minimal%20professional%20user%20avatar%20portrait%2C%20asian%20young%20adult%2C%20soft%20studio%20lighting%2C%20blue%20gray%20background%2C%20realistic%20headshot&image_size=square",
+  emailVerified: true,
   status: "ACTIVE",
   membership: "PRO",
   pointsBalance: 14240,

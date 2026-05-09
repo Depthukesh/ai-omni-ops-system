@@ -1,3 +1,4 @@
+import { getStoredCurrentBrandId } from "./auth-session";
 import { request, jsonRequest } from "./http";
 
 export type PlatformType = "XIAOHONGSHU" | "DOUYIN" | "VIDEO_CHANNEL" | "WECHAT_OA";
@@ -453,6 +454,10 @@ export function normalizeBrandArchiveBundle(bundle: BrandArchiveBundle): BrandAr
 
 export const DEMO_BRAND_ID = "br_demo_001";
 
+function resolveBrandId(brandId?: string) {
+  return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+}
+
 export const brandArchiveSeed: BrandArchiveBundle = {
   brand: {
     id: DEMO_BRAND_ID,
@@ -552,8 +557,8 @@ export const brandArchiveSeed: BrandArchiveBundle = {
   ],
 };
 
-export async function getBrandArchive(brandId: string) {
-  return request<BrandArchiveBundle>(`/brands/${brandId}/archive`);
+export async function getBrandArchive(brandId?: string) {
+  return request<BrandArchiveBundle>(`/brands/${resolveBrandId(brandId)}/archive`);
 }
 
 export async function getBrandMembers(brandId: string) {
@@ -641,75 +646,75 @@ export async function transferBrandOwner(brandId: string, payload: TransferBrand
   });
 }
 
-export async function updateBrandBackground(brandId: string, payload: Partial<BrandBackground>) {
-  return jsonRequest<BrandBackground>(`/brands/${brandId}/background`, "PATCH", payload);
+export async function updateBrandBackground(brandId: string | undefined, payload: Partial<BrandBackground>) {
+  return jsonRequest<BrandBackground>(`/brands/${resolveBrandId(brandId)}/background`, "PATCH", payload);
 }
 
 export async function createBrandProduct(
-  brandId: string,
+  brandId: string | undefined,
   payload: Omit<BrandProduct, "id">,
 ) {
-  return jsonRequest<BrandProduct>(`/brands/${brandId}/products`, "POST", payload);
+  return jsonRequest<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products`, "POST", payload);
 }
 
 export async function updateBrandProduct(
-  brandId: string,
+  brandId: string | undefined,
   productId: string,
   payload: Omit<BrandProduct, "id">,
 ) {
-  return jsonRequest<BrandProduct>(`/brands/${brandId}/products/${productId}`, "PATCH", payload);
+  return jsonRequest<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products/${productId}`, "PATCH", payload);
 }
 
-export async function deleteBrandProduct(brandId: string, productId: string) {
-  return request<BrandProduct>(`/brands/${brandId}/products/${productId}`, {
+export async function deleteBrandProduct(brandId: string | undefined, productId: string) {
+  return request<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products/${productId}`, {
     method: "DELETE",
   });
 }
 
-export async function replaceBrandSurvey(brandId: string, answers: BrandSurveyAnswer[]) {
-  return jsonRequest<BrandSurveyAnswer[]>(`/brands/${brandId}/survey`, "PATCH", { answers });
+export async function replaceBrandSurvey(brandId: string | undefined, answers: BrandSurveyAnswer[]) {
+  return jsonRequest<BrandSurveyAnswer[]>(`/brands/${resolveBrandId(brandId)}/survey`, "PATCH", { answers });
 }
 
 export async function replaceBrandAccounts(
-  brandId: string,
+  brandId: string | undefined,
   route: "platform-accounts" | "competitor-accounts",
   accounts: BrandAccount[],
 ) {
-  return jsonRequest<BrandAccount[]>(`/brands/${brandId}/${route}`, "PATCH", { accounts });
+  return jsonRequest<BrandAccount[]>(`/brands/${resolveBrandId(brandId)}/${route}`, "PATCH", { accounts });
 }
 
 export async function replaceBrandAssets(
-  brandId: string,
+  brandId: string | undefined,
   route: "industry-feeds" | "business-assets",
   items: BrandAsset[],
 ) {
-  return jsonRequest<BrandAsset[]>(`/brands/${brandId}/${route}`, "PATCH", { items });
+  return jsonRequest<BrandAsset[]>(`/brands/${resolveBrandId(brandId)}/${route}`, "PATCH", { items });
 }
 
-export async function uploadBrandProductImage(brandId: string, file: File): Promise<BrandProductImageUploadRecord> {
+export async function uploadBrandProductImage(brandId: string | undefined, file: File): Promise<BrandProductImageUploadRecord> {
   const dataBase64 = await readFileAsBase64(file);
-  return jsonRequest<BrandProductImageUploadRecord>(`/brands/${brandId}/product-images`, "POST", {
+  return jsonRequest<BrandProductImageUploadRecord>(`/brands/${resolveBrandId(brandId)}/product-images`, "POST", {
     fileName: file.name,
     contentType: file.type || "image/jpeg",
     dataBase64,
   });
 }
 
-export async function uploadBrandAssetFile(brandId: string, file: File): Promise<BrandAssetFileUploadRecord> {
+export async function uploadBrandAssetFile(brandId: string | undefined, file: File): Promise<BrandAssetFileUploadRecord> {
   const dataBase64 = await readFileAsBase64(file);
-  return jsonRequest<BrandAssetFileUploadRecord>(`/brands/${brandId}/asset-files`, "POST", {
+  return jsonRequest<BrandAssetFileUploadRecord>(`/brands/${resolveBrandId(brandId)}/asset-files`, "POST", {
     fileName: file.name,
     contentType: file.type || "application/octet-stream",
     dataBase64,
   });
 }
 
-export async function getBrandFeishuBinding(brandId: string) {
-  return request<FeishuBindingRecord | null>(`/brands/${brandId}/feishu-binding`);
+export async function getBrandFeishuBinding(brandId?: string) {
+  return request<FeishuBindingRecord | null>(`/brands/${resolveBrandId(brandId)}/feishu-binding`);
 }
 
-export async function upsertBrandFeishuBinding(brandId: string, payload: FeishuBindingPayload) {
-  return jsonRequest<FeishuBindingRecord>(`/brands/${brandId}/feishu-binding`, "PATCH", payload);
+export async function upsertBrandFeishuBinding(brandId: string | undefined, payload: FeishuBindingPayload) {
+  return jsonRequest<FeishuBindingRecord>(`/brands/${resolveBrandId(brandId)}/feishu-binding`, "PATCH", payload);
 }
 
 function readFileAsBase64(file: File) {

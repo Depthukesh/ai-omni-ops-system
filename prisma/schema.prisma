@@ -94,6 +94,7 @@ model User {
   id             String             @id @default(cuid())
   mobile         String             @unique
   email          String?            @unique
+  emailVerifiedAt DateTime?
   nickname       String?
   avatarUrl      String?
   passwordHash   String
@@ -114,11 +115,29 @@ model User {
   brandRoleAuditOperations BrandRoleAuditLog[] @relation("BrandRoleAuditOperator")
   brandRoleAuditTargets BrandRoleAuditLog[] @relation("BrandRoleAuditTargetUser")
   sessions       UserSession[]
+  emailVerificationCodes EmailVerificationCode[]
   tasks          Task[]
   mediaAssets    MediaAsset[]
   orders         MembershipOrder[]
   pointLedgers   PointLedger[]
   feishuIntegration UserFeishuIntegration?
+}
+
+model EmailVerificationCode {
+  id          String   @id @default(cuid())
+  userId      String?
+  email       String
+  purpose     String
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt])
 }
 
 model UserSession {
