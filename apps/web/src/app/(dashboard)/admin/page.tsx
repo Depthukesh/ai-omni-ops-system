@@ -34,7 +34,6 @@ import {
   skillConfigSeed,
   startKnowledgeBaseSync,
   syncKnowledgeBaseFile,
-  updateAdminUser,
   updateApiProvider,
   updateKnowledgeBaseFile,
   updateKnowledgeBase,
@@ -59,13 +58,10 @@ import {
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
+import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
-type UserEditDraft = {
-  membership: MembershipLevel;
-  pointsDelta: string;
-};
 type SkillEditDraft = {
   status: SkillConfigRecord["status"];
   defaultModel: string;
@@ -289,7 +285,6 @@ export default function AdminPage() {
     buildSyncRunDrafts(knowledgeBaseSyncRunSeed),
   );
   const [providers, setProviders] = useState<ApiProviderRecord[]>(apiProviderSeed);
-  const [userDrafts, setUserDrafts] = useState<Record<string, UserEditDraft>>(buildUserDrafts(adminUserSeed));
   const [skillDrafts, setSkillDrafts] = useState<Record<string, SkillEditDraft>>(buildSkillDrafts(skillConfigSeed));
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptEditDraft>>(buildPromptDrafts(promptTemplateSeed));
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
@@ -304,7 +299,6 @@ export default function AdminPage() {
   const [dataSource, setDataSource] = useState<"api" | "seed">("api");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingRules, setIsSavingRules] = useState(false);
-  const [updatingUserId, setUpdatingUserId] = useState("");
   const [updatingSkillId, setUpdatingSkillId] = useState("");
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
@@ -403,10 +397,8 @@ export default function AdminPage() {
 
     if (userResult.status === "fulfilled") {
       setUsers(userResult.value);
-      setUserDrafts(buildUserDrafts(userResult.value));
     } else {
       setUsers(adminUserSeed);
-      setUserDrafts(buildUserDrafts(adminUserSeed));
       usingSeed = true;
     }
 
@@ -538,75 +530,6 @@ export default function AdminPage() {
     } finally {
       setIsSavingRules(false);
     }
-  }
-
-  async function handleSaveUser(userId: string) {
-    const draft = userDrafts[userId];
-    if (!draft) {
-      return;
-    }
-
-    setUpdatingUserId(userId);
-    setNotice("");
-    setErrorMessage("");
-
-    const pointsDelta = Number(draft.pointsDelta || 0);
-
-    try {
-      const updated = await updateAdminUser(userId, {
-        membership: draft.membership,
-        pointsDelta,
-      });
-
-      setUsers((current) => current.map((item) => (item.id === userId ? updated : item)));
-      setUserDrafts((current) => ({
-        ...current,
-        [userId]: {
-          membership: updated.membership,
-          pointsDelta: "0",
-        },
-      }));
-      setNotice(`用户信息已更新：${updated.nickname || updated.mobile}`);
-    } catch (error) {
-      if (dataSource === "seed") {
-        setUsers((current) =>
-          current.map((item) =>
-            item.id === userId
-              ? {
-                  ...item,
-                  membership: draft.membership,
-                  pointsBalance: item.pointsBalance + pointsDelta,
-                  updatedAt: new Date().toISOString(),
-                }
-              : item,
-          ),
-        );
-        setUserDrafts((current) => ({
-          ...current,
-          [userId]: {
-            membership: draft.membership,
-            pointsDelta: "0",
-          },
-        }));
-        setNotice("用户信息已更新到本地演示数据。");
-        return;
-      }
-
-      const message = error instanceof Error ? error.message : "用户更新失败";
-      setErrorMessage(`用户更新失败：${message}`);
-    } finally {
-      setUpdatingUserId("");
-    }
-  }
-
-  function handleUserDraftChange(userId: string, patch: Partial<UserEditDraft>) {
-    setUserDrafts((current) => ({
-      ...current,
-      [userId]: {
-        ...(current[userId] || { membership: "FREE", pointsDelta: "0" }),
-        ...patch,
-      },
-    }));
   }
 
   async function handleSaveSkill(skillId: string) {
@@ -1947,101 +1870,13 @@ export default function AdminPage() {
             ))}
           </div>
         ) : activeTab === "users" ? (
-          <div className="personal-list">
-            {users.map((item) => {
-              const draft = userDrafts[item.id] || {
-                membership: item.membership,
-                pointsDelta: "0",
-              };
-
-              return (
-                <article className="entity-card personal-card" key={item.id}>
-                  <div className="entity-card-head">
-                    <div>
-                      <strong>{item.nickname || item.mobile}</strong>
-                      <p className="personal-meta">
-                        {item.mobile} · {item.email || "未填写邮箱"} · 会员 {item.membership}
-                      </p>
-                    </div>
-                    <span className={`archive-pill ${item.status === "ACTIVE" ? "status-ready" : "status-paused"}`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  <div className="personal-grid">
-                    <div>
-                      <span>点数余额</span>
-                      <strong>{item.pointsBalance}</strong>
-                    </div>
-                    <div>
-                      <span>品牌数</span>
-                      <strong>{item.brandCount}</strong>
-                    </div>
-                    <div>
-                      <span>任务数</span>
-                      <strong>{item.taskCount}</strong>
-                    </div>
-                    <div>
-                      <span>订单数</span>
-                      <strong>{item.orderCount}</strong>
-                    </div>
-                    <div>
-                      <span>创建时间</span>
-                      <strong>{formatDateTime(item.createdAt)}</strong>
-                    </div>
-                    <div>
-                      <span>更新时间</span>
-                      <strong>{formatDateTime(item.updatedAt)}</strong>
-                    </div>
-                  </div>
-
-                  <div className="admin-rules-stack">
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>会员等级</span>
-                        <select
-                          value={draft.membership}
-                          onChange={(event) =>
-                            handleUserDraftChange(item.id, {
-                              membership: event.target.value as MembershipLevel,
-                            })
-                          }
-                        >
-                          <option value="FREE">FREE</option>
-                          <option value="BASIC">BASIC</option>
-                          <option value="PRO">PRO</option>
-                          <option value="ENTERPRISE">ENTERPRISE</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>点数调整</span>
-                        <input
-                          type="number"
-                          value={draft.pointsDelta}
-                          onChange={(event) =>
-                            handleUserDraftChange(item.id, {
-                              pointsDelta: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="personal-actions">
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void handleSaveUser(item.id)}
-                      disabled={updatingUserId === item.id}
-                    >
-                      {updatingUserId === item.id ? "保存中..." : "保存用户设置"}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+          <UsersManagementPanel
+            users={users}
+            dataSource={dataSource}
+            onUsersChange={setUsers}
+            onNotice={setNotice}
+            onError={setErrorMessage}
+          />
         ) : activeTab === "usage" ? (
           <div className="personal-list">
             {usage.map((item) => (
@@ -3049,129 +2884,6 @@ export default function AdminPage() {
             </section>
           )}
         </div>
-
-        <aside className="admin-console-rail">
-          {activeTab === "assets" ? (
-            <article className="admin-rail-card admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
-              <div className="admin-skill-nav-title">
-                <strong>技能导航</strong>
-                <span>目录式导航 · 一级展开</span>
-              </div>
-
-              <div className="admin-skill-primary-list">
-                {SKILL_CENTER_TREE.map((primary) => {
-                  const expanded = isSkillPrimaryExpanded(primary.id);
-                  return (
-                    <section className={`admin-skill-primary-group ${expanded ? "expanded" : ""}`} key={primary.id}>
-                      <button
-                        type="button"
-                        className={`admin-skill-primary-button ${activeSkillPrimaryId === primary.id ? "active" : ""}`}
-                        onClick={() => {
-                          setExpandedSkillPrimaryId(primary.id);
-                          setActiveSkillPrimaryId(primary.id);
-                          setActiveSkillSectionId(primary.sections[0]?.id || "");
-                          setActiveSkillLeafId(primary.sections[0]?.items[0]?.id || "");
-                        }}
-                      >
-                        <span className="admin-skill-primary-mark">{getSkillPrimaryMark(primary.id, primary.label)}</span>
-                        <span className="admin-skill-primary-button-copy">
-                          <strong>{primary.label}</strong>
-                          <small>{primary.sections.length} 个二级分类</small>
-                        </span>
-                        <span className={`admin-skill-primary-arrow ${expanded ? "expanded" : ""}`}>⌃</span>
-                      </button>
-
-                      {expanded ? (
-                        <div className="admin-skill-tree-sections">
-                          {primary.sections.map((section) => (
-                            <section className="admin-skill-tree-section" key={section.id}>
-                              <button
-                                type="button"
-                                className={`admin-skill-tree-section-button ${activeSkillSectionId === section.id ? "active" : ""}`}
-                                onClick={() => {
-                                  setActiveSkillPrimaryId(primary.id);
-                                  setActiveSkillSectionId(section.id);
-                                  setActiveSkillLeafId(section.items[0]?.id || "");
-                                }}
-                              >
-                                <span className="admin-skill-tree-section-label">{section.label}</span>
-                                <small>{section.items.length}</small>
-                              </button>
-                              <div className="admin-skill-tree-leaf-list">
-                                {section.items.map((leaf) => (
-                                  <button
-                                    type="button"
-                                    key={leaf.id}
-                                    className={`admin-skill-tree-leaf-button ${activeSkillLeafId === leaf.id ? "active" : ""}`}
-                                    onClick={() => {
-                                      setExpandedSkillPrimaryId(primary.id);
-                                      setActiveSkillPrimaryId(primary.id);
-                                      setActiveSkillSectionId(section.id);
-                                      setActiveSkillLeafId(leaf.id);
-                                    }}
-                                  >
-                                    <span className="admin-skill-tree-leaf-dot" aria-hidden="true" />
-                                    <strong>{leaf.label}</strong>
-                                  </button>
-                                ))}
-                              </div>
-                            </section>
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  );
-                })}
-              </div>
-            </article>
-          ) : (
-            <>
-              <article className="admin-rail-card admin-rail-highlight">
-                <span>系统总览</span>
-                <strong>后台运营管理台</strong>
-                <p>第一版先统一视觉框架，再逐块补齐图表、筛选和更细的操作体验。</p>
-              </article>
-
-              <article className="admin-rail-card">
-                <div className="admin-rail-card-head">
-                  <strong>右侧速览</strong>
-                  <span>核心数据</span>
-                </div>
-                <div className="admin-rail-metrics">
-                  <div>
-                    <span>订单</span>
-                    <strong>{summary.orderCount}</strong>
-                  </div>
-                  <div>
-                    <span>用户</span>
-                    <strong>{summary.userCount}</strong>
-                  </div>
-                  <div>
-                    <span>知识库</span>
-                    <strong>{summary.knowledgeBaseCount}</strong>
-                  </div>
-                  <div>
-                    <span>供应商</span>
-                    <strong>{summary.providerCount}</strong>
-                  </div>
-                </div>
-              </article>
-
-              <article className="admin-rail-card">
-                <div className="admin-rail-card-head">
-                  <strong>本轮设计目标</strong>
-                  <span>第一版</span>
-                </div>
-                <ul className="admin-rail-list">
-                  <li>第一个栏目是仪表盘</li>
-                  <li>其余每个后台项目单独成栏目</li>
-                  <li>保持中文化表达和管理感</li>
-                  <li>先优化整体壳子，再继续做深</li>
-                </ul>
-              </article>
-            </>
-          )}
-        </aside>
       </section>
     </main>
   );
@@ -3183,18 +2895,6 @@ function updateMembershipPlan(list: MembershipPlanRule[], index: number, nextIte
 
 function updatePointsPackage(list: PointsPackageRule[], index: number, nextItem: PointsPackageRule) {
   return list.map((item, currentIndex) => (currentIndex === index ? nextItem : item));
-}
-
-function buildUserDrafts(list: AdminUserRecord[]) {
-  return Object.fromEntries(
-    list.map((item) => [
-      item.id,
-      {
-        membership: item.membership,
-        pointsDelta: "0",
-      },
-    ]),
-  ) as Record<string, UserEditDraft>;
 }
 
 function buildSkillDraft(item: SkillConfigRecord): SkillEditDraft {

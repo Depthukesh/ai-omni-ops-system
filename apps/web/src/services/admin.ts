@@ -30,14 +30,42 @@ export type AdminUserRecord = {
   mobile: string;
   email: string;
   nickname: string;
+  avatarUrl: string;
   status: "ACTIVE" | "DISABLED";
   membership: MembershipLevel;
+  systemRole: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
+  emailVerified: boolean;
   pointsBalance: number;
   brandCount: number;
   taskCount: number;
   orderCount: number;
+  sessionCount: number;
   createdAt: string;
   updatedAt: string;
+  lastLoginAt: string;
+};
+
+export type AdminUserDetailRecord = AdminUserRecord & {
+  brandItems: Array<{
+    id: string;
+    brandName: string;
+    relation: "OWNER" | "MEMBER";
+    role: string;
+  }>;
+};
+
+export type DeleteAdminUserResult = {
+  id: string;
+  nickname: string;
+  mobile: string;
+};
+
+export type GetAdminUsersQuery = {
+  keyword?: string;
+  membership?: "ALL" | MembershipLevel;
+  status?: "ALL" | "ACTIVE" | "DISABLED";
+  systemRole?: "ALL" | AdminUserRecord["systemRole"];
+  emailVerified?: "ALL" | "VERIFIED" | "UNVERIFIED";
 };
 
 export type ModelUsageRecord = {
@@ -214,42 +242,57 @@ export const adminUserSeed: AdminUserRecord[] = [
     mobile: "13800000000",
     email: "demo@ai-omni.local",
     nickname: "演示账号",
+    avatarUrl: "",
     status: "ACTIVE",
     membership: "PRO",
+    systemRole: "USER",
+    emailVerified: true,
     pointsBalance: 14420,
     brandCount: 1,
     taskCount: 2,
     orderCount: 2,
+    sessionCount: 1,
     createdAt: "2026-04-30T10:00:00.000Z",
     updatedAt: "2026-05-02T02:03:00.000Z",
+    lastLoginAt: "2026-05-09T13:30:00.000Z",
   },
   {
     id: "usr_demo_002",
     mobile: "13900000001",
     email: "brand-owner@ai-omni.local",
     nickname: "品牌主理人",
+    avatarUrl: "",
     status: "ACTIVE",
     membership: "BASIC",
+    systemRole: "SUPER_ADMIN",
+    emailVerified: true,
     pointsBalance: 3800,
     brandCount: 1,
     taskCount: 4,
     orderCount: 1,
+    sessionCount: 1,
     createdAt: "2026-05-01T01:00:00.000Z",
     updatedAt: "2026-05-02T01:20:00.000Z",
+    lastLoginAt: "2026-05-09T22:40:00.000Z",
   },
   {
     id: "usr_demo_003",
     mobile: "13700000002",
     email: "ops@ai-omni.local",
     nickname: "运营同学",
+    avatarUrl: "",
     status: "DISABLED",
     membership: "FREE",
+    systemRole: "SUPPORT_OPERATOR",
+    emailVerified: false,
     pointsBalance: 200,
     brandCount: 0,
     taskCount: 1,
     orderCount: 0,
+    sessionCount: 0,
     createdAt: "2026-05-01T06:30:00.000Z",
     updatedAt: "2026-05-01T09:00:00.000Z",
+    lastLoginAt: "",
   },
 ];
 
@@ -699,18 +742,53 @@ export async function updateBillingRules(payload: BillingRules) {
   return jsonRequest<BillingRules>("/admin/billing-rules", "PATCH", payload);
 }
 
-export async function getAdminUsers() {
-  return request<AdminUserRecord[]>("/admin/users");
+export async function getAdminUsers(query: GetAdminUsersQuery = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.keyword?.trim()) {
+    searchParams.set("keyword", query.keyword.trim());
+  }
+  if (query.membership && query.membership !== "ALL") {
+    searchParams.set("membership", query.membership);
+  }
+  if (query.status && query.status !== "ALL") {
+    searchParams.set("status", query.status);
+  }
+  if (query.systemRole && query.systemRole !== "ALL") {
+    searchParams.set("systemRole", query.systemRole);
+  }
+  if (query.emailVerified && query.emailVerified !== "ALL") {
+    searchParams.set("emailVerified", query.emailVerified);
+  }
+  const suffix = searchParams.toString();
+  return request<AdminUserRecord[]>(suffix ? `/admin/users?${suffix}` : "/admin/users");
+}
+
+export async function getAdminUserDetail(userId: string) {
+  return request<AdminUserDetailRecord>(`/admin/users/${userId}`);
 }
 
 export async function updateAdminUser(
   userId: string,
   payload: {
+    nickname?: string;
+    mobile?: string;
+    email?: string;
+    avatarUrl?: string;
+    status?: AdminUserRecord["status"];
     membership?: MembershipLevel;
-    pointsDelta?: number;
+    systemRole?: AdminUserRecord["systemRole"];
+    pointsBalance?: number;
+    emailVerified?: boolean;
+    password?: string;
   },
 ) {
-  return jsonRequest<AdminUserRecord>(`/admin/users/${userId}`, "PATCH", payload);
+  return jsonRequest<AdminUserDetailRecord>(`/admin/users/${userId}`, "PATCH", payload);
+}
+
+export async function deleteAdminUser(userId: string) {
+  return request<DeleteAdminUserResult>(`/admin/users/${userId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getModelUsage() {

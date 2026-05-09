@@ -334,10 +334,15 @@ flowchart TD
 
     Admin["/admin"]
     Admin --> AS1["admin.ts"]
+    Admin --> AS2["users-management-panel.tsx"]
     Admin --> AUI1["仪表盘"]
     Admin --> AUI2["订单管理"]
     Admin --> AUI3["会员与积分规则"]
     Admin --> AUI4["用户管理"]
+    AUI4 --> AUI41["筛选区：关键词/会员/状态/角色/邮箱验证"]
+    AUI4 --> AUI42["列表区：普通用户 + 管理员账号"]
+    AUI4 --> AUI43["弹窗详情编辑：邮箱/电话/密码/会员/积分/角色"]
+    AUI4 --> AUI44["删除动作：确认弹窗后删除账号"]
     Admin --> AUI5["模型消耗"]
     Admin --> AUI6["技能中心"]
     Admin --> AUI7["知识库管理"]
@@ -360,6 +365,8 @@ flowchart TD
     AS1 --> AAPI1["/orders/admin/list"]
     AS1 --> AAPI2["/admin/billing-rules"]
     AS1 --> AAPI3["/admin/users"]
+    AS1 --> AAPI31["/admin/users/:id"]
+    AS1 --> AAPI32["DELETE /admin/users/:id"]
     AS1 --> AAPI4["/admin/model-usage"]
     AS1 --> AAPI5["/admin/skills"]
     AS1 --> AAPI6["/admin/prompts"]
@@ -507,6 +514,7 @@ flowchart LR
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
 - 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`
 - 后台管理：`apps/web/src/app/(dashboard)/admin/page.tsx`
+- 后台用户管理面板：`apps/web/src/app/(dashboard)/admin/users-management-panel.tsx`
 - 会员购买：`apps/web/src/app/(dashboard)/membership-purchase/page.tsx`
 - 点数购买：`apps/web/src/app/(dashboard)/points-purchase/page.tsx`
 - 订单详情：`apps/web/src/app/(dashboard)/orders/[id]/page.tsx`

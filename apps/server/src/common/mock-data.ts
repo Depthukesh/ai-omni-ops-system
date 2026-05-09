@@ -11,6 +11,7 @@ export type UserRecord = {
   password: string;
   status: "ACTIVE" | "DISABLED";
   membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
+  systemRole?: "USER" | "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
   pointsBalance: number;
 };
 
@@ -350,6 +351,7 @@ export const database: MockDatabase = {
       password: "123456",
       status: "ACTIVE",
       membership: "PRO",
+      systemRole: "SUPER_ADMIN",
       pointsBalance: 14420,
     },
   ],

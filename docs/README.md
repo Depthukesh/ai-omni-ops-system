@@ -80,6 +80,8 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-10-admin-user-management-panel.md`
+  - 后台用户管理升级为“筛选区 + 用户列表 + 弹窗详情编辑”，并补齐管理员账号编辑、删除与确认弹窗
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 注册页补齐真实表单、邮箱验证码发送与校验、开发态验证码回显与自动回填
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
