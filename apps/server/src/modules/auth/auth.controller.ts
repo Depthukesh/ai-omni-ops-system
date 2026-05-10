@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Headers, Patch, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import {
   AuthService,
+  type ProfileAvatarUploadRecord,
   type FeishuAppConfigPayload,
   type LoginPayload,
   type RefreshSessionPayload,
   type RegisterPayload,
   type SendRegisterEmailCodePayload,
   type SwitchBrandPayload,
+  type UploadProfileAvatarPayload,
   type UpdateProfilePayload,
 } from "./auth.service";
 
@@ -74,6 +76,26 @@ export class AuthController {
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     return this.authService.updateProfile(payload, auth);
+  }
+
+  @Post("profile/avatar")
+  async uploadProfileAvatar(
+    @Body() payload: UploadProfileAvatarPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<ProfileAvatarUploadRecord> {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.uploadProfileAvatar(payload, auth);
+  }
+
+  @Get("users/:userId/avatar/:fileName")
+  async getProfileAvatar(
+    @Param("userId") userId: string,
+    @Param("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.authService.getProfileAvatar(userId, fileName);
+    response.setHeader("Content-Type", file.contentType);
+    return response.send(file.buffer);
   }
 
   @Get("point-ledgers")

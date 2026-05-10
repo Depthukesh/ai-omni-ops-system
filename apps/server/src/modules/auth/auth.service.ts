@@ -1,8 +1,10 @@
-import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { extname } from "node:path";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { BrandMemberRole, BrandMemberStatus, SystemRole } from "@prisma/client";
 import nodemailer, { type Transporter } from "nodemailer";
 import { createId, database } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
 import {
   getFeishuUserAppConfig,
   getFeishuUserIntegration,
@@ -11,6 +13,7 @@ import {
   type FeishuUserAppConfigRecord,
 } from "../../common/user-integrations";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 
 export type LoginPayload = {
   account: string;
@@ -33,6 +36,17 @@ export type UpdateProfilePayload = {
   nickname: string;
   mobile: string;
   avatarUrl?: string;
+};
+
+export type UploadProfileAvatarPayload = {
+  fileName: string;
+  contentType: string;
+  dataBase64: string;
+};
+
+export type ProfileAvatarUploadRecord = {
+  fileName: string;
+  avatarUrl: string;
 };
 
 export type RefreshSessionPayload = {
@@ -106,6 +120,8 @@ const emailVerificationRecords: EmailVerificationCodeRecord[] = [];
 @Injectable()
 export class AuthService {
   private mailTransporter?: Transporter;
+  private readonly appConfigService = new AppConfigService();
+  private readonly ossStorageService = new OssStorageService(this.appConfigService);
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -569,6 +585,35 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
+  async uploadProfileAvatar(payload: UploadProfileAvatarPayload, auth?: RequestAuthContext): Promise<ProfileAvatarUploadRecord> {
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    if (!payload.fileName || !payload.contentType || !payload.dataBase64) {
+      throw new BadRequestException("头像上传参数不完整");
+    }
+    if (!payload.contentType.startsWith("image/")) {
+      throw new BadRequestException("只支持上传图片格式的头像");
+    }
+
+    const extension = this.resolveAvatarExtension(payload.fileName, payload.contentType);
+    const fileName = `${randomUUID()}${extension}`;
+    const storageKey = this.buildProfileAvatarStorageKey(currentUser.id, fileName);
+    await this.ossStorageService.putObject(storageKey, Buffer.from(payload.dataBase64, "base64"), payload.contentType);
+    return {
+      fileName,
+      avatarUrl: this.buildProfileAvatarUrl(currentUser.id, fileName),
+    };
+  }
+
+  async getProfileAvatar(userId: string, fileName: string) {
+    const safeFileName = this.sanitizeStoredFileName(fileName);
+    const storageKey = this.buildProfileAvatarStorageKey(userId, safeFileName);
+    const file = await this.ossStorageService.getObject(storageKey);
+    if (!file) {
+      throw new NotFoundException("头像文件不存在");
+    }
+    return file;
+  }
+
   async getPointLedgers(auth?: RequestAuthContext) {
     const currentUser = await this.resolveCurrentUser(undefined, auth);
     if (await this.prismaService.canUseDatabase()) {
@@ -828,6 +873,36 @@ export class AuthService {
     if (payload.avatarUrl && !/^https?:\/\/|^\//.test(payload.avatarUrl)) {
       throw new BadRequestException("头像地址需使用 http(s) 链接或站内路径");
     }
+  }
+
+  private resolveAvatarExtension(fileName: string, contentType: string) {
+    const currentExtension = extname(fileName).toLowerCase();
+    if (currentExtension) {
+      return currentExtension;
+    }
+
+    switch (contentType.toLowerCase()) {
+      case "image/png":
+        return ".png";
+      case "image/webp":
+        return ".webp";
+      case "image/gif":
+        return ".gif";
+      default:
+        return ".jpg";
+    }
+  }
+
+  private sanitizeStoredFileName(fileName: string) {
+    return fileName.replace(/[^a-zA-Z0-9._-]/g, "");
+  }
+
+  private buildProfileAvatarStorageKey(userId: string, fileName: string) {
+    return `users/${userId}/avatars/${fileName}`;
+  }
+
+  private buildProfileAvatarUrl(userId: string, fileName: string) {
+    return `${this.appConfigService.getServerBaseUrl()}/api/auth/users/${userId}/avatar/${encodeURIComponent(fileName)}`;
   }
 
   private assertEmail(email: string) {

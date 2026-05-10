@@ -4,6 +4,8 @@ import { join, resolve } from "node:path";
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type AssetRecord } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { BrandsService } from "../brands/brands.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
@@ -392,6 +394,9 @@ export type XiaohongshuMarketingCalendarWorkspace = {
 
 @Injectable()
 export class ReportsService {
+  private readonly appConfigService = new AppConfigService();
+  private readonly ossStorageService = new OssStorageService(this.appConfigService);
+
   constructor(
     @Inject(PrismaService)
     private readonly prismaService: PrismaService,
@@ -494,6 +499,11 @@ export class ReportsService {
         },
       });
 
+      const fileName = this.buildGrowthReportFileName(task.id);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlContent);
+
       const media = await this.prismaService.mediaAsset.create({
         data: {
           userId: brand.ownerUserId,
@@ -501,8 +511,8 @@ export class ReportsService {
           taskId: task.id,
           title: report.title,
           mediaType: MediaType.HTML,
-          storageKey: `reports/${brandId}/growth-report-${task.id}.html`,
-          sourceUrl: `https://oss.example.com/reports/${brandId}/growth-report-${task.id}.html`,
+          storageKey,
+          sourceUrl,
           mimeType: "text/html",
           metadataJson: {
             kind: "BRAND_GROWTH_REPORT",
@@ -555,6 +565,11 @@ export class ReportsService {
         updatedAt: now,
       });
 
+      const fileName = this.buildGrowthReportFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlContent);
+
       database.media.unshift({
         id: mediaId,
         userId: brand.ownerUserId,
@@ -562,8 +577,8 @@ export class ReportsService {
         taskId,
         title: report.title,
         mediaType: "HTML",
-        sourceUrl: `https://oss.example.com/reports/${brandId}/growth-report-${taskId}.html`,
-        storageKey: `reports/${brandId}/growth-report-${taskId}.html`,
+        sourceUrl,
+        storageKey,
         mimeType: "text/html",
         createdAt: now,
         updatedAt: now,
@@ -576,7 +591,7 @@ export class ReportsService {
         title: report.title,
         description: report.summary,
         sourceName: "绯荤粺鐢熸垚",
-        fileUrl: `https://oss.example.com/reports/${brandId}/growth-report-${taskId}.html`,
+        fileUrl: sourceUrl,
         metadataJson: {
           kind: "BRAND_GROWTH_REPORT",
           generatedAt: now,
@@ -871,11 +886,23 @@ export class ReportsService {
         throw new NotFoundException("灏忕孩涔﹁惀閿€绛栧垝鏂规涓嶅瓨鍦");
       }
       const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true, sourceUrl: true },
+          })
+        : null;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildXiaohongshuMarketingPlanFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
       await this.prismaService.businessAsset.update({
         where: { id: asset.id },
         data: {
           title: normalized.title,
           description: normalized.summary,
+          fileUrl: sourceUrl,
           metadataJson: {
             ...currentMeta,
             summary: normalized.summary,
@@ -885,20 +912,45 @@ export class ReportsService {
           } as Prisma.InputJsonValue,
         },
       });
+      if (media?.id) {
+        await this.prismaService.mediaAsset.update({
+          where: { id: media.id },
+          data: {
+            title: normalized.title,
+            storageKey,
+            sourceUrl,
+            mimeType: "text/html",
+          },
+        });
+      }
     } else {
       const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_REPORT");
       if (!asset) {
         throw new NotFoundException("灏忕孩涔﹁惀閿€绛栧垝鏂规涓嶅瓨鍦");
       }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildXiaohongshuMarketingPlanFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
       asset.title = normalized.title;
       asset.description = normalized.summary;
+      asset.fileUrl = sourceUrl;
       asset.metadataJson = {
-        ...(asset.metadataJson || {}),
+        ...currentMeta,
         summary: normalized.summary,
         title: normalized.title,
         reportMarkdown: normalized.reportMarkdown,
         htmlContent: normalized.htmlContent,
       };
+      if (media) {
+        media.title = normalized.title;
+        media.storageKey = storageKey;
+        media.sourceUrl = sourceUrl;
+        media.mimeType = "text/html";
+      }
     }
 
     return this.getXiaohongshuMarketingPlanWorkspace(brandId);
@@ -920,6 +972,15 @@ export class ReportsService {
       const meta = this.asMeta(asset.metadataJson);
       const taskId = this.readMetaString(meta, "taskId");
       const mediaId = this.readMetaString(meta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true },
+          })
+        : null;
+      if (media?.storageKey) {
+        await this.ossStorageService.deleteObject(media.storageKey);
+      }
       await this.prismaService.businessAsset.delete({ where: { id: asset.id } });
       if (mediaId) {
         await this.prismaService.mediaAsset.deleteMany({ where: { id: mediaId, brandId } });
@@ -935,6 +996,10 @@ export class ReportsService {
       const meta = this.asMeta(database.assets[index].metadataJson);
       const taskId = this.readMetaString(meta, "taskId");
       const mediaId = this.readMetaString(meta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      if (media?.storageKey) {
+        await this.ossStorageService.deleteObject(media.storageKey);
+      }
       database.assets.splice(index, 1);
       if (mediaId) {
         database.media = database.media.filter((item) => item.id !== mediaId);
@@ -1112,11 +1177,23 @@ export class ReportsService {
       }
 
       const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true, sourceUrl: true },
+          })
+        : null;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildGrowthReportFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
       await this.prismaService.businessAsset.update({
         where: { id: asset.id },
         data: {
           title: normalized.title,
           description: normalized.summary,
+          fileUrl: sourceUrl,
           metadataJson: {
             ...currentMeta,
             summary: normalized.summary,
@@ -1126,20 +1203,45 @@ export class ReportsService {
           } as Prisma.InputJsonValue,
         },
       });
+      if (media?.id) {
+        await this.prismaService.mediaAsset.update({
+          where: { id: media.id },
+          data: {
+            title: normalized.title,
+            storageKey,
+            sourceUrl,
+            mimeType: "text/html",
+          },
+        });
+      }
     } else {
       const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_REPORT");
       if (!asset) {
         throw new NotFoundException("鍝佺墝澧為暱鎶ュ憡涓嶅瓨鍦");
       }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildGrowthReportFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
       asset.title = normalized.title;
       asset.description = normalized.summary;
+      asset.fileUrl = sourceUrl;
       asset.metadataJson = {
-        ...(asset.metadataJson || {}),
+        ...currentMeta,
         summary: normalized.summary,
         title: normalized.title,
         reportMarkdown: normalized.reportMarkdown,
         htmlContent: normalized.htmlContent,
       };
+      if (media) {
+        media.title = normalized.title;
+        media.storageKey = storageKey;
+        media.sourceUrl = sourceUrl;
+        media.mimeType = "text/html";
+      }
     }
 
     return this.getGrowthReportWorkspace(brandId);
@@ -1167,11 +1269,23 @@ export class ReportsService {
       }
 
       const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true, sourceUrl: true },
+          })
+        : null;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildVisualGrowthReportFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlDocument);
       await this.prismaService.businessAsset.update({
         where: { id: asset.id },
         data: {
           title: normalized.title,
           description: normalized.summary,
+          fileUrl: sourceUrl,
           metadataJson: {
             ...currentMeta,
             summary: normalized.summary,
@@ -1181,20 +1295,45 @@ export class ReportsService {
           } as Prisma.InputJsonValue,
         },
       });
+      if (media?.id) {
+        await this.prismaService.mediaAsset.update({
+          where: { id: media.id },
+          data: {
+            title: normalized.title,
+            storageKey,
+            sourceUrl,
+            mimeType: "text/html",
+          },
+        });
+      }
     } else {
       const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_REPORT");
       if (!asset) {
         throw new NotFoundException("鍝佺墝澧為暱鍙鍖栨姤鍛婁笉瀛樺湪");
       }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildVisualGrowthReportFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlDocument);
       asset.title = normalized.title;
       asset.description = normalized.summary;
+      asset.fileUrl = sourceUrl;
       asset.metadataJson = {
-        ...(asset.metadataJson || {}),
+        ...currentMeta,
         summary: normalized.summary,
         title: normalized.title,
         htmlBody: normalized.htmlBody,
         htmlDocument: normalized.htmlDocument,
       };
+      if (media) {
+        media.title = normalized.title;
+        media.storageKey = storageKey;
+        media.sourceUrl = sourceUrl;
+        media.mimeType = "text/html";
+      }
     }
 
     return this.getVisualGrowthReportWorkspace(brandId);
@@ -1903,6 +2042,11 @@ export class ReportsService {
         throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
       }
 
+      const fileName = this.buildXiaohongshuMarketingPlanFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlContent);
+
       const media = await this.prismaService.mediaAsset.create({
         data: {
           userId: brand.ownerUserId,
@@ -1910,8 +2054,8 @@ export class ReportsService {
           taskId,
           title: report.title,
           mediaType: MediaType.HTML,
-          storageKey: `reports/${brandId}/xiaohongshu-marketing-plan-${taskId}.html`,
-          sourceUrl: `https://oss.example.com/reports/${brandId}/xiaohongshu-marketing-plan-${taskId}.html`,
+          storageKey,
+          sourceUrl,
           mimeType: "text/html",
           metadataJson: {
             kind: "XHS_MARKETING_PLAN",
@@ -1953,6 +2097,11 @@ export class ReportsService {
     }
 
     const mediaId = createId("med");
+    const fileName = this.buildXiaohongshuMarketingPlanFileName(taskId);
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, report.htmlContent);
+
     database.media.unshift({
       id: mediaId,
       userId: brand.ownerUserId,
@@ -1960,8 +2109,8 @@ export class ReportsService {
       taskId,
       title: report.title,
       mediaType: "HTML",
-      sourceUrl: `https://oss.example.com/reports/${brandId}/xiaohongshu-marketing-plan-${taskId}.html`,
-      storageKey: `reports/${brandId}/xiaohongshu-marketing-plan-${taskId}.html`,
+      sourceUrl,
+      storageKey,
       mimeType: "text/html",
       createdAt: generatedAt,
       updatedAt: generatedAt,
@@ -1974,7 +2123,7 @@ export class ReportsService {
       title: report.title,
       description: report.summary,
       sourceName: "绯荤粺鐢熸垚",
-      fileUrl: `https://oss.example.com/reports/${brandId}/xiaohongshu-marketing-plan-${taskId}.html`,
+      fileUrl: sourceUrl,
       metadataJson: {
         kind: "XHS_MARKETING_PLAN",
         generatedAt,
@@ -2068,6 +2217,11 @@ export class ReportsService {
         throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
       }
 
+      const fileName = this.buildVisualGrowthReportFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlDocument);
+
       const media = await this.prismaService.mediaAsset.create({
         data: {
           userId: brand.ownerUserId,
@@ -2075,8 +2229,8 @@ export class ReportsService {
           taskId,
           title: report.title,
           mediaType: MediaType.HTML,
-          storageKey: `reports/${brandId}/visual-growth-report-${taskId}.html`,
-          sourceUrl: `https://oss.example.com/reports/${brandId}/visual-growth-report-${taskId}.html`,
+          storageKey,
+          sourceUrl,
           mimeType: "text/html",
           metadataJson: {
             kind: "BRAND_GROWTH_VISUAL_REPORT",
@@ -2115,6 +2269,11 @@ export class ReportsService {
     }
 
     const mediaId = createId("med");
+    const fileName = this.buildVisualGrowthReportFileName(taskId);
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, report.htmlDocument);
+
     database.media.unshift({
       id: mediaId,
       userId: brand.ownerUserId,
@@ -2122,8 +2281,8 @@ export class ReportsService {
       taskId,
       title: report.title,
       mediaType: "HTML",
-      sourceUrl: `https://oss.example.com/reports/${brandId}/visual-growth-report-${taskId}.html`,
-      storageKey: `reports/${brandId}/visual-growth-report-${taskId}.html`,
+      sourceUrl,
+      storageKey,
       mimeType: "text/html",
       createdAt: generatedAt,
       updatedAt: generatedAt,
@@ -2136,7 +2295,7 @@ export class ReportsService {
       title: report.title,
       description: report.summary,
       sourceName: "绯荤粺鐢熸垚",
-      fileUrl: `https://oss.example.com/reports/${brandId}/visual-growth-report-${taskId}.html`,
+      fileUrl: sourceUrl,
       metadataJson: {
         kind: "BRAND_GROWTH_VISUAL_REPORT",
         generatedAt,
@@ -2167,6 +2326,11 @@ export class ReportsService {
         throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
       }
 
+      const fileName = this.buildAnnualMarketingPlanFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, plan.htmlDocument);
+
       const media = await this.prismaService.mediaAsset.create({
         data: {
           userId: brand.ownerUserId,
@@ -2174,8 +2338,8 @@ export class ReportsService {
           taskId,
           title: plan.title,
           mediaType: MediaType.HTML,
-          storageKey: `reports/${brandId}/annual-marketing-plan-${taskId}.html`,
-          sourceUrl: `https://oss.example.com/reports/${brandId}/annual-marketing-plan-${taskId}.html`,
+          storageKey,
+          sourceUrl,
           mimeType: "text/html",
           metadataJson: {
             kind: "BRAND_ANNUAL_MARKETING_PLAN",
@@ -2217,6 +2381,11 @@ export class ReportsService {
     }
 
     const mediaId = createId("med");
+    const fileName = this.buildAnnualMarketingPlanFileName(taskId);
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, plan.htmlDocument);
+
     database.media.unshift({
       id: mediaId,
       userId: brand.ownerUserId,
@@ -2224,8 +2393,8 @@ export class ReportsService {
       taskId,
       title: plan.title,
       mediaType: "HTML",
-      sourceUrl: `https://oss.example.com/reports/${brandId}/annual-marketing-plan-${taskId}.html`,
-      storageKey: `reports/${brandId}/annual-marketing-plan-${taskId}.html`,
+      sourceUrl,
+      storageKey,
       mimeType: "text/html",
       createdAt: generatedAt,
       updatedAt: generatedAt,
@@ -2238,7 +2407,7 @@ export class ReportsService {
       title: plan.title,
       description: plan.summary,
       sourceName: "绯荤粺鐢熸垚",
-      fileUrl: `https://oss.example.com/reports/${brandId}/annual-marketing-plan-${taskId}.html`,
+      fileUrl: sourceUrl,
       metadataJson: {
         kind: "BRAND_ANNUAL_MARKETING_PLAN",
         generatedAt,
@@ -4676,6 +4845,53 @@ ${normalizedMarkdown}`;
     };
     payload[provider.tokenLimitField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"] = provider.maxTokens;
     return payload;
+  }
+
+  async getReportAsset(brandId: string, fileName: string) {
+    const safeFileName = this.sanitizeStoredFileName(fileName);
+    const file = await this.ossStorageService.getObject(this.buildReportAssetStorageKey(brandId, safeFileName));
+    if (!file) {
+      throw new NotFoundException("报告附件不存在");
+    }
+    return file;
+  }
+
+  private async persistReportHtml(storageKey: string, htmlContent: string) {
+    await this.ossStorageService.putObject(storageKey, Buffer.from(htmlContent, "utf8"), "text/html; charset=utf-8");
+  }
+
+  private buildReportAssetStorageKey(brandId: string, fileName: string) {
+    return `reports/${brandId}/${fileName}`;
+  }
+
+  private buildReportAssetUrl(brandId: string, fileName: string) {
+    return `${this.appConfigService.getServerBaseUrl()}/api/reports/brands/${brandId}/assets/${encodeURIComponent(fileName)}`;
+  }
+
+  private buildGrowthReportFileName(taskId: string) {
+    return `growth-report-${taskId}.html`;
+  }
+
+  private buildVisualGrowthReportFileName(taskId: string) {
+    return `visual-growth-report-${taskId}.html`;
+  }
+
+  private buildAnnualMarketingPlanFileName(taskId: string) {
+    return `annual-marketing-plan-${taskId}.html`;
+  }
+
+  private buildXiaohongshuMarketingPlanFileName(taskId: string) {
+    return `xiaohongshu-marketing-plan-${taskId}.html`;
+  }
+
+  private extractFileNameFromStorageKey(storageKey: string) {
+    const normalized = storageKey.split("?")[0]?.split("#")[0] ?? "";
+    const parts = normalized.split("/");
+    return this.sanitizeStoredFileName(parts[parts.length - 1] ?? "");
+  }
+
+  private sanitizeStoredFileName(fileName: string) {
+    return fileName.replace(/[^a-zA-Z0-9._-]/g, "");
   }
 
   private buildManualReportResult(reportMarkdown: string, nextTitle?: string) {

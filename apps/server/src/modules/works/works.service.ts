@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
@@ -455,6 +456,8 @@ export class WorksService {
   constructor(
     @Inject(AppConfigService)
     private readonly appConfigService: AppConfigService,
+    @Inject(OssStorageService)
+    private readonly ossStorageService: OssStorageService,
     @Inject(PrismaService)
     private readonly prismaService: PrismaService,
     @Inject(BrandsService)
@@ -738,7 +741,7 @@ export class WorksService {
         imageUrls: galleryImages.map((item) => item.url),
         noteLabel: "原创图文笔记",
       });
-      const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-note.html`, htmlContent);
+      const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-note.html`, htmlContent);
 
       const metadata: OriginalWorkAssetMeta = {
         kind: "XHS_ORIGINAL_NOTE",
@@ -957,7 +960,7 @@ export class WorksService {
         imageUrls: galleryImages.map((item) => item.url),
         noteLabel: "二创图文笔记",
       });
-      const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-rewrite-note.html`, htmlContent);
+      const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-rewrite-note.html`, htmlContent);
 
       const metadata: RewriteWorkAssetMeta = {
         kind: "XHS_REWRITE_NOTE",
@@ -1113,7 +1116,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const referenceImageFile = payload.referenceImage?.dataBase64
-        ? this.persistUploadFile(
+        ? await this.persistUploadFile(
             brandId,
             `${task.id}-video-reference${this.resolveExtensionFromFileName(payload.referenceImage.fileName, ".png")}`,
             payload.referenceImage,
@@ -1183,7 +1186,7 @@ export class WorksService {
         videoPrompt: outputVideoPrompt ? promptResult.fullVideoPrompt : undefined,
         noteLabel: "原创视频笔记",
       });
-      const htmlFile = this.writeGeneratedTextFile(brandId, `${task.id}-video-note.html`, htmlContent);
+      const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-video-note.html`, htmlContent);
 
       const metadata: VideoWorkAssetMeta = {
         kind: "XHS_VIDEO_NOTE",
@@ -1310,7 +1313,7 @@ export class WorksService {
       htmlContent: nextHtmlContent,
       updatedAt: new Date().toISOString(),
     };
-    this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书原创笔记 - ${nextTitle}`);
     return {
       item: this.mapOriginalWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
@@ -1337,7 +1340,7 @@ export class WorksService {
       htmlContent: nextHtmlContent,
       updatedAt: new Date().toISOString(),
     };
-    this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书二创笔记 - ${nextTitle}`);
     return {
       item: this.mapRewriteWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
@@ -1368,7 +1371,7 @@ export class WorksService {
       fullVideoPrompt: nextVideoPrompt || meta.fullVideoPrompt,
       updatedAt: new Date().toISOString(),
     };
-    this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextTitle}`);
     return {
       item: this.mapVideoWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
@@ -1408,7 +1411,7 @@ export class WorksService {
       }
     }
 
-    this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
     return { success: true };
   }
 
@@ -1442,7 +1445,7 @@ export class WorksService {
       }
     }
 
-    this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
     return { success: true };
   }
 
@@ -1476,23 +1479,21 @@ export class WorksService {
       }
     }
 
-    this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
     const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
     const localReferenceFileName = meta.referenceImageUrl ? this.extractLocalAssetFileName(meta.referenceImageUrl, brandId) : "";
-    this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
-    this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
     return { success: true };
   }
 
-  getGeneratedAsset(brandId: string, fileName: string) {
-    const filePath = join(this.getGeneratedAssetDir(brandId), fileName);
-    if (!existsSync(filePath)) {
+  async getGeneratedAsset(brandId: string, fileName: string) {
+    const storageKey = this.buildGeneratedAssetStorageKey(brandId, fileName);
+    const remoteFile = await this.ossStorageService.getObject(storageKey);
+    if (!remoteFile) {
       throw new NotFoundException("作品文件不存在");
     }
-    return {
-      buffer: readFileSync(filePath),
-      contentType: this.getContentTypeByExtension(fileName),
-    };
+    return remoteFile;
   }
 
   private async analyzeReferenceImages(
@@ -1879,7 +1880,7 @@ export class WorksService {
                 const finalUrl = asset.url
                   ? await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType)
                   : (base64Content
-                    ? this.writeGeneratedBinaryFile(params.brandId, fileName, base64Content, asset.contentType).url
+                    ? (await this.writeGeneratedBinaryFile(params.brandId, fileName, base64Content, asset.contentType)).url
                     : "");
                 if (!finalUrl) {
                   lastError = `${modelName} 未返回可保存的图片内容`;
@@ -5122,29 +5123,22 @@ export class WorksService {
     return `data:${payload.contentType || "image/jpeg"};base64,${payload.dataBase64}`;
   }
 
-  private getGeneratedAssetDir(brandId: string) {
-    const dir = resolve(this.resolveWorkspaceRoot(), ".runtime", "generated-works", brandId);
-    mkdirSync(dir, { recursive: true });
-    return dir;
-  }
-
-  private writeGeneratedTextFile(brandId: string, fileName: string, content: string) {
-    const dir = this.getGeneratedAssetDir(brandId);
-    const target = join(dir, fileName);
-    writeFileSync(target, content, "utf8");
+  private async writeGeneratedTextFile(brandId: string, fileName: string, content: string) {
+    const storageKey = this.buildGeneratedAssetStorageKey(brandId, fileName);
+    await this.persistGeneratedObject(storageKey, Buffer.from(content, "utf8"), "text/html; charset=utf-8");
     return {
-      storageKey: `works/${brandId}/${fileName}`,
-      url: `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(fileName)}`,
+      storageKey,
+      url: this.resolveGeneratedAssetUrl(brandId, fileName),
     };
   }
 
-  private writeGeneratedBinaryFile(brandId: string, fileName: string, base64: string, _contentType: string) {
-    const dir = this.getGeneratedAssetDir(brandId);
-    const target = join(dir, fileName);
-    writeFileSync(target, Buffer.from(base64, "base64"));
+  private async writeGeneratedBinaryFile(brandId: string, fileName: string, base64: string, contentType: string) {
+    const buffer = Buffer.from(base64, "base64");
+    const storageKey = this.buildGeneratedAssetStorageKey(brandId, fileName);
+    await this.persistGeneratedObject(storageKey, buffer, contentType || "application/octet-stream");
     return {
-      storageKey: `works/${brandId}/${fileName}`,
-      url: `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(fileName)}`,
+      storageKey,
+      url: this.resolveGeneratedAssetUrl(brandId, fileName),
     };
   }
 
@@ -5152,14 +5146,11 @@ export class WorksService {
     return this.writeGeneratedBinaryFile(brandId, fileName, payload.dataBase64, payload.contentType || "application/octet-stream");
   }
 
-  private deleteGeneratedFileIfExists(brandId: string, fileName: string) {
+  private async deleteGeneratedFileIfExists(brandId: string, fileName: string) {
     if (!fileName) {
       return;
     }
-    const target = join(this.getGeneratedAssetDir(brandId), fileName);
-    if (existsSync(target)) {
-      unlinkSync(target);
-    }
+    await this.ossStorageService.deleteObject(this.buildGeneratedAssetStorageKey(brandId, fileName));
   }
 
   private extractFileName(storageKey: string) {
@@ -5286,7 +5277,7 @@ export class WorksService {
       const normalizedBuffer = params.normalizeImageAspectRatio
         ? await this.normalizeGeneratedImageBuffer(buffer, contentType, targetName)
         : buffer;
-      return this.writeGeneratedBinaryFile(params.brandId, targetName, normalizedBuffer.toString("base64"), contentType).url;
+      return (await this.writeGeneratedBinaryFile(params.brandId, targetName, normalizedBuffer.toString("base64"), contentType)).url;
     } catch (error) {
       throw this.describeFetchError(error, params.requestLabel);
     } finally {
@@ -5304,6 +5295,18 @@ export class WorksService {
 
   private resolveServerBaseUrl() {
     return this.appConfigService.getServerBaseUrl();
+  }
+
+  private resolveGeneratedAssetUrl(brandId: string, fileName: string) {
+    return `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(fileName)}`;
+  }
+
+  private buildGeneratedAssetStorageKey(brandId: string, fileName: string) {
+    return `works/${brandId}/${fileName}`;
+  }
+
+  private async persistGeneratedObject(storageKey: string, buffer: Buffer, contentType: string) {
+    await this.ossStorageService.putObject(storageKey, buffer, contentType);
   }
 
   private toStorageKeyFromUrl(url: string) {

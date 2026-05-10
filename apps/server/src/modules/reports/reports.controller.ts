@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
@@ -27,6 +27,17 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.generateGrowthReport(brandId);
+  }
+
+  @Get("brands/:brandId/assets/:fileName")
+  async getReportAsset(
+    @Param("brandId") brandId: string,
+    @Param("fileName") fileName: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.reportsService.getReportAsset(brandId, fileName);
+    response.setHeader("Content-Type", file.contentType);
+    return response.send(file.buffer);
   }
 
   @Patch("brands/:brandId/growth-report/:reportId")

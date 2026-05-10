@@ -120,7 +120,7 @@
 - `/personal-center/orders`：订单中心第一版，已接真实 `/orders` 列表接口，按当前登录用户查看会员订单和点数充值记录，支持状态筛选、类型筛选、关键词搜索、品牌上下文切换、筛选金额汇总和订单详情跳转；当前订单仍主要按用户维度过滤，品牌级订单归属后续继续扩展
 - `/personal-center/works`：作品中心第一版，已接真实 `/media` 列表接口，按当前登录用户查看 HTML、图片、视频与文档资产，支持作品范围筛选、类型筛选、关键词搜索、品牌上下文切换、小红书作品回跳与源文件打开；当前作品仍主要按用户维度过滤，品牌内共享与更细作品分类后续继续扩展
 - `/personal-center/skills`：技能中心第一版，当前聚焦“平台技能可见性”而非个人覆盖写入；管理员账号可读取真实 `/admin/skills` 与 `/admin/prompts` 注册表，普通账号先展示平台注册表快照，支持状态筛选、关键词搜索、品牌上下文切换、平台技能分类查看与提示词场景参考；真正的 `user-skills` 覆盖、保存、重置接口后续继续扩展
-- `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
+- `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
 - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
   - `/personal-center/team`：团队协作页第一版，已接真实 `/api/brands/:id/members`、`/api/brands/:id/invites`、`/api/brands/me/invites`、`/api/brands/me/invites/accept-by-code`、`/api/brands/:id/role-audit-logs`、`/api/brands/:id/transfer-owner`，支持成员列表、角色与状态管理、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；未登录点击邀请链接时会保留 `inviteCode` 并回流到登录后页面
@@ -189,6 +189,7 @@
   - 已支持 `register/email-code` 注册验证码发送，优先走 SMTP 发信；未配置 SMTP 时回退开发态验证码回显，保证本地可测
   - 已支持注册时邮箱验证码校验、`emailVerifiedAt` 入库和未验证邮箱账号登录拦截
   - 已支持 `PATCH /auth/profile`，允许当前登录用户自助更新昵称、头像地址和手机号
+  - 已支持 `POST /api/auth/profile/avatar` 上传头像到 OSS，并通过 `GET /api/auth/users/:userId/avatar/:fileName` 返回站内可访问头像
   - 已支持 `me`、品牌列表、切换当前品牌、logout
   - 兼容历史明文密码登录，并会在成功登录时自动升级为哈希密码
 - `apps/web/src/services/auth-session.ts`
@@ -219,12 +220,17 @@
   - 当前已新增 `GET /api/brands/:id/role-audit-logs`
   - 当前已新增 `PATCH /api/brands/:id/transfer-owner`
   - 已开始按当前登录用户校验品牌成员访问范围，并返回当前品牌成员列表与当前用户角色
+  - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
 - `ReportsModule`：品牌增长报告、可视化报告、全年营销规划、小红书策划与日历
+- `ReportsModule`
+  - 品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
+  - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
 - `WorksModule`：原创笔记作品生成、列表、编辑、删除、作品文件读取
   - 原创/二创配图现在会结构化保存 `coverText`、`imageTexts`，并在出图前把标题/小标签强制注入最终图片 prompt
   - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
+  - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
@@ -255,7 +261,7 @@
 2. 小红书与每日热点进入 `CollectorsModule`
 3. 报告类生成进入 `ReportsModule`
 4. 任务状态进入 `TasksModule`
-5. 结果资产进入 `MediaModule` 或品牌相关资产表
+5. 结果资产进入 `MediaModule` 或品牌相关资产表，并用 `storageKey + 站内 sourceUrl/fileUrl` 指向 OSS 真源
 
 ### 5.2 小红书数据链路
 
@@ -315,6 +321,9 @@
 - 小红书飞书绑定和同步状态可持久化
 - 每日热点工作区和手动同步接口已跑通
 - 定时器能力已独立为 `SchedulerModule`
+- `works` 作品文件已切到纯 OSS 持久化，站内资产接口可直接代理读取
+- `reports` HTML 产物已切到 OSS 持久化，站内报告资产接口可直接代理读取
+- 品牌产品图、品牌资料附件和用户头像已切到 OSS 持久化
 
 ## 7. 当前仍属过渡或待完善部分
 
@@ -322,6 +331,7 @@
 - 抖音/视频号/公众号/私域尚未独立落地
 - 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
+- `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径
 - 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/security`、`/tasks`、`/team`、`/invites` 八段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
 - 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页
 - 后台用户管理已进入“单用户弹窗编辑”阶段，但批量操作、分页排序和更完整的品牌权限运营闭环仍待继续补齐

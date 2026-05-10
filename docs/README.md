@@ -80,6 +80,10 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-10-oss-phase-2-report-brand-avatar-assets.md`
+  - `reports` HTML 产物、品牌资料上传素材、用户头像统一接到 OSS，站内保留稳定资源读取入口
+- `docs/changes/2026-05-10-works-pure-oss-storage.md`
+  - `works` 作品链路改为纯 OSS 存储，站内保留统一资产读取接口，不再依赖 `.runtime/generated-works`
 - `docs/changes/2026-05-10-admin-user-management-panel.md`
   - 后台用户管理升级为“筛选区 + 用户列表 + 弹窗详情编辑”，并补齐管理员账号编辑、删除与确认弹窗
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

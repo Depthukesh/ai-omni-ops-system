@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, type MeResponse } from "../../../../services/auth";
+import { getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, uploadProfileAvatar, type MeResponse } from "../../../../services/auth";
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SecurityStatus = "SAFE" | "ATTENTION";
@@ -28,6 +28,7 @@ export default function PersonalCenterSecurityPage() {
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
@@ -153,6 +154,29 @@ export default function PersonalCenterSecurityPage() {
     router.replace(buildPersonalCenterLoginPath("/personal-center/security"));
   }
 
+  async function handleAvatarUpload(file: File | null) {
+    if (!file) {
+      return;
+    }
+    setIsUploadingAvatar(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const uploaded = await uploadProfileAvatar(file);
+      setFormAvatarUrl(uploaded.avatarUrl);
+      setNotice("头像已上传到 OSS，保存账号资料后即可正式生效。");
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "头像上传失败";
+      setErrorMessage(`头像上传失败：${message}`);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  }
+
   async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formNickname.trim()) {
@@ -227,6 +251,7 @@ export default function PersonalCenterSecurityPage() {
     [currentBrand, hasAccessToken, hasRefreshToken, isEmailVerified],
   );
   const avatarFallback = (accountNickname || accountEmail || "U").trim().slice(0, 1).toUpperCase();
+  const previewAvatarUrl = formAvatarUrl.trim() || accountAvatarUrl;
 
   return (
     <section className="panel personal-center-panel">
@@ -299,11 +324,25 @@ export default function PersonalCenterSecurityPage() {
           </div>
           <div className="profile-editor-layout">
             <div className="profile-avatar-panel">
-              {accountAvatarUrl ? (
-                <img className="profile-avatar-preview" src={accountAvatarUrl} alt={`${accountNickname || "用户"}头像`} />
+              {previewAvatarUrl ? (
+                <img className="profile-avatar-preview" src={previewAvatarUrl} alt={`${accountNickname || "用户"}头像`} />
               ) : (
                 <div className="profile-avatar-fallback">{avatarFallback}</div>
               )}
+              <div className="personal-actions personal-actions--tight" style={{ width: "100%" }}>
+                <label className="secondary-button product-upload-trigger">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only-file-input"
+                    onChange={(event) => {
+                      void handleAvatarUpload(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  {isUploadingAvatar ? "头像上传中..." : "上传头像"}
+                </label>
+              </div>
               <div className="personal-grid">
                 <div>
                   <span>账号 ID</span>
@@ -342,11 +381,7 @@ export default function PersonalCenterSecurityPage() {
               </label>
               <label className="field field-full">
                 <span>头像地址</span>
-                <input
-                  value={formAvatarUrl}
-                  onChange={(event) => setFormAvatarUrl(event.target.value)}
-                  placeholder="支持 http(s) 链接或站内路径；留空则清除头像"
-                />
+                <input value={formAvatarUrl} onChange={(event) => setFormAvatarUrl(event.target.value)} placeholder="支持 http(s) 链接或站内路径；留空则清除头像" />
               </label>
               <label className="field">
                 <span>邮箱</span>
@@ -360,7 +395,7 @@ export default function PersonalCenterSecurityPage() {
                 <button type="button" className="secondary-button" onClick={() => hydrateProfileForm(readAuthSession()?.user)} disabled={isSavingProfile}>
                   重置输入
                 </button>
-                <button type="submit" className="primary-button" disabled={isSavingProfile}>
+                <button type="submit" className="primary-button" disabled={isSavingProfile || isUploadingAvatar}>
                   {isSavingProfile ? "保存中..." : "保存账号资料"}
                 </button>
               </div>

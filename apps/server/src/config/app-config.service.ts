@@ -48,6 +48,22 @@ export class AppConfigService {
     return `http://localhost:${this.getServerPort()}`;
   }
 
+  getOssConfig() {
+    const accessKeyId = this.readFirst("OSS_ACCESS_KEY_ID");
+    const accessKeySecret = this.readFirst("OSS_ACCESS_KEY_SECRET");
+    const bucket = this.readFirst("OSS_BUCKET");
+    const region = this.readFirst("OSS_REGION");
+    if (!accessKeyId || !accessKeySecret || !bucket || !region) {
+      return null;
+    }
+    return {
+      accessKeyId,
+      accessKeySecret,
+      bucket,
+      region,
+    };
+  }
+
   private readFirst(...keys: string[]) {
     for (const key of keys) {
       const value = process.env[key]?.trim();

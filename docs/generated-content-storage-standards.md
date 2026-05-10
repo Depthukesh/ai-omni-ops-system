@@ -11,7 +11,10 @@
 - 小红书原创笔记
 - 小红书二创笔记
 - 小红书视频笔记
-- 后续所有生成型图文/视频作品
+- 品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案等 HTML 产物
+- 品牌资料库中的产品图片、资料附件等上传素材
+- 用户头像等用户上传图片素材
+- 后续所有生成型图文/视频作品与需要长期访问的业务上传文件
 
 ## 3. 当前统一原则
 
@@ -46,12 +49,21 @@
 - `storageKey`
 - `metadataJson`
 
-### 4.3 本地资源副本
+### 4.3 受控资源副本
 
-- 当前统一落到：
-- `.runtime/generated-works/<brandId>/`
-- 对外访问统一走：
+- 当前以下资源均统一持久化到 OSS：
+- `works` 生成资源：`works/<brandId>/<fileName>`
+- `reports` HTML 产物：`reports/<brandId>/<fileName>`
+- 品牌产品图片：`brands/<brandId>/product-images/<fileName>`
+- 品牌资料附件：`brands/<brandId>/asset-files/<fileName>`
+- 用户头像：`users/<userId>/avatars/<fileName>`
+- 对外访问统一仍优先走站内接口：
 - `/api/works/brands/:brandId/assets/:fileName`
+- `/api/reports/brands/:brandId/assets/:fileName`
+- `/api/brands/:id/product-images/:fileName`
+- `/api/brands/:id/asset-files/:fileName`
+- `/api/auth/users/:userId/avatar/:fileName`
+- 站内接口负责按 `storageKey` 从 OSS 读取，不再把 `.runtime/generated-works/` 或其他本地目录当作正式真源
 
 ## 5. 三类作品存储要求
 
@@ -80,17 +92,17 @@
 
 ### 6.1 文案
 
-- HTML 主记录必须写入本站本地副本
+- HTML 主记录必须写入受控持久化副本
 - 不允许只在内存或任务返回值中保留正文
 
 ### 6.2 图片
 
-- 生成图片必须先下载或直接写入本站副本，再写入 `MediaAsset`
+- 生成图片必须先下载或直接写入受控持久化副本，再写入 `MediaAsset`
 - 不允许把第三方临时图片 URL 作为唯一正式存储地址
 
 ### 6.3 视频
 
-- 生成视频必须先下载并写入本站副本，再写入 `MediaAsset`
+- 生成视频必须先下载并写入受控持久化副本，再写入 `MediaAsset`
 - 第三方返回的 `videoUrl` 只能作为中间输入，不能作为最终唯一存储地址
 
 ### 6.4 元数据
@@ -101,9 +113,10 @@
 
 ## 7. 删除与更新规则
 
-- 删除作品时，同时删除本站本地副本文件
-- 更新作品文案时，同时更新 HTML 副本与 `metadataJson`
-- 更新资源引用时，优先覆盖本站副本关系，不直接改回第三方外链
+- 删除作品或附件时，同时删除对应 OSS 对象副本
+- 更新作品文案或报告 HTML 时，同时更新 OSS 中的 HTML 副本与 `metadataJson`
+- 更新头像、产品图、资料附件等上传资源时，新对象必须直接写入 OSS，不回退本地目录
+- 更新资源引用时，优先覆盖 OSS 副本关系，不直接改回第三方外链
 
 ## 8. 发布前校验规则
 
@@ -116,13 +129,17 @@
 - 后续新增“营销海报”“短视频封面”“长视频剪辑稿”等内容时，沿用同一模型
 - 统一遵循：
 - `Task` 记录过程
-- `MediaAsset` 记录结果
-- `.runtime/generated-works/<brandId>/` 保存副本
+- `MediaAsset` 或 `BusinessAsset` 记录结果索引
+- 业务对象统一使用明确前缀的 `storageKey`
 - `metadataJson` 保存结构化业务信息
 
 ## 10. 当前执行结论
 
 - 文案已基本进入规范化存储
-- 原创/二创图片已进入本站副本链路
-- 视频成片与视频封面已开始补齐本站副本链路
-- 下一阶段继续收口产品图、历史外链资源和更多作品类型
+- `works` 主链路现已改为纯 OSS 存储，站内保留统一资产读取入口
+- `reports` 的品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 HTML 产物已真实写入 OSS
+- 品牌产品图与品牌资料附件已改为 OSS 真源，站内读取接口直接代理 OSS 对象
+- 用户头像已支持真实上传到 OSS，并通过站内头像接口读取
+- 原创/二创图片已进入受控副本链路
+- 视频成片与视频封面已开始补齐受控副本链路
+- 下一阶段继续收口历史外链资源、演示种子占位链接和更多作品类型

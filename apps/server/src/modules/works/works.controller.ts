@@ -108,12 +108,12 @@ export class WorksController {
   }
 
   @Get("brands/:brandId/assets/:fileName")
-  getGeneratedAsset(
+  async getGeneratedAsset(
     @Param("brandId") brandId: string,
     @Param("fileName") fileName: string,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
-    const file = this.worksService.getGeneratedAsset(brandId, fileName);
+    const file = await this.worksService.getGeneratedAsset(brandId, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }

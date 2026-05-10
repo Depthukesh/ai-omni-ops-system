@@ -1,13 +1,14 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { AssetCategory, BrandInviteStatus, BrandMemberRole, BrandMemberStatus, PlatformType, Prisma } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 
 const execFileAsync = promisify(execFile);
 
@@ -276,6 +277,9 @@ const FEISHU_BINDING_KIND = "FEISHU_COPY_BINDING";
 
 @Injectable()
 export class BrandsService {
+  private readonly appConfigService = new AppConfigService();
+  private readonly ossStorageService = new OssStorageService(this.appConfigService);
+
   constructor(private readonly prismaService: PrismaService) {}
 
   async getOverview() {
@@ -1323,11 +1327,8 @@ export class BrandsService {
 
     const extension = this.resolveImageExtension(payload.fileName, payload.contentType);
     const fileName = `${randomUUID()}${extension}`;
-    const directoryPath = this.resolveBrandProductImageDirectory(id);
-    const filePath = join(directoryPath, fileName);
-
-    mkdirSync(directoryPath, { recursive: true });
-    writeFileSync(filePath, Buffer.from(payload.dataBase64, "base64"));
+    const storageKey = this.buildBrandProductImageStorageKey(id, fileName);
+    await this.ossStorageService.putObject(storageKey, Buffer.from(payload.dataBase64, "base64"), payload.contentType);
 
     return {
       fileName,
@@ -1335,18 +1336,13 @@ export class BrandsService {
     };
   }
 
-  getProductImage(id: string, fileName: string) {
+  async getProductImage(id: string, fileName: string) {
     const safeFileName = this.sanitizeStoredFileName(fileName);
-    const filePath = join(this.resolveBrandProductImageDirectory(id), safeFileName);
-
-    if (!existsSync(filePath)) {
+    const file = await this.ossStorageService.getObject(this.buildBrandProductImageStorageKey(id, safeFileName));
+    if (!file) {
       throw new NotFoundException("产品图片不存在");
     }
-
-    return {
-      buffer: readFileSync(filePath),
-      contentType: this.resolveImageContentType(safeFileName),
-    };
+    return file;
   }
 
   async uploadAssetFile(id: string, payload: UploadBrandAssetFilePayload): Promise<BrandAssetFileUploadRecord> {
@@ -1358,11 +1354,9 @@ export class BrandsService {
 
     const extension = this.resolveStoredExtension(payload.fileName);
     const fileName = `${randomUUID()}${extension}`;
-    const directoryPath = this.resolveBrandAssetFileDirectory(id);
-    const filePath = join(directoryPath, fileName);
-
-    mkdirSync(directoryPath, { recursive: true });
-    writeFileSync(filePath, Buffer.from(payload.dataBase64, "base64"));
+    const contentType = payload.contentType || this.resolveFileContentType(fileName);
+    const storageKey = this.buildBrandAssetFileStorageKey(id, fileName);
+    await this.ossStorageService.putObject(storageKey, Buffer.from(payload.dataBase64, "base64"), contentType);
 
     return {
       fileName,
@@ -1370,18 +1364,13 @@ export class BrandsService {
     };
   }
 
-  getAssetFile(id: string, fileName: string) {
+  async getAssetFile(id: string, fileName: string) {
     const safeFileName = this.sanitizeStoredFileName(fileName);
-    const filePath = join(this.resolveBrandAssetFileDirectory(id), safeFileName);
-
-    if (!existsSync(filePath)) {
+    const file = await this.ossStorageService.getObject(this.buildBrandAssetFileStorageKey(id, safeFileName));
+    if (!file) {
       throw new NotFoundException("文档不存在");
     }
-
-    return {
-      buffer: readFileSync(filePath),
-      contentType: this.resolveFileContentType(safeFileName),
-    };
+    return file;
   }
 
   async upsertSurvey(id: string, payload: UpsertSurveyPayload) {
@@ -2905,29 +2894,16 @@ export class BrandsService {
     return new Prisma.Decimal(value);
   }
 
-  private resolveBrandProductImageDirectory(brandId: string) {
-    return join(this.resolveWorkspaceRootDir(), ".runtime", "brand-product-images", brandId);
+  private buildBrandProductImageStorageKey(brandId: string, fileName: string) {
+    return `brands/${brandId}/product-images/${fileName}`;
   }
 
-  private resolveBrandAssetFileDirectory(brandId: string) {
-    return join(this.resolveWorkspaceRootDir(), ".runtime", "brand-asset-files", brandId);
-  }
-
-  private resolveWorkspaceRootDir() {
-    const candidates = [process.cwd(), resolve(process.cwd(), ".."), resolve(process.cwd(), "..", "..")];
-    for (const candidate of candidates) {
-      if (existsSync(join(candidate, "prisma", "schema.prisma"))) {
-        return candidate;
-      }
-    }
-
-    return process.cwd();
+  private buildBrandAssetFileStorageKey(brandId: string, fileName: string) {
+    return `brands/${brandId}/asset-files/${fileName}`;
   }
 
   private resolveServerBaseUrl() {
-    return process.env.API_PUBLIC_BASE_URL
-      || process.env.WEB_API_BASE_URL
-      || `http://localhost:${Number(process.env.PORT || 3011)}`;
+    return this.appConfigService.getServerBaseUrl();
   }
 
   private resolveImageExtension(fileName: string, contentType: string) {

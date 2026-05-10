@@ -314,16 +314,18 @@ flowchart TD
     PC --> PC1["/personal-center/orders"]
     PC --> PC2["/personal-center/works"]
     PC --> PC3["/personal-center/skills"]
-    PC --> PC4["/personal-center/security"]
+    PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team"]
     PC --> PC7["/personal-center/invites"]
     PCS1 --> PAPI1["/auth/profile 读写"]
+    PC4 --> PAPI11["/auth/profile/avatar + /auth/users/:userId/avatar/:fileName"]
     PCS1 --> PAPI2["/auth/point-ledgers"]
     PCS1 --> PAPI3["/orders"]
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
     PAPI1 --> PM1["AuthModule"]
+    PAPI11 --> PM1
     PAPI2 --> PM1
     PAPI3 --> PM2["OrdersModule"]
     PAPI4 --> PM3["TasksModule"]
@@ -398,6 +400,7 @@ flowchart TD
     App --> Infra1["PrismaModule"]
     App --> Infra2["SchedulerModule"]
     App --> Infra3["AppConfigModule"]
+    App --> Infra4["StorageModule / OSS"]
 
     App --> M1["AuthModule"]
     App --> M2["BrandsModule"]
@@ -410,11 +413,15 @@ flowchart TD
     App --> M9["OrdersModule"]
     App --> M10["Admin Modules"]
 
+    M1 --> Infra4
+    M2 --> Infra4
     M3 --> M2
     M4 --> M2
+    M4 --> Infra4
     M5 --> M2
     M5 --> M7
     M5 --> M8
+    M5 --> Infra4
     M5 --> M51["原创/二创成品图保存前统一规范为 1242x1660 竖版 3:4"]
     M5 --> M52["视频笔记统一读取 short-video-api-studio 并保存结构化视频提示词字段"]
     M5 --> M53["视频笔记当前只生成 1 条主成片，失败时才串行回退下一个视频后端"]
@@ -584,11 +591,13 @@ flowchart LR
 - 启动入口：`apps/server/src/main.ts`
 - 健康检查：`apps/server/src/app.controller.ts`
 - 配置服务：`apps/server/src/config/app-config.service.ts`
-- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`（含 `register/email-code`、`PATCH /auth/profile`）
+- 存储模块：`apps/server/src/storage/storage.module.ts`
+- OSS 存储服务：`apps/server/src/storage/oss-storage.service.ts`
+- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`（含 `register/email-code`、`PATCH /auth/profile`、`POST /auth/profile/avatar`）
 - 品牌资料：`apps/server/src/modules/brands/brands.controller.ts`
 - 小红书收集：`apps/server/src/modules/collectors/collectors.controller.ts`
 - 每日热点：`apps/server/src/modules/collectors/daily-hotspots.controller.ts`
-- 报告与营销方案：`apps/server/src/modules/reports/reports.controller.ts`
+- 报告与营销方案：`apps/server/src/modules/reports/reports.controller.ts`（含 `/reports/brands/:brandId/assets/:fileName`）
 - 作品域：`apps/server/src/modules/works/works.controller.ts`
 - 发布域：`apps/server/src/modules/publishing/publishing.controller.ts`
 - 订单域：`apps/server/src/modules/orders/orders.controller.ts`

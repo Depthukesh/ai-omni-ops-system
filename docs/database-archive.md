@@ -107,6 +107,7 @@
 - `BusinessAsset`
   - 用途：品牌经营资产、收集结果、生成报告索引
   - 关键字段：`brandId`、`category`、`title`、`description`、`fileUrl`、`metadataJson`
+  - 当前报告 HTML 与品牌资料附件会把 `fileUrl` 指向站内可访问路径，并用 `metadataJson` / 关联记录保存 `storageKey`
 
 ### 3.4 任务与生成结果域
 
@@ -116,6 +117,8 @@
 - `MediaAsset`
   - 用途：图片、视频、HTML、文档等结果媒体
   - 关键字段：`mediaType`、`title`、`sourceUrl`、`storageKey`、`mimeType`、`durationSec`、`metadataJson`
+  - 当前 `works` 主链路约定：`sourceUrl` 走站内 `/api/works/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `works/<brandId>/<fileName>`
+  - 当前 `reports` 主链路约定：`sourceUrl` 走站内 `/api/reports/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `reports/<brandId>/<fileName>`
 
 ### 3.5 飞书集成域
 
@@ -138,6 +141,7 @@
 
 - 品牌资料库
   - 主表：`Brand`、`Product`、`BrandSurvey`、`IndustryReport`、`BusinessAsset`
+  - 产品图片与资料附件当前统一持久化到 OSS，分别使用 `brands/<brandId>/product-images/<fileName>`、`brands/<brandId>/asset-files/<fileName>` 作为对象真源，数据库只保存索引和站内访问地址
 - 收集数据
   - 主表：`PlatformAccount`、`CompetitorAccount`、`BusinessAsset`
   - 飞书绑定：`UserFeishuIntegration`
@@ -145,6 +149,7 @@
   - 任务：`Task`
   - 媒体结果：`MediaAsset`
   - 结果索引：`BusinessAsset`
+  - 报告 HTML 当前统一持久化到 OSS，数据库中保存 `storageKey` 与站内 `sourceUrl`
 - 访问边界
   - 当前品牌相关读取与写入已按 `BrandMember / ownerUserId` 校验当前登录用户访问权限，不再允许新账号通过旧 `brandId` 继续读取演示品牌数据
 
@@ -166,6 +171,7 @@
 ### 4.3 个人中心 `/personal-center`
 
 - 用户资料：`User`
+- 用户头像对象真源：OSS `users/<userId>/avatars/<fileName>`，`User.avatarUrl` 保存站内头像访问地址
 - 注册邮箱验证：`EmailVerificationCode`
 - 登录态：`UserSession`
 - 点数流水：`PointLedger`
@@ -204,9 +210,9 @@
   - 注册邮箱验证码在数据库不可用时也会暂存到内存兜底，不写入 `mock-data`
 - `提示词/` 与 `.trae/skills/`
   - 仍作为提示词文件真源和回填来源之一
-- `.runtime/generated-works/`
-  - 仍保存生成资源的本站副本文件
-  - 数据库中保存的是索引、元数据和可访问路径，不直接存二进制文件本体
+- 历史演示数据和少量非主链路资源
+  - `works`、`reports`、品牌产品图、品牌资料附件、用户头像这几条主链路已改为 OSS 对象持久化
+  - 但 `mock-data` 与部分历史演示资源中仍可能保留第三方 URL 或 `oss.example.com` 占位链接
 
 ## 6. 当前关键参数约定
 
@@ -227,6 +233,12 @@
 - `mimeType`：文件类型
 - `durationSec`：视频时长
 - `metadataJson`：作品或报告的结构化扩展字段
+- 主链路约定：
+- `works/<brandId>/<fileName>`
+- `reports/<brandId>/<fileName>`
+- `brands/<brandId>/product-images/<fileName>`
+- `brands/<brandId>/asset-files/<fileName>`
+- `users/<userId>/avatars/<fileName>`
 
 ### 6.3 技能注册表参数
 

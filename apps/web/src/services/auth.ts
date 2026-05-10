@@ -41,6 +41,11 @@ export type UpdateProfilePayload = {
   avatarUrl?: string;
 };
 
+export type UploadProfileAvatarResponse = {
+  fileName: string;
+  avatarUrl: string;
+};
+
 export type AuthSuccessPayload = AuthSession & {
   user: AuthUser;
 };
@@ -100,6 +105,15 @@ export async function updateProfile(payload: UpdateProfilePayload) {
   return response;
 }
 
+export async function uploadProfileAvatar(file: File) {
+  const dataBase64 = await readFileAsBase64(file);
+  return jsonRequest<UploadProfileAvatarResponse>("/auth/profile/avatar", "POST", {
+    fileName: file.name,
+    contentType: file.type || "image/jpeg",
+    dataBase64,
+  });
+}
+
 export async function getBrands() {
   const response = await request<Pick<AuthSession, "brands" | "currentBrandId">>("/auth/brands");
   mergeStoredAuthSession(response);
@@ -135,4 +149,17 @@ export async function logout() {
 
 export function readAuthSession() {
   return getStoredAuthSession();
+}
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      const [, base64 = ""] = result.split(",");
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
 }

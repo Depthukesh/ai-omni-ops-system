@@ -232,12 +232,9 @@ export class BrandsController {
   async getProductImage(
     @Param("id") id: string,
     @Param("fileName") fileName: string,
-    @Headers() headers: Record<string, string | string[] | undefined>,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
-    const file = this.brandsService.getProductImage(id, fileName);
+    const file = await this.brandsService.getProductImage(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }
@@ -257,12 +254,9 @@ export class BrandsController {
   async getAssetFile(
     @Param("id") id: string,
     @Param("fileName") fileName: string,
-    @Headers() headers: Record<string, string | string[] | undefined>,
     @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
   ) {
-    const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
-    const file = this.brandsService.getAssetFile(id, fileName);
+    const file = await this.brandsService.getAssetFile(id, fileName);
     response.setHeader("Content-Type", file.contentType);
     return response.send(file.buffer);
   }
