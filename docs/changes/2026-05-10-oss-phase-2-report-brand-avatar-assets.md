@@ -9,6 +9,7 @@
 - `apps/server/src/modules/auth/auth.service.ts` 新增头像上传与读取逻辑，头像对象统一存到 `users/<userId>/avatars/<fileName>`
 - `apps/server/src/modules/auth/auth.controller.ts` 新增 `POST /api/auth/profile/avatar` 与 `GET /api/auth/users/:userId/avatar/:fileName`
 - `apps/web/src/services/auth.ts` 与 `apps/web/src/app/(dashboard)/personal-center/security/page.tsx` 补齐前端头像上传入口
+- `apps/server/src/common/mock-data.ts` 把残留的 `oss.example.com` 演示占位链接清理为站内 API 路径或稳定演示图 URL，避免继续把假 OSS 域名暴露给前端
 
 ## 修改意图
 
@@ -55,5 +56,5 @@
 ## 当前边界
 
 - 本轮已收口 `works + reports + 品牌产品图/资料附件 + 用户头像`
-- `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，属于种子/演示层，尚未在本轮统一替换
+- `mock-data` 已不再保留 `oss.example.com` 作为演示资源地址；但站内 API 路径在纯演示模式下仍可能只作为结构示意，不代表本地一定存在同名对象
 - 尚未提交 Git，也未推 GitHub 和触发阿里云自动部署

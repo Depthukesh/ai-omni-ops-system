@@ -241,6 +241,24 @@ export type ApiProviderRecord = {
   updatedAt: string;
 };
 
+const DEMO_TIRAMISU_PRODUCT_IMAGE_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20premium%20tiramisu%20cake%20product%20photo%2C%20bakery%20display%2C%20soft%20warm%20lighting%2C%20commercial%20food%20photography%2C%20clean%20background&image_size=portrait_4_3";
+const DEMO_CROISSANT_PRODUCT_IMAGE_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20freshly%20baked%20croissant%20product%20photo%2C%20bakery%20counter%2C%20golden%20layers%2C%20soft%20morning%20light%2C%20commercial%20food%20photography&image_size=portrait_4_3";
+const DEMO_BRAND_ACCOUNT_AVATAR_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20friendly%20female%20bakery%20brand%20manager%20avatar%2C%20asian%20young%20adult%2C%20soft%20studio%20lighting%2C%20clean%20background%2C%20professional%20headshot&image_size=square";
+const DEMO_COMPETITOR_ACCOUNT_AVATAR_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20stylish%20female%20brand%20founder%20avatar%2C%20asian%20young%20adult%2C%20soft%20studio%20lighting%2C%20neutral%20background%2C%20professional%20headshot&image_size=square";
+const DEMO_NOTE_IMAGE_1_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20bakery%20social%20post%20image%2C%20tiramisu%20cake%20close-up%2C%20cozy%20dessert%20table%2C%20warm%20lighting%2C%20lifestyle%20photography&image_size=portrait_4_3";
+const DEMO_NOTE_IMAGE_2_URL =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=realistic%20bakery%20social%20post%20image%2C%20cake%20slice%20and%20coffee%20scene%2C%20warm%20cafe%20light%2C%20lifestyle%20photography%2C%20clean%20composition&image_size=portrait_4_3";
+const DEMO_BRAND_REPORT_FILE_URL = "/api/reports/brands/br_demo_001/assets/growth-report-latest.html";
+const DEMO_BRAND_REPORT_SOURCE_URL = "/api/reports/brands/br_demo_001/assets/growth-report.html";
+const DEMO_WORK_COVER_SOURCE_URL = DEMO_NOTE_IMAGE_1_URL;
+const DEMO_INDUSTRY_REPORT_FILE_URL = "/api/brands/br_demo_001/asset-files/bakery-report.pdf";
+const DEMO_BUSINESS_DATA_FILE_URL = "/api/brands/br_demo_001/asset-files/youzan-q1.xlsx";
+
 function readTextFromCandidates(candidates: string[], fallback: string) {
   for (const candidate of candidates) {
     try {
@@ -381,7 +399,7 @@ export const database: MockDatabase = {
       differentiators: "爆浆口感、门店现制、节庆氛围强",
       marketPosition: "节日蛋糕核心引流款",
       detailDescription: "主打节日礼赠与庆生场景，强调颜值、口感和分享属性。",
-      imageUrl: "https://oss.example.com/products/tiramisu-cake.jpg",
+      imageUrl: DEMO_TIRAMISU_PRODUCT_IMAGE_URL,
     },
     {
       id: "prd_demo_002",
@@ -396,7 +414,7 @@ export const database: MockDatabase = {
       differentiators: "现烤出炉、香气强、适合高频购买",
       marketPosition: "门店高频销量款",
       detailDescription: "适合作为门店高频到店产品，承担日常复购与连带销售任务。",
-      imageUrl: "https://oss.example.com/products/croissant.jpg",
+      imageUrl: DEMO_CROISSANT_PRODUCT_IMAGE_URL,
     },
   ],
   platformAccounts: [
@@ -476,7 +494,7 @@ export const database: MockDatabase = {
       title: "烘焙品类市场分析",
       description: "包含品类规模、价格分布、场景需求与用户偏好。",
       sourceName: "蝉妈妈 AI 市场调研",
-      fileUrl: "https://oss.example.com/industry/bakery-report.pdf",
+      fileUrl: DEMO_INDUSTRY_REPORT_FILE_URL,
     },
     {
       id: "ast_demo_002",
@@ -485,7 +503,7 @@ export const database: MockDatabase = {
       title: "有赞商城季度经营明细",
       description: "用于分析订单结构、复购率、客单价与渠道转化差异。",
       sourceName: "有赞导出报表",
-      fileUrl: "https://oss.example.com/business/youzan-q1.xlsx",
+      fileUrl: DEMO_BUSINESS_DATA_FILE_URL,
     },
     {
       id: "ast_demo_xhs_brand_account_001",
@@ -502,7 +520,7 @@ export const database: MockDatabase = {
         postedCount: 18,
         likedCount: 3680,
         collectedCount: 920,
-        avatar: "https://oss.example.com/avatar/qianji.png",
+        avatar: DEMO_BRAND_ACCOUNT_AVATAR_URL,
         description: "区域烘焙品牌官方账号",
         ipLocation: "湖北",
         followCount: 126,
@@ -514,7 +532,7 @@ export const database: MockDatabase = {
           posted: 18,
           liked: 3680,
           collected: 920,
-          avatar: "https://oss.example.com/avatar/qianji.png",
+          avatar: DEMO_BRAND_ACCOUNT_AVATAR_URL,
           desc: "区域烘焙品牌官方账号",
           ip_location: "湖北",
           follows: 126,
@@ -537,7 +555,7 @@ export const database: MockDatabase = {
         postedCount: 32,
         likedCount: 5820,
         collectedCount: 1430,
-        avatar: "https://oss.example.com/avatar/comp-a.png",
+        avatar: DEMO_COMPETITOR_ACCOUNT_AVATAR_URL,
         description: "区域竞品小红书账号",
         ipLocation: "上海",
         followCount: 215,
@@ -549,7 +567,7 @@ export const database: MockDatabase = {
           posted: 32,
           liked: 5820,
           collected: 1430,
-          avatar: "https://oss.example.com/avatar/comp-a.png",
+          avatar: DEMO_COMPETITOR_ACCOUNT_AVATAR_URL,
           desc: "区域竞品小红书账号",
           ip_location: "上海",
           follows: 215,
@@ -572,7 +590,7 @@ export const database: MockDatabase = {
         noteUrl: "https://www.xiaohongshu.com/explore/demo-note-001",
         noteType: "nomal",
         nickname: "武汉仟吉烘焙",
-        imageList: ["https://oss.example.com/demo/note-001-1.jpg", "https://oss.example.com/demo/note-001-2.jpg"],
+        imageList: [DEMO_NOTE_IMAGE_1_URL, DEMO_NOTE_IMAGE_2_URL],
         externalUserId: "xhs_brand_demo_001",
         likeCount: 186,
         collectCount: 92,
@@ -585,7 +603,7 @@ export const database: MockDatabase = {
           title: "武汉仟吉爆浆提拉米苏值得买吗？",
           type: "nomal",
           nickname: "武汉仟吉烘焙",
-          images_list: ["https://oss.example.com/demo/note-001-1.jpg", "https://oss.example.com/demo/note-001-2.jpg"],
+          images_list: [DEMO_NOTE_IMAGE_1_URL, DEMO_NOTE_IMAGE_2_URL],
           userid: "xhs_brand_demo_001",
           likes: 186,
           collected_count: 92,
@@ -604,7 +622,7 @@ export const database: MockDatabase = {
       title: "武汉仟吉品牌增长报告",
       description: "围绕品牌现状、内容采集和增长机会形成的首版品牌增长报告。",
       sourceName: "系统生成",
-      fileUrl: "https://oss.example.com/reports/br_demo_001/growth-report-latest.html",
+      fileUrl: DEMO_BRAND_REPORT_FILE_URL,
       metadataJson: {
         kind: "BRAND_GROWTH_REPORT",
         generatedAt: "2026-05-01T10:00:00.000Z",
@@ -671,7 +689,7 @@ export const database: MockDatabase = {
       title: "品牌增长可视化报告",
       mediaType: "HTML",
       storageKey: "reports/br_demo_001/growth-report.html",
-      sourceUrl: "https://oss.example.com/reports/br_demo_001/growth-report.html",
+      sourceUrl: DEMO_BRAND_REPORT_SOURCE_URL,
       createdAt: "2026-05-01T10:00:00.000Z",
       updatedAt: "2026-05-01T10:00:00.000Z",
       mimeType: "text/html",
@@ -683,7 +701,7 @@ export const database: MockDatabase = {
       title: "爆浆提拉米苏封面图",
       mediaType: "IMAGE",
       storageKey: "works/br_demo_001/post-cover-001.png",
-      sourceUrl: "https://oss.example.com/works/br_demo_001/post-cover-001.png",
+      sourceUrl: DEMO_WORK_COVER_SOURCE_URL,
       createdAt: "2026-05-02T03:10:00.000Z",
       updatedAt: "2026-05-02T03:10:00.000Z",
       mimeType: "image/png",
