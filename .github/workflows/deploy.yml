@@ -21,26 +21,6 @@ jobs:
           script: |
             set -euo pipefail
             APP_RUNTIME_USER="aiops"
-            cd ${{ secrets.DEPLOY_PATH }}
-
-            git fetch origin main
-            git checkout main
-
-            PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
-            if [ -n "$PRE_DEPLOY_STATUS" ]; then
-              echo "部署终止：服务器工作区存在未收口改动或额外文件。"
-              printf '%s\n' "$PRE_DEPLOY_STATUS"
-              exit 1
-            fi
-
-            git pull --ff-only origin main
-
-            POST_PULL_STATUS="$(git status --porcelain=v1 -uall)"
-            if [ -n "$POST_PULL_STATUS" ]; then
-              echo "部署终止：拉取后工作区未保持干净，请先人工排查服务器现场。"
-              printf '%s\n' "$POST_PULL_STATUS"
-              exit 1
-            fi
 
             if ! id -u "$APP_RUNTIME_USER" >/dev/null 2>&1; then
               useradd --system --create-home --shell /bin/bash "$APP_RUNTIME_USER"
@@ -52,6 +32,25 @@ jobs:
             runuser -u "$APP_RUNTIME_USER" -- bash -lc '
               set -euo pipefail
               cd "${{ secrets.DEPLOY_PATH }}"
+
+              git fetch origin main
+              git checkout main
+
+              PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$PRE_DEPLOY_STATUS" ]; then
+                echo "部署终止：服务器工作区存在未收口改动或额外文件。"
+                printf "%s\n" "$PRE_DEPLOY_STATUS"
+                exit 1
+              fi
+
+              git pull --ff-only origin main
+
+              POST_PULL_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$POST_PULL_STATUS" ]; then
+                echo "部署终止：拉取后工作区未保持干净，请先人工排查服务器现场。"
+                printf "%s\n" "$POST_PULL_STATUS"
+                exit 1
+              fi
 
               npm ci
               npm run prisma:generate

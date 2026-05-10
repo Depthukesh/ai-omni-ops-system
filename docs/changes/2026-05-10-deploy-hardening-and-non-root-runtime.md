@@ -71,6 +71,8 @@
 - GitHub Actions `Run 8` 对应提交 `3ddd9de` 虽然最终标记为失败，但服务器实际已经拉到该提交并由 `aiops` 正常拉起 `ai-omni-server` 与 `ai-omni-web`。
 - 失败根因不是工作区脏、权限错误或 `pm2` 启动失败，而是工作流在 `pm2 startOrReload` 后立刻执行 `curl http://127.0.0.1:3011/api/health`，命中了服务尚未完成启动的瞬间窗口。
 - 因此本次把“部署后健康检查必须带等待窗口与重试”补进工作流，避免把“服务启动中”误报成“部署失败”。
+- 随后 `Run 9` 又暴露出第二个问题：仓库目录已归属 `aiops` 后，工作流前半段仍由 `root` 执行 `git fetch/checkout/status/pull`，触发了 Git 的 `dubious ownership` 保护。
+- 因此进一步把部署中的 Git 检查与拉取也一并收口到 `runuser -u aiops -- ...` 内执行，避免 `root` 再直接操作该仓库。
 
 ## 7. 风险与后续
 
