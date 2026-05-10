@@ -36,6 +36,16 @@
 5. 进入小红书继续策划、排期和内容生产
 6. 到个人中心查看任务、订单、作品
 
+### 2.3 部署与运行入口
+
+- GitHub 自动部署入口：`.github/workflows/deploy.yml`
+- 生产 PM2 进程定义：`ecosystem.config.cjs`
+- 当前部署约束：
+  - 部署前会先检查服务器仓库 `git status --porcelain -uall` 是否为空；如发现额外文件或未收口改动，直接终止部署
+  - 生产前后端统一通过 `PM2 + ecosystem.config.cjs` 启动
+  - `apps/server` 默认通过 `SERVER_HOST=127.0.0.1` 仅监听本机 `3011`
+  - `apps/web` 生产启动统一绑定 `127.0.0.1:3001`，外部访问只允许经 `nginx` 反代
+
 ## 3. 前端结构地图
 
 ### 3.1 品牌增长策略 `/brand-growth`

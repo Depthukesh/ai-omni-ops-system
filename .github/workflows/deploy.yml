@@ -19,21 +19,58 @@ jobs:
           key: ${{ secrets.ALIYUN_SSH_KEY }}
           port: ${{ secrets.ALIYUN_PORT }}
           script: |
-            set -e
+            set -euo pipefail
+            APP_RUNTIME_USER="aiops"
             cd ${{ secrets.DEPLOY_PATH }}
 
             git fetch origin main
             git checkout main
+
+            PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
+            if [ -n "$PRE_DEPLOY_STATUS" ]; then
+              echo "部署终止：服务器工作区存在未收口改动或额外文件。"
+              printf '%s\n' "$PRE_DEPLOY_STATUS"
+              exit 1
+            fi
+
             git pull --ff-only origin main
 
-            npm ci
-            npm run prisma:generate
-            npm run prisma:db:push
+            POST_PULL_STATUS="$(git status --porcelain=v1 -uall)"
+            if [ -n "$POST_PULL_STATUS" ]; then
+              echo "部署终止：拉取后工作区未保持干净，请先人工排查服务器现场。"
+              printf '%s\n' "$POST_PULL_STATUS"
+              exit 1
+            fi
 
-            npm run build:server
-            npm run build:web
+            if ! id -u "$APP_RUNTIME_USER" >/dev/null 2>&1; then
+              useradd --system --create-home --shell /bin/bash "$APP_RUNTIME_USER"
+            fi
 
-            pm2 restart ai-omni-server || pm2 start "npm --workspace apps/server run start" --name ai-omni-server
-            pm2 restart ai-omni-web || pm2 start "npm --workspace apps/web run start -- -p 3001" --name ai-omni-web
+            install -d -m 755 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.pm2"
+            chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "${{ secrets.DEPLOY_PATH }}"
 
-            pm2 save
+            runuser -u "$APP_RUNTIME_USER" -- bash -lc '
+              set -euo pipefail
+              cd "${{ secrets.DEPLOY_PATH }}"
+
+              npm ci
+              npm run prisma:generate
+              npm run prisma:db:push
+
+              npm run build:server
+              npm run build:web
+
+              pm2 startOrReload ecosystem.config.cjs --update-env
+              pm2 save
+            '
+
+            LOCAL_LISTENERS="$(ss -lnt | grep -E ':(80|443|3001|3011)\b' || true)"
+            printf '%s\n' "$LOCAL_LISTENERS"
+
+            if ss -lnt | grep -qE '0\.0\.0\.0:3001|:::3001|0\.0\.0\.0:3011|:::3011'; then
+              echo "部署终止：检测到 3001/3011 仍对公网监听。"
+              exit 1
+            fi
+
+            curl -fsS http://127.0.0.1:3011/api/health
+            curl -fsS http://127.0.0.1:3001 >/dev/null

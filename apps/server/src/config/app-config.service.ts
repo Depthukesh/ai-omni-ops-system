@@ -3,6 +3,10 @@ import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class AppConfigService {
+  getServerHost() {
+    return this.readFirst("SERVER_HOST", "HOST") || "127.0.0.1";
+  }
+
   getServerPort() {
     return this.readNumber("PORT", 3011);
   }

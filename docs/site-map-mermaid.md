@@ -28,6 +28,7 @@ flowchart TD
     A --> D["prisma/schema.prisma 数据模型"]
     A --> E["docs 结构化文档"]
     A --> F["scripts 稳定启动/初始化脚本"]
+    A --> G["部署与运行配置"]
 
     B --> B1["首页 /"]
     B --> B2["品牌增长策略 /brand-growth"]
@@ -70,6 +71,13 @@ flowchart TD
     F --> F1["dev:web:stable"]
     F --> F2["dev:server:stable"]
     F --> F3["seed-demo.cjs"]
+
+    G --> G1[".github/workflows/deploy.yml"]
+    G --> G2["ecosystem.config.cjs"]
+    G2 --> G21["ai-omni-web -> 127.0.0.1:3001"]
+    G2 --> G22["ai-omni-server -> 127.0.0.1:3011"]
+    G1 --> G3["部署前检查服务器工作区干净"]
+    G1 --> G4["部署后校验本机端口与健康检查"]
 ```
 
 ## 4. 前端路由地图
