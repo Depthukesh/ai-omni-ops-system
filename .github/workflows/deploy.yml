@@ -26,7 +26,26 @@ jobs:
               useradd --system --create-home --shell /bin/bash "$APP_RUNTIME_USER"
             fi
 
+            if [ ! -f /root/.ssh/github_repo_readonly ]; then
+              echo "部署终止：缺少 /root/.ssh/github_repo_readonly，无法让 $APP_RUNTIME_USER 拉取私有仓库。"
+              exit 1
+            fi
+
             install -d -m 755 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.pm2"
+            install -d -m 700 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh"
+            install -m 600 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" /root/.ssh/github_repo_readonly "/home/$APP_RUNTIME_USER/.ssh/github_repo_readonly"
+            ssh-keyscan github.com > "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+            chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+            chmod 600 "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<EOF
+            Host github.com
+              HostName github.com
+              User git
+              IdentityFile /home/$APP_RUNTIME_USER/.ssh/github_repo_readonly
+              IdentitiesOnly yes
+            EOF
+            chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/config"
+            chmod 600 "/home/$APP_RUNTIME_USER/.ssh/config"
             chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "${{ secrets.DEPLOY_PATH }}"
 
             runuser -u "$APP_RUNTIME_USER" -- bash -lc '
