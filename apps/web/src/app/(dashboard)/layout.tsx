@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { readAuthSession } from "../../services/auth";
 import { getMyBrandInvites, type BrandInviteRecord } from "../../services/brand-growth";
-import { brandInviteReadStateChangedEvent } from "./personal-center/route-helpers";
+import { brandInviteReadStateChangedEvent, buildPersonalCenterLoginPath } from "./personal-center/route-helpers";
 
 const primaryNavItems = [
   { href: "/brand-growth", label: "品牌增长策略", shortLabel: "策" },
@@ -19,11 +19,29 @@ const primaryNavItems = [
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const hideTopbar = pathname === "/admin" || pathname.startsWith("/admin/");
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [myPendingInvites, setMyPendingInvites] = useState<Array<BrandInviteRecord & { brandId: string; brandName: string }>>([]);
   const [dismissedInviteBanner, setDismissedInviteBanner] = useState(false);
   const [lastInviteSyncAt, setLastInviteSyncAt] = useState("");
   const [unreadPendingCount, setUnreadPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (hideTopbar) {
+      setIsAuthReady(true);
+      return;
+    }
+
+    const session = readAuthSession();
+    if (!session?.accessToken && !session?.refreshToken) {
+      setIsAuthReady(false);
+      router.replace(buildPersonalCenterLoginPath(pathname || "/personal-center"));
+      return;
+    }
+
+    setIsAuthReady(true);
+  }, [hideTopbar, pathname, router]);
 
   useEffect(() => {
     if (hideTopbar) {
@@ -100,6 +118,25 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("invite-banner-dismissed", "1");
     }
+  }
+
+  if (!hideTopbar && !isAuthReady) {
+    return (
+      <div className="dashboard-layout">
+        <div className="dashboard-content">
+          <div className="dashboard-shell">
+            <section className="panel" style={{ marginTop: 24 }}>
+              <div className="panel-header">
+                <div>
+                  <h2>正在校验登录状态</h2>
+                  <p className="panel-subtext">前台工作台需要先完成统一账号登录，正在跳转到注册/登录入口。</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

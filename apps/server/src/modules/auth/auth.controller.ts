@@ -6,7 +6,6 @@ import {
   type LoginPayload,
   type RefreshSessionPayload,
   type RegisterPayload,
-  type SendRegisterEmailCodePayload,
   type SwitchBrandPayload,
   type UploadProfileAvatarPayload,
   type UpdateProfilePayload,
@@ -24,11 +23,6 @@ export class AuthController {
   @Post("register")
   register(@Body() payload: RegisterPayload) {
     return this.authService.register(payload);
-  }
-
-  @Post("register/email-code")
-  sendRegisterEmailCode(@Body() payload: SendRegisterEmailCodePayload) {
-    return this.authService.sendRegisterEmailCode(payload);
   }
 
   @Post("refresh")

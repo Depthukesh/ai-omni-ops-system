@@ -80,6 +80,8 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-10-auth-invite-registration-and-gated-frontend.md`
+  - 前台统一改为“根页认证入口 + 邀请码注册 + 工作台全局登录拦截”，后台继续保持管理员专用登录入口
 - `docs/changes/2026-05-10-deploy-hardening-and-non-root-runtime.md`
   - GitHub Actions 部署前新增服务器工作区阻断，生产 PM2 进程统一切到普通用户并收口到 `ecosystem.config.cjs`，同时增加本机端口和健康检查
 - `docs/changes/2026-05-10-oss-phase-2-report-brand-avatar-assets.md`
@@ -89,7 +91,7 @@
 - `docs/changes/2026-05-10-admin-user-management-panel.md`
   - 后台用户管理升级为“筛选区 + 用户列表 + 弹窗详情编辑”，并补齐管理员账号编辑、删除与确认弹窗
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
-  - 注册页补齐真实表单、邮箱验证码发送与校验、开发态验证码回显与自动回填
+  - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
   - 个人中心安全设置页升级为“账号资料 + 会话安全”组合页，支持用户名、头像地址、手机号编辑
 - `docs/changes/2026-05-09-multi-user-brand-access-hardening.md`

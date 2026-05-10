@@ -30,12 +30,12 @@ flowchart TD
     A --> F["scripts 稳定启动/初始化脚本"]
     A --> G["部署与运行配置"]
 
-    B --> B1["首页 /"]
+    B --> B1["统一认证入口 /"]
     B --> B2["品牌增长策略 /brand-growth"]
     B --> B3["小红书工作台 /xiaohongshu"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
-    B --> B6["登录注册 /login /register（注册含邮箱验证码）"]
+    B --> B6["兼容认证页 /login /register（注册含邀请码）"]
     B --> B7["会员/点数/订单"]
     B --> B8["移动发布 /publish/mobile/[token]"]
     B --> B9["共享浅底导航壳"]
@@ -43,7 +43,7 @@ flowchart TD
     B9 --> B92["前台左侧目录导航（仅保留按钮本体）"]
     B9 --> B93["后台目录导航"]
 
-    C --> C1["AuthModule 登录/注册/邮箱验证"]
+    C --> C1["AuthModule 登录/注册/邀请码"]
     C --> C2["BrandsModule"]
     C --> C3["CollectorsModule"]
     C --> C4["ReportsModule"]
@@ -93,6 +93,7 @@ flowchart LR
 
     Auth --> Login["/login"]
     Auth --> Register["/register"]
+    Auth --> AdminLogin["/admin/login"]
 
     Dash --> BrandGrowth["/brand-growth"]
     Dash --> Xiaohongshu["/xiaohongshu"]
@@ -151,7 +152,7 @@ flowchart TD
 
     M2 --> T8["User"]
     M2 --> T9["UserFeishuIntegration"]
-    M2 --> T12["EmailVerificationCode"]
+    M2 --> T12["RegistrationInviteCode"]
 
     M3 --> T4
     M3 --> T5
@@ -517,7 +518,7 @@ flowchart LR
 
 - 首页：`apps/web/src/app/page.tsx`
 - 登录页：`apps/web/src/app/(auth)/login/page.tsx`
-- 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邮箱验证码）
+- 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邀请码）
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
@@ -601,7 +602,7 @@ flowchart LR
 - 配置服务：`apps/server/src/config/app-config.service.ts`
 - 存储模块：`apps/server/src/storage/storage.module.ts`
 - OSS 存储服务：`apps/server/src/storage/oss-storage.service.ts`
-- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`（含 `register/email-code`、`PATCH /auth/profile`、`POST /auth/profile/avatar`）
+- 认证与飞书：`apps/server/src/modules/auth/auth.controller.ts`（含 `register`、`PATCH /auth/profile`、`POST /auth/profile/avatar`）
 - 品牌资料：`apps/server/src/modules/brands/brands.controller.ts`
 - 小红书收集：`apps/server/src/modules/collectors/collectors.controller.ts`
 - 每日热点：`apps/server/src/modules/collectors/daily-hotspots.controller.ts`

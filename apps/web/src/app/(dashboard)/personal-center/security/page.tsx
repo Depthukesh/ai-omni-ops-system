@@ -140,7 +140,7 @@ export default function PersonalCenterSecurityPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/login");
+      router.replace("/?mode=login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -308,7 +308,7 @@ export default function PersonalCenterSecurityPage() {
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
         </Link>
-        <Link href="/login" className="secondary-button">
+        <Link href="/?mode=login" className="secondary-button">
           回到登录页
         </Link>
       </div>

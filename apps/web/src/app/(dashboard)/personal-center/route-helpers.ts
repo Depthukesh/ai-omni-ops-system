@@ -39,7 +39,7 @@ export function isAuthFailure(error: unknown) {
 }
 
 export function buildPersonalCenterLoginPath(nextPath: string) {
-  return `/login?next=${encodeURIComponent(nextPath)}`;
+  return `/?next=${encodeURIComponent(nextPath)}`;
 }
 
 export function emitBrandInviteReadStateChanged() {

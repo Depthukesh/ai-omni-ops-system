@@ -1,8 +1,8 @@
 import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
-import { extname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { BrandMemberRole, BrandMemberStatus, SystemRole } from "@prisma/client";
-import nodemailer, { type Transporter } from "nodemailer";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import {
@@ -24,12 +24,8 @@ export type RegisterPayload = {
   mobile: string;
   password: string;
   email: string;
-  emailCode: string;
+  inviteCode: string;
   nickname?: string;
-};
-
-export type SendRegisterEmailCodePayload = {
-  email: string;
 };
 
 export type UpdateProfilePayload = {
@@ -103,23 +99,52 @@ export type FeishuAppConfigRecord = {
   updatedAt: string;
 };
 
-type EmailVerificationCodeRecord = {
+type RegistrationInviteCodeRecord = {
   id: string;
-  userId?: string;
-  email: string;
-  purpose: "register";
-  codeHash: string;
-  expiresAt: string;
+  code: string;
+  consumedByUserId?: string;
   consumedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
 
-const emailVerificationRecords: EmailVerificationCodeRecord[] = [];
+function loadRegistrationInviteCodeRecords() {
+  const candidates = [
+    resolve(process.cwd(), "prisma/seed-data/registration-invite-codes.txt"),
+    resolve(process.cwd(), ".runtime/registration-invite-codes.txt"),
+  ];
+
+  const loaded = candidates.find((candidate) => existsSync(candidate));
+  if (!loaded) {
+    return [];
+  }
+
+  const content = readFileSync(loaded, "utf8").replace(/^\uFEFF/, "");
+  const seenCodes = new Set<string>();
+  const now = new Date().toISOString();
+
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((code) => {
+      if (!code || seenCodes.has(code)) {
+        return false;
+      }
+      seenCodes.add(code);
+      return true;
+    })
+    .map((code, index) => ({
+      id: `invite_${String(index + 1).padStart(3, "0")}`,
+      code,
+      createdAt: now,
+      updatedAt: now,
+    }));
+}
+
+const registrationInviteCodeRecords: RegistrationInviteCodeRecord[] = loadRegistrationInviteCodeRecords();
 
 @Injectable()
 export class AuthService {
-  private mailTransporter?: Transporter;
   private readonly appConfigService = new AppConfigService();
   private readonly ossStorageService = new OssStorageService(this.appConfigService);
 
@@ -140,9 +165,6 @@ export class AuthService {
       const passwordCheck = user ? this.verifyPassword(payload.password, user.passwordHash) : { matched: false, needsUpgrade: false };
       if (!user || !passwordCheck.matched) {
         throw new UnauthorizedException("账号或密码错误");
-      }
-      if (user.email && !user.emailVerifiedAt) {
-        throw new UnauthorizedException("该账号邮箱尚未完成验证，请先重新注册或联系管理员处理");
       }
 
       if (passwordCheck.needsUpgrade) {
@@ -183,9 +205,6 @@ export class AuthService {
     if (!user || user.password !== payload.password) {
       throw new UnauthorizedException("账号或密码错误");
     }
-    if (user.email && !user.emailVerifiedAt) {
-      throw new UnauthorizedException("该账号邮箱尚未完成验证，请先完成邮箱验证");
-    }
 
     return {
       accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds() }),
@@ -196,62 +215,13 @@ export class AuthService {
     };
   }
 
-  async sendRegisterEmailCode(payload: SendRegisterEmailCodePayload) {
-    const email = this.normalizeEmail(payload.email);
-    this.assertEmail(email);
-
-    if (await this.prismaService.canUseDatabase()) {
-      const exists = await this.prismaService.user.findFirst({
-        where: { email },
-        select: { id: true },
-      });
-      if (exists) {
-        throw new ConflictException("该邮箱已注册，请直接登录");
-      }
-      const latest = await this.prismaService.emailVerificationCode.findFirst({
-        where: {
-          email,
-          purpose: "register",
-          consumedAt: null,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      if (latest && latest.createdAt.getTime() > Date.now() - this.getEmailCodeCooldownMs()) {
-        throw new BadRequestException("验证码发送过于频繁，请稍后再试");
-      }
-    } else {
-      const latest = [...emailVerificationRecords]
-        .filter((item) => item.email === email && item.purpose === "register" && !item.consumedAt)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      if (latest && new Date(latest.createdAt).getTime() > Date.now() - this.getEmailCodeCooldownMs()) {
-        throw new BadRequestException("验证码发送过于频繁，请稍后再试");
-      }
-      if (database.users.some((item) => item.email === email)) {
-        throw new ConflictException("该邮箱已注册，请直接登录");
-      }
-    }
-
-    const code = this.createEmailCode();
-    await this.saveRegisterEmailCode(email, code);
-    const delivery = await this.deliverRegisterEmailCode(email, code);
-
-    return {
-      success: true,
-      email,
-      expiresInSec: Math.floor(this.getEmailCodeExpiresMs() / 1000),
-      delivery: delivery.channel,
-      message: delivery.channel === "smtp" ? "验证码已发送到邮箱，请查收" : "当前未配置 SMTP，已返回开发态验证码供本地验证",
-      devPreviewCode: delivery.devPreviewCode,
-    };
-  }
-
   async register(payload: RegisterPayload) {
     const normalizedPayload = {
       ...payload,
       email: this.normalizeEmail(payload.email),
       mobile: payload.mobile.trim(),
       nickname: payload.nickname?.trim() || undefined,
-      emailCode: payload.emailCode.trim(),
+      inviteCode: payload.inviteCode.trim(),
     };
     this.assertRegisterPayload(normalizedPayload);
 
@@ -269,9 +239,19 @@ export class AuthService {
         throw new ConflictException("该手机号或邮箱已存在");
       }
 
-      await this.consumeRegisterEmailCode(normalizedPayload.email, normalizedPayload.emailCode);
-
       const created = await this.prismaService.$transaction(async (tx) => {
+        const invite = await tx.registrationInviteCode.findUnique({
+          where: { code: normalizedPayload.inviteCode },
+          select: {
+            id: true,
+            consumedAt: true,
+          },
+        });
+
+        if (!invite || invite.consumedAt) {
+          throw new BadRequestException("邀请码不存在、已失效或已被使用");
+        }
+
         const user = await tx.user.create({
           data: {
             mobile: normalizedPayload.mobile,
@@ -305,6 +285,14 @@ export class AuthService {
           },
         });
 
+        await tx.registrationInviteCode.update({
+          where: { id: invite.id },
+          data: {
+            consumedAt: new Date(),
+            consumedByUserId: user.id,
+          },
+        });
+
         return {
           user,
           brand,
@@ -330,8 +318,7 @@ export class AuthService {
     if (exists) {
       throw new ConflictException("该手机号或邮箱已存在");
     }
-
-    await this.consumeRegisterEmailCode(normalizedPayload.email, normalizedPayload.emailCode);
+    this.consumeMockRegistrationInviteCode(normalizedPayload.inviteCode);
 
     const user = {
       id: createId("usr"),
@@ -359,6 +346,7 @@ export class AuthService {
 
     database.users.unshift(user);
     database.brands.unshift(brand);
+    this.markMockRegistrationInviteCodeConsumed(normalizedPayload.inviteCode, user.id);
 
     return {
       accessToken: this.signToken({ sub: user.id, typ: "access", exp: this.getUnixTime() + this.getAccessTokenTtlSeconds(), bid: brand.id }),
@@ -852,8 +840,8 @@ export class AuthService {
     if (!payload.password || payload.password.length < 6) {
       throw new BadRequestException("密码至少 6 位");
     }
-    if (!payload.emailCode || !/^\d{6}$/.test(payload.emailCode)) {
-      throw new BadRequestException("请输入 6 位邮箱验证码");
+    if (!payload.inviteCode || !/^[!-~]{6}$/.test(payload.inviteCode)) {
+      throw new BadRequestException("请输入 6 位邀请码");
     }
   }
 
@@ -918,129 +906,23 @@ export class AuthService {
     return email.trim().toLowerCase();
   }
 
-  private createEmailCode() {
-    return `${Math.floor(100000 + Math.random() * 900000)}`;
+  private consumeMockRegistrationInviteCode(inviteCode: string) {
+    const record = registrationInviteCodeRecords.find((item) => item.code === inviteCode);
+    if (!record || record.consumedAt) {
+      throw new BadRequestException("邀请码不存在、已失效或已被使用");
+    }
   }
 
-  private getEmailCodeExpiresMs() {
-    return Number(process.env.AUTH_EMAIL_CODE_EXPIRES_MS || 10 * 60 * 1000);
-  }
-
-  private getEmailCodeCooldownMs() {
-    return Number(process.env.AUTH_EMAIL_CODE_COOLDOWN_MS || 60 * 1000);
-  }
-
-  private hashEmailCode(email: string, purpose: string, code: string) {
-    return createHash("sha256").update(`${this.getAuthSecret()}::${purpose}::${email}::${code}`).digest("hex");
-  }
-
-  private async saveRegisterEmailCode(email: string, code: string) {
-    const expiresAt = new Date(Date.now() + this.getEmailCodeExpiresMs());
-    const codeHash = this.hashEmailCode(email, "register", code);
-    if (await this.prismaService.canUseDatabase()) {
-      await this.prismaService.emailVerificationCode.create({
-        data: {
-          email,
-          purpose: "register",
-          codeHash,
-          expiresAt,
-        },
-      });
-      return;
+  private markMockRegistrationInviteCodeConsumed(inviteCode: string, userId: string) {
+    const record = registrationInviteCodeRecords.find((item) => item.code === inviteCode);
+    if (!record || record.consumedAt) {
+      throw new BadRequestException("邀请码不存在、已失效或已被使用");
     }
 
-    const now = new Date().toISOString();
-    emailVerificationRecords.unshift({
-      id: createId("evc"),
-      email,
-      purpose: "register",
-      codeHash,
-      expiresAt: expiresAt.toISOString(),
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  private async consumeRegisterEmailCode(email: string, code: string) {
-    const codeHash = this.hashEmailCode(email, "register", code);
-    if (await this.prismaService.canUseDatabase()) {
-      const record = await this.prismaService.emailVerificationCode.findFirst({
-        where: {
-          email,
-          purpose: "register",
-          consumedAt: null,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      if (!record || record.expiresAt.getTime() <= Date.now() || record.codeHash !== codeHash) {
-        throw new BadRequestException("邮箱验证码错误或已失效");
-      }
-      await this.prismaService.emailVerificationCode.update({
-        where: { id: record.id },
-        data: { consumedAt: new Date() },
-      });
-      return;
-    }
-
-    const record = emailVerificationRecords.find((item) => item.email === email && item.purpose === "register" && !item.consumedAt);
-    if (!record || new Date(record.expiresAt).getTime() <= Date.now() || record.codeHash !== codeHash) {
-      throw new BadRequestException("邮箱验证码错误或已失效");
-    }
-    record.consumedAt = new Date().toISOString();
-    record.updatedAt = record.consumedAt;
-  }
-
-  private async deliverRegisterEmailCode(email: string, code: string) {
-    const transporter = this.getMailTransporter();
-    if (!transporter) {
-      return {
-        channel: "dev-preview" as const,
-        devPreviewCode: code,
-      };
-    }
-
-    await transporter.sendMail({
-      from: this.getMailFromAddress(),
-      to: email,
-      subject: "AI全域运营系统注册验证码",
-      text: `你的注册验证码是 ${code}，10 分钟内有效。如果这不是你的操作，请忽略本邮件。`,
-      html: `<div style="font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;line-height:1.8;color:#1f2937;"><p>你好，</p><p>你的注册验证码是：</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;">${code}</p><p>10 分钟内有效。如果这不是你的操作，请忽略本邮件。</p></div>`,
-    });
-
-    return {
-      channel: "smtp" as const,
-      devPreviewCode: undefined,
-    };
-  }
-
-  private getMailTransporter() {
-    if (this.mailTransporter !== undefined) {
-      return this.mailTransporter;
-    }
-
-    const host = process.env.SMTP_HOST?.trim();
-    const port = Number(process.env.SMTP_PORT || 465);
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
-    if (!host || !port || !user || !pass) {
-      this.mailTransporter = undefined;
-      return this.mailTransporter;
-    }
-
-    this.mailTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: `${process.env.SMTP_SECURE || "true"}` === "true",
-      auth: {
-        user,
-        pass,
-      },
-    });
-    return this.mailTransporter;
-  }
-
-  private getMailFromAddress() {
-    return process.env.SMTP_FROM?.trim() || process.env.SMTP_USER?.trim() || "no-reply@ai-omni.local";
+    const consumedAt = new Date().toISOString();
+    record.consumedAt = consumedAt;
+    record.consumedByUserId = userId;
+    record.updatedAt = consumedAt;
   }
 
   private toPublicUser(user: (typeof database.users)[number]) {

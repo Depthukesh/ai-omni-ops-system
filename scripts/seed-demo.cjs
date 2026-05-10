@@ -1,3 +1,5 @@
+const { existsSync, readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
 const {
   PrismaClient,
   PlatformType,
@@ -11,11 +13,14 @@ const {
 const prisma = new PrismaClient();
 const DEMO_USER_ID = "usr_demo_001";
 const DEMO_BRAND_ID = "br_demo_001";
+const REGISTRATION_INVITE_CODES = loadRegistrationInviteCodes();
 
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error("缺少 DATABASE_URL，无法执行 demo seed。");
   }
+
+  await seedRegistrationInviteCodes();
 
   await prisma.user.deleteMany({
     where: {
@@ -337,6 +342,45 @@ async function main() {
       },
       null,
       2,
+    ),
+  );
+}
+
+async function seedRegistrationInviteCodes() {
+  if (!REGISTRATION_INVITE_CODES.length) {
+    console.warn("未找到注册邀请码文件，跳过邀请码 seed。");
+    return;
+  }
+
+  await Promise.all(
+    REGISTRATION_INVITE_CODES.map((code) =>
+      prisma.registrationInviteCode.upsert({
+        where: { code },
+        update: {},
+        create: { code },
+      }),
+    ),
+  );
+}
+
+function loadRegistrationInviteCodes() {
+  const candidates = [
+    resolve(process.cwd(), "prisma/seed-data/registration-invite-codes.txt"),
+    resolve(process.cwd(), ".runtime/registration-invite-codes.txt"),
+  ];
+
+  const target = candidates.find((candidate) => existsSync(candidate));
+  if (!target) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      readFileSync(target, "utf8")
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
     ),
   );
 }

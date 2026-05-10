@@ -18,14 +18,16 @@
 
 ### 2.1 前端入口
 
-- `/`：系统首页，作为门户入口
+- `/`：统一认证入口，默认展示邀请码注册，并可切换到普通登录；已登录用户会自动回到目标前台页面
 - `/brand-growth`：品牌增长策略工作台
 - `/xiaohongshu`：小红书工作台
 - `/personal-center`：个人中心
-- `/admin`：后台管理台
-- `/login`：登录页，已接入账号密码登录并保存前端 access/refresh 登录态
-- `/register`：注册页，已接入真实注册表单，要求手机号必填、邮箱验证码校验、注册成功后自动进入个人中心
-- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/register`、`/api/auth/register/email-code`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
+- `/personal-center/*`、`/brand-growth`、`/xiaohongshu`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
+- `/admin`：后台管理台，仅管理员角色账号可进入
+- `/login`：兼容登录页，已接入账号密码登录，并提供回流根页注册入口
+- `/register`：兼容注册页，已接入邀请码注册表单，注册成功后自动进入工作台
+- `/admin/login`：后台管理员专用登录页
+- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/register`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
 
 ### 2.2 当前主要用户链路
 
@@ -117,7 +119,7 @@
 - 任务记录
 - 我的作品
 - 当前已接入真实登录态：
-  - 无登录态时跳转 `/login`
+  - 无登录态时统一跳转 `/?next=...`
   - 页面会通过 `/api/auth/me` 获取当前用户和品牌信息
   - 已支持当前品牌切换与退出登录
   - 请求层会自动附带 `Authorization` 和 `x-brand-id`
@@ -196,8 +198,8 @@
 - `AuthModule`：登录、注册、用户资料、飞书 OAuth、飞书应用配置
 - `AuthModule`
   - 当前已接入基于签名 token 的 access/refresh 登录态
-  - 已支持 `register/email-code` 注册验证码发送，优先走 SMTP 发信；未配置 SMTP 时回退开发态验证码回显，保证本地可测
-  - 已支持注册时邮箱验证码校验、`emailVerifiedAt` 入库和未验证邮箱账号登录拦截
+  - 已支持邀请码注册；注册时会校验 `RegistrationInviteCode` 是否存在且未被消费，并在成功注册后一次性标记使用状态
+  - 已移除 `register/email-code` 注册验证码发送链路；当前不再要求注册前完成邮箱验证码校验
   - 已支持 `PATCH /auth/profile`，允许当前登录用户自助更新昵称、头像地址和手机号
   - 已支持 `POST /api/auth/profile/avatar` 上传头像到 OSS，并通过 `GET /api/auth/users/:userId/avatar/:fileName` 返回站内可访问头像
   - 已支持 `me`、品牌列表、切换当前品牌、logout
@@ -207,7 +209,7 @@
   - 负责保存 `accessToken`、`refreshToken`、当前品牌和用户信息
 - `apps/web/src/services/auth.ts`
   - 前端认证服务层
-  - 已接入 `login`、`register`、`register/email-code`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
+  - 已接入 `login`、`register`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`
@@ -337,13 +339,14 @@
 
 ## 7. 当前仍属过渡或待完善部分
 
-- `/register` 已改为真实注册页，并支持开发态验证码自动回填；真实 SMTP 仍待后续按生产邮件环境启用
+- `/` 已改为统一认证入口，默认展示邀请码注册；`/login`、`/register` 作为兼容入口保留
 - 抖音/视频号/公众号/私域尚未独立落地
 - 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
 - `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径
 - 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/security`、`/tasks`、`/team`、`/invites` 八段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
 - 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页
+- 注册当前已切为邀请码准入；项目内已预置 300 个 6 位邀请码，并通过 seed 写入 `RegistrationInviteCode`
 - 后台用户管理已进入“单用户弹窗编辑”阶段，但批量操作、分页排序和更完整的品牌权限运营闭环仍待继续补齐
 - P0 已完成两段半底座：后端登录态、`BrandMember`、`UserSession`、当前用户任务/订单/媒体过滤已落地；前端登录页、token 刷新、个人中心登录态校验与品牌切换已接入，并已开始拆个人中心二级路由
 

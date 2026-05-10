@@ -3,86 +3,39 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readAuthSession, register, sendRegisterEmailCode } from "../../../services/auth";
+import { readAuthSession, register } from "../../../services/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [nextPath, setNextPath] = useState("/personal-center");
+  const [isRouteReady, setIsRouteReady] = useState(false);
   const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
-  const [emailCode, setEmailCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSendingCode, setIsSendingCode] = useState(false);
-  const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
-  const [notice, setNotice] = useState("");
-  const [devPreviewCode, setDevPreviewCode] = useState("");
-  const [lastCodeEmail, setLastCodeEmail] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const next = new URLSearchParams(window.location.search).get("next");
       setNextPath(resolveNextPath(next));
     }
+    setIsRouteReady(true);
+  }, []);
 
+  useEffect(() => {
+    if (!isRouteReady) {
+      return;
+    }
     if (readAuthSession()?.accessToken) {
       router.replace(nextPath);
     }
-  }, [nextPath, router]);
-
-  useEffect(() => {
-    if (countdown <= 0) {
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      setCountdown((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => window.clearTimeout(timer);
-  }, [countdown]);
+  }, [isRouteReady, nextPath, router]);
 
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
-
-  useEffect(() => {
-    if (!lastCodeEmail) {
-      return;
-    }
-    if (normalizedEmail === lastCodeEmail) {
-      return;
-    }
-    setDevPreviewCode("");
-    setEmailCode("");
-    setLastCodeEmail("");
-  }, [lastCodeEmail, normalizedEmail]);
-
-  async function handleSendCode() {
-    if (!normalizedEmail) {
-      setErrorMessage("请先输入邮箱");
-      return;
-    }
-    setIsSendingCode(true);
-    setErrorMessage("");
-    setNotice("");
-    setDevPreviewCode("");
-    try {
-      const response = await sendRegisterEmailCode({
-        email: normalizedEmail,
-      });
-      setNotice(response.message);
-      setDevPreviewCode(response.devPreviewCode || "");
-      setLastCodeEmail(response.email);
-      if (response.devPreviewCode) {
-        setEmailCode(response.devPreviewCode);
-      }
-      setCountdown(60);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "发送验证码失败，请稍后重试");
-    } finally {
-      setIsSendingCode(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -94,8 +47,8 @@ export default function RegisterPage() {
       setErrorMessage("请输入邮箱");
       return;
     }
-    if (!emailCode.trim()) {
-      setErrorMessage("请输入邮箱验证码");
+    if (!inviteCode.trim()) {
+      setErrorMessage("请输入邀请码");
       return;
     }
     if (!password || password.length < 6) {
@@ -109,12 +62,11 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     setErrorMessage("");
-    setNotice("");
     try {
       await register({
         mobile: mobile.trim(),
         email: normalizedEmail,
-        emailCode: emailCode.trim(),
+        inviteCode: inviteCode.trim(),
         password,
         nickname: nickname.trim() || undefined,
       });
@@ -132,7 +84,7 @@ export default function RegisterPage() {
         <div className="panel-header">
           <div>
             <h1>注册</h1>
-            <p className="panel-subtext">手机号必填，注册前需完成邮箱验证码校验。注册成功后直接进入个人中心工作区。</p>
+            <p className="panel-subtext">手机号和邀请码必填。邀请码验证通过后即可完成注册并直接进入个人中心工作区。</p>
           </div>
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -158,19 +110,14 @@ export default function RegisterPage() {
             />
           </label>
           <label className="field">
-            <span>邮箱验证码</span>
-            <div className="inline-action-field">
-              <input
-                value={emailCode}
-                onChange={(event) => setEmailCode(event.target.value)}
-                placeholder="请输入 6 位验证码"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-              />
-              <button type="button" className="secondary-button" onClick={() => void handleSendCode()} disabled={isSendingCode || countdown > 0}>
-                {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s 后重发` : "发送验证码"}
-              </button>
-            </div>
+            <span>邀请码</span>
+            <input
+              value={inviteCode}
+              onChange={(event) => setInviteCode(event.target.value)}
+              placeholder="请输入 6 位邀请码"
+              autoComplete="off"
+              spellCheck={false}
+            />
           </label>
           <label className="field">
             <span>昵称</span>
@@ -201,15 +148,14 @@ export default function RegisterPage() {
               autoComplete="new-password"
             />
           </label>
-          {notice ? <p className="success-text">{notice}</p> : null}
-          {devPreviewCode ? <p className="field-hint">开发态验证码：`{devPreviewCode}`，已自动填入当前邮箱的验证码输入框。</p> : null}
+          <p className="field-hint">当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。</p>
           {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
           <button type="submit" className="primary-button" disabled={isSubmitting}>
             {isSubmitting ? "注册中..." : "完成注册并进入工作台"}
           </button>
         </form>
         <div className="auth-footnote">
-          已有账号？<Link href={`/login?next=${encodeURIComponent(nextPath)}`}>去登录</Link>
+          已有账号？<Link href={`/?mode=login&next=${encodeURIComponent(nextPath)}`}>去登录</Link>
         </div>
       </section>
     </main>

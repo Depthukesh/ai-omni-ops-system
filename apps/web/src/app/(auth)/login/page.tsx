@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login, readAuthSession } from "../../../services/auth";
@@ -7,6 +8,7 @@ import { login, readAuthSession } from "../../../services/auth";
 export default function LoginPage() {
   const router = useRouter();
   const [nextPath, setNextPath] = useState("/personal-center");
+  const [isRouteReady, setIsRouteReady] = useState(false);
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,11 +19,17 @@ export default function LoginPage() {
       const next = new URLSearchParams(window.location.search).get("next");
       setNextPath(resolveNextPath(next));
     }
+    setIsRouteReady(true);
+  }, []);
 
+  useEffect(() => {
+    if (!isRouteReady) {
+      return;
+    }
     if (readAuthSession()?.accessToken) {
       router.replace(nextPath);
     }
-  }, [nextPath, router]);
+  }, [isRouteReady, nextPath, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,6 +87,9 @@ export default function LoginPage() {
             {isSubmitting ? "登录中..." : "登录并进入工作台"}
           </button>
         </form>
+        <div className="auth-footnote">
+          还没有账号？<Link href={`/?mode=register&next=${encodeURIComponent(nextPath)}`}>去注册</Link>
+        </div>
       </section>
     </main>
   );

@@ -136,7 +136,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/login");
+      router.replace("/?mode=login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);

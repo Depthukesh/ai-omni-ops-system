@@ -17,22 +17,9 @@ export type LoginPayload = {
 export type RegisterPayload = {
   mobile: string;
   email: string;
-  emailCode: string;
+  inviteCode: string;
   password: string;
   nickname?: string;
-};
-
-export type SendRegisterEmailCodePayload = {
-  email: string;
-};
-
-export type SendRegisterEmailCodeResponse = {
-  success: boolean;
-  email: string;
-  expiresInSec: number;
-  delivery: "smtp" | "dev-preview";
-  message: string;
-  devPreviewCode?: string;
 };
 
 export type UpdateProfilePayload = {
@@ -78,10 +65,6 @@ export async function register(payload: RegisterPayload) {
     user: response.user,
   });
   return response;
-}
-
-export async function sendRegisterEmailCode(payload: SendRegisterEmailCodePayload) {
-  return jsonRequest<SendRegisterEmailCodeResponse>("/auth/register/email-code", "POST", payload);
 }
 
 export async function getMe() {

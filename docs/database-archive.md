@@ -56,6 +56,9 @@
 - `EmailVerificationCode`
   - 用途：注册邮箱验证码持久化、过期控制与消费校验
   - 关键字段：`email`、`purpose`、`codeHash`、`expiresAt`、`consumedAt`
+- `RegistrationInviteCode`
+  - 用途：注册邀请码持久化、一次性消费与使用人追踪
+  - 关键字段：`code`、`consumedByUserId`、`consumedAt`
 - `UserSession`
   - 用途：登录态会话、refresh token、当前品牌工作区绑定
   - 关键字段：`userId`、`refreshTokenHash`、`currentBrandId`、`expiresAt`、`revokedAt`
@@ -172,7 +175,7 @@
 
 - 用户资料：`User`
 - 用户头像对象真源：OSS `users/<userId>/avatars/<fileName>`，`User.avatarUrl` 保存站内头像访问地址
-- 注册邮箱验证：`EmailVerificationCode`
+- 注册邀请码：`RegistrationInviteCode`
 - 登录态：`UserSession`
 - 点数流水：`PointLedger`
 - 会员订单 / 充值明细：`MembershipOrder`
@@ -193,21 +196,21 @@
   - 文件镜像：真实 `SKILL.md` / `.txt`
 - 知识库管理：当前仍主要来自 `mock-data`
 
-### 4.5 认证 `/login` + `/register`
+### 4.5 认证 `/` + `/login` + `/register`
 
 - 登录
   - 主表：`User`、`UserSession`
   - 当前沿用账号密码登录，允许手机号 / 邮箱 / 昵称作为账号
 - 注册
-  - 主表：`User`、`EmailVerificationCode`、`Brand`、`BrandMember`
-  - 当前要求手机号必填、邮箱验证码验证通过后才创建用户与默认品牌
+  - 主表：`RegistrationInviteCode`、`User`、`Brand`、`BrandMember`
+  - 当前要求手机号和邀请码必填；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
 
 ## 5. 当前仍未完全入库的部分
 
 - `apps/server/src/common/mock-data.ts`
   - 仍承载部分演示数据和兜底数据
   - 当前典型包括：`apiProviders`、`billingRules`、部分知识库配置
-  - 注册邮箱验证码在数据库不可用时也会暂存到内存兜底，不写入 `mock-data`
+- 注册邀请码在数据库不可用时会临时从 `prisma/seed-data/registration-invite-codes.txt` 加载到内存兜底，不写入 `mock-data`
 - `提示词/` 与 `.trae/skills/`
   - 仍作为提示词文件真源和回填来源之一
 - 历史演示数据和少量非主链路资源

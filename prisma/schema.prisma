@@ -116,6 +116,7 @@ model User {
   brandRoleAuditTargets BrandRoleAuditLog[] @relation("BrandRoleAuditTargetUser")
   sessions       UserSession[]
   emailVerificationCodes EmailVerificationCode[]
+  usedRegistrationInviteCodes RegistrationInviteCode[] @relation("RegistrationInviteCodeConsumer")
   tasks          Task[]
   mediaAssets    MediaAsset[]
   orders         MembershipOrder[]
@@ -138,6 +139,20 @@ model EmailVerificationCode {
 
   @@index([email, purpose, createdAt])
   @@index([expiresAt])
+}
+
+model RegistrationInviteCode {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  consumedByUserId String?
+  consumedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  consumedByUser   User?    @relation("RegistrationInviteCodeConsumer", fields: [consumedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([consumedAt, createdAt])
+  @@index([consumedByUserId])
 }
 
 model UserSession {
