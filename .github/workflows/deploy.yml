@@ -19,7 +19,6 @@ jobs:
           port: ${{ secrets.ALIYUN_PORT }}
           script: |
             set -e
-
             cd ${{ secrets.DEPLOY_PATH }}
 
             git fetch origin main
@@ -28,7 +27,7 @@ jobs:
 
             npm ci
             npm run prisma:generate
-            npx prisma migrate deploy --schema prisma/schema.prisma || true
+            npm run prisma:db:push
 
             npm run build:server
             npm run build:web
