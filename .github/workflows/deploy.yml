@@ -64,6 +64,24 @@ jobs:
               pm2 save
             '
 
+            wait_for_http() {
+              local url="$1"
+              local max_attempts="${2:-30}"
+              local sleep_seconds="${3:-2}"
+              local attempt=1
+              while [ "$attempt" -le "$max_attempts" ]; do
+                if curl -fsS "$url" >/dev/null; then
+                  echo "健康检查通过: $url"
+                  return 0
+                fi
+                echo "等待服务就绪 ($attempt/$max_attempts): $url"
+                sleep "$sleep_seconds"
+                attempt=$((attempt + 1))
+              done
+              echo "部署终止：服务在等待窗口内未就绪 -> $url"
+              return 1
+            }
+
             LOCAL_LISTENERS="$(ss -lnt | grep -E ':(80|443|3001|3011)\b' || true)"
             printf '%s\n' "$LOCAL_LISTENERS"
 
@@ -72,5 +90,5 @@ jobs:
               exit 1
             fi
 
-            curl -fsS http://127.0.0.1:3011/api/health
-            curl -fsS http://127.0.0.1:3001 >/dev/null
+            wait_for_http http://127.0.0.1:3011/api/health
+            wait_for_http http://127.0.0.1:3001
