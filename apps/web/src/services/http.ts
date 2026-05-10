@@ -1,6 +1,6 @@
 import { clearStoredAuthSession, getStoredAuthSession, setStoredAuthSession, type AuthUser } from "./auth-session";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3011/api";
+export const API_BASE_URL = resolveApiBaseUrl();
 
 let refreshPromise: Promise<boolean> | undefined;
 
@@ -126,4 +126,17 @@ async function readErrorMessage(response: Response) {
   }
 
   return `Request failed: ${response.status}`;
+}
+
+function resolveApiBaseUrl() {
+  const configured = String(process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api`;
+  }
+
+  return "http://127.0.0.1:3011/api";
 }

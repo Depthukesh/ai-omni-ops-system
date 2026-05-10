@@ -1,4 +1,5 @@
 import { unstable_noStore as noStore } from "next/cache";
+import { headers } from "next/headers";
 import type { CSSProperties } from "react";
 import { MobileHandoffClient } from "./mobile-handoff-client";
 
@@ -33,9 +34,10 @@ type MobileSessionPayload = {
 export default async function MobilePublishPage({ params }: MobilePublishPageProps) {
   noStore();
   const { token } = await params;
+  const apiBaseUrl = await resolveApiBaseUrl();
 
   try {
-    const session = await loadSession(token);
+    const session = await loadSession(token, apiBaseUrl);
     return (
       <main style={styles.page}>
         <section style={styles.card}>
@@ -63,7 +65,7 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
           </ol>
         </section>
 
-        <MobileHandoffClient session={session} apiBaseUrl={session.apiBaseUrl || resolveApiBaseUrl()} />
+        <MobileHandoffClient session={session} apiBaseUrl={session.apiBaseUrl || apiBaseUrl} />
 
         <section style={styles.card}>
           <h2 style={styles.sectionTitle}>标题</h2>
@@ -117,8 +119,8 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
   }
 }
 
-async function loadSession(token: string): Promise<MobileSessionPayload> {
-  const response = await fetch(`${resolveApiBaseUrl()}/publishing/xiaohongshu/mobile-sessions/${encodeURIComponent(token)}`, {
+async function loadSession(token: string, apiBaseUrl: string): Promise<MobileSessionPayload> {
+  const response = await fetch(`${apiBaseUrl}/publishing/xiaohongshu/mobile-sessions/${encodeURIComponent(token)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -133,8 +135,25 @@ async function loadSession(token: string): Promise<MobileSessionPayload> {
   return payload.session;
 }
 
-function resolveApiBaseUrl() {
-  return process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3011/api";
+async function resolveApiBaseUrl() {
+  const internal = String(process.env.INTERNAL_API_BASE_URL || "").trim();
+  if (internal) {
+    return internal.replace(/\/$/, "");
+  }
+
+  const publicBaseUrl = String(process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+  if (publicBaseUrl) {
+    return publicBaseUrl.replace(/\/$/, "");
+  }
+
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") || "http";
+  if (host) {
+    return `${protocol}://${host}/api`;
+  }
+
+  return "http://127.0.0.1:3011/api";
 }
 
 const styles: Record<string, CSSProperties> = {

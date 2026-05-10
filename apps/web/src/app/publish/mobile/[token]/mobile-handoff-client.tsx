@@ -262,11 +262,11 @@ async function markCompleted(apiBaseUrl: string, token: string, result: "SUCCESS
 function resolveApiBaseUrl(apiBaseUrl: string) {
   const raw = String(apiBaseUrl || "").trim();
   if (raw && !/127\.0\.0\.1|localhost/.test(raw)) {
-    return raw;
+    return raw.replace(/\/$/, "");
   }
 
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:3011/api`;
+    return `${window.location.origin}/api`;
   }
 
   return raw || "http://127.0.0.1:3011/api";
