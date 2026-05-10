@@ -82,6 +82,7 @@ import {
   syncDailyHotspots,
   type DailyHotspotWorkspace,
 } from "../../../services/daily-hotspots";
+import { isAuthFailure } from "../personal-center/route-helpers";
 
 const stepOrder: BrandArchiveStepKey[] = [
   "background",
@@ -560,9 +561,16 @@ export function BrandGrowthWorkspace() {
       if (partialFailures.length > 0) {
         setErrorMessage(`部分接口暂不可用：${partialFailures.join("、")}。页面保留已获取到的真实数据，不再回退到演示数据。`);
       }
-    } catch {
+    } catch (error) {
       setDataSource("error");
-      setErrorMessage("后端暂不可用，请检查 3011 服务。页面不会再回退到演示数据。");
+      const message = error instanceof Error ? error.message : "页面初始化失败";
+      if (isAuthFailure(error)) {
+        setErrorMessage("登录态已失效，请重新登录后再刷新当前页面。");
+      } else if (message.includes("Failed to fetch") || message.includes("NetworkError") || message.includes("fetch failed")) {
+        setErrorMessage("后端接口当前不可达，请检查站点 API 服务。页面不会再回退到演示数据。");
+      } else {
+        setErrorMessage(`页面初始化失败：${message}`);
+      }
     } finally {
       setIsHydrating(false);
     }

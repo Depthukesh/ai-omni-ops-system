@@ -17,6 +17,11 @@
 - `apps/web/src/app/publish/mobile/[token]/mobile-handoff-client.tsx`
   - 浏览器端不再把本地地址强行改写为 `hostname:3011`
   - 改为在生产访问下默认走当前域名 `/api`
+- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
+  - 不再把任意初始化异常统一误报为“请检查 3011 服务”
+  - 登录态失效时提示重新登录
+  - 网络异常时提示站点 API 服务不可达
+  - 其他异常直接展示真实错误信息，便于继续定位
 
 ## 验证
 
