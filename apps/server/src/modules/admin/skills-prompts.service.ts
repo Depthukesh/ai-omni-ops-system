@@ -46,6 +46,86 @@ export type UpdatePromptTemplatePayload = {
   content?: string;
 };
 
+type SkillPromptBindingRule = {
+  promptIds?: string[];
+  promptScenes?: string[];
+};
+
+const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
+  skill_growth_analysis: {
+    promptIds: ["prompt_growth_report"],
+    promptScenes: ["品牌增长报告生成"],
+  },
+  "brand-omni-growth-analysis": {
+    promptIds: ["prompt_growth_report"],
+    promptScenes: ["品牌增长报告生成"],
+  },
+  skill_annual_plan: {
+    promptIds: ["prompt_annual_marketing_plan", "prompt_annual_plan"],
+    promptScenes: ["全年营销规划生成"],
+  },
+  "enterprise-annual-plan": {
+    promptIds: ["prompt_annual_marketing_plan", "prompt_annual_plan"],
+    promptScenes: ["全年营销规划生成"],
+  },
+  skill_xhs_plan: {
+    promptIds: ["prompt_xhs_plan"],
+    promptScenes: ["小红书营销规划"],
+  },
+  "xiaohongshu-brand-marketing-plan": {
+    promptIds: ["prompt_xhs_plan"],
+    promptScenes: ["小红书营销规划"],
+  },
+  skill_article_report: {
+    promptIds: ["prompt_visual_report"],
+    promptScenes: ["HTML 可视化报告生成"],
+  },
+  "article-visual-report-designer": {
+    promptIds: ["prompt_visual_report"],
+    promptScenes: ["HTML 可视化报告生成"],
+  },
+  skill_xhs_original_copy: {
+    promptIds: ["prompt_xhs_original_copy"],
+    promptScenes: ["小红书原创笔记文案"],
+  },
+  original_copy: {
+    promptIds: ["prompt_xhs_original_copy"],
+    promptScenes: ["小红书原创笔记文案"],
+  },
+  skill_xhs_original_note: {
+    promptIds: ["prompt_xhs_original_note"],
+    promptScenes: ["小红书原创笔记配图"],
+  },
+  "xhs-original-image-prompt": {
+    promptIds: ["prompt_xhs_original_note"],
+    promptScenes: ["小红书原创笔记配图"],
+  },
+  skill_xhs_rewrite_copy: {
+    promptIds: ["prompt_xhs_rewrite_copy"],
+    promptScenes: ["小红书二创笔记文案"],
+  },
+  rewrite_copy: {
+    promptIds: ["prompt_xhs_rewrite_copy"],
+    promptScenes: ["小红书二创笔记文案"],
+  },
+  skill_xhs_rewrite_note: {
+    promptIds: ["prompt_xhs_rewrite_note"],
+    promptScenes: ["小红书二创笔记配图"],
+  },
+  rewrite_image: {
+    promptIds: ["prompt_xhs_rewrite_note"],
+    promptScenes: ["小红书二创笔记配图"],
+  },
+  skill_xhs_video_note: {
+    promptIds: ["prompt_xhs_video_note"],
+    promptScenes: ["小红书视频笔记"],
+  },
+  "short-video-api-studio": {
+    promptIds: ["prompt_xhs_video_note"],
+    promptScenes: ["小红书视频笔记"],
+  },
+};
+
 @Injectable()
 export class SkillsPromptsService {
   private registryBootstrapPromise?: Promise<void>;
@@ -196,6 +276,18 @@ export class SkillsPromptsService {
     return skill?.status === "ACTIVE" ? skill : undefined;
   }
 
+  async getSkillById(id: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const row = await this.findSkillByIdFromDatabase(id);
+      if (row) {
+        return this.normalizeSkillConfigRow(row);
+      }
+    }
+    const skill = database.skillConfigs.find((item) => item.id === id);
+    return skill ? { ...skill } : undefined;
+  }
+
   async getSkillBySlug(slug: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
@@ -255,6 +347,49 @@ export class SkillsPromptsService {
     const clone = { ...prompt };
     this.syncPromptContentFromFile(clone);
     return clone;
+  }
+
+  resolvePromptIdsForSkill(skill: SkillConfigRecord, prompts: PromptTemplateRecord[]) {
+    const binding = SKILL_PROMPT_BINDINGS[skill.id] || SKILL_PROMPT_BINDINGS[skill.slug];
+    const matched: string[] = [];
+    const seen = new Set<string>();
+
+    const pushPrompt = (prompt?: PromptTemplateRecord) => {
+      if (!prompt || seen.has(prompt.id)) {
+        return;
+      }
+      seen.add(prompt.id);
+      matched.push(prompt.id);
+    };
+
+    if (binding?.promptIds?.length) {
+      binding.promptIds.forEach((promptId) => {
+        pushPrompt(prompts.find((item) => item.id === promptId));
+      });
+    }
+
+    if (binding?.promptScenes?.length) {
+      binding.promptScenes.forEach((scene) => {
+        pushPrompt(prompts.find((item) => item.scene === scene));
+      });
+    }
+
+    if (matched.length) {
+      return matched;
+    }
+
+    const keywords = [skill.slug, skill.name, skill.category]
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+
+    prompts.forEach((prompt) => {
+      const haystack = `${prompt.id} ${prompt.name} ${prompt.scene}`.toLowerCase();
+      if (keywords.some((keyword) => haystack.includes(keyword))) {
+        pushPrompt(prompt);
+      }
+    });
+
+    return matched;
   }
 
   private async listSkillRows() {

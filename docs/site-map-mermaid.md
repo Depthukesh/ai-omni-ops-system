@@ -322,7 +322,7 @@ flowchart TD
     PC --> PCS1["personal-center.ts"]
     PC --> PC1["/personal-center/orders"]
     PC --> PC2["/personal-center/works"]
-    PC --> PC3["/personal-center/skills"]
+    PC --> PC3["/personal-center/skills 用户技能覆盖编辑器"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team"]
@@ -333,10 +333,12 @@ flowchart TD
     PCS1 --> PAPI3["/orders"]
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
+    PC3 --> PAPI6["/user-skills 读取/保存/重置"]
     PAPI1 --> PM1["AuthModule"]
     PAPI11 --> PM1
     PAPI2 --> PM1
     PAPI3 --> PM2["OrdersModule"]
+    PAPI6 --> PM6["UserSkillsModule"]
     PAPI4 --> PM3["TasksModule"]
     PAPI5 --> PM4["MediaModule"]
 

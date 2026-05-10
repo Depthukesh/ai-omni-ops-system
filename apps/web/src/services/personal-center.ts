@@ -1,3 +1,4 @@
+import type { PromptTemplateRecord, SkillConfigRecord } from "./admin";
 import { jsonRequest, request } from "./http";
 
 export type TaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
@@ -77,6 +78,38 @@ export type OrderRecord = {
     membership: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
     pointsBalance: number;
   };
+};
+
+export type UserSkillPromptRecord = {
+  id: string;
+  isCustomized: boolean;
+  basePrompt: PromptTemplateRecord;
+  effectivePrompt: PromptTemplateRecord;
+};
+
+export type UserSkillRecord = {
+  id: string;
+  brandId?: string;
+  isCustomized: boolean;
+  lastResetAt?: string;
+  baseSkill: SkillConfigRecord;
+  effectiveSkill: SkillConfigRecord & {
+    name: string;
+  };
+  prompts: UserSkillPromptRecord[];
+};
+
+export type UpdateUserSkillPayload = {
+  displayName?: string | null;
+  defaultModel?: string | null;
+  description?: string | null;
+  promptOverrides?: Array<{
+    promptId: string;
+    content?: string | null;
+    modelName?: string | null;
+    temperature?: number | null;
+    maxTokens?: number | null;
+  }>;
 };
 
 export const profileSeed: UserProfile = {
@@ -331,6 +364,22 @@ export async function createTask(payload: {
 
 export async function getMedia() {
   return request<MediaRecord[]>("/media");
+}
+
+export async function getUserSkills() {
+  return request<UserSkillRecord[]>("/user-skills");
+}
+
+export async function getUserSkill(skillId: string) {
+  return request<UserSkillRecord>(`/user-skills/${skillId}`);
+}
+
+export async function updateUserSkill(skillId: string, payload: UpdateUserSkillPayload) {
+  return jsonRequest<UserSkillRecord>(`/user-skills/${skillId}`, "PATCH", payload);
+}
+
+export async function resetUserSkill(skillId: string) {
+  return jsonRequest<UserSkillRecord>(`/user-skills/${skillId}/reset`, "POST", {});
 }
 
 export async function createMedia(payload: {

@@ -16,6 +16,7 @@ import { OrdersModule } from "./modules/orders/orders.module";
 import { PublishingModule } from "./modules/publishing/publishing.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { UserSkillsModule } from "./modules/user-skills/user-skills.module";
 import { WorksModule } from "./modules/works/works.module";
 import { PrismaModule } from "./prisma/prisma.module";
 
@@ -33,6 +34,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     BrandsModule,
     CollectorsModule,
     TasksModule,
+    UserSkillsModule,
     MediaModule,
     OrdersModule,
     PublishingModule,
