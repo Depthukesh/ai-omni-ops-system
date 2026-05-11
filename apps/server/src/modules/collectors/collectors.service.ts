@@ -1241,7 +1241,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return "";
     }
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed)) {
-      return process.env.NODE_ENV === "production" ? "https://17ai.site" : trimmed;
+      return process.env.NODE_ENV === "development" ? trimmed : "https://17ai.site";
     }
     return trimmed.replace(/\/$/, "");
   }
