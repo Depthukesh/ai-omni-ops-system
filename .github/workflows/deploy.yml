@@ -41,7 +41,7 @@ jobs:
               echo "pm2 status:"
               runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 status || true'
               echo "pm2 recent logs:"
-              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 logs --nostream --lines 120 || true'
+              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 logs --nostream --lines 40 || true'
             }
 
             on_error() {
@@ -143,11 +143,11 @@ jobs:
                   return 0
                 fi
                 echo "等待服务就绪 ($attempt/$max_attempts): $url"
-                curl -iS --max-time 5 "$url" || true
                 sleep "$sleep_seconds"
                 attempt=$((attempt + 1))
               done
               echo "部署终止：服务在等待窗口内未就绪 -> $url"
+              curl -iS --max-time 5 "$url" || true
               return 1
             }
 
@@ -160,5 +160,7 @@ jobs:
               exit 1
             fi
 
+            log_step "开始探活后端健康检查"
             wait_for_http http://127.0.0.1:3011/api/health
+            log_step "开始探活前端健康检查"
             wait_for_http http://127.0.0.1:3001/health
