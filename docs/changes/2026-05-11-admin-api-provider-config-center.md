@@ -51,6 +51,10 @@
 - 补齐本地稳定前端 `3001` 的 `/api` rewrite，保证浏览器端同域 `/api/*` 请求可正确转发到 `3011`
 - 修复 mock fallback 模式下的权限错误：演示账号原本在 `mock-data` 中是 `SUPER_ADMIN`，但登录返回与请求鉴权被错误降级成 `USER`，现已改为沿用用户真实 `systemRole`
 - 本地联调已额外验证一轮：后台更新视频 Provider 的 `extraParams.displayLabel` 后，`/works/.../video/providers` 与前端视频弹窗下拉会同步变化
+- GitHub Actions 的 `Deploy To Aliyun ECS` 在本轮推送后失败于 `Deploy via SSH`，已对 `.github/workflows/deploy.yml` 补充更细粒度的部署日志与失败诊断：
+  - 每个远端步骤单独输出时间戳和命令名
+  - 失败时自动回显监听端口、`pm2 status`、最近 `pm2 logs`
+  - 健康检查失败时额外打印 `curl -i` 响应，便于判断是服务未启动、反向代理异常还是接口返回 5xx
 
 ## 3. 影响文件
 
@@ -72,6 +76,7 @@
 - `apps/server/src/modules/works/works.module.ts`
 - `apps/server/src/modules/works/works.service.ts`
 - `apps/web/next.config.ts`
+- `.github/workflows/deploy.yml`
 
 ## 4. 验证结果
 
@@ -81,6 +86,7 @@
 - 本地联调验证通过：
   - `http://127.0.0.1:3001/api/works/brands/br_demo_001/xiaohongshu/video/providers` 可正确代理到 `3011`
   - 后台更新 `provider_runtime_video_hailuo` 的展示标签后，接口返回值随即同步变化；回滚后恢复正常
+- GitHub 推送已成功到 `origin/main`，但本轮自动部署失败在 `Deploy via SSH`；当前已补充部署日志增强，等待下一次 workflow 输出更精确故障点
 
 ## 5. 当前边界
 
@@ -88,3 +94,4 @@
 - 当前前端动态同步仅补到“小红书视频笔记的视频模型选项”；若后续还要把原创/二创/报告页也暴露成可选模型 UI，可继续在相同模式上扩展
 - 历史任务统计与 `model-usage` 仍以任务记录聚合为主，不等同于“代码中全部可调用模型清单”；如需单独做“模型使用总览页”，后续可基于 runtimeKey 再补一层展示
 - 当前本地环境仍未连接 `127.0.0.1:5432` PostgreSQL，联调主要基于 `mock-data` 回退模式完成；但本轮已确保 mock 模式下后台权限与 Provider 同步链路可正常验证
+- 线上 `17ai.site` 当前仍停留在上一版；需待后续部署成功后，再复验后台 Provider 与前端视频模型同步是否已在线上生效

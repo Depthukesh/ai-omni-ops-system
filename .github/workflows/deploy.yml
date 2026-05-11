@@ -19,8 +19,41 @@ jobs:
           key: ${{ secrets.ALIYUN_SSH_KEY }}
           port: ${{ secrets.ALIYUN_PORT }}
           script: |
-            set -euo pipefail
+            set -Eeuo pipefail
             APP_RUNTIME_USER="aiops"
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+
+            log_step() {
+              printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
+            }
+
+            dump_remote_debug() {
+              log_step "远端调试信息"
+              echo "whoami: $(whoami)"
+              echo "pwd: $(pwd)"
+              echo "deploy path: $DEPLOY_PATH"
+              echo "listeners:"
+              ss -lntp || true
+              echo "curl 127.0.0.1:3011/api/health:"
+              curl -iS --max-time 8 http://127.0.0.1:3011/api/health || true
+              echo "curl 127.0.0.1:3001:"
+              curl -iS --max-time 8 http://127.0.0.1:3001 || true
+              echo "pm2 status:"
+              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 status || true'
+              echo "pm2 recent logs:"
+              runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 logs --nostream --lines 120 || true'
+            }
+
+            on_error() {
+              local exit_code="$1"
+              local line_no="$2"
+              local failed_command="$3"
+              echo "部署失败：exit_code=$exit_code line=$line_no command=$failed_command"
+              dump_remote_debug
+              exit "$exit_code"
+            }
+
+            trap 'on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
 
             if ! id -u "$APP_RUNTIME_USER" >/dev/null 2>&1; then
               useradd --system --create-home --shell /bin/bash "$APP_RUNTIME_USER"
@@ -46,14 +79,29 @@ jobs:
             EOF
             chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/config"
             chmod 600 "/home/$APP_RUNTIME_USER/.ssh/config"
-            chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "${{ secrets.DEPLOY_PATH }}"
+            chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$DEPLOY_PATH"
 
-            runuser -u "$APP_RUNTIME_USER" -- bash -lc '
-              set -euo pipefail
-              cd "${{ secrets.DEPLOY_PATH }}"
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" bash <<'EOF'
+              set -Eeuo pipefail
 
-              git fetch origin main
-              git checkout main
+              log_step() {
+                printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
+              }
+
+              run_checked() {
+                log_step "$1"
+                shift
+                "$@"
+              }
+
+              cd "$DEPLOY_PATH"
+              log_step "工作区信息"
+              pwd
+              node --version
+              npm --version
+
+              run_checked "git fetch origin main" git fetch origin main
+              run_checked "git checkout main" git checkout main
 
               PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
               if [ -n "$PRE_DEPLOY_STATUS" ]; then
@@ -62,7 +110,8 @@ jobs:
                 exit 1
               fi
 
-              git pull --ff-only origin main
+              run_checked "git pull --ff-only origin main" git pull --ff-only origin main
+              run_checked "git rev-parse HEAD" git rev-parse HEAD
 
               POST_PULL_STATUS="$(git status --porcelain=v1 -uall)"
               if [ -n "$POST_PULL_STATUS" ]; then
@@ -71,16 +120,17 @@ jobs:
                 exit 1
               fi
 
-              npm ci
-              npm run prisma:generate
-              npm run prisma:db:push
+              run_checked "npm ci" npm ci
+              run_checked "npm run prisma:generate" npm run prisma:generate
+              run_checked "npm run prisma:db:push" npm run prisma:db:push
 
-              npm run build:server
-              npm run build:web
+              run_checked "npm run build:server" npm run build:server
+              run_checked "npm run build:web" npm run build:web
 
-              pm2 startOrReload ecosystem.config.cjs --update-env
-              pm2 save
-            '
+              run_checked "pm2 startOrReload ecosystem.config.cjs --update-env" pm2 startOrReload ecosystem.config.cjs --update-env
+              run_checked "pm2 save" pm2 save
+              run_checked "pm2 status" pm2 status
+            EOF
 
             wait_for_http() {
               local url="$1"
@@ -93,6 +143,7 @@ jobs:
                   return 0
                 fi
                 echo "等待服务就绪 ($attempt/$max_attempts): $url"
+                curl -iS --max-time 5 "$url" || true
                 sleep "$sleep_seconds"
                 attempt=$((attempt + 1))
               done
@@ -100,6 +151,7 @@ jobs:
               return 1
             }
 
+            log_step "本机监听端口"
             LOCAL_LISTENERS="$(ss -lnt | grep -E ':(80|443|3001|3011)\b' || true)"
             printf '%s\n' "$LOCAL_LISTENERS"
 
