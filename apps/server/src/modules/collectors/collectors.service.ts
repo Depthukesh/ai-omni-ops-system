@@ -410,7 +410,30 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async getDailyHotspotWorkspace(brandId: string, targetDate?: string): Promise<DailyHotspotWorkspace> {
+  async getDailyHotspotWorkspace(
+    brandId: string,
+    targetDate?: string,
+    options?: { skipAutoCatchUp?: boolean },
+  ): Promise<DailyHotspotWorkspace> {
+    const workspace = await this.readDailyHotspotWorkspace(brandId, targetDate);
+    if (targetDate || options?.skipAutoCatchUp) {
+      return workspace;
+    }
+    if (!(await this.shouldCatchUpDailyHotspotBrand(brandId))) {
+      return workspace;
+    }
+
+    try {
+      await this.syncDailyHotspots(brandId, []);
+      return this.readDailyHotspotWorkspace(brandId, targetDate);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      console.error(`每日热点工作区自动补抓失败: ${brandId} - ${message}`);
+      return workspace;
+    }
+  }
+
+  private async readDailyHotspotWorkspace(brandId: string, targetDate?: string): Promise<DailyHotspotWorkspace> {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(brandId);
       const assets = await this.prismaService.businessAsset.findMany({
@@ -449,7 +472,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return {
       syncedCount: results.filter((item) => item.syncStatus === "SUCCESS").length,
       results,
-      workspace: await this.getDailyHotspotWorkspace(brandId),
+      workspace: await this.getDailyHotspotWorkspace(brandId, undefined, { skipAutoCatchUp: true }),
     };
   }
 
@@ -2872,6 +2895,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (!matched || matched.syncStatus !== "SUCCESS") {
           return true;
         }
+      }
+    }
+
+    return false;
+  }
+
+  private async shouldCatchUpDailyHotspotBrand(brandId: string) {
+    if (!process.env.TIKHUB_API_KEY) {
+      return false;
+    }
+
+    const today = this.getLocalDateString();
+    const snapshots = await this.getDailyHotspotSnapshotStatuses(brandId);
+    for (const config of DAILY_HOTSPOT_CONFIGS) {
+      const matched = snapshots.find((item) => item.platformKey === config.platformKey && item.snapshotDate === today);
+      if (!matched || matched.syncStatus !== "SUCCESS") {
+        return true;
       }
     }
 

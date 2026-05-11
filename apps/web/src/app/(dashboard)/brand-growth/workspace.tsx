@@ -846,7 +846,6 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
   async function handleStartFeishuAuth() {
     clearMessages();
-    setNotice("正在跳转飞书授权，请使用当前用户自己的飞书应用和飞书账号完成连接...");
 
     try {
       const returnUrl = typeof window !== "undefined" ? `${window.location.origin}/brand-growth` : undefined;
