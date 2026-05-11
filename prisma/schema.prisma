@@ -616,3 +616,27 @@ model UserSkillResetLog {
   @@index([userId, brandId, createdAt])
   @@index([baseSkillId, createdAt])
 }
+
+model ApiProviderConfig {
+  id                 String   @id
+  name               String
+  providerType       String
+  status             String
+  baseUrl            String
+  tutorialUrl        String
+  modelWhitelistJson Json
+  apiKey             String
+  defaultModel       String
+  organization       String
+  project            String
+  timeoutMs          Int
+  streamEnabled      Boolean
+  customHeadersJson  Json
+  extraParamsJson    Json
+  remark             String
+  successRate        Float
+  requestCount24h    Int
+  totalCostYuan      Float
+  lastCalledAt       DateTime
+  updatedAt          DateTime @updatedAt
+}

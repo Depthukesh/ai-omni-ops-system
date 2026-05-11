@@ -60,6 +60,10 @@
   - `pm2 logs` 仅保留最近 40 行
   - `wait_for_http` 只在最终失败时打印一次完整 `curl -i` 响应
   - 在前后端探活前增加明确的步骤标记，方便直接判断卡在 `3011` 还是 `3001/health`
+- 继续抓取 Run 20 原始日志后，确认自动部署的真实阻塞点不是探活，而是 `npm run prisma:db:push`：
+  - 远端 Prisma 报告将删除非空表 `ApiProviderConfig`（3 行），因此拒绝继续执行
+  - 根因是 `prisma/schema.prisma` 尚未声明 `ApiProviderConfig`，`db push` 将其误判为应清理的未知表
+  - 已将 `ApiProviderConfig` 补入 Prisma schema，避免后续部署把运行时 Provider 真源当成待删除表
 
 ## 3. 影响文件
 
@@ -83,16 +87,19 @@
 - `apps/web/next.config.ts`
 - `apps/web/src/app/health/route.ts`
 - `.github/workflows/deploy.yml`
+- `prisma/schema.prisma`
 
 ## 4. 验证结果
 
 - `npm --workspace apps/server run build` 通过
 - `npm --workspace apps/web run build` 通过
+- `npm run build:server` 通过
 - `GetDiagnostics` 检查本次改动文件，无新增诊断报错
+- `npm run prisma:generate` 本地未完成：Windows 下 `node_modules/.prisma/client/query_engine-windows.dll.node` 重命名遇到 `EPERM` 文件锁，未发现 schema 语法错误
 - 本地联调验证通过：
   - `http://127.0.0.1:3001/api/works/brands/br_demo_001/xiaohongshu/video/providers` 可正确代理到 `3011`
   - 后台更新 `provider_runtime_video_hailuo` 的展示标签后，接口返回值随即同步变化；回滚后恢复正常
-- GitHub 推送已成功到 `origin/main`，但本轮自动部署失败在 `Deploy via SSH`；当前已补充部署日志增强，等待下一次 workflow 输出更精确故障点
+- GitHub 推送已成功到 `origin/main`，但本轮自动部署失败在 `Deploy via SSH`；现已定位到真实故障点为 `prisma db push` 误删 `ApiProviderConfig` 的数据丢失保护
 
 ## 5. 当前边界
 
