@@ -293,7 +293,7 @@
 
 ### 5.3 每日热点链路
 
-1. 后端读取 `TIKHUB_API_KEY`
+1. 后端读取 `TIKHUB_API_KEY`；生产部署时必须把该 Secret 显式传给 PM2 运行环境
 2. `SchedulerModule` 注册每日热点任务
 3. `CollectorsModule` 每天 4:00 自动拉取热点
 4. 数据写回每日热点工作区；若当天快照缺失，工作区接口会在读取时自动补抓一次

@@ -242,6 +242,7 @@
 - 如果服务器仓库目录已经收口到普通运行用户，部署脚本中的 `git fetch`、`git checkout`、`git status`、`git pull` 也必须切到同一普通用户执行，不允许再由 `root` 直接操作该仓库触发 `dubious ownership`
 - 如果部署中的 Git 拉取依赖 SSH 私钥，切到普通运行用户后还必须同步准备该用户自己的 `~/.ssh`、`known_hosts` 与对应 Deploy Key/SSH config；不能默认复用 `root` 的 SSH 上下文
 - 如果业务依赖 seed 数据才能正常工作，部署脚本不能只执行 `prisma db push`；必须显式补对应的目标化 seed 步骤，并避免在生产环境默认运行会覆盖 demo 用户、品牌或演示任务的整套 seed
+- 如果业务依赖第三方运行时密钥，部署脚本必须把对应 GitHub Secrets 显式传给远端运行用户和 `pm2 startOrReload --update-env`；不能假设远端 shell、旧 PM2 进程或历史登录态会自动保留这些环境变量
 
 - 一个提交只解决一类问题
 - 提交前至少完成相关构建或诊断验证
