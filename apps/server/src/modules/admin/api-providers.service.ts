@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { LEGACY_API_PROVIDER_IDS, SYSTEM_API_PROVIDER_SEEDS } from "../../common/api-provider-catalog";
 import { database, type ApiProviderRecord } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -79,6 +80,69 @@ export class ApiProvidersService {
     return [...database.apiProviders]
       .map((item) => ({ ...item }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async listActiveProviders() {
+    return (await this.listProviders()).filter((item) => item.status === "ACTIVE");
+  }
+
+  async findActiveProviderByRuntimeKey(runtimeKey: string) {
+    const normalizedKey = runtimeKey.trim();
+    return (await this.listActiveProviders()).find((item) => this.getRuntimeKey(item) === normalizedKey);
+  }
+
+  async listActiveProvidersByRuntimeKey(runtimeKey: string) {
+    const normalizedKey = runtimeKey.trim();
+    return (await this.listActiveProviders()).filter((item) => this.getRuntimeKey(item) === normalizedKey);
+  }
+
+  getRuntimeKey(provider: ApiProviderRecord) {
+    return this.getStringExtra(provider, "runtimeKey");
+  }
+
+  getRuntimeTags(provider: ApiProviderRecord) {
+    return this.getStringArrayExtra(provider, "runtimeTags");
+  }
+
+  getBaseUrls(provider: ApiProviderRecord) {
+    const baseUrls = this.getStringArrayExtra(provider, "baseUrls");
+    if (baseUrls.length) {
+      return baseUrls;
+    }
+    return provider.baseUrl ? [provider.baseUrl] : [];
+  }
+
+  getApiKeys(provider: ApiProviderRecord) {
+    const apiKeys = this.getStringArrayExtra(provider, "apiKeys");
+    if (apiKeys.length) {
+      return apiKeys;
+    }
+    return provider.apiKey ? [provider.apiKey] : [];
+  }
+
+  getStringExtra(provider: ApiProviderRecord, key: string) {
+    const value = provider.extraParams?.[key];
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  getStringArrayExtra(provider: ApiProviderRecord, key: string) {
+    const value = provider.extraParams?.[key];
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean);
+  }
+
+  getBooleanExtra(provider: ApiProviderRecord, key: string) {
+    const value = provider.extraParams?.[key];
+    return value === true;
+  }
+
+  getNumberExtra(provider: ApiProviderRecord, key: string) {
+    const value = provider.extraParams?.[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }
 
   async createProvider(payload: CreateApiProviderPayload) {
@@ -366,57 +430,7 @@ export class ApiProvidersService {
       `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "remark" TEXT NOT NULL DEFAULT ''`,
     );
 
-    for (const provider of database.apiProviders) {
-      await this.prismaService.$executeRaw`
-        INSERT INTO "ApiProviderConfig" (
-          "id",
-          "name",
-          "providerType",
-          "status",
-          "baseUrl",
-          "tutorialUrl",
-          "modelWhitelistJson",
-          "apiKey",
-          "defaultModel",
-          "organization",
-          "project",
-          "timeoutMs",
-          "streamEnabled",
-          "customHeadersJson",
-          "extraParamsJson",
-          "remark",
-          "successRate",
-          "requestCount24h",
-          "totalCostYuan",
-          "lastCalledAt",
-          "updatedAt"
-        )
-        VALUES (
-          ${provider.id},
-          ${provider.name},
-          ${provider.providerType},
-          ${provider.status},
-          ${provider.baseUrl},
-          ${provider.tutorialUrl},
-          ${JSON.stringify(provider.modelWhitelist)}::jsonb,
-          ${provider.apiKey},
-          ${provider.defaultModel},
-          ${provider.organization},
-          ${provider.project},
-          ${provider.timeoutMs},
-          ${provider.streamEnabled},
-          ${JSON.stringify(provider.customHeaders)}::jsonb,
-          ${JSON.stringify(provider.extraParams)}::jsonb,
-          ${provider.remark},
-          ${provider.successRate},
-          ${provider.requestCount24h},
-          ${provider.totalCostYuan},
-          ${new Date(provider.lastCalledAt)},
-          ${new Date(provider.updatedAt)}
-        )
-        ON CONFLICT ("id") DO NOTHING
-      `;
-    }
+    await this.bootstrapSystemProviders();
   }
 
   private async findById(id: string) {
@@ -427,6 +441,83 @@ export class ApiProvidersService {
       LIMIT 1
     `;
     return rows[0] ? this.normalizeRow(rows[0]) : undefined;
+  }
+
+  private async bootstrapSystemProviders() {
+    const existingRows = await this.prismaService.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ApiProviderConfig"
+    `;
+    const existingIds = new Set(existingRows.map((item) => item.id));
+    const hasSystemSeed = SYSTEM_API_PROVIDER_SEEDS.some((item) => existingIds.has(item.id));
+
+    if (!hasSystemSeed && LEGACY_API_PROVIDER_IDS.some((item) => existingIds.has(item))) {
+      await this.prismaService.$executeRawUnsafe(
+        `DELETE FROM "ApiProviderConfig" WHERE "id" IN (${LEGACY_API_PROVIDER_IDS.map((item) => `'${item}'`).join(", ")})`,
+      );
+      for (const legacyId of LEGACY_API_PROVIDER_IDS) {
+        existingIds.delete(legacyId);
+      }
+    }
+
+    for (const provider of SYSTEM_API_PROVIDER_SEEDS) {
+      if (existingIds.has(provider.id)) {
+        continue;
+      }
+      await this.insertProviderSeed(provider);
+    }
+  }
+
+  private async insertProviderSeed(provider: ApiProviderRecord) {
+    await this.prismaService.$executeRaw`
+      INSERT INTO "ApiProviderConfig" (
+        "id",
+        "name",
+        "providerType",
+        "status",
+        "baseUrl",
+        "tutorialUrl",
+        "modelWhitelistJson",
+        "apiKey",
+        "defaultModel",
+        "organization",
+        "project",
+        "timeoutMs",
+        "streamEnabled",
+        "customHeadersJson",
+        "extraParamsJson",
+        "remark",
+        "successRate",
+        "requestCount24h",
+        "totalCostYuan",
+        "lastCalledAt",
+        "updatedAt"
+      )
+      VALUES (
+        ${provider.id},
+        ${provider.name},
+        ${provider.providerType},
+        ${provider.status},
+        ${provider.baseUrl},
+        ${provider.tutorialUrl},
+        ${JSON.stringify(provider.modelWhitelist)}::jsonb,
+        ${provider.apiKey},
+        ${provider.defaultModel},
+        ${provider.organization},
+        ${provider.project},
+        ${provider.timeoutMs},
+        ${provider.streamEnabled},
+        ${JSON.stringify(provider.customHeaders)}::jsonb,
+        ${JSON.stringify(provider.extraParams)}::jsonb,
+        ${provider.remark},
+        ${provider.successRate},
+        ${provider.requestCount24h},
+        ${provider.totalCostYuan},
+        ${new Date(provider.lastCalledAt)},
+        ${new Date(provider.updatedAt)}
+      )
+      ON CONFLICT ("id") DO NOTHING
+    `;
   }
 
   private normalizeRow(row: ApiProviderRow): ApiProviderRecord {

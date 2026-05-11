@@ -53,6 +53,7 @@ flowchart TD
     C --> C8["MediaModule"]
     C --> C9["OrdersModule"]
     C --> C10["Admin 模块组"]
+    C10 --> C101["ApiProvidersModule 运行时 Provider 真源"]
 
     D --> D1["用户与订单域"]
     D --> D2["品牌资料域"]
@@ -71,6 +72,7 @@ flowchart TD
     F --> F1["dev:web:stable"]
     F --> F2["dev:server:stable"]
     F --> F3["seed-demo.cjs"]
+    F1 --> F11["next.config.ts /api -> 3011 rewrite"]
 
     G --> G1[".github/workflows/deploy.yml"]
     G --> G2["ecosystem.config.cjs"]
@@ -245,6 +247,7 @@ flowchart TD
     SX1 --> AX1["/brands/* + /reports/* + /collectors/* 聚合读取"]
     SX2 --> AX2["/publishing/xiaohongshu/*"]
     SX3 --> AX3["/works/brands/:brandId/xiaohongshu/*"]
+    SX3 --> AX31["/works/brands/:brandId/xiaohongshu/video/providers"]
     SX4 --> AX4["/collectors/xiaohongshu/*"]
     SX5 --> AX5["/reports/brands/:brandId/xiaohongshu-*"]
     SX0 --> SX1
@@ -254,6 +257,7 @@ flowchart TD
 
     AX2 --> MX1["PublishingModule"]
     AX3 --> MX2["WorksModule"]
+    AX31 --> MX2
     AX4 --> MX3["CollectorsModule 品牌访问校验"]
     AX5 --> MX4["ReportsModule 品牌访问校验"]
 
@@ -263,6 +267,7 @@ flowchart TD
     MX2 --> TX2
     MX2 --> TX3["Brand"]
     MX2 --> TX4["Product"]
+    MX2 --> TX8["ApiProvidersModule runtimeKey 读取"]
     MX3 --> TX5["PlatformAccount"]
     MX3 --> TX6["CompetitorAccount"]
     MX3 --> TX7["BusinessAsset"]

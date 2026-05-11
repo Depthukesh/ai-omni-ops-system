@@ -7,5 +7,6 @@ import { ApiProvidersService } from "./api-providers.service";
   imports: [AuthModule],
   controllers: [ApiProvidersController],
   providers: [ApiProvidersService],
+  exports: [ApiProvidersService],
 })
 export class ApiProvidersModule {}

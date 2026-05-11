@@ -7,6 +7,7 @@ import {
   type SelectOption,
   type StringChangeHandler,
 } from "./shared-types";
+import { type VideoProviderOptionRecord } from "../../../services/works";
 
 export interface OriginalCreateModalProps {
   open: boolean;
@@ -227,6 +228,7 @@ export interface VideoCreateModalProps {
   noProductOption: string;
   customVideoProviderOption: string;
   customVideoDurationOption: string;
+  videoProviderOptions: VideoProviderOptionRecord[];
   products: ProductOption[];
   calendarValue: string;
   customTopic: string;
@@ -327,11 +329,11 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
             <label>
               <span>视频大模型</span>
               <select value={props.providerValue} onChange={(event) => props.onProviderChange(event.target.value)}>
-                <option value="hailuo">hailuo</option>
-                <option value="kling">kling</option>
-                <option value="veo">veo</option>
-                <option value="wan">wan</option>
-                <option value="seedance2.0">seedance2.0</option>
+                {props.videoProviderOptions.map((item) => (
+                  <option key={item.backendKey} value={item.backendKey}>
+                    {item.recommended ? `${item.label}（推荐）` : item.label}
+                  </option>
+                ))}
                 <option value={props.customVideoProviderOption}>自行选择</option>
               </select>
             </label>
@@ -340,11 +342,11 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                 <label>
                   <span>自选视频后端</span>
                   <select value={props.customProviderValue} onChange={(event) => props.onCustomProviderChange(event.target.value)}>
-                    <option value="hailuo">hailuo</option>
-                    <option value="kling">kling</option>
-                    <option value="veo">veo</option>
-                    <option value="wan">wan</option>
-                    <option value="seedance2.0">seedance2.0</option>
+                    {props.videoProviderOptions.map((item) => (
+                      <option key={item.backendKey} value={item.backendKey}>
+                        {item.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>

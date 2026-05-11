@@ -3,10 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
-import { createId, database } from "../../common/mock-data";
+import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
+import { ApiProvidersService } from "../admin/api-providers.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
@@ -451,6 +452,16 @@ type VideoProviderConfig = {
   requestTimeoutMs?: number;
 };
 
+export type VideoProviderOptionRecord = {
+  backendKey: VideoBackendKey;
+  label: string;
+  defaultModel: string;
+  recommended: boolean;
+  supportsTextToVideo: boolean;
+  supportsImageToVideo: boolean;
+  displayOrder: number;
+};
+
 @Injectable()
 export class WorksService {
   constructor(
@@ -466,9 +477,40 @@ export class WorksService {
     private readonly collectorsService: CollectorsService,
     @Inject(ReportsService)
     private readonly reportsService: ReportsService,
+    @Inject(ApiProvidersService)
+    private readonly apiProvidersService: ApiProvidersService,
     @Inject(SkillsPromptsService)
     private readonly skillsPromptsService: SkillsPromptsService,
   ) {}
+
+  async listXiaohongshuVideoProviderOptions() {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("video-generation");
+    const items = providers
+      .map((item) => {
+        const backendKey = this.parseVideoBackendKey(this.apiProvidersService.getStringExtra(item, "backendKey"));
+        if (!backendKey) {
+          return null;
+        }
+        return {
+          backendKey,
+          label: this.apiProvidersService.getStringExtra(item, "displayLabel") || item.name,
+          defaultModel: item.defaultModel || item.modelWhitelist[0] || "",
+          recommended: this.apiProvidersService.getBooleanExtra(item, "recommended"),
+          supportsTextToVideo: item.extraParams?.supportsTextToVideo !== false,
+          supportsImageToVideo: item.extraParams?.supportsImageToVideo !== false,
+          displayOrder: this.apiProvidersService.getNumberExtra(item, "displayOrder") ?? Number.MAX_SAFE_INTEGER,
+        } satisfies VideoProviderOptionRecord;
+      })
+      .filter((item): item is VideoProviderOptionRecord => Boolean(item))
+      .sort((left, right) => {
+        if (left.displayOrder !== right.displayOrder) {
+          return left.displayOrder - right.displayOrder;
+        }
+        return left.label.localeCompare(right.label, "zh-CN");
+      });
+
+    return { items };
+  }
 
   async listXiaohongshuOriginalWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
@@ -1500,7 +1542,7 @@ export class WorksService {
     files: Array<{ label: string; payload: UploadFilePayload }>,
     marketingPlanMarkdown: string,
   ) {
-    const provider = this.loadDoubaoImageAnalysisProvider();
+    const provider = await this.loadDoubaoImageAnalysisProvider();
     const prompt = this.loadImageAnalysisPrompt();
     const result: string[] = [];
 
@@ -1594,7 +1636,7 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadOriginalCopyPrompt();
-    const providers = this.loadOriginalCopyProviders();
+    const providers = await this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -1716,7 +1758,7 @@ export class WorksService {
     };
   }): Promise<OriginalImagePromptResult> {
     const skillPrompt = await this.loadOriginalImagePrompt();
-    const providers = this.loadOriginalImagePromptProviders();
+    const providers = await this.loadOriginalImagePromptProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -1838,7 +1880,7 @@ export class WorksService {
     textPlan?: ImageTextPlanEntry;
     referenceImageUrls: string[];
   }) {
-    const providers = this.loadImageGenerationProviders();
+    const providers = await this.loadImageGenerationProviders();
     let lastError = "";
     const promptsToTry = this.buildImagePromptCandidates(
       this.buildImagePromptWithTextPlan(params.prompt, params.textPlan, params.role, params.order),
@@ -3319,124 +3361,133 @@ export class WorksService {
     throw new ServiceUnavailableException("未找到拆解图片提示词文件");
   }
 
-  private loadOriginalCopyProviders() {
-    const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
-    const deepseekSection = this.extractProviderSection(domesticContent, "deepseek", ["kimi", "GLM"]);
-    const kimiSection = this.extractProviderSection(domesticContent, "kimi", ["GLM"]);
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
-    const kimiApiKeys = this.collectRegexMatches(kimiSection, /sk-[A-Za-z0-9]+/g);
-    const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
+  private buildTextProviderConfig(
+    provider: ApiProviderRecord | undefined,
+    providerLabel: TextProviderConfig["provider"],
+    preferredModels: string[],
+    options: {
+      temperature: number;
+      maxTokens: number;
+      requestTimeoutMs: number;
+      jsonResponse?: boolean;
+      thinkingDisabled?: boolean;
+      tokenLimitField?: "max_tokens" | "max_completion_tokens";
+    },
+  ): TextProviderConfig | undefined {
+    if (!provider) {
+      return undefined;
+    }
+    const baseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+    const models = this.pickProviderModels(provider.modelWhitelist, [], preferredModels);
+    if (!baseUrls.length || !apiKeys.length || !models.length) {
+      return undefined;
+    }
 
-    const providers: TextProviderConfig[] = [];
-    if (deepseekApiKeys.length) {
-      providers.push({
-        provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
-        models: ["deepseek-v4-pro"],
+    const payloadExtras: Record<string, unknown> = {};
+    if (options.jsonResponse) {
+      payloadExtras.response_format = { type: "json_object" };
+    }
+    if (options.thinkingDisabled || this.apiProvidersService.getStringExtra(provider, "thinking") === "disabled") {
+      payloadExtras.thinking = { type: "disabled" };
+    }
+
+    return {
+      provider: providerLabel,
+      baseUrls,
+      completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/chat/completions",
+      apiKeys,
+      models,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      requestTimeoutMs: provider.timeoutMs || options.requestTimeoutMs,
+      payloadExtras: Object.keys(payloadExtras).length ? payloadExtras : undefined,
+      tokenLimitField:
+        options.tokenLimitField
+        || (this.apiProvidersService.getStringExtra(provider, "tokenLimitField") === "max_completion_tokens"
+          ? "max_completion_tokens"
+          : "max_tokens"),
+    };
+  }
+
+  private pickProviderModels(availableModels: string[], requestedModels: string[], preferredModels: string[]) {
+    const normalizedAvailable = availableModels.map((item) => item.trim()).filter(Boolean);
+    const normalizedRequested = requestedModels.map((item) => item.trim()).filter(Boolean);
+    const candidateModels = normalizedRequested.length
+      ? normalizedAvailable.filter((item) => normalizedRequested.includes(item))
+      : normalizedAvailable;
+    const ordered = preferredModels
+      .filter((item) => candidateModels.includes(item))
+      .concat(candidateModels.filter((item) => !preferredModels.includes(item)));
+    return ordered.length ? ordered : normalizedAvailable;
+  }
+
+  private async loadOriginalCopyProviders() {
+    const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+    ]);
+
+    const providers = [
+      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", ["deepseek-v4-pro", "deepseek-v4-flash"], {
         temperature: 0.3,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-          thinking: { type: "disabled" },
-        },
-      });
-    }
-    if (arkApiKeys.length) {
-      providers.push({
-        provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
-        models: ["doubao-seed-2-0-pro-260215"],
+        jsonResponse: true,
+        thinkingDisabled: true,
+      }),
+      this.buildTextProviderConfig(doubaoProvider, "ARK", ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215"], {
         temperature: 0.6,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-        },
-      });
-    }
-    if (kimiApiKeys.length) {
-      providers.push({
-        provider: "KIMI",
-        baseUrls: ["https://api.moonshot.cn/v1"],
-        completionPath: "/chat/completions",
-        apiKeys: kimiApiKeys.slice(0, 1),
-        models: ["kimi-k2.6"],
+        jsonResponse: true,
+      }),
+      this.buildTextProviderConfig(kimiProvider, "KIMI", ["kimi-k2.6"], {
         temperature: 1,
         maxTokens: 2200,
-        tokenLimitField: "max_completion_tokens",
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-        },
-      });
-    }
+        jsonResponse: true,
+        tokenLimitField: "max_completion_tokens",
+      }),
+    ].filter((item): item is TextProviderConfig => Boolean(item));
+
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
     }
     return providers;
   }
 
-  private loadOriginalImagePromptProviders() {
-    const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
-    const deepseekSection = this.extractProviderSection(domesticContent, "deepseek", ["kimi", "GLM"]);
-    const kimiSection = this.extractProviderSection(domesticContent, "kimi", ["GLM"]);
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
-    const kimiApiKeys = this.collectRegexMatches(kimiSection, /sk-[A-Za-z0-9]+/g);
-    const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
+  private async loadOriginalImagePromptProviders() {
+    const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+    ]);
 
-    const providers: TextProviderConfig[] = [];
-    if (deepseekApiKeys.length) {
-      providers.push({
-        provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
-        models: ["deepseek-v4-pro"],
+    const providers = [
+      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", ["deepseek-v4-pro", "deepseek-v4-flash"], {
         temperature: 0.3,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-          thinking: { type: "disabled" },
-        },
-      });
-    }
-    if (arkApiKeys.length) {
-      providers.push({
-        provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
-        models: ["doubao-seed-2-0-pro-260215"],
+        jsonResponse: true,
+        thinkingDisabled: true,
+      }),
+      this.buildTextProviderConfig(doubaoProvider, "ARK", ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215"], {
         temperature: 0.5,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-        },
-      });
-    }
-    if (kimiApiKeys.length) {
-      providers.push({
-        provider: "KIMI",
-        baseUrls: ["https://api.moonshot.cn/v1"],
-        completionPath: "/chat/completions",
-        apiKeys: kimiApiKeys.slice(0, 1),
-        models: ["kimi-k2.6"],
+        jsonResponse: true,
+      }),
+      this.buildTextProviderConfig(kimiProvider, "KIMI", ["kimi-k2.6"], {
         temperature: 1,
         maxTokens: 2800,
-        tokenLimitField: "max_completion_tokens",
         requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-        },
-      });
-    }
+        jsonResponse: true,
+        tokenLimitField: "max_completion_tokens",
+      }),
+    ].filter((item): item is TextProviderConfig => Boolean(item));
+
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
     }
@@ -3477,7 +3528,7 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadRewriteCopyPrompt();
-    const providers = this.loadOriginalCopyProviders();
+    const providers = await this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -3606,7 +3657,7 @@ export class WorksService {
     noteContent: string;
   }): Promise<OriginalImagePromptResult> {
     const skillPrompt = await this.loadRewriteImagePrompt();
-    const providers = this.loadOriginalImagePromptProviders();
+    const providers = await this.loadOriginalImagePromptProviders();
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -3741,7 +3792,7 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<VideoCopyModelResult> {
     const skillPrompt = await this.loadVideoCopyPrompt();
-    const providers = this.loadOriginalCopyProviders();
+    const providers = await this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -3896,7 +3947,7 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<VideoPromptModelResult> {
     const skillPrompt = await this.loadShortVideoPromptSkill();
-    const providers = this.loadOriginalCopyProviders();
+    const providers = await this.loadOriginalCopyProviders();
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -4028,35 +4079,47 @@ export class WorksService {
     throw new ServiceUnavailableException(`视频提示词生成失败：${lastError || "未获取到有效响应"}`);
   }
 
-  private loadDoubaoImageAnalysisProvider() {
-    const domesticContent = readFileSync(this.resolveDomesticThirdPartyApiConfigPath(), "utf8");
-    const arkApiKeys = this.collectRegexMatches(domesticContent, /ark-[A-Za-z0-9-]+/g);
-    if (!arkApiKeys.length) {
+  private async loadDoubaoImageAnalysisProvider() {
+    const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao");
+    const config = this.buildTextProviderConfig(provider, "ARK", ["doubao-seed-1-8-251228", "doubao-seed-2-0-pro-260215"], {
+      temperature: 0.2,
+      maxTokens: 1400,
+      requestTimeoutMs: 180000,
+    });
+    if (!config) {
       throw new ServiceUnavailableException("已上传参考图，但未找到 Doubao-Seed-1.8 的可用配置");
     }
     return {
-      baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-      completionPath: "/chat/completions",
-      apiKeys: arkApiKeys.slice(0, 1),
-      models: ["doubao-seed-1-8-251228"],
+      baseUrls: config.baseUrls,
+      completionPath: config.completionPath,
+      apiKeys: config.apiKeys,
+      models: config.models,
     };
   }
 
-  private loadImageGenerationProviders(): ImageProviderConfig[] {
-    const content = readFileSync(this.resolveImageGenerationConfigPath(), "utf8");
-    const baseUrls = this.collectRegexMatches(content, /https?:\/\/[^\s]+/g);
-    const apiKeys = this.collectRegexMatches(content, /sk-[A-Za-z0-9]+/g);
-    if (!baseUrls.length || !apiKeys.length) {
+  private async loadImageGenerationProviders(): Promise<ImageProviderConfig[]> {
+    const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey("image-generation");
+    if (!provider) {
+      throw new ServiceUnavailableException("未找到文生图接口配置");
+    }
+    const baseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+    const models = this.pickProviderModels(
+      provider.modelWhitelist,
+      [],
+      ["gpt-image-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"],
+    );
+    if (!baseUrls.length || !apiKeys.length || !models.length) {
       throw new ServiceUnavailableException("未找到文生图接口配置");
     }
     return [
       {
         provider: "IMAGE_API",
-        baseUrls: baseUrls.slice(0, 3),
-        completionPath: "/v1/chat/completions",
-        apiKeys: apiKeys.slice(0, 4),
-        models: ["gpt-image-2", "nano-banana-pro-2k", "gemini-3-pro-image-preview-2k"],
-        requestTimeoutMs: 240000,
+        baseUrls,
+        completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
+        apiKeys,
+        models,
+        requestTimeoutMs: provider.timeoutMs || 240000,
       },
     ];
   }
@@ -4082,92 +4145,41 @@ export class WorksService {
     throw new ServiceUnavailableException(`未找到 ${backend} 视频接口配置文件`);
   }
 
-  private loadVideoProviderConfig(backend: VideoBackendKey): VideoProviderConfig {
-    const content = readFileSync(this.resolveVideoGenerationConfigPath(backend), "utf8");
-    const baseUrls = this.collectRegexMatches(content, /https?:\/\/[^\s)]+/g).slice(0, 3);
-    const apiKeys = this.collectRegexMatches(content, /sk-[A-Za-z0-9]+/g).slice(0, 4);
+  private async loadVideoProviderConfig(backend: VideoBackendKey): Promise<VideoProviderConfig> {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("video-generation");
+    const provider = providers.find((item) => this.parseVideoBackendKey(this.apiProvidersService.getStringExtra(item, "backendKey")) === backend);
+    if (!provider) {
+      throw new ServiceUnavailableException(`${backend} 视频接口配置读取失败`);
+    }
+
+    const baseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const apiKeys = this.apiProvidersService.getApiKeys(provider);
     if (!baseUrls.length || !apiKeys.length) {
       throw new ServiceUnavailableException(`${backend} 视频接口配置读取失败`);
     }
 
-    switch (backend) {
-      case "hailuo":
-        return {
-          backend,
-          baseUrls,
-          apiKeys,
-          createPath: "/minimax/v1/video_generation",
-          queryPath: "/minimax/v1/query/video_generation",
-          textCreatePath: "/minimax/v1/video_generation",
-          imageCreatePath: "/minimax/v1/video_generation",
-          textQueryPath: "/minimax/v1/query/video_generation",
-          imageQueryPath: "/minimax/v1/query/video_generation",
-          textModel: "MiniMax-Hailuo-02",
-          imageModel: "I2V-01",
-          fastModel: "MiniMax-Hailuo-02",
-          proModel: "MiniMax-Hailuo-02",
-          requestTimeoutMs: 180000,
-        };
-      case "kling":
-        return {
-          backend,
-          baseUrls,
-          apiKeys,
-          createPath: "/kling/v1/videos/text2video",
-          queryPath: "/kling/v1/images/text2video/{task_id}",
-          textCreatePath: "/kling/v1/videos/text2video",
-          imageCreatePath: "/kling/v1/videos/image2video",
-          textQueryPath: "/kling/v1/images/text2video/{task_id}",
-          imageQueryPath: "/kling/v1/images/image2video/{task_id}",
-          textModel: "kling-v1-6",
-          imageModel: "kling-v1-6",
-          fastModel: "kling-v1-5",
-          proModel: "kling-v1-6",
-          requestTimeoutMs: 180000,
-        };
-      case "veo":
-        return {
-          backend,
-          baseUrls,
-          apiKeys,
-          createPath: "/v2/videos/generations",
-          queryPath: "/v2/videos/generations/{task_id}",
-          textModel: "veo3.1",
-          imageModel: "veo3-pro-frames",
-          fastModel: "veo3.1",
-          proModel: "veo3.1-pro",
-          multiImageModel: "veo3.1-components",
-          requestTimeoutMs: 240000,
-        };
-      case "wan":
-        return {
-          backend,
-          baseUrls,
-          apiKeys,
-          createPath: "/v2/videos/generations",
-          queryPath: "/v2/videos/generations/{task_id}",
-          textModel: "wan2.5-t2v-preview",
-          imageModel: "wan2.5-i2v-preview",
-          requestTimeoutMs: 240000,
-        };
-      case "seedance":
-      default:
-        return {
-          backend: "seedance",
-          baseUrls,
-          apiKeys,
-          createPath: "/v2/videos/generations",
-          queryPath: "/v2/videos/generations/{task_id}",
-          textModel: "doubao-seedance-2-0-260128",
-          imageModel: "doubao-seedance-2-0-260128",
-          fastModel: "doubao-seedance-2-0-260128",
-          proModel: "doubao-seedance-2-0-260128",
-          requestTimeoutMs: 240000,
-        };
-    }
+    const defaultModel = provider.defaultModel || provider.modelWhitelist[0] || backend;
+    return {
+      backend,
+      baseUrls,
+      apiKeys,
+      createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || "/v2/videos/generations",
+      queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
+      textCreatePath: this.apiProvidersService.getStringExtra(provider, "textCreatePath") || undefined,
+      imageCreatePath: this.apiProvidersService.getStringExtra(provider, "imageCreatePath") || undefined,
+      textQueryPath: this.apiProvidersService.getStringExtra(provider, "textQueryPath") || undefined,
+      imageQueryPath: this.apiProvidersService.getStringExtra(provider, "imageQueryPath") || undefined,
+      textModel: this.apiProvidersService.getStringExtra(provider, "textModel") || defaultModel,
+      imageModel: this.apiProvidersService.getStringExtra(provider, "imageModel") || defaultModel,
+      fastModel: this.apiProvidersService.getStringExtra(provider, "fastModel") || undefined,
+      proModel: this.apiProvidersService.getStringExtra(provider, "proModel") || undefined,
+      multiImageModel: this.apiProvidersService.getStringExtra(provider, "multiImageModel") || undefined,
+      modelName: defaultModel,
+      requestTimeoutMs: provider.timeoutMs || 240000,
+    };
   }
 
-  private normalizeVideoProvider(value?: string): VideoBackendKey {
+  private parseVideoBackendKey(value?: string): VideoBackendKey | undefined {
     const normalized = String(value ?? "")
       .trim()
       .toLowerCase()
@@ -4176,7 +4188,7 @@ export class WorksService {
       .replace(/-/g, "")
       .replace(/\./g, "");
     if (!normalized) {
-      return "seedance";
+      return undefined;
     }
     if (normalized === "seedance" || normalized === "seedance20") {
       return "seedance";
@@ -4192,6 +4204,14 @@ export class WorksService {
     }
     if (normalized === "wan") {
       return "wan";
+    }
+    return undefined;
+  }
+
+  private normalizeVideoProvider(value?: string): VideoBackendKey {
+    const backend = this.parseVideoBackendKey(value);
+    if (backend) {
+      return backend;
     }
     throw new BadRequestException("暂不支持所选视频模型，请从 hailuo、kling、veo、wan、seedance2.0 中选择。");
   }
@@ -4336,7 +4356,7 @@ export class WorksService {
     const providerErrors: string[] = [];
 
     for (const backend of providerOrder) {
-      const config = this.loadVideoProviderConfig(backend);
+      const config = await this.loadVideoProviderConfig(backend);
       const modelName = this.resolveVideoModelName(
         config,
         backend,

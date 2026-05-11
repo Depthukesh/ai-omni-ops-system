@@ -138,6 +138,14 @@
   - 用途：后台技能中心中的提示词模板正文与参数
   - 关键字段：`name`、`scene`、`version`、`status`、`modelName`、`temperature`、`maxTokens`、`content`
 
+### 3.7 接口供应商注册域
+
+- `ApiProviderConfig`
+  - 用途：后台接口供应商配置中心与运行时 Provider 真源
+  - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`
+  - JSON 字段：`modelWhitelistJson`、`customHeadersJson`、`extraParamsJson`
+  - 当前约定：`extraParamsJson.runtimeKey` 作为运行时分组键；`ReportsModule` 与 `WorksModule` 按 `runtimeKey` 查询激活中的 Provider
+
 ## 4. 业务板块与数据表映射
 
 ### 4.1 品牌增长策略 `/brand-growth`
@@ -191,6 +199,7 @@
 - 用户管理：`User`、`UserSession`
 - 品牌成员与权限：`Brand`、`BrandMember`
 - API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`、`customHeadersJson`、`extraParamsJson`、`modelWhitelistJson`、`remark`
+  - 当前视频模型下拉、报告生成和小红书创作生成链路已开始直接读取 `ApiProviderConfig`
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`
@@ -210,6 +219,7 @@
 - `apps/server/src/common/mock-data.ts`
   - 仍承载部分演示数据和兜底数据
   - 当前典型包括：`billingRules`、部分知识库配置，以及数据库不可用时的 `apiProviders` 兜底数据
+  - 当前 mock 模式下的演示账号权限也必须沿用 `mock-data.users[].systemRole`，不能在认证链路中硬降级为普通用户，否则后台 Provider 配置中心无法联调
 - 注册邀请码在数据库不可用时会临时从 `prisma/seed-data/registration-invite-codes.txt` 加载到内存兜底，不写入 `mock-data`
 - `提示词/` 与 `.trae/skills/`
   - 仍作为提示词文件真源和回填来源之一

@@ -83,12 +83,14 @@ import {
   type XiaohongshuTone,
 } from "../../../services/xiaohongshu";
 import {
+  getXiaohongshuVideoProviders,
   getXiaohongshuVideoWorks,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
+  type VideoProviderOptionRecord,
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
@@ -104,6 +106,17 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
 const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
 const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
 const AUTO_IMAGE_COUNT_OPTION = "__AUTO__";
+const DEFAULT_VIDEO_PROVIDER_OPTIONS: VideoProviderOptionRecord[] = [
+  {
+    backendKey: "seedance",
+    label: "seedance2.0",
+    defaultModel: "doubao-seedance-2-0-260128",
+    recommended: true,
+    supportsTextToVideo: true,
+    supportsImageToVideo: true,
+    displayOrder: 10,
+  },
+];
 
 export default function XiaohongshuPage() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
@@ -146,6 +159,7 @@ export default function XiaohongshuPage() {
   const [selectedRewriteWorkId, setSelectedRewriteWorkId] = useState("");
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
+  const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>(DEFAULT_VIDEO_PROVIDER_OPTIONS);
   const [selectedVideoWorkId, setSelectedVideoWorkId] = useState("");
   const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
@@ -171,6 +185,8 @@ export default function XiaohongshuPage() {
     noProductOption: NO_PRODUCT_OPTION,
     autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
+    defaultVideoProviderValue: videoProviderOptions.find((item) => item.recommended)?.backendKey || videoProviderOptions[0]?.backendKey,
+    availableVideoProviderValues: videoProviderOptions.map((item) => item.backendKey),
   });
 
   const {
@@ -328,7 +344,7 @@ export default function XiaohongshuPage() {
       setErrorMessage("");
     }
 
-    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult, videoWorksResult] =
+    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult, videoWorksResult, videoProvidersResult] =
       await Promise.allSettled([
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
@@ -338,6 +354,7 @@ export default function XiaohongshuPage() {
       getXiaohongshuOriginalWorks(activeBrandId),
       getXiaohongshuRewriteWorks(activeBrandId),
       getXiaohongshuVideoWorks(activeBrandId),
+      getXiaohongshuVideoProviders(activeBrandId),
     ]);
 
     const messages: string[] = [];
@@ -411,6 +428,12 @@ export default function XiaohongshuPage() {
       setVideoWorks(videoWorksResult.value.items);
     } else {
       messages.push("视频笔记作品读取失败。");
+    }
+
+    if (videoProvidersResult.status === "fulfilled" && videoProvidersResult.value.items.length) {
+      setVideoProviderOptions(videoProvidersResult.value.items);
+    } else if (videoProvidersResult.status === "rejected") {
+      messages.push("视频模型选项读取失败，已保留当前默认配置。");
     }
 
     if (workspaceResult.status === "fulfilled") {
@@ -1314,6 +1337,7 @@ export default function XiaohongshuPage() {
         noProductOption={NO_PRODUCT_OPTION}
         customVideoProviderOption={customVideoProviderOption}
         customVideoDurationOption={customVideoDurationOption}
+        videoProviderOptions={videoProviderOptions}
         products={workspace.archive.products}
         calendarValue={videoCalendarValue}
         customTopic={videoCustomTopic}

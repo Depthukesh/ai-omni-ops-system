@@ -18,6 +18,16 @@ export type VideoSegmentAssetEntry = {
   videoAssetId?: string;
 };
 
+export type VideoProviderOptionRecord = {
+  backendKey: string;
+  label: string;
+  defaultModel: string;
+  recommended: boolean;
+  supportsTextToVideo: boolean;
+  supportsImageToVideo: boolean;
+  displayOrder: number;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -230,6 +240,10 @@ export async function deleteXiaohongshuRewriteWork(brandId: string, workId: stri
 
 export async function getXiaohongshuVideoWorks(brandId: string) {
   return request<{ items: XiaohongshuVideoWorkRecord[] }>(`/works/brands/${brandId}/xiaohongshu/video`);
+}
+
+export async function getXiaohongshuVideoProviders(brandId: string) {
+  return request<{ items: VideoProviderOptionRecord[] }>(`/works/brands/${brandId}/xiaohongshu/video/providers`);
 }
 
 export async function generateXiaohongshuVideoWork(brandId: string, form: GenerateXiaohongshuVideoNoteForm) {

@@ -32,6 +32,12 @@ export class WorksController {
     return this.worksService.listXiaohongshuVideoWorks(brandId);
   }
 
+  @Get("brands/:brandId/xiaohongshu/video/providers")
+  listXiaohongshuVideoProviders(@Param("brandId") brandId: string) {
+    void brandId;
+    return this.worksService.listXiaohongshuVideoProviderOptions();
+  }
+
   @Post("brands/:brandId/xiaohongshu/original/generate")
   generateXiaohongshuOriginalNote(
     @Param("brandId") brandId: string,

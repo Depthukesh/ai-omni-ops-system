@@ -6,6 +6,7 @@ import {
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
+  type VideoProviderOptionRecord,
 } from "../../../services/works";
 import { OriginalCreateModal, RewriteCreateModal, VideoCreateModal } from "./note-create-modals";
 import { OriginalEditModal, RewriteEditModal, VideoEditModal } from "./note-edit-modals";
@@ -437,6 +438,7 @@ export interface VideoWorkspaceProps {
   noProductOption: string;
   customVideoProviderOption: string;
   customVideoDurationOption: string;
+  videoProviderOptions: VideoProviderOptionRecord[];
   products: ProductOption[];
   calendarValue: string;
   customTopic: string;
@@ -577,6 +579,7 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         noProductOption={props.noProductOption}
         customVideoProviderOption={props.customVideoProviderOption}
         customVideoDurationOption={props.customVideoDurationOption}
+        videoProviderOptions={props.videoProviderOptions}
         products={props.products}
         calendarValue={props.calendarValue}
         customTopic={props.customTopic}

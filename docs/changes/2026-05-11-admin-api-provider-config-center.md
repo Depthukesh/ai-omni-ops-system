@@ -31,21 +31,60 @@
   - 数据库不可用时仍回退到内存演示数据
 - 前端对 `自定义 Headers` 和 `扩展参数` 增加 JSON 对象校验，避免保存非法结构
 - 保留原有的状态、模型白名单、调用量、成功率、成本等运营观察信息
+- 新增统一系统 Provider catalog，将用户提供的第三方接口资料结构化为系统默认种子，并作为后台初始化真源
+- `ApiProvidersService` 新增运行时读取能力：
+  - 按 `runtimeKey` 查询激活中的 Provider
+  - 读取多 Base URL、多 API Key、运行时标签、扩展参数
+  - 首次初始化时清理旧的 legacy demo provider，改写为真实第三方模型配置
+- `ReportsService` 生成链路已切到后台 Provider 真源，不再继续依赖旧 demo provider
+- `WorksService` 以下链路已切到后台 Provider 真源：
+  - 原创笔记文案
+  - 原创笔记配图提示词
+  - 二创笔记文案
+  - 二创笔记配图提示词
+  - 参考图分析
+  - 图像生成
+  - 视频笔记文案
+  - 视频提示词
+  - 视频成片生成
+- 新增视频 Provider 选项接口，前端小红书视频创作弹窗改为动态读取后台当前启用的视频模型列表，不再写死 `hailuo / kling / veo / wan / seedance2.0`
+- 补齐本地稳定前端 `3001` 的 `/api` rewrite，保证浏览器端同域 `/api/*` 请求可正确转发到 `3011`
+- 修复 mock fallback 模式下的权限错误：演示账号原本在 `mock-data` 中是 `SUPER_ADMIN`，但登录返回与请求鉴权被错误降级成 `USER`，现已改为沿用用户真实 `systemRole`
+- 本地联调已额外验证一轮：后台更新视频 Provider 的 `extraParams.displayLabel` 后，`/works/.../video/providers` 与前端视频弹窗下拉会同步变化
 
 ## 3. 影响文件
 
+- `apps/server/src/common/api-provider-catalog.ts`
 - `apps/web/src/app/(dashboard)/admin/page.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspaces.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - `apps/web/src/services/admin.ts`
+- `apps/web/src/services/works.ts`
+- `apps/server/src/modules/admin/api-providers.module.ts`
 - `apps/server/src/modules/admin/api-providers.service.ts`
+- `apps/server/src/modules/auth/auth.service.ts`
 - `apps/server/src/common/mock-data.ts`
+- `apps/server/src/modules/reports/reports.module.ts`
+- `apps/server/src/modules/reports/reports.service.ts`
+- `apps/server/src/modules/works/works.controller.ts`
+- `apps/server/src/modules/works/works.module.ts`
+- `apps/server/src/modules/works/works.service.ts`
+- `apps/web/next.config.ts`
 
 ## 4. 验证结果
 
 - `npm --workspace apps/server run build` 通过
 - `npm --workspace apps/web run build` 通过
 - `GetDiagnostics` 检查本次改动文件，无新增诊断报错
+- 本地联调验证通过：
+  - `http://127.0.0.1:3001/api/works/brands/br_demo_001/xiaohongshu/video/providers` 可正确代理到 `3011`
+  - 后台更新 `provider_runtime_video_hailuo` 的展示标签后，接口返回值随即同步变化；回滚后恢复正常
 
 ## 5. 当前边界
 
-- 这次先解决后台接口供应商页的真实配置维护与持久化问题，当前已可维护名称、接口地址、教程文档、API Key 与扩展参数
-- 下游生成链路里仍有部分第三方调用未完全切到统一 Provider 配置真源，后续可继续补“调用侧读取后台 Provider 配置”
+- 后台 `接口供应商` 现已不仅是展示配置页，而是报告链路与小红书创作链路的统一运行时真源
+- 当前前端动态同步仅补到“小红书视频笔记的视频模型选项”；若后续还要把原创/二创/报告页也暴露成可选模型 UI，可继续在相同模式上扩展
+- 历史任务统计与 `model-usage` 仍以任务记录聚合为主，不等同于“代码中全部可调用模型清单”；如需单独做“模型使用总览页”，后续可基于 runtimeKey 再补一层展示
+- 当前本地环境仍未连接 `127.0.0.1:5432` PostgreSQL，联调主要基于 `mock-data` 回退模式完成；但本轮已确保 mock 模式下后台权限与 Provider 同步链路可正常验证

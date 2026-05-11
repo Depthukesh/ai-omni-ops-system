@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type CalendarOption, type MaterialOption, type ProductOption } from "./shared-types";
 
 export function useNoteComposerForms(options: {
@@ -8,9 +8,12 @@ export function useNoteComposerForms(options: {
   noProductOption: string;
   autoImageCountOption: string;
   customTopicOption: string;
+  defaultVideoProviderValue?: string;
+  availableVideoProviderValues?: string[];
 }) {
   const customVideoProviderOption = "__custom_video_provider__";
   const customVideoDurationOption = "__custom_video_duration__";
+  const defaultVideoProviderValue = options.defaultVideoProviderValue || "seedance";
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
@@ -31,8 +34,8 @@ export function useNoteComposerForms(options: {
   const [videoProductValue, setVideoProductValue] = useState(options.defaultProductId || options.noProductOption);
   const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
   const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
-  const [videoProviderValue, setVideoProviderValue] = useState("seedance2.0");
-  const [videoCustomProviderValue, setVideoCustomProviderValue] = useState("seedance2.0");
+  const [videoProviderValue, setVideoProviderValue] = useState(defaultVideoProviderValue);
+  const [videoCustomProviderValue, setVideoCustomProviderValue] = useState(defaultVideoProviderValue);
   const [videoCustomModelName, setVideoCustomModelName] = useState("");
   const [videoDurationValue, setVideoDurationValue] = useState("10");
   const [videoCustomDurationValue, setVideoCustomDurationValue] = useState("10");
@@ -74,14 +77,40 @@ export function useNoteComposerForms(options: {
     setIsRewriteModalOpen(false);
   }
 
+  useEffect(() => {
+    const availableValues = options.availableVideoProviderValues?.filter(Boolean) || [];
+    const resolvedDefaultProvider = availableValues.includes(defaultVideoProviderValue)
+      ? defaultVideoProviderValue
+      : availableValues[0] || defaultVideoProviderValue;
+    if (!availableValues.length) {
+      return;
+    }
+    if (!availableValues.includes(videoProviderValue) && videoProviderValue !== customVideoProviderOption) {
+      setVideoProviderValue(resolvedDefaultProvider);
+    }
+    if (!availableValues.includes(videoCustomProviderValue)) {
+      setVideoCustomProviderValue(resolvedDefaultProvider);
+    }
+  }, [
+    customVideoProviderOption,
+    defaultVideoProviderValue,
+    options.availableVideoProviderValues,
+    videoCustomProviderValue,
+    videoProviderValue,
+  ]);
+
   function resetVideoComposer(calendarItems: CalendarOption[], products: ProductOption[]) {
+    const availableValues = options.availableVideoProviderValues?.filter(Boolean) || [];
+    const resolvedDefaultProvider = availableValues.includes(defaultVideoProviderValue)
+      ? defaultVideoProviderValue
+      : availableValues[0] || defaultVideoProviderValue;
     setVideoCalendarValue(calendarItems[0]?.id || options.customTopicOption);
     setVideoCustomTopic("");
     setVideoProductValue(products[0]?.id || options.noProductOption);
     setVideoReferenceImageFile(null);
     setVideoCopyAdditionalInstruction("");
-    setVideoProviderValue("seedance2.0");
-    setVideoCustomProviderValue("seedance2.0");
+    setVideoProviderValue(resolvedDefaultProvider);
+    setVideoCustomProviderValue(resolvedDefaultProvider);
     setVideoCustomModelName("");
     setVideoDurationValue("10");
     setVideoCustomDurationValue("10");

@@ -935,7 +935,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl || "",
       status: user.status,
       membership: user.membership,
-      systemRole: "USER" as const,
+      systemRole: user.systemRole ?? "USER",
       pointsBalance: user.pointsBalance,
     };
   }
@@ -1032,7 +1032,7 @@ export class AuthService {
       userId: user.id,
       sessionId: parsed.sid,
       brandId: this.readHeaderValue(headers, "x-brand-id") || parsed.bid || database.brands.find((item) => item.ownerUserId === user.id)?.id,
-      systemRole: "USER",
+      systemRole: user.systemRole ?? "USER",
       source: "token",
     };
   }
@@ -1061,11 +1061,12 @@ export class AuthService {
   private async resolveFallbackAuthContext(): Promise<RequestAuthContext | undefined> {
     const currentUser = await this.resolveCurrentUser();
     const brands = await this.listAccessibleBrands(currentUser.id);
+    const user = database.users.find((item) => item.id === currentUser.id);
     return {
       userId: currentUser.id,
       brandId: this.pickCurrentBrandId(brands),
       source: "fallback",
-      systemRole: "USER",
+      systemRole: user?.systemRole ?? "USER",
     };
   }
 

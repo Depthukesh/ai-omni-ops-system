@@ -6,6 +6,7 @@ import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type AssetRecord } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
+import { ApiProvidersService } from "../admin/api-providers.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { BrandsService } from "../brands/brands.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
@@ -404,6 +405,8 @@ export class ReportsService {
     private readonly brandsService: BrandsService,
     @Inject(CollectorsService)
     private readonly collectorsService: CollectorsService,
+    @Inject(ApiProvidersService)
+    private readonly apiProvidersService: ApiProvidersService,
     @Inject(SkillsPromptsService)
     private readonly skillsPromptsService: SkillsPromptsService,
   ) {}
@@ -1502,7 +1505,7 @@ export class ReportsService {
   private async createVisualGrowthReportTask(brandId: string, sourceReport: GrowthReportRecord) {
     const now = new Date().toISOString();
     const settings = await this.loadVisualReportGenerationSettings();
-    const modelName = this.loadDomesticVisualProviderConfigs(settings)[0]?.models[0] || "deepseek-v4-flash";
+    const modelName = (await this.loadDomesticVisualProviderConfigs(settings))[0]?.models[0] || "deepseek-v4-flash";
 
     if (await this.prismaService.canUseDatabase()) {
       const brand = await this.prismaService.brand.findUnique({
@@ -1561,7 +1564,7 @@ export class ReportsService {
     const now = new Date().toISOString();
     const settings = await this.loadAnnualMarketingPlanGenerationSettings();
     const modelName =
-      this.loadAnnualMarketingProviderConfigs(settings)[0]?.models[0]
+      (await this.loadAnnualMarketingProviderConfigs(settings))[0]?.models[0]
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -1625,7 +1628,7 @@ export class ReportsService {
     const now = new Date().toISOString();
     const settings = await this.loadXiaohongshuMarketingPlanGenerationSettings();
     const modelName =
-      this.loadXiaohongshuMarketingProviderConfigs(settings)[0]?.models[0]
+      (await this.loadXiaohongshuMarketingProviderConfigs(settings))[0]?.models[0]
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -1692,9 +1695,9 @@ export class ReportsService {
     marketingPlan: XiaohongshuMarketingPlanRecord,
   ) {
     const now = new Date().toISOString();
-    const settings = this.loadXiaohongshuMarketingCalendarGenerationSettings();
+    const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings();
     const modelName =
-      this.loadXiaohongshuMarketingCalendarProviderConfigs(settings)[0]?.models[0]
+      (await this.loadXiaohongshuMarketingCalendarProviderConfigs(settings))[0]?.models[0]
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -2782,7 +2785,7 @@ export class ReportsService {
       },
     ) => Promise<void> | void;
   }) {
-    const settings = this.loadXiaohongshuMarketingCalendarGenerationSettings();
+    const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings();
     const inputPayload = this.buildXiaohongshuMarketingCalendarInput(
       params.archive,
       params.collection,
@@ -2805,7 +2808,7 @@ export class ReportsService {
   }
 
   private async generateReportByModel(skillPrompt: string, inputPayload: Record<string, unknown>): Promise<GrowthReportModelResult> {
-    const config = this.loadThirdPartyChatConfig(await this.loadGrowthReportGenerationSettings());
+    const config = await this.loadThirdPartyChatConfig(await this.loadGrowthReportGenerationSettings());
     const systemPrompt = [
       skillPrompt,
       "",
@@ -2874,7 +2877,7 @@ export class ReportsService {
     inputPayload: Record<string, unknown>,
     settings: ModelGenerationSettings,
   ): Promise<VisualReportOutlineModelResult> {
-    const providers = this.loadDomesticVisualProviderConfigs(settings);
+    const providers = await this.loadDomesticVisualProviderConfigs(settings);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -2967,7 +2970,7 @@ export class ReportsService {
     inputPayload: Record<string, unknown>,
     settings: ModelGenerationSettings,
   ): Promise<AnnualMarketingPlanModelResult> {
-    const providers = this.loadAnnualMarketingProviderConfigs(settings);
+    const providers = await this.loadAnnualMarketingProviderConfigs(settings);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3028,7 +3031,7 @@ export class ReportsService {
     inputPayload: Record<string, unknown>,
     settings: ModelGenerationSettings,
   ): Promise<XiaohongshuMarketingPlanModelResult> {
-    const providers = this.loadXiaohongshuMarketingProviderConfigs(settings);
+    const providers = await this.loadXiaohongshuMarketingProviderConfigs(settings);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3092,7 +3095,7 @@ export class ReportsService {
       onAttemptUpdate?: (detailText: string) => Promise<void>;
     },
   ): Promise<XiaohongshuMarketingPlanSectionResult> {
-    const providers = this.loadXiaohongshuMarketingProviderConfigs(settings);
+    const providers = await this.loadXiaohongshuMarketingProviderConfigs(settings);
     let lastError = "";
     const attemptErrors: string[] = [];
     for (const provider of providers) {
@@ -3150,7 +3153,7 @@ export class ReportsService {
       onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
     },
   ): Promise<XiaohongshuMarketingCalendarModelResult> {
-    const providers = this.loadXiaohongshuMarketingCalendarProviderConfigs(settings);
+    const providers = await this.loadXiaohongshuMarketingCalendarProviderConfigs(settings);
     const startDate = String(inputPayload.startDate ?? "").trim();
     const expectedDates = this.normalizeStringArray(
       inputPayload.expectedDates,
@@ -4044,55 +4047,31 @@ ${normalizedMarkdown}`;
     return target.slice(0, limit);
   }
 
-  private loadThirdPartyChatConfig(settings: ModelGenerationSettings): ThirdPartyChatConfig {
-    const filePath = this.resolveThirdPartyApiConfigPath();
-    const content = readFileSync(filePath, "utf8");
-    const header = content.split("# Chat")[0] || content;
-    const discoveredBaseUrls = header
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith("http"));
-    const preferredBaseUrls = [
-      "https://hk-api.gptbest.vip",
-      "https://api.gptbest.vip",
-      "https://api.bltcy.ai",
-    ];
-    const baseUrls = [
-      ...preferredBaseUrls.filter((item) => discoveredBaseUrls.includes(item)),
-      ...discoveredBaseUrls.filter((item) => !preferredBaseUrls.includes(item)),
-    ];
-    const discoveredModels = settings.modelName
-      .split(/[,\n]/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const preferredModels = [
-      "gpt-5.4-nano",
-      "claude-sonnet-4-6",
-      "gemini-3.1-pro-preview",
-      "gpt-5.5",
-    ];
-    const models = [
-      ...preferredModels.filter((item) => discoveredModels.includes(item)),
-      ...discoveredModels.filter((item) => !preferredModels.includes(item)),
-    ];
-    const apiKeys = header
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith("sk-"));
-
-    if (!baseUrls.length || !apiKeys.length) {
-      throw new ServiceUnavailableException("绗笁鏂规枃鐢熸枃鎺ュ彛閰嶇疆璇诲彇澶辫触");
-    }
-
-    const prioritizedBaseUrls = settings.baseUrl ? [settings.baseUrl, ...baseUrls.filter((item) => item !== settings.baseUrl)] : baseUrls;
+  private async loadThirdPartyChatConfig(settings: ModelGenerationSettings): Promise<ThirdPartyChatConfig> {
+    const provider = await this.requireRuntimeProvider("text-global", "第三方文生文接口配置读取失败");
+    const requestedModels = this.parseDelimitedModels(settings.modelName);
+    const models = this.pickProviderModels(
+      provider.modelWhitelist,
+      requestedModels,
+      ["gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview", "gpt-5.5"],
+    );
+    const configuredBaseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const prioritizedBaseUrls = settings.baseUrl
+      ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+      : configuredBaseUrls;
     const usableBaseUrls = [
       ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
       ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
     ];
+    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+
+    if (!usableBaseUrls.length || !apiKeys.length || !models.length) {
+      throw new ServiceUnavailableException("第三方文生文接口配置读取失败");
+    }
 
     return {
       baseUrls: usableBaseUrls,
-      completionPath: "/v1/chat/completions",
+      completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
       apiKeys,
       models,
       temperature: settings.temperature,
@@ -4100,98 +4079,96 @@ ${normalizedMarkdown}`;
     };
   }
 
-  private loadDomesticVisualProviderConfigs(settings: ModelGenerationSettings): DomesticVisualProviderConfig[] {
-    const filePath = this.resolveDomesticThirdPartyApiConfigPath();
-    const content = readFileSync(filePath, "utf8");
-    const arkModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "model")),
-      ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
-    );
-    const deepseekModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "deepseek")),
-      ["deepseek-v4-flash", "deepseek-v4-pro"],
-    );
-    const kimiModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "kimi")),
-      ["kimi-k2.6"],
-    );
-    const glmModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "GLM")).map((item) => item.toLowerCase()),
-      ["glm-5.1"],
-    );
-    const arkApiKeys = this.collectRegexMatches(content, /ark-[A-Za-z0-9-]+/g);
-    const deepseekSection = this.extractProviderSection(content, "deepseek", ["kimi", "GLM"]);
-    const kimiSection = this.extractProviderSection(content, "kimi", ["GLM"]);
-    const glmSection = this.extractProviderSection(content, "GLM");
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
-    const kimiApiKeys = this.collectRegexMatches(kimiSection, /sk-[A-Za-z0-9]+/g);
-    const glmApiKeys = this.collectRegexMatches(glmSection, /[a-f0-9]{32}\.[A-Za-z0-9]{16}/gi);
+  private async loadDomesticVisualProviderConfigs(settings: ModelGenerationSettings): Promise<DomesticVisualProviderConfig[]> {
+    const requestedModels = this.parseDelimitedModels(settings.modelName);
+    const [deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-glm"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
 
     const providers: DomesticVisualProviderConfig[] = [];
-    if (deepseekApiKeys.length && deepseekModels.length) {
-      providers.push({
-        provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
-        models: deepseekModels,
-        temperature: Math.min(settings.temperature || 0.2, 0.2),
-        maxTokens: Math.min(settings.maxTokens || 2400, 2400),
-        requestTimeoutMs: 90000,
-        payloadExtras: {
-          response_format: { type: "text" },
-          thinking: { type: "disabled" },
-        },
-      });
+    if (deepseekProvider) {
+      const models = this.pickProviderModels(deepseekProvider.modelWhitelist, requestedModels, ["deepseek-v4-flash", "deepseek-v4-pro"]);
+      if (models.length) {
+        providers.push({
+          provider: "DEEPSEEK",
+          baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+          completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(deepseekProvider).slice(0, 2),
+          models,
+          temperature: Math.min(settings.temperature || 0.2, 0.2),
+          maxTokens: Math.min(settings.maxTokens || 2400, 2400),
+          requestTimeoutMs: 90000,
+          payloadExtras: {
+            response_format: { type: "text" },
+            thinking: { type: "disabled" },
+          },
+        });
+      }
     }
-    if (glmApiKeys.length && glmModels.length) {
-      providers.push({
-        provider: "GLM",
-        baseUrls: ["https://open.bigmodel.cn/api/paas/v4"],
-        completionPath: "/chat/completions",
-        apiKeys: glmApiKeys.slice(0, 2),
-        models: glmModels,
-        temperature: Math.min(settings.temperature || 0.2, 0.2),
-        maxTokens: Math.min(settings.maxTokens || 2400, 2400),
-        requestTimeoutMs: 90000,
-        payloadExtras: {
-          thinking: { type: "disabled" },
-        },
-      });
+    if (glmProvider) {
+      const models = this.pickProviderModels(glmProvider.modelWhitelist, requestedModels, ["GLM-5.1"]);
+      if (models.length) {
+        providers.push({
+          provider: "GLM",
+          baseUrls: this.apiProvidersService.getBaseUrls(glmProvider),
+          completionPath: this.apiProvidersService.getStringExtra(glmProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(glmProvider).slice(0, 2),
+          models,
+          temperature: Math.min(settings.temperature || 0.2, 0.2),
+          maxTokens: Math.min(settings.maxTokens || 2400, 2400),
+          requestTimeoutMs: 90000,
+          payloadExtras: {
+            thinking: { type: "disabled" },
+          },
+        });
+      }
     }
-    if (kimiApiKeys.length && kimiModels.length) {
-      providers.push({
-        provider: "KIMI",
-        baseUrls: ["https://api.moonshot.cn/v1"],
-        completionPath: "/chat/completions",
-        apiKeys: kimiApiKeys.slice(0, 2),
-        models: kimiModels,
-        temperature: 1,
-        temperatureOverride: 1,
-        maxTokens: Math.min(settings.maxTokens || 2400, 2400),
-        requestTimeoutMs: 90000,
-        tokenLimitField: "max_completion_tokens",
-        payloadExtras: {
-          response_format: { type: "text" },
-          thinking: { type: "disabled" },
-        },
-      });
+    if (kimiProvider) {
+      const models = this.pickProviderModels(kimiProvider.modelWhitelist, requestedModels, ["kimi-k2.6"]);
+      if (models.length) {
+        providers.push({
+          provider: "KIMI",
+          baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+          completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(kimiProvider).slice(0, 2),
+          models,
+          temperature: 1,
+          temperatureOverride: 1,
+          maxTokens: Math.min(settings.maxTokens || 2400, 2400),
+          requestTimeoutMs: 90000,
+          tokenLimitField: "max_completion_tokens",
+          payloadExtras: {
+            response_format: { type: "text" },
+            thinking: { type: "disabled" },
+          },
+        });
+      }
     }
-    if (arkApiKeys.length && arkModels.length) {
-      providers.push({
-        provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
-        models: arkModels.slice(0, 1),
-        temperature: settings.temperature,
-        maxTokens: Math.min(settings.maxTokens || 2600, 2600),
-        requestTimeoutMs: 120000,
-      });
+    if (doubaoProvider) {
+      const models = this.pickProviderModels(
+        doubaoProvider.modelWhitelist,
+        requestedModels,
+        ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
+      );
+      if (models.length) {
+        providers.push({
+          provider: "ARK",
+          baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+          completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(doubaoProvider).slice(0, 1),
+          models: models.slice(0, 1),
+          temperature: settings.temperature,
+          maxTokens: Math.min(settings.maxTokens || 2600, 2600),
+          requestTimeoutMs: 120000,
+        });
+      }
     }
 
     if (!providers.length) {
-      throw new ServiceUnavailableException("鍥藉唴鏂囩敓鏂囨帴鍙ｉ厤缃鍙栧け璐");
+      throw new ServiceUnavailableException("国内文生文接口配置读取失败");
     }
 
     return providers;
@@ -4500,7 +4477,7 @@ ${normalizedMarkdown}`;
   private async loadGrowthReportGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("brand-omni-growth-analysis");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_growth_report");
-    const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-global");
     return {
       baseUrl: provider?.baseUrl || "",
       modelName: prompt?.modelName || skill?.defaultModel || "gpt-5.4-nano",
@@ -4513,7 +4490,7 @@ ${normalizedMarkdown}`;
   private async loadVisualReportGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("article-visual-report-designer");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_visual_report");
-    const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek");
     return {
       baseUrl: provider?.baseUrl && !provider.baseUrl.includes(".local") ? provider.baseUrl : "",
       modelName:
@@ -4529,8 +4506,9 @@ ${normalizedMarkdown}`;
   private async loadAnnualMarketingPlanGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("enterprise-annual-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_annual_marketing_plan");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-global");
     return {
-      baseUrl: "",
+      baseUrl: provider?.baseUrl || "",
       modelName:
         prompt?.modelName
         || skill?.defaultModel
@@ -4544,7 +4522,7 @@ ${normalizedMarkdown}`;
   private async loadXiaohongshuMarketingPlanGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-brand-marketing-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
-    const provider = database.apiProviders.find((item) => item.name === skill?.provider && item.status === "ACTIVE");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek");
     return {
       baseUrl: provider?.baseUrl || "",
       modelName:
@@ -4557,9 +4535,10 @@ ${normalizedMarkdown}`;
     };
   }
 
-  private loadXiaohongshuMarketingCalendarGenerationSettings(): ModelGenerationSettings {
+  private async loadXiaohongshuMarketingCalendarGenerationSettings(): Promise<ModelGenerationSettings> {
+    const provider = await this.resolvePreferredProvider(undefined, "text-domestic-deepseek");
     return {
-      baseUrl: "",
+      baseUrl: provider?.baseUrl || "",
       modelName: "deepseek-v4-pro, kimi-k2.6, doubao-seed-2-0-pro-260215",
       temperature: 0.6,
       maxTokens: 12000,
@@ -4567,8 +4546,8 @@ ${normalizedMarkdown}`;
     };
   }
 
-  private loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): AnnualMarketingProviderConfig[] {
-    const thirdParty = this.loadThirdPartyChatConfig({
+  private async loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<AnnualMarketingProviderConfig[]> {
+    const thirdParty = await this.loadThirdPartyChatConfig({
       ...settings,
       modelName: settings.modelName,
     });
@@ -4580,19 +4559,16 @@ ${normalizedMarkdown}`;
       (item) => requestedModels.includes(item) && !item.toLowerCase().includes("doubao"),
     );
 
-    const filePath = this.resolveDomesticThirdPartyApiConfigPath();
-    const content = readFileSync(filePath, "utf8");
-    const deepseekModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "deepseek")),
-      ["deepseek-v4-flash", "deepseek-v4-pro"],
-    ).filter((item) => requestedModels.includes(item));
-    const arkModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "model")),
-      ["doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
-    ).filter((item) => requestedModels.includes(item));
-    const arkApiKeys = this.collectRegexMatches(content, /ark-[A-Za-z0-9-]+/g);
-    const deepseekSection = this.extractProviderSection(content, "deepseek", ["kimi", "GLM"]);
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
+    const [deepseekProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
+    const deepseekModels = deepseekProvider
+      ? this.pickProviderModels(deepseekProvider.modelWhitelist, requestedModels, ["deepseek-v4-flash", "deepseek-v4-pro"])
+      : [];
+    const arkModels = doubaoProvider
+      ? this.pickProviderModels(doubaoProvider.modelWhitelist, requestedModels, ["doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"])
+      : [];
 
     const providers: AnnualMarketingProviderConfig[] = [];
     if (thirdParty.baseUrls.length && thirdParty.apiKeys.length && thirdPartyModels.length) {
@@ -4610,12 +4586,12 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (deepseekApiKeys.length && deepseekModels.length) {
+    if (deepseekProvider && deepseekModels.length) {
       providers.push({
         provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
+        baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+        completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(deepseekProvider).slice(0, 2),
         models: deepseekModels,
         temperature: Math.min(settings.temperature || 0.2, 0.2),
         maxTokens: Math.min(settings.maxTokens || 3200, 3200),
@@ -4626,12 +4602,12 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (arkApiKeys.length && arkModels.length) {
+    if (doubaoProvider && arkModels.length) {
       providers.push({
         provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
+        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(doubaoProvider).slice(0, 1),
         models: arkModels.slice(0, 1),
         temperature: Math.min(settings.temperature || 0.4, 0.4),
         maxTokens: Math.min(settings.maxTokens || 3200, 3200),
@@ -4647,7 +4623,7 @@ ${normalizedMarkdown}`;
     return providers;
   }
 
-  private loadXiaohongshuMarketingProviderConfigs(settings: ModelGenerationSettings): XiaohongshuMarketingProviderConfig[] {
+  private async loadXiaohongshuMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
     const preferredModels = ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"];
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter(
@@ -4662,33 +4638,28 @@ ${normalizedMarkdown}`;
     );
     const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
 
-    const filePath = this.resolveDomesticThirdPartyApiConfigPath();
-    const content = readFileSync(filePath, "utf8");
-    const deepseekModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "deepseek")),
-      ["deepseek-v4-pro", "deepseek-v4-flash"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const kimiModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "kimi")),
-      ["kimi-k2.6"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const arkModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "model")),
-      ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const arkApiKeys = this.collectRegexMatches(content, /ark-[A-Za-z0-9-]+/g);
-    const deepseekSection = this.extractProviderSection(content, "deepseek", ["kimi", "GLM"]);
-    const kimiSection = this.extractProviderSection(content, "kimi", ["GLM"]);
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
-    const kimiApiKeys = this.collectRegexMatches(kimiSection, /sk-[A-Za-z0-9]+/g);
+    const [deepseekProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
+    const deepseekModels = deepseekProvider
+      ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
+      : [];
+    const arkModels = doubaoProvider
+      ? this.pickProviderModels(
+          doubaoProvider.modelWhitelist,
+          effectiveRequestedModels,
+          ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
+        )
+      : [];
 
     const providers: XiaohongshuMarketingProviderConfig[] = [];
-    if (deepseekApiKeys.length && deepseekModels.length) {
+    if (deepseekProvider && deepseekModels.length) {
       providers.push({
         provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
+        baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+        completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(deepseekProvider).slice(0, 2),
         models: deepseekModels,
         temperature: Math.min(settings.temperature || 0.3, 0.3),
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
@@ -4699,12 +4670,12 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (arkApiKeys.length && arkModels.length) {
+    if (doubaoProvider && arkModels.length) {
       providers.push({
         provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
+        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(doubaoProvider).slice(0, 1),
         models: arkModels.slice(0, 1),
         temperature: Math.min(settings.temperature || 0.5, 0.5),
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
@@ -4720,7 +4691,7 @@ ${normalizedMarkdown}`;
     return providers;
   }
 
-  private loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): XiaohongshuMarketingProviderConfig[] {
+  private async loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
     const preferredModels = ["deepseek-v4-pro", "kimi-k2.6", "doubao-seed-2-0-pro-260215"];
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName).filter(
@@ -4733,33 +4704,28 @@ ${normalizedMarkdown}`;
     );
     const effectiveRequestedModels = requestedModels.length ? requestedModels : preferredModels;
 
-    const filePath = this.resolveDomesticThirdPartyApiConfigPath();
-    const content = readFileSync(filePath, "utf8");
-    const deepseekModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "deepseek")),
-      ["deepseek-v4-pro", "deepseek-v4-flash"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const kimiModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "kimi")),
-      ["kimi-k2.6"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const arkModels = this.orderModels(
-      this.parseDelimitedModels(this.readProviderInlineValue(content, "model")),
-      ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
-    ).filter((item) => effectiveRequestedModels.includes(item));
-    const arkApiKeys = this.collectRegexMatches(content, /ark-[A-Za-z0-9-]+/g);
-    const deepseekSection = this.extractProviderSection(content, "deepseek", ["kimi", "GLM"]);
-    const kimiSection = this.extractProviderSection(content, "kimi", ["GLM"]);
-    const deepseekApiKeys = this.collectRegexMatches(deepseekSection, /sk-[A-Za-z0-9]+/g);
-    const kimiApiKeys = this.collectRegexMatches(kimiSection, /sk-[A-Za-z0-9]+/g);
+    const [deepseekProvider, kimiProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
+    const deepseekModels = deepseekProvider
+      ? this.pickProviderModels(deepseekProvider.modelWhitelist, effectiveRequestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"])
+      : [];
+    const kimiModels = kimiProvider
+      ? this.pickProviderModels(kimiProvider.modelWhitelist, effectiveRequestedModels, ["kimi-k2.6"])
+      : [];
+    const arkModels = doubaoProvider
+      ? this.pickProviderModels(doubaoProvider.modelWhitelist, effectiveRequestedModels, ["doubao-seed-2-0-pro-260215"])
+      : [];
 
     const providers: XiaohongshuMarketingProviderConfig[] = [];
-    if (deepseekApiKeys.length && deepseekModels.length) {
+    if (deepseekProvider && deepseekModels.length) {
       providers.push({
         provider: "DEEPSEEK",
-        baseUrls: ["https://api.deepseek.com"],
-        completionPath: "/chat/completions",
-        apiKeys: deepseekApiKeys.slice(0, 2),
+        baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+        completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(deepseekProvider).slice(0, 2),
         models: deepseekModels,
         temperature: Math.min(settings.temperature || 0.3, 0.3),
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
@@ -4770,12 +4736,12 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (kimiApiKeys.length && kimiModels.length) {
+    if (kimiProvider && kimiModels.length) {
       providers.push({
         provider: "KIMI",
-        baseUrls: ["https://api.moonshot.cn/v1"],
-        completionPath: "/chat/completions",
-        apiKeys: kimiApiKeys.slice(0, 1),
+        baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+        completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(kimiProvider).slice(0, 1),
         models: kimiModels,
         temperature: 1,
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
@@ -4786,12 +4752,12 @@ ${normalizedMarkdown}`;
         },
       });
     }
-    if (arkApiKeys.length && arkModels.length) {
+    if (doubaoProvider && arkModels.length) {
       providers.push({
         provider: "ARK",
-        baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
-        completionPath: "/chat/completions",
-        apiKeys: arkApiKeys.slice(0, 1),
+        baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+        completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+        apiKeys: this.apiProvidersService.getApiKeys(doubaoProvider).slice(0, 1),
         models: arkModels.slice(0, 1),
         temperature: Math.min(settings.temperature || 0.5, 0.5),
         maxTokens: Math.min(settings.maxTokens || 9000, 9000),
@@ -4845,6 +4811,34 @@ ${normalizedMarkdown}`;
     };
     payload[provider.tokenLimitField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"] = provider.maxTokens;
     return payload;
+  }
+
+  private async resolvePreferredProvider(providerName: string | undefined, runtimeKey: string) {
+    const activeProviders = await this.apiProvidersService.listActiveProviders();
+    if (providerName?.trim()) {
+      const matched = activeProviders.find((item) => item.name === providerName.trim());
+      if (matched) {
+        return matched;
+      }
+    }
+    return activeProviders.find((item) => this.apiProvidersService.getRuntimeKey(item) === runtimeKey);
+  }
+
+  private async requireRuntimeProvider(runtimeKey: string, errorMessage: string) {
+    const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey(runtimeKey);
+    if (!provider) {
+      throw new ServiceUnavailableException(errorMessage);
+    }
+    return provider;
+  }
+
+  private pickProviderModels(availableModels: string[], requestedModels: string[], preferredModels: string[]) {
+    const normalizedAvailable = availableModels.map((item) => item.trim()).filter(Boolean);
+    const normalizedRequested = requestedModels.map((item) => item.trim()).filter(Boolean);
+    const target = normalizedRequested.length
+      ? normalizedAvailable.filter((item) => normalizedRequested.includes(item))
+      : normalizedAvailable;
+    return this.orderModels(target.length ? target : normalizedAvailable, preferredModels);
   }
 
   async getReportAsset(brandId: string, fileName: string) {

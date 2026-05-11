@@ -105,6 +105,7 @@
 - 视频笔记
   - 已支持视频作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、视频模型、时长、提示词输出和双段用户要求
+  - 视频模型下拉现通过 `/api/works/brands/:brandId/xiaohongshu/video/providers` 动态读取后台当前启用的视频 Provider，不再写死前端枚举
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
@@ -170,6 +171,7 @@
 - 知识库管理
 - API Provider 管理
   - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 默认模型 / Organization / Project / Timeout / Stream / 自定义 Headers / 扩展参数 / 模型白名单 / 备注`
+  - 当前已作为 `ReportsModule` 与 `WorksModule` 的运行时真源；报告生成、原创/二创/视频生成与视频模型下拉都通过 `runtimeKey` 读取后台激活中的 Provider 配置
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
@@ -214,6 +216,7 @@
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`
+  - 浏览器端默认走同域 `/api`；本地稳定预览 `3001` 必须通过 `next.config.ts` rewrite 转发到 `3011`
 - `PersonalCenterModule`：规划中；负责个人中心聚合视图、我的任务、我的作品、我的技能、我的团队
 - `BrandsModule`：品牌档案、产品、调研、经营资产、飞书绑定
 - `BrandMembersModule`：规划中；负责品牌主账号、子用户邀请、品牌角色与权限
@@ -244,6 +247,7 @@
   - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
+  - 原创文案、原创配图提示词、二创文案、二创配图提示词、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { StorageModule } from "../../storage/storage.module";
+import { ApiProvidersModule } from "../admin/api-providers.module";
 import { SkillsPromptsModule } from "../admin/skills-prompts.module";
 import { AuthModule } from "../auth/auth.module";
 import { BrandsModule } from "../brands/brands.module";
@@ -9,7 +10,7 @@ import { WorksController } from "./works.controller";
 import { WorksService } from "./works.service";
 
 @Module({
-  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule],
+  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule],
   controllers: [WorksController],
   providers: [WorksService],
   exports: [WorksService],
