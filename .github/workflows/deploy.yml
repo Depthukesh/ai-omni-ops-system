@@ -36,8 +36,8 @@ jobs:
               ss -lntp || true
               echo "curl 127.0.0.1:3011/api/health:"
               curl -iS --max-time 8 http://127.0.0.1:3011/api/health || true
-              echo "curl 127.0.0.1:3001:"
-              curl -iS --max-time 8 http://127.0.0.1:3001 || true
+              echo "curl 127.0.0.1:3001/health:"
+              curl -iS --max-time 8 http://127.0.0.1:3001/health || true
               echo "pm2 status:"
               runuser -u "$APP_RUNTIME_USER" -- bash -lc 'pm2 status || true'
               echo "pm2 recent logs:"
@@ -161,4 +161,4 @@ jobs:
             fi
 
             wait_for_http http://127.0.0.1:3011/api/health
-            wait_for_http http://127.0.0.1:3001
+            wait_for_http http://127.0.0.1:3001/health

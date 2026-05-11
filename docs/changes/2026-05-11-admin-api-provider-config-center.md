@@ -55,6 +55,7 @@
   - 每个远端步骤单独输出时间戳和命令名
   - 失败时自动回显监听端口、`pm2 status`、最近 `pm2 logs`
   - 健康检查失败时额外打印 `curl -i` 响应，便于判断是服务未启动、反向代理异常还是接口返回 5xx
+- 基于增强日志继续定位后，确认 `127.0.0.1:3011/api/health` 已通过，真正不稳定的是前端 `3001` 根页面探活；已新增前端独立健康检查路由 `/health`，并将部署探活切换到 `http://127.0.0.1:3001/health`
 
 ## 3. 影响文件
 
@@ -76,6 +77,7 @@
 - `apps/server/src/modules/works/works.module.ts`
 - `apps/server/src/modules/works/works.service.ts`
 - `apps/web/next.config.ts`
+- `apps/web/src/app/health/route.ts`
 - `.github/workflows/deploy.yml`
 
 ## 4. 验证结果
