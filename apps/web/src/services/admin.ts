@@ -168,6 +168,13 @@ export type ApiProviderRecord = {
   tutorialUrl: string;
   modelWhitelist: string[];
   apiKey: string;
+  defaultModel: string;
+  organization: string;
+  project: string;
+  timeoutMs: number;
+  streamEnabled: boolean;
+  customHeaders: Record<string, string>;
+  extraParams: Record<string, unknown>;
   remark: string;
   successRate: number;
   requestCount24h: number;
@@ -697,6 +704,17 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     tutorialUrl: "https://platform.openai.com/docs/api-reference",
     modelWhitelist: ["gpt-5.5", "gpt-5.4-nano"],
     apiKey: "sk-proxy-demo-openai-001",
+    defaultModel: "gpt-5.5",
+    organization: "org-ai-omni-demo",
+    project: "proj_brand_growth",
+    timeoutMs: 120000,
+    streamEnabled: true,
+    customHeaders: {
+      "OpenAI-Organization": "org-ai-omni-demo",
+    },
+    extraParams: {
+      reasoning_effort: "medium",
+    },
     remark: "统一承接 OpenAI 兼容模型调用，优先给品牌增长与小红书文案链路使用。",
     successRate: 99.2,
     requestCount24h: 428,
@@ -713,6 +731,15 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     tutorialUrl: "https://ai.google.dev/gemini-api/docs",
     modelWhitelist: ["gemini-2.5-pro"],
     apiKey: "gm-proxy-demo-gemini-001",
+    defaultModel: "gemini-2.5-pro",
+    organization: "",
+    project: "gemini-brand-lab",
+    timeoutMs: 90000,
+    streamEnabled: true,
+    customHeaders: {},
+    extraParams: {
+      safetySettingsPreset: "default",
+    },
     remark: "主要用于可视化报告和长文本结构化输出。",
     successRate: 97.6,
     requestCount24h: 96,
@@ -729,6 +756,15 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     tutorialUrl: "https://www.volcengine.com/docs/82379",
     modelWhitelist: ["doubao-pro-32k"],
     apiKey: "ark-demo-doubao-001",
+    defaultModel: "doubao-pro-32k",
+    organization: "",
+    project: "cn-content-fallback",
+    timeoutMs: 90000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      region: "cn-beijing",
+    },
     remark: "预留国内模型链路，后续可用于低成本内容生成或兜底路由。",
     successRate: 93.4,
     requestCount24h: 21,
@@ -915,7 +951,24 @@ export async function getApiProviders() {
 
 export async function updateApiProvider(
   providerId: string,
-  payload: Partial<Pick<ApiProviderRecord, "status" | "baseUrl" | "tutorialUrl" | "modelWhitelist" | "apiKey" | "remark">>,
+  payload: Partial<
+    Pick<
+      ApiProviderRecord,
+      | "status"
+      | "baseUrl"
+      | "tutorialUrl"
+      | "modelWhitelist"
+      | "apiKey"
+      | "defaultModel"
+      | "organization"
+      | "project"
+      | "timeoutMs"
+      | "streamEnabled"
+      | "customHeaders"
+      | "extraParams"
+      | "remark"
+    >
+  >,
 ) {
   return jsonRequest<ApiProviderRecord>(`/admin/api-providers/${providerId}`, "PATCH", payload);
 }
@@ -927,6 +980,13 @@ export async function createApiProvider(payload: {
   tutorialUrl?: string;
   modelWhitelist?: string[];
   apiKey?: string;
+  defaultModel?: string;
+  organization?: string;
+  project?: string;
+  timeoutMs?: number;
+  streamEnabled?: boolean;
+  customHeaders?: Record<string, string>;
+  extraParams?: Record<string, unknown>;
   remark?: string;
 }) {
   return jsonRequest<ApiProviderRecord>("/admin/api-providers", "POST", payload);

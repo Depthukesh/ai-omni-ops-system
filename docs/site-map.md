@@ -169,7 +169,7 @@
   - 技能提示词：优先展示系统内真实 `SKILL.md` / `.txt` 全文；原创笔记已拆分为“原创文案”和“原创配图”两套提示词分别呈现
 - 知识库管理
 - API Provider 管理
-  - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 模型白名单 / 备注`
+  - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 默认模型 / Organization / Project / Timeout / Stream / 自定义 Headers / 扩展参数 / 模型白名单 / 备注`
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商

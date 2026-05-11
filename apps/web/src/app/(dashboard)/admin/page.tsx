@@ -87,6 +87,13 @@ type ApiProviderEditDraft = {
   tutorialUrl: string;
   modelWhitelist: string;
   apiKey: string;
+  defaultModel: string;
+  organization: string;
+  project: string;
+  timeoutMs: string;
+  streamEnabled: boolean;
+  customHeadersJson: string;
+  extraParamsJson: string;
   remark: string;
 };
 type CreateKnowledgeBaseDraft = {
@@ -102,6 +109,13 @@ type CreateApiProviderDraft = {
   tutorialUrl: string;
   modelWhitelist: string;
   apiKey: string;
+  defaultModel: string;
+  organization: string;
+  project: string;
+  timeoutMs: string;
+  streamEnabled: boolean;
+  customHeadersJson: string;
+  extraParamsJson: string;
   remark: string;
 };
 type CreateKnowledgeBaseFileDraft = {
@@ -1314,12 +1328,7 @@ export default function AdminPage() {
         status: draft.status,
         baseUrl: draft.baseUrl,
         tutorialUrl: draft.tutorialUrl,
-        modelWhitelist: draft.modelWhitelist
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-        apiKey: draft.apiKey,
-        remark: draft.remark,
+        ...buildApiProviderPayload(draft),
       });
 
       setProviders((current) => current.map((item) => (item.id === providerId ? updated : item)));
@@ -1331,6 +1340,7 @@ export default function AdminPage() {
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
+        const providerPayload = buildApiProviderPayload(draft);
         setProviders((current) =>
           current.map((item) =>
             item.id === providerId
@@ -1339,12 +1349,7 @@ export default function AdminPage() {
                   status: draft.status,
                   baseUrl: draft.baseUrl,
                   tutorialUrl: draft.tutorialUrl,
-                  modelWhitelist: draft.modelWhitelist
-                    .split(",")
-                    .map((entry) => entry.trim())
-                    .filter(Boolean),
-                  apiKey: draft.apiKey,
-                  remark: draft.remark,
+                  ...providerPayload,
                   updatedAt,
                 }
               : item,
@@ -1461,12 +1466,7 @@ export default function AdminPage() {
         providerType: newProvider.providerType,
         baseUrl: newProvider.baseUrl,
         tutorialUrl: newProvider.tutorialUrl,
-        apiKey: newProvider.apiKey,
-        remark: newProvider.remark,
-        modelWhitelist: newProvider.modelWhitelist
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
+        ...buildApiProviderPayload(newProvider),
       });
 
       setProviders((current) => [created, ...current]);
@@ -1479,6 +1479,7 @@ export default function AdminPage() {
     } catch (error) {
       if (dataSource === "seed") {
         const createdAt = new Date().toISOString();
+        const providerPayload = buildApiProviderPayload(newProvider);
         const created: ApiProviderRecord = {
           id: `provider_local_${Date.now()}`,
           name: newProvider.name,
@@ -1486,12 +1487,7 @@ export default function AdminPage() {
           status: "DRAFT",
           baseUrl: newProvider.baseUrl,
           tutorialUrl: newProvider.tutorialUrl,
-          modelWhitelist: newProvider.modelWhitelist
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          apiKey: newProvider.apiKey,
-          remark: newProvider.remark,
+          ...providerPayload,
           successRate: 0,
           requestCount24h: 0,
           totalCostYuan: 0,
@@ -2505,7 +2501,7 @@ export default function AdminPage() {
               <div className="entity-card-head">
                 <div>
                   <strong>新建 API Provider</strong>
-                  <p className="personal-meta">把第三方接口的名称、API 地址、教程文档和真实 API Key 统一收口到这里维护。</p>
+                  <p className="personal-meta">把第三方接口的名称、API 地址、教程文档、API Key 和扩展参数统一收口到这里维护。</p>
                 </div>
                 <span className="archive-pill status-in_progress">CREATE</span>
               </div>
@@ -2578,6 +2574,18 @@ export default function AdminPage() {
                   />
                 </label>
                 <label>
+                  <span>默认模型</span>
+                  <input
+                    value={newProvider.defaultModel}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        defaultModel: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
                   <span>备注</span>
                   <input
                     value={newProvider.remark}
@@ -2590,6 +2598,60 @@ export default function AdminPage() {
                   />
                 </label>
               </div>
+              <div className="admin-rule-grid">
+                <label>
+                  <span>Organization</span>
+                  <input
+                    value={newProvider.organization}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        organization: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Project</span>
+                  <input
+                    value={newProvider.project}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        project: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>超时（ms）</span>
+                  <input
+                    type="number"
+                    value={newProvider.timeoutMs}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        timeoutMs: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>流式返回</span>
+                  <select
+                    value={newProvider.streamEnabled ? "true" : "false"}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        streamEnabled: event.target.value === "true",
+                      }))
+                    }
+                  >
+                    <option value="true">启用</option>
+                    <option value="false">关闭</option>
+                  </select>
+                </label>
+              </div>
               <label className="admin-rule-description">
                 <span>模型白名单（逗号分隔）</span>
                 <textarea
@@ -2598,6 +2660,30 @@ export default function AdminPage() {
                     setNewProvider((current) => ({
                       ...current,
                       modelWhitelist: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-rule-description">
+                <span>自定义 Headers（JSON）</span>
+                <textarea
+                  value={newProvider.customHeadersJson}
+                  onChange={(event) =>
+                    setNewProvider((current) => ({
+                      ...current,
+                      customHeadersJson: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="admin-rule-description">
+                <span>扩展参数（JSON）</span>
+                <textarea
+                  value={newProvider.extraParamsJson}
+                  onChange={(event) =>
+                    setNewProvider((current) => ({
+                      ...current,
+                      extraParamsJson: event.target.value,
                     }))
                   }
                 />
@@ -2640,6 +2726,10 @@ export default function AdminPage() {
                     <div>
                       <span>模型白名单</span>
                       <strong>{item.modelWhitelist.length} 个</strong>
+                    </div>
+                    <div>
+                      <span>默认模型</span>
+                      <strong>{item.defaultModel || "-"}</strong>
                     </div>
                     <div>
                       <span>更新时间</span>
@@ -2703,6 +2793,17 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
+                        <span>默认模型</span>
+                        <input
+                          value={draft.defaultModel}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              defaultModel: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
                         <span>备注</span>
                         <input
                           value={draft.remark}
@@ -2715,6 +2816,58 @@ export default function AdminPage() {
                       </label>
                     </div>
                   </div>
+                  <div className="admin-rules-stack">
+                    <div className="admin-rule-grid">
+                      <label>
+                        <span>Organization</span>
+                        <input
+                          value={draft.organization}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              organization: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Project</span>
+                        <input
+                          value={draft.project}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              project: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>超时（ms）</span>
+                        <input
+                          type="number"
+                          value={draft.timeoutMs}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              timeoutMs: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>流式返回</span>
+                        <select
+                          value={draft.streamEnabled ? "true" : "false"}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              streamEnabled: event.target.value === "true",
+                            })
+                          }
+                        >
+                          <option value="true">启用</option>
+                          <option value="false">关闭</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
 
                   <label className="admin-rule-description">
                     <span>模型白名单（逗号分隔）</span>
@@ -2723,6 +2876,28 @@ export default function AdminPage() {
                       onChange={(event) =>
                         handleProviderDraftChange(item.id, {
                           modelWhitelist: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="admin-rule-description">
+                    <span>自定义 Headers（JSON）</span>
+                    <textarea
+                      value={draft.customHeadersJson}
+                      onChange={(event) =>
+                        handleProviderDraftChange(item.id, {
+                          customHeadersJson: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="admin-rule-description">
+                    <span>扩展参数（JSON）</span>
+                    <textarea
+                      value={draft.extraParamsJson}
+                      onChange={(event) =>
+                        handleProviderDraftChange(item.id, {
+                          extraParamsJson: event.target.value,
                         })
                       }
                     />
@@ -3033,6 +3208,13 @@ function buildProviderDraft(item: ApiProviderRecord): ApiProviderEditDraft {
     tutorialUrl: item.tutorialUrl,
     modelWhitelist: item.modelWhitelist.join(", "),
     apiKey: item.apiKey,
+    defaultModel: item.defaultModel,
+    organization: item.organization,
+    project: item.project,
+    timeoutMs: String(item.timeoutMs || 60000),
+    streamEnabled: item.streamEnabled,
+    customHeadersJson: JSON.stringify(item.customHeaders || {}, null, 2),
+    extraParamsJson: JSON.stringify(item.extraParams || {}, null, 2),
     remark: item.remark,
   };
 }
@@ -3061,8 +3243,70 @@ function buildCreateApiProviderDraft(): CreateApiProviderDraft {
     tutorialUrl: "",
     modelWhitelist: "",
     apiKey: "",
+    defaultModel: "",
+    organization: "",
+    project: "",
+    timeoutMs: "60000",
+    streamEnabled: true,
+    customHeadersJson: "{}",
+    extraParamsJson: "{}",
     remark: "",
   };
+}
+
+function buildApiProviderPayload(
+  draft: Pick<
+    CreateApiProviderDraft,
+    | "modelWhitelist"
+    | "apiKey"
+    | "defaultModel"
+    | "organization"
+    | "project"
+    | "timeoutMs"
+    | "streamEnabled"
+    | "customHeadersJson"
+    | "extraParamsJson"
+    | "remark"
+  >,
+) {
+  return {
+    modelWhitelist: draft.modelWhitelist
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    apiKey: draft.apiKey.trim(),
+    defaultModel: draft.defaultModel.trim(),
+    organization: draft.organization.trim(),
+    project: draft.project.trim(),
+    timeoutMs: Math.max(0, Number(draft.timeoutMs || 0)),
+    streamEnabled: draft.streamEnabled,
+    customHeaders: parseProviderJsonMap(draft.customHeadersJson, "自定义 Headers"),
+    extraParams: parseProviderJsonObject(draft.extraParamsJson, "扩展参数"),
+    remark: draft.remark.trim(),
+  };
+}
+
+function parseProviderJsonMap(value: string, label: string): Record<string, string> {
+  const parsed = parseProviderJsonObject(value, label);
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, item]) => [key, typeof item === "string" ? item : JSON.stringify(item)]),
+  );
+}
+
+function parseProviderJsonObject(value: string, label: string): Record<string, unknown> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`${label} 必须是 JSON 对象`);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : `${label} 不是合法 JSON`);
+  }
 }
 
 function buildCreateKnowledgeBaseFileDraft(): CreateKnowledgeBaseFileDraft {

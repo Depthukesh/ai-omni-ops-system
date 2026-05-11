@@ -359,7 +359,7 @@ flowchart TD
     Admin --> AUI5["模型消耗"]
     Admin --> AUI6["技能中心"]
     Admin --> AUI7["知识库管理"]
-    Admin --> AUI8["接口供应商（名称 / API 地址 / 教程链接 / API Key）"]
+    Admin --> AUI8["接口供应商（名称 / API 地址 / 教程链接 / API Key / 默认模型 / Headers / 扩展参数）"]
     AUI6 --> AUI61["右侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
     AUI6 --> AUI62["右侧二级分类：业务模块"]

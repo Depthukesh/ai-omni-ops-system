@@ -190,7 +190,7 @@
 - 会员/积分规则：当前仍主要来自 `mock-data`
 - 用户管理：`User`、`UserSession`
 - 品牌成员与权限：`Brand`、`BrandMember`
-- API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`modelWhitelistJson`、`remark`
+- API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`、`customHeadersJson`、`extraParamsJson`、`modelWhitelistJson`、`remark`
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`

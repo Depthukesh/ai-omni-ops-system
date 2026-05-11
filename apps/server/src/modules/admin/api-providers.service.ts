@@ -9,6 +9,13 @@ export type CreateApiProviderPayload = {
   tutorialUrl?: string;
   modelWhitelist?: string[];
   apiKey?: string;
+  defaultModel?: string;
+  organization?: string;
+  project?: string;
+  timeoutMs?: number;
+  streamEnabled?: boolean;
+  customHeaders?: Record<string, string>;
+  extraParams?: Record<string, unknown>;
   remark?: string;
 };
 
@@ -18,6 +25,13 @@ export type UpdateApiProviderPayload = {
   tutorialUrl?: string;
   modelWhitelist?: string[];
   apiKey?: string;
+  defaultModel?: string;
+  organization?: string;
+  project?: string;
+  timeoutMs?: number;
+  streamEnabled?: boolean;
+  customHeaders?: Record<string, string>;
+  extraParams?: Record<string, unknown>;
   remark?: string;
 };
 
@@ -30,6 +44,13 @@ type ApiProviderRow = {
   tutorialUrl: string;
   modelWhitelistJson: unknown;
   apiKey: string;
+  defaultModel: string;
+  organization: string;
+  project: string;
+  timeoutMs: number;
+  streamEnabled: boolean;
+  customHeadersJson: unknown;
+  extraParamsJson: unknown;
   remark: string;
   successRate: number;
   requestCount24h: number;
@@ -71,6 +92,13 @@ export class ApiProvidersService {
       tutorialUrl: payload.tutorialUrl || "",
       modelWhitelist: payload.modelWhitelist || [],
       apiKey: payload.apiKey || "",
+      defaultModel: payload.defaultModel || "",
+      organization: payload.organization || "",
+      project: payload.project || "",
+      timeoutMs: Number(payload.timeoutMs || 60000),
+      streamEnabled: payload.streamEnabled ?? false,
+      customHeaders: this.normalizeStringMap(payload.customHeaders),
+      extraParams: this.normalizeObjectMap(payload.extraParams),
       remark: payload.remark || "",
       successRate: 0,
       requestCount24h: 0,
@@ -91,6 +119,13 @@ export class ApiProvidersService {
           "tutorialUrl",
           "modelWhitelistJson",
           "apiKey",
+          "defaultModel",
+          "organization",
+          "project",
+          "timeoutMs",
+          "streamEnabled",
+          "customHeadersJson",
+          "extraParamsJson",
           "remark",
           "successRate",
           "requestCount24h",
@@ -107,6 +142,13 @@ export class ApiProvidersService {
           ${record.tutorialUrl},
           ${JSON.stringify(record.modelWhitelist)}::jsonb,
           ${record.apiKey},
+          ${record.defaultModel},
+          ${record.organization},
+          ${record.project},
+          ${record.timeoutMs},
+          ${record.streamEnabled},
+          ${JSON.stringify(record.customHeaders)}::jsonb,
+          ${JSON.stringify(record.extraParams)}::jsonb,
           ${record.remark},
           ${record.successRate},
           ${record.requestCount24h},
@@ -139,6 +181,13 @@ export class ApiProvidersService {
           "tutorialUrl" = ${payload.tutorialUrl ?? current.tutorialUrl},
           "modelWhitelistJson" = ${JSON.stringify(payload.modelWhitelist ?? current.modelWhitelist)}::jsonb,
           "apiKey" = ${payload.apiKey ?? current.apiKey},
+          "defaultModel" = ${payload.defaultModel ?? current.defaultModel},
+          "organization" = ${payload.organization ?? current.organization},
+          "project" = ${payload.project ?? current.project},
+          "timeoutMs" = ${payload.timeoutMs ?? current.timeoutMs},
+          "streamEnabled" = ${payload.streamEnabled ?? current.streamEnabled},
+          "customHeadersJson" = ${JSON.stringify(this.normalizeStringMap(payload.customHeaders ?? current.customHeaders))}::jsonb,
+          "extraParamsJson" = ${JSON.stringify(this.normalizeObjectMap(payload.extraParams ?? current.extraParams))}::jsonb,
           "remark" = ${payload.remark ?? current.remark},
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${id}
@@ -166,6 +215,27 @@ export class ApiProvidersService {
     }
     if (payload.apiKey !== undefined) {
       provider.apiKey = payload.apiKey;
+    }
+    if (payload.defaultModel !== undefined) {
+      provider.defaultModel = payload.defaultModel;
+    }
+    if (payload.organization !== undefined) {
+      provider.organization = payload.organization;
+    }
+    if (payload.project !== undefined) {
+      provider.project = payload.project;
+    }
+    if (payload.timeoutMs !== undefined) {
+      provider.timeoutMs = Number(payload.timeoutMs || 0);
+    }
+    if (payload.streamEnabled !== undefined) {
+      provider.streamEnabled = payload.streamEnabled;
+    }
+    if (payload.customHeaders !== undefined) {
+      provider.customHeaders = this.normalizeStringMap(payload.customHeaders);
+    }
+    if (payload.extraParams !== undefined) {
+      provider.extraParams = this.normalizeObjectMap(payload.extraParams);
     }
     if (payload.remark !== undefined) {
       provider.remark = payload.remark;
@@ -247,6 +317,13 @@ export class ApiProvidersService {
         "tutorialUrl" TEXT NOT NULL DEFAULT '',
         "modelWhitelistJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
         "apiKey" TEXT NOT NULL DEFAULT '',
+        "defaultModel" TEXT NOT NULL DEFAULT '',
+        "organization" TEXT NOT NULL DEFAULT '',
+        "project" TEXT NOT NULL DEFAULT '',
+        "timeoutMs" INTEGER NOT NULL DEFAULT 60000,
+        "streamEnabled" BOOLEAN NOT NULL DEFAULT FALSE,
+        "customHeadersJson" JSONB NOT NULL DEFAULT '{}'::jsonb,
+        "extraParamsJson" JSONB NOT NULL DEFAULT '{}'::jsonb,
         "remark" TEXT NOT NULL DEFAULT '',
         "successRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
         "requestCount24h" INTEGER NOT NULL DEFAULT 0,
@@ -265,6 +342,27 @@ export class ApiProvidersService {
       `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "apiKey" TEXT NOT NULL DEFAULT ''`,
     );
     await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "defaultModel" TEXT NOT NULL DEFAULT ''`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "organization" TEXT NOT NULL DEFAULT ''`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "project" TEXT NOT NULL DEFAULT ''`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "timeoutMs" INTEGER NOT NULL DEFAULT 60000`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "streamEnabled" BOOLEAN NOT NULL DEFAULT FALSE`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "customHeadersJson" JSONB NOT NULL DEFAULT '{}'::jsonb`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "extraParamsJson" JSONB NOT NULL DEFAULT '{}'::jsonb`,
+    );
+    await this.prismaService.$executeRawUnsafe(
       `ALTER TABLE "ApiProviderConfig" ADD COLUMN IF NOT EXISTS "remark" TEXT NOT NULL DEFAULT ''`,
     );
 
@@ -279,6 +377,13 @@ export class ApiProvidersService {
           "tutorialUrl",
           "modelWhitelistJson",
           "apiKey",
+          "defaultModel",
+          "organization",
+          "project",
+          "timeoutMs",
+          "streamEnabled",
+          "customHeadersJson",
+          "extraParamsJson",
           "remark",
           "successRate",
           "requestCount24h",
@@ -295,6 +400,13 @@ export class ApiProvidersService {
           ${provider.tutorialUrl},
           ${JSON.stringify(provider.modelWhitelist)}::jsonb,
           ${provider.apiKey},
+          ${provider.defaultModel},
+          ${provider.organization},
+          ${provider.project},
+          ${provider.timeoutMs},
+          ${provider.streamEnabled},
+          ${JSON.stringify(provider.customHeaders)}::jsonb,
+          ${JSON.stringify(provider.extraParams)}::jsonb,
           ${provider.remark},
           ${provider.successRate},
           ${provider.requestCount24h},
@@ -327,6 +439,8 @@ export class ApiProvidersService {
             .map((item) => item.trim())
             .filter(Boolean)
         : [];
+    const customHeaders = this.normalizeStringMap(row.customHeadersJson);
+    const extraParams = this.normalizeObjectMap(row.extraParamsJson);
 
     return this.buildRecord({
       id: row.id,
@@ -337,6 +451,13 @@ export class ApiProvidersService {
       tutorialUrl: row.tutorialUrl || "",
       modelWhitelist,
       apiKey: row.apiKey || "",
+      defaultModel: row.defaultModel || "",
+      organization: row.organization || "",
+      project: row.project || "",
+      timeoutMs: Number(row.timeoutMs || 60000),
+      streamEnabled: Boolean(row.streamEnabled),
+      customHeaders,
+      extraParams,
       remark: row.remark || "",
       successRate: Number(row.successRate || 0),
       requestCount24h: Number(row.requestCount24h || 0),
@@ -355,5 +476,23 @@ export class ApiProvidersService {
       return value.toISOString();
     }
     return new Date(value).toISOString();
+  }
+
+  private normalizeStringMap(value: unknown): Record<string, string> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, item]) => [String(key).trim(), String(item ?? "").trim()])
+        .filter(([key, item]) => key && item),
+    );
+  }
+
+  private normalizeObjectMap(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+    return { ...(value as Record<string, unknown>) };
   }
 }
