@@ -24,6 +24,7 @@
 - 部署脚本改为显式把 GitHub Secret `TIKHUB_API_KEY` 传入远端 `pm2 startOrReload` 的运行环境，避免服务重启后丢失每日热点抓取凭证
 - `ecosystem.config.cjs` 的 `ai-omni-server` 进程显式透传 `process.env.TIKHUB_API_KEY`，不再只依赖 `pm2` 对临时 shell 环境的隐式继承
 - 部署脚本在 `pm2 startOrReload --update-env` 后新增一次运行态校验：若 `ai-omni-server` 进程里仍缺少 `TIKHUB_API_KEY`，则让部署直接失败，避免“工作流成功但热点运行态继续缺密钥”
+- 上述运行态校验最初用嵌套 heredoc 执行 `node`，在远端 `bash` 中会把内层 `NODE` 结束符吃坏；现已改成 `node -e`，避免 `Run 31` 这类 `unexpected end of file` 部署失败
 
 ## 4. 影响范围
 
@@ -41,3 +42,4 @@
   - 热点列表继续正常显示
   - 页面不再把飞书授权中的全局提示残留到每日热点视图中
   - 再次检查线上页面时，已可直接看到 `2026-05-11`，但页面报出“缺少 `TIKHUB_API_KEY`，无法调用每日热点接口”，由此继续补齐 `ecosystem.config.cjs -> PM2 进程环境` 的最后一跳
+  - 补齐 GitHub Secret 后，`Run 31` 进一步暴露出部署脚本的嵌套 heredoc 语法问题；日志显示 `bash: warning: here-document ... wanted NODE`，本次已一并修正
