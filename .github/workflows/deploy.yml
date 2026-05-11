@@ -134,24 +134,7 @@ jobs:
               run_checked "npm run build:web" npm run build:web
 
               verify_pm2_runtime_secret() {
-                node -e '
-const { execSync } = require("node:child_process");
-
-const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" }));
-const server = apps.find((item) => item.name === "ai-omni-server");
-
-if (!server) {
-  console.error("部署终止：pm2 中未找到 ai-omni-server 进程。");
-  process.exit(1);
-}
-
-const token = server.pm2_env?.TIKHUB_API_KEY;
-console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing"));
-
-if (!token) {
-  process.exit(1);
-}
-'
+                node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
               }
 
               run_checked "pm2 startOrReload ecosystem.config.cjs --update-env" pm2 startOrReload ecosystem.config.cjs --update-env
