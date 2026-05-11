@@ -1054,7 +1054,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
             userId: ownerUserId,
             appId: fallbackConfig?.appId || "",
             appSecret: fallbackConfig?.appSecret || "",
-            redirectUri: fallbackConfig?.redirectUri || process.env.FEISHU_OAUTH_REDIRECT_URI || "http://localhost:3011/api/auth/feishu/oauth/callback",
+            redirectUri: fallbackConfig?.redirectUri || this.getDefaultFeishuRedirectUri(),
             scope: fallbackIntegration.scope || fallbackConfig?.scope || "",
             providerUserOpenId: fallbackIntegration.providerUserOpenId,
             providerUserName: fallbackIntegration.providerUserName,
@@ -1075,7 +1075,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
             refreshExpiresAt: fallbackIntegration.refreshExpiresAt ? new Date(fallbackIntegration.refreshExpiresAt) : null,
             appId: fallbackConfig?.appId || "",
             appSecret: fallbackConfig?.appSecret || "",
-            redirectUri: fallbackConfig?.redirectUri || process.env.FEISHU_OAUTH_REDIRECT_URI || "http://localhost:3011/api/auth/feishu/oauth/callback",
+            redirectUri: fallbackConfig?.redirectUri || this.getDefaultFeishuRedirectUri(),
           },
         });
         return this.getFeishuUserAccessTokenForBrand(brandId, forceRefresh);
@@ -1209,6 +1209,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const payload = await this.fetchFeishuApi(url, userAccessToken);
     const dataMeta = this.asMeta(this.asMeta(payload).data);
     return this.extractItems(dataMeta.items).length ? this.extractItems(dataMeta.items) : this.extractItems(dataMeta.tables);
+  }
+
+  private getDefaultFeishuRedirectUri() {
+    const configured = process.env.FEISHU_OAUTH_REDIRECT_URI?.trim();
+    if (configured) {
+      return configured;
+    }
+    const webBaseUrl = (process.env.WEB_BASE_URL || "http://localhost:3001").trim().replace(/\/$/, "");
+    return `${webBaseUrl}/api/auth/feishu/oauth/callback`;
   }
 
   private async fetchFeishuApi(url: string, userAccessToken: string) {

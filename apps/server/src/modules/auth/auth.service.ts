@@ -1530,7 +1530,12 @@ export class AuthService {
   }
 
   private getDefaultRedirectUri() {
-    return process.env.FEISHU_OAUTH_REDIRECT_URI || "http://localhost:3011/api/auth/feishu/oauth/callback";
+    const configured = process.env.FEISHU_OAUTH_REDIRECT_URI?.trim();
+    if (configured) {
+      return configured;
+    }
+    const webBaseUrl = this.getWebBaseUrl().replace(/\/$/, "");
+    return `${webBaseUrl}/api/auth/feishu/oauth/callback`;
   }
 
   private getWebBaseUrl() {

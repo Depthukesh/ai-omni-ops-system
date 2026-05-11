@@ -141,7 +141,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 onChange={(event) =>
                   props.setFeishuAppConfigForm((current) => ({ ...current, redirectUri: event.target.value }))
                 }
-                placeholder="例如 http://localhost:3011/api/auth/feishu/oauth/callback"
+                placeholder="例如 https://17ai.site/api/auth/feishu/oauth/callback"
               />
             </label>
             <label className="field field-full">
