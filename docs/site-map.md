@@ -45,6 +45,7 @@
 - 当前部署约束：
   - 部署前会先检查服务器仓库 `git status --porcelain -uall` 是否为空；如发现额外文件或未收口改动，直接终止部署
   - 生产前后端统一通过 `PM2 + ecosystem.config.cjs` 启动
+  - 对第三方运行时 Secret，除了在部署脚本里透传给 `pm2 startOrReload --update-env`，还要在 `ecosystem.config.cjs` 的目标进程 `env` 中显式映射，并在部署后校验该 Secret 已进入目标 PM2 进程
   - `apps/server` 默认通过 `SERVER_HOST=127.0.0.1` 仅监听本机 `3011`
   - `apps/web` 生产启动统一绑定 `127.0.0.1:3001`，外部访问只允许经 `nginx` 反代
 
@@ -293,7 +294,7 @@
 
 ### 5.3 每日热点链路
 
-1. 后端读取 `TIKHUB_API_KEY`；生产部署时必须把该 Secret 显式传给 PM2 运行环境
+1. 后端读取 `TIKHUB_API_KEY`；生产部署时必须把该 Secret 显式传给 PM2 运行环境，并在 `ecosystem.config.cjs` 的 `ai-omni-server.env` 中映射 `process.env.TIKHUB_API_KEY`
 2. `SchedulerModule` 注册每日热点任务
 3. `CollectorsModule` 每天 4:00 自动拉取热点
 4. 数据写回每日热点工作区；若当天快照缺失，工作区接口会在读取时自动补抓一次

@@ -1,3 +1,9 @@
+const serverRuntimeEnv = {};
+
+if (process.env.TIKHUB_API_KEY) {
+  serverRuntimeEnv.TIKHUB_API_KEY = process.env.TIKHUB_API_KEY;
+}
+
 module.exports = {
   apps: [
     {
@@ -9,6 +15,7 @@ module.exports = {
         NODE_ENV: "production",
         PORT: "3011",
         SERVER_HOST: "127.0.0.1",
+        ...serverRuntimeEnv,
       },
     },
     {

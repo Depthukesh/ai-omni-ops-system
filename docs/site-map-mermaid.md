@@ -642,6 +642,7 @@ flowchart LR
 
 - 数据模型总入口：`prisma/schema.prisma`
 - 初始化迁移：`prisma/migrations/20260502_init/migration.sql`
+- 生产 PM2 进程定义：`ecosystem.config.cjs`
 - 前端稳定启动：`scripts/dev-web-stable.cjs`
 - 后端稳定启动：`scripts/dev-server-stable.cjs`
 - 演示数据 seed：`scripts/seed-demo.cjs`

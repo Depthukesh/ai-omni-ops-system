@@ -243,6 +243,8 @@
 - 如果部署中的 Git 拉取依赖 SSH 私钥，切到普通运行用户后还必须同步准备该用户自己的 `~/.ssh`、`known_hosts` 与对应 Deploy Key/SSH config；不能默认复用 `root` 的 SSH 上下文
 - 如果业务依赖 seed 数据才能正常工作，部署脚本不能只执行 `prisma db push`；必须显式补对应的目标化 seed 步骤，并避免在生产环境默认运行会覆盖 demo 用户、品牌或演示任务的整套 seed
 - 如果业务依赖第三方运行时密钥，部署脚本必须把对应 GitHub Secrets 显式传给远端运行用户和 `pm2 startOrReload --update-env`；不能假设远端 shell、旧 PM2 进程或历史登录态会自动保留这些环境变量
+- 如果 `PM2` 通过 `ecosystem.config.*` 启动应用，关键运行时密钥还必须在 `ecosystem` 的 `env` 中显式映射自 `process.env`，不能只把 Secret 放在触发 `pm2` 的临时 shell 里
+- 关键运行时密钥完成 `pm2 startOrReload --update-env` 后，部署脚本必须再做一次“进程内是否真实存在该环境变量”的校验；缺失时直接让部署失败，不接受“工作流成功、运行态缺 Secret”的假成功
 
 - 一个提交只解决一类问题
 - 提交前至少完成相关构建或诊断验证
