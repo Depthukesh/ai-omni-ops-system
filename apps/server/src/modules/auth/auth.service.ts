@@ -1539,7 +1539,18 @@ export class AuthService {
   }
 
   private getWebBaseUrl() {
-    return process.env.WEB_BASE_URL || "http://localhost:3001";
+    const candidates = [
+      process.env.WEB_BASE_URL,
+      process.env.WEB_PUBLIC_BASE_URL,
+      process.env.NEXT_PUBLIC_WEB_BASE_URL,
+    ];
+    for (const candidate of candidates) {
+      const normalized = this.normalizeWebBaseUrl(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "https://17ai.site";
   }
 
   private getDefaultFeishuScope() {
@@ -1564,6 +1575,17 @@ export class AuthService {
       }
     }
     return items.join(" ");
+  }
+
+  private normalizeWebBaseUrl(value?: string) {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed)) {
+      return process.env.NODE_ENV === "production" ? "https://17ai.site" : trimmed;
+    }
+    return trimmed.replace(/\/$/, "");
   }
 
   private maskSecret(secret: string) {

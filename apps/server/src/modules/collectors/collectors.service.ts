@@ -1216,8 +1216,34 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     if (configured) {
       return configured;
     }
-    const webBaseUrl = (process.env.WEB_BASE_URL || "http://localhost:3001").trim().replace(/\/$/, "");
+    const webBaseUrl = this.getDefaultWebBaseUrl();
     return `${webBaseUrl}/api/auth/feishu/oauth/callback`;
+  }
+
+  private getDefaultWebBaseUrl() {
+    const candidates = [
+      process.env.WEB_BASE_URL,
+      process.env.WEB_PUBLIC_BASE_URL,
+      process.env.NEXT_PUBLIC_WEB_BASE_URL,
+    ];
+    for (const candidate of candidates) {
+      const normalized = this.normalizeWebBaseUrl(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "https://17ai.site";
+  }
+
+  private normalizeWebBaseUrl(value?: string) {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed)) {
+      return process.env.NODE_ENV === "production" ? "https://17ai.site" : trimmed;
+    }
+    return trimmed.replace(/\/$/, "");
   }
 
   private async fetchFeishuApi(url: string, userAccessToken: string) {
