@@ -91,7 +91,7 @@
 - `docs/changes/2026-05-10-admin-user-management-panel.md`
   - 后台用户管理升级为“筛选区 + 用户列表 + 弹窗详情编辑”，并补齐管理员账号编辑、删除与确认弹窗
 - `docs/changes/2026-05-11-admin-api-provider-config-center.md`
-  - 后台接口供应商页升级为运行时 Provider 真源；`Reports/Works` 统一读取后台配置，小红书视频模型下拉改为动态同步，并补齐本地 `/api` 代理与 mock 模式管理员权限修复
+  - 后台接口供应商页升级为运行时 Provider 真源；`Reports/Works` 统一读取后台配置，小红书视频模型下拉改为动态同步，并继续补齐搜索筛选、API Key 遮挡和 JSON 折叠式管理交互
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

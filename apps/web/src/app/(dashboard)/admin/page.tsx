@@ -314,6 +314,13 @@ export default function AdminPage() {
     buildKnowledgeBaseFileCreateDrafts(knowledgeBaseSeed),
   );
   const [newProvider, setNewProvider] = useState<CreateApiProviderDraft>(buildCreateApiProviderDraft());
+  const [providerSearch, setProviderSearch] = useState("");
+  const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
+  const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
+  const [createProviderSecretVisible, setCreateProviderSecretVisible] = useState(false);
+  const [revealedProviderKeys, setRevealedProviderKeys] = useState<Record<string, boolean>>({});
+  const [createProviderJsonExpanded, setCreateProviderJsonExpanded] = useState(false);
+  const [expandedProviderJson, setExpandedProviderJson] = useState<Record<string, boolean>>({});
   const [dataSource, setDataSource] = useState<"api" | "seed">("api");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -1538,6 +1545,40 @@ export default function AdminPage() {
       providers.length,
     ],
   );
+  const filteredProviders = useMemo(() => {
+    const keyword = providerSearch.trim().toLowerCase();
+    return providers.filter((item) => {
+      if (providerStatusFilter !== "ALL" && item.status !== providerStatusFilter) {
+        return false;
+      }
+      if (providerTypeFilter !== "ALL" && item.providerType !== providerTypeFilter) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      return [
+        item.name,
+        item.providerType,
+        item.baseUrl,
+        item.defaultModel,
+        item.remark,
+        ...item.modelWhitelist,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [providerSearch, providerStatusFilter, providerTypeFilter, providers]);
+  const providerInsights = useMemo(
+    () => ({
+      activeCount: providers.filter((item) => item.status === "ACTIVE").length,
+      draftCount: providers.filter((item) => item.status === "DRAFT").length,
+      disabledCount: providers.filter((item) => item.status === "DISABLED").length,
+      filteredCount: filteredProviders.length,
+    }),
+    [filteredProviders.length, providers],
+  );
 
   const accessibleTabs = tabs.filter((item) => {
     if (!adminSystemRole) {
@@ -2496,199 +2537,250 @@ export default function AdminPage() {
             })}
           </div>
         ) : activeTab === "providers" ? (
-          <div className="personal-list">
-            <article className="entity-card personal-card">
-              <div className="entity-card-head">
+          <div className="admin-provider-layout">
+            <section className="panel admin-provider-form">
+              <div className="admin-provider-form-head">
                 <div>
-                  <strong>新建 API Provider</strong>
-                  <p className="personal-meta">把第三方接口的名称、API 地址、教程文档、API Key 和扩展参数统一收口到这里维护。</p>
+                  <span className="admin-provider-kicker">API Provider</span>
+                  <h2>新增接口供应商</h2>
+                  <p>集中维护第三方接口的连接信息、鉴权密钥与模型白名单，所有业务链路从这里同步。</p>
                 </div>
                 <span className="archive-pill status-in_progress">CREATE</span>
               </div>
-              <div className="admin-rule-grid">
-                <label>
-                  <span>Provider 名称</span>
-                  <input
-                    value={newProvider.name}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Provider 类型</span>
-                  <select
-                    value={newProvider.providerType}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        providerType: event.target.value as ApiProviderRecord["providerType"],
-                      }))
-                    }
+
+              <div className="admin-provider-group">
+                <h3>基础信息</h3>
+                <div className="admin-provider-grid">
+                  <label className="admin-provider-field">
+                    <span>Provider 名称</span>
+                    <input
+                      value={newProvider.name}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>Provider 类型</span>
+                    <select
+                      value={newProvider.providerType}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          providerType: event.target.value as ApiProviderRecord["providerType"],
+                        }))
+                      }
+                    >
+                      <option value="OPENAI">OPENAI</option>
+                      <option value="GEMINI">GEMINI</option>
+                      <option value="DOUBAO">DOUBAO</option>
+                      <option value="CUSTOM">CUSTOM</option>
+                    </select>
+                  </label>
+                  <label className="admin-provider-field admin-provider-field--wide">
+                    <span>Base URL</span>
+                    <input
+                      value={newProvider.baseUrl}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          baseUrl: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field admin-provider-field--wide">
+                    <span>教程文档链接</span>
+                    <input
+                      value={newProvider.tutorialUrl}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          tutorialUrl: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-provider-group">
+                <h3>鉴权与默认值</h3>
+                <div className="admin-provider-grid">
+                  <label className="admin-provider-field admin-provider-field--wide">
+                    <div className="admin-provider-field-topline">
+                      <span>API Key</span>
+                      <button
+                        type="button"
+                        className="secondary-button admin-provider-inline-button"
+                        onClick={() => setCreateProviderSecretVisible((current) => !current)}
+                      >
+                        {createProviderSecretVisible ? "隐藏" : "显示"}
+                      </button>
+                    </div>
+                    <div className="admin-provider-secret-input">
+                      <input
+                        type={createProviderSecretVisible ? "text" : "password"}
+                        value={newProvider.apiKey}
+                        onChange={(event) =>
+                          setNewProvider((current) => ({
+                            ...current,
+                            apiKey: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <small className="admin-provider-hint">
+                      当前预览: {maskProviderSecret(newProvider.apiKey)}
+                    </small>
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>默认模型</span>
+                    <input
+                      value={newProvider.defaultModel}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          defaultModel: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>备注</span>
+                    <input
+                      value={newProvider.remark}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          remark: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-provider-group">
+                <h3>运行参数</h3>
+                <div className="admin-provider-grid">
+                  <label className="admin-provider-field">
+                    <span>Organization</span>
+                    <input
+                      value={newProvider.organization}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          organization: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>Project</span>
+                    <input
+                      value={newProvider.project}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          project: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>超时（ms）</span>
+                    <input
+                      type="number"
+                      value={newProvider.timeoutMs}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          timeoutMs: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>流式返回</span>
+                    <select
+                      value={newProvider.streamEnabled ? "true" : "false"}
+                      onChange={(event) =>
+                        setNewProvider((current) => ({
+                          ...current,
+                          streamEnabled: event.target.value === "true",
+                        }))
+                      }
+                    >
+                      <option value="true">启用</option>
+                      <option value="false">关闭</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-provider-group">
+                <div className="admin-provider-section-head">
+                  <strong>模型与扩展</strong>
+                  <button
+                    type="button"
+                    className="secondary-button admin-provider-inline-button"
+                    onClick={() => setCreateProviderJsonExpanded((current) => !current)}
                   >
-                    <option value="OPENAI">OPENAI</option>
-                    <option value="GEMINI">GEMINI</option>
-                    <option value="DOUBAO">DOUBAO</option>
-                    <option value="CUSTOM">CUSTOM</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Base URL</span>
-                  <input
-                    value={newProvider.baseUrl}
+                    {createProviderJsonExpanded ? "收起 JSON" : "展开 JSON"}
+                  </button>
+                </div>
+                <label className="admin-provider-field admin-provider-field--full">
+                  <span>模型白名单（逗号分隔）</span>
+                  <textarea
+                    value={newProvider.modelWhitelist}
                     onChange={(event) =>
                       setNewProvider((current) => ({
                         ...current,
-                        baseUrl: event.target.value,
+                        modelWhitelist: event.target.value,
                       }))
                     }
                   />
                 </label>
-                <label>
-                  <span>教程文档链接</span>
-                  <input
-                    value={newProvider.tutorialUrl}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        tutorialUrl: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
+                {createProviderJsonExpanded ? (
+                  <div className="admin-provider-json">
+                    <label className="admin-provider-field">
+                      <span>自定义 Headers（JSON）</span>
+                      <textarea
+                        value={newProvider.customHeadersJson}
+                        onChange={(event) =>
+                          setNewProvider((current) => ({
+                            ...current,
+                            customHeadersJson: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>扩展参数（JSON）</span>
+                      <textarea
+                        value={newProvider.extraParamsJson}
+                        onChange={(event) =>
+                          setNewProvider((current) => ({
+                            ...current,
+                            extraParamsJson: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="admin-provider-json-preview">
+                    <span>Headers: {getProviderJsonSummary(newProvider.customHeadersJson)}</span>
+                    <span>扩展参数: {getProviderJsonSummary(newProvider.extraParamsJson)}</span>
+                  </div>
+                )}
               </div>
-              <div className="admin-rule-grid">
-                <label>
-                  <span>API Key</span>
-                  <input
-                    value={newProvider.apiKey}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        apiKey: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>默认模型</span>
-                  <input
-                    value={newProvider.defaultModel}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        defaultModel: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>备注</span>
-                  <input
-                    value={newProvider.remark}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        remark: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <div className="admin-rule-grid">
-                <label>
-                  <span>Organization</span>
-                  <input
-                    value={newProvider.organization}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        organization: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Project</span>
-                  <input
-                    value={newProvider.project}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        project: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>超时（ms）</span>
-                  <input
-                    type="number"
-                    value={newProvider.timeoutMs}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        timeoutMs: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>流式返回</span>
-                  <select
-                    value={newProvider.streamEnabled ? "true" : "false"}
-                    onChange={(event) =>
-                      setNewProvider((current) => ({
-                        ...current,
-                        streamEnabled: event.target.value === "true",
-                      }))
-                    }
-                  >
-                    <option value="true">启用</option>
-                    <option value="false">关闭</option>
-                  </select>
-                </label>
-              </div>
-              <label className="admin-rule-description">
-                <span>模型白名单（逗号分隔）</span>
-                <textarea
-                  value={newProvider.modelWhitelist}
-                  onChange={(event) =>
-                    setNewProvider((current) => ({
-                      ...current,
-                      modelWhitelist: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="admin-rule-description">
-                <span>自定义 Headers（JSON）</span>
-                <textarea
-                  value={newProvider.customHeadersJson}
-                  onChange={(event) =>
-                    setNewProvider((current) => ({
-                      ...current,
-                      customHeadersJson: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="admin-rule-description">
-                <span>扩展参数（JSON）</span>
-                <textarea
-                  value={newProvider.extraParamsJson}
-                  onChange={(event) =>
-                    setNewProvider((current) => ({
-                      ...current,
-                      extraParamsJson: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <div className="personal-actions">
+
+              <div className="admin-provider-actions">
                 <button
                   type="button"
                   className="primary-button"
@@ -2698,248 +2790,367 @@ export default function AdminPage() {
                   {isCreatingProvider ? "创建中..." : "新建 Provider"}
                 </button>
               </div>
-            </article>
-            {providers.map((item) => {
-              const draft = providerDrafts[item.id] || buildProviderDraft(item);
+            </section>
 
-              return (
-                <article className="entity-card personal-card" key={item.id}>
-                  <div className="entity-card-head">
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p className="personal-meta">
-                        {item.providerType} · {item.requestCount24h} 次/24h · 成功率 {item.successRate}%
-                      </p>
-                    </div>
-                    <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
+            <section className="admin-provider-stack">
+              <article className="panel admin-provider-filter-card">
+                <div className="admin-provider-filter-head">
+                  <div>
+                    <strong>接口供应商列表</strong>
+                    <p>支持按名称、模型、URL、备注搜索，并可按状态和类型快速收敛结果。</p>
                   </div>
+                  <span className="archive-pill status_success">
+                    {providerInsights.filteredCount}/{providers.length}
+                  </span>
+                </div>
+                <div className="admin-provider-filter-grid">
+                  <label className="admin-provider-field admin-provider-field--wide">
+                    <span>搜索供应商</span>
+                    <input
+                      value={providerSearch}
+                      placeholder="按 Provider 名称、模型、Base URL、备注搜索"
+                      onChange={(event) => setProviderSearch(event.target.value)}
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>状态筛选</span>
+                    <select
+                      value={providerStatusFilter}
+                      onChange={(event) =>
+                        setProviderStatusFilter(event.target.value as ApiProviderRecord["status"] | "ALL")
+                      }
+                    >
+                      <option value="ALL">全部状态</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="DRAFT">DRAFT</option>
+                      <option value="DISABLED">DISABLED</option>
+                    </select>
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>类型筛选</span>
+                    <select
+                      value={providerTypeFilter}
+                      onChange={(event) =>
+                        setProviderTypeFilter(event.target.value as ApiProviderRecord["providerType"] | "ALL")
+                      }
+                    >
+                      <option value="ALL">全部类型</option>
+                      <option value="OPENAI">OPENAI</option>
+                      <option value="GEMINI">GEMINI</option>
+                      <option value="DOUBAO">DOUBAO</option>
+                      <option value="CUSTOM">CUSTOM</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="admin-provider-chip-row">
+                  <span className="admin-provider-chip is-active">ACTIVE {providerInsights.activeCount}</span>
+                  <span className="admin-provider-chip">DRAFT {providerInsights.draftCount}</span>
+                  <span className="admin-provider-chip">DISABLED {providerInsights.disabledCount}</span>
+                  <span className="admin-provider-chip">数据源 {dataSource === "api" ? "API" : "SEED"}</span>
+                </div>
+              </article>
 
-                  <div className="personal-grid">
-                    <div>
-                      <span>最近调用</span>
-                      <strong>{formatDateTime(item.lastCalledAt)}</strong>
-                    </div>
-                    <div>
-                      <span>累计成本</span>
-                      <strong>{item.totalCostYuan} 元</strong>
-                    </div>
-                    <div>
-                      <span>模型白名单</span>
-                      <strong>{item.modelWhitelist.length} 个</strong>
-                    </div>
-                    <div>
-                      <span>默认模型</span>
-                      <strong>{item.defaultModel || "-"}</strong>
-                    </div>
-                    <div>
-                      <span>更新时间</span>
-                      <strong>{formatDateTime(item.updatedAt)}</strong>
-                    </div>
-                  </div>
+              {filteredProviders.length ? filteredProviders.map((item) => {
+                const draft = providerDrafts[item.id] || buildProviderDraft(item);
+                const isSecretVisible = Boolean(revealedProviderKeys[item.id]);
+                const isJsonExpanded = Boolean(expandedProviderJson[item.id]);
 
-                  <div className="admin-rules-stack">
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>状态</span>
-                        <select
-                          value={draft.status}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              status: event.target.value as ApiProviderRecord["status"],
-                            })
-                          }
-                        >
-                          <option value="ACTIVE">ACTIVE</option>
-                          <option value="DRAFT">DRAFT</option>
-                          <option value="DISABLED">DISABLED</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>Base URL</span>
-                        <input
-                          value={draft.baseUrl}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              baseUrl: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>教程文档链接</span>
-                        <input
-                          value={draft.tutorialUrl}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              tutorialUrl: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
+                return (
+                  <article className="panel admin-provider-card" key={item.id}>
+                    <div className="admin-provider-card-head">
+                      <div>
+                        <div className="admin-provider-title">
+                          <strong>{item.name}</strong>
+                          <span className="admin-provider-type">{item.providerType}</span>
+                        </div>
+                        <p className="admin-provider-meta">
+                          近 24h {item.requestCount24h} 次 · 成功率 {item.successRate}% · 更新 {formatDateTime(item.updatedAt)}
+                        </p>
+                      </div>
+                      <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
                     </div>
-                  </div>
 
-                  <div className="admin-rules-stack">
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>API Key</span>
-                        <input
-                          value={draft.apiKey}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              apiKey: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
+                    <div className="admin-provider-metrics">
+                      <div>
+                        <span>最近调用</span>
+                        <strong>{formatDateTime(item.lastCalledAt)}</strong>
+                      </div>
+                      <div>
+                        <span>累计成本</span>
+                        <strong>{item.totalCostYuan} 元</strong>
+                      </div>
+                      <div>
+                        <span>模型白名单</span>
+                        <strong>{item.modelWhitelist.length} 个</strong>
+                      </div>
+                      <div>
                         <span>默认模型</span>
-                        <input
-                          value={draft.defaultModel}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              defaultModel: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>备注</span>
-                        <input
-                          value={draft.remark}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              remark: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
+                        <strong>{item.defaultModel || "-"}</strong>
+                      </div>
                     </div>
-                  </div>
-                  <div className="admin-rules-stack">
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>Organization</span>
-                        <input
-                          value={draft.organization}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              organization: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>Project</span>
-                        <input
-                          value={draft.project}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              project: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>超时（ms）</span>
-                        <input
-                          type="number"
-                          value={draft.timeoutMs}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              timeoutMs: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>流式返回</span>
-                        <select
-                          value={draft.streamEnabled ? "true" : "false"}
-                          onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              streamEnabled: event.target.value === "true",
-                            })
+
+                    <div className="admin-provider-section">
+                      <div className="admin-provider-section-head">
+                        <strong>连接配置</strong>
+                      </div>
+                      <div className="admin-provider-grid">
+                        <label className="admin-provider-field">
+                          <span>状态</span>
+                          <select
+                            value={draft.status}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                status: event.target.value as ApiProviderRecord["status"],
+                              })
+                            }
+                          >
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="DISABLED">DISABLED</option>
+                          </select>
+                        </label>
+                        <label className="admin-provider-field admin-provider-field--wide">
+                          <span>Base URL</span>
+                          <input
+                            value={draft.baseUrl}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                baseUrl: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="admin-provider-field admin-provider-field--wide">
+                          <span>教程文档链接</span>
+                          <input
+                            value={draft.tutorialUrl}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                tutorialUrl: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="admin-provider-section">
+                      <div className="admin-provider-section-head">
+                        <strong>鉴权与默认值</strong>
+                      </div>
+                      <div className="admin-provider-grid">
+                        <label className="admin-provider-field admin-provider-field--wide">
+                          <div className="admin-provider-field-topline">
+                            <span>API Key</span>
+                            <button
+                              type="button"
+                              className="secondary-button admin-provider-inline-button"
+                              onClick={() =>
+                                setRevealedProviderKeys((current) => ({
+                                  ...current,
+                                  [item.id]: !current[item.id],
+                                }))
+                              }
+                            >
+                              {isSecretVisible ? "隐藏" : "显示"}
+                            </button>
+                          </div>
+                          <div className="admin-provider-secret-input">
+                            <input
+                              type={isSecretVisible ? "text" : "password"}
+                              value={draft.apiKey}
+                              onChange={(event) =>
+                                handleProviderDraftChange(item.id, {
+                                  apiKey: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <small className="admin-provider-hint">
+                            当前预览: {maskProviderSecret(draft.apiKey)}
+                          </small>
+                        </label>
+                        <label className="admin-provider-field">
+                          <span>默认模型</span>
+                          <input
+                            value={draft.defaultModel}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                defaultModel: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="admin-provider-field">
+                          <span>备注</span>
+                          <input
+                            value={draft.remark}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                remark: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="admin-provider-section">
+                      <div className="admin-provider-section-head">
+                        <strong>运行参数</strong>
+                      </div>
+                      <div className="admin-provider-grid">
+                        <label className="admin-provider-field">
+                          <span>Organization</span>
+                          <input
+                            value={draft.organization}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                organization: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="admin-provider-field">
+                          <span>Project</span>
+                          <input
+                            value={draft.project}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                project: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="admin-provider-field">
+                          <span>超时（ms）</span>
+                          <input
+                            type="number"
+                            value={draft.timeoutMs}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                timeoutMs: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="admin-provider-field">
+                          <span>流式返回</span>
+                          <select
+                            value={draft.streamEnabled ? "true" : "false"}
+                            onChange={(event) =>
+                              handleProviderDraftChange(item.id, {
+                                streamEnabled: event.target.value === "true",
+                              })
+                            }
+                          >
+                            <option value="true">启用</option>
+                            <option value="false">关闭</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="admin-provider-section">
+                      <div className="admin-provider-section-head">
+                        <strong>模型与扩展</strong>
+                        <button
+                          type="button"
+                          className="secondary-button admin-provider-inline-button"
+                          onClick={() =>
+                            setExpandedProviderJson((current) => ({
+                              ...current,
+                              [item.id]: !current[item.id],
+                            }))
                           }
                         >
-                          <option value="true">启用</option>
-                          <option value="false">关闭</option>
-                        </select>
+                          {isJsonExpanded ? "收起 JSON" : "展开 JSON"}
+                        </button>
+                      </div>
+                      <label className="admin-provider-field admin-provider-field--full">
+                        <span>模型白名单（逗号分隔）</span>
+                        <textarea
+                          value={draft.modelWhitelist}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              modelWhitelist: event.target.value,
+                            })
+                          }
+                        />
                       </label>
+                      {isJsonExpanded ? (
+                        <div className="admin-provider-json">
+                          <label className="admin-provider-field">
+                            <span>自定义 Headers（JSON）</span>
+                            <textarea
+                              value={draft.customHeadersJson}
+                              onChange={(event) =>
+                                handleProviderDraftChange(item.id, {
+                                  customHeadersJson: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="admin-provider-field">
+                            <span>扩展参数（JSON）</span>
+                            <textarea
+                              value={draft.extraParamsJson}
+                              onChange={(event) =>
+                                handleProviderDraftChange(item.id, {
+                                  extraParamsJson: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="admin-provider-json-preview">
+                          <span>Headers: {getProviderJsonSummary(draft.customHeadersJson)}</span>
+                          <span>扩展参数: {getProviderJsonSummary(draft.extraParamsJson)}</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  <label className="admin-rule-description">
-                    <span>模型白名单（逗号分隔）</span>
-                    <textarea
-                      value={draft.modelWhitelist}
-                      onChange={(event) =>
-                        handleProviderDraftChange(item.id, {
-                          modelWhitelist: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="admin-rule-description">
-                    <span>自定义 Headers（JSON）</span>
-                    <textarea
-                      value={draft.customHeadersJson}
-                      onChange={(event) =>
-                        handleProviderDraftChange(item.id, {
-                          customHeadersJson: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="admin-rule-description">
-                    <span>扩展参数（JSON）</span>
-                    <textarea
-                      value={draft.extraParamsJson}
-                      onChange={(event) =>
-                        handleProviderDraftChange(item.id, {
-                          extraParamsJson: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-
-                  {draft.tutorialUrl.trim() ? (
-                    <div className="personal-actions">
-                      <a href={draft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                        打开教程文档
-                      </a>
+                    <div className="admin-provider-actions">
+                      {draft.tutorialUrl.trim() ? (
+                        <a href={draft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                          打开教程文档
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleSaveProvider(item.id)}
+                        disabled={updatingProviderId === item.id}
+                      >
+                        {updatingProviderId === item.id ? "保存中..." : "保存 Provider 配置"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleArchiveProvider(item.id)}
+                        disabled={updatingProviderId === item.id || item.status === "DISABLED"}
+                      >
+                        归档 Provider
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() => void handleDeleteProvider(item.id)}
+                        disabled={updatingProviderId === item.id}
+                      >
+                        删除 Provider
+                      </button>
                     </div>
-                  ) : null}
-
-                  <div className="personal-actions">
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void handleSaveProvider(item.id)}
-                      disabled={updatingProviderId === item.id}
-                    >
-                      {updatingProviderId === item.id ? "保存中..." : "保存 Provider 配置"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleArchiveProvider(item.id)}
-                      disabled={updatingProviderId === item.id || item.status === "DISABLED"}
-                    >
-                      归档 Provider
-                    </button>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={() => void handleDeleteProvider(item.id)}
-                      disabled={updatingProviderId === item.id}
-                    >
-                      删除 Provider
-                    </button>
-                  </div>
+                  </article>
+                );
+              }) : (
+                <article className="panel admin-provider-empty">
+                  <strong>没有匹配的接口供应商</strong>
+                  <p>可以清空搜索词或切回“全部状态 / 全部类型”，也可以直接在左侧创建新的 Provider。</p>
                 </article>
-              );
-            })}
+              )}
+            </section>
           </div>
         ) : (
           <div className="admin-rules-layout">
@@ -3284,6 +3495,34 @@ function buildApiProviderPayload(
     extraParams: parseProviderJsonObject(draft.extraParamsJson, "扩展参数"),
     remark: draft.remark.trim(),
   };
+}
+
+function maskProviderSecret(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "未配置";
+  }
+  if (trimmed.length <= 6) {
+    return "*".repeat(trimmed.length);
+  }
+  return `${trimmed.slice(0, 3)}${"*".repeat(Math.min(12, trimmed.length - 6))}${trimmed.slice(-3)}`;
+}
+
+function getProviderJsonSummary(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "{}") {
+    return "未配置";
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "格式异常";
+    }
+    const size = Object.keys(parsed).length;
+    return size ? `${size} 项` : "未配置";
+  } catch {
+    return "待校验";
+  }
 }
 
 function parseProviderJsonMap(value: string, label: string): Record<string, string> {

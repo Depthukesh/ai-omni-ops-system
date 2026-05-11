@@ -172,6 +172,8 @@
 - API Provider 管理
   - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 默认模型 / Organization / Project / Timeout / Stream / 自定义 Headers / 扩展参数 / 模型白名单 / 备注`
   - 当前已作为 `ReportsModule` 与 `WorksModule` 的运行时真源；报告生成、原创/二创/视频生成与视频模型下拉都通过 `runtimeKey` 读取后台激活中的 Provider 配置
+  - 当前列表区已补管理型交互：支持按名称/模型/Base URL/备注搜索，支持按状态与 Provider 类型筛选，并显示结果数与状态分布
+  - 当前创建表单与编辑卡片中的 API Key 默认遮挡显示，需按需手动展开；`自定义 Headers` / `扩展参数` 默认折叠为摘要，避免配置中心再次退化成长表单墙
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商

@@ -64,11 +64,18 @@
   - 远端 Prisma 报告将删除非空表 `ApiProviderConfig`（3 行），因此拒绝继续执行
   - 根因是 `prisma/schema.prisma` 尚未声明 `ApiProviderConfig`，`db push` 将其误判为应清理的未知表
   - 已将 `ApiProviderConfig` 补入 Prisma schema，避免后续部署把运行时 Provider 真源当成待删除表
+- 后台 `接口供应商` 页继续做了第二轮交互整理，避免 Provider 数量增加后再次变成长表单墙：
+  - 新增供应商搜索框，可按名称、模型、Base URL、备注收敛列表
+  - 新增状态筛选与类型筛选，并显示当前结果数与状态分布
+  - API Key 默认遮挡显示，创建表单和编辑卡片都支持单独切换“显示 / 隐藏”
+  - `自定义 Headers` / `扩展参数` 默认折叠为摘要，按需展开编辑 JSON
+  - 空结果时提供明确提示，避免筛选后出现“空白但不知道原因”
 
 ## 3. 影响文件
 
 - `apps/server/src/common/api-provider-catalog.ts`
 - `apps/web/src/app/(dashboard)/admin/page.tsx`
+- `apps/web/src/styles/globals.css`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspaces.tsx`
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
@@ -95,6 +102,7 @@
 - `npm --workspace apps/web run build` 通过
 - `npm run build:server` 通过
 - `GetDiagnostics` 检查本次改动文件，无新增诊断报错
+- 本轮后台 `接口供应商` 页面二次改造后，再次执行 `npm --workspace apps/web run build` 通过
 - `npm run prisma:generate` 本地未完成：Windows 下 `node_modules/.prisma/client/query_engine-windows.dll.node` 重命名遇到 `EPERM` 文件锁，未发现 schema 语法错误
 - 本地联调验证通过：
   - `http://127.0.0.1:3001/api/works/brands/br_demo_001/xiaohongshu/video/providers` 可正确代理到 `3011`
