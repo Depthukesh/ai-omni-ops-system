@@ -241,6 +241,7 @@
 - 自动部署中的健康检查如果依赖刚重启的 Web/API 进程，必须带有限等待窗口与重试，不允许只做一次立即 `curl` 就把“启动中”误判成部署失败
 - 如果服务器仓库目录已经收口到普通运行用户，部署脚本中的 `git fetch`、`git checkout`、`git status`、`git pull` 也必须切到同一普通用户执行，不允许再由 `root` 直接操作该仓库触发 `dubious ownership`
 - 如果部署中的 Git 拉取依赖 SSH 私钥，切到普通运行用户后还必须同步准备该用户自己的 `~/.ssh`、`known_hosts` 与对应 Deploy Key/SSH config；不能默认复用 `root` 的 SSH 上下文
+- 如果业务依赖 seed 数据才能正常工作，部署脚本不能只执行 `prisma db push`；必须显式补对应的目标化 seed 步骤，并避免在生产环境默认运行会覆盖 demo 用户、品牌或演示任务的整套 seed
 
 - 一个提交只解决一类问题
 - 提交前至少完成相关构建或诊断验证

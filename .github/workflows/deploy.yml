@@ -123,6 +123,7 @@ jobs:
               run_checked "npm ci" npm ci
               run_checked "npm run prisma:generate" npm run prisma:generate
               run_checked "npm run prisma:db:push" npm run prisma:db:push
+              run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
 
               run_checked "npm run build:server" npm run build:server
               run_checked "npm run build:web" npm run build:web

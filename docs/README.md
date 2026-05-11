@@ -92,6 +92,8 @@
   - 后台用户管理升级为“筛选区 + 用户列表 + 弹窗详情编辑”，并补齐管理员账号编辑、删除与确认弹窗
 - `docs/changes/2026-05-11-admin-api-provider-config-center.md`
   - 后台接口供应商页升级为运行时 Provider 真源；`Reports/Works` 统一读取后台配置，小红书视频模型下拉改为动态同步，并继续补齐搜索筛选、API Key 遮挡和 JSON 折叠式管理交互
+- `docs/changes/2026-05-11-registration-invite-seed-deploy.md`
+  - 修复线上注册邀请码“代码里有、数据库里没有”的问题；部署流程改为在 `db push` 后单独补 `RegistrationInviteCode` seed，而不执行整套 demo seed
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

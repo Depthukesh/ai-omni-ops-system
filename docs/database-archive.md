@@ -213,6 +213,7 @@
 - 注册
   - 主表：`RegistrationInviteCode`、`User`、`Brand`、`BrandMember`
   - 当前要求手机号和邀请码必填；邀请码验证通过且未消费时才创建用户与默认品牌，并回写消费人和消费时间
+  - 线上部署若只执行 `prisma db push` 不会自动导入预置邀请码；生产环境需额外执行目标化的邀请码 seed，确保 `RegistrationInviteCode` 表具备初始化数据
 
 ## 5. 当前仍未完全入库的部分
 
