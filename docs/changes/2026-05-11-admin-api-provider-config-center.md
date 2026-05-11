@@ -70,6 +70,11 @@
   - API Key 默认遮挡显示，创建表单和编辑卡片都支持单独切换“显示 / 隐藏”
   - `自定义 Headers` / `扩展参数` 默认折叠为摘要，按需展开编辑 JSON
   - 空结果时提供明确提示，避免筛选后出现“空白但不知道原因”
+- 后台 `接口供应商` 页继续按“只展示必要字段”的方向收口：
+  - 创建表单和编辑卡片不再向用户展示 `Organization / Project / 超时 / 流式返回 / Headers JSON / 扩展参数 JSON`
+  - 这些隐藏字段仍按原值保留并随保存请求一起提交，避免已有运行时配置被误清空
+  - `默认模型` 从自由输入改为白名单联动下拉框，只允许在当前可用模型中选择
+  - 当模型白名单变化后，默认模型会自动保持为合法选项；若原值不再可用，则回退到第一项可用模型
 
 ## 3. 影响文件
 
@@ -103,6 +108,7 @@
 - `npm run build:server` 通过
 - `GetDiagnostics` 检查本次改动文件，无新增诊断报错
 - 本轮后台 `接口供应商` 页面二次改造后，再次执行 `npm --workspace apps/web run build` 通过
+- 本轮继续收口 Provider 表单后，再次执行 `npm --workspace apps/web run build` 通过
 - `npm run prisma:generate` 本地未完成：Windows 下 `node_modules/.prisma/client/query_engine-windows.dll.node` 重命名遇到 `EPERM` 文件锁，未发现 schema 语法错误
 - 本地联调验证通过：
   - `http://127.0.0.1:3001/api/works/brands/br_demo_001/xiaohongshu/video/providers` 可正确代理到 `3011`
