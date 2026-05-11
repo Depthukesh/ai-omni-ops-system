@@ -359,7 +359,7 @@ flowchart TD
     Admin --> AUI5["模型消耗"]
     Admin --> AUI6["技能中心"]
     Admin --> AUI7["知识库管理"]
-    Admin --> AUI8["接口供应商"]
+    Admin --> AUI8["接口供应商（名称 / API 地址 / 教程链接 / API Key）"]
     AUI6 --> AUI61["右侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
     AUI6 --> AUI62["右侧二级分类：业务模块"]
@@ -617,7 +617,7 @@ flowchart LR
 
 ### 13.7 后台管理 API 入口索引
 
-- API Provider：`apps/server/src/modules/admin/api-providers.controller.ts`
+- API Provider：`apps/server/src/modules/admin/api-providers.controller.ts`（支持第三方接口配置中心字段与真实持久化）
 - 会员/积分规则：`apps/server/src/modules/admin/billing-rules.controller.ts`
 - 知识库：`apps/server/src/modules/admin/knowledge-bases.controller.ts`
 - 知识库文件：`apps/server/src/modules/admin/knowledge-base-files.controller.ts`

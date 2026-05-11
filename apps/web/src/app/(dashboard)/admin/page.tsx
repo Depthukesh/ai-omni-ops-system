@@ -84,8 +84,10 @@ type KnowledgeBaseEditDraft = {
 type ApiProviderEditDraft = {
   status: ApiProviderRecord["status"];
   baseUrl: string;
+  tutorialUrl: string;
   modelWhitelist: string;
-  maskedApiKey: string;
+  apiKey: string;
+  remark: string;
 };
 type CreateKnowledgeBaseDraft = {
   name: string;
@@ -97,8 +99,10 @@ type CreateApiProviderDraft = {
   name: string;
   providerType: ApiProviderRecord["providerType"];
   baseUrl: string;
+  tutorialUrl: string;
   modelWhitelist: string;
-  maskedApiKey: string;
+  apiKey: string;
+  remark: string;
 };
 type CreateKnowledgeBaseFileDraft = {
   fileName: string;
@@ -136,7 +140,7 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
   { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
-  { key: "providers", label: "接口供应商", shortLabel: "接口", description: "维护模型供应商状态、Base URL、模型白名单与密钥占位信息。" },
+  { key: "providers", label: "接口供应商", shortLabel: "接口", description: "统一维护第三方接口名称、API 地址、教程文档链接、API Key 与模型白名单。" },
 ];
 
 const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
@@ -1309,11 +1313,13 @@ export default function AdminPage() {
       const updated = await updateApiProvider(providerId, {
         status: draft.status,
         baseUrl: draft.baseUrl,
+        tutorialUrl: draft.tutorialUrl,
         modelWhitelist: draft.modelWhitelist
           .split(",")
           .map((item) => item.trim())
           .filter(Boolean),
-        maskedApiKey: draft.maskedApiKey,
+        apiKey: draft.apiKey,
+        remark: draft.remark,
       });
 
       setProviders((current) => current.map((item) => (item.id === providerId ? updated : item)));
@@ -1332,11 +1338,13 @@ export default function AdminPage() {
                   ...item,
                   status: draft.status,
                   baseUrl: draft.baseUrl,
+                  tutorialUrl: draft.tutorialUrl,
                   modelWhitelist: draft.modelWhitelist
                     .split(",")
                     .map((entry) => entry.trim())
                     .filter(Boolean),
-                  maskedApiKey: draft.maskedApiKey,
+                  apiKey: draft.apiKey,
+                  remark: draft.remark,
                   updatedAt,
                 }
               : item,
@@ -1452,7 +1460,9 @@ export default function AdminPage() {
         name: newProvider.name,
         providerType: newProvider.providerType,
         baseUrl: newProvider.baseUrl,
-        maskedApiKey: newProvider.maskedApiKey,
+        tutorialUrl: newProvider.tutorialUrl,
+        apiKey: newProvider.apiKey,
+        remark: newProvider.remark,
         modelWhitelist: newProvider.modelWhitelist
           .split(",")
           .map((item) => item.trim())
@@ -1475,11 +1485,13 @@ export default function AdminPage() {
           providerType: newProvider.providerType,
           status: "DRAFT",
           baseUrl: newProvider.baseUrl,
+          tutorialUrl: newProvider.tutorialUrl,
           modelWhitelist: newProvider.modelWhitelist
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),
-          maskedApiKey: newProvider.maskedApiKey || "未配置",
+          apiKey: newProvider.apiKey,
+          remark: newProvider.remark,
           successRate: 0,
           requestCount24h: 0,
           totalCostYuan: 0,
@@ -2493,7 +2505,7 @@ export default function AdminPage() {
               <div className="entity-card-head">
                 <div>
                   <strong>新建 API Provider</strong>
-                  <p className="personal-meta">先接入供应商基础配置，后续再逐步补密钥托管和高级路由规则。</p>
+                  <p className="personal-meta">把第三方接口的名称、API 地址、教程文档和真实 API Key 统一收口到这里维护。</p>
                 </div>
                 <span className="archive-pill status-in_progress">CREATE</span>
               </div>
@@ -2540,13 +2552,39 @@ export default function AdminPage() {
                   />
                 </label>
                 <label>
-                  <span>密钥占位</span>
+                  <span>教程文档链接</span>
                   <input
-                    value={newProvider.maskedApiKey}
+                    value={newProvider.tutorialUrl}
                     onChange={(event) =>
                       setNewProvider((current) => ({
                         ...current,
-                        maskedApiKey: event.target.value,
+                        tutorialUrl: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="admin-rule-grid">
+                <label>
+                  <span>API Key</span>
+                  <input
+                    value={newProvider.apiKey}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        apiKey: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>备注</span>
+                  <input
+                    value={newProvider.remark}
+                    onChange={(event) =>
+                      setNewProvider((current) => ({
+                        ...current,
+                        remark: event.target.value,
                       }))
                     }
                   />
@@ -2638,12 +2676,39 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
-                        <span>密钥占位</span>
+                        <span>教程文档链接</span>
                         <input
-                          value={draft.maskedApiKey}
+                          value={draft.tutorialUrl}
                           onChange={(event) =>
                             handleProviderDraftChange(item.id, {
-                              maskedApiKey: event.target.value,
+                              tutorialUrl: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-rules-stack">
+                    <div className="admin-rule-grid">
+                      <label>
+                        <span>API Key</span>
+                        <input
+                          value={draft.apiKey}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              apiKey: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>备注</span>
+                        <input
+                          value={draft.remark}
+                          onChange={(event) =>
+                            handleProviderDraftChange(item.id, {
+                              remark: event.target.value,
                             })
                           }
                         />
@@ -2662,6 +2727,14 @@ export default function AdminPage() {
                       }
                     />
                   </label>
+
+                  {draft.tutorialUrl.trim() ? (
+                    <div className="personal-actions">
+                      <a href={draft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                        打开教程文档
+                      </a>
+                    </div>
+                  ) : null}
 
                   <div className="personal-actions">
                     <button
@@ -2957,8 +3030,10 @@ function buildProviderDraft(item: ApiProviderRecord): ApiProviderEditDraft {
   return {
     status: item.status,
     baseUrl: item.baseUrl,
+    tutorialUrl: item.tutorialUrl,
     modelWhitelist: item.modelWhitelist.join(", "),
-    maskedApiKey: item.maskedApiKey,
+    apiKey: item.apiKey,
+    remark: item.remark,
   };
 }
 
@@ -2983,8 +3058,10 @@ function buildCreateApiProviderDraft(): CreateApiProviderDraft {
     name: "",
     providerType: "OPENAI",
     baseUrl: "",
+    tutorialUrl: "",
     modelWhitelist: "",
-    maskedApiKey: "",
+    apiKey: "",
+    remark: "",
   };
 }
 

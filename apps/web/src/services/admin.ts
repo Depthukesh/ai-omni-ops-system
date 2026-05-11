@@ -165,8 +165,10 @@ export type ApiProviderRecord = {
   providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
   status: "ACTIVE" | "DISABLED" | "DRAFT";
   baseUrl: string;
+  tutorialUrl: string;
   modelWhitelist: string[];
-  maskedApiKey: string;
+  apiKey: string;
+  remark: string;
   successRate: number;
   requestCount24h: number;
   totalCostYuan: number;
@@ -692,8 +694,10 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     providerType: "OPENAI",
     status: "ACTIVE",
     baseUrl: "https://api.openai-proxy.local/v1",
+    tutorialUrl: "https://platform.openai.com/docs/api-reference",
     modelWhitelist: ["gpt-5.5", "gpt-5.4-nano"],
-    maskedApiKey: "sk-proxy-****8fd2",
+    apiKey: "sk-proxy-demo-openai-001",
+    remark: "统一承接 OpenAI 兼容模型调用，优先给品牌增长与小红书文案链路使用。",
     successRate: 99.2,
     requestCount24h: 428,
     totalCostYuan: 186.4,
@@ -706,8 +710,10 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     providerType: "GEMINI",
     status: "ACTIVE",
     baseUrl: "https://api.gemini-proxy.local/v1beta",
+    tutorialUrl: "https://ai.google.dev/gemini-api/docs",
     modelWhitelist: ["gemini-2.5-pro"],
-    maskedApiKey: "gm-proxy-****9ce1",
+    apiKey: "gm-proxy-demo-gemini-001",
+    remark: "主要用于可视化报告和长文本结构化输出。",
     successRate: 97.6,
     requestCount24h: 96,
     totalCostYuan: 63.8,
@@ -720,8 +726,10 @@ export const apiProviderSeed: ApiProviderRecord[] = [
     providerType: "DOUBAO",
     status: "DRAFT",
     baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    tutorialUrl: "https://www.volcengine.com/docs/82379",
     modelWhitelist: ["doubao-pro-32k"],
-    maskedApiKey: "ark-****17ab",
+    apiKey: "ark-demo-doubao-001",
+    remark: "预留国内模型链路，后续可用于低成本内容生成或兜底路由。",
     successRate: 93.4,
     requestCount24h: 21,
     totalCostYuan: 7.2,
@@ -907,7 +915,7 @@ export async function getApiProviders() {
 
 export async function updateApiProvider(
   providerId: string,
-  payload: Partial<Pick<ApiProviderRecord, "status" | "baseUrl" | "modelWhitelist" | "maskedApiKey">>,
+  payload: Partial<Pick<ApiProviderRecord, "status" | "baseUrl" | "tutorialUrl" | "modelWhitelist" | "apiKey" | "remark">>,
 ) {
   return jsonRequest<ApiProviderRecord>(`/admin/api-providers/${providerId}`, "PATCH", payload);
 }
@@ -916,8 +924,10 @@ export async function createApiProvider(payload: {
   name: string;
   providerType: ApiProviderRecord["providerType"];
   baseUrl: string;
+  tutorialUrl?: string;
   modelWhitelist?: string[];
-  maskedApiKey?: string;
+  apiKey?: string;
+  remark?: string;
 }) {
   return jsonRequest<ApiProviderRecord>("/admin/api-providers", "POST", payload);
 }
