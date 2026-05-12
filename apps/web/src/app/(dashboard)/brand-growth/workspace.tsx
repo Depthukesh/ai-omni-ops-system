@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import { getMe } from "../../../services/auth";
+import { getMe, switchBrand } from "../../../services/auth";
 import {
   BrandGrowthCollectionWorkspace,
   type XiaohongshuCollectionCardKey,
@@ -407,6 +407,14 @@ export function BrandGrowthWorkspace() {
     const storedBrandId = getStoredCurrentBrandId(fallbackBrandId) || "";
     const preferredNonDemoBrandId = me?.brands?.find((item) => item.id && item.id !== DEMO_BRAND_ID)?.id || "";
     const directCandidate = me?.currentBrandId || storedBrandId || fallbackBrandId;
+
+    if (preferredNonDemoBrandId && directCandidate === DEMO_BRAND_ID) {
+      const switched = await switchBrand(preferredNonDemoBrandId).catch(() => null);
+      const switchedBrandId = switched?.currentBrandId || preferredNonDemoBrandId;
+      if (switchedBrandId && switchedBrandId !== DEMO_BRAND_ID) {
+        return switchedBrandId;
+      }
+    }
 
     if (directCandidate && directCandidate !== DEMO_BRAND_ID) {
       return directCandidate;
