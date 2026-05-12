@@ -1393,6 +1393,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         || this.findLikelyTitleInFields(row.fields)
         || this.readFeishuMediaNames(row.fields)[0]
         || "";
+      const imageList = this.readFeishuFieldImageUrls(row.fields, ["配图或视频", "图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面", "配图", "封面"]);
+      const videoUrl = this.readFeishuFieldVideoUrl(row.fields, ["配图或视频", "视频链接", "视频地址", "下载链接", "视频附件", "附件", "视频"]) || this.readFeishuVideoUrl(row.fields);
       if (!noteId && !title) {
         continue;
       }
@@ -1406,20 +1408,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         fileUrl: noteUrl || undefined,
         metadata: {
           kind: "XHS_BRAND_NOTE",
-          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "来源账号", "账号ID", "账号", "账号标识", "作者ID"]) || `feishu:${table.tableId}:${row.recordId}`,
+          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "来源账号", "账号ID", "账号", "账号标识", "作者ID", "作品采集", "作品来源"]) || `feishu:${table.tableId}:${row.recordId}`,
           noteId,
           noteUrl,
           noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型", "作品形式", "笔记形式", "内容形式", "图文/视频", "图文视频"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "作者", "昵称", "账号昵称", "达人昵称", "博主", "博主名称", "创作者", "创作者昵称"]),
-          imageList: this.readFeishuFieldImageUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面", "配图", "封面"])
-            .concat(this.readFeishuImageUrls(row.fields)),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "作者", "昵称", "账号昵称", "达人昵称", "博主", "博主名称", "创作者", "创作者昵称", "作品采集", "作品来源"]),
+          imageList: imageList.length ? imageList : this.readFeishuImageUrls(row.fields),
           externalUserId: this.readFeishuFieldString(row.fields, ["作者ID", "用户ID", "用户 ID", "外部用户ID", "外部用户 ID", "小红书号", "博主ID", "创作者ID", "主页ID"]),
           likeCount: this.readFeishuFieldNumber(row.fields, ["点赞数", "点赞"]),
           collectCount: this.readFeishuFieldNumber(row.fields, ["收藏数", "收藏"]),
           createdAtText: this.readFeishuFieldString(row.fields, ["发布时间", "发布日期", "创建时间", "创建日期", "发布时间文本", "采集时间", "采集日期"]),
           shareCount: this.readFeishuFieldNumber(row.fields, ["分享数", "分享"]),
           commentCount: this.readFeishuFieldNumber(row.fields, ["评论数", "评论"]),
-          videoUrl: this.readFeishuFieldVideoUrl(row.fields, ["视频链接", "视频地址", "下载链接", "视频附件", "附件", "视频"]) || this.readFeishuVideoUrl(row.fields),
+          videoUrl,
           collectedAt: new Date().toISOString(),
           sourceTableId: table.tableId,
           sourceRecordId: row.recordId,
@@ -1443,6 +1444,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const noteId = this.readFeishuFieldString(row.fields, ["笔记ID", "作品ID", "note_id"]) || this.extractNoteIdFromUrl(sourceUrl) || row.recordId;
       const title = this.readFeishuFieldString(row.fields, ["标题", "作品标题", "笔记标题", "内容标题", "文案标题", "作品名称", "名称", "原文标题"])
         || this.findLikelyTitleInFields(row.fields);
+      const imageList = this.readFeishuFieldImageUrls(row.fields, ["配图或视频", "图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面", "配图", "封面"]);
+      const videoUrl = this.readFeishuFieldVideoUrl(row.fields, ["配图或视频", "视频链接", "视频地址", "下载链接", "视频附件", "附件", "视频"]) || this.readFeishuVideoUrl(row.fields);
       if (!sourceUrl && !title) {
         continue;
       }
@@ -1460,19 +1463,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           noteId,
           noteUrl: sourceUrl,
           noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型", "作品形式", "笔记形式", "内容形式", "图文/视频", "图文视频"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "昵称", "作者", "账号昵称", "达人昵称", "博主", "博主名称", "创作者", "创作者昵称"]),
-          imageList: this.readFeishuFieldImageUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面", "配图", "封面"])
-            .concat(this.readFeishuImageUrls(row.fields)),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "昵称", "作者", "账号昵称", "达人昵称", "博主", "博主名称", "创作者", "创作者昵称", "作品采集", "作品来源"]),
+          imageList: imageList.length ? imageList : this.readFeishuImageUrls(row.fields),
           likeCount: this.readFeishuFieldNumber(row.fields, ["点赞数", "点赞"]),
           collectCount: this.readFeishuFieldNumber(row.fields, ["收藏数", "收藏"]),
           shareCount: this.readFeishuFieldNumber(row.fields, ["分享数", "分享"]),
           commentCount: this.readFeishuFieldNumber(row.fields, ["评论数", "评论"]),
           likeCollectRatio: this.readFeishuFieldNumber(row.fields, ["赞藏率", "点赞收藏比", "璧炶棌鐜"]),
           likeCommentRatio: this.readFeishuFieldNumber(row.fields, ["赞评率", "点赞评论比", "璧炶瘎鐜"]),
-          shareRatio: this.readFeishuFieldNumber(row.fields, ["分享率", "赞享率", "赞分享率", "点赞分享比", "璧炰韩鐜"]),
-          isExplosive: this.readFeishuFieldString(row.fields, ["是否爆款", "是否为爆款", "爆款判断", "爆款", "是否爆文", "鏄惁鐖嗘"]),
-          followUpDecision: this.readFeishuFieldString(row.fields, ["是否追投", "是否选用", "是否继续投放", "是否追加投放", "是否跟进", "是否跟投", "是否参考", "后续动作", "鏄惁杩芥姇"]),
-          videoUrl: this.readFeishuFieldVideoUrl(row.fields, ["视频链接", "视频地址", "下载链接", "视频附件", "附件", "视频"]) || this.readFeishuVideoUrl(row.fields),
+          shareRatio: this.readFeishuFieldNumber(row.fields, ["分享率", "赞享率", "赞分享率", "点赞分享比", "分享率%", "璧炰韩鐜"]),
+          isExplosive: this.readFeishuFieldStringStrict(row.fields, ["是否爆款", "是否为爆款", "爆款判断", "爆款", "是否爆文", "鏄惁鐖嗘"]),
+          followUpDecision: this.readFeishuFieldStringStrict(row.fields, ["是否追投", "是否选用", "是否继续投放", "是否追加投放", "是否跟进", "是否跟投", "是否参考", "后续动作", "鏄惁杩芥姇"]),
+          videoUrl,
           syncStatus: this.normalizeCollectorStatus(this.readFeishuFieldString(row.fields, ["状态", "同步状态"])) || "SUCCESS",
           retryCount: this.readFeishuFieldNumber(row.fields, ["重试次数"]),
           nextRetryAt: this.readFeishuFieldString(row.fields, ["下次重试时间"]),
@@ -1594,6 +1596,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.flattenFeishuValue(value)[0] ?? "";
   }
 
+  private readFeishuFieldStringStrict(fields: Record<string, unknown>, aliases: string[]) {
+    const value = this.findFeishuFieldValueExact(fields, aliases);
+    return this.flattenFeishuValue(value)[0] ?? "";
+  }
+
   private readFeishuFieldUrl(fields: Record<string, unknown>, aliases: string[]) {
     const value = this.findFeishuFieldValue(fields, aliases);
     const flattened = this.flattenFeishuValue(value);
@@ -1708,6 +1715,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
       if (fuzzy) {
         return fuzzy[1];
+      }
+    }
+    return undefined;
+  }
+
+  private findFeishuFieldValueExact(fields: Record<string, unknown>, aliases: string[]) {
+    const entries = Object.entries(fields);
+    const normalizedAliases = aliases.map((item) => this.normalizeFieldKey(item));
+    for (const alias of normalizedAliases) {
+      const exact = entries.find(([key]) => this.normalizeFieldKey(key) === alias);
+      if (exact) {
+        return exact[1];
       }
     }
     return undefined;
