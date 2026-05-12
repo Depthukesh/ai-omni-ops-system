@@ -789,16 +789,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                               </a>
                             ) : null}
                           </div>
-                          {item.rawFields && Object.keys(item.rawFields).length ? (
-                            <details className="note-debug-panel">
-                              <summary>同步诊断</summary>
-                              <div className="note-debug-meta">
-                                <span>来源表格：{item.sourceTableId || "-"}</span>
-                                <span>来源记录：{item.sourceRecordId || "-"}</span>
-                              </div>
-                              <pre className="note-debug-json">{JSON.stringify(item.rawFields, null, 2)}</pre>
-                            </details>
-                          ) : null}
                         </div>
                       </div>
                     </article>

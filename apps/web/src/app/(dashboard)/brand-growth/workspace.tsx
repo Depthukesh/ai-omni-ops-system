@@ -137,7 +137,7 @@ const strategySections: Array<{
   },
 ];
 
-const FEISHU_XHS_TEMPLATE_URL = "https://my.feishu.cn/wiki/Zqv9wiSNIiwGxVkCYwpcHOFUnEd?from=from_copylink";
+const FEISHU_XHS_TEMPLATE_URL = "https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink";
 
 function cloneSeed(): BrandArchiveBundle {
   return JSON.parse(JSON.stringify(brandArchiveSeed)) as BrandArchiveBundle;

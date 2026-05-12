@@ -77,6 +77,8 @@
 #### 收集数据
 
 - 小红书平台
+  - 当前“小红书平台”中的“打开飞书模板”入口已直接指向最新的飞书 Base 副本链接 `https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink`
+  - 飞书同步排障阶段临时加入的“同步诊断”折叠面板已从正式页面移除；作品卡片默认只保留正文、指标、附件与作品链接等用户向信息
 - 每日热点
 
 #### 品牌增长报告
@@ -221,7 +223,10 @@
   - 已接入 `login`、`register`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
 - `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
+  - 当前 `FEISHU_XHS_TEMPLATE_URL` 已改为最新飞书 Base 副本链接，品牌增长页顶部与收集区的“打开飞书模板”入口统一复用这一路径
   - 当前品牌增长页里的飞书媒体地址会先校验是否为真实飞书/Lark 附件链接；命中飞书附件才走站内 `feishu-media` 代理，普通外链资源继续直出，非法串直接丢弃
+ - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
+  - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
