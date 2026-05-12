@@ -63,6 +63,7 @@
 - 品牌增长报告
 - 当前品牌上下文：
   - 前端请求默认优先读取当前登录品牌，不再把工作区硬编码到 `DEMO_BRAND_ID`
+  - `brand-growth/workspace.tsx` 进入页面时会先调用 `/api/auth/me` 校正当前登录用户的 `currentBrandId`，再加载品牌档案、飞书绑定、收集工作区与报告工作区，避免浏览器残留 demo brand 把整页请求继续打到 `br_super_admin_demo`
   - 后端 `brands / reports / collectors / daily-hotspots` 相关品牌接口已补当前用户品牌访问校验，避免新账号继续读到演示品牌或其他品牌数据
 
 #### 品牌资料库
@@ -110,6 +111,7 @@
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
+  - `xiaohongshu/page.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
   - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
 
 ### 3.3 个人中心 `/personal-center`
@@ -216,6 +218,10 @@
 - `apps/web/src/services/auth.ts`
   - 前端认证服务层
   - 已接入 `login`、`register`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
+- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
+  - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
+- `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+  - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`

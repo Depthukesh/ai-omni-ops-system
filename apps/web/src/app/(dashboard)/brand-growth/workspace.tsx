@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
+import { getMe } from "../../../services/auth";
 import {
   BrandGrowthCollectionWorkspace,
   type XiaohongshuCollectionCardKey,
@@ -400,6 +401,11 @@ export function BrandGrowthWorkspace() {
     void loadArchive();
   }, []);
 
+  async function resolveActiveBrandId(fallbackBrandId: string) {
+    const me = await getMe().catch(() => null);
+    return me?.currentBrandId || me?.brands?.[0]?.id || getStoredCurrentBrandId(fallbackBrandId) || fallbackBrandId;
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -473,7 +479,7 @@ export function BrandGrowthWorkspace() {
     setDataSource("loading");
 
     try {
-      const activeBrandId = getStoredCurrentBrandId(archive.brand.id) || archive.brand.id;
+      const activeBrandId = await resolveActiveBrandId(archive.brand.id);
       const currentProfile = await getCurrentUserProfile().catch(() => null);
       const [
         archiveResult,

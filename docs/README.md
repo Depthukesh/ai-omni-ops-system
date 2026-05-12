@@ -96,6 +96,10 @@
   - 修复线上注册邀请码“代码里有、数据库里没有”的问题；部署流程改为在 `db push` 后单独补 `RegistrationInviteCode` seed，而不执行整套 demo seed
 - `docs/changes/2026-05-11-daily-hotspot-catch-up-and-notice-cleanup.md`
   - 修复每日热点当天快照偶发缺失时需手动触发的问题；工作区读取时会自动补抓当天热点，并继续补齐 `TIKHUB_API_KEY` 在 `ecosystem + PM2` 运行态中的透传校验
+- `docs/changes/2026-05-12-feishu-media-field-mapping-hardening.md`
+  - 修复飞书同步作品时把附件文件名误当图片 URL、字段别名覆盖不全以及飞书媒体代理白名单过窄的问题
+- `docs/changes/2026-05-12-brand-context-refresh-for-growth-and-xiaohongshu.md`
+  - 修复 `brand-growth` 与 `xiaohongshu` 页面初始化时继续读取 demo brand 的问题；页面进入时会先通过 `/api/auth/me` 刷新真实品牌上下文，再决定后续工作区请求的 `brandId`
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

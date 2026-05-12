@@ -54,6 +54,7 @@ import {
   readTaskWorkKind,
 } from "./work-task-helpers";
 import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services/personal-center";
+import { getMe } from "../../../services/auth";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
   annualMarketingPlanSeed,
@@ -335,8 +336,13 @@ export default function XiaohongshuPage() {
     onPoll: () => loadWorkspace(),
   });
 
+  async function resolveActiveBrandId(fallbackBrandId: string) {
+    const me = await getMe().catch(() => null);
+    return me?.currentBrandId || me?.brands?.[0]?.id || getStoredCurrentBrandId(fallbackBrandId) || fallbackBrandId;
+  }
+
   async function loadWorkspace(options?: { preserveMessages?: boolean }) {
-    const activeBrandId = getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id;
+    const activeBrandId = await resolveActiveBrandId(workspace.archive.brand.id);
     setIsLoading(true);
     setDataSource("loading");
     if (!options?.preserveMessages) {

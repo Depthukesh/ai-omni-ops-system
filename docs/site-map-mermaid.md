@@ -117,6 +117,7 @@ flowchart LR
 flowchart TD
     BG["/brand-growth page.tsx"]
     BG --> BGW["workspace.tsx 编排层"]
+    BGW --> BA["auth.ts /auth/me 校正当前品牌"]
 
     BGW --> BGW1["collection-workspace.tsx 收集数据"]
     BGW --> BGW2["library-workspace.tsx 品牌资料库"]
@@ -126,9 +127,12 @@ flowchart TD
     BGW --> BGW6["markdown-render.ts"]
     BGW --> BGW7["task-status-helpers.ts"]
 
-    BGW1 --> S1["brand-growth.ts 当前品牌优先"]
-    BGW1 --> S2["collectors.ts 当前品牌优先"]
-    BGW1 --> S3["daily-hotspots.ts 当前品牌优先"]
+    BA --> S1["brand-growth.ts 当前品牌优先"]
+    BA --> S2["collectors.ts 当前品牌优先"]
+    BA --> S3["daily-hotspots.ts 当前品牌优先"]
+    BGW1 --> S1
+    BGW1 --> S2
+    BGW1 --> S3
 
     BGW2 --> S1
     BGW3 --> S4["reports.ts"]
@@ -200,6 +204,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     XHS["/xiaohongshu page.tsx"]
+    XHS --> XA["auth.ts /auth/me 校正当前品牌"]
 
     XHS --> HX1["AssetsWorkspace 素材库"]
     XHS --> HX2["PlanWorkspace 营销策划方案"]
@@ -247,7 +252,12 @@ flowchart TD
     HX1 --> SX4["collectors.ts"]
     HX2 --> SX5["reports.ts"]
     HX3 --> SX5
-    XHS --> SX0["auth-session.ts 当前品牌解析"]
+    XHS --> SX0["auth-session.ts 本地品牌缓存"]
+    XA --> SX0
+    XA --> SX1
+    XA --> SX3
+    XA --> SX4
+    XA --> SX5
 
     SX1 --> AX1["/brands/* + /reports/* + /collectors/* 聚合读取"]
     SX2 --> AX2["/publishing/xiaohongshu/*"]
