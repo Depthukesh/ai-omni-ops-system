@@ -1,6 +1,6 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type {
   AsyncAction,
   FeishuAppConfigForm,
@@ -20,6 +20,7 @@ import type {
   FeishuBindingRecord,
 } from "../../../services/brand-growth";
 import type { DailyHotspotItem, DailyHotspotPlatformRecord } from "../../../services/daily-hotspots";
+import { requestBlobByUrl } from "../../../services/http";
 
 export type XiaohongshuCollectionCardKey =
   | "brandAccount"
@@ -90,6 +91,144 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onDailyHotspotDateChange: ValueAction<string>;
   onSyncDailyHotspots: (platformTitles?: string[]) => void | Promise<void>;
   formatHotspotHeat: OptionalNumberFormatter;
+}
+
+function useProtectedMediaAsset(sourceUrl?: string) {
+  const [objectUrl, setObjectUrl] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (!sourceUrl) {
+      setObjectUrl("");
+      setFileName("");
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
+    let active = true;
+    let currentObjectUrl = "";
+    setIsLoading(true);
+    setErrorMessage("");
+
+    void requestBlobByUrl(sourceUrl)
+      .then(({ blob, fileName: resolvedFileName }) => {
+        if (!active) {
+          return;
+        }
+        currentObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(currentObjectUrl);
+        setFileName(resolvedFileName);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        setObjectUrl("");
+        setFileName("");
+        setErrorMessage(error instanceof Error ? error.message : "附件加载失败");
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+    };
+  }, [sourceUrl]);
+
+  return {
+    objectUrl,
+    fileName,
+    isLoading,
+    errorMessage,
+  };
+}
+
+function ProtectedImageCard(props: {
+  sourceUrl: string;
+  title: string;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
+}) {
+  const media = useProtectedMediaAsset(props.sourceUrl);
+
+  if (media.errorMessage) {
+    return <div className="note-empty-media">{media.errorMessage}</div>;
+  }
+
+  return (
+    <div className="note-image-card">
+      <button
+        type="button"
+        className="note-image-thumb"
+        title={props.title}
+        onClick={() => media.objectUrl && props.onPreviewMedia({ url: media.objectUrl, title: props.title })}
+        disabled={!media.objectUrl}
+      >
+        {media.objectUrl ? <img src={media.objectUrl} alt={props.title} /> : <span>{media.isLoading ? "附件加载中..." : "附件暂不可用"}</span>}
+      </button>
+      {media.objectUrl ? (
+        <a href={media.objectUrl} download={media.fileName || undefined} className="note-data-link">
+          下载附件
+        </a>
+      ) : (
+        <span className="note-data-link">{media.isLoading ? "准备下载..." : "下载不可用"}</span>
+      )}
+    </div>
+  );
+}
+
+function ProtectedVideoPanel(props: {
+  sourceUrl?: string;
+}) {
+  const media = useProtectedMediaAsset(props.sourceUrl);
+
+  if (!props.sourceUrl) {
+    return null;
+  }
+
+  return (
+    <>
+      {media.objectUrl ? (
+        <div className="note-video-shell">
+          <video
+            controls
+            preload="metadata"
+            className="note-video-player"
+            src={media.objectUrl}
+          />
+        </div>
+      ) : media.errorMessage ? (
+        <div className="note-empty-media">{media.errorMessage}</div>
+      ) : (
+        <div className="note-empty-media">视频加载中...</div>
+      )}
+      <div className="note-media-actions">
+        {media.objectUrl ? (
+          <a
+            href={media.objectUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="note-data-link"
+          >
+            查看视频附件
+          </a>
+        ) : null}
+        {media.objectUrl ? (
+          <a href={media.objectUrl} download={media.fileName || undefined} className="note-data-link">
+            下载视频附件
+          </a>
+        ) : null}
+      </div>
+    </>
+  );
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
@@ -429,58 +568,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                             <div className="note-image-grid">
                               {item.imageList.map((mediaUrl, index) => {
                                 const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
-                                const downloadUrl = props.buildFeishuMediaProxyUrl(mediaUrl, true);
                                 if (!previewUrl) {
                                   return null;
                                 }
                                 return (
-                                  <div key={`${item.id}-image-${index}`} className="note-image-card">
-                                    <button
-                                      type="button"
-                                      className="note-image-thumb"
-                                      title={`查看附件 ${index + 1}`}
-                                      onClick={() =>
-                                        props.onPreviewMedia({ url: previewUrl, title: `${item.title}-附件-${index + 1}` })
-                                      }
-                                    >
-                                      <img src={previewUrl} alt={`${item.title}-附件-${index + 1}`} />
-                                    </button>
-                                    <a href={downloadUrl} className="note-data-link">
-                                      下载附件
-                                    </a>
-                                  </div>
+                                  <ProtectedImageCard
+                                    key={`${item.id}-image-${index}`}
+                                    sourceUrl={previewUrl}
+                                    title={`${item.title}-附件-${index + 1}`}
+                                    onPreviewMedia={props.onPreviewMedia}
+                                  />
                                 );
                               })}
                             </div>
                           ) : (
                             <div className="note-empty-media">暂无附件</div>
                           )}
-                          {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
-                            <div className="note-video-shell">
-                              <video
-                                controls
-                                preload="metadata"
-                                className="note-video-player"
-                                src={props.buildFeishuMediaProxyUrl(item.videoUrl)}
-                              />
-                            </div>
-                          ) : null}
+                          <ProtectedVideoPanel sourceUrl={props.buildFeishuMediaProxyUrl(item.videoUrl)} />
                           <div className="note-media-actions">
-                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
-                              <a
-                                href={props.buildFeishuMediaProxyUrl(item.videoUrl)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="note-data-link"
-                              >
-                                查看视频附件
-                              </a>
-                            ) : null}
-                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl, true) ? (
-                              <a href={props.buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
-                                下载视频附件
-                              </a>
-                            ) : null}
                             {item.noteUrl ? (
                               <a href={item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
                                 查看作品链接
@@ -655,58 +760,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                             <div className="note-image-grid">
                               {item.imageList.map((mediaUrl, index) => {
                                 const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
-                                const downloadUrl = props.buildFeishuMediaProxyUrl(mediaUrl, true);
                                 if (!previewUrl) {
                                   return null;
                                 }
                                 return (
-                                  <div key={`${item.id}-benchmark-image-${index}`} className="note-image-card">
-                                    <button
-                                      type="button"
-                                      className="note-image-thumb"
-                                      title={`查看附件 ${index + 1}`}
-                                      onClick={() =>
-                                        props.onPreviewMedia({ url: previewUrl, title: `${item.title}-附件-${index + 1}` })
-                                      }
-                                    >
-                                      <img src={previewUrl} alt={`${item.title}-附件-${index + 1}`} />
-                                    </button>
-                                    <a href={downloadUrl} className="note-data-link">
-                                      下载附件
-                                    </a>
-                                  </div>
+                                  <ProtectedImageCard
+                                    key={`${item.id}-benchmark-image-${index}`}
+                                    sourceUrl={previewUrl}
+                                    title={`${item.title}-附件-${index + 1}`}
+                                    onPreviewMedia={props.onPreviewMedia}
+                                  />
                                 );
                               })}
                             </div>
                           ) : (
                             <div className="note-empty-media">暂无附件</div>
                           )}
-                          {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
-                            <div className="note-video-shell">
-                              <video
-                                controls
-                                preload="metadata"
-                                className="note-video-player"
-                                src={props.buildFeishuMediaProxyUrl(item.videoUrl)}
-                              />
-                            </div>
-                          ) : null}
+                          <ProtectedVideoPanel sourceUrl={props.buildFeishuMediaProxyUrl(item.videoUrl)} />
                           <div className="note-media-actions">
-                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
-                              <a
-                                href={props.buildFeishuMediaProxyUrl(item.videoUrl)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="note-data-link"
-                              >
-                                查看视频附件
-                              </a>
-                            ) : null}
-                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl, true) ? (
-                              <a href={props.buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
-                                下载视频附件
-                              </a>
-                            ) : null}
                             {item.sourceUrl || item.noteUrl ? (
                               <a
                                 href={item.sourceUrl || item.noteUrl}

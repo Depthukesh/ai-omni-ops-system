@@ -15,10 +15,30 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return readJsonResponse<T>(response);
 }
 
+export async function requestBlobByUrl(url: string, init?: RequestInit): Promise<{
+  blob: Blob;
+  fileName: string;
+  contentType: string;
+}> {
+  const response = await performRequestUrl(url, init);
+
+  if (response.status === 401 && await refreshAccessToken()) {
+    const retried = await performRequestUrl(url, init);
+    return readBlobResponse(retried, url);
+  }
+
+  return readBlobResponse(response, url);
+}
+
 async function performRequest(path: string, init?: RequestInit) {
+  return performRequestUrl(resolveRequestUrl(path), init);
+}
+
+async function performRequestUrl(url: string, init?: RequestInit) {
   const session = getStoredAuthSession();
   const headers = new Headers(init?.headers);
-  const isAuthRoute = path.startsWith("/auth/");
+  const resolvedPathname = readPathname(url);
+  const isAuthRoute = resolvedPathname.startsWith("/auth/");
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -29,7 +49,7 @@ async function performRequest(path: string, init?: RequestInit) {
     headers.set("x-brand-id", session.currentBrandId);
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(url, {
     ...init,
     headers,
     cache: "no-store",
@@ -97,6 +117,24 @@ async function readJsonResponse<T>(response: Response) {
   return response.json() as Promise<T>;
 }
 
+async function readBlobResponse(response: Response, fallbackUrl: string) {
+  if (!response.ok) {
+    const message = await readErrorMessage(response);
+    throw new Error(message || `Request failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const contentType = response.headers.get("content-type") || blob.type || "application/octet-stream";
+  const disposition = response.headers.get("content-disposition") || "";
+  const fileName = extractFileNameFromDisposition(disposition) || extractFileNameFromUrl(fallbackUrl) || "media";
+
+  return {
+    blob,
+    fileName,
+    contentType,
+  };
+}
+
 export function jsonRequest<T>(path: string, method: string, body: unknown) {
   return request<T>(path, {
     method,
@@ -144,4 +182,52 @@ function resolveApiBaseUrl() {
   }
 
   return "http://127.0.0.1:3011/api";
+}
+
+function resolveRequestUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path}`;
+}
+
+function readPathname(url: string) {
+  try {
+    if (/^https?:\/\//i.test(url)) {
+      return new URL(url).pathname;
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
+}
+
+function extractFileNameFromDisposition(disposition: string) {
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return "";
+}
+
+function extractFileNameFromUrl(url: string) {
+  try {
+    const target = new URL(url);
+    const candidate = target.pathname.split("/").pop() || "";
+    return candidate.trim();
+  } catch {
+    return "";
+  }
 }
