@@ -374,7 +374,7 @@ export default function PersonalCenterPage() {
                   <span className="archive-pill status-ready">{latestWork?.mediaType || "暂无"}</span>
                 </div>
                 <p className="personal-meta">
-                  {latestWork ? `${formatDateTime(latestWork.createdAt)} · ${latestWork.storageKey}` : "去作品中心查看当前账号沉淀的作品资产。"}
+                  {latestWork ? `${formatDateTime(latestWork.createdAt)} · ${latestWork.title}` : "去作品中心查看当前账号沉淀的作品资产。"}
                 </p>
               </div>
             </div>
@@ -426,8 +426,5 @@ function sortByOrderUpdatedAtDesc(a: OrderRecord, b: OrderRecord) {
 }
 
 function isXiaohongshuWork(item: MediaRecord) {
-  const title = item.title.toLowerCase();
-  const storageKey = item.storageKey.toLowerCase();
-  const sourceUrl = (item.sourceUrl || "").toLowerCase();
-  return title.includes("小红书") || storageKey.includes("xiaohongshu") || sourceUrl.includes("xiaohongshu");
+  return item.scope === "XIAOHONGSHU" || item.title.toLowerCase().includes("小红书");
 }

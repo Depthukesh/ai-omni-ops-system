@@ -42,6 +42,14 @@ export function buildPersonalCenterLoginPath(nextPath: string) {
   return `/?next=${encodeURIComponent(nextPath)}`;
 }
 
+export function getBrandDisplayName(brand?: { id?: string; brandName?: string } | null, fallbackBrandId?: string) {
+  const name = brand?.brandName?.trim();
+  if (name) {
+    return name;
+  }
+  return brand?.id || fallbackBrandId ? "已绑定品牌" : "未绑定品牌";
+}
+
 export function emitBrandInviteReadStateChanged() {
   if (typeof window === "undefined") {
     return;

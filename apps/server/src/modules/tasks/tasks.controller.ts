@@ -11,25 +11,25 @@ export class TasksController {
 
   @Get()
   async list(@Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.tasksService.listTasks(auth);
   }
 
   @Post()
   async create(@Body() payload: CreateTaskPayload, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.tasksService.createTask(payload, auth);
   }
 
   @Patch(":id/retry")
   async retry(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.tasksService.retryTask(id, auth);
   }
 
   @Patch(":id/cancel")
   async cancel(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.tasksService.cancelTask(id, auth);
   }
 }

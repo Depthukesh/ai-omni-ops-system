@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import { getXiaohongshuMedia } from "../../../../services/xiaohongshu";
 import { getMedia, mediaSeed, type MediaRecord } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
 
 type MediaTypeFilter = "ALL" | MediaRecord["mediaType"];
 type MediaScopeFilter = "ALL" | "XIAOHONGSHU" | "OTHER";
@@ -200,7 +200,7 @@ export default function PersonalCenterWorksPage() {
       <div className="card-grid" style={{ marginBottom: 16 }}>
         <article className="metric-card">
           <span>当前品牌上下文</span>
-          <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
+          <strong>{getBrandDisplayName(currentBrand, currentBrandId)}</strong>
           <p>当前作品列表仍按登录用户过滤；品牌内作品共享与更细权限边界后续继续扩展。</p>
         </article>
         <article className="metric-card">
@@ -235,7 +235,7 @@ export default function PersonalCenterWorksPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索作品名称、类型、存储路径、任务 ID、品牌 ID"
+            placeholder="搜索作品名称、类型、任务 ID、品牌 ID"
           />
         </label>
       </div>
@@ -317,9 +317,9 @@ export default function PersonalCenterWorksPage() {
                     </div>
                     <div className="personal-actions">
                       <span className="archive-pill status-ready">{item.mediaType}</span>
-                      {item.sourceUrl ? (
-                        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                          打开源文件
+                      {item.assetUrl ? (
+                        <a href={item.assetUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                          打开作品
                         </a>
                       ) : null}
                     </div>
@@ -358,12 +358,8 @@ function MediaMetaGrid({ item }: { item: MediaRecord }) {
         <strong>{formatDateTime(item.updatedAt)}</strong>
       </div>
       <div className="field-full">
-        <span>存储路径</span>
-        <strong className="mono-text">{item.storageKey}</strong>
-      </div>
-      <div className="field-full">
-        <span>源地址</span>
-        <strong className="mono-text">{item.sourceUrl || "无"}</strong>
+        <span>访问入口</span>
+        <strong>{item.assetUrl ? "站内安全入口已生成" : "暂未生成可直接打开的入口"}</strong>
       </div>
     </div>
   );
@@ -381,16 +377,15 @@ function matchesKeyword(item: MediaRecord, keyword: string) {
   return [
     item.title,
     item.mediaType,
-    item.storageKey,
     item.mimeType ?? "",
     item.taskId ?? "",
     item.brandId ?? "",
-    item.sourceUrl ?? "",
+    item.scope,
   ].some((value) => value.toLowerCase().includes(keyword));
 }
 
 function getMediaScope(item: MediaRecord): MediaScopeFilter {
-  return getXiaohongshuMedia([item]).length ? "XIAOHONGSHU" : "OTHER";
+  return item.scope === "XIAOHONGSHU" || getXiaohongshuMedia([item]).length ? "XIAOHONGSHU" : "OTHER";
 }
 
 function getMediaTypeLabel(type: MediaRecord["mediaType"]) {

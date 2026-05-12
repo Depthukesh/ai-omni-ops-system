@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../services/auth";
-import { buildPersonalCenterLoginPath, isAuthFailure } from "./route-helpers";
+import { buildPersonalCenterLoginPath, getBrandDisplayName, isAuthFailure } from "./route-helpers";
 
 const routeItems = [
   {
@@ -185,7 +185,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
                       </option>
                     ))
                   ) : (
-                    <option value="">{currentBrand?.brandName || "未绑定品牌"}</option>
+                    <option value="">{getBrandDisplayName(currentBrand, currentBrandId)}</option>
                   )}
                 </select>
               </label>

@@ -18,37 +18,37 @@ export class OrdersController {
 
   @Get()
   async list(@Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.listOrders(auth);
   }
 
   @Get(":id")
   async getById(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.getOrderById(id, auth);
   }
 
   @Get(":id/status")
   async getStatus(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.getOrderStatus(id, auth);
   }
 
   @Post()
   async create(@Body() payload: CreateOrderPayload, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.createOrder(payload, auth);
   }
 
   @Patch(":id/pay")
   async markPaid(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.markPaid(id, auth);
   }
 
   @Patch(":id/cancel")
   async cancel(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.ordersService.cancelOrder(id, auth);
   }
 }

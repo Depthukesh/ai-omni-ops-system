@@ -18,8 +18,8 @@ export class TasksService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async listTasks(auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const tasks = await this.prismaService.task.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -44,15 +44,14 @@ export class TasksService {
       }));
     }
 
-    const userId = auth?.userId ?? database.users[0]?.id;
     return [...database.tasks]
-      .filter((item) => !userId || item.userId === userId)
+      .filter((item) => item.userId === userId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async createTask(payload: CreateTaskPayload, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
       const brandId = auth?.brandId ?? payload.brandId;
 
       if (brandId) {
@@ -93,7 +92,7 @@ export class TasksService {
     const now = new Date().toISOString();
     const task = {
       id: createId("tsk"),
-      userId: auth?.userId ?? payload.userId ?? database.users[0].id,
+      userId,
       brandId: auth?.brandId ?? payload.brandId,
       taskType: payload.taskType,
       taskTitle: payload.taskTitle,
@@ -109,6 +108,7 @@ export class TasksService {
   }
 
   async retryTask(id: string, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.task.findUnique({
         where: { id },
@@ -117,7 +117,7 @@ export class TasksService {
       if (!existing) {
         throw new NotFoundException("任务不存在");
       }
-      if (auth?.userId && existing.userId !== auth.userId) {
+      if (existing.userId !== userId) {
         throw new UnauthorizedException("当前用户无权重试该任务");
       }
 
@@ -154,7 +154,7 @@ export class TasksService {
     if (!task) {
       throw new NotFoundException("任务不存在");
     }
-    if (auth?.userId && task.userId !== auth.userId) {
+    if (task.userId !== userId) {
       throw new UnauthorizedException("当前用户无权重试该任务");
     }
 
@@ -164,6 +164,7 @@ export class TasksService {
   }
 
   async cancelTask(id: string, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.task.findUnique({
         where: { id },
@@ -172,7 +173,7 @@ export class TasksService {
       if (!existing) {
         throw new NotFoundException("任务不存在");
       }
-      if (auth?.userId && existing.userId !== auth.userId) {
+      if (existing.userId !== userId) {
         throw new UnauthorizedException("当前用户无权取消该任务");
       }
       if (existing.taskStatus !== TaskStatus.QUEUED && existing.taskStatus !== TaskStatus.RUNNING) {
@@ -211,7 +212,7 @@ export class TasksService {
     if (!task) {
       throw new NotFoundException("任务不存在");
     }
-    if (auth?.userId && task.userId !== auth.userId) {
+    if (task.userId !== userId) {
       throw new UnauthorizedException("当前用户无权取消该任务");
     }
     if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
@@ -225,17 +226,11 @@ export class TasksService {
     return task;
   }
 
-  private async getDefaultUserId() {
-    const user = await this.prismaService.user.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException("当前数据库中不存在可绑定的用户");
+  private requireUserId(auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
     }
-
-    return user.id;
+    return auth.userId;
   }
 
   private async ensureBrandExists(brandId: string) {

@@ -17,8 +17,8 @@ export class OrdersService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async listOrders(auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const orders = await this.prismaService.membershipOrder.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -61,6 +61,7 @@ export class OrdersService {
   }
 
   async getOrderById(id: string, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
       const order = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -79,7 +80,7 @@ export class OrdersService {
       if (!order) {
         throw new NotFoundException("订单不存在");
       }
-      if (auth?.userId && order.userId !== auth.userId) {
+      if (order.userId !== userId) {
         throw new UnauthorizedException("当前用户无权查看该订单");
       }
 
@@ -93,7 +94,7 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException("订单不存在");
     }
-    if (auth?.userId && order.userId !== auth.userId) {
+    if (order.userId !== userId) {
       throw new UnauthorizedException("当前用户无权查看该订单");
     }
 
@@ -115,9 +116,8 @@ export class OrdersService {
   }
 
   async createOrder(payload: CreateOrderPayload, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
-
       const order = await this.prismaService.membershipOrder.create({
         data: {
           userId,
@@ -139,7 +139,7 @@ export class OrdersService {
     const now = new Date().toISOString();
     const order = {
       id: createId("ord"),
-      userId: payload.userId ?? database.users[0].id,
+      userId,
       orderNo: this.createOrderNo(payload.orderType),
       orderType: payload.orderType,
       orderStatus: "PENDING" as const,
@@ -155,6 +155,7 @@ export class OrdersService {
   }
 
   async markPaid(id: string, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -163,7 +164,7 @@ export class OrdersService {
       if (!existing) {
         throw new NotFoundException("订单不存在");
       }
-      if (auth?.userId && existing.userId !== auth.userId) {
+      if (existing.userId !== userId) {
         throw new UnauthorizedException("当前用户无权支付该订单");
       }
 
@@ -234,7 +235,7 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException("订单不存在");
     }
-    if (auth?.userId && order.userId !== auth.userId) {
+    if (order.userId !== userId) {
       throw new UnauthorizedException("当前用户无权支付该订单");
     }
 
@@ -269,6 +270,7 @@ export class OrdersService {
   }
 
   async cancelOrder(id: string, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
       const existing = await this.prismaService.membershipOrder.findUnique({
         where: { id },
@@ -277,7 +279,7 @@ export class OrdersService {
       if (!existing) {
         throw new NotFoundException("订单不存在");
       }
-      if (auth?.userId && existing.userId !== auth.userId) {
+      if (existing.userId !== userId) {
         throw new UnauthorizedException("当前用户无权取消该订单");
       }
 
@@ -299,7 +301,7 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException("订单不存在");
     }
-    if (auth?.userId && order.userId !== auth.userId) {
+    if (order.userId !== userId) {
       throw new UnauthorizedException("当前用户无权取消该订单");
     }
 
@@ -312,17 +314,11 @@ export class OrdersService {
     return order;
   }
 
-  private async getDefaultUserId() {
-    const user = await this.prismaService.user.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException("当前数据库中不存在可绑定的用户");
+  private requireUserId(auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
     }
-
-    return user.id;
+    return auth.userId;
   }
 
   private createOrderNo(orderType: string) {

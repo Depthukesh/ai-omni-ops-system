@@ -49,7 +49,7 @@ export class AppConfigService {
       return stripApiPath(explicit);
     }
 
-    return `http://localhost:${this.getServerPort()}`;
+    return normalizePublicOrigin(this.getWebPublicBaseUrl(), process.env.NODE_ENV) || `http://localhost:${this.getServerPort()}`;
   }
 
   getOssConfig() {
@@ -135,4 +135,24 @@ function stripApiPath(value: string) {
 
 function isPrivateIpv4(value: string) {
   return /^10\./.test(value) || /^192\.168\./.test(value) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(value);
+}
+
+function normalizePublicOrigin(value: string, nodeEnv?: string) {
+  const trimmed = trimTrailingSlash(value);
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const isPrivateHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || isPrivateIpv4(parsed.hostname);
+    if (nodeEnv !== "development" && isPrivateHost) {
+      return "https://17ai.site";
+    }
+    parsed.search = "";
+    parsed.hash = "";
+    return trimTrailingSlash(parsed.toString());
+  } catch {
+    return trimmed;
+  }
 }

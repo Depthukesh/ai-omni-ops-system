@@ -11,13 +11,13 @@ export class MediaController {
 
   @Get()
   async list(@Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.mediaService.listMedia(auth);
   }
 
   @Post()
   async create(@Body() payload: CreateMediaPayload, @Headers() headers: Record<string, string | string[] | undefined>) {
-    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
     return this.mediaService.createMedia(payload, auth);
   }
 }

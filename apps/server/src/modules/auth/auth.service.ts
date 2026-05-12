@@ -973,7 +973,7 @@ export class AuthService {
     const authorizationHeader = this.readHeaderValue(headers, "authorization");
     const token = authorizationHeader?.startsWith("Bearer ") ? authorizationHeader.slice(7).trim() : "";
     if (!token) {
-      if (options?.fallbackToDefaultUser) {
+      if (options?.fallbackToDefaultUser && !(await this.prismaService.canUseDatabase())) {
         return this.resolveFallbackAuthContext();
       }
       return undefined;
@@ -1037,11 +1037,21 @@ export class AuthService {
     };
   }
 
-  private async resolveCurrentUser(userId?: string, auth?: RequestAuthContext) {
+  private async resolveCurrentUser(
+    userId?: string,
+    auth?: RequestAuthContext,
+    options?: { allowDefaultFallback?: boolean },
+  ) {
     if (auth?.userId) {
       return { id: auth.userId };
     }
     if (await this.prismaService.canUseDatabase()) {
+      if (!userId) {
+        if (!options?.allowDefaultFallback) {
+          throw new UnauthorizedException("请先登录");
+        }
+      }
+
       const user = userId
         ? await this.prismaService.user.findUnique({ where: { id: userId } })
         : await this.prismaService.user.findFirst({ orderBy: { createdAt: "asc" } });
@@ -1049,6 +1059,10 @@ export class AuthService {
         throw new UnauthorizedException("当前没有可用用户");
       }
       return { id: user.id };
+    }
+
+    if (!userId && !options?.allowDefaultFallback) {
+      throw new UnauthorizedException("请先登录");
     }
 
     const user = userId ? database.users.find((item) => item.id === userId) : database.users[0];
@@ -1059,7 +1073,7 @@ export class AuthService {
   }
 
   private async resolveFallbackAuthContext(): Promise<RequestAuthContext | undefined> {
-    const currentUser = await this.resolveCurrentUser();
+    const currentUser = await this.resolveCurrentUser(undefined, undefined, { allowDefaultFallback: true });
     const brands = await this.listAccessibleBrands(currentUser.id);
     const user = database.users.find((item) => item.id === currentUser.id);
     return {

@@ -20,7 +20,7 @@ import {
   type BrandRoleAuditLogRecord,
   type BrandMemberRecord,
 } from "../../../../services/brand-growth";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
 
 export default function PersonalCenterTeamPage() {
   const router = useRouter();
@@ -479,7 +479,7 @@ export default function PersonalCenterTeamPage() {
         </article>
         <article className="metric-card">
           <span>当前品牌</span>
-          <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
+          <strong>{getBrandDisplayName(currentBrand, currentBrandId)}</strong>
           <p>{currentBrand?.industry || "行业待补充"}</p>
         </article>
         <article className="metric-card">

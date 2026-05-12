@@ -3,6 +3,7 @@ import { jsonRequest, request } from "./http";
 
 export type TaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 export type MediaType = "IMAGE" | "VIDEO" | "DOCUMENT" | "HTML" | "ARCHIVE";
+export type MediaScope = "XIAOHONGSHU" | "OTHER";
 
 export type TaskRecord = {
   id: string;
@@ -29,8 +30,8 @@ export type MediaRecord = {
   taskId?: string;
   title: string;
   mediaType: MediaType;
-  sourceUrl?: string;
-  storageKey: string;
+  assetUrl?: string;
+  scope: MediaScope;
   mimeType?: string;
   fileSize?: number;
   createdAt: string;
@@ -171,8 +172,8 @@ export const mediaSeed: MediaRecord[] = [
     taskId: "tsk_demo_001",
     title: "品牌增长可视化报告",
     mediaType: "HTML",
-    storageKey: "reports/br_demo_001/growth-report.html",
-    sourceUrl: "https://oss.example.com/reports/br_demo_001/growth-report.html",
+    assetUrl: "/api/works/brands/br_demo_001/assets/growth-report.html",
+    scope: "OTHER",
     mimeType: "text/html",
     createdAt: "2026-05-01T10:00:00.000Z",
     updatedAt: "2026-05-01T10:00:00.000Z",
@@ -183,8 +184,8 @@ export const mediaSeed: MediaRecord[] = [
     brandId: "br_demo_001",
     title: "爆浆提拉米苏封面图",
     mediaType: "IMAGE",
-    storageKey: "works/br_demo_001/post-cover-001.png",
-    sourceUrl: "https://oss.example.com/works/br_demo_001/post-cover-001.png",
+    assetUrl: "/api/works/brands/br_demo_001/assets/post-cover-001.png",
+    scope: "OTHER",
     mimeType: "image/png",
     createdAt: "2026-05-02T03:10:00.000Z",
     updatedAt: "2026-05-02T03:10:00.000Z",
@@ -196,8 +197,8 @@ export const mediaSeed: MediaRecord[] = [
     taskId: "tsk_demo_003",
     title: "小红书笔记 - 武汉仟吉爆浆提拉米苏值得买吗？",
     mediaType: "HTML",
-    storageKey: "works/br_demo_001/xiaohongshu-note-demo-001.html",
-    sourceUrl: "https://oss.example.com/works/br_demo_001/xiaohongshu-note-demo-001.html",
+    assetUrl: "/api/works/brands/br_demo_001/assets/xiaohongshu-note-demo-001.html",
+    scope: "XIAOHONGSHU",
     mimeType: "text/html",
     createdAt: "2026-05-02T04:22:00.000Z",
     updatedAt: "2026-05-02T04:22:00.000Z",
@@ -209,8 +210,8 @@ export const mediaSeed: MediaRecord[] = [
     taskId: "tsk_demo_003",
     title: "小红书封面图 - 武汉仟吉爆浆提拉米苏值得买吗？",
     mediaType: "IMAGE",
-    storageKey: "works/br_demo_001/xiaohongshu-cover-demo-001.png",
-    sourceUrl: "https://oss.example.com/works/br_demo_001/xiaohongshu-cover-demo-001.png",
+    assetUrl: "/api/works/brands/br_demo_001/assets/xiaohongshu-cover-demo-001.png",
+    scope: "XIAOHONGSHU",
     mimeType: "image/png",
     createdAt: "2026-05-02T04:22:00.000Z",
     updatedAt: "2026-05-02T04:22:00.000Z",

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { MediaType } from "@prisma/client";
 import { createId, database } from "../../common/mock-data";
+import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 
@@ -18,41 +19,30 @@ export type CreateMediaPayload = {
 
 @Injectable()
 export class MediaService {
+  private readonly appConfigService = new AppConfigService();
+
   constructor(private readonly prismaService: PrismaService) {}
 
   async listMedia(auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? (await this.getDefaultUserId());
       const mediaAssets = await this.prismaService.mediaAsset.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
       });
 
-      return mediaAssets.map((item) => ({
-        id: item.id,
-        userId: item.userId,
-        brandId: item.brandId ?? undefined,
-        taskId: item.taskId ?? undefined,
-        title: item.title,
-        mediaType: item.mediaType,
-        sourceUrl: item.sourceUrl ?? undefined,
-        storageKey: item.storageKey ?? "",
-        mimeType: item.mimeType ?? undefined,
-        fileSize: item.fileSize ?? undefined,
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
-      }));
+      return mediaAssets.map((item) => this.toMediaRecord(item));
     }
 
-    const userId = auth?.userId ?? database.users[0]?.id;
     return [...database.media]
-      .filter((item) => !userId || item.userId === userId)
+      .filter((item) => item.userId === userId)
+      .map((item) => this.toMediaRecord(item))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async createMedia(payload: CreateMediaPayload, auth?: RequestAuthContext) {
+    const userId = this.requireUserId(auth);
     if (await this.prismaService.canUseDatabase()) {
-      const userId = auth?.userId ?? payload.userId ?? (await this.getDefaultUserId());
       const brandId = auth?.brandId ?? payload.brandId;
 
       if (brandId) {
@@ -77,25 +67,12 @@ export class MediaService {
         },
       });
 
-      return {
-        id: media.id,
-        userId: media.userId,
-        brandId: media.brandId ?? undefined,
-        taskId: media.taskId ?? undefined,
-        title: media.title,
-        mediaType: media.mediaType,
-        sourceUrl: media.sourceUrl ?? undefined,
-        storageKey: media.storageKey ?? "",
-        mimeType: media.mimeType ?? undefined,
-        fileSize: media.fileSize ?? undefined,
-        createdAt: media.createdAt.toISOString(),
-        updatedAt: media.updatedAt.toISOString(),
-      };
+      return this.toMediaRecord(media);
     }
 
     const media = {
       id: createId("med"),
-      userId: auth?.userId ?? payload.userId ?? database.users[0].id,
+      userId,
       brandId: auth?.brandId ?? payload.brandId,
       taskId: payload.taskId,
       title: payload.title,
@@ -106,20 +83,14 @@ export class MediaService {
     };
 
     database.media.unshift(media);
-    return media;
+    return this.toMediaRecord(media);
   }
 
-  private async getDefaultUserId() {
-    const user = await this.prismaService.user.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException("当前数据库中不存在可绑定的用户");
+  private requireUserId(auth?: RequestAuthContext) {
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
     }
-
-    return user.id;
+    return auth.userId;
   }
 
   private async ensureBrandExists(brandId: string) {
@@ -142,5 +113,86 @@ export class MediaService {
     if (!task) {
       throw new NotFoundException("任务不存在");
     }
+  }
+
+  private toMediaRecord(item: {
+    id: string;
+    userId: string;
+    brandId?: string | null;
+    taskId?: string | null;
+    title: string;
+    mediaType: MediaType | CreateMediaPayload["mediaType"];
+    sourceUrl?: string | null;
+    storageKey?: string | null;
+    mimeType?: string | null;
+    fileSize?: number | null;
+    createdAt: Date | string;
+    updatedAt?: Date | string | null;
+  }) {
+    const storageKey = item.storageKey ?? "";
+    const sourceUrl = item.sourceUrl ?? "";
+    return {
+      id: item.id,
+      userId: item.userId,
+      brandId: item.brandId ?? undefined,
+      taskId: item.taskId ?? undefined,
+      title: item.title,
+      mediaType: item.mediaType,
+      assetUrl: this.resolveMediaAssetUrl(item.brandId ?? undefined, storageKey, sourceUrl),
+      scope: this.resolveMediaScope(item.title, storageKey, sourceUrl),
+      mimeType: item.mimeType ?? undefined,
+      fileSize: item.fileSize ?? undefined,
+      createdAt: this.toIsoString(item.createdAt),
+      updatedAt: item.updatedAt ? this.toIsoString(item.updatedAt) : undefined,
+    };
+  }
+
+  private resolveMediaAssetUrl(brandId?: string, storageKey = "", sourceUrl = "") {
+    const internalAssetUrl = this.resolveGeneratedWorkAssetUrl(brandId, storageKey);
+    if (internalAssetUrl) {
+      return internalAssetUrl;
+    }
+    return this.normalizePublicSourceUrl(sourceUrl);
+  }
+
+  private resolveGeneratedWorkAssetUrl(brandId: string | undefined, storageKey: string) {
+    if (!brandId || !storageKey) {
+      return "";
+    }
+    const match = /^works\/([^/]+)\/(.+)$/.exec(storageKey);
+    if (!match || match[1] !== brandId) {
+      return "";
+    }
+    return `${this.appConfigService.getServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(match[2])}`;
+  }
+
+  private normalizePublicSourceUrl(sourceUrl: string) {
+    const trimmed = sourceUrl.trim();
+    if (!trimmed) {
+      return "";
+    }
+    try {
+      const parsed = new URL(trimmed, this.appConfigService.getServerBaseUrl());
+      const isPrivateHost = parsed.hostname === "localhost"
+        || parsed.hostname === "127.0.0.1"
+        || /^10\./.test(parsed.hostname)
+        || /^192\.168\./.test(parsed.hostname)
+        || /^172\.(1[6-9]|2\d|3[0-1])\./.test(parsed.hostname);
+      if (process.env.NODE_ENV !== "development" && isPrivateHost) {
+        return "";
+      }
+      return parsed.toString();
+    } catch {
+      return "";
+    }
+  }
+
+  private resolveMediaScope(title: string, storageKey: string, sourceUrl: string) {
+    const keyword = `${title} ${storageKey} ${sourceUrl}`.toLowerCase();
+    return keyword.includes("xiaohongshu") || keyword.includes("xhs") ? "XIAOHONGSHU" : "OTHER";
+  }
+
+  private toIsoString(value: Date | string) {
+    return value instanceof Date ? value.toISOString() : value;
   }
 }

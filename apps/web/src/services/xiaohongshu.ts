@@ -130,6 +130,6 @@ export function getXiaohongshuTasks(tasks: TaskRecord[]) {
 
 export function getXiaohongshuMedia(media: MediaRecord[]) {
   return media.filter(
-    (item) => item.title.includes("小红书") || item.storageKey.includes("xhs") || item.storageKey.includes("xiaohongshu"),
+    (item) => item.scope === "XIAOHONGSHU" || item.title.includes("小红书"),
   );
 }
