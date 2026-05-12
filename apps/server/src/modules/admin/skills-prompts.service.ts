@@ -1,8 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
+import {
+  PROMPT_SOURCE_CANDIDATES,
+  readPromptSourceBundle,
+} from "../../common/prompt-source-loader";
 import { PrismaService } from "../../prisma/prisma.service";
 
 type SkillConfigRow = {
@@ -130,38 +134,7 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
 export class SkillsPromptsService {
   private registryBootstrapPromise?: Promise<void>;
 
-  private readonly promptFileCandidates: Record<string, string[]> = {
-    prompt_xhs_original_copy: [
-      "../../../提示词/original_copy/original_copy/SKILL.md",
-      "../提示词/original_copy/original_copy/SKILL.md",
-    ],
-    prompt_xhs_original_note: [
-      "../../../提示词/original_image/SKILL.md",
-      "../提示词/original_image/SKILL.md",
-    ],
-    prompt_xhs_rewrite_copy: [
-      "../../../提示词/rewrite_copy/SKILL.md",
-      "../提示词/rewrite_copy/SKILL.md",
-    ],
-    prompt_xhs_rewrite_note: [
-      "../../../提示词/rewrite_image/SKILL.md",
-      "../提示词/rewrite_image/SKILL.md",
-    ],
-    prompt_xhs_video_note: [
-      "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
-      "../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
-    ],
-    prompt_growth_report: [
-      "../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
-      "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",
-    ],
-    prompt_visual_report: [
-      "../../../提示词/article-visual-report-designer/SKILL.md",
-    ],
-    prompt_xhs_plan: [
-      "../../../提示词/_xhs-plan-skill/xiaohongshu-brand-marketing-plan/SKILL.md",
-    ],
-  };
+  private readonly promptFileCandidates = PROMPT_SOURCE_CANDIDATES;
 
   constructor(
     @Inject(PrismaService)
@@ -218,6 +191,17 @@ export class SkillsPromptsService {
   }
 
   async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
+    const currentSourceBundle = this.getPromptSourceBundle(id, "");
+    const sourceControlledPrompt = currentSourceBundle.referenceFiles.length > 0;
+    const normalizedSubmittedContent =
+      payload.content !== undefined ? this.normalizePromptContent(payload.content) : undefined;
+    const hasSubmittedContentChange =
+      normalizedSubmittedContent !== undefined && normalizedSubmittedContent !== currentSourceBundle.content;
+
+    if (sourceControlledPrompt && hasSubmittedContentChange) {
+      throw new BadRequestException("当前提示词已自动聚合参考资料，请直接回到原始文档目录维护 SKILL.md 与参考稿。");
+    }
+
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
       const current = await this.findPromptByIdFromDatabase(id);
@@ -225,9 +209,9 @@ export class SkillsPromptsService {
         throw new NotFoundException("提示词模板不存在");
       }
 
-      const nextContent =
-        payload.content !== undefined ? this.normalizePromptContent(payload.content) : current.content;
-      if (payload.content !== undefined) {
+      const currentContent = this.readPromptContent(current.id, current.content);
+      const nextContent = normalizedSubmittedContent ?? currentContent;
+      if (normalizedSubmittedContent !== undefined && !sourceControlledPrompt) {
         this.writePromptContentToFile(id, nextContent);
       }
 
@@ -262,10 +246,14 @@ export class SkillsPromptsService {
     if (payload.maxTokens !== undefined) {
       prompt.maxTokens = payload.maxTokens;
     }
-    if (payload.content !== undefined) {
-      const nextContent = this.normalizePromptContent(payload.content);
-      this.writePromptContentToFile(id, nextContent);
+    if (normalizedSubmittedContent !== undefined) {
+      const nextContent = normalizedSubmittedContent;
+      if (!sourceControlledPrompt) {
+        this.writePromptContentToFile(id, nextContent);
+      }
       prompt.content = nextContent;
+    } else {
+      prompt.content = this.readPromptContent(prompt.id, prompt.content);
     }
     prompt.updatedAt = new Date().toISOString();
     return { ...prompt };
@@ -560,18 +548,7 @@ export class SkillsPromptsService {
   }
 
   private syncPromptContentFromFile(prompt: PromptTemplateRecord) {
-    const filePath = this.resolvePromptFilePath(prompt.id);
-    if (!filePath) {
-      return;
-    }
-    try {
-      const fileContent = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim();
-      if (fileContent) {
-        prompt.content = fileContent;
-      }
-    } catch {
-      // Ignore unreadable prompt files and keep the current content.
-    }
+    prompt.content = this.readPromptContent(prompt.id, prompt.content);
   }
 
   private writePromptContentToFile(promptId: string, content: string) {
@@ -602,6 +579,14 @@ export class SkillsPromptsService {
     return undefined;
   }
 
+  private getPromptSourceBundle(promptId: string, fallback: string) {
+    return readPromptSourceBundle(promptId, fallback);
+  }
+
+  private readPromptContent(promptId: string, fallback: string) {
+    return this.getPromptSourceBundle(promptId, fallback).content;
+  }
+
   private normalizePromptContent(content: unknown) {
     if (typeof content === "string") {
       return content;
@@ -628,7 +613,7 @@ export class SkillsPromptsService {
   }
 
   private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
-    return {
+    const prompt = {
       id: row.id,
       name: row.name,
       scene: row.scene,
@@ -640,6 +625,8 @@ export class SkillsPromptsService {
       content: row.content || "",
       updatedAt: this.normalizeDate(row.updatedAt),
     };
+    this.syncPromptContentFromFile(prompt);
+    return prompt;
   }
 
   private normalizeDate(value: Date | string) {

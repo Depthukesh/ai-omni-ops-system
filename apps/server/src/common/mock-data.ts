@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { SYSTEM_API_PROVIDER_SEEDS } from "./api-provider-catalog";
+import { readPromptSourceBundle } from "./prompt-source-loader";
 
 export type UserRecord = {
   id: string;
@@ -269,81 +268,45 @@ const DEMO_WORK_COVER_SOURCE_URL = DEMO_NOTE_IMAGE_1_URL;
 const DEMO_INDUSTRY_REPORT_FILE_URL = "/api/brands/br_demo_001/asset-files/bakery-report.pdf";
 const DEMO_BUSINESS_DATA_FILE_URL = "/api/brands/br_demo_001/asset-files/youzan-q1.xlsx";
 
-function readTextFromCandidates(candidates: string[], fallback: string) {
-  for (const candidate of candidates) {
-    try {
-      const filePath = resolve(process.cwd(), candidate);
-      if (!existsSync(filePath)) {
-        continue;
-      }
-      const content = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim();
-      if (content) {
-        return content;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return fallback;
-}
-
-const brandGrowthSkillContent = readTextFromCandidates(
-  [
-    "../../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
-    "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",
-  ],
+const brandGrowthSkillContent = readPromptSourceBundle(
+  "prompt_growth_report",
   "你是品牌全域增长顾问，需要基于品牌资料、行业资料和经营数据生成增长分析报告。",
-);
+).content;
 
-const visualReportSkillContent = readTextFromCandidates(
-  ["../../../提示词/article-visual-report-designer/SKILL.md"],
+const visualReportSkillContent = readPromptSourceBundle(
+  "prompt_visual_report",
   "你是数据可视化设计师，需要将结构化洞察转化为适合前端渲染的 HTML 报告。",
-);
+).content;
 
-const xiaohongshuPlanSkillContent = readTextFromCandidates(
-  ["../../../提示词/_xhs-plan-skill/xiaohongshu-brand-marketing-plan/SKILL.md"],
+const xiaohongshuPlanSkillContent = readPromptSourceBundle(
+  "prompt_xhs_plan",
   "你是小红书品牌营销顾问，需要输出年度种草策略、内容支柱和月度排期建议。",
-);
+).content;
 
-const xiaohongshuOriginalCopySkillContent = readTextFromCandidates(
-  [
-    "../../../提示词/original_copy/original_copy/SKILL.md",
-    "../提示词/original_copy/original_copy/SKILL.md",
-  ],
+const xiaohongshuOriginalCopySkillContent = readPromptSourceBundle(
+  "prompt_xhs_original_copy",
   "根据营销规划方案、营销日历选题、产品信息和用户附加要求，生成可直接发布的小红书原创标题、正文与标签。",
-);
+).content;
 
-const xiaohongshuOriginalNoteSkillContent = readTextFromCandidates(
-  [
-    "../../../提示词/original_image/SKILL.md",
-    "../提示词/original_image/SKILL.md",
-  ],
+const xiaohongshuOriginalNoteSkillContent = readPromptSourceBundle(
+  "prompt_xhs_original_note",
   "根据营销规划方案、营销日历、原创笔记正文、产品信息和用户要求，生成封面提示词与原创配图提示词。",
-);
+).content;
 
-const xiaohongshuRewriteNoteSkillContent = readTextFromCandidates(
-  [
-    "../../../提示词/rewrite_image/SKILL.md",
-    "../提示词/rewrite_image/SKILL.md",
-  ],
+const xiaohongshuRewriteNoteSkillContent = readPromptSourceBundle(
+  "prompt_xhs_rewrite_note",
   "根据用户输入的小红书对标配图及二创文案，生成全新的二创配图提示词。",
-);
+).content;
 
-const xiaohongshuRewriteCopySkillContent = readTextFromCandidates(
-  [
-    "../../../提示词/rewrite_copy/SKILL.md",
-    "../提示词/rewrite_copy/SKILL.md",
-  ],
+const xiaohongshuRewriteCopySkillContent = readPromptSourceBundle(
+  "prompt_xhs_rewrite_copy",
   "根据对标作品、营销规划和用户要求，生成小红书二创笔记标题、正文与标签。",
-);
+).content;
 
-const xiaohongshuVideoNoteSkillContent = readTextFromCandidates(
-  [
-    "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
-    "../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",
-  ],
+const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_note",
   "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
-);
+).content;
 
 export type MockDatabase = {
   users: UserRecord[];

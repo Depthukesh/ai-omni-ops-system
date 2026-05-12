@@ -225,6 +225,8 @@
 ### 9.1 文档更新要求
 
 - 每次开始实际开发前，默认先读取 `docs/engineering-standards.md`、`docs/site-map.md`、`docs/site-map-mermaid.md`、`docs/development-delivery-checklist.md` 和当前任务最近的 `docs/changes/*.md`
+- 如果本次要修改已有页面、已有工作区或已有业务链路，开始动手前必须额外回看 `docs/site-map.md`、`docs/site-map-mermaid.md` 中对应板块的具体条目，而不只是泛读整份文档
+- 若回看基线后发现本次准备采用的实现方式与既有开发思路、页面结构或业务逻辑不一致，必须先向用户确认，再继续开发；不能直接按新的理解覆盖旧实现
 - 涉及 Git 边界、提交拆分或快照备份时，额外读取 `docs/git-workflow.md`
 - 涉及数据库 schema、迁移或正式入库边界时，额外读取 `docs/database-archive.md`
 - 涉及资源生成、作品副本、发布素材时，额外读取 `docs/generated-content-storage-standards.md`
@@ -237,6 +239,7 @@
 - 涉及 Git 边界、暂存策略或备份流程变化时同步更新 `docs/git-workflow.md`
 - 涉及开发流程、交付闭环、记录清单变化时同步更新 `docs/development-delivery-checklist.md`
 - 涉及文档索引、新增文档类型或“开发前必读 / 开发后必更”入口说明变化时同步更新 `docs/README.md`
+- 更新 `docs/site-map.md` 时，相关板块要把本次对应的 `docs/changes/*.md` 作为“参考变更”挂到相应位置，避免后续只知道结构结果，不知道是哪次变更带来的
 - 用户只说“更新一下”时，默认按完整交付闭环执行：同步更新开发规范、Git 备份、文字网站地图、Mermaid 网站地图、变更记录，并在交付时说明验证结果与未纳入提交的剩余改动
 
 ### 9.2 提交规范
@@ -265,6 +268,8 @@
 ### 9.3 开发交付规范
 
 - 每次开始开发前，必须先明确任务标题、任务类型、目标板块、影响范围、代码落点、验证方式和 Git 边界
+- 如果任务会修改已有内容，必须把“对应网站地图条目 + 最近相关变更记录 + 与现有实现是否一致”一并核对清楚
+- 若实现过程中确认需要偏离既有结构、交互或数据链路，先暂停并询问用户，不得自行改道
 - 每次结束开发后，必须补齐验证结果、文档更新、Git 备份信息和待解决事项
 - 上述清单统一以 `docs/development-delivery-checklist.md` 作为默认执行模板
 - 没有范围说明、没有验证方式、没有文档更新或没有 Git 边界说明的任务，不视为完整闭环

@@ -1640,9 +1640,42 @@ export default function AdminPage() {
   const skillCenterName = activeSkillConfig?.name || activeSkillLeaf?.label || activePromptConfig?.name || "-";
   const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
   const isSkillPrimaryExpanded = (primaryId: string) => expandedSkillPrimaryId === primaryId;
+  const isAutoBundledPrompt = Boolean(activePromptConfig && skillCenterPromptValue.includes("## 自动聚合参考资料"));
   const isSavingSkillCenter =
     (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
+
+  function handleSelectSkillPrimary(primaryId: string) {
+    const nextPrimary = SKILL_CENTER_TREE.find((item) => item.id === primaryId);
+    if (!nextPrimary) {
+      return;
+    }
+    const nextSection = nextPrimary.sections[0];
+    const nextLeaf = nextSection?.items[0];
+    setActiveSkillPrimaryId(nextPrimary.id);
+    setExpandedSkillPrimaryId(nextPrimary.id);
+    setActiveSkillSectionId(nextSection?.id || "");
+    setActiveSkillLeafId(nextLeaf?.id || "");
+  }
+
+  function handleSelectSkillSection(primaryId: string, sectionId: string) {
+    const nextPrimary = SKILL_CENTER_TREE.find((item) => item.id === primaryId);
+    const nextSection = nextPrimary?.sections.find((item) => item.id === sectionId);
+    if (!nextPrimary || !nextSection) {
+      return;
+    }
+    setActiveSkillPrimaryId(nextPrimary.id);
+    setExpandedSkillPrimaryId(nextPrimary.id);
+    setActiveSkillSectionId(nextSection.id);
+    setActiveSkillLeafId(nextSection.items[0]?.id || "");
+  }
+
+  function handleSelectSkillLeaf(primaryId: string, sectionId: string, leafId: string) {
+    setActiveSkillPrimaryId(primaryId);
+    setExpandedSkillPrimaryId(primaryId);
+    setActiveSkillSectionId(sectionId);
+    setActiveSkillLeafId(leafId);
+  }
 
   if (isCheckingAccess) {
     return (
@@ -1964,6 +1997,80 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "assets" ? (
           <div className="admin-skill-center-layout">
+            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
+              <div className="admin-skill-card-topline">
+                <span className="admin-skill-card-kicker">技能目录</span>
+                <span className="archive-pill status-ready">
+                  {skills.length} 技能 / {prompts.length} 提示词
+                </span>
+              </div>
+              <div className="admin-skill-primary-list">
+                {SKILL_CENTER_TREE.map((primary) => {
+                  const primaryActive = activeSkillPrimaryId === primary.id;
+                  const primaryExpanded = isSkillPrimaryExpanded(primary.id);
+
+                  return (
+                    <div
+                      className={`entity-card admin-skill-primary-group${primaryExpanded ? " expanded" : ""}`}
+                      key={primary.id}
+                    >
+                      <button
+                        type="button"
+                        className={`admin-skill-primary-button${primaryActive ? " active" : ""}`}
+                        onClick={() => handleSelectSkillPrimary(primary.id)}
+                      >
+                        <span className="admin-skill-primary-mark">{primary.label.slice(0, 1)}</span>
+                        <span className="admin-skill-primary-button-copy">
+                          <strong>{primary.label}</strong>
+                          <small>{primary.sections.length} 个二级分类</small>
+                        </span>
+                        <span className={`admin-skill-primary-arrow${primaryExpanded ? " expanded" : ""}`}>⌄</span>
+                      </button>
+                      {primaryExpanded ? (
+                        <div className="admin-skill-tree-sections">
+                          {primary.sections.map((section) => {
+                            const sectionActive = primary.id === activeSkillPrimaryId && section.id === activeSkillSectionId;
+
+                            return (
+                              <div className="entity-card admin-skill-tree-section" key={section.id}>
+                                <button
+                                  type="button"
+                                  className={`admin-skill-tree-section-button${sectionActive ? " active" : ""}`}
+                                  onClick={() => handleSelectSkillSection(primary.id, section.id)}
+                                >
+                                  <span className="admin-skill-tree-section-label">{section.label}</span>
+                                  <small>{section.items.length}</small>
+                                </button>
+                                <div className="admin-skill-tree-leaf-list">
+                                  {section.items.map((leaf) => {
+                                    const leafActive =
+                                      primary.id === activeSkillPrimaryId &&
+                                      section.id === activeSkillSectionId &&
+                                      leaf.id === activeSkillLeafId;
+
+                                    return (
+                                      <button
+                                        type="button"
+                                        className={`admin-skill-tree-leaf-button${leafActive ? " active" : ""}`}
+                                        key={leaf.id}
+                                        onClick={() => handleSelectSkillLeaf(primary.id, section.id, leaf.id)}
+                                      >
+                                        <span className="admin-skill-tree-leaf-dot" />
+                                        <strong>{leaf.label}</strong>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </aside>
             <section className="panel personal-center-panel admin-skill-center-panel">
               {activeSkillLeaf ? (
                 <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
@@ -2016,8 +2123,17 @@ export default function AdminPage() {
                   </div>
                   <label className="admin-skill-field admin-skill-field--full">
                     <span>技能提示词</span>
-                    <textarea value={skillCenterPromptValue} onChange={(event) => handleSkillCenterPromptChange(event.target.value)} />
+                    <textarea
+                      value={skillCenterPromptValue}
+                      onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
+                      readOnly={isAutoBundledPrompt}
+                    />
                   </label>
+                  {isAutoBundledPrompt ? (
+                    <p className="personal-meta">
+                      当前内容自动聚合自 `SKILL.md` 与同目录参考资料；如需修改，请直接回到原始提示词目录维护。
+                    </p>
+                  ) : null}
                   <div className="admin-skill-form-actions">
                     <button
                       type="button"

@@ -67,6 +67,14 @@
 - `docs/development-delivery-checklist.md`
 - 与当前任务最近的一条 `docs/changes/*.md`
 
+如果本次会修改已有功能或已有结构，还必须额外确认：
+
+- `docs/site-map.md` 与 `docs/site-map-mermaid.md` 中对应板块的具体条目，而不是只泛读整份文档
+- 最近相关的 `docs/changes/*.md` 中，之前是按什么思路和什么边界落地的
+- 本次拟采用的实现方式是否与既有结构、交互逻辑、数据链路保持一致
+
+如果发现本次方案与既有开发思路或开发逻辑不一致，必须先向用户说明冲突点并获得确认，不能直接开始改。
+
 如果改的是资源生成、作品存储、发布链路，还要额外看：
 
 - `docs/generated-content-storage-standards.md`
@@ -197,6 +205,8 @@
 - 前端 `service -> API` 关系
 - 后端模块承接关系
 - 数据主链路
+
+更新 `docs/site-map.md` 时，还必须把本次对应的 `docs/changes/*.md` 作为参考资料挂到相关板块，便于后续追溯“为什么会变成现在这样”。
 
 ### 4.6 代码规范更新
 

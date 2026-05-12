@@ -72,10 +72,13 @@
 
 - 代码变更与文档变更视为同一工作的一部分
 - 重要功能完成后，至少新增一条 `docs/changes/*.md`
+- 如果本次修改的是已有页面、已有工作区或已有链路，开始开发前必须回看 `docs/site-map.md` / `docs/site-map-mermaid.md` 对应条目与最近相关的 `docs/changes/*.md`
+- 如果准备采用的实现方式与既有结构或逻辑不一致，必须先询问用户并确认后再开发
 - 涉及系统结构变化时，必须同步更新 `docs/site-map.md`
 - 涉及开发流程、交付要求、记录清单变化时，必须同步更新 `docs/development-delivery-checklist.md`
 - 涉及数据库结构、持久化边界或模块入库路径变化时，必须同步更新 `docs/database-archive.md`
 - 涉及大模块技术路线、权限模型、数据分层或执行路径变化时，必须同步更新对应专项方案文档
+- 更新 `docs/site-map.md` 时，要把本次对应的 `docs/changes/*.md` 作为参考变更挂到相关位置
 - 如果只是很小的样式或文案调整，可合并记录到最近一次相关变更中，但不能完全不记
 
 ## 近期重点变更
@@ -104,6 +107,8 @@
   - 修复小红书素材库的飞书媒体代理 URL 未显式携带真实 `brandId` 的问题，并收紧飞书昵称/来源账号字段别名，降低图片视频继续落到 demo brand 或作者字段误识别的概率
 - `docs/changes/2026-05-12-brand-growth-feishu-template-link-and-debug-cleanup.md`
   - 更新品牌增长页“打开飞书模板”的默认飞书 Base 链接，并移除作品卡片中的“同步诊断”临时面板
+- `docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
+  - 恢复后台技能中心目录树，并将 `SKILL.md + 同目录参考资料` 统一聚合到提示词读取链路中
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
