@@ -310,8 +310,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     });
 
     try {
-      const baseToken = await this.resolveFeishuBaseToken(binding);
       const userAccessToken = await this.getFeishuUserAccessTokenForBrand(brandId);
+      const baseToken = await this.resolveFeishuBaseToken(binding, userAccessToken);
       const tables = await this.listFeishuTables(baseToken, userAccessToken);
       const matchedTables = await this.matchFeishuTables(baseToken, userAccessToken, tables, binding);
       await this.clearExistingXiaohongshuCollectorAssets(brandId);
@@ -841,9 +841,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async resolveFeishuBaseToken(binding: FeishuBindingRecord) {
+  private async resolveFeishuBaseToken(binding: FeishuBindingRecord, userAccessToken: string) {
     if (binding.baseToken) {
       return binding.baseToken;
+    }
+
+    const tokenFromWikiNode = await this.tryResolveBaseTokenFromWikiNode(binding, userAccessToken);
+    if (tokenFromWikiNode) {
+      return tokenFromWikiNode;
     }
 
     const tokenFromWikiPage = await this.tryResolveBaseTokenFromWikiPage(binding.wikiUrl);
@@ -851,7 +856,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return tokenFromWikiPage;
     }
 
-    throw new ServiceUnavailableException("当前链接尚未解析出 Base Token，请优先绑定飞书多维表格 base 链接。");
+    throw new ServiceUnavailableException("当前链接尚未解析出 Base Token，请优先绑定飞书多维表格 base 链接，或确认当前授权用户对该飞书副本仍有访问权限。");
   }
 
   private async listFeishuTables(baseToken: string, userAccessToken: string): Promise<FeishuTableRecord[]> {
@@ -1489,6 +1494,30 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return normalized;
     }
     return undefined;
+  }
+
+  private async tryResolveBaseTokenFromWikiNode(binding: FeishuBindingRecord, userAccessToken: string) {
+    if (!binding.wikiToken) {
+      return "";
+    }
+
+    try {
+      const url = new URL("https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node");
+      url.searchParams.set("token", binding.wikiToken);
+
+      const payload = await this.fetchFeishuApi(url.toString(), userAccessToken);
+      const dataMeta = this.asMeta(this.asMeta(payload).data);
+      const nodeMeta = this.asMeta(dataMeta.node);
+      const objType = this.readMetaString(nodeMeta, "obj_type") || this.readMetaString(nodeMeta, "objType");
+      const objToken = this.readMetaString(nodeMeta, "obj_token") || this.readMetaString(nodeMeta, "objToken");
+
+      if (objType === "bitable" && objToken) {
+        return objToken;
+      }
+      return "";
+    } catch {
+      return "";
+    }
   }
 
   private async tryResolveBaseTokenFromWikiPage(wikiUrl: string) {
