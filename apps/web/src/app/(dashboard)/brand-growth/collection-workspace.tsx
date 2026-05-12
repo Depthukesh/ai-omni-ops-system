@@ -430,6 +430,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                               {item.imageList.map((mediaUrl, index) => {
                                 const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
                                 const downloadUrl = props.buildFeishuMediaProxyUrl(mediaUrl, true);
+                                if (!previewUrl) {
+                                  return null;
+                                }
                                 return (
                                   <div key={`${item.id}-image-${index}`} className="note-image-card">
                                     <button
@@ -452,7 +455,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                           ) : (
                             <div className="note-empty-media">暂无附件</div>
                           )}
-                          {item.videoUrl ? (
+                          {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
                             <div className="note-video-shell">
                               <video
                                 controls
@@ -463,7 +466,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                             </div>
                           ) : null}
                           <div className="note-media-actions">
-                            {item.videoUrl ? (
+                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
                               <a
                                 href={props.buildFeishuMediaProxyUrl(item.videoUrl)}
                                 target="_blank"
@@ -473,7 +476,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                                 查看视频附件
                               </a>
                             ) : null}
-                            {item.videoUrl ? (
+                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl, true) ? (
                               <a href={props.buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
                                 下载视频附件
                               </a>
@@ -653,6 +656,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                               {item.imageList.map((mediaUrl, index) => {
                                 const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
                                 const downloadUrl = props.buildFeishuMediaProxyUrl(mediaUrl, true);
+                                if (!previewUrl) {
+                                  return null;
+                                }
                                 return (
                                   <div key={`${item.id}-benchmark-image-${index}`} className="note-image-card">
                                     <button
@@ -675,7 +681,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                           ) : (
                             <div className="note-empty-media">暂无附件</div>
                           )}
-                          {item.videoUrl ? (
+                          {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
                             <div className="note-video-shell">
                               <video
                                 controls
@@ -686,7 +692,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                             </div>
                           ) : null}
                           <div className="note-media-actions">
-                            {item.videoUrl ? (
+                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl) ? (
                               <a
                                 href={props.buildFeishuMediaProxyUrl(item.videoUrl)}
                                 target="_blank"
@@ -696,7 +702,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                                 查看视频附件
                               </a>
                             ) : null}
-                            {item.videoUrl ? (
+                            {item.videoUrl && props.buildFeishuMediaProxyUrl(item.videoUrl, true) ? (
                               <a href={props.buildFeishuMediaProxyUrl(item.videoUrl, true)} className="note-data-link">
                                 下载视频附件
                               </a>

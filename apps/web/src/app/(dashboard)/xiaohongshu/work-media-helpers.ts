@@ -15,7 +15,12 @@ export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false
 
   try {
     const target = new URL(sourceUrl);
-    if (target.hostname === "open.feishu.cn" || target.hostname === "open.larkoffice.com") {
+    const isFeishuHost = target.hostname === "open.feishu.cn"
+      || target.hostname === "open.larkoffice.com"
+      || target.hostname.endsWith(".feishu.cn")
+      || target.hostname.endsWith(".larkoffice.com")
+      || target.hostname.endsWith(".larksuite.com");
+    if (isFeishuHost) {
       const params = new URLSearchParams({ sourceUrl });
       if (download) {
         params.set("download", "1");
@@ -23,11 +28,15 @@ export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false
       const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
       return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
     }
+
+    if (target.protocol === "http:" || target.protocol === "https:") {
+      return sourceUrl;
+    }
   } catch {
-    return sourceUrl;
+    return "";
   }
 
-  return sourceUrl;
+  return "";
 }
 
 export function getPreviewIndex(indexMap: Record<string, number>, itemId?: string, total = 0) {

@@ -371,8 +371,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("附件地址无效");
     }
 
-    const isAllowedHost = targetUrl.hostname === "open.feishu.cn" || targetUrl.hostname === "open.larkoffice.com";
-    const isAllowedPath = /\/open-apis\/drive\/v1\/medias\/[^/]+\/download/i.test(targetUrl.pathname);
+    const isAllowedHost = targetUrl.hostname === "open.feishu.cn"
+      || targetUrl.hostname === "open.larkoffice.com"
+      || targetUrl.hostname.endsWith(".feishu.cn")
+      || targetUrl.hostname.endsWith(".larkoffice.com")
+      || targetUrl.hostname.endsWith(".larksuite.com");
+    const isAllowedPath = /\/open-apis\/drive\/v1\/medias\/[^/]+\/download/i.test(targetUrl.pathname)
+      || /\/space\/api\/box\/stream\/download/i.test(targetUrl.pathname)
+      || /\/media\/download/i.test(targetUrl.pathname);
     if (!isAllowedHost || !isAllowedPath) {
       throw new BadRequestException("当前只支持代理飞书附件下载地址");
     }
@@ -1347,9 +1353,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     let syncedCount = 0;
 
     for (const row of rows) {
-      const noteUrl = this.readFeishuFieldUrl(row.fields, ["笔记链接", "作品链接", "链接", "浣滃搧閾炬帴"]);
+      const noteUrl = this.readFeishuFieldUrl(row.fields, ["笔记链接", "作品链接", "作品地址", "链接", "浣滃搧閾炬帴"]);
       const noteId = this.readFeishuFieldString(row.fields, ["笔记ID", "作品ID", "note_id"]) || this.extractNoteIdFromUrl(noteUrl) || row.recordId;
-      const title = this.readFeishuFieldString(row.fields, ["标题", "作品标题", "笔记标题", "名称", "正文"])
+      const title = this.readFeishuFieldString(row.fields, ["标题", "作品标题", "笔记标题", "内容标题", "文案标题", "作品名称", "名称", "正文"])
         || this.findLikelyTitleInFields(row.fields)
         || this.readFeishuMediaNames(row.fields)[0]
         || "";
@@ -1362,21 +1368,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         kind: "XHS_BRAND_NOTE",
         matchValue: noteId,
         title: title || `飞书同步品牌作品 ${row.recordId}`,
-        description: this.readFeishuFieldString(row.fields, ["正文", "内容", "描述", "文案", "笔记正文"]),
+        description: this.readFeishuFieldString(row.fields, ["正文", "正文内容", "内容", "内容详情", "描述", "文案", "文案内容", "作品内容", "笔记内容", "笔记正文"]),
         fileUrl: noteUrl || undefined,
         metadata: {
           kind: "XHS_BRAND_NOTE",
-          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "账号ID"]) || `feishu:${table.tableId}:${row.recordId}`,
+          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "来源账号", "账号ID", "账号", "作者ID"]) || `feishu:${table.tableId}:${row.recordId}`,
           noteId,
           noteUrl,
-          noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "笔记类型"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "昵称", "作者", "作品采集"]),
-          imageList: this.readFeishuFieldStringArray(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "閰嶅浘鎴栬棰"])
-            .concat(this.readFeishuMediaUrls(row.fields)),
-          externalUserId: this.readFeishuFieldString(row.fields, ["作者ID", "用户ID", "外部用户ID", "小红书号"]),
+          noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型"]),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "作者", "昵称", "账号昵称", "作品采集"]),
+          imageList: this.readFeishuFieldUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面"])
+            .concat(this.readFeishuImageUrls(row.fields)),
+          externalUserId: this.readFeishuFieldString(row.fields, ["作者ID", "用户ID", "用户 ID", "外部用户ID", "外部用户 ID", "小红书号"]),
           likeCount: this.readFeishuFieldNumber(row.fields, ["点赞数", "点赞"]),
           collectCount: this.readFeishuFieldNumber(row.fields, ["收藏数", "收藏"]),
-          createdAtText: this.readFeishuFieldString(row.fields, ["发布时间", "创建时间", "发布时间文本"]),
+          createdAtText: this.readFeishuFieldString(row.fields, ["发布时间", "发布日期", "创建时间", "创建日期", "发布时间文本", "采集时间"]),
           shareCount: this.readFeishuFieldNumber(row.fields, ["分享数", "分享"]),
           commentCount: this.readFeishuFieldNumber(row.fields, ["评论数", "评论"]),
           videoUrl: this.readFeishuFieldString(row.fields, ["视频链接", "视频地址", "下载链接"]) || this.readFeishuVideoUrl(row.fields),
@@ -1399,9 +1405,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     for (const row of rows) {
       const sourceUrl = this.findFirstUrlInFields(row.fields, ["xiaohongshu.com/explore", "xiaohongshu.com/discovery/item"])
-        || this.readFeishuFieldString(row.fields, ["来源链接", "笔记链接", "作品链接", "链接", "浣滃搧閾炬帴"]);
+        || this.readFeishuFieldString(row.fields, ["来源链接", "笔记链接", "作品链接", "作品地址", "链接", "浣滃搧閾炬帴"]);
       const noteId = this.readFeishuFieldString(row.fields, ["笔记ID", "作品ID", "note_id"]) || this.extractNoteIdFromUrl(sourceUrl) || row.recordId;
-      const title = this.readFeishuFieldString(row.fields, ["标题", "作品标题", "笔记标题", "名称", "正文"])
+      const title = this.readFeishuFieldString(row.fields, ["标题", "作品标题", "笔记标题", "内容标题", "文案标题", "作品名称", "名称", "正文"])
         || this.findLikelyTitleInFields(row.fields);
       if (!sourceUrl && !title) {
         continue;
@@ -1412,17 +1418,17 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         kind: "XHS_BENCHMARK_NOTE",
         matchValue: sourceUrl || noteId,
         title: title || `飞书同步对标作品 ${row.recordId}`,
-        description: this.readFeishuFieldString(row.fields, ["正文", "内容", "描述", "文案", "笔记正文"]),
+        description: this.readFeishuFieldString(row.fields, ["正文", "正文内容", "内容", "内容详情", "描述", "文案", "文案内容", "作品内容", "笔记内容", "笔记正文"]),
         fileUrl: sourceUrl || undefined,
         metadata: {
           kind: "XHS_BENCHMARK_NOTE",
           sourceUrl,
           noteId,
           noteUrl: sourceUrl,
-          noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "昵称", "作者", "作品采集"]),
-          imageList: this.readFeishuFieldStringArray(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "閰嶅浘鎴栬棰"])
-            .concat(this.readFeishuMediaUrls(row.fields)),
+          noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型"]),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "昵称", "作者", "账号昵称", "作品采集"]),
+          imageList: this.readFeishuFieldUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面"])
+            .concat(this.readFeishuImageUrls(row.fields)),
           likeCount: this.readFeishuFieldNumber(row.fields, ["点赞数", "点赞"]),
           collectCount: this.readFeishuFieldNumber(row.fields, ["收藏数", "收藏"]),
           shareCount: this.readFeishuFieldNumber(row.fields, ["分享数", "分享"]),
@@ -1578,12 +1584,26 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.flattenFeishuValue(this.findFeishuFieldValue(fields, aliases));
   }
 
+  private readFeishuFieldUrls(fields: Record<string, unknown>, aliases: string[]) {
+    return this.extractUrlsFromUnknown(this.findFeishuFieldValue(fields, aliases));
+  }
+
   private readFeishuMediaUrls(fields: Record<string, unknown>) {
     const urls = Object.values(fields)
       .flatMap((item) => this.extractFeishuMediaEntries(item))
       .map((item) => item.url)
       .filter(Boolean);
     return Array.from(new Set(urls));
+  }
+
+  private readFeishuImageUrls(fields: Record<string, unknown>) {
+    return Array.from(new Set(
+      Object.values(fields)
+        .flatMap((item) => this.extractFeishuMediaEntries(item))
+        .filter((item) => this.isImageMediaEntry(item))
+        .map((item) => item.url)
+        .filter(Boolean),
+    ));
   }
 
   private readFeishuMediaNames(fields: Record<string, unknown>) {
@@ -1596,7 +1616,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private readFeishuVideoUrl(fields: Record<string, unknown>) {
     return this.extractFeishuMediaEntries(fields)
-      .find((item) => item.type.toLowerCase().startsWith("video/"))?.url ?? "";
+      .find((item) => this.isVideoMediaEntry(item))?.url ?? "";
   }
 
   private findFirstUrlInFields(fields: Record<string, unknown>, keywords: string[] = []) {
@@ -1616,6 +1636,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       .map((item) => item.trim())
       .filter(Boolean)
       .filter((item) => !/^https?:\/\//i.test(item))
+      .filter((item) => !/\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|avi|mkv|m4v)$/i.test(item))
       .filter((item) => !/^\d{4}-\d{2}-\d{2}/.test(item))
       .filter((item) => !/^\d+(\.\d+)?$/.test(item))
       .filter((item) => item.length >= 4 && item.length <= 60);
@@ -1683,11 +1704,55 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return [];
     }
     const record = value as Record<string, unknown>;
-    const url = typeof record.url === "string" ? record.url : "";
-    const name = typeof record.name === "string" ? record.name : "";
-    const type = typeof record.type === "string" ? record.type : "";
-    const current = url ? [{ url, name, type }] : [];
+    const candidateUrls = [
+      record.url,
+      record.tmp_url,
+      record.tmpUrl,
+      record.download_url,
+      record.downloadUrl,
+      record.preview_url,
+      record.previewUrl,
+      record.file_url,
+      record.fileUrl,
+    ].filter((item): item is string => typeof item === "string" && /^https?:\/\//i.test(item));
+    const name = typeof record.name === "string"
+      ? record.name
+      : typeof record.file_name === "string"
+        ? record.file_name
+        : typeof record.fileName === "string"
+          ? record.fileName
+          : "";
+    const type = typeof record.type === "string"
+      ? record.type
+      : typeof record.mime_type === "string"
+        ? record.mime_type
+        : typeof record.mimeType === "string"
+          ? record.mimeType
+          : typeof record.content_type === "string"
+            ? record.content_type
+            : typeof record.contentType === "string"
+              ? record.contentType
+              : "";
+    const current = candidateUrls.map((url) => ({ url, name, type }));
     return current.concat(Object.values(record).flatMap((item) => this.extractFeishuMediaEntries(item)));
+  }
+
+  private extractUrlsFromUnknown(value: unknown) {
+    const mediaUrls = this.extractFeishuMediaEntries(value).map((item) => item.url);
+    const textUrls = this.flattenFeishuValue(value).flatMap((item) => this.extractUrlsFromText(item));
+    return Array.from(new Set([...mediaUrls, ...textUrls].filter(Boolean)));
+  }
+
+  private isVideoMediaEntry(item: { url: string; name: string; type: string }) {
+    const type = item.type.toLowerCase();
+    const target = `${item.name} ${item.url}`.toLowerCase();
+    return type.startsWith("video/") || /\.(mp4|mov|m4v|avi|mkv|webm)(\?|$)/i.test(target);
+  }
+
+  private isImageMediaEntry(item: { url: string; name: string; type: string }) {
+    const type = item.type.toLowerCase();
+    const target = `${item.name} ${item.url}`.toLowerCase();
+    return type.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(target);
   }
 
   private extractUrlsFromText(value: string) {
