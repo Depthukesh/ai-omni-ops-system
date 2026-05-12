@@ -565,7 +565,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       title: asset.title,
       noteType: this.readMetaString(meta, "noteType") || undefined,
       nickname: this.readMetaString(meta, "nickname") || undefined,
-      imageList: this.readMetaStringArray(meta, "imageList"),
+      imageList: this.readMetaStringArray(meta, "imageList").filter((item) => !/batch_get_tmp_download_url/i.test(item)),
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       noteUrl: this.readMetaString(meta, "noteUrl") || asset.fileUrl,
       description: asset.description,
@@ -579,7 +579,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       shareRatio: this.readMetaNumber(meta, "shareRatio"),
       isExplosive: this.readMetaString(meta, "isExplosive") || undefined,
       followUpDecision: this.readMetaString(meta, "followUpDecision") || undefined,
-      videoUrl: this.readMetaString(meta, "videoUrl") || undefined,
+      videoUrl: this.readMetaString(meta, "videoUrl") && !/batch_get_tmp_download_url/i.test(this.readMetaString(meta, "videoUrl"))
+        ? this.readMetaString(meta, "videoUrl")
+        : undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
       sourceUrl: this.readMetaString(meta, "sourceUrl") || undefined,
       syncStatus: (this.readMetaString(meta, "syncStatus") as CollectorSyncStatus) || "SUCCESS",

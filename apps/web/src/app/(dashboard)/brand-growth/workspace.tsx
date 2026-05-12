@@ -311,6 +311,7 @@ export function BrandGrowthWorkspace() {
   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
+  const [activeBrandId, setActiveBrandId] = useState<string>(DEMO_BRAND_ID);
   const [feishuBindingForm, setFeishuBindingForm] = useState(createEmptyFeishuBindingForm);
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
@@ -480,6 +481,7 @@ export function BrandGrowthWorkspace() {
 
     try {
       const activeBrandId = await resolveActiveBrandId(archive.brand.id);
+      setActiveBrandId(activeBrandId);
       const currentProfile = await getCurrentUserProfile().catch(() => null);
       const [
         archiveResult,
@@ -625,11 +627,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       || target.hostname.endsWith(".larkoffice.com")
       || target.hostname.endsWith(".larksuite.com");
     if (isFeishuHost) {
+      if (/\/open-apis\/drive\/v1\/medias\/batch_get_tmp_download_url/i.test(target.pathname)) {
+        return "";
+      }
       const params = new URLSearchParams({ sourceUrl });
       if (download) {
         params.set("download", "1");
       }
-      const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+      const resolvedBrandId = brandId || getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
       return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
     }
 
@@ -837,8 +842,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const response = await syncXiaohongshuFromFeishu(archive.brand.id);
-      setCollectionWorkspace(response.workspace);
+      const response = await syncXiaohongshuFromFeishu(activeBrandId || archive.brand.id);
       await loadArchive();
       setNotice(`飞书同步完成，已更新 ${response.syncedCount} 条结果，命中 ${response.tableCount} 张数据表。`);
     } catch (error) {
@@ -858,7 +862,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const response = await addBenchmarkNoteToMaterialLibrary(assetId, archive.brand.id);
+      const response = await addBenchmarkNoteToMaterialLibrary(assetId, activeBrandId || archive.brand.id);
       setCollectionWorkspace(response.workspace);
       setNotice("已加入小红书素材库。");
     } catch (error) {
@@ -1176,7 +1180,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         addingMaterialAssetId={addingMaterialAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
         onPreviewMedia={setMediaPreview}
-        buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, archive.brand.id)}
+        buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, activeBrandId || archive.brand.id)}
         formatDateTime={formatDateTime}
         formatDateLabel={formatDateLabel}
         formatCount={formatCount}
