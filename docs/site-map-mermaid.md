@@ -250,6 +250,7 @@ flowchart TD
     HK3 --> SX3["works.ts"]
     HK5 --> SX3
     HX1 --> SX4["collectors.ts"]
+    HX1 --> HH7["work-media-helpers.ts"]
     HX2 --> SX5["reports.ts"]
     HX3 --> SX5
     XHS --> SX0["auth-session.ts 本地品牌缓存"]
@@ -264,6 +265,7 @@ flowchart TD
     SX3 --> AX3["/works/brands/:brandId/xiaohongshu/*"]
     SX3 --> AX31["/works/brands/:brandId/xiaohongshu/video/providers"]
     SX4 --> AX4["/collectors/xiaohongshu/*"]
+    HH7 --> AX41["/collectors/xiaohongshu/brands/:brandId/feishu-media"]
     SX5 --> AX5["/reports/brands/:brandId/xiaohongshu-*"]
     SX0 --> SX1
     SX0 --> SX3
@@ -274,6 +276,7 @@ flowchart TD
     AX3 --> MX2["WorksModule"]
     AX31 --> MX2
     AX4 --> MX3["CollectorsModule 品牌访问校验"]
+    AX41 --> MX3
     AX5 --> MX4["ReportsModule 品牌访问校验"]
 
     MX1 --> TX1["Task"]

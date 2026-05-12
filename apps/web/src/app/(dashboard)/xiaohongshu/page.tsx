@@ -1115,6 +1115,7 @@ export default function XiaohongshuPage() {
         <AssetsWorkspace
           sectionLabel={currentSection.label}
           sectionDescription={currentSection.description}
+          brandId={workspace.archive.brand.id}
           isLoading={isLoading}
           isPublishing={isPublishing}
           items={materialNotes}

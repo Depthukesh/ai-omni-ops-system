@@ -14,6 +14,7 @@ type XhsMaterialMediaItem = {
 export interface AssetsWorkspaceProps {
   sectionLabel: string;
   sectionDescription: string;
+  brandId: string;
   isLoading: boolean;
   isPublishing: boolean;
   items: XhsCollectedNoteRecord[];
@@ -45,7 +46,7 @@ export function AssetsWorkspace(props: AssetsWorkspaceProps) {
         <div className="xhs-material-library">
           <div className="xhs-material-card-grid">
             {props.items.map((item) => {
-              const mediaItems = getMaterialMediaItems(item);
+              const mediaItems = getMaterialMediaItems(item, props.brandId);
               const previewIndex = getPreviewIndex(props.previewIndexMap, item.id, mediaItems.length);
               const previewItem = mediaItems[previewIndex];
 
@@ -120,7 +121,7 @@ export function AssetsWorkspace(props: AssetsWorkspaceProps) {
   );
 }
 
-function getMaterialMediaItems(item?: XhsCollectedNoteRecord): XhsMaterialMediaItem[] {
+function getMaterialMediaItems(item?: XhsCollectedNoteRecord, brandId?: string): XhsMaterialMediaItem[] {
   if (!item) {
     return [];
   }
@@ -129,7 +130,7 @@ function getMaterialMediaItems(item?: XhsCollectedNoteRecord): XhsMaterialMediaI
   if (item.videoUrl) {
     items.push({
       type: "VIDEO",
-      previewUrl: buildCollectorMediaProxyUrl(item.videoUrl),
+      previewUrl: buildCollectorMediaProxyUrl(item.videoUrl, false, brandId),
       rawUrl: item.videoUrl,
       label: "视频",
     });
@@ -138,7 +139,7 @@ function getMaterialMediaItems(item?: XhsCollectedNoteRecord): XhsMaterialMediaI
   for (const [index, url] of (item.imageList || []).entries()) {
     items.push({
       type: "IMAGE",
-      previewUrl: buildCollectorMediaProxyUrl(url),
+      previewUrl: buildCollectorMediaProxyUrl(url, false, brandId),
       rawUrl: url,
       label: `图片 ${index + 1}`,
     });

@@ -112,6 +112,7 @@
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
   - `xiaohongshu/page.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
+  - `xiaohongshu/assets-workspace.tsx` 生成飞书素材图片/视频代理 URL 时也会显式透传当前真实 `brandId`，避免素材库媒体预览继续回退到 `DEMO_BRAND_ID`
   - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
 
 ### 3.3 个人中心 `/personal-center`
@@ -222,6 +223,8 @@
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
+- `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
+  - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`

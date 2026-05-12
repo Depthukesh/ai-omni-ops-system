@@ -100,6 +100,8 @@
   - 修复飞书同步作品时把附件文件名误当图片 URL、字段别名覆盖不全以及飞书媒体代理白名单过窄的问题
 - `docs/changes/2026-05-12-brand-context-refresh-for-growth-and-xiaohongshu.md`
   - 修复 `brand-growth` 与 `xiaohongshu` 页面初始化时继续读取 demo brand 的问题；页面进入时会先通过 `/api/auth/me` 刷新真实品牌上下文，再决定后续工作区请求的 `brandId`
+- `docs/changes/2026-05-12-feishu-media-proxy-brand-context-hardening.md`
+  - 修复小红书素材库的飞书媒体代理 URL 未显式携带真实 `brandId` 的问题，并收紧飞书昵称/来源账号字段别名，降低图片视频继续落到 demo brand 或作者字段误识别的概率
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

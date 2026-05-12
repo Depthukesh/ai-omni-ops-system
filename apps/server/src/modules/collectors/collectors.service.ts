@@ -1372,11 +1372,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         fileUrl: noteUrl || undefined,
         metadata: {
           kind: "XHS_BRAND_NOTE",
-          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "来源账号", "账号ID", "账号", "作者ID"]) || `feishu:${table.tableId}:${row.recordId}`,
+          sourceAccountId: this.readFeishuFieldString(row.fields, ["来源账号ID", "来源账号", "账号ID", "账号", "账号标识", "作者ID"]) || `feishu:${table.tableId}:${row.recordId}`,
           noteId,
           noteUrl,
           noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "作者", "昵称", "账号昵称", "作品采集"]),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "作者", "昵称", "账号昵称", "达人昵称", "博主"]),
           imageList: this.readFeishuFieldUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面"])
             .concat(this.readFeishuImageUrls(row.fields)),
           externalUserId: this.readFeishuFieldString(row.fields, ["作者ID", "用户ID", "用户 ID", "外部用户ID", "外部用户 ID", "小红书号"]),
@@ -1426,7 +1426,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           noteId,
           noteUrl: sourceUrl,
           noteType: this.readFeishuFieldString(row.fields, ["类型", "笔记类型", "作品类型", "内容类型"]),
-          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "昵称", "作者", "账号昵称", "作品采集"]),
+          nickname: this.readFeishuFieldString(row.fields, ["作者昵称", "博主昵称", "作者名称", "昵称", "作者", "账号昵称", "达人昵称", "博主"]),
           imageList: this.readFeishuFieldUrls(row.fields, ["图片", "图片列表", "图片链接", "封面图", "图集", "附件", "作品图片", "作品封面"])
             .concat(this.readFeishuImageUrls(row.fields)),
           likeCount: this.readFeishuFieldNumber(row.fields, ["点赞数", "点赞"]),
