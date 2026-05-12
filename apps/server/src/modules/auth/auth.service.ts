@@ -1569,7 +1569,7 @@ export class AuthService {
 
   private getDefaultFeishuScope() {
     return this.normalizeFeishuScope(
-      process.env.FEISHU_OAUTH_SCOPE || "base:app:read base:table:read base:record:read wiki:node:read wiki:space:read",
+      process.env.FEISHU_OAUTH_SCOPE || "base:app:read base:table:read base:record:read wiki:node:read wiki:space:read drive:drive docs:doc sheets:spreadsheet",
     );
   }
 
@@ -1582,6 +1582,9 @@ export class AuthService {
       "offline_access",
       "bitable:app:readonly",
       "base:record:retrieve",
+      "drive:drive",
+      "docs:doc",
+      "sheets:spreadsheet",
     ];
     for (const requiredScope of requiredScopes) {
       if (!items.includes(requiredScope)) {

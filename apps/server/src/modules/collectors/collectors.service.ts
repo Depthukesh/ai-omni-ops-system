@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, Prisma } from "@prisma/client";
 import { createId, database, type AssetRecord, type PlatformAccountRecord } from "../../common/mock-data";
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
@@ -399,6 +399,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           Authorization: `Bearer ${userAccessToken}`,
         },
       });
+    }
+
+    if (response.status === 403) {
+      throw new ForbiddenException("飞书附件下载权限不足，请在后台重新授权飞书账号以补齐文档与云空间下载权限");
     }
 
     if (!response.ok) {
