@@ -1861,8 +1861,43 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private extractFileNameFromMediaUrl(sourceUrl: string) {
     try {
       const url = new URL(sourceUrl);
+      const rawName = url.searchParams.get("file_name") || url.searchParams.get("filename") || url.searchParams.get("name") || "";
+      if (rawName) {
+        return rawName;
+      }
       const tokenMatch = url.pathname.match(/\/medias\/([^/]+)\/download/i);
-      return tokenMatch?.[1] ?? "";
+      if (!tokenMatch?.[1]) {
+        return "";
+      }
+      const token = tokenMatch[1];
+      const ext = this.guessFileExtensionFromUrl(sourceUrl);
+      return ext ? `${token}${ext}` : token;
+    } catch {
+      return "";
+    }
+  }
+
+  private guessFileExtensionFromUrl(sourceUrl: string) {
+    try {
+      const url = new URL(sourceUrl);
+      const pathname = url.pathname.toLowerCase();
+      const pathnameMatch = pathname.match(/\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|m4v|avi|mkv|webm)$/i);
+      if (pathnameMatch?.[1]) {
+        return `.${pathnameMatch[1]}`;
+      }
+
+      const queryCandidates = [
+        url.searchParams.get("file_name"),
+        url.searchParams.get("filename"),
+        url.searchParams.get("name"),
+      ].filter((item): item is string => Boolean(item));
+      for (const candidate of queryCandidates) {
+        const match = candidate.toLowerCase().match(/\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|m4v|avi|mkv|webm)$/i);
+        if (match?.[1]) {
+          return `.${match[1]}`;
+        }
+      }
+      return "";
     } catch {
       return "";
     }
