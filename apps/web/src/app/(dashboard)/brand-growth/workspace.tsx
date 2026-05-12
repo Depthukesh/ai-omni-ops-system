@@ -616,12 +616,31 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   if (!sourceUrl) {
     return "";
   }
-  const params = new URLSearchParams({ sourceUrl });
-  if (download) {
-    params.set("download", "1");
+
+  try {
+    const target = new URL(sourceUrl);
+    const isFeishuHost = target.hostname === "open.feishu.cn"
+      || target.hostname === "open.larkoffice.com"
+      || target.hostname.endsWith(".feishu.cn")
+      || target.hostname.endsWith(".larkoffice.com")
+      || target.hostname.endsWith(".larksuite.com");
+    if (isFeishuHost) {
+      const params = new URLSearchParams({ sourceUrl });
+      if (download) {
+        params.set("download", "1");
+      }
+      const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+      return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
+    }
+
+    if (target.protocol === "http:" || target.protocol === "https:") {
+      return sourceUrl;
+    }
+  } catch {
+    return "";
   }
-  const resolvedBrandId = getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
-  return `${API_BASE_URL}/collectors/xiaohongshu/brands/${resolvedBrandId}/feishu-media?${params.toString()}`;
+
+  return "";
 }
 
   async function handleGenerateReport() {

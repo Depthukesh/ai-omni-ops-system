@@ -221,6 +221,7 @@
   - 已接入 `login`、`register`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
 - `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
+  - 当前品牌增长页里的飞书媒体地址会先校验是否为真实飞书/Lark 附件链接；命中飞书附件才走站内 `feishu-media` 代理，普通外链资源继续直出，非法串直接丢弃
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
@@ -250,6 +251,7 @@
   - 已开始按当前登录用户校验品牌成员访问范围，并返回当前品牌成员列表与当前用户角色
   - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
+  - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染
 - `ReportsModule`：品牌增长报告、可视化报告、全年营销规划、小红书策划与日历
 - `ReportsModule`
   - 品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
