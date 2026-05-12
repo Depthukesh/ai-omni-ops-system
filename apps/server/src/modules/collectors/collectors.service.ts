@@ -121,6 +121,9 @@ export type XhsCollectedNoteRecord = {
   lastError?: string;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
+  sourceTableId?: string;
+  sourceRecordId?: string;
+  rawFields?: Record<string, unknown>;
 };
 
 export type XhsCollectedTargetUserRecord = {
@@ -585,6 +588,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       lastError: this.readMetaString(meta, "lastError") || undefined,
       isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
       materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
+      sourceTableId: this.readMetaString(meta, "sourceTableId") || undefined,
+      sourceRecordId: this.readMetaString(meta, "sourceRecordId") || undefined,
+      rawFields: this.asMeta(meta.rawFields),
     };
   }
 

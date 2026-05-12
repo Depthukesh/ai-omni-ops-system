@@ -2471,6 +2471,44 @@ button {
   font-size: 12px;
 }
 
+.note-debug-panel {
+  margin-top: 12px;
+  border: 1px solid #e2e8f6;
+  border-radius: 14px;
+  background: #f8faff;
+  padding: 10px 12px;
+}
+
+.note-debug-panel summary {
+  cursor: pointer;
+  color: #5e6b98;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.note-debug-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  color: #7d86a2;
+  font-size: 12px;
+}
+
+.note-debug-json {
+  margin: 10px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 12px;
+  background: #121a36;
+  color: #eef2ff;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .media-preview-overlay {
   position: fixed;
   inset: 0;

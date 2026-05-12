@@ -50,6 +50,9 @@ export type XhsCollectedNoteRecord = {
   lastError?: string;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
+  sourceTableId?: string;
+  sourceRecordId?: string;
+  rawFields?: Record<string, unknown>;
 };
 
 export type XhsCollectedTargetUserRecord = {
