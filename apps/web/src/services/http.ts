@@ -119,7 +119,11 @@ async function readErrorMessage(response: Response) {
 
     const text = await response.text();
     if (text.trim()) {
-      return text.trim();
+      const trimmed = text.trim();
+      if (/<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed) || /502 Bad Gateway/i.test(trimmed)) {
+        return "上游服务暂时不可用（502 Bad Gateway），请稍后重试";
+      }
+      return trimmed;
     }
   } catch {
     // Fall through to the generic status message.

@@ -1151,7 +1151,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           client_secret: row.appSecret,
         }),
       });
-      const tokenPayload = (await tokenResponse.json()) as Record<string, unknown>;
+      const tokenPayload = await this.readJsonLikeResponse(tokenResponse);
       const tokenData = Object.keys(this.asMeta(tokenPayload.data)).length ? this.asMeta(tokenPayload.data) : tokenPayload;
       const accessToken = this.readMetaString(tokenData, "access_token");
       const refreshToken = this.readMetaString(tokenData, "refresh_token") || row.refreshToken;
@@ -1195,7 +1195,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         client_secret: config.appSecret,
       }),
     });
-    const tokenPayload = (await tokenResponse.json()) as Record<string, unknown>;
+    const tokenPayload = await this.readJsonLikeResponse(tokenResponse);
     const tokenData = Object.keys(this.asMeta(tokenPayload.data)).length ? this.asMeta(tokenPayload.data) : tokenPayload;
     const accessToken = this.readMetaString(tokenData, "access_token");
     const refreshToken = this.readMetaString(tokenData, "refresh_token") || integration.refreshToken;
@@ -1286,13 +1286,41 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         Authorization: `Bearer ${userAccessToken}`,
       },
     });
-    const payload = (await response.json()) as Record<string, unknown>;
+    const payload = await this.readJsonLikeResponse(response);
     const meta = this.asMeta(payload);
     const code = this.readMetaNumber(meta, "code");
     if (!response.ok || code !== 0) {
-      throw new ServiceUnavailableException(this.readMetaString(meta, "msg") || "飞书开放平台请求失败");
+      const message = this.readMetaString(meta, "msg")
+        || this.readMetaString(meta, "message")
+        || this.readMetaString(meta, "_rawText")
+        || "飞书开放平台请求失败";
+      throw new ServiceUnavailableException(this.normalizeUpstreamHtmlError(message, "飞书开放平台请求失败"));
     }
     return payload;
+  }
+
+  private async readJsonLikeResponse(response: Response) {
+    const text = await response.text();
+    if (!text.trim()) {
+      return {} as Record<string, unknown>;
+    }
+
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return { _rawText: text } as Record<string, unknown>;
+    }
+  }
+
+  private normalizeUpstreamHtmlError(message: string, fallback: string) {
+    const trimmed = message.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+    if (/<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed) || /502 Bad Gateway/i.test(trimmed)) {
+      return `${fallback}：上游服务暂时不可用（502 Bad Gateway），请稍后重试`;
+    }
+    return trimmed;
   }
 
   private async syncFeishuAccountTable(
