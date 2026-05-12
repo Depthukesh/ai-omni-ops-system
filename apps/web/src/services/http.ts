@@ -18,13 +18,14 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 async function performRequest(path: string, init?: RequestInit) {
   const session = getStoredAuthSession();
   const headers = new Headers(init?.headers);
+  const isAuthRoute = path.startsWith("/auth/");
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (!headers.has("Authorization") && session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
-  if (!headers.has("x-brand-id") && session?.currentBrandId) {
+  if (!isAuthRoute && !headers.has("x-brand-id") && session?.currentBrandId) {
     headers.set("x-brand-id", session.currentBrandId);
   }
 

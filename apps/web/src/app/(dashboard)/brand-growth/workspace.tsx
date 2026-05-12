@@ -404,7 +404,15 @@ export function BrandGrowthWorkspace() {
 
   async function resolveActiveBrandId(fallbackBrandId: string) {
     const me = await getMe().catch(() => null);
-    return me?.currentBrandId || me?.brands?.[0]?.id || getStoredCurrentBrandId(fallbackBrandId) || fallbackBrandId;
+    const storedBrandId = getStoredCurrentBrandId(fallbackBrandId) || "";
+    const preferredNonDemoBrandId = me?.brands?.find((item) => item.id && item.id !== DEMO_BRAND_ID)?.id || "";
+    const directCandidate = me?.currentBrandId || storedBrandId || fallbackBrandId;
+
+    if (directCandidate && directCandidate !== DEMO_BRAND_ID) {
+      return directCandidate;
+    }
+
+    return preferredNonDemoBrandId || directCandidate || fallbackBrandId;
   }
 
   useEffect(() => {
