@@ -1087,6 +1087,33 @@ export class AuthService {
   private async listAccessibleBrands(userId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureOwnerBrandMemberships(userId);
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: {
+          systemRole: true,
+        },
+      });
+      if (user?.systemRole === SystemRole.SUPER_ADMIN) {
+        const brands = await this.prismaService.brand.findMany({
+          select: {
+            id: true,
+            brandName: true,
+            industry: true,
+            ownerUserId: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+        return brands.map((item) => ({
+          id: item.id,
+          brandName: item.brandName,
+          industry: item.industry ?? "",
+          role: item.ownerUserId === userId ? BrandMemberRole.OWNER : "SUPER_ADMIN",
+        }));
+      }
+
       const memberships = await this.prismaService.brandMember.findMany({
         where: {
           userId,
