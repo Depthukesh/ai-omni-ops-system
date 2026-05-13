@@ -121,6 +121,10 @@
   - 修复线上 `17ai.site` 品牌增长报告仍经 Next rewrite 同域代理而触发 `502/socket hang up` 的问题；改为由 `app/api/[...path]/route.ts` 显式代理同域 API 请求到 `3011/api`
 - `docs/changes/2026-05-13-brand-growth-report-async-task.md`
   - 将品牌增长报告从同步接口改为后台任务模式，避免线上同域生成时再被网关 `504` 截断；前端改为轮询 `latestTask`
+- `docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
+  - 修正品牌增长报告的模型优先级与错误提示：先严格尝试后台选中的首选模型，再继续 fallback，并在失败时展示实际尝试顺序
+- `docs/changes/2026-05-13-global-skill-model-priority-unification.md`
+  - 将后台技能中心所有文本类技能统一到同一模型优先级逻辑：后台默认模型真实首跑，失败后再 fallback，并统一展示实际尝试顺序
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

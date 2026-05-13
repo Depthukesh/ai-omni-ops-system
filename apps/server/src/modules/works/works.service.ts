@@ -425,6 +425,11 @@ type TextProviderConfig = ThirdPartyChatConfig & {
   tokenLimitField?: "max_tokens" | "max_completion_tokens";
 };
 
+type SkillModelPreference = {
+  preferredModelName: string;
+  configuredModels: string[];
+};
+
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
   models: string[];
@@ -709,10 +714,17 @@ export class WorksService {
 
     const userId = await this.resolveTaskUserId(brandId, auth);
     const taskTitle = `生成小红书原创笔记：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
+    const originalCopyPreference = await this.loadSkillModelPreference(
+      "original_copy",
+      "prompt_xhs_original_copy",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const originalCopyProviders = await this.loadOriginalCopyProviders(originalCopyPreference);
     const task = await this.createOriginalTask({
       userId,
       brandId,
       taskTitle,
+      modelName: originalCopyProviders[0]?.models[0] || originalCopyPreference.preferredModelName,
     });
 
     try {
@@ -936,10 +948,17 @@ export class WorksService {
 
     const userId = await this.resolveTaskUserId(brandId, auth);
     const taskTitle = `生成小红书二创笔记：${sourceMaterial.title}`;
+    const rewriteCopyPreference = await this.loadSkillModelPreference(
+      "rewrite_copy",
+      "prompt_xhs_rewrite_copy",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const rewriteCopyProviders = await this.loadOriginalCopyProviders(rewriteCopyPreference);
     const task = await this.createRewriteTask({
       userId,
       brandId,
       taskTitle,
+      modelName: rewriteCopyProviders[0]?.models[0] || rewriteCopyPreference.preferredModelName,
     });
 
     try {
@@ -1146,11 +1165,18 @@ export class WorksService {
     const includeMarketingPlan = payload.includeMarketingPlan !== false;
     const outputVideoPrompt = payload.outputVideoPrompt !== false;
     const videoMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan.reportMarkdown : "";
+    const videoTextPreference = await this.loadSkillModelPreference(
+      "short-video-api-studio",
+      "prompt_xhs_video_note",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const videoTextProviders = await this.loadOriginalCopyProviders(videoTextPreference);
     const task = await this.createVideoTask({
       userId,
       brandId,
       taskTitle: `生成小红书视频笔记：${topicLabel}`,
       requestedVideoProvider,
+      modelName: videoTextProviders[0]?.models[0] || videoTextPreference.preferredModelName,
     });
 
     try {
@@ -1636,7 +1662,12 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadOriginalCopyPrompt();
-    const providers = await this.loadOriginalCopyProviders();
+    const preference = await this.loadSkillModelPreference(
+      "original_copy",
+      "prompt_xhs_original_copy",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalCopyProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -1678,10 +1709,12 @@ export class WorksService {
     const userPrompt = ["以下是本次原创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -1692,6 +1725,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -1700,6 +1734,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -1708,6 +1743,7 @@ export class WorksService {
               const hashtags = this.normalizeStringArray(parsed.hashtags, [], 8);
               if (!title || !body) {
                 lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                attemptTrail.push(`${attemptLabel} -> 返回字段不完整`);
                 continue;
               }
               return {
@@ -1718,13 +1754,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "文案生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`原创笔记文案生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("原创笔记文案生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateOriginalImagePrompts(params: {
@@ -1758,7 +1797,12 @@ export class WorksService {
     };
   }): Promise<OriginalImagePromptResult> {
     const skillPrompt = await this.loadOriginalImagePrompt();
-    const providers = await this.loadOriginalImagePromptProviders();
+    const preference = await this.loadSkillModelPreference(
+      "xhs-original-image-prompt",
+      "prompt_xhs_original_note",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalImagePromptProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -1811,10 +1855,12 @@ export class WorksService {
     const userPrompt = ["以下是本次原创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -1825,6 +1871,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -1833,6 +1880,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -1847,6 +1895,7 @@ export class WorksService {
               const imagePrompts = this.normalizeStringArray(parsed.image_prompts ?? parsed.imagePrompts, [], 10);
               if (!coverPrompt) {
                 lastError = `${provider.provider}/${modelName} 封面提示词为空`;
+                attemptTrail.push(`${attemptLabel} -> 封面提示词为空`);
                 continue;
               }
               const normalizedImagePrompts = params.imageCount
@@ -1861,13 +1910,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "配图提示词生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`原创笔记配图提示词生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("原创笔记配图提示词生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateImageAsset(params: {
@@ -1957,7 +2009,8 @@ export class WorksService {
     });
   }
 
-  private async createOriginalTask(params: { userId: string; brandId: string; taskTitle: string }) {
+  private async createOriginalTask(params: { userId: string; brandId: string; taskTitle: string; modelName?: string }) {
+    const modelName = params.modelName || "deepseek-v4-pro";
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
@@ -1966,7 +2019,7 @@ export class WorksService {
           taskType: "XHS_ORIGINAL_NOTE",
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: "deepseek-v4-pro",
+          modelName,
           pointsCost: 260,
         },
       });
@@ -1980,7 +2033,7 @@ export class WorksService {
       taskType: "XHS_ORIGINAL_NOTE",
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: "deepseek-v4-pro",
+      modelName,
       pointsCost: 260,
       createdAt: now,
       updatedAt: now,
@@ -1989,7 +2042,8 @@ export class WorksService {
     return task;
   }
 
-  private async createRewriteTask(params: { userId: string; brandId: string; taskTitle: string }) {
+  private async createRewriteTask(params: { userId: string; brandId: string; taskTitle: string; modelName?: string }) {
+    const modelName = params.modelName || "deepseek-v4-pro";
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
@@ -1998,7 +2052,7 @@ export class WorksService {
           taskType: "XHS_REWRITE_NOTE",
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: "deepseek-v4-pro",
+          modelName,
           pointsCost: 220,
         },
       });
@@ -2012,7 +2066,7 @@ export class WorksService {
       taskType: "XHS_REWRITE_NOTE",
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: "deepseek-v4-pro",
+      modelName,
       pointsCost: 220,
       createdAt: now,
       updatedAt: now,
@@ -2026,7 +2080,11 @@ export class WorksService {
     brandId: string;
     taskTitle: string;
     requestedVideoProvider: string;
+    modelName?: string;
   }) {
+    const modelName = params.modelName
+      ? `${params.modelName} + ${params.requestedVideoProvider}`
+      : `deepseek-v4-pro + ${params.requestedVideoProvider}`;
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
@@ -2035,7 +2093,7 @@ export class WorksService {
           taskType: "XHS_VIDEO_NOTE",
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: `deepseek-v4-pro + ${params.requestedVideoProvider}`,
+          modelName,
           pointsCost: 360,
         },
       });
@@ -2049,7 +2107,7 @@ export class WorksService {
       taskType: "XHS_VIDEO_NOTE",
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: `deepseek-v4-pro + ${params.requestedVideoProvider}`,
+      modelName,
       pointsCost: 360,
       createdAt: now,
       updatedAt: now,
@@ -3410,6 +3468,101 @@ export class WorksService {
     };
   }
 
+  private parseDelimitedModels(value: string) {
+    return String(value || "")
+      .split(/[、,，\s]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private mergeModelPreferenceOrder(...values: string[]) {
+    const merged: string[] = [];
+    for (const value of values) {
+      for (const modelName of this.parseDelimitedModels(value)) {
+        if (!merged.includes(modelName)) {
+          merged.push(modelName);
+        }
+      }
+    }
+    return merged;
+  }
+
+  private reorderTextProvidersByPrimaryModel(
+    providers: TextProviderConfig[],
+    preferredModelName: string,
+  ) {
+    const normalizedPreferredModelName = preferredModelName.trim();
+    if (!normalizedPreferredModelName) {
+      return providers;
+    }
+    const normalizedProviders = providers.map((provider) => ({
+      ...provider,
+      models: provider.models.includes(normalizedPreferredModelName)
+        ? this.pickProviderModels(provider.models, [normalizedPreferredModelName], [normalizedPreferredModelName])
+        : provider.models,
+    }));
+    const matchingProviders = normalizedProviders.filter((provider) => provider.models.includes(normalizedPreferredModelName));
+    if (!matchingProviders.length) {
+      return normalizedProviders;
+    }
+    return [
+      ...matchingProviders,
+      ...normalizedProviders.filter((provider) => !provider.models.includes(normalizedPreferredModelName)),
+    ];
+  }
+
+  private buildTextAttemptLabel(provider: TextProviderConfig["provider"], modelName: string, baseUrl: string) {
+    return `${provider}/${modelName}@${this.describeProviderBaseUrl(baseUrl)}`;
+  }
+
+  private formatAttemptTrail(trail: string[]) {
+    return trail
+      .slice(0, 8)
+      .map((item, index) => `${index + 1}. ${item}`)
+      .join(" | ");
+  }
+
+  private describeProviderBaseUrl(baseUrl: string) {
+    try {
+      const target = new URL(baseUrl);
+      return `${target.host}${target.pathname === "/" ? "" : target.pathname}`;
+    } catch {
+      return baseUrl;
+    }
+  }
+
+  private buildModelAttemptFailureMessage(
+    taskLabel: string,
+    preferredModelName: string,
+    lastError: string,
+    attemptTrail: string[],
+    fallbackMessage: string,
+  ) {
+    const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
+    const trailDetail = attemptTrail.length ? `；实际尝试顺序：${this.formatAttemptTrail(attemptTrail)}` : "";
+    return `${taskLabel}失败：${preferredDetail}最后失败：${lastError || fallbackMessage}${trailDetail}`;
+  }
+
+  private async loadSkillModelPreference(
+    skillSlug: string,
+    promptId: string,
+    fallbackModels: string[],
+  ): Promise<SkillModelPreference> {
+    const [skill, prompt] = await Promise.all([
+      this.skillsPromptsService.getActiveSkillBySlug(skillSlug),
+      this.skillsPromptsService.getActivePromptById(promptId),
+    ]);
+    const configuredModels = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      fallbackModels.join(", "),
+    );
+    return {
+      preferredModelName: configuredModels[0] || fallbackModels[0] || "",
+      configuredModels,
+    };
+  }
+
   private pickProviderModels(availableModels: string[], requestedModels: string[], preferredModels: string[]) {
     const normalizedAvailable = availableModels.map((item) => item.trim()).filter(Boolean);
     const normalizedRequested = requestedModels.map((item) => item.trim()).filter(Boolean);
@@ -3422,28 +3575,31 @@ export class WorksService {
     return ordered.length ? ordered : normalizedAvailable;
   }
 
-  private async loadOriginalCopyProviders() {
+  private async loadOriginalCopyProviders(preference?: SkillModelPreference) {
     const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
     ]);
+    const preferredModels = preference?.configuredModels?.length
+      ? preference.configuredModels
+      : ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"];
 
     const providers = [
-      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", ["deepseek-v4-pro", "deepseek-v4-flash"], {
+      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
         temperature: 0.3,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         jsonResponse: true,
         thinkingDisabled: true,
       }),
-      this.buildTextProviderConfig(doubaoProvider, "ARK", ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215"], {
+      this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
         temperature: 0.6,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         jsonResponse: true,
       }),
-      this.buildTextProviderConfig(kimiProvider, "KIMI", ["kimi-k2.6"], {
+      this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
         temperature: 1,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
@@ -3455,31 +3611,34 @@ export class WorksService {
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
     }
-    return providers;
+    return this.reorderTextProvidersByPrimaryModel(providers, preference?.preferredModelName || "");
   }
 
-  private async loadOriginalImagePromptProviders() {
+  private async loadOriginalImagePromptProviders(preference?: SkillModelPreference) {
     const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
     ]);
+    const preferredModels = preference?.configuredModels?.length
+      ? preference.configuredModels
+      : ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"];
 
     const providers = [
-      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", ["deepseek-v4-pro", "deepseek-v4-flash"], {
+      this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
         temperature: 0.3,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         jsonResponse: true,
         thinkingDisabled: true,
       }),
-      this.buildTextProviderConfig(doubaoProvider, "ARK", ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215"], {
+      this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
         temperature: 0.5,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         jsonResponse: true,
       }),
-      this.buildTextProviderConfig(kimiProvider, "KIMI", ["kimi-k2.6"], {
+      this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
         temperature: 1,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
@@ -3491,7 +3650,7 @@ export class WorksService {
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
     }
-    return providers;
+    return this.reorderTextProvidersByPrimaryModel(providers, preference?.preferredModelName || "");
   }
 
   private async generateRewriteCopy(params: {
@@ -3528,7 +3687,12 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadRewriteCopyPrompt();
-    const providers = await this.loadOriginalCopyProviders();
+    const preference = await this.loadSkillModelPreference(
+      "rewrite_copy",
+      "prompt_xhs_rewrite_copy",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalCopyProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -3577,10 +3741,12 @@ export class WorksService {
     const userPrompt = ["以下是本次二创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3591,6 +3757,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -3599,6 +3766,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -3607,6 +3775,7 @@ export class WorksService {
               const hashtags = this.normalizeStringArray(parsed.tags ?? parsed.hashtags, [], 8);
               if (!title || !body) {
                 lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                attemptTrail.push(`${attemptLabel} -> 返回字段不完整`);
                 continue;
               }
               return {
@@ -3617,13 +3786,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "二创文案生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`二创笔记文案生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("二创笔记文案生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateRewriteImagePrompts(params: {
@@ -3657,7 +3829,12 @@ export class WorksService {
     noteContent: string;
   }): Promise<OriginalImagePromptResult> {
     const skillPrompt = await this.loadRewriteImagePrompt();
-    const providers = await this.loadOriginalImagePromptProviders();
+    const preference = await this.loadSkillModelPreference(
+      "rewrite_image",
+      "prompt_xhs_rewrite_note",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalImagePromptProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -3708,10 +3885,12 @@ export class WorksService {
     const userPrompt = ["以下是本次二创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3722,6 +3901,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -3730,6 +3910,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -3743,6 +3924,7 @@ export class WorksService {
               const imagePrompts = this.normalizeStringArray(parsed.image_prompts ?? parsed.imagePrompts, [], 10);
               if (!coverPrompt) {
                 lastError = `${provider.provider}/${modelName} 封面提示词为空`;
+                attemptTrail.push(`${attemptLabel} -> 封面提示词为空`);
                 continue;
               }
               const normalizedImagePrompts = imagePrompts.length
@@ -3757,13 +3939,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "二创配图提示词生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`二创笔记配图提示词生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("二创笔记配图提示词生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateVideoCopy(params: {
@@ -3792,7 +3977,12 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<VideoCopyModelResult> {
     const skillPrompt = await this.loadVideoCopyPrompt();
-    const providers = await this.loadOriginalCopyProviders();
+    const preference = await this.loadSkillModelPreference(
+      "short-video-api-studio",
+      "prompt_xhs_video_note",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalCopyProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -3850,10 +4040,12 @@ export class WorksService {
     const userPrompt = ["以下是本次视频笔记文案输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3864,6 +4056,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -3872,6 +4065,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -3881,6 +4075,7 @@ export class WorksService {
               const antiErrorRules = this.normalizeStringArray(parsed.anti_error_rules ?? parsed.antiErrorRules, [], 8);
               if (!title || !body) {
                 lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                attemptTrail.push(`${attemptLabel} -> 返回字段不完整`);
                 continue;
               }
               return {
@@ -3899,13 +4094,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "视频笔记文案生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`视频笔记文案生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("视频笔记文案生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateVideoPromptPack(params: {
@@ -3947,7 +4145,12 @@ export class WorksService {
     additionalInstruction?: string;
   }): Promise<VideoPromptModelResult> {
     const skillPrompt = await this.loadShortVideoPromptSkill();
-    const providers = await this.loadOriginalCopyProviders();
+    const preference = await this.loadSkillModelPreference(
+      "short-video-api-studio",
+      "prompt_xhs_video_note",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalCopyProviders(preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -4022,10 +4225,12 @@ export class WorksService {
     const userPrompt = ["以下是本次视频提示词输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -4036,6 +4241,7 @@ export class WorksService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as {
@@ -4044,6 +4250,7 @@ export class WorksService {
               const content = this.extractResponseText(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const parsed = this.parseJsonObject(content);
@@ -4052,6 +4259,7 @@ export class WorksService {
               const segmentPrompts = this.normalizeStringArray(parsed.segment_prompts ?? parsed.segmentPrompts, [], 8);
               if (!videoPrompt) {
                 lastError = `${provider.provider}/${modelName} 视频提示词为空`;
+                attemptTrail.push(`${attemptLabel} -> 视频提示词为空`);
                 continue;
               }
               return {
@@ -4070,13 +4278,16 @@ export class WorksService {
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "视频提示词生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    throw new ServiceUnavailableException(`视频提示词生成失败：${lastError || "未获取到有效响应"}`);
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("视频提示词生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async loadDoubaoImageAnalysisProvider() {

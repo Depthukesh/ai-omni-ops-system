@@ -85,11 +85,13 @@
 
 - 生成品牌增长报告
   - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
+  - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
 - 品牌增长可视化报告
 - 全年营销规划
 - 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
+- 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -179,9 +181,11 @@
   - 当前目录树样式：已改为目录式展开菜单，与左侧后台导航保持同一视觉语言
   - 中间只展示当前选中三级技能的一张精简详情卡
   - 详情卡字段：标题、技能名称、状态、默认模型、点数成本、更新时间、技能提示词、保存技能
+  - 后台技能中心当前所有文本类技能已统一运行逻辑：先严格尝试当前卡片里选中的默认模型，再按兼容 provider / model 继续 fallback；失败时统一展示实际尝试顺序
   - 技能提示词：后台当前会自动聚合真实 `SKILL.md` 与技能源目录下的顶层 `.md` / `.txt` 参考资料；原创笔记已拆分为“原创文案”和“原创配图”两套提示词分别呈现
   - 聚合型提示词在后台当前以只读方式展示，需回到原始提示词目录维护，避免把整份聚合内容误写回单个 `SKILL.md`
   - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
+  - 参考变更：`docs/changes/2026-05-13-global-skill-model-priority-unification.md`
 - 知识库管理
 - API Provider 管理
   - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 默认模型 / Organization / Project / Timeout / Stream / 自定义 Headers / 扩展参数 / 模型白名单 / 备注`
@@ -276,11 +280,14 @@
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
   - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
   - 品牌增长报告现已对齐可视化报告/全年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
+  - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
+  - 品牌增长可视化报告、全年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
   - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
   - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
   - 线上 `17ai.site` 现应通过 `apps/web/src/app/api/[...path]/route.ts` 承接同域 `/api` 请求，再转发到 `3011/api`，避免 `next.config.ts` rewrite 在品牌增长报告这类长请求上触发 `502/socket hang up`
   - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
   - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
+  - 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
   - 参考变更：`docs/changes/2026-05-13-local-report-storage-fallback.md`
   - 参考变更：`docs/changes/2026-05-13-local-web-api-direct-backend.md`
   - 参考变更：`docs/changes/2026-05-13-production-api-route-proxy-fix.md`
@@ -290,6 +297,7 @@
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
+  - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户

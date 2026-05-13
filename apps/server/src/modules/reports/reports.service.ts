@@ -283,6 +283,7 @@ type ModelGenerationSettings = {
   temperature: number;
   maxTokens: number;
   promptContent: string;
+  preferredModelName?: string;
 };
 
 type GrowthReportModelResult = {
@@ -1433,7 +1434,10 @@ export class ReportsService {
   private async createVisualGrowthReportTask(brandId: string, sourceReport: GrowthReportRecord) {
     const now = new Date().toISOString();
     const settings = await this.loadVisualReportGenerationSettings();
-    const modelName = (await this.loadDomesticVisualProviderConfigs(settings))[0]?.models[0] || "deepseek-v4-flash";
+    const modelName =
+      (await this.loadDomesticVisualProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
+      || "deepseek-v4-flash";
 
     if (await this.prismaService.canUseDatabase()) {
       const brand = await this.prismaService.brand.findUnique({
@@ -1493,8 +1497,10 @@ export class ReportsService {
     const archive = await this.brandsService.getArchive(brandId);
     const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
     const settings = await this.loadGrowthReportGenerationSettings();
+    const providers = await this.loadGrowthReportProviderConfigs(settings);
     const modelName =
-      (await this.loadGrowthReportProviderConfigs(settings))[0]?.models[0]
+      providers[0]?.models[0]
+      || settings.preferredModelName
       || "deepseek-v4-pro";
 
     const inputMeta = {
@@ -1557,6 +1563,7 @@ export class ReportsService {
     const settings = await this.loadAnnualMarketingPlanGenerationSettings();
     const modelName =
       (await this.loadAnnualMarketingProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -1621,6 +1628,7 @@ export class ReportsService {
     const settings = await this.loadXiaohongshuMarketingPlanGenerationSettings();
     const modelName =
       (await this.loadXiaohongshuMarketingProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -1732,6 +1740,7 @@ export class ReportsService {
     const settings = await this.loadXiaohongshuMarketingCalendarGenerationSettings();
     const modelName =
       (await this.loadXiaohongshuMarketingCalendarProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
       || "gpt-5.5";
 
     if (await this.prismaService.canUseDatabase()) {
@@ -3003,6 +3012,7 @@ export class ReportsService {
   private async generateReportByModel(skillPrompt: string, inputPayload: Record<string, unknown>): Promise<GrowthReportModelResult> {
     const settings = await this.loadGrowthReportGenerationSettings();
     const providers = await this.loadGrowthReportProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3027,11 +3037,12 @@ export class ReportsService {
     ].join("\n");
 
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls.slice(0, 2)) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3043,7 +3054,7 @@ export class ReportsService {
 
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
 
@@ -3053,22 +3064,25 @@ export class ReportsService {
               const content = this.extractVisualResponseContent(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
 
               return this.normalizeModelResult(content);
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`品牌增长报告生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    const detail = attemptTrail.length
+      ? `；实际尝试顺序：${this.formatReportAttemptTrail(attemptTrail)}`
+      : "";
+    const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
+    throw new ServiceUnavailableException(`品牌增长报告生成失败：${preferredDetail}最后失败：${lastError || "未获取到有效响应"}${detail}`);
   }
 
   private async generateVisualReportByModel(
@@ -3077,6 +3091,7 @@ export class ReportsService {
     settings: ModelGenerationSettings,
   ): Promise<VisualReportOutlineModelResult> {
     const providers = await this.loadDomesticVisualProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3111,11 +3126,12 @@ export class ReportsService {
     ].join("\n");
 
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3127,7 +3143,7 @@ export class ReportsService {
 
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
 
@@ -3140,28 +3156,29 @@ export class ReportsService {
               const content = this.extractVisualResponseContent(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
               if (finishReason === "length") {
                 lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=length`);
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
                 continue;
               }
 
               return this.normalizeVisualOutlineModelResult(content, inputPayload);
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
 
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`品牌增长可视化报告生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("品牌增长可视化报告生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateAnnualMarketingPlanByModel(
@@ -3170,6 +3187,7 @@ export class ReportsService {
     settings: ModelGenerationSettings,
   ): Promise<AnnualMarketingPlanModelResult> {
     const providers = await this.loadAnnualMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3181,11 +3199,12 @@ export class ReportsService {
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3196,33 +3215,34 @@ export class ReportsService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
               const content = this.extractVisualResponseContent(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
               if (finishReason === "length") {
                 lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=length`);
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
                 continue;
               }
               return this.normalizeAnnualMarketingPlanModelResult(content, inputPayload, modelName);
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`全年营销规划生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("全年营销规划生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateXiaohongshuMarketingPlanByModel(
@@ -3231,6 +3251,7 @@ export class ReportsService {
     settings: ModelGenerationSettings,
   ): Promise<XiaohongshuMarketingPlanModelResult> {
     const providers = await this.loadXiaohongshuMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const systemPrompt = [
       skillPrompt,
       "",
@@ -3241,11 +3262,12 @@ export class ReportsService {
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -3256,33 +3278,34 @@ export class ReportsService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
               const content = this.extractVisualResponseContent(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
               if (finishReason === "length") {
                 lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=length`);
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
                 continue;
               }
               return this.normalizeXiaohongshuMarketingPlanModelResult(content, inputPayload, modelName);
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`小红书营销策划方案生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("小红书营销策划方案生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateXiaohongshuMarketingPlanSectionByModel(
@@ -3295,12 +3318,14 @@ export class ReportsService {
     },
   ): Promise<XiaohongshuMarketingPlanSectionResult> {
     const providers = await this.loadXiaohongshuMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               await options.onAttemptUpdate?.(`${provider.provider} / ${modelName}`);
               const response = await this.requestModelCompletion(
@@ -3312,20 +3337,20 @@ export class ReportsService {
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                 continue;
               }
               const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
               const content = this.extractVisualResponseContent(payload);
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
               if (finishReason === "length") {
                 lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=length`);
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
                 continue;
               }
               return {
@@ -3334,14 +3359,15 @@ export class ReportsService {
               };
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`小红书营销策划方案分段生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("小红书营销策划方案分段生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateXiaohongshuMarketingCalendarByModel(
@@ -3353,6 +3379,7 @@ export class ReportsService {
     },
   ): Promise<XiaohongshuMarketingCalendarModelResult> {
     const providers = await this.loadXiaohongshuMarketingCalendarProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const startDate = String(inputPayload.startDate ?? "").trim();
     const expectedDates = this.normalizeStringArray(
       inputPayload.expectedDates,
@@ -3377,11 +3404,12 @@ export class ReportsService {
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
-    const attemptErrors: string[] = [];
+    const attemptTrail: string[] = [];
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys.slice(0, 2)) {
           for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
             try {
               await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
               const response = await this.requestModelCompletion(
@@ -3395,7 +3423,7 @@ export class ReportsService {
                 const responseText = this.truncateText(await response.text(), 240);
                 const responseDetail = responseText ? ` ${responseText}` : "";
                 lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=http_${response.status}${responseText ? `:${responseText}` : ""}`);
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
                 continue;
               }
               const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
@@ -3403,26 +3431,27 @@ export class ReportsService {
               const content = message?.content?.trim() || message?.reasoning_content?.trim();
               if (!content) {
                 lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
                 continue;
               }
               const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
               if (finishReason === "length") {
                 lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=length`);
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
                 continue;
               }
               return this.normalizeXiaohongshuMarketingCalendarModelResult(content, inputPayload, modelName);
             } catch (error) {
               lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
             }
           }
         }
       }
     }
-    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
-    throw new ServiceUnavailableException(`营销日历生成失败：${lastError || "未获取到有效响应"}${detail}`);
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("营销日历生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private buildXiaohongshuMarketingCalendarPhaseStatus(
@@ -4405,7 +4434,10 @@ ${normalizedMarkdown}`;
       throw new ServiceUnavailableException("品牌增长报告模型配置读取失败");
     }
 
-    return providers;
+    return this.reorderReportProvidersByPrimaryModel(
+      providers,
+      settings.preferredModelName || requestedModels[0] || "",
+    );
   }
 
   private async loadDomesticVisualProviderConfigs(settings: ModelGenerationSettings): Promise<DomesticVisualProviderConfig[]> {
@@ -4500,7 +4532,10 @@ ${normalizedMarkdown}`;
       throw new ServiceUnavailableException("国内文生文接口配置读取失败");
     }
 
-    return providers;
+    return this.reorderReportProvidersByPrimaryModel(
+      providers,
+      settings.preferredModelName || requestedModels[0] || "",
+    );
   }
 
   private buildVisualProviderPayload(
@@ -4570,6 +4605,18 @@ ${normalizedMarkdown}`;
       .filter(Boolean);
   }
 
+  private mergeModelPreferenceOrder(...values: string[]) {
+    const merged: string[] = [];
+    for (const value of values) {
+      for (const modelName of this.parseDelimitedModels(value)) {
+        if (!merged.includes(modelName)) {
+          merged.push(modelName);
+        }
+      }
+    }
+    return merged;
+  }
+
   private resolveCompatibleModelNames(
     availableModels: string[] | undefined,
     configuredModels: string,
@@ -4602,6 +4649,62 @@ ${normalizedMarkdown}`;
       ...preferredModels.filter((item) => normalized.includes(item)),
       ...normalized.filter((item) => !preferredModels.includes(item)),
     ];
+  }
+
+  private reorderReportProvidersByPrimaryModel<T extends { models: string[] }>(
+    providers: T[],
+    preferredModelName: string,
+  ) {
+    const normalizedPreferredModelName = preferredModelName.trim();
+    if (!normalizedPreferredModelName) {
+      return providers;
+    }
+    const normalizedProviders = providers.map((provider) => ({
+      ...provider,
+      models: provider.models.includes(normalizedPreferredModelName)
+        ? this.orderModels(provider.models, [normalizedPreferredModelName])
+        : provider.models,
+    }));
+    const matchingProviders = normalizedProviders.filter((provider) => provider.models.includes(normalizedPreferredModelName));
+    if (!matchingProviders.length) {
+      return normalizedProviders;
+    }
+    return [
+      ...matchingProviders,
+      ...normalizedProviders.filter((provider) => !provider.models.includes(normalizedPreferredModelName)),
+    ];
+  }
+
+  private buildReportAttemptLabel(provider: string, modelName: string, baseUrl: string) {
+    return `${provider}/${modelName}@${this.describeProviderBaseUrl(baseUrl)}`;
+  }
+
+  private formatReportAttemptTrail(trail: string[]) {
+    return trail
+      .slice(0, 8)
+      .map((item, index) => `${index + 1}. ${item}`)
+      .join(" | ");
+  }
+
+  private buildReportAttemptFailureMessage(
+    taskLabel: string,
+    preferredModelName: string,
+    lastError: string,
+    attemptTrail: string[],
+    fallbackMessage: string,
+  ) {
+    const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
+    const detail = attemptTrail.length ? `；实际尝试顺序：${this.formatReportAttemptTrail(attemptTrail)}` : "";
+    return `${taskLabel}失败：${preferredDetail}最后失败：${lastError || fallbackMessage}${detail}`;
+  }
+
+  private describeProviderBaseUrl(baseUrl: string) {
+    try {
+      const target = new URL(baseUrl);
+      return `${target.host}${target.pathname === "/" ? "" : target.pathname}`;
+    } catch {
+      return baseUrl;
+    }
   }
 
   private extractProviderSection(content: string, startLabel: string, nextLabels: string[] = []) {
@@ -4850,9 +4953,14 @@ ${normalizedMarkdown}`;
       "text-domestic-doubao",
       "text-global",
     ]);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     const modelName = this.resolveCompatibleModelNames(
       provider?.modelWhitelist,
-      prompt?.modelName || skill?.defaultModel || "",
+      preferredModelNames.join(", "),
       ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k2.6", "GLM-5.1", "doubao-seed-2-0-pro-260215", "gpt-5.5"],
       provider?.defaultModel || "deepseek-v4-pro",
     );
@@ -4862,6 +4970,7 @@ ${normalizedMarkdown}`;
       temperature: prompt?.temperature ?? 0.3,
       maxTokens: prompt?.maxTokens ?? 6000,
       promptContent: prompt?.content || "",
+      preferredModelName,
     };
   }
 
@@ -4874,9 +4983,14 @@ ${normalizedMarkdown}`;
       "text-domestic-kimi",
       "text-domestic-doubao",
     ]);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-flash";
     const modelName = this.resolveCompatibleModelNames(
       provider?.modelWhitelist,
-      prompt?.modelName || skill?.defaultModel || "",
+      preferredModelNames.join(", "),
       ["deepseek-v4-flash", "deepseek-v4-pro", "GLM-5.1", "kimi-k2.6", "doubao-seed-2-0-pro-260215"],
       provider?.defaultModel || "deepseek-v4-flash",
     );
@@ -4886,6 +5000,7 @@ ${normalizedMarkdown}`;
       temperature: prompt?.temperature ?? 0.4,
       maxTokens: prompt?.maxTokens ?? 1800,
       promptContent: prompt?.content || "",
+      preferredModelName,
     };
   }
 
@@ -4898,9 +5013,14 @@ ${normalizedMarkdown}`;
       "text-domestic-kimi",
       "text-global",
     ]);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     const modelName = this.resolveCompatibleModelNames(
       provider?.modelWhitelist,
-      prompt?.modelName || skill?.defaultModel || "",
+      preferredModelNames.join(", "),
       ["deepseek-v4-pro", "doubao-seed-2-0-pro-260215", "kimi-k2.6", "gpt-5.5", "claude-sonnet-4-6"],
       provider?.defaultModel || "deepseek-v4-pro",
     );
@@ -4910,6 +5030,7 @@ ${normalizedMarkdown}`;
       temperature: prompt?.temperature ?? 0.5,
       maxTokens: prompt?.maxTokens ?? 4200,
       promptContent: prompt?.content || "",
+      preferredModelName,
     };
   }
 
@@ -4917,15 +5038,19 @@ ${normalizedMarkdown}`;
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-brand-marketing-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek");
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "deepseek-v4-pro, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
       baseUrl: provider?.baseUrl || "",
-      modelName:
-        prompt?.modelName
-        || skill?.defaultModel
-        || "gpt-5.5, claude-sonnet-4-6, kimi-k2.6, deepseek-v4-pro, doubao-seed-2-0-pro-260215",
+      modelName: preferredModelNames.join(", "),
       temperature: prompt?.temperature ?? 0.7,
       maxTokens: prompt?.maxTokens ?? 12000,
       promptContent: prompt?.content || "",
+      preferredModelName,
     };
   }
 

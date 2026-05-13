@@ -203,11 +203,29 @@ flowchart LR
     C1 --> C10["点击生成后先提交后台任务"]
     C1 --> C11["轮询 latestTask: QUEUED/RUNNING/SUCCESS/FAILED"]
     C1 --> C12["先校验文本 provider runtimeKey 与模型白名单"]
+    C1 --> C17["严格先跑后台选中的首选模型，再 fallback"]
+    C1 --> C18["失败提示显示实际尝试顺序"]
     C2 --> C13["忽略不兼容的图像 provider，回退国内文本 provider"]
+    C2 --> C19["同样按后台首选模型先跑，再 fallback"]
     C3 --> C13["按兼容 provider 重排模型，避免 gpt 模型误落国内 provider"]
+    C3 --> C19
     C --> C14["本地无 OSS 时回退 .runtime/local-oss，但仍沿用 reports/<brandId>/<fileName>"]
     C --> C15["本地 localhost/127.0.0.1 直连 3011/api，绕开 Next /api rewrite ECONNRESET"]
     C --> C16["线上同域 /api 走 api/[...path]/route.ts，避免 rewrite 502/socket hang up"]
+```
+
+```mermaid
+flowchart TD
+    A["/admin 技能中心"]
+    A --> A1["SkillConfig.defaultModel"]
+    A --> A2["PromptTemplate.modelName"]
+    A1 --> B["统一模型优先级解析"]
+    A2 --> B
+    B --> C1["ReportsService 文本类技能"]
+    B --> C2["WorksService 文本类技能"]
+    C1 --> D["先跑首选模型 -> 失败后 fallback"]
+    C2 --> D
+    D --> E["错误提示显示实际尝试顺序"]
 ```
 
 ## 6. 小红书工作台深度地图
