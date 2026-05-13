@@ -94,6 +94,8 @@
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
 - 素材库
+  - 当前素材库中的飞书图片/视频预览若命中站内 `feishu-media` 代理，会先通过前端鉴权请求拉取 blob，再转 object URL 给卡片和灯箱展示，避免浏览器媒体请求不带 Bearer Token 导致空白
+  - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
 - 营销日历
   - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
   - 生成依赖 `品牌增长报告`、`全年营销规划`、`小红书营销策划方案` 三项前置输入，并读取 `第三方api接口文生文国内.txt` 中的国内文生文 provider 配置
@@ -233,6 +235,8 @@
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
+  - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出
+  - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
 - `apps/web/src/services/http.ts`
   - 当前已支持自动附带 `Authorization`、`x-brand-id`
   - `401` 时会自动尝试 `refresh`

@@ -216,6 +216,7 @@ flowchart TD
     XHS --> HX6["VideoWorkspace 视频笔记"]
     XHS --> HX7["PublishModal 发布弹窗"]
     XHS --> HX8["MediaLightbox 媒体灯箱"]
+    HX1 --> HX11["飞书代理资源：鉴权 fetch blob -> object URL"]
 
     XHS --> HK1["useNoteComposerForms"]
     XHS --> HK2["usePublishFlow"]

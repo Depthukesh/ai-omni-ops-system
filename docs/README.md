@@ -109,6 +109,8 @@
   - 更新品牌增长页“打开飞书模板”的默认飞书 Base 链接，并移除作品卡片中的“同步诊断”临时面板
 - `docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
   - 恢复后台技能中心目录树，并将 `SKILL.md + 同目录参考资料` 统一聚合到提示词读取链路中
+- `docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
+  - 修复小红书素材库中飞书图片/视频加入后仍空白的问题；受保护媒体改为先鉴权拉 blob，再用 object URL 预览
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

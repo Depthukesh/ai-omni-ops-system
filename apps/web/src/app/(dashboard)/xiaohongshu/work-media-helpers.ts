@@ -39,6 +39,19 @@ export function buildCollectorMediaProxyUrl(sourceUrl?: string, download = false
   return "";
 }
 
+export function isProtectedCollectorMediaUrl(url?: string) {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const resolved = new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    return /\/collectors\/xiaohongshu\/brands\/[^/]+\/feishu-media/i.test(resolved.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function getPreviewIndex(indexMap: Record<string, number>, itemId?: string, total = 0) {
   if (!itemId || total <= 0) {
     return 0;

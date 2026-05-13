@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
+import { requestBlobByUrl } from "../../../services/http";
 import { type MediaKind, type MediaLightboxState, type OptionalDateFormatter } from "./shared-types";
-import { buildCollectorMediaProxyUrl, getPreviewIndex } from "./work-media-helpers";
+import { buildCollectorMediaProxyUrl, getPreviewIndex, isProtectedCollectorMediaUrl } from "./work-media-helpers";
 
 type XhsMaterialMediaItem = {
   type: MediaKind;
@@ -10,6 +12,123 @@ type XhsMaterialMediaItem = {
   rawUrl: string;
   label: string;
 };
+
+function useMaterialPreviewAsset(sourceUrl?: string) {
+  const [displayUrl, setDisplayUrl] = useState("");
+  const [downloadFileName, setDownloadFileName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (!sourceUrl) {
+      setDisplayUrl("");
+      setDownloadFileName("");
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
+    if (!isProtectedCollectorMediaUrl(sourceUrl)) {
+      setDisplayUrl(sourceUrl);
+      setDownloadFileName("");
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
+    let active = true;
+    let currentObjectUrl = "";
+    setIsLoading(true);
+    setErrorMessage("");
+    setDisplayUrl("");
+    setDownloadFileName("");
+
+    void requestBlobByUrl(sourceUrl)
+      .then(({ blob, fileName }) => {
+        if (!active) {
+          return;
+        }
+        currentObjectUrl = URL.createObjectURL(blob);
+        setDisplayUrl(currentObjectUrl);
+        setDownloadFileName(fileName);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        setDisplayUrl("");
+        setDownloadFileName("");
+        setErrorMessage(error instanceof Error ? error.message : "素材加载失败");
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+    };
+  }, [sourceUrl]);
+
+  return {
+    displayUrl,
+    downloadFileName,
+    isLoading,
+    errorMessage,
+  };
+}
+
+function MaterialPreviewStage(props: {
+  itemTitle: string;
+  mediaItem?: XhsMaterialMediaItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  onOpenLightbox: (payload: MediaLightboxState) => void;
+}) {
+  const media = useMaterialPreviewAsset(props.mediaItem?.previewUrl);
+
+  return (
+    <button
+      type="button"
+      className="xhs-material-card-stage"
+      onClick={() => {
+        props.onSelect();
+        if (props.mediaItem && media.displayUrl) {
+          props.onOpenLightbox({
+            title: `${props.itemTitle} · ${props.mediaItem.label}`,
+            url: media.displayUrl,
+            type: props.mediaItem.type,
+          });
+        }
+      }}
+    >
+      {props.mediaItem ? (
+        media.displayUrl ? (
+          props.mediaItem.type === "VIDEO" ? (
+            <video className="xhs-material-card-media" src={media.displayUrl} muted preload="metadata" />
+          ) : (
+            <img className="xhs-material-card-media" src={media.displayUrl} alt={props.itemTitle} />
+          )
+        ) : (
+          <span className="xhs-material-card-empty">
+            {media.errorMessage || (media.isLoading ? "素材加载中..." : "素材暂不可用")}
+          </span>
+        )
+      ) : (
+        <span className="xhs-material-card-empty">暂无素材</span>
+      )}
+      <span className="xhs-material-card-badge">对标</span>
+      {media.downloadFileName ? (
+        <span className="xhs-material-card-filehint">{media.downloadFileName}</span>
+      ) : null}
+      {props.isSelected ? <span className="sr-only">已选中</span> : null}
+    </button>
+  );
+}
 
 export interface AssetsWorkspaceProps {
   sectionLabel: string;
@@ -52,31 +171,13 @@ export function AssetsWorkspace(props: AssetsWorkspaceProps) {
 
               return (
                 <article key={item.id} className={`xhs-material-card ${props.selectedMaterialId === item.id ? "is-active" : ""}`}>
-                  <button
-                    type="button"
-                    className="xhs-material-card-stage"
-                    onClick={() => {
-                      props.onSelectMaterial(item.id);
-                      if (previewItem) {
-                        props.onOpenLightbox({
-                          title: `${item.title} · ${previewItem.label}`,
-                          url: previewItem.previewUrl,
-                          type: previewItem.type,
-                        });
-                      }
-                    }}
-                  >
-                    {previewItem ? (
-                      previewItem.type === "VIDEO" ? (
-                        <video className="xhs-material-card-media" src={previewItem.previewUrl} muted preload="metadata" />
-                      ) : (
-                        <img className="xhs-material-card-media" src={previewItem.previewUrl} alt={item.title} />
-                      )
-                    ) : (
-                      <span className="xhs-material-card-empty">暂无素材</span>
-                    )}
-                    <span className="xhs-material-card-badge">对标</span>
-                  </button>
+                  <MaterialPreviewStage
+                    itemTitle={item.title}
+                    mediaItem={previewItem}
+                    isSelected={props.selectedMaterialId === item.id}
+                    onSelect={() => props.onSelectMaterial(item.id)}
+                    onOpenLightbox={props.onOpenLightbox}
+                  />
                   {mediaItems.length > 1 ? (
                     <div className="xhs-material-card-carousel">
                       <button type="button" className="note-page-button" onClick={() => props.onShiftPreview(item.id, mediaItems.length, -1)}>
