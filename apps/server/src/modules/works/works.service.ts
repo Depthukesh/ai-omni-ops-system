@@ -13,6 +13,7 @@ import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
+import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 
 type UploadFilePayload = {
   fileName: string;
@@ -25,6 +26,7 @@ export type GenerateXiaohongshuOriginalNotePayload = {
   customTopicName?: string;
   productId?: string;
   imageCount?: number;
+  includeMarketingPlan?: boolean;
   additionalInstruction?: string;
   coverReferenceImage?: UploadFilePayload;
   galleryReferenceImages?: UploadFilePayload[];
@@ -38,6 +40,7 @@ export type UpdateXiaohongshuOriginalNotePayload = {
 export type GenerateXiaohongshuRewriteNotePayload = {
   sourceMaterialId?: string;
   productId?: string;
+  includeMarketingPlan?: boolean;
   additionalInstruction?: string;
 };
 
@@ -88,6 +91,7 @@ type OriginalWorkAssetMeta = {
   productId?: string;
   productName?: string;
   productImageUrl?: string;
+  includeMarketingPlan: boolean;
   imageCount?: number;
   additionalInstruction?: string;
   coverImageId?: string;
@@ -135,6 +139,7 @@ type RewriteWorkAssetMeta = {
   productId?: string;
   productName?: string;
   productImageUrl?: string;
+  includeMarketingPlan: boolean;
   additionalInstruction?: string;
   coverImageId?: string;
   coverImageUrl?: string;
@@ -230,6 +235,23 @@ type VideoSegmentAssetEntry = {
   videoAssetId?: string;
 };
 
+type XhsOriginalReferenceTemplateCategoryRecord = {
+  id: string;
+  label: string;
+  count: number;
+};
+
+type XhsOriginalReferenceTemplateRecord = {
+  id: string;
+  title: string;
+  order: number;
+  categoryId: string;
+  categoryLabel: string;
+  fileName: string;
+  sourcePath: string;
+  assetUrl: string;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -245,6 +267,7 @@ export type XiaohongshuOriginalWorkRecord = {
   customTopicName?: string;
   productId?: string;
   productName?: string;
+  includeMarketingPlan: boolean;
   additionalInstruction?: string;
   hashtags: string[];
   coverText?: ImageTextPlanEntry;
@@ -278,6 +301,7 @@ export type XiaohongshuRewriteWorkRecord = {
   sourceMaterialImageUrls: string[];
   productId?: string;
   productName?: string;
+  includeMarketingPlan: boolean;
   additionalInstruction?: string;
   hashtags: string[];
   coverText?: ImageTextPlanEntry;
@@ -548,6 +572,42 @@ export class WorksService {
     return { items };
   }
 
+  async listXiaohongshuOriginalReferenceTemplates() {
+    const categories: XhsOriginalReferenceTemplateCategoryRecord[] = XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY.categories.map((item) => ({
+      id: item.id,
+      label: item.label,
+      count: item.count,
+    }));
+    const items: XhsOriginalReferenceTemplateRecord[] = XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      order: item.order,
+      categoryId: item.categoryId,
+      categoryLabel: item.categoryLabel,
+      fileName: item.fileName,
+      sourcePath: item.sourcePath,
+      assetUrl: this.resolveOriginalReferenceTemplateAssetUrl(item.id),
+    }));
+    return {
+      generatedAt: XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY.generatedAt,
+      storageMode: XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY.storageMode,
+      categories,
+      items,
+    };
+  }
+
+  async getXiaohongshuOriginalReferenceTemplateAsset(templateId: string) {
+    const template = this.findOriginalReferenceTemplateById(templateId);
+    const file = await this.ossStorageService.getObject(template.storageKey);
+    if (!file) {
+      throw new NotFoundException("原创参考模板不存在或尚未导入存储");
+    }
+    return {
+      ...file,
+      fileName: template.fileName,
+    };
+  }
+
   async listXiaohongshuRewriteWorks(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
       const workRows = await this.prismaService.mediaAsset.findMany({
@@ -684,9 +744,10 @@ export class WorksService {
     auth?: RequestAuthContext,
   ) {
     const archive = await this.brandsService.getArchive(brandId);
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
     const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
     const latestMarketingPlan = marketingPlanWorkspace.latest;
-    if (!latestMarketingPlan) {
+    if (includeMarketingPlan && !latestMarketingPlan) {
       throw new BadRequestException("请先生成小红书营销策划方案，再创作原创笔记。");
     }
 
@@ -726,6 +787,7 @@ export class WorksService {
       taskTitle,
       modelName: originalCopyProviders[0]?.models[0] || originalCopyPreference.preferredModelName,
     });
+    const originalMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "";
 
     try {
       await this.markTaskRunning(task.id);
@@ -733,24 +795,26 @@ export class WorksService {
 
       const referenceFiles = this.normalizeReferenceFiles(payload);
       const referenceStyles = referenceFiles.length
-        ? await this.analyzeReferenceImages(referenceFiles, latestMarketingPlan.reportMarkdown)
+        ? await this.analyzeReferenceImages(referenceFiles, originalMarketingPlanMarkdown)
         : { coverReferenceStyle: undefined, galleryReferenceStyles: [], modelName: undefined };
       await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateOriginalCopy({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
         product: normalizedProduct,
+        includeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim(),
       });
       await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateOriginalImagePrompts({
-        marketingPlanMarkdown: latestMarketingPlan.reportMarkdown,
+        marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
         product: normalizedProduct,
+        includeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim(),
         imageCount: payload.imageCount,
         noteTitle: copyResult.title,
@@ -812,6 +876,7 @@ export class WorksService {
         productId: selectedProduct?.id,
         productName: selectedProduct?.productName,
         productImageUrl: selectedProduct?.imageUrl || undefined,
+        includeMarketingPlan,
         imageCount: payload.imageCount,
         additionalInstruction: payload.additionalInstruction?.trim() || undefined,
         coverImageUrl: coverImage.url,
@@ -908,9 +973,10 @@ export class WorksService {
     }
 
     const archive = await this.brandsService.getArchive(brandId);
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
     const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
     const latestMarketingPlan = marketingPlanWorkspace.latest;
-    if (!latestMarketingPlan) {
+    if (includeMarketingPlan && !latestMarketingPlan) {
       throw new BadRequestException("请先生成小红书营销策划方案，再创作二创笔记。");
     }
 
@@ -940,7 +1006,7 @@ export class WorksService {
     const allowProductEmbedding = Boolean(normalizedProduct);
     const rewritePromptSourceMaterial = this.buildRewritePromptSourceMaterial(sourceMaterial, allowProductEmbedding);
     const rewriteMarketingPlanContext = this.buildRewriteMarketingPlanContext(
-      latestMarketingPlan.reportMarkdown,
+      latestMarketingPlan?.reportMarkdown || "",
       allowProductEmbedding,
     );
     const rewriteTopicContext = this.buildRewriteTopicContext(sourceMaterial, allowProductEmbedding);
@@ -960,24 +1026,25 @@ export class WorksService {
       taskTitle,
       modelName: rewriteCopyProviders[0]?.models[0] || rewriteCopyPreference.preferredModelName,
     });
-
     try {
       await this.markTaskRunning(task.id);
       await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateRewriteCopy({
-        marketingPlanMarkdown: rewriteMarketingPlanContext,
+        marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
+        includeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim(),
         topicContext: rewriteTopicContext,
       });
       await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
-        marketingPlanMarkdown: rewriteMarketingPlanContext,
+        marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
+        includeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim(),
         noteTitle: copyResult.title,
         noteContent: copyResult.content,
@@ -1040,6 +1107,7 @@ export class WorksService {
         productId: selectedProduct?.id,
         productName: selectedProduct?.productName,
         productImageUrl: selectedProduct?.imageUrl || undefined,
+        includeMarketingPlan,
         additionalInstruction: payload.additionalInstruction?.trim() || undefined,
         coverImageUrl: coverImage.url,
         galleryImageIds: [],
@@ -1659,6 +1727,7 @@ export class WorksService {
       differentiators: string;
       imageUrl?: string;
     };
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadOriginalCopyPrompt();
@@ -1692,12 +1761,16 @@ export class WorksService {
           }
         : null,
       additional_instruction: params.additionalInstruction,
+      include_marketing_plan: params.includeMarketingPlan !== false,
     };
 
     const systemPrompt = [
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书原创图文笔记。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能使用营销日历选题、产品资料、参考图风格和用户要求，禁止自行吸收营销策划方案里的卖点、产品矩阵、价格、门店、促销或投放口径。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，禁止把产品卖点表、价格、门店、促销口径直接写进正文。",
       "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
@@ -1787,6 +1860,7 @@ export class WorksService {
       differentiators: string;
       imageUrl?: string;
     };
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
     imageCount?: number;
     noteTitle: string;
@@ -1832,11 +1906,15 @@ export class WorksService {
       coverReferenceStyle: params.referenceStyles.coverReferenceStyle,
       galleryReferenceStyles: params.referenceStyles.galleryReferenceStyles || [],
       additional_instruction: params.additionalInstruction,
+      include_marketing_plan: params.includeMarketingPlan !== false,
     };
     const systemPrompt = [
       skillPrompt,
       "",
       "你当前需要输出小红书原创图文的封面与配图提示词。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能基于营销日历选题、产品资料、原创正文、参考图风格和用户要求生成画面，不要吸收营销策划方案中的产品矩阵、卖点清单、价格、门店、促销或投放表达。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，不要把产品卖点表、价格、门店、促销和投放表达直接翻译成画面文案或主视觉。",
       params.imageCount
         ? `请严格生成 ${params.imageCount} 张图的提示词，其中第一张为封面，其余 ${Math.max(params.imageCount - 1, 0)} 张为配图。`
         : "图片张数可自由发挥，但至少返回 1 条封面提示词和 2 条配图提示词。",
@@ -2805,6 +2883,7 @@ export class WorksService {
       customTopicName: meta.customTopicName,
       productId: meta.productId,
       productName: meta.productName,
+      includeMarketingPlan: meta.includeMarketingPlan,
       additionalInstruction: meta.additionalInstruction,
       hashtags: meta.hashtags || [],
       coverText: meta.coverText,
@@ -2848,6 +2927,7 @@ export class WorksService {
       productId: this.readOptionalString(meta.productId),
       productName: this.readOptionalString(meta.productName),
       productImageUrl: this.readOptionalString(meta.productImageUrl),
+      includeMarketingPlan: meta.includeMarketingPlan !== false,
       imageCount: typeof meta.imageCount === "number" ? meta.imageCount : undefined,
       additionalInstruction: this.readOptionalString(meta.additionalInstruction),
       coverImageId: this.readOptionalString(meta.coverImageId),
@@ -2953,6 +3033,7 @@ export class WorksService {
       sourceMaterialImageUrls: meta.sourceMaterialImageUrls || [],
       productId: meta.productId,
       productName: meta.productName,
+      includeMarketingPlan: meta.includeMarketingPlan,
       additionalInstruction: meta.additionalInstruction,
       hashtags: meta.hashtags || [],
       coverText: meta.coverText,
@@ -2996,6 +3077,7 @@ export class WorksService {
       productId: this.readOptionalString(meta.productId),
       productName: this.readOptionalString(meta.productName),
       productImageUrl: this.readOptionalString(meta.productImageUrl),
+      includeMarketingPlan: meta.includeMarketingPlan !== false,
       additionalInstruction: this.readOptionalString(meta.additionalInstruction),
       coverImageId: this.readOptionalString(meta.coverImageId),
       coverImageUrl: this.readOptionalString(meta.coverImageUrl),
@@ -3684,6 +3766,7 @@ export class WorksService {
       differentiators: string;
       imageUrl?: string;
     };
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
   }): Promise<OriginalCopyModelResult> {
     const skillPrompt = await this.loadRewriteCopyPrompt();
@@ -3719,6 +3802,7 @@ export class WorksService {
           }
         : null,
       additional_instruction: params.additionalInstruction,
+      include_marketing_plan: params.includeMarketingPlan !== false,
     };
 
     const systemPrompt = [
@@ -3727,6 +3811,9 @@ export class WorksService {
       "你当前要输出一篇可直接发布的小红书二创图文笔记。",
       "必须优先围绕 benchmark_note 的核心事件、场景、人物关系和情绪主题进行二创，不能脱离原素材主线另起题。",
       "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，严禁把它升级为标题主钩子、核心卖点或主要带货内容。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能依据 benchmark_note、主题上下文、产品信息和用户要求做二创，禁止自行吸收营销策划方案中的品牌策略、卖点矩阵、价格、门店、促销或投放口径。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，禁止把营销策划方案中的价格、门店、促销和投放口径直接写进正文。",
       params.product
         ? "本次已明确提供产品资料，可以在不破坏对标素材主线的前提下自然植入该产品。"
         : "本次未提供产品资料，严禁自行引入任何具体产品 SKU、商品名、价格、门店购买引导、优惠信息、下单路径或强转化文案；如果原素材里有品牌露出，只能保留为背景信息，不能扩写成具体卖货笔记，也不能新增 benchmark_note 未明确出现的第二个产品。",
@@ -3824,6 +3911,7 @@ export class WorksService {
       differentiators: string;
       imageUrl?: string;
     };
+    includeMarketingPlan?: boolean;
     additionalInstruction?: string;
     noteTitle: string;
     noteContent: string;
@@ -3859,6 +3947,7 @@ export class WorksService {
           }
         : null,
       additional_instruction: params.additionalInstruction,
+      include_marketing_plan: params.includeMarketingPlan !== false,
     };
     const systemPrompt = [
       skillPrompt,
@@ -3867,6 +3956,9 @@ export class WorksService {
       "请至少返回 1 条封面提示词和 2 条配图提示词。",
       "图片主题必须服务于 benchmark_note 的核心事件和主场景，不能偏离到无关商品展示或纯带货画面。",
       "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，画面中不得把它放大成核心产品海报或主视觉主体。",
+      params.includeMarketingPlan === false
+        ? "本次明确要求不要植入营销策划方案；你只能基于 benchmark_note、正文、主题上下文、产品信息和用户要求生成画面，不要吸收营销策划方案中的卖点矩阵、价格、门店、促销或投放表达。"
+        : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，不要把营销策划方案中的价格、门店、促销和投放表达直接翻译成画面文案或主视觉。",
       params.product
         ? "本次已明确提供产品资料，可以在画面中自然植入该产品形象。"
         : "本次未提供产品资料，严禁在封面或配图中自行生成具体商品、SKU、价格牌、门店陈列、购买引导文案或卖货主视觉；若原素材本身含有品牌元素，只能保留事件相关的弱露出，不得强化成产品销售海报，也不得新增 benchmark_note 未明确出现的第二个产品。",
@@ -5526,6 +5618,18 @@ export class WorksService {
 
   private resolveServerBaseUrl() {
     return this.appConfigService.getServerBaseUrl();
+  }
+
+  private resolveOriginalReferenceTemplateAssetUrl(templateId: string) {
+    return `${this.appConfigService.getPublicApiBaseUrl()}/works/xiaohongshu/original/reference-templates/${encodeURIComponent(templateId)}/asset`;
+  }
+
+  private findOriginalReferenceTemplateById(templateId: string) {
+    const template = XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY.items.find((item) => item.id === templateId);
+    if (!template) {
+      throw new NotFoundException("原创参考模板不存在");
+    }
+    return template;
   }
 
   private resolveGeneratedAssetUrl(brandId: string, fileName: string) {

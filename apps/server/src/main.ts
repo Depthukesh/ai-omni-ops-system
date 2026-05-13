@@ -44,7 +44,9 @@ async function bootstrap() {
   app.use(expressBodyParser.json({ limit: "30mb" }));
   app.use(expressBodyParser.urlencoded({ extended: true, limit: "30mb" }));
   app.setGlobalPrefix("api");
-  app.enableCors();
+  app.enableCors({
+    exposedHeaders: ["Content-Disposition", "Content-Length", "Content-Type"],
+  });
 
   const host = appConfigService.getServerHost();
   const port = appConfigService.getServerPort();

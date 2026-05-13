@@ -54,17 +54,20 @@
 - 当前以下资源均统一持久化到 OSS：
 - `works` 生成资源：`works/<brandId>/<fileName>`
 - `reports` HTML 产物：`reports/<brandId>/<fileName>`
+- 原创参考模板素材：`reference-templates/xiaohongshu/original/<categoryId>/<fileName>`
 - 品牌产品图片：`brands/<brandId>/product-images/<fileName>`
 - 品牌资料附件：`brands/<brandId>/asset-files/<fileName>`
 - 用户头像：`users/<userId>/avatars/<fileName>`
 - 对外访问统一仍优先走站内接口：
 - `/api/works/brands/:brandId/assets/:fileName`
 - `/api/reports/brands/:brandId/assets/:fileName`
+- `/api/works/xiaohongshu/original/reference-templates/:templateId/asset`
 - `/api/brands/:id/product-images/:fileName`
 - `/api/brands/:id/asset-files/:fileName`
 - `/api/auth/users/:userId/avatar/:fileName`
 - 站内接口负责按 `storageKey` 从 OSS 读取，不再把 `.runtime/generated-works/` 或其他本地目录当作正式真源
 - 仅在本地开发且未配置 OSS 时，允许暂时回退到 `.runtime/local-oss/<storageKey>` 作为联调副本；但站内接口、`storageKey` 前缀与业务记录结构必须保持和正式 OSS 链路一致
+- 若已配置 OSS 但当前运行环境不在阿里云内网，`OSS_INTERNAL` 应保持关闭或不配置；只有明确需要走阿里云内网 endpoint 时才开启 `OSS_INTERNAL=true`
 
 ## 5. 三类作品存储要求
 
@@ -118,6 +121,7 @@
 - 更新作品文案或报告 HTML 时，同时更新 OSS 中的 HTML 副本与 `metadataJson`
 - 更新头像、产品图、资料附件等上传资源时，新对象必须直接写入 OSS，不回退本地目录
 - 更新资源引用时，优先覆盖 OSS 副本关系，不直接改回第三方外链
+- 原创参考模板素材不进入前端静态目录；新增或替换模板时，统一通过导入脚本批量写入 `reference-templates/xiaohongshu/original/...`，再更新模板清单
 
 ## 8. 发布前校验规则
 
@@ -142,6 +146,7 @@
 - 本地开发若缺失 OSS 配置，`OssStorageService` 现可回退到 `.runtime/local-oss`，避免报告生成在“保存 HTML 附件”阶段直接 500；生产态仍坚持 OSS 真源
 - 品牌产品图与品牌资料附件已改为 OSS 真源，站内读取接口直接代理 OSS 对象
 - 用户头像已支持真实上传到 OSS，并通过站内头像接口读取
+- 原创参考模板库也已纳入相同存储边界：导入脚本会优先写 OSS，开发态缺失 OSS 时回退 `.runtime/local-oss`，前端始终只认站内模板资产接口
 - 原创/二创图片已进入受控副本链路
 - 视频成片与视频封面已开始补齐受控副本链路
 - 下一阶段继续收口历史外链资源、演示种子占位链接和更多作品类型

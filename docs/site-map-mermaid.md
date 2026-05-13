@@ -257,6 +257,7 @@ flowchart TD
     HX4 --> HX41["note-create-modals.tsx"]
     HX4 --> HX42["note-edit-modals.tsx"]
     HX4 --> HX43["work-card-grids.tsx"]
+    HX4 --> HX44["original-reference-template-picker.tsx"]
     HX5 --> HX41
     HX5 --> HX42
     HX5 --> HX43
@@ -295,6 +296,7 @@ flowchart TD
     SX2 --> AX2["/publishing/xiaohongshu/*"]
     SX3 --> AX3["/works/brands/:brandId/xiaohongshu/*"]
     SX3 --> AX31["/works/brands/:brandId/xiaohongshu/video/providers"]
+    SX3 --> AX32["/works/xiaohongshu/original/reference-templates*"]
     SX4 --> AX4["/collectors/xiaohongshu/*"]
     HH7 --> AX41["/collectors/xiaohongshu/brands/:brandId/feishu-media"]
     SX5 --> AX5["/reports/brands/:brandId/xiaohongshu-*"]
@@ -306,6 +308,7 @@ flowchart TD
     AX2 --> MX1["PublishingModule"]
     AX3 --> MX2["WorksModule"]
     AX31 --> MX2
+    AX32 --> MX2
     AX4 --> MX3["CollectorsModule 品牌访问校验"]
     AX41 --> MX3
     AX5 --> MX4["ReportsModule 品牌访问校验"]
@@ -351,12 +354,16 @@ flowchart LR
 
     D["原创笔记"]
     D --> D1["创建弹窗"]
+    D --> D11["模板图库选择 + 本地上传兜底"]
+    D --> D12["模板选中后下载成 File 继续复用原链路"]
+    D --> D13["可选植入营销策划方案"]
     D --> D2["编辑弹窗"]
     D --> D3["作品卡片"]
     D --> D4["一键发布"]
 
     E["二创笔记"]
     E --> E1["创建弹窗"]
+    E --> E11["可选植入营销策划方案"]
     E --> E2["编辑弹窗"]
     E --> E3["作品卡片"]
     E --> E4["一键发布"]

@@ -86,12 +86,15 @@ import {
 import {
   getXiaohongshuVideoProviders,
   getXiaohongshuVideoWorks,
+  getXiaohongshuOriginalReferenceTemplates,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
   type VideoProviderOptionRecord,
+  type XhsOriginalReferenceTemplateCategoryRecord,
+  type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
@@ -161,6 +164,12 @@ export default function XiaohongshuPage() {
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
   const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>(DEFAULT_VIDEO_PROVIDER_OPTIONS);
+  const [originalReferenceTemplateCategories, setOriginalReferenceTemplateCategories] = useState<
+    XhsOriginalReferenceTemplateCategoryRecord[]
+  >([]);
+  const [originalReferenceTemplateItems, setOriginalReferenceTemplateItems] = useState<XhsOriginalReferenceTemplateRecord[]>([]);
+  const [isLoadingOriginalReferenceTemplates, setIsLoadingOriginalReferenceTemplates] = useState(false);
+  const [originalReferenceTemplatesError, setOriginalReferenceTemplatesError] = useState("");
   const [selectedVideoWorkId, setSelectedVideoWorkId] = useState("");
   const [deletingVideoWorkId, setDeletingVideoWorkId] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
@@ -196,12 +205,14 @@ export default function XiaohongshuPage() {
     originalCustomTopic,
     originalProductValue,
     originalImageCountValue,
+    originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
     coverReferenceFile,
     galleryReferenceFiles,
     isRewriteModalOpen,
     rewriteMaterialValue,
     rewriteProductValue,
+    rewriteInjectMarketingPlanValue,
     rewriteAdditionalInstruction,
     isVideoModalOpen,
     videoCalendarValue,
@@ -223,11 +234,13 @@ export default function XiaohongshuPage() {
     setOriginalCustomTopic,
     setOriginalProductValue,
     setOriginalImageCountValue,
+    setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,
     setCoverReferenceFile,
     setGalleryReferenceFiles,
     setRewriteMaterialValue,
     setRewriteProductValue,
+    setRewriteInjectMarketingPlanValue,
     setRewriteAdditionalInstruction,
     setVideoCalendarValue,
     setVideoCustomTopic,
@@ -345,12 +358,25 @@ export default function XiaohongshuPage() {
     const activeBrandId = await resolveActiveBrandId(workspace.archive.brand.id);
     setIsLoading(true);
     setDataSource("loading");
+    setIsLoadingOriginalReferenceTemplates(true);
+    setOriginalReferenceTemplatesError("");
     if (!options?.preserveMessages) {
       setNotice("");
       setErrorMessage("");
     }
 
-    const [workspaceResult, growthReportResult, annualPlanResult, marketingPlanResult, calendarResult, originalWorksResult, rewriteWorksResult, videoWorksResult, videoProvidersResult] =
+    const [
+      workspaceResult,
+      growthReportResult,
+      annualPlanResult,
+      marketingPlanResult,
+      calendarResult,
+      originalWorksResult,
+      rewriteWorksResult,
+      videoWorksResult,
+      videoProvidersResult,
+      referenceTemplatesResult,
+    ] =
       await Promise.allSettled([
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
@@ -361,6 +387,7 @@ export default function XiaohongshuPage() {
       getXiaohongshuRewriteWorks(activeBrandId),
       getXiaohongshuVideoWorks(activeBrandId),
       getXiaohongshuVideoProviders(activeBrandId),
+      getXiaohongshuOriginalReferenceTemplates(),
     ]);
 
     const messages: string[] = [];
@@ -442,6 +469,14 @@ export default function XiaohongshuPage() {
       messages.push("视频模型选项读取失败，已保留当前默认配置。");
     }
 
+    if (referenceTemplatesResult.status === "fulfilled") {
+      setOriginalReferenceTemplateCategories(referenceTemplatesResult.value.categories);
+      setOriginalReferenceTemplateItems(referenceTemplatesResult.value.items);
+    } else {
+      setOriginalReferenceTemplatesError("原创参考模板读取失败，请稍后重试。");
+      messages.push("原创参考模板读取失败。");
+    }
+
     if (workspaceResult.status === "fulfilled") {
       setDataSource("api");
     } else if (messages.length) {
@@ -452,6 +487,22 @@ export default function XiaohongshuPage() {
       setErrorMessage(messages.join(" "));
     }
     setIsLoading(false);
+    setIsLoadingOriginalReferenceTemplates(false);
+  }
+
+  async function reloadOriginalReferenceTemplates() {
+    setIsLoadingOriginalReferenceTemplates(true);
+    setOriginalReferenceTemplatesError("");
+    try {
+      const result = await getXiaohongshuOriginalReferenceTemplates();
+      setOriginalReferenceTemplateCategories(result.categories);
+      setOriginalReferenceTemplateItems(result.items);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "原创参考模板读取失败";
+      setOriginalReferenceTemplatesError(message);
+    } finally {
+      setIsLoadingOriginalReferenceTemplates(false);
+    }
   }
 
   const {
@@ -641,6 +692,7 @@ export default function XiaohongshuPage() {
       customTopic: originalCustomTopic,
       productValue: originalProductValue,
       imageCountValue: originalImageCountValue,
+      injectMarketingPlanValue: originalInjectMarketingPlanValue,
       additionalInstruction: originalAdditionalInstruction,
       coverReferenceFile,
       galleryReferenceFiles,
@@ -653,6 +705,7 @@ export default function XiaohongshuPage() {
     rewrite: {
       materialValue: rewriteMaterialValue,
       productValue: rewriteProductValue,
+      injectMarketingPlanValue: rewriteInjectMarketingPlanValue,
       additionalInstruction: rewriteAdditionalInstruction,
       closeModal: closeRewriteModal,
       resetComposer: resetRewriteComposer,
@@ -1206,9 +1259,14 @@ export default function XiaohongshuPage() {
           customTopic={originalCustomTopic}
           productValue={originalProductValue}
           imageCountValue={originalImageCountValue}
+          injectMarketingPlanValue={originalInjectMarketingPlanValue}
           additionalInstruction={originalAdditionalInstruction}
           coverReferenceFile={coverReferenceFile}
           galleryReferenceFiles={galleryReferenceFiles}
+          referenceTemplateCategories={originalReferenceTemplateCategories}
+          referenceTemplateItems={originalReferenceTemplateItems}
+          isReferenceTemplatesLoading={isLoadingOriginalReferenceTemplates}
+          referenceTemplatesError={originalReferenceTemplatesError}
           onRefresh={() => loadWorkspace()}
           onCancelTask={() => handleCancelComposeTask(latestOriginalTask, "原创笔记")}
           onOpenCreate={handleOpenOriginalModal}
@@ -1236,9 +1294,11 @@ export default function XiaohongshuPage() {
           onCustomTopicChange={setOriginalCustomTopic}
           onProductChange={setOriginalProductValue}
           onImageCountChange={setOriginalImageCountValue}
+          onInjectMarketingPlanChange={setOriginalInjectMarketingPlanValue}
           onAdditionalInstructionChange={setOriginalAdditionalInstruction}
           onCoverReferenceFileChange={setCoverReferenceFile}
           onGalleryReferenceFilesChange={setGalleryReferenceFiles}
+          onReloadReferenceTemplates={reloadOriginalReferenceTemplates}
           getTaskStatusClass={getTaskStatusClass}
           getOriginalTaskStatusClass={getWorkTaskStatusClass}
           getOriginalTaskStatusText={getWorkTaskStatusText}
@@ -1279,6 +1339,7 @@ export default function XiaohongshuPage() {
           products={workspace.archive.products}
           materialValue={rewriteMaterialValue}
           productValue={rewriteProductValue}
+          injectMarketingPlanValue={rewriteInjectMarketingPlanValue}
           additionalInstruction={rewriteAdditionalInstruction}
           onRefresh={() => loadWorkspace()}
           onCancelTask={() => handleCancelComposeTask(latestRewriteTask, "二创笔记")}
@@ -1305,6 +1366,7 @@ export default function XiaohongshuPage() {
           onCreate={handleCreateRewriteWork}
           onMaterialChange={setRewriteMaterialValue}
           onProductChange={setRewriteProductValue}
+          onInjectMarketingPlanChange={setRewriteInjectMarketingPlanValue}
           onAdditionalInstructionChange={setRewriteAdditionalInstruction}
           getTaskStatusClass={getTaskStatusClass}
           getOriginalTaskStatusClass={getWorkTaskStatusClass}

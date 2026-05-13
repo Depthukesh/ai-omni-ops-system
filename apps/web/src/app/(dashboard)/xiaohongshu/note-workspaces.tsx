@@ -7,6 +7,8 @@ import {
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
   type VideoProviderOptionRecord,
+  type XhsOriginalReferenceTemplateCategoryRecord,
+  type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
 import { OriginalCreateModal, RewriteCreateModal, VideoCreateModal } from "./note-create-modals";
 import { OriginalEditModal, RewriteEditModal, VideoEditModal } from "./note-edit-modals";
@@ -49,9 +51,14 @@ export interface OriginalWorkspaceProps {
   customTopic: string;
   productValue: string;
   imageCountValue: string;
+  injectMarketingPlanValue: string;
   additionalInstruction: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
+  referenceTemplateCategories: XhsOriginalReferenceTemplateCategoryRecord[];
+  referenceTemplateItems: XhsOriginalReferenceTemplateRecord[];
+  isReferenceTemplatesLoading: boolean;
+  referenceTemplatesError: string;
   onRefresh: AsyncAction;
   onCancelTask: AsyncAction;
   onOpenCreate: () => void;
@@ -71,9 +78,11 @@ export interface OriginalWorkspaceProps {
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
   onImageCountChange: StringChangeHandler;
+  onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
   onCoverReferenceFileChange: (file: File | null) => void;
   onGalleryReferenceFilesChange: (files: File[]) => void;
+  onReloadReferenceTemplates: AsyncAction;
   getTaskStatusClass: (status?: TaskRecord["taskStatus"]) => string;
   getOriginalTaskStatusClass: (status?: XiaohongshuOriginalWorkRecord["taskStatus"]) => string;
   getOriginalTaskStatusText: (status?: XiaohongshuOriginalWorkRecord["taskStatus"]) => string;
@@ -198,18 +207,25 @@ export function OriginalWorkspace(props: OriginalWorkspaceProps) {
         customTopic={props.customTopic}
         productValue={props.productValue}
         imageCountValue={props.imageCountValue}
+        injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
         coverReferenceFile={props.coverReferenceFile}
         galleryReferenceFiles={props.galleryReferenceFiles}
+        referenceTemplateCategories={props.referenceTemplateCategories}
+        referenceTemplateItems={props.referenceTemplateItems}
+        isReferenceTemplatesLoading={props.isReferenceTemplatesLoading}
+        referenceTemplatesError={props.referenceTemplatesError}
         onClose={props.onCloseCreate}
         onCreate={props.onCreate}
         onCalendarChange={props.onCalendarChange}
         onCustomTopicChange={props.onCustomTopicChange}
         onProductChange={props.onProductChange}
         onImageCountChange={props.onImageCountChange}
+        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
         onCoverReferenceFileChange={props.onCoverReferenceFileChange}
         onGalleryReferenceFilesChange={props.onGalleryReferenceFilesChange}
+        onReloadReferenceTemplates={props.onReloadReferenceTemplates}
       />
     </article>
   );
@@ -243,6 +259,7 @@ export interface RewriteWorkspaceProps {
   products: ProductOption[];
   materialValue: string;
   productValue: string;
+  injectMarketingPlanValue: string;
   additionalInstruction: string;
   onRefresh: AsyncAction;
   onCancelTask: AsyncAction;
@@ -261,6 +278,7 @@ export interface RewriteWorkspaceProps {
   onCreate: AsyncAction;
   onMaterialChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
   getTaskStatusClass: (status?: TaskRecord["taskStatus"]) => string;
   getOriginalTaskStatusClass: (status?: XiaohongshuRewriteWorkRecord["taskStatus"]) => string;
@@ -400,11 +418,13 @@ export function RewriteWorkspace(props: RewriteWorkspaceProps) {
         products={props.products}
         materialValue={props.materialValue}
         productValue={props.productValue}
+        injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
         onClose={props.onCloseCreate}
         onCreate={props.onCreate}
         onMaterialChange={props.onMaterialChange}
         onProductChange={props.onProductChange}
+        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
       />
     </article>

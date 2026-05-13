@@ -1,4 +1,4 @@
-import { jsonRequest, request } from "./http";
+import { jsonRequest, request, requestBlobByUrl } from "./http";
 
 export type ImageTextPlanEntry = {
   title: string;
@@ -28,6 +28,23 @@ export type VideoProviderOptionRecord = {
   displayOrder: number;
 };
 
+export type XhsOriginalReferenceTemplateCategoryRecord = {
+  id: string;
+  label: string;
+  count: number;
+};
+
+export type XhsOriginalReferenceTemplateRecord = {
+  id: string;
+  title: string;
+  order: number;
+  categoryId: string;
+  categoryLabel: string;
+  fileName: string;
+  sourcePath: string;
+  assetUrl: string;
+};
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
@@ -43,6 +60,7 @@ export type XiaohongshuOriginalWorkRecord = {
   customTopicName?: string;
   productId?: string;
   productName?: string;
+  includeMarketingPlan: boolean;
   additionalInstruction?: string;
   hashtags: string[];
   coverText?: ImageTextPlanEntry;
@@ -76,6 +94,7 @@ export type XiaohongshuRewriteWorkRecord = {
   sourceMaterialImageUrls: string[];
   productId?: string;
   productName?: string;
+  includeMarketingPlan: boolean;
   additionalInstruction?: string;
   hashtags: string[];
   coverText?: ImageTextPlanEntry;
@@ -138,6 +157,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   customTopicName?: string;
   productId?: string;
   imageCount?: number;
+  includeMarketingPlan?: boolean;
   additionalInstruction?: string;
   coverReferenceFile?: File | null;
   galleryReferenceFiles?: File[];
@@ -146,6 +166,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
 export type GenerateXiaohongshuRewriteNoteForm = {
   sourceMaterialId?: string;
   productId?: string;
+  includeMarketingPlan?: boolean;
   additionalInstruction?: string;
 };
 
@@ -178,6 +199,7 @@ export async function generateXiaohongshuOriginalWork(brandId: string, form: Gen
     customTopicName: form.customTopicName,
     productId: form.productId,
     imageCount: form.imageCount,
+    includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,
     coverReferenceImage,
     galleryReferenceImages,
@@ -213,6 +235,7 @@ export async function generateXiaohongshuRewriteWork(brandId: string, form: Gene
   return jsonRequest<{ item: XiaohongshuRewriteWorkRecord }>(`/works/brands/${brandId}/xiaohongshu/rewrite/generate`, "POST", {
     sourceMaterialId: form.sourceMaterialId,
     productId: form.productId,
+    includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,
   });
 }
@@ -244,6 +267,22 @@ export async function getXiaohongshuVideoWorks(brandId: string) {
 
 export async function getXiaohongshuVideoProviders(brandId: string) {
   return request<{ items: VideoProviderOptionRecord[] }>(`/works/brands/${brandId}/xiaohongshu/video/providers`);
+}
+
+export async function getXiaohongshuOriginalReferenceTemplates() {
+  return request<{
+    generatedAt: string;
+    storageMode: string;
+    categories: XhsOriginalReferenceTemplateCategoryRecord[];
+    items: XhsOriginalReferenceTemplateRecord[];
+  }>("/works/xiaohongshu/original/reference-templates");
+}
+
+export async function downloadXiaohongshuOriginalReferenceTemplateFile(template: XhsOriginalReferenceTemplateRecord) {
+  const { blob, fileName, contentType } = await requestBlobByUrl(template.assetUrl);
+  return new File([blob], fileName || template.fileName, {
+    type: contentType || template.fileName || "image/jpeg",
+  });
 }
 
 export async function generateXiaohongshuVideoWork(brandId: string, form: GenerateXiaohongshuVideoNoteForm) {

@@ -38,6 +38,23 @@ export class WorksController {
     return this.worksService.listXiaohongshuVideoProviderOptions();
   }
 
+  @Get("xiaohongshu/original/reference-templates")
+  listXiaohongshuOriginalReferenceTemplates() {
+    return this.worksService.listXiaohongshuOriginalReferenceTemplates();
+  }
+
+  @Get("xiaohongshu/original/reference-templates/:templateId/asset")
+  async getXiaohongshuOriginalReferenceTemplateAsset(
+    @Param("templateId") templateId: string,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const file = await this.worksService.getXiaohongshuOriginalReferenceTemplateAsset(templateId);
+    response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Content-Disposition", `inline; filename=\"${encodeURIComponent(file.fileName)}\"`);
+    response.setHeader("Cache-Control", "public, max-age=31536000");
+    return response.send(file.buffer);
+  }
+
   @Post("brands/:brandId/xiaohongshu/original/generate")
   generateXiaohongshuOriginalNote(
     @Param("brandId") brandId: string,

@@ -17,6 +17,10 @@ export class AppConfigService {
       return trimTrailingSlash(explicit);
     }
 
+    if (isLoopbackHost(this.getServerHost())) {
+      return "http://127.0.0.1:3001";
+    }
+
     const lanAddress = this.findPrivateIpv4Address();
     if (lanAddress) {
       return `http://${lanAddress}:3001`;
@@ -65,6 +69,7 @@ export class AppConfigService {
       accessKeySecret,
       bucket,
       region,
+      internal: this.readBoolean("OSS_INTERNAL", false),
     };
   }
 
@@ -88,6 +93,20 @@ export class AppConfigService {
     return Number.isFinite(value) && value > 0 ? value : fallback;
   }
 
+  private readBoolean(key: string, fallback: boolean) {
+    const raw = process.env[key]?.trim().toLowerCase();
+    if (!raw) {
+      return fallback;
+    }
+    if (["1", "true", "yes", "on"].includes(raw)) {
+      return true;
+    }
+    if (["0", "false", "no", "off"].includes(raw)) {
+      return false;
+    }
+    return fallback;
+  }
+
   private findPrivateIpv4Address() {
     const networkList = networkInterfaces();
     for (const name of Object.keys(networkList)) {
@@ -99,6 +118,11 @@ export class AppConfigService {
     }
     return "";
   }
+}
+
+function isLoopbackHost(host: string) {
+  const normalized = String(host || "").trim().toLowerCase();
+  return !normalized || normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1";
 }
 
 function trimTrailingSlash(value: string) {

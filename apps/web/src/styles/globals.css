@@ -2608,6 +2608,10 @@ button {
   .collection-sync-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .reference-template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .note-page-button {
@@ -3557,6 +3561,142 @@ button {
   display: block;
   font-size: 15px;
   line-height: 1.7;
+}
+
+.reference-upload-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e5e9f3;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(225, 231, 255, 0.56), transparent 36%),
+    linear-gradient(180deg, #fbfcff 0%, #f6f8ff 100%);
+}
+
+.reference-upload-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reference-upload-input {
+  display: none;
+}
+
+.reference-upload-panel strong {
+  color: #26314f;
+}
+
+.reference-template-dialog {
+  width: min(1180px, 100%);
+}
+
+.reference-template-head {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.reference-template-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reference-template-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.reference-template-search {
+  flex: 1 1 320px;
+}
+
+.reference-template-search input {
+  width: 100%;
+}
+
+.reference-template-categories {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reference-template-chip {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #dbe3f3;
+  background: #ffffff;
+  color: #5d6780;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reference-template-chip.is-active {
+  border-color: rgba(92, 111, 255, 0.22);
+  background: linear-gradient(180deg, #ecf0ff 0%, #e4eaff 100%);
+  color: #425ce8;
+}
+
+.reference-template-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.reference-template-card {
+  padding: 0;
+  border: 1px solid #e3e8f5;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(33, 43, 75, 0.06);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.reference-template-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(33, 43, 75, 0.1);
+}
+
+.reference-template-card.is-selected {
+  border-color: rgba(92, 111, 255, 0.42);
+  box-shadow: 0 18px 36px rgba(92, 111, 255, 0.18);
+}
+
+.reference-template-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: #eef2ff;
+}
+
+.reference-template-card-body {
+  padding: 12px 12px 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.reference-template-card-body strong {
+  font-size: 14px;
+  color: #242c40;
+  line-height: 1.5;
+}
+
+.reference-template-card-body p {
+  margin: 0;
+  color: #6f7890;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .personal-actions {

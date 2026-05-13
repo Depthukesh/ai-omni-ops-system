@@ -94,7 +94,7 @@ export class OssStorageService {
         bucket: config.bucket,
         accessKeyId: config.accessKeyId,
         accessKeySecret: config.accessKeySecret,
-        internal: true,
+        internal: Boolean(config.internal),
         secure: true,
       });
     }

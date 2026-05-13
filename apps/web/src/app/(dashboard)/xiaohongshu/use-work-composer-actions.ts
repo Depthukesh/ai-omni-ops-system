@@ -18,6 +18,7 @@ type OriginalComposerState = {
   customTopic: string;
   productValue: string;
   imageCountValue: string;
+  injectMarketingPlanValue: string;
   additionalInstruction: string;
   coverReferenceFile: File | null;
   galleryReferenceFiles: File[];
@@ -31,6 +32,7 @@ type OriginalComposerState = {
 type RewriteComposerState = {
   materialValue: string;
   productValue: string;
+  injectMarketingPlanValue: string;
   additionalInstruction: string;
   closeModal: () => void;
   resetComposer: (materials: XhsCollectedNoteRecord[], products: ProductOption[]) => void;
@@ -111,6 +113,7 @@ export function useWorkComposerActions(options: {
           options.original.imageCountValue === options.autoImageCountOption
             ? undefined
             : Number(options.original.imageCountValue),
+        includeMarketingPlan: options.original.injectMarketingPlanValue === "yes",
         additionalInstruction: options.original.additionalInstruction.trim() || undefined,
         coverReferenceFile: options.original.coverReferenceFile,
         galleryReferenceFiles: options.original.galleryReferenceFiles,
@@ -150,6 +153,7 @@ export function useWorkComposerActions(options: {
       const result = await generateXiaohongshuRewriteWork(resolvedBrandId || "", {
         sourceMaterialId: options.rewrite.materialValue,
         productId: options.rewrite.productValue === options.noProductOption ? undefined : options.rewrite.productValue,
+        includeMarketingPlan: options.rewrite.injectMarketingPlanValue === "yes",
         additionalInstruction: options.rewrite.additionalInstruction.trim() || undefined,
       });
 

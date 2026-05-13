@@ -19,6 +19,7 @@ export function useNoteComposerForms(options: {
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
   const [originalProductValue, setOriginalProductValue] = useState(options.defaultProductId || options.noProductOption);
   const [originalImageCountValue, setOriginalImageCountValue] = useState(options.autoImageCountOption);
+  const [originalInjectMarketingPlanValue, setOriginalInjectMarketingPlanValue] = useState("yes");
   const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
   const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
   const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
@@ -26,6 +27,7 @@ export function useNoteComposerForms(options: {
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
   const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
   const [rewriteProductValue, setRewriteProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [rewriteInjectMarketingPlanValue, setRewriteInjectMarketingPlanValue] = useState("yes");
   const [rewriteAdditionalInstruction, setRewriteAdditionalInstruction] = useState("");
 
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -48,6 +50,7 @@ export function useNoteComposerForms(options: {
     setOriginalCustomTopic("");
     setOriginalProductValue(products[0]?.id || options.noProductOption);
     setOriginalImageCountValue(options.autoImageCountOption);
+    setOriginalInjectMarketingPlanValue("yes");
     setOriginalAdditionalInstruction("");
     setCoverReferenceFile(null);
     setGalleryReferenceFiles([]);
@@ -65,6 +68,7 @@ export function useNoteComposerForms(options: {
   function resetRewriteComposer(materials: MaterialOption[], products: ProductOption[]) {
     setRewriteMaterialValue(materials[0]?.id || "");
     setRewriteProductValue(products[0]?.id || options.noProductOption);
+    setRewriteInjectMarketingPlanValue("yes");
     setRewriteAdditionalInstruction("");
   }
 
@@ -134,12 +138,14 @@ export function useNoteComposerForms(options: {
     originalCustomTopic,
     originalProductValue,
     originalImageCountValue,
+    originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
     coverReferenceFile,
     galleryReferenceFiles,
     isRewriteModalOpen,
     rewriteMaterialValue,
     rewriteProductValue,
+    rewriteInjectMarketingPlanValue,
     rewriteAdditionalInstruction,
     isVideoModalOpen,
     videoCalendarValue,
@@ -161,12 +167,14 @@ export function useNoteComposerForms(options: {
     setOriginalCustomTopic,
     setOriginalProductValue,
     setOriginalImageCountValue,
+    setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,
     setCoverReferenceFile,
     setGalleryReferenceFiles,
     setIsOriginalModalOpen,
     setRewriteMaterialValue,
     setRewriteProductValue,
+    setRewriteInjectMarketingPlanValue,
     setRewriteAdditionalInstruction,
     setIsRewriteModalOpen,
     setVideoCalendarValue,
