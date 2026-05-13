@@ -416,7 +416,7 @@ FILES: dict[str, str] = {
               storeCount: 180,
               foundedYear: 2000,
               brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-              enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与年度营销规划。",
+              enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
             },
           ] satisfies BrandRecord[],
           products: [
@@ -1063,14 +1063,14 @@ FILES: dict[str, str] = {
           },
           {
             title: "增长输出",
-            items: ["品牌增长报告", "品牌增长可视化报告", "全年营销规划表"],
+            items: ["品牌增长报告", "品牌增长可视化报告", "半年营销规划表"],
           },
         ];
 
         const taskRows = [
           ["生成品牌增长报告", "gpt-5.5", "成功", "320"],
           ["生成品牌增长可视化报告", "gpt-5.5", "排队中", "180"],
-          ["生成全年营销规划", "gpt-5.5", "待执行", "120"],
+          ["生成半年营销规划", "gpt-5.5", "待执行", "120"],
         ];
 
         const modelRows = [
@@ -1100,7 +1100,7 @@ FILES: dict[str, str] = {
                     <li>品牌资料库 7 个核心环节</li>
                     <li>采集数据入口与自动化节奏</li>
                     <li>品牌增长报告与可视化报告</li>
-                    <li>全年营销规划输出链路</li>
+                    <li>半年营销规划输出链路</li>
                   </ul>
                 </div>
               </section>

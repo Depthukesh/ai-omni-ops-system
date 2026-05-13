@@ -66,11 +66,11 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   },
   skill_annual_plan: {
     promptIds: ["prompt_annual_marketing_plan", "prompt_annual_plan"],
-    promptScenes: ["全年营销规划生成"],
+    promptScenes: ["半年营销规划生成", "全年营销规划生成"],
   },
   "enterprise-annual-plan": {
     promptIds: ["prompt_annual_marketing_plan", "prompt_annual_plan"],
-    promptScenes: ["全年营销规划生成"],
+    promptScenes: ["半年营销规划生成", "全年营销规划生成"],
   },
   skill_xhs_plan: {
     promptIds: ["prompt_xhs_plan"],
@@ -598,25 +598,27 @@ export class SkillsPromptsService {
   }
 
   private normalizeSkillConfigRow(row: SkillConfigRow): SkillConfigRecord {
+    const isHalfYearPlan = row.id === "skill_annual_plan" || row.slug === "enterprise-annual-plan";
     return {
       id: row.id,
-      name: row.name,
+      name: isHalfYearPlan ? "半年营销规划" : row.name,
       slug: row.slug,
       category: row.category,
       status: row.status,
       provider: row.provider,
       defaultModel: row.defaultModel,
       pointsCost: Number(row.pointsCost || 0),
-      description: row.description,
+      description: isHalfYearPlan ? "用于输出未来半年营销节点、活动主题和多平台协同规划。" : row.description,
       updatedAt: this.normalizeDate(row.updatedAt),
     };
   }
 
   private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
+    const isHalfYearPlanPrompt = row.id === "prompt_annual_marketing_plan" || row.id === "prompt_annual_plan";
     const prompt = {
       id: row.id,
-      name: row.name,
-      scene: row.scene,
+      name: isHalfYearPlanPrompt ? "半年营销规划主提示词" : row.name,
+      scene: isHalfYearPlanPrompt ? "半年营销规划生成" : row.scene,
       version: row.version,
       status: row.status,
       modelName: row.modelName,

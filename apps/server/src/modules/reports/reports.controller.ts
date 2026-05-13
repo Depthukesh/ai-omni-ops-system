@@ -78,11 +78,25 @@ export class ReportsController {
     return this.reportsService.updateVisualGrowthReport(brandId, reportId, payload);
   }
 
+  @Get("brands/:brandId/half-year-marketing-plan")
+  async getHalfYearMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
+  }
+
   @Get("brands/:brandId/annual-marketing-plan")
   async getAnnualMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/half-year-marketing-plan/generate")
+  async generateHalfYearMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.reportsService.generateAnnualMarketingPlan(brandId);
   }
 
   @Post("brands/:brandId/annual-marketing-plan/generate")

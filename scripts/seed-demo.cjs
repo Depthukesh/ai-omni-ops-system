@@ -67,7 +67,7 @@ async function main() {
       storeCount: 180,
       foundedYear: 2000,
       brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与年度营销规划。",
+      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
     },
     create: {
       id: DEMO_BRAND_ID,
@@ -77,7 +77,7 @@ async function main() {
       storeCount: 180,
       foundedYear: 2000,
       brandDescription: "区域烘焙品牌，线下门店基础较强，线上全域增长空间明显。",
-      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与年度营销规划。",
+      enterpriseIntro: "当前聚焦品牌建档、采集、增长分析与半年营销规划。",
     },
   });
 

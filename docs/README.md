@@ -112,7 +112,7 @@
 - `docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
   - 修复小红书素材库中飞书图片/视频加入后仍空白的问题；受保护媒体改为先鉴权拉 blob，再用 object URL 预览
 - `docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
-  - 修复品牌增长报告、可视化报告、全年营销规划三条链路对 provider / model 的错绑与错选问题，避免文本报告误走图像 provider 或不兼容模型
+  - 修复品牌增长报告、可视化报告、半年营销规划三条链路对 provider / model 的错绑与错选问题，避免文本报告误走图像 provider 或不兼容模型
 - `docs/changes/2026-05-13-local-report-storage-fallback.md`
   - 修复本地未配置 OSS 时报告生成在保存 HTML 附件阶段直接 500 的问题；本地开发改为回退到 `.runtime/local-oss`，生产态仍坚持 OSS 真源
 - `docs/changes/2026-05-13-local-web-api-direct-backend.md`
@@ -125,6 +125,8 @@
   - 修正品牌增长报告的模型优先级与错误提示：先严格尝试后台选中的首选模型，再继续 fallback，并在失败时展示实际尝试顺序
 - `docs/changes/2026-05-13-global-skill-model-priority-unification.md`
   - 将后台技能中心所有文本类技能统一到同一模型优先级逻辑：后台默认模型真实首跑，失败后再 fallback，并统一展示实际尝试顺序
+- `docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
+  - 将“全年营销规划”整体收口为“半年营销规划”，统一调整任务类型、提示词约束、解析阈值、页面文案、接口主路径与上下游依赖说明
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

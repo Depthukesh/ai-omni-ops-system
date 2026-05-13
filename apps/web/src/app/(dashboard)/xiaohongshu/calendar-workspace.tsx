@@ -121,7 +121,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             ) : null}
           </div>
         </div>
-        {!canGenerateCalendar ? <div className="report-inline-tip">请先完成品牌增长报告、全年营销规划和小红书营销策划方案，再开始生成营销日历。</div> : null}
+        {!canGenerateCalendar ? <div className="report-inline-tip">请先完成品牌增长报告、半年营销规划和小红书营销策划方案，再开始生成营销日历。</div> : null}
         {isCalendarTaskActive ? (
           <div className="report-inline-tip">
             {latestCalendarTask?.taskStatus === "QUEUED"

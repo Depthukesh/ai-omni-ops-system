@@ -191,14 +191,14 @@ const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
       },
       {
         id: "annual-plan",
-        label: "全年营销规划",
+        label: "半年营销规划",
         items: [
           {
             id: "annual-plan-main",
-            label: "全年营销规划-生成全年营销规划",
-            description: "用于输出全年节奏、节点和多平台联动规划。",
+            label: "半年营销规划-生成半年营销规划",
+            description: "用于输出未来半年节奏、节点和多平台联动规划。",
             skillSlug: "enterprise-annual-plan",
-            promptScene: "全年营销规划生成",
+            promptScene: "半年营销规划生成",
           },
         ],
       },

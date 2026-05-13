@@ -34,7 +34,7 @@
 1. 品牌建档
 2. 收集数据
 3. 生成品牌增长报告
-4. 生成可视化报告/全年营销规划
+4. 生成可视化报告/半年营销规划
 5. 进入小红书继续策划、排期和内容生产
 6. 到个人中心查看任务、订单、作品
 
@@ -87,11 +87,12 @@
   - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
   - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
 - 品牌增长可视化报告
-- 全年营销规划
+- 半年营销规划
 - 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
+- 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -104,7 +105,7 @@
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
 - 营销日历
   - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
-  - 生成依赖 `品牌增长报告`、`全年营销规划`、`小红书营销策划方案` 三项前置输入，并读取 `第三方api接口文生文国内.txt` 中的国内文生文 provider 配置
+- 生成依赖 `品牌增长报告`、`半年营销规划`、`小红书营销策划方案` 三项前置输入，并读取 `第三方api接口文生文国内.txt` 中的国内文生文 provider 配置
 - 原创笔记
   - 已支持原创图文作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求
@@ -175,7 +176,7 @@
 - API/模型消耗管理
 - 技能中心
   - 左侧目录树：品牌增长策略 / 小红书 / 抖音，点击一级项后展开下级树
-  - 左侧二级分类：按业务模块展开，例如品牌增长报告、全年营销规划
+  - 左侧二级分类：按业务模块展开，例如品牌增长报告、半年营销规划
   - 左侧三级分类：具体技能项，例如“品牌增长报告-生成品牌增长报告”
   - 小红书内容生产：已拆分为 `原创笔记-原创文案`、`原创笔记-原创配图`、`二创笔记-二创文案`、`二创笔记-二创配图`、`视频笔记-视频创作`
   - 当前目录树样式：已改为目录式展开菜单，与左侧后台导航保持同一视觉语言
@@ -274,14 +275,15 @@
   - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
   - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染
-- `ReportsModule`：品牌增长报告、可视化报告、全年营销规划、小红书策划与日历
+- `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历
 - `ReportsModule`
-  - 品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
+  - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
   - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
-  - 品牌增长报告现已对齐可视化报告/全年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
+  - 品牌增长报告现已对齐可视化报告/半年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
   - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
-  - 品牌增长可视化报告、全年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
+  - 品牌增长可视化报告、半年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
+  - 半年营销规划当前以 `/reports/brands/:brandId/half-year-marketing-plan` 作为主读取与生成路径，同时保留旧 `annual-marketing-plan` 路径兼容历史前端和外部调用
   - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
   - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
   - 线上 `17ai.site` 现应通过 `apps/web/src/app/api/[...path]/route.ts` 承接同域 `/api` 请求，再转发到 `3011/api`，避免 `next.config.ts` rewrite 在品牌增长报告这类长请求上触发 `502/socket hang up`
@@ -291,6 +293,7 @@
   - 参考变更：`docs/changes/2026-05-13-local-report-storage-fallback.md`
   - 参考变更：`docs/changes/2026-05-13-local-web-api-direct-backend.md`
   - 参考变更：`docs/changes/2026-05-13-production-api-route-proxy-fix.md`
+  - 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
 - `WorksModule`：原创笔记作品生成、列表、编辑、删除、作品文件读取
   - 原创/二创配图现在会结构化保存 `coverText`、`imageTexts`，并在出图前把标题/小标签强制注入最终图片 prompt
   - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
@@ -352,7 +355,7 @@
 ### 5.3A 营销日历链路
 
 1. 用户在 `/xiaohongshu` 的“营销日历”点击“一键生成”或“生成接下来 7 天”
-2. 前端先校验 `品牌增长报告`、`全年营销规划`、`小红书营销策划方案` 是否已存在
+2. 前端先校验 `品牌增长报告`、`半年营销规划`、`小红书营销策划方案` 是否已存在
 3. 后端 `ReportsModule` 创建 `XHS_MARKETING_CALENDAR` 后台任务，并把状态写入任务记录
 4. 任务执行时读取品牌资料、小红书收集结果、每日热点、历史营销日历和国内文生文 provider 配置
 5. 生成成功后写回新的 7 天营销日历；失败时前端直接展示中文错误

@@ -189,11 +189,11 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
       {!sourceReport ? (
         <article className="light-data-panel">
           <h3>请先生成品牌增长报告</h3>
-          <p>当前全年营销规划的输入来源是【品牌增长报告】和【品牌商家建档】，需要先完成报告生成后才能继续。</p>
+          <p>当前半年营销规划的输入来源是【品牌增长报告】和【品牌商家建档】，需要先完成报告生成后才能继续。</p>
         </article>
       ) : props.isAnnualMarketingPlanTaskActive && !latestPlan ? (
         <article className="light-data-panel">
-          <h3>全年营销规划{latestAnnualTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
+          <h3>半年营销规划{latestAnnualTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
           <p>
             当前任务已提交，正在后台调用模型生成。
             {latestAnnualTask?.sourceReportTitle ? `输入来源：${latestAnnualTask.sourceReportTitle}。` : ""}
@@ -204,11 +204,11 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
           <div className="report-editor-head">
             <div>
               <strong>{latestPlan.title}</strong>
-              <p>大模型先输出结构化 JSON，再由后端渲染为年度营销规划 HTML 表格。</p>
+              <p>大模型先输出结构化 JSON，再由后端渲染为半年营销规划 HTML 表格。</p>
             </div>
             <div className="report-editor-actions">
               <span className="archive-pill status-ready">{props.formatDateTime(latestPlan.generatedAt)}</span>
-              <span className="archive-pill status-pending">{latestPlan.planningYear || "年度未识别"}</span>
+              <span className="archive-pill status-pending">{latestPlan.planningYear || "周期未识别"}</span>
               {props.annualTaskStatusText ? (
                 <span className="archive-pill status-pending">{props.annualTaskStatusText}</span>
               ) : null}
@@ -244,9 +244,9 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
           ) : null}
           <div className="card-grid">
             <article className="metric-card">
-              <span>规划年份</span>
+              <span>规划周期</span>
               <strong>{latestPlan.planningYear || "未识别"}</strong>
-              <p>按品牌增长报告的当前输入，输出对应年度的营销排期。</p>
+              <p>按品牌增长报告的当前输入，输出未来半年的营销排期。</p>
             </article>
             <article className="metric-card">
               <span>规划条目</span>
@@ -294,7 +294,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
         </article>
       ) : (
         <article className="light-data-panel">
-          <h3>当前还没有全年营销规划</h3>
+          <h3>当前还没有半年营销规划</h3>
           <p>点击右上角“生成规划”后，会根据【品牌商家建档】和【品牌增长报告】生成 JSON，再由后端渲染成 HTML 规划表。</p>
         </article>
       )}

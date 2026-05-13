@@ -16,6 +16,18 @@ const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
+const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
+const LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND = "BRAND_ANNUAL_MARKETING_PLAN";
+const CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE = "BRAND_HALF_YEAR_MARKETING_PLAN";
+const LEGACY_ANNUAL_MARKETING_PLAN_TASK_TYPE = "BRAND_ANNUAL_MARKETING_PLAN";
+const HALF_YEAR_MARKETING_PLAN_TASK_TYPES = [
+  CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE,
+  LEGACY_ANNUAL_MARKETING_PLAN_TASK_TYPE,
+];
+const HALF_YEAR_MARKETING_PLAN_ASSET_KINDS = [
+  CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND,
+  LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND,
+] as const;
 
 type GrowthReportAssetMeta = {
   kind: "BRAND_GROWTH_REPORT";
@@ -61,7 +73,7 @@ type AnnualMarketingPlanRow = {
 };
 
 type AnnualMarketingPlanAssetMeta = {
-  kind: "BRAND_ANNUAL_MARKETING_PLAN";
+  kind: typeof CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND | typeof LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND;
   generatedAt: string;
   taskId?: string;
   mediaId?: string;
@@ -613,7 +625,9 @@ export class ReportsService {
       const latestTaskRow = await this.prismaService.task.findFirst({
         where: {
           brandId,
-          taskType: "BRAND_ANNUAL_MARKETING_PLAN",
+          taskType: {
+            in: [...HALF_YEAR_MARKETING_PLAN_TASK_TYPES],
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -635,7 +649,7 @@ export class ReportsService {
       .filter((item): item is AnnualMarketingPlanRecord => Boolean(item))
       .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
     const latestTask = [...database.tasks]
-      .filter((item) => item.brandId === brandId && item.taskType === "BRAND_ANNUAL_MARKETING_PLAN")
+      .filter((item) => item.brandId === brandId && HALF_YEAR_MARKETING_PLAN_TASK_TYPES.includes(item.taskType))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     const normalizedTask = latestTask
       ? await this.normalizeLatestAnnualMarketingPlanTask(brandId, this.mapVisualGrowthReportTask(latestTask))
@@ -975,7 +989,7 @@ export class ReportsService {
       throw new NotFoundException("请先生成品牌增长报告");
     }
     if (!annualPlan) {
-      throw new NotFoundException("请先生成全年营销规划");
+      throw new NotFoundException("请先生成半年营销规划");
     }
     if (!marketingPlan) {
       throw new NotFoundException("请先生成小红书营销策划方案");
@@ -1344,7 +1358,7 @@ export class ReportsService {
     }
 
     const finishedAt = new Date().toISOString();
-    const errorMessage = "鍏ㄥ勾钀ラ攢瑙勫垝鐢熸垚瓒呮椂锛屼换鍔″凡鑷姩缁撴潫锛岃閲嶆柊鐐瑰嚮鐢熸垚瑙勫垝銆";
+    const errorMessage = "半年营销规划生成超时，任务已自动结束，请重新点击生成规划。";
     await this.updateAnnualMarketingPlanTaskStatus(brandId, task.id, {
       taskStatus: "FAILED",
       startedAt: task.startedAt,
@@ -1579,8 +1593,8 @@ export class ReportsService {
         data: {
           userId: brand.ownerUserId,
           brandId,
-          taskType: "BRAND_ANNUAL_MARKETING_PLAN",
-          taskTitle: `鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝锛${brand.brandName}`,
+          taskType: CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE,
+          taskTitle: `生成半年营销规划：${brand.brandName}`,
           taskStatus: TaskStatus.QUEUED,
           modelName,
           pointsCost: 260,
@@ -1603,8 +1617,8 @@ export class ReportsService {
       id: createId("tsk"),
       userId: brand.ownerUserId,
       brandId,
-      taskType: "BRAND_ANNUAL_MARKETING_PLAN",
-      taskTitle: `鐢熸垚鍏ㄥ勾钀ラ攢瑙勫垝锛${brand.brandName}`,
+      taskType: CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE,
+      taskTitle: `生成半年营销规划：${brand.brandName}`,
       taskStatus: "QUEUED" as const,
       modelName,
       pointsCost: 260,
@@ -1859,8 +1873,8 @@ export class ReportsService {
     try {
       const archive = await this.brandsService.getArchive(brandId);
       const sourceWorkspace = await this.getGrowthReportWorkspace(brandId);
-      const latestTask = await this.getLatestAnnualMarketingPlanTask(brandId);
-      const sourceReportId = latestTask?.sourceReportId;
+      const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
+      const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
       const sourceReport = sourceWorkspace.history.find((item) => item.id === sourceReportId) || sourceWorkspace.latest;
       if (!sourceReport) {
         throw new NotFoundException("璇峰厛鐢熸垚鍝佺墝澧為暱鎶ュ憡");
@@ -1886,7 +1900,7 @@ export class ReportsService {
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "鍏ㄥ勾钀ラ攢瑙勫垝鐢熸垚澶辫触";
+      const message = error instanceof Error ? error.message : "半年营销规划生成失败";
       await this.updateAnnualMarketingPlanTaskStatus(brandId, taskId, {
         taskStatus: "FAILED",
         startedAt,
@@ -2008,7 +2022,7 @@ export class ReportsService {
         throw new NotFoundException("请先生成品牌增长报告");
       }
       if (!annualPlan) {
-        throw new NotFoundException("请先生成全年营销规划");
+        throw new NotFoundException("请先生成半年营销规划");
       }
       if (!marketingPlan) {
         throw new NotFoundException("请先生成小红书营销策划方案");
@@ -2547,7 +2561,7 @@ export class ReportsService {
           sourceUrl,
           mimeType: "text/html",
           metadataJson: {
-            kind: "BRAND_ANNUAL_MARKETING_PLAN",
+            kind: CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND,
             generatedAt,
             summary: plan.summary,
           } as Prisma.InputJsonValue,
@@ -2562,7 +2576,7 @@ export class ReportsService {
           description: plan.summary,
           fileUrl: media.sourceUrl,
           metadataJson: {
-            kind: "BRAND_ANNUAL_MARKETING_PLAN",
+            kind: CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND,
             generatedAt,
             taskId,
             mediaId: media.id,
@@ -2614,7 +2628,7 @@ export class ReportsService {
       sourceName: "绯荤粺鐢熸垚",
       fileUrl: sourceUrl,
       metadataJson: {
-        kind: "BRAND_ANNUAL_MARKETING_PLAN",
+        kind: CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND,
         generatedAt,
         taskId,
         mediaId,
@@ -3188,13 +3202,15 @@ export class ReportsService {
   ): Promise<AnnualMarketingPlanModelResult> {
     const providers = await this.loadAnnualMarketingProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const planningWindow = this.buildHalfYearPlanningWindow(String(inputPayload.generatedAt ?? ""));
     const systemPrompt = [
       skillPrompt,
       "",
-      "请输出完整的全年营销规划。",
+      `请输出完整的半年营销规划，规划周期必须严格限定在 ${planningWindow.label}。`,
       "只输出一个 JSON 对象，不要输出代码块。",
       "JSON 必须包含：title、planningYear、planningFocus、summary、items。",
-      "items 至少 24 条，每条包含 month、node、date、type、marketingTheme、platforms、strategy、products。",
+      `planningYear 字段填写 "${planningWindow.label}"，不要写全年。`,
+      `items 至少 12 条，每条包含 month、node、date、type、marketingTheme、platforms、strategy、products，且月份只能来自：${planningWindow.monthLabels.join("、")}。`,
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -3241,7 +3257,7 @@ export class ReportsService {
       }
     }
     throw new ServiceUnavailableException(
-      this.buildReportAttemptFailureMessage("全年营销规划生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+      this.buildReportAttemptFailureMessage("半年营销规划生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
     );
   }
 
@@ -3390,7 +3406,7 @@ export class ReportsService {
       skillPrompt,
       "",
       "请输出未来 7 天的营销日历。",
-      "输入包含营销策划方案、全年规划、素材库、每日热点和历史记录。",
+      "输入包含营销策划方案、半年规划、素材库、每日热点和历史记录。",
       "从 startDate 开始连续输出 7 天，不要遗漏日期，不要与历史日期重复。",
       expectedDates.length
         ? `必须严格覆盖这 7 个日期，且顺序保持一致：${expectedDates.join("、")}`
@@ -3587,29 +3603,30 @@ export class ReportsService {
     try {
       parsed = JSON.parse(this.extractJsonObject(this.stripMarkdownCodeFence(content))) as Record<string, unknown>;
     } catch {
-      throw new ServiceUnavailableException("全年营销规划解析失败：模型未返回有效 JSON");
+      throw new ServiceUnavailableException("半年营销规划解析失败：模型未返回有效 JSON");
     }
 
     const archive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
     const brandBackground = this.readNestedRecord(archive, ["background"]);
     const sourceReport = this.readNestedRecord(inputPayload, ["inputScope", "growthReport"]);
     const fallbackBrandName = this.readRecordString(brandBackground, "brandName") || "品牌";
-    const fallbackSummary = this.readRecordString(sourceReport, "summary") || "已生成全年营销规划。";
+    const fallbackSummary = this.readRecordString(sourceReport, "summary") || "已生成未来半年营销规划。";
     const generatedAt = String(inputPayload.generatedAt ?? "").trim();
-    const fallbackYear = generatedAt ? generatedAt.slice(0, 4) : String(new Date().getFullYear());
+    const planningWindow = this.buildHalfYearPlanningWindow(generatedAt);
+    const fallbackYear = planningWindow.label;
     const fallbackFocus = [
-      "围绕重点节日与节气建立全年营销节奏。",
+      "围绕未来半年重点节日与节气建立清晰营销节奏。",
       "打通小红书、抖音、视频号、私域与线下门店的联动动作。",
-      "围绕核心产品形成全年主题活动与节点承接。",
+      "围绕核心产品形成未来半年主题活动与节点承接。",
     ];
 
     const items = this.normalizeAnnualMarketingPlanRows(parsed.items);
-    if (items.length < 24) {
-      throw new ServiceUnavailableException("全年营销规划解析失败：有效规划条目不足 24 条");
+    if (items.length < 12) {
+      throw new ServiceUnavailableException("半年营销规划解析失败：有效规划条目不足 12 条");
     }
 
     return {
-      title: String(parsed.title ?? "").trim() || `${fallbackBrandName}${fallbackYear}全年营销规划`,
+      title: String(parsed.title ?? "").trim() || `${fallbackBrandName}${fallbackYear}营销规划`,
       summary: String(parsed.summary ?? "").trim() || fallbackSummary,
       planningYear: String(parsed.planningYear ?? "").trim() || fallbackYear,
       planningFocus: this.normalizeStringArray(parsed.planningFocus, fallbackFocus, 6),
@@ -3951,13 +3968,28 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private buildHalfYearPlanningWindow(generatedAt: string) {
+    const referenceDate = Number.isFinite(Date.parse(generatedAt)) ? new Date(generatedAt) : new Date();
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth();
+    const monthLabels = Array.from({ length: 6 }, (_, index) => {
+      const cursor = new Date(year, month + index, 1);
+      return `${cursor.getFullYear()}年${cursor.getMonth() + 1}月`;
+    });
+    return {
+      label: `${monthLabels[0]}-${monthLabels[5]}`,
+      monthLabels,
+    };
+  }
+
   private buildAnnualMarketingPlanInput(
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     sourceReport: GrowthReportRecord,
     generatedAt: string,
   ) {
+    const planningWindow = this.buildHalfYearPlanningWindow(generatedAt);
     return {
-      task: "输出《全年营销规划》",
+      task: "输出《半年营销规划》",
       generatedAt,
       inputScope: {
         brandArchive: {
@@ -4000,8 +4032,12 @@ ${normalizedMarkdown}`;
           nextActions: sourceReport.nextActions,
           reportMarkdown: this.truncateText(sourceReport.reportMarkdown, 3200),
         },
+        planningWindow: {
+          label: planningWindow.label,
+          monthLabels: planningWindow.monthLabels,
+        },
       },
-      outputTarget: "鍏ㄥ勾钀ラ攢瑙勫垝",
+      outputTarget: "半年营销规划",
     };
   }
 
@@ -4775,9 +4811,9 @@ ${normalizedMarkdown}`;
   private loadAnnualMarketingPlanPrompt(settings: ModelGenerationSettings) {
     const businessRequirements = settings.promptContent?.trim();
     return [
-      "# 全年营销规划生成器",
-      "你需要根据品牌商家建档和品牌增长报告，输出全年营销规划。",
-      "规划必须覆盖全年关键节日与节气，体现营销主题、渠道协同、策略执行和产品承接。",
+      "# 半年营销规划生成器",
+      "你需要根据品牌商家建档和品牌增长报告，输出未来半年的营销规划。",
+      "规划必须覆盖未来半年关键节日与节气，体现营销主题、渠道协同、策略执行和产品承接。",
       "如果某个月适合围绕同一主题做多平台协同，可以在同一条记录里输出多个平台。",
       businessRequirements ? `# 业务补充要求\n${businessRequirements}` : "",
     ].filter(Boolean).join("\n\n");
@@ -4889,7 +4925,7 @@ ${normalizedMarkdown}`;
 
     return [
       "# 小红书品牌营销方案策划技能",
-      "你需要基于品牌资料、产品资料、账号数据、对标数据、品牌增长报告和全年营销规划，输出完整的小红书营销策划方案。",
+      "你需要基于品牌资料、产品资料、账号数据、对标数据、品牌增长报告和半年营销规划，输出完整的小红书营销策划方案。",
       "结果必须是可直接交付的 Markdown 长文，并明确引用依据、执行动作、验收口径与合规边界。",
     ].join("\n");
   }
@@ -5137,7 +5173,7 @@ ${normalizedMarkdown}`;
       });
     }
     if (!providers.length) {
-      throw new ServiceUnavailableException("全年营销规划模型配置读取失败");
+      throw new ServiceUnavailableException("半年营销规划模型配置读取失败");
     }
     return providers;
   }
@@ -5397,7 +5433,7 @@ ${normalizedMarkdown}`;
   }
 
   private buildAnnualMarketingPlanFileName(taskId: string) {
-    return `annual-marketing-plan-${taskId}.html`;
+    return `half-year-marketing-plan-${taskId}.html`;
   }
 
   private buildXiaohongshuMarketingPlanFileName(taskId: string) {
@@ -5671,7 +5707,7 @@ ${normalizedMarkdown}`;
       '<div style="min-height:100vh;background:linear-gradient(180deg,#f4f8ff 0%,#eef3f8 100%);padding:28px 18px 44px;">',
       '<div style="max-width:1240px;margin:0 auto;">',
       '<section style="padding:28px 28px 26px;border-radius:28px;background:linear-gradient(135deg,#2b5fa9 0%,#4d83c7 55%,#86aee2 100%);color:#fff;box-shadow:0 20px 60px rgba(43,95,169,0.22);">',
-      `<div style="display:inline-flex;align-items:center;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,0.16);font-size:12px;font-weight:700;">${this.escapeHtml(plan.planningYear)} 年度营销节奏规划</div>`,
+      `<div style="display:inline-flex;align-items:center;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,0.16);font-size:12px;font-weight:700;">${this.escapeHtml(plan.planningYear)} 半年营销节奏规划</div>`,
       `<h1 style="margin:18px 0 12px;font-size:40px;line-height:1.18;">${this.escapeHtml(plan.title)}</h1>`,
       `<p style="margin:0;max-width:900px;font-size:16px;line-height:1.9;color:rgba(255,255,255,0.92);">${this.escapeHtml(plan.summary)}</p>`,
       `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;">${focusTags}</div>`,
@@ -5679,8 +5715,8 @@ ${normalizedMarkdown}`;
       '<section style="margin-top:22px;padding:22px;border-radius:24px;background:#ffffff;border:1px solid #dbe5f0;">',
       '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">',
       '<div>',
-      '<div style="font-size:14px;font-weight:700;color:#2b5fa9;">全年营销规划表</div>',
-      '<div style="margin-top:6px;font-size:14px;line-height:1.8;color:#475569;">按月份、节点、日期、类型、营销主题、策略、平台和产品进行统一编排，便于后续执行与拆分。</div>',
+      '<div style="font-size:14px;font-weight:700;color:#2b5fa9;">半年营销规划表</div>',
+      '<div style="margin-top:6px;font-size:14px;line-height:1.8;color:#475569;">按未来半年月份、节点、日期、类型、营销主题、策略、平台和产品进行统一编排，便于后续执行与拆分。</div>',
       '</div>',
       `<div style="padding:12px 16px;border-radius:18px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-size:13px;font-weight:700;">规划条目 ${plan.items.length} 条</div>`,
       '</div>',
@@ -6074,7 +6110,7 @@ ${normalizedMarkdown}`;
 
   private mapAnnualMarketingPlanAsset(asset: AssetRecord): AnnualMarketingPlanRecord | undefined {
     const meta = this.asMeta(asset.metadataJson);
-    if (meta.kind !== "BRAND_ANNUAL_MARKETING_PLAN") {
+    if (!HALF_YEAR_MARKETING_PLAN_ASSET_KINDS.includes(meta.kind as (typeof HALF_YEAR_MARKETING_PLAN_ASSET_KINDS)[number])) {
       return undefined;
     }
 

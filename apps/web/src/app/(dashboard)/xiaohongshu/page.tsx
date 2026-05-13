@@ -397,7 +397,7 @@ export default function XiaohongshuPage() {
     if (annualPlanResult.status === "fulfilled") {
       setAnnualPlanWorkspace(annualPlanResult.value);
     } else {
-      messages.push("全年营销规划读取失败。");
+      messages.push("半年营销规划读取失败。");
     }
 
     if (marketingPlanResult.status === "fulfilled") {
@@ -792,7 +792,7 @@ export default function XiaohongshuPage() {
         ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
         : activeSection === "video"
           ? "当前聚焦【视频笔记】主链路：选择营销日历选题、产品或参考图，生成视频笔记文案、短视频提示词与成片，并统一管理成品。"
-        : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和全年营销规划，生成可编辑保存的 Markdown 方案。";
+        : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和半年营销规划，生成可编辑保存的 Markdown 方案。";
 
   async function handleCancelComposeTask(task: TaskRecord | undefined, label: "原创笔记" | "二创笔记" | "视频笔记") {
     if (!task || !isTaskActive(task.taskStatus)) {
@@ -877,7 +877,7 @@ export default function XiaohongshuPage() {
     }
 
     if (!annualPlanWorkspace.latest) {
-      setErrorMessage("请先生成全年营销规划。");
+      setErrorMessage("请先生成半年营销规划。");
       return;
     }
 
@@ -935,7 +935,7 @@ export default function XiaohongshuPage() {
     }
 
     if (!latestAnnualPlan) {
-      setErrorMessage("请先生成全年营销规划。");
+      setErrorMessage("请先生成半年营销规划。");
       return;
     }
 

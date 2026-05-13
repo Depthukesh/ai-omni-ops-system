@@ -130,7 +130,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
             ) : null}
           </div>
         </div>
-        {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告与全年营销规划，再开始生成。</div> : null}
+        {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告与半年营销规划，再开始生成。</div> : null}
         {isMarketingPlanTaskActive ? (
           <div className="report-inline-tip">
             {latestMarketingPlanTask?.taskStatus === "QUEUED"

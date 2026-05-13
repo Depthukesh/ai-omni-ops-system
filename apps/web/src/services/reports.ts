@@ -139,6 +139,11 @@ export type AnnualMarketingPlanWorkspace = {
   latestTask?: AnnualMarketingPlanTaskRecord;
 };
 
+export type HalfYearMarketingPlanRow = AnnualMarketingPlanRow;
+export type HalfYearMarketingPlanRecord = AnnualMarketingPlanRecord;
+export type HalfYearMarketingPlanTaskRecord = AnnualMarketingPlanTaskRecord;
+export type HalfYearMarketingPlanWorkspace = AnnualMarketingPlanWorkspace;
+
 export type XiaohongshuMarketingPlanRecord = {
   id: string;
   title: string;
@@ -251,6 +256,8 @@ export const annualMarketingPlanSeed: AnnualMarketingPlanWorkspace = {
   history: [],
 };
 
+export const halfYearMarketingPlanSeed = annualMarketingPlanSeed;
+
 export const xiaohongshuMarketingPlanSeed: XiaohongshuMarketingPlanWorkspace = {
   latest: undefined,
   history: [],
@@ -290,13 +297,16 @@ export async function updateVisualGrowthReport(reportId: string, htmlBody: strin
   });
 }
 
-export async function getAnnualMarketingPlanWorkspace(brandId?: string) {
-  return request<AnnualMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/annual-marketing-plan`);
+export async function getHalfYearMarketingPlanWorkspace(brandId?: string) {
+  return request<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/half-year-marketing-plan`);
 }
 
-export async function generateAnnualMarketingPlan(brandId?: string) {
-  return jsonRequest<AnnualMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/annual-marketing-plan/generate`, "POST", {});
+export async function generateHalfYearMarketingPlan(brandId?: string) {
+  return jsonRequest<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/half-year-marketing-plan/generate`, "POST", {});
 }
+
+export const getAnnualMarketingPlanWorkspace = getHalfYearMarketingPlanWorkspace;
+export const generateAnnualMarketingPlan = generateHalfYearMarketingPlan;
 
 export async function getXiaohongshuMarketingPlanWorkspace(brandId?: string) {
   return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan`);

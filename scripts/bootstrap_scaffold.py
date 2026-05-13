@@ -207,7 +207,7 @@ export default function HomePage() {
   return (
     <main className="page-shell">
       <h1>品牌增长策略</h1>
-      <p>这里将承载品牌建档、调研、采集数据、品牌增长报告和全年营销规划。</p>
+      <p>这里将承载品牌建档、调研、采集数据、品牌增长报告和半年营销规划。</p>
     </main>
   );
 }

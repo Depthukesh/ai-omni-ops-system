@@ -156,7 +156,7 @@
 - 收集数据
   - 主表：`PlatformAccount`、`CompetitorAccount`、`BusinessAsset`
   - 飞书绑定：`UserFeishuIntegration`
-- 品牌增长报告 / 可视化报告 / 全年营销规划
+- 品牌增长报告 / 可视化报告 / 半年营销规划
   - 任务：`Task`
   - 媒体结果：`MediaAsset`
   - 结果索引：`BusinessAsset`

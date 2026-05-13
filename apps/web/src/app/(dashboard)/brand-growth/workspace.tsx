@@ -132,7 +132,7 @@ const strategySections: Array<{
     pages: [
       { key: "growthReport", label: "生成品牌增长报告", description: "根据品牌资料与收集数据生成分析报告。" },
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
-      { key: "annualMarketingPlan", label: "全年营销规划", description: "形成季度节奏、战役安排与年度规划。" },
+      { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
     ],
   },
 ];
@@ -572,7 +572,7 @@ export function BrandGrowthWorkspace() {
       if (annualMarketingPlanResult.status === "fulfilled") {
         setAnnualMarketingPlanWorkspace(annualMarketingPlanResult.value);
       } else {
-        partialFailures.push("全年营销规划");
+        partialFailures.push("半年营销规划");
       }
 
       if (feishuBindingResult.status === "fulfilled") {
@@ -655,7 +655,7 @@ export function BrandGrowthWorkspace() {
     } catch (error) {
       if (!silent) {
         const message = error instanceof Error ? error.message : "刷新失败";
-        setErrorMessage(`刷新全年营销规划失败：${message}`);
+        setErrorMessage(`刷新半年营销规划失败：${message}`);
       }
     }
   }
@@ -764,7 +764,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
   async function handleGenerateAnnualMarketingPlan() {
     if (!canGenerateAnnualMarketingPlan) {
-      setErrorMessage("请先生成品牌增长报告，再生成全年营销规划。");
+      setErrorMessage("请先生成品牌增长报告，再生成半年营销规划。");
       return;
     }
 
@@ -774,7 +774,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const nextWorkspace = await generateAnnualMarketingPlan(archive.brand.id);
       setAnnualMarketingPlanWorkspace(nextWorkspace);
-      setNotice("已提交全年营销规划生成任务，正在后台生成。");
+      setNotice("已提交半年营销规划生成任务，正在后台生成。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setErrorMessage(`生成失败：${message}`);
