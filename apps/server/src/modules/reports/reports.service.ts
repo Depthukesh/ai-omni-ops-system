@@ -11,6 +11,7 @@ import { CollectorsService } from "../collectors/collectors.service";
 import { BrandsService } from "../brands/brands.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import { PrismaService } from "../../prisma/prisma.service";
+const GROWTH_REPORT_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
@@ -223,6 +224,7 @@ export type VisualGrowthReportTaskRecord = {
   phaseTotal?: number;
 };
 
+export type GrowthReportTaskRecord = VisualGrowthReportTaskRecord;
 export type AnnualMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingCalendarTaskRecord = VisualGrowthReportTaskRecord;
@@ -376,6 +378,7 @@ export type UpdateXiaohongshuMarketingCalendarPayload = {
 export type GrowthReportWorkspace = {
   latest?: GrowthReportRecord;
   history: GrowthReportRecord[];
+  latestTask?: GrowthReportTaskRecord;
 };
 
 export type VisualGrowthReportWorkspace = {
@@ -444,9 +447,21 @@ export class ReportsService {
         }))
         .filter((item): item is GrowthReportRecord => Boolean(item));
 
+      const latestTaskRow = await this.prismaService.task.findFirst({
+        where: {
+          brandId,
+          taskType: "BRAND_GROWTH_REPORT",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const normalizedTask = latestTaskRow
+        ? await this.normalizeLatestGrowthReportTask(brandId, this.mapVisualGrowthReportTask(latestTaskRow))
+        : undefined;
+
       return {
         latest: reports[0],
         history: reports,
+        latestTask: normalizedTask,
       };
     }
 
@@ -456,171 +471,35 @@ export class ReportsService {
       .map((item) => this.mapGrowthReportAsset(item))
       .filter((item): item is GrowthReportRecord => Boolean(item))
       .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+    const latestTask = [...database.tasks]
+      .filter((item) => item.brandId === brandId && item.taskType === "BRAND_GROWTH_REPORT")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const normalizedTask = latestTask
+      ? await this.normalizeLatestGrowthReportTask(brandId, this.mapVisualGrowthReportTask(latestTask))
+      : undefined;
 
     return {
       latest: reports[0],
       history: reports,
+      latestTask: normalizedTask,
     };
   }
 
   async generateGrowthReport(brandId: string) {
-    const archive = await this.brandsService.getArchive(brandId);
-    const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
-    const now = new Date().toISOString();
-    const report = await this.buildReport({
-      archive,
-      collection,
-      generatedAt: now,
-    });
-
-    if (await this.prismaService.canUseDatabase()) {
-      const brand = await this.prismaService.brand.findUnique({
-        where: { id: brandId },
-        select: { id: true, ownerUserId: true, brandName: true },
-      });
-
-      if (!brand) {
-        throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
-      }
-
-      const task = await this.prismaService.task.create({
-        data: {
-          userId: brand.ownerUserId,
-          brandId,
-          taskType: "BRAND_GROWTH_REPORT",
-          taskTitle: `鐢熸垚鍝佺墝澧為暱鎶ュ憡锛${brand.brandName}`,
-          taskStatus: TaskStatus.SUCCESS,
-          modelName: "gpt-5.4-nano",
-          pointsCost: 320,
-          startedAt: new Date(now),
-          finishedAt: new Date(now),
-          inputJson: {
-            productCount: archive.products.length,
-            platformAccountCount: collection.brandAccounts.length,
-            competitorAccountCount: collection.competitorAccounts.length,
-            brandNoteCount: collection.brandNotes.length,
-            benchmarkNoteCount: collection.benchmarkNotes.length,
-          } as Prisma.InputJsonValue,
-          outputJson: {
-            summary: report.summary,
-            diagnosis: report.diagnosis,
-            opportunities: report.opportunities,
-            nextActions: report.nextActions,
-            reportMarkdown: report.reportMarkdown,
-          } as Prisma.InputJsonValue,
-        },
-      });
-
-      const fileName = this.buildGrowthReportFileName(task.id);
-      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
-      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
-      await this.persistReportHtml(storageKey, report.htmlContent);
-
-      const media = await this.prismaService.mediaAsset.create({
-        data: {
-          userId: brand.ownerUserId,
-          brandId,
-          taskId: task.id,
-          title: report.title,
-          mediaType: MediaType.HTML,
-          storageKey,
-          sourceUrl,
-          mimeType: "text/html",
-          metadataJson: {
-            kind: "BRAND_GROWTH_REPORT",
-            generatedAt: now,
-            summary: report.summary,
-          } as Prisma.InputJsonValue,
-        },
-      });
-
-      await this.prismaService.businessAsset.create({
-        data: {
-          brandId,
-          category: AssetCategory.GENERATED_REPORT,
-          title: report.title,
-          description: report.summary,
-          fileUrl: media.sourceUrl,
-          metadataJson: {
-            kind: "BRAND_GROWTH_REPORT",
-            generatedAt: now,
-            taskId: task.id,
-            mediaId: media.id,
-            summary: report.summary,
-            diagnosis: report.diagnosis,
-            opportunities: report.opportunities,
-            nextActions: report.nextActions,
-            metrics: report.metrics,
-            reportMarkdown: report.reportMarkdown,
-            htmlContent: report.htmlContent,
-          } as Prisma.InputJsonValue,
-        },
-      });
-    } else {
-      const brand = database.brands.find((item) => item.id === brandId);
-      if (!brand) {
-        throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
-      }
-
-      const taskId = createId("tsk");
-      const mediaId = createId("med");
-      database.tasks.unshift({
-        id: taskId,
-        userId: brand.ownerUserId,
-        brandId,
-        taskType: "BRAND_GROWTH_REPORT",
-        taskTitle: `鐢熸垚鍝佺墝澧為暱鎶ュ憡锛${brand.brandName}`,
-        taskStatus: "SUCCESS",
-        modelName: "gpt-5.4-nano",
-        pointsCost: 320,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      const fileName = this.buildGrowthReportFileName(taskId);
-      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
-      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
-      await this.persistReportHtml(storageKey, report.htmlContent);
-
-      database.media.unshift({
-        id: mediaId,
-        userId: brand.ownerUserId,
-        brandId,
-        taskId,
-        title: report.title,
-        mediaType: "HTML",
-        sourceUrl,
-        storageKey,
-        mimeType: "text/html",
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      database.assets.unshift({
-        id: createId("ast"),
-        brandId,
-        category: "GENERATED_REPORT",
-        title: report.title,
-        description: report.summary,
-        sourceName: "绯荤粺鐢熸垚",
-        fileUrl: sourceUrl,
-        metadataJson: {
-          kind: "BRAND_GROWTH_REPORT",
-          generatedAt: now,
-          taskId,
-          mediaId,
-          summary: report.summary,
-          diagnosis: report.diagnosis,
-          opportunities: report.opportunities,
-          nextActions: report.nextActions,
-          metrics: report.metrics,
-          reportMarkdown: report.reportMarkdown,
-          htmlContent: report.htmlContent,
-        },
-      });
+    const workspace = await this.getGrowthReportWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
     }
 
-    return this.getGrowthReportWorkspace(brandId);
+    const task = await this.createGrowthReportTask(brandId);
+    setTimeout(() => {
+      void this.runGrowthReportTask(brandId, task.id);
+    }, 0);
+    return {
+      ...workspace,
+      latestTask: task,
+    };
   }
 
   async getVisualGrowthReportWorkspace(brandId: string): Promise<VisualGrowthReportWorkspace> {
@@ -1356,6 +1235,11 @@ export class ReportsService {
     return workspace.latestTask;
   }
 
+  private async getLatestGrowthReportTask(brandId: string) {
+    const workspace = await this.getGrowthReportWorkspace(brandId);
+    return workspace.latestTask;
+  }
+
   private async getLatestAnnualMarketingPlanTask(brandId: string) {
     const workspace = await this.getAnnualMarketingPlanWorkspace(brandId);
     return workspace.latestTask;
@@ -1391,6 +1275,41 @@ export class ReportsService {
     const finishedAt = new Date().toISOString();
     const errorMessage = "鍙鍖栨姤鍛婄敓鎴愯秴鏃讹紝浠诲姟宸茶嚜鍔ㄧ粨鏉燂紝璇烽噸鏂扮偣鍑荤敓鎴愬彲瑙嗗寲鎶ュ憡銆";
     await this.updateVisualGrowthReportTaskStatus(brandId, task.id, {
+      taskStatus: "FAILED",
+      startedAt: task.startedAt,
+      finishedAt,
+      errorMessage,
+    });
+
+    return {
+      ...task,
+      taskStatus: "FAILED",
+      finishedAt,
+      updatedAt: finishedAt,
+      errorMessage,
+    };
+  }
+
+  private async normalizeLatestGrowthReportTask(
+    brandId: string,
+    task: GrowthReportTaskRecord,
+  ): Promise<GrowthReportTaskRecord> {
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      return task;
+    }
+
+    const referenceTime = task.updatedAt || task.startedAt || task.createdAt;
+    const referenceMs = Date.parse(referenceTime);
+    if (!Number.isFinite(referenceMs)) {
+      return task;
+    }
+    if (Date.now() - referenceMs <= GROWTH_REPORT_TASK_TIMEOUT_MS) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const errorMessage = "品牌增长报告生成超时，任务已自动结束，请重新点击生成报告。";
+    await this.updateGrowthReportTaskStatus(brandId, task.id, {
       taskStatus: "FAILED",
       startedAt: task.startedAt,
       finishedAt,
@@ -1569,6 +1488,70 @@ export class ReportsService {
     return this.mapVisualGrowthReportTask(task);
   }
 
+  private async createGrowthReportTask(brandId: string) {
+    const now = new Date().toISOString();
+    const archive = await this.brandsService.getArchive(brandId);
+    const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const settings = await this.loadGrowthReportGenerationSettings();
+    const modelName =
+      (await this.loadGrowthReportProviderConfigs(settings))[0]?.models[0]
+      || "deepseek-v4-pro";
+
+    const inputMeta = {
+      productCount: archive.products.length,
+      platformAccountCount: collection.brandAccounts.length,
+      competitorAccountCount: collection.competitorAccounts.length,
+      brandNoteCount: collection.brandNotes.length,
+      benchmarkNoteCount: collection.benchmarkNotes.length,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "BRAND_GROWTH_REPORT",
+          taskTitle: `鐢熸垚鍝佺墝澧為暱鎶ュ憡锛${brand.brandName}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 320,
+          inputJson: inputMeta as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapVisualGrowthReportTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "BRAND_GROWTH_REPORT",
+      taskTitle: `鐢熸垚鍝佺墝澧為暱鎶ュ憡锛${brand.brandName}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 320,
+      inputJson: inputMeta,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapVisualGrowthReportTask(task);
+  }
+
   private async createAnnualMarketingPlanTask(brandId: string, sourceReport: GrowthReportRecord) {
     const now = new Date().toISOString();
     const settings = await this.loadAnnualMarketingPlanGenerationSettings();
@@ -1695,6 +1678,48 @@ export class ReportsService {
     };
     database.tasks.unshift(task);
     return this.mapVisualGrowthReportTask(task);
+  }
+
+  private async runGrowthReportTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    await this.updateGrowthReportTaskStatus(brandId, taskId, {
+      taskStatus: "RUNNING",
+      startedAt,
+      errorMessage: "",
+    });
+
+    try {
+      const archive = await this.brandsService.getArchive(brandId);
+      const collection = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+      const report = await this.buildReport({
+        archive,
+        collection,
+        generatedAt: startedAt,
+      });
+
+      await this.persistGrowthReportResult(brandId, taskId, report, startedAt);
+      await this.updateGrowthReportTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          summary: report.summary,
+          diagnosis: report.diagnosis,
+          opportunities: report.opportunities,
+          nextActions: report.nextActions,
+          reportMarkdown: report.reportMarkdown,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "品牌增长报告生成失败";
+      await this.updateGrowthReportTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+      });
+    }
   }
 
   private async createXiaohongshuMarketingCalendarTask(
@@ -2034,6 +2059,165 @@ export class ReportsService {
         finishedAt: new Date().toISOString(),
         errorMessage: message,
       });
+    }
+  }
+
+  private async persistGrowthReportResult(
+    brandId: string,
+    taskId: string,
+    report: Awaited<ReturnType<ReportsService["buildReport"]>>,
+    generatedAt: string,
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { ownerUserId: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
+      }
+
+      const fileName = this.buildGrowthReportFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlContent);
+
+      const media = await this.prismaService.mediaAsset.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskId,
+          title: report.title,
+          mediaType: MediaType.HTML,
+          storageKey,
+          sourceUrl,
+          mimeType: "text/html",
+          metadataJson: {
+            kind: "BRAND_GROWTH_REPORT",
+            generatedAt,
+            summary: report.summary,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+          title: report.title,
+          description: report.summary,
+          fileUrl: media.sourceUrl,
+          metadataJson: {
+            kind: "BRAND_GROWTH_REPORT",
+            generatedAt,
+            taskId,
+            mediaId: media.id,
+            summary: report.summary,
+            diagnosis: report.diagnosis,
+            opportunities: report.opportunities,
+            nextActions: report.nextActions,
+            reportMarkdown: report.reportMarkdown,
+            htmlContent: report.htmlContent,
+            metrics: report.metrics,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("鍝佺墝涓嶅瓨鍦");
+    }
+
+    const mediaId = createId("med");
+    const fileName = this.buildGrowthReportFileName(taskId);
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, report.htmlContent);
+
+    database.media.unshift({
+      id: mediaId,
+      userId: brand.ownerUserId,
+      brandId,
+      taskId,
+      title: report.title,
+      mediaType: "HTML",
+      sourceUrl,
+      storageKey,
+      mimeType: "text/html",
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    });
+
+    database.assets.unshift({
+      id: createId("ast"),
+      brandId,
+      category: "GENERATED_REPORT",
+      title: report.title,
+      description: report.summary,
+      sourceName: "绯荤粺鐢熸垚",
+      fileUrl: sourceUrl,
+      metadataJson: {
+        kind: "BRAND_GROWTH_REPORT",
+        generatedAt,
+        taskId,
+        mediaId,
+        summary: report.summary,
+        diagnosis: report.diagnosis,
+        opportunities: report.opportunities,
+        nextActions: report.nextActions,
+        reportMarkdown: report.reportMarkdown,
+        htmlContent: report.htmlContent,
+        metrics: report.metrics,
+      },
+    });
+  }
+
+  private async updateGrowthReportTaskStatus(
+    brandId: string,
+    taskId: string,
+    patch: {
+      taskStatus: GrowthReportTaskRecord["taskStatus"];
+      startedAt?: string;
+      finishedAt?: string;
+      errorMessage?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: patch.taskStatus as TaskStatus,
+          startedAt: patch.startedAt ? new Date(patch.startedAt) : undefined,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : undefined,
+          errorMessage: patch.errorMessage !== undefined ? patch.errorMessage || null : undefined,
+          outputJson: patch.outputJson ? patch.outputJson as Prisma.InputJsonValue : undefined,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId && item.brandId === brandId);
+    if (!task) {
+      return;
+    }
+
+    task.taskStatus = patch.taskStatus;
+    task.updatedAt = new Date().toISOString();
+    if (patch.startedAt !== undefined) {
+      task.startedAt = patch.startedAt;
+    }
+    if (patch.finishedAt !== undefined) {
+      task.finishedAt = patch.finishedAt;
+    }
+    if (patch.errorMessage !== undefined) {
+      task.errorMessage = patch.errorMessage || undefined;
+    }
+    if (patch.outputJson) {
+      task.outputJson = patch.outputJson;
     }
   }
 

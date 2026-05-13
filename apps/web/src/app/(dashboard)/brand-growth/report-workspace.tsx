@@ -21,12 +21,14 @@ export interface BrandGrowthReportWorkspaceProps {
   onReportMarkdownDraftChange: (value: string) => void;
   previewHtml: string;
   previewDocument: string;
+  growthTaskStatusText: string;
   visualTaskStatusText: string;
   annualTaskStatusText: string;
   previewRows: AnnualMarketingPlanRow[];
   isHydrating: boolean;
   isGeneratingReport: boolean;
   isGeneratingVisualReport: boolean;
+  isGrowthReportTaskActive: boolean;
   isVisualReportTaskActive: boolean;
   isAnnualMarketingPlanTaskActive: boolean;
   onGenerateReport: AsyncAction;
@@ -36,9 +38,15 @@ export interface BrandGrowthReportWorkspaceProps {
 export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProps) {
   if (props.activePage === "growthReport") {
     const latestReport = props.reportWorkspace.latest;
+    const latestTask = props.reportWorkspace.latestTask;
     return (
       <article className="workspace-panel strategy-page-card">
-        {latestReport ? (
+        {!latestReport && props.isGrowthReportTaskActive ? (
+          <article className="light-data-panel">
+            <h3>品牌增长报告{latestTask?.taskStatus === "QUEUED" ? "排队中" : "生成中"}</h3>
+            <p>当前任务已提交，正在后台调用模型生成。页面会自动刷新结果，无需停留在当前请求中等待。</p>
+          </article>
+        ) : latestReport ? (
           <article className="light-data-panel report-editor-panel">
             <div className="report-editor-head">
               <div>
@@ -47,16 +55,33 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
               </div>
               <div className="report-editor-actions">
                 <span className="archive-pill status-ready">{props.formatDateTime(latestReport.generatedAt)}</span>
+                {props.growthTaskStatusText ? (
+                  <span className="archive-pill status-pending">{props.growthTaskStatusText}</span>
+                ) : null}
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={() => void props.onGenerateReport()}
-                  disabled={props.isGeneratingReport || props.isHydrating}
+                  disabled={props.isGeneratingReport || props.isHydrating || props.isGrowthReportTaskActive}
                 >
-                  {props.isGeneratingReport ? "重新生成中..." : "重新生成"}
+                  {props.isGeneratingReport ? "提交中..." : props.isGrowthReportTaskActive ? "生成中..." : "重新生成"}
                 </button>
               </div>
             </div>
+            {latestTask?.taskStatus === "FAILED" && latestTask.errorMessage ? (
+              <div className="visual-report-source-card">
+                <span>最近失败原因</span>
+                <strong>{latestTask.errorMessage}</strong>
+                <p>请检查外部模型接口可用性，或重新点击生成品牌增长报告。</p>
+              </div>
+            ) : null}
+            {props.isGrowthReportTaskActive ? (
+              <div className="visual-report-source-card">
+                <span>当前任务状态</span>
+                <strong>{latestTask?.taskStatus === "QUEUED" ? "排队中" : "后台生成中"}</strong>
+                <p>旧版报告仍可查看，完成后页面会自动刷新为最新结果。</p>
+              </div>
+            ) : null}
             <div className="report-editor-grid">
               <label className="report-editor-pane">
                 <span>Markdown 编辑器</span>
@@ -76,7 +101,7 @@ export function BrandGrowthReportWorkspace(props: BrandGrowthReportWorkspaceProp
         ) : (
           <article className="light-data-panel">
             <h3>当前还没有品牌增长报告</h3>
-            <p>点击右上角“生成报告”后，会在这里生成并进入 Markdown 编辑状态。</p>
+            <p>点击右上角“生成报告”后，会先提交后台任务；生成完成后，这里会自动进入 Markdown 编辑状态。</p>
           </article>
         )}
       </article>

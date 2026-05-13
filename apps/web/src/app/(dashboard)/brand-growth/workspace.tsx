@@ -199,6 +199,7 @@ function createEmptyGrowthReportWorkspace(): GrowthReportWorkspace {
   return {
     latest: undefined,
     history: [],
+    latestTask: undefined,
   };
 }
 
@@ -386,8 +387,10 @@ export function BrandGrowthWorkspace() {
     && collectionWorkspace.benchmarkNotes.length > 0;
   const canGenerateVisualGrowthReport = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
   const canGenerateAnnualMarketingPlan = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
+  const latestGrowthTask = reportWorkspace.latestTask;
   const latestVisualTask = visualReportWorkspace.latestTask;
   const latestAnnualMarketingTask = annualMarketingPlanWorkspace.latestTask;
+  const isGrowthReportTaskActive = latestGrowthTask?.taskStatus === "QUEUED" || latestGrowthTask?.taskStatus === "RUNNING";
   const isVisualReportTaskActive = latestVisualTask?.taskStatus === "QUEUED" || latestVisualTask?.taskStatus === "RUNNING";
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
@@ -465,6 +468,18 @@ export function BrandGrowthWorkspace() {
   useEffect(() => {
     setReportMarkdownDraft(reportWorkspace.latest?.reportMarkdown || "");
   }, [reportWorkspace.latest?.id, reportWorkspace.latest?.reportMarkdown]);
+
+  useEffect(() => {
+    if (!isGrowthReportTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshGrowthReportWorkspace(true);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [isGrowthReportTaskActive, latestGrowthTask?.updatedAt]);
 
   useEffect(() => {
     if (!isVisualReportTaskActive) {
@@ -615,6 +630,21 @@ export function BrandGrowthWorkspace() {
     }
   }
 
+  async function refreshGrowthReportWorkspace(silent = false) {
+    try {
+      const nextWorkspace = await getGrowthReportWorkspace(archive.brand.id);
+      setReportWorkspace(nextWorkspace);
+      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
+        setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
+      }
+    } catch (error) {
+      if (!silent) {
+        const message = error instanceof Error ? error.message : "刷新失败";
+        setErrorMessage(`刷新品牌增长报告失败：${message}`);
+      }
+    }
+  }
+
   async function refreshAnnualMarketingPlanWorkspace(silent = false) {
     try {
       const nextWorkspace = await getAnnualMarketingPlanWorkspace(archive.brand.id);
@@ -676,7 +706,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const nextWorkspace = await generateGrowthReport(archive.brand.id);
       setReportWorkspace(nextWorkspace);
-      setNotice("品牌增长报告已生成，并已写入任务与产物记录。");
+      setNotice("已提交品牌增长报告生成任务，正在后台生成。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setErrorMessage(`生成失败：${message}`);
@@ -1228,6 +1258,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       latestVisualReport?.title || "品牌增长可视化报告",
       latestVisualReport?.htmlBody || "",
     );
+    const growthTaskStatusText = getReportTaskStatusText(latestGrowthTask?.taskStatus);
     const visualTaskStatusText = getReportTaskStatusText(latestVisualTask?.taskStatus);
     const annualTaskStatusText = getReportTaskStatusText(latestAnnualMarketingTask?.taskStatus);
 
@@ -1241,12 +1272,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onReportMarkdownDraftChange={setReportMarkdownDraft}
         previewHtml={previewHtml}
         previewDocument={previewDocument}
+        growthTaskStatusText={growthTaskStatusText}
         visualTaskStatusText={visualTaskStatusText}
         annualTaskStatusText={annualTaskStatusText}
         previewRows={latestPlan?.items ?? []}
         isHydrating={isHydrating}
         isGeneratingReport={isGeneratingReport}
         isGeneratingVisualReport={isGeneratingVisualReport}
+        isGrowthReportTaskActive={isGrowthReportTaskActive}
         isVisualReportTaskActive={isVisualReportTaskActive}
         isAnnualMarketingPlanTaskActive={isAnnualMarketingPlanTaskActive}
         onGenerateReport={handleGenerateReport}
@@ -1277,6 +1310,13 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
 
     if (activePage === "growthReport") {
+      if (isGrowthReportTaskActive) {
+        return (
+          <button type="button" className="primary-button" disabled>
+            {latestGrowthTask?.taskStatus === "QUEUED" ? "排队中..." : "生成中..."}
+          </button>
+        );
+      }
       if (reportWorkspace.latest) {
         return (
           <button

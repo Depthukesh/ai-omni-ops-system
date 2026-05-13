@@ -26,6 +26,7 @@ export type GrowthReportRecord = {
 export type GrowthReportWorkspace = {
   latest?: GrowthReportRecord;
   history: GrowthReportRecord[];
+  latestTask?: GrowthReportTaskRecord;
 };
 
 export type VisualGrowthReportRecord = {
@@ -60,6 +61,8 @@ export type VisualGrowthReportTaskRecord = {
   phaseIndex?: number;
   phaseTotal?: number;
 };
+
+export type GrowthReportTaskRecord = VisualGrowthReportTaskRecord;
 
 export type VisualGrowthReportWorkspace = {
   latest?: VisualGrowthReportRecord;

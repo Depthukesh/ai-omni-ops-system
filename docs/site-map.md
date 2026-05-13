@@ -84,10 +84,12 @@
 #### 品牌增长报告
 
 - 生成品牌增长报告
+  - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
 - 品牌增长可视化报告
 - 全年营销规划
 - 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
+- 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -273,10 +275,12 @@
   - 品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
   - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
+  - 品牌增长报告现已对齐可视化报告/全年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
   - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
   - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
   - 线上 `17ai.site` 现应通过 `apps/web/src/app/api/[...path]/route.ts` 承接同域 `/api` 请求，再转发到 `3011/api`，避免 `next.config.ts` rewrite 在品牌增长报告这类长请求上触发 `502/socket hang up`
   - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
+  - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
   - 参考变更：`docs/changes/2026-05-13-local-report-storage-fallback.md`
   - 参考变更：`docs/changes/2026-05-13-local-web-api-direct-backend.md`
   - 参考变更：`docs/changes/2026-05-13-production-api-route-proxy-fix.md`
