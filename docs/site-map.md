@@ -139,6 +139,7 @@
   - 页面会通过 `/api/auth/me` 获取当前用户和品牌信息
   - 已支持当前品牌切换与退出登录
   - 请求层会自动附带 `Authorization` 和 `x-brand-id`
+- 前台品牌列表已收口为真实 `BrandMember` 可访问范围，不再因为后台 `SUPER_ADMIN` 身份在个人中心直接暴露全品牌
 - 当前采用“真数据优先、局部种子兜底”：
   - 用户资料优先走真实接口
   - 点数流水、订单、任务、作品任一接口失败时仅该部分回退演示数据
@@ -151,7 +152,7 @@
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
 - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
-  - `/personal-center/team`：团队协作页第一版，已接真实 `/api/brands/:id/members`、`/api/brands/:id/invites`、`/api/brands/me/invites`、`/api/brands/me/invites/accept-by-code`、`/api/brands/:id/role-audit-logs`、`/api/brands/:id/transfer-owner`，支持成员列表、角色与状态管理、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；未登录点击邀请链接时会保留 `inviteCode` 并回流到登录后页面
+- `/personal-center/team`：团队协作页已收口为 `Owner` 主控模型；团队成员列表仍走真实 `BrandMember` 数据，但只有 Owner 可邀请成员、查看审计与调整角色。“直接添加成员”改成对指定账号发送待确认邀请，“创建邀请”改成纯邀请链接生成，手动邀请码加入入口已移除；未登录打开邀请链接时会保留 `inviteCode` 并回流到登录后页面
 - 前台共享顶栏已新增全局待处理邀请提示条，登录后若存在待接受邀请，会在导航下方直接提醒，并每 60 秒自动刷新一次邀请状态；提示条已联动未读待处理数量
   - 该提示条现默认跳转到 `/personal-center/invites`
 - 规划中：
@@ -238,6 +239,7 @@
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
   - 当前 `FEISHU_XHS_TEMPLATE_URL` 已改为最新飞书 Base 副本链接，品牌增长页顶部与收集区的“打开飞书模板”入口统一复用这一路径
   - 当前品牌增长页里的飞书媒体地址会先校验是否为真实飞书/Lark 附件链接；命中飞书附件才走站内 `feishu-media` 代理，普通外链资源继续直出，非法串直接丢弃
+- 当前品牌增长策略已收口为 `Owner` 专属工作区：非 Owner 进入 `/brand-growth` 时不再继续加载操作面板，而是提示前往小红书或个人中心；对应品牌资料写接口、飞书绑定和报告生成接口也同步做 `Owner` 鉴权
  - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
   - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
@@ -272,6 +274,9 @@
   - 当前已新增 `GET /api/brands/:id/role-audit-logs`
   - 当前已新增 `PATCH /api/brands/:id/transfer-owner`
   - 已开始按当前登录用户校验品牌成员访问范围，并返回当前品牌成员列表与当前用户角色
+- 当前团队成员管理、邀请创建、邀请撤回与成员审计已收口为 `Owner` 权限；`POST /api/brands/:id/members` 不再直接写入成员，而是改为给已注册账号创建待确认邀请
+- 当前 `POST /api/brands/:id/invites` 改为只生成邀请链接，不再要求输入邀请账号
+- 参考变更：`docs/changes/2026-05-13-team-collaboration-owner-guard-and-invite-confirmation.md`
   - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
   - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染

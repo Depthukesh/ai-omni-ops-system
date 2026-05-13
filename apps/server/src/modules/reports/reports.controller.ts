@@ -25,7 +25,7 @@ export class ReportsController {
   @Post("brands/:brandId/growth-report/generate")
   async generateGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandOwnerAccess(brandId, auth);
     return this.reportsService.generateGrowthReport(brandId);
   }
 
@@ -62,7 +62,7 @@ export class ReportsController {
   @Post("brands/:brandId/visual-growth-report/generate")
   async generateVisualGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandOwnerAccess(brandId, auth);
     return this.reportsService.generateVisualGrowthReport(brandId);
   }
 
@@ -102,7 +102,7 @@ export class ReportsController {
   @Post("brands/:brandId/annual-marketing-plan/generate")
   async generateAnnualMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandOwnerAccess(brandId, auth);
     return this.reportsService.generateAnnualMarketingPlan(brandId);
   }
 

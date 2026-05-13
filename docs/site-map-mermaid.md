@@ -580,6 +580,7 @@ flowchart LR
 - 登录页：`apps/web/src/app/(auth)/login/page.tsx`
 - 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邀请码）
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
+- 当前 `brand-growth/workspace.tsx` 已加前台 `Owner` 权限闸门；非 Owner 不再继续渲染策略操作面板
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
@@ -588,6 +589,7 @@ flowchart LR
 - 个人中心安全设置：`apps/web/src/app/(dashboard)/personal-center/security/page.tsx`（账号资料编辑 + 会话安全）
 - 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
+- 当前团队协作页已改为“Owner 发邀请 / 成员确认加入”模型，移除手动邀请码加入区块
 - 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`
 - 后台管理：`apps/web/src/app/(dashboard)/admin/page.tsx`
 - 后台用户管理面板：`apps/web/src/app/(dashboard)/admin/users-management-panel.tsx`
@@ -645,6 +647,7 @@ flowchart LR
 
 - 请求基座：`apps/web/src/services/http.ts`
 - 品牌资料与飞书配置：`apps/web/src/services/brand-growth.ts`
+- 当前 `brand-growth.ts + auth.ts` 已配合前台品牌可见范围收口，不再因后台系统角色自动暴露全品牌
 - 小红书收集工作区：`apps/web/src/services/collectors.ts`
 - 每日热点工作区：`apps/web/src/services/daily-hotspots.ts`
 - 报告与营销方案：`apps/web/src/services/reports.ts`

@@ -569,7 +569,7 @@ export default function PersonalCenterInvitesPage() {
           <input
             value={searchKeyword}
             onChange={(event) => setSearchKeyword(event.target.value)}
-            placeholder="搜索品牌、邀请码、邀请人、角色或账号"
+            placeholder="搜索品牌、邀请对象、邀请人、角色或账号"
           />
         </label>
         <label className="field personal-search">
@@ -628,7 +628,7 @@ export default function PersonalCenterInvitesPage() {
               <th>品牌</th>
               <th>角色</th>
               <th>邀请人</th>
-              <th>邀请码</th>
+              <th>邀请对象</th>
               <th>过期时间</th>
               <th>操作</th>
             </tr>
@@ -639,7 +639,7 @@ export default function PersonalCenterInvitesPage() {
                 <td>{item.brandName}</td>
                 <td>{item.role}</td>
                 <td>{item.invitedByName}</td>
-                <td><code>{item.inviteCode}</code></td>
+                <td>{item.inviteAccount || "邀请链接"}</td>
                 <td>{formatDateTime(item.expiresAt)}</td>
                 <td>
                   <div className="table-action-row">
@@ -699,7 +699,7 @@ export default function PersonalCenterInvitesPage() {
                   <th>角色</th>
                   <th>状态</th>
                   <th>邀请人</th>
-                  <th>邀请码</th>
+                  <th>邀请对象</th>
                   <th>创建时间</th>
                   <th>更新时间</th>
                 </tr>
@@ -716,7 +716,7 @@ export default function PersonalCenterInvitesPage() {
                       </div>
                     </td>
                     <td>{item.invitedByName}</td>
-                    <td><code>{item.inviteCode}</code></td>
+                    <td>{item.inviteAccount || "邀请链接"}</td>
                     <td>{formatDateTime(item.createdAt)}</td>
                     <td>{formatDateTime(item.revokedAt || item.expiresAt || item.createdAt)}</td>
                   </tr>

@@ -292,7 +292,6 @@ export type TransferBrandOwnerPayload = {
 };
 
 export type CreateBrandInvitePayload = {
-  account: string;
   role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
   note?: string;
   expiresInDays?: number;
@@ -566,7 +565,7 @@ export async function getBrandMembers(brandId: string) {
 }
 
 export async function addBrandMember(brandId: string, payload: AddBrandMemberPayload) {
-  return request<BrandMemberListRecord>(`/brands/${brandId}/members`, {
+  return request<BrandInviteListRecord>(`/brands/${brandId}/members`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

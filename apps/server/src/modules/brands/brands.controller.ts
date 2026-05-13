@@ -202,7 +202,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.updateBackground(id, payload);
   }
 
@@ -213,7 +213,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.createProduct(id, payload);
   }
 
@@ -224,7 +224,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ): Promise<BrandProductImageUploadRecord> {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.uploadProductImage(id, payload);
   }
 
@@ -246,7 +246,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ): Promise<BrandAssetFileUploadRecord> {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.uploadAssetFile(id, payload);
   }
 
@@ -269,7 +269,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.updateProduct(id, productId, payload);
   }
 
@@ -280,7 +280,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.deleteProduct(id, productId);
   }
 
@@ -291,7 +291,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.upsertSurvey(id, payload);
   }
 
@@ -302,7 +302,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.replacePlatformAccounts(id, payload);
   }
 
@@ -313,7 +313,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.replaceCompetitorAccounts(id, payload);
   }
 
@@ -324,7 +324,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.replaceIndustryFeeds(id, payload);
   }
 
@@ -335,7 +335,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.replaceBusinessAssets(id, payload);
   }
 
@@ -346,7 +346,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(id, auth);
+    await this.authService.assertBrandOwnerAccess(id, auth);
     return this.brandsService.upsertFeishuBinding(id, payload);
   }
 }

@@ -313,6 +313,8 @@ export function BrandGrowthWorkspace() {
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
   const [activeBrandId, setActiveBrandId] = useState<string>(DEMO_BRAND_ID);
+  const [currentBrandRole, setCurrentBrandRole] = useState("");
+  const [hasOwnerAccess, setHasOwnerAccess] = useState(true);
   const [feishuBindingForm, setFeishuBindingForm] = useState(createEmptyFeishuBindingForm);
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
@@ -512,6 +514,19 @@ export function BrandGrowthWorkspace() {
 
     try {
       const activeBrandId = await resolveActiveBrandId(archive.brand.id);
+      const me = await getMe().catch(() => null);
+      const matchedBrand = me?.brands?.find((item) => item.id === activeBrandId);
+      const matchedRole = matchedBrand?.role || "";
+      setCurrentBrandRole(matchedRole);
+      if (matchedRole && matchedRole !== "OWNER") {
+        setHasOwnerAccess(false);
+        setDataSource("api");
+        setNotice("");
+        setErrorMessage("当前账号不是品牌主账号，品牌增长策略仅允许 Owner 操作。请前往小红书等内容板块继续工作。");
+        return;
+      }
+
+      setHasOwnerAccess(true);
       setActiveBrandId(activeBrandId);
       const currentProfile = await getCurrentUserProfile().catch(() => null);
       const [
@@ -1415,6 +1430,24 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         </aside>
 
         <section className="strategy-content-panel">
+        {!hasOwnerAccess ? (
+          <article className="workspace-panel strategy-page-header">
+            <div>
+              <strong>当前无权限进入品牌增长策略</strong>
+              <p>品牌增长策略仅允许当前品牌的 Owner 操作；普通成员请前往小红书及后续内容板块继续协作。</p>
+            </div>
+            <div className="strategy-page-header-actions">
+              <div className="workspace-status">
+                <span className="archive-pill status-pending">{currentBrandRole || "无品牌角色"}</span>
+                {!isHydrating && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
+              </div>
+              <div className="strategy-inline-actions">
+                <a href="/xiaohongshu" className="primary-button">前往小红书</a>
+                <a href="/personal-center" className="secondary-button">返回个人中心</a>
+              </div>
+            </div>
+          </article>
+        ) : (
           <article className="workspace-panel strategy-page-header">
             <div>
               <strong>{currentPage.label}</strong>
@@ -1441,8 +1474,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
               </div>
             </div>
           </article>
+        )}
 
-          {activeBrandPage ? renderLibraryPage() : activeSection === "collection" ? renderCollectionPage() : renderReportPage()}
+        {hasOwnerAccess ? (activeBrandPage ? renderLibraryPage() : activeSection === "collection" ? renderCollectionPage() : renderReportPage()) : null}
         </section>
       </section>
       {mediaPreview ? (

@@ -510,6 +510,14 @@ export class AuthService {
     };
   }
 
+  async assertBrandOwnerAccess(brandId: string, auth?: RequestAuthContext) {
+    const access = await this.assertBrandAccess(brandId, auth);
+    if (access.role !== BrandMemberRole.OWNER) {
+      throw new UnauthorizedException("只有主账号可以操作品牌增长策略");
+    }
+    return access;
+  }
+
   async getProfile(auth?: RequestAuthContext) {
     const currentUser = await this.resolveCurrentUser(undefined, auth);
     if (await this.prismaService.canUseDatabase()) {
@@ -1087,33 +1095,6 @@ export class AuthService {
   private async listAccessibleBrands(userId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureOwnerBrandMemberships(userId);
-      const user = await this.prismaService.user.findUnique({
-        where: { id: userId },
-        select: {
-          systemRole: true,
-        },
-      });
-      if (user?.systemRole === SystemRole.SUPER_ADMIN) {
-        const brands = await this.prismaService.brand.findMany({
-          select: {
-            id: true,
-            brandName: true,
-            industry: true,
-            ownerUserId: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-        });
-
-        return brands.map((item) => ({
-          id: item.id,
-          brandName: item.brandName,
-          industry: item.industry ?? "",
-          role: item.ownerUserId === userId ? BrandMemberRole.OWNER : "SUPER_ADMIN",
-        }));
-      }
-
       const memberships = await this.prismaService.brandMember.findMany({
         where: {
           userId,
@@ -1133,7 +1114,8 @@ export class AuthService {
         },
       });
 
-      return memberships.map((item) => ({
+      const normalizedMemberships = this.normalizeAccessibleBrandMemberships(memberships);
+      return normalizedMemberships.map((item) => ({
         id: item.brand.id,
         brandName: item.brand.brandName,
         industry: item.brand.industry ?? "",
@@ -1142,6 +1124,14 @@ export class AuthService {
     }
 
     return this.listMockBrands(userId);
+  }
+
+  private normalizeAccessibleBrandMemberships<T extends { role: string; joinedAt: Date }>(memberships: T[]) {
+    const collaborationMemberships = memberships.filter((item) => item.role !== BrandMemberRole.OWNER);
+    if (collaborationMemberships.length) {
+      return [collaborationMemberships[collaborationMemberships.length - 1]];
+    }
+    return memberships;
   }
 
   private listMockBrands(userId: string) {

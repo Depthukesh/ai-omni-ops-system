@@ -36,11 +36,9 @@ export default function PersonalCenterTeamPage() {
   const [canManageMembers, setCanManageMembers] = useState(false);
   const [inviteAccount, setInviteAccount] = useState("");
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER">("EDITOR");
-  const [pendingInviteAccount, setPendingInviteAccount] = useState("");
   const [pendingInviteRole, setPendingInviteRole] = useState<"ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER">("EDITOR");
   const [pendingInviteNote, setPendingInviteNote] = useState("");
   const [pendingInviteExpiresInDays, setPendingInviteExpiresInDays] = useState("7");
-  const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, string>>({});
   const [memberStatusDrafts, setMemberStatusDrafts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -76,13 +74,6 @@ export default function PersonalCenterTeamPage() {
 
     void loadTeamPage();
   }, [router]);
-
-  useEffect(() => {
-    if (!inviteCodeFromQuery) {
-      return;
-    }
-    setInviteCodeInput((current) => current || inviteCodeFromQuery);
-  }, [inviteCodeFromQuery]);
 
   async function loadTeamPage() {
     setIsLoading(true);
@@ -215,10 +206,10 @@ export default function PersonalCenterTeamPage() {
         account: inviteAccount.trim(),
         role: inviteRole,
       });
-      syncMembersState(result);
+      setInvites(result.items);
       setInviteAccount("");
       setInviteRole("EDITOR");
-      setNotice("品牌成员已添加到当前工作区。");
+      setNotice("已向该账号发出加入邀请，对方确认后才会加入团队。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -257,8 +248,8 @@ export default function PersonalCenterTeamPage() {
   }
 
   async function handleCreateInvite() {
-    if (!currentBrandId || !pendingInviteAccount.trim()) {
-      setErrorMessage("请输入要邀请的账号");
+    if (!currentBrandId) {
+      setErrorMessage("当前品牌未识别，暂无法创建邀请链接");
       return;
     }
 
@@ -267,17 +258,15 @@ export default function PersonalCenterTeamPage() {
     setErrorMessage("");
     try {
       const result = await createBrandInvite(currentBrandId, {
-        account: pendingInviteAccount.trim(),
         role: pendingInviteRole,
         note: pendingInviteNote.trim() || undefined,
         expiresInDays: Number.parseInt(pendingInviteExpiresInDays, 10) || 7,
       });
       setInvites(result.items);
-      setPendingInviteAccount("");
       setPendingInviteRole("EDITOR");
       setPendingInviteNote("");
       setPendingInviteExpiresInDays("7");
-      setNotice("邀请记录已创建，等待对方接受。");
+      setNotice("邀请链接已生成，可直接发送给成员，对方确认后才会加入团队。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -335,9 +324,9 @@ export default function PersonalCenterTeamPage() {
   }
 
   async function handleAcceptInviteCode() {
-    const nextInviteCode = inviteCodeInput.trim().toUpperCase();
+    const nextInviteCode = inviteCodeFromQuery.trim().toUpperCase();
     if (!nextInviteCode) {
-      setErrorMessage("请输入邀请码");
+      setErrorMessage("当前邀请链接无效，请重新打开邀请链接");
       return;
     }
 
@@ -346,8 +335,7 @@ export default function PersonalCenterTeamPage() {
     setErrorMessage("");
     try {
       const result = await acceptMyBrandInviteByCode({ inviteCode: nextInviteCode });
-      setInviteCodeInput("");
-      setNotice(`你已通过邀请码加入 ${result.brandName}。`);
+      setNotice(`你已确认加入 ${result.brandName}。`);
       if (inviteCodeFromQuery) {
         router.replace("/personal-center/team");
       }
@@ -360,7 +348,7 @@ export default function PersonalCenterTeamPage() {
         await handleSessionExpired();
         return;
       }
-      setErrorMessage(error instanceof Error ? error.message : "邀请码加入失败");
+      setErrorMessage(error instanceof Error ? error.message : "邀请链接加入失败");
     } finally {
       setIsAcceptingInviteCode(false);
     }
@@ -484,7 +472,7 @@ export default function PersonalCenterTeamPage() {
         </article>
         <article className="metric-card">
           <span>当前角色</span>
-          <strong>{currentUserRole || currentBrand?.role || "未记录"}</strong>
+          <strong>{currentUserRole || "未记录"}</strong>
           <p>角色来自当前用户在品牌工作区下的真实 `BrandMember` 记录。</p>
         </article>
         <article className="metric-card">
@@ -533,49 +521,41 @@ export default function PersonalCenterTeamPage() {
           <div className="entity-card-head">
             <div>
               <strong>当前阶段已可见内容</strong>
-              <p className="personal-meta">当前已把邀请链接、邀请码入口和成员审计记录并到团队页里。</p>
+              <p className="personal-meta">当前团队协作页已切到“Owner 发邀请、成员确认后加入”的协作口径。</p>
             </div>
             <span className="archive-pill status-ready">P1</span>
           </div>
           <div className="personal-list">
-            <p>当前品牌名称、行业和你的品牌角色已经可见。</p>
-            <p>切换品牌后，团队协作页会切到对应的品牌工作区上下文。</p>
-            <p>当前品牌成员列表已经接入真实 `BrandMember` 数据。</p>
+            <p>当前品牌名称、行业和你的真实品牌角色已经可见。</p>
+            <p>只有 Owner 可以继续邀请成员、调整角色和查看审计记录。</p>
+            <p>直接添加成员已改为“发送确认邀请”，不再立即入组。</p>
           </div>
         </article>
+        {inviteCodeFromQuery ? (
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
-              <strong>邀请码加入品牌</strong>
-              <p className="personal-meta">支持把邀请链接里的 `inviteCode` 粘贴进来直接加入品牌。</p>
+              <strong>邀请链接加入品牌</strong>
+              <p className="personal-meta">当前链接已携带邀请信息，确认后即可加入团队。</p>
             </div>
-            <span className={`archive-pill ${inviteCodeInput ? "status-in_progress" : "status-ready"}`}>
-              {inviteCodeInput ? "待加入" : "可用"}
-            </span>
+            <span className="archive-pill status-in_progress">待确认</span>
           </div>
           <div className="personal-actions" style={{ flexWrap: "wrap" }}>
-            <label className="field" style={{ minWidth: 220 }}>
-              <span>邀请码</span>
-              <input
-                value={inviteCodeInput}
-                onChange={(event) => setInviteCodeInput(event.target.value.toUpperCase())}
-                placeholder="例如 BR8A1B2C3D4"
-              />
-            </label>
             <button
               type="button"
               className="primary-button"
               onClick={() => void handleAcceptInviteCode()}
               disabled={isAcceptingInviteCode}
             >
-              {isAcceptingInviteCode ? "加入中..." : "通过邀请码加入"}
+              {isAcceptingInviteCode ? "确认中..." : "同意加入团队"}
             </button>
           </div>
           <div className="personal-list">
-            <p>支持从邀请链接自动带入邀请码，也支持手动粘贴邀请码加入。</p>
-            <p>加入成功后会自动写入 `BrandMember`，并切到对应品牌工作区。</p>
+            <p>点击确认后会写入品牌成员关系，并自动切到对应品牌工作区。</p>
+            <p>当前已移除手动输入邀请码加入的入口。</p>
           </div>
         </article>
+        ) : null}
       </div>
 
       {canManageMembers ? (
@@ -602,23 +582,15 @@ export default function PersonalCenterTeamPage() {
                 </select>
               </label>
               <button type="button" className="primary-button" onClick={() => void handleAddMember()} disabled={isSubmittingInvite || isLoading}>
-                {isSubmittingInvite ? "添加中..." : "添加成员"}
+                {isSubmittingInvite ? "发送中..." : "发送加入邀请"}
               </button>
             </div>
-            <p className="panel-subtext">适用于对方已经是平台用户的情况，可直接加入当前品牌。</p>
+            <p className="panel-subtext">适用于对方已经是平台注册用户的情况，系统会向对方发送邀请提醒，确认后才会加入当前品牌。</p>
           </article>
 
           <article className="light-data-panel">
-            <h3>创建邀请</h3>
+            <h3>创建邀请链接</h3>
             <div className="personal-actions" style={{ flexWrap: "wrap" }}>
-              <label className="field" style={{ minWidth: 220 }}>
-                <span>邀请账号</span>
-                <input
-                  value={pendingInviteAccount}
-                  onChange={(event) => setPendingInviteAccount(event.target.value)}
-                  placeholder="手机号 / 邮箱 / 昵称 / 用户 ID"
-                />
-              </label>
               <label className="field" style={{ minWidth: 160 }}>
                 <span>邀请角色</span>
                 <select
@@ -647,10 +619,10 @@ export default function PersonalCenterTeamPage() {
             </label>
             <div className="personal-actions" style={{ marginTop: 12 }}>
               <button type="button" className="primary-button" onClick={() => void handleCreateInvite()} disabled={isSubmittingPendingInvite || isLoading}>
-                {isSubmittingPendingInvite ? "创建中..." : "创建邀请"}
+                {isSubmittingPendingInvite ? "生成中..." : "生成邀请链接"}
               </button>
             </div>
-            <p className="panel-subtext">创建后会生成邀请码和邀请链接，可直接复制发给成员；接受后会自动写入品牌成员。</p>
+            <p className="panel-subtext">创建后只生成邀请链接，可直接复制发送；接收方点击链接并同意后，才会加入品牌团队。</p>
           </article>
         </div>
       ) : null}
@@ -772,8 +744,7 @@ export default function PersonalCenterTeamPage() {
           <table className="soft-table">
             <thead>
               <tr>
-                <th>邀请账号</th>
-                <th>邀请码</th>
+                <th>邀请对象</th>
                 <th>邀请链接</th>
                 <th>角色</th>
                 <th>状态</th>
@@ -789,19 +760,6 @@ export default function PersonalCenterTeamPage() {
               {invites.map((item) => (
                 <tr key={item.id}>
                   <td>{item.inviteAccount}</td>
-                  <td>
-                    <div style={{ display: "grid", gap: 8 }}>
-                      <code>{item.inviteCode}</code>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleCopyInviteValue(item.id, item.inviteCode, "邀请码")}
-                        disabled={copyingInviteId === item.id}
-                      >
-                        {copyingInviteId === item.id ? "复制中..." : "复制邀请码"}
-                      </button>
-                    </div>
-                  </td>
                   <td>
                     <div style={{ display: "grid", gap: 8 }}>
                       <a href={item.inviteLink} target="_blank" rel="noreferrer">
@@ -842,7 +800,7 @@ export default function PersonalCenterTeamPage() {
               ))}
               {!invites.length ? (
                 <tr>
-                  <td colSpan={11}>当前品牌暂无待处理邀请</td>
+                  <td colSpan={10}>当前品牌暂无待处理邀请</td>
                 </tr>
               ) : null}
             </tbody>
@@ -897,22 +855,12 @@ export default function PersonalCenterTeamPage() {
             <tr>
               <td>OWNER</td>
               <td>品牌全部任务、作品、成员与配置</td>
-              <td>邀请成员、调整角色、查看品牌全量数据</td>
+              <td>操作品牌增长策略、邀请成员、调整角色、查看品牌全量数据</td>
             </tr>
             <tr>
-              <td>BRAND_ADMIN</td>
-              <td>品牌全部任务、作品和成员</td>
-              <td>管理业务内容、处理失败任务、维护品牌资料</td>
-            </tr>
-            <tr>
-              <td>BRAND_OPERATOR</td>
-              <td>与自己职责相关的任务与作品</td>
-              <td>创建任务、编辑作品、提交执行结果</td>
-            </tr>
-            <tr>
-              <td>BRAND_VIEWER</td>
-              <td>品牌结果数据与只读信息</td>
-              <td>无写权限，主要用于老板或只读协作者</td>
+              <td>EDITOR / OPERATOR / VIEWER</td>
+              <td>当前品牌下与内容生产相关的任务、作品和协作信息</td>
+              <td>聚焦小红书及后续内容板块，不操作品牌增长策略和团队邀请</td>
             </tr>
           </tbody>
         </table>
