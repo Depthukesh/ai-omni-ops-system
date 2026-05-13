@@ -199,6 +199,11 @@ flowchart LR
     C --> C1["品牌增长报告"]
     C --> C2["品牌增长可视化报告"]
     C --> C3["全年营销规划"]
+    C1 --> C11["先校验文本 provider runtimeKey 与模型白名单"]
+    C2 --> C12["忽略不兼容的图像 provider，回退国内文本 provider"]
+    C3 --> C13["按兼容 provider 重排模型，避免 gpt 模型误落国内 provider"]
+    C --> C14["本地无 OSS 时回退 .runtime/local-oss，但仍沿用 reports/<brandId>/<fileName>"]
+    C --> C15["本地 localhost/127.0.0.1 直连 3011/api，绕开 Next /api rewrite ECONNRESET"]
 ```
 
 ## 6. 小红书工作台深度地图

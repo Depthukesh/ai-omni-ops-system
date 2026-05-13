@@ -1,4 +1,6 @@
 import { Buffer } from "node:buffer";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import OSS from "ali-oss";
 import { AppConfigService } from "../config/app-config.service";
@@ -22,6 +24,9 @@ export class OssStorageService {
   }
 
   async putObject(storageKey: string, buffer: Buffer, contentType: string) {
+    if (this.shouldUseLocalFallback()) {
+      return this.putLocalObject(storageKey, buffer, contentType);
+    }
     const client = this.getClient();
     try {
       await client.put(storageKey, buffer, {
@@ -37,6 +42,9 @@ export class OssStorageService {
   }
 
   async getObject(storageKey: string): Promise<StoredObject | null> {
+    if (this.shouldUseLocalFallback()) {
+      return this.getLocalObject(storageKey);
+    }
     const client = this.getClient();
     try {
       const result = await client.get(storageKey);
@@ -58,6 +66,9 @@ export class OssStorageService {
   }
 
   async deleteObject(storageKey: string) {
+    if (this.shouldUseLocalFallback()) {
+      return this.deleteLocalObject(storageKey);
+    }
     const client = this.getClient();
     try {
       await client.delete(storageKey);
@@ -88,6 +99,72 @@ export class OssStorageService {
       });
     }
     return this.client;
+  }
+
+  private shouldUseLocalFallback() {
+    return !this.appConfigService.getOssConfig() && process.env.NODE_ENV !== "production";
+  }
+
+  private getLocalFallbackRoot() {
+    return resolve(process.cwd(), ".runtime", "local-oss");
+  }
+
+  private resolveLocalFallbackPaths(storageKey: string) {
+    const normalizedKey = storageKey.replace(/\\/g, "/").replace(/^\/+/, "");
+    const baseDir = this.getLocalFallbackRoot();
+    const filePath = resolve(baseDir, normalizedKey);
+    if (!filePath.startsWith(baseDir)) {
+      throw new ServiceUnavailableException(`本地存储路径非法：${storageKey}`);
+    }
+    return {
+      filePath,
+      metaPath: `${filePath}.meta.json`,
+    };
+  }
+
+  private async putLocalObject(storageKey: string, buffer: Buffer, contentType: string) {
+    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
+    await mkdir(dirname(filePath), { recursive: true });
+    await writeFile(filePath, buffer);
+    await writeFile(metaPath, JSON.stringify({ contentType }, null, 2), "utf8");
+    return true;
+  }
+
+  private async getLocalObject(storageKey: string): Promise<StoredObject | null> {
+    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
+    try {
+      await stat(filePath);
+    } catch {
+      return null;
+    }
+    const [buffer, metaText] = await Promise.all([
+      readFile(filePath),
+      readFile(metaPath, "utf8").catch(() => ""),
+    ]);
+    let contentType = "application/octet-stream";
+    if (metaText) {
+      try {
+        const parsed = JSON.parse(metaText) as { contentType?: string };
+        if (parsed?.contentType?.trim()) {
+          contentType = parsed.contentType.trim();
+        }
+      } catch {
+        contentType = "application/octet-stream";
+      }
+    }
+    return {
+      buffer,
+      contentType,
+    };
+  }
+
+  private async deleteLocalObject(storageKey: string) {
+    const { filePath, metaPath } = this.resolveLocalFallbackPaths(storageKey);
+    const [fileDeleted] = await Promise.all([
+      rm(filePath, { force: true }).then(() => true).catch(() => false),
+      rm(metaPath, { force: true }).catch(() => false),
+    ]);
+    return fileDeleted;
   }
 
   private readHeader(headers: object | undefined, key: string) {

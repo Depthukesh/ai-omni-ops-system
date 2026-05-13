@@ -178,10 +178,18 @@ function resolveApiBaseUrl() {
   }
 
   if (typeof window !== "undefined") {
+    if (isLocalDevelopmentHost(window.location.hostname)) {
+      return "http://127.0.0.1:3011/api";
+    }
     return `${window.location.origin}/api`;
   }
 
   return "http://127.0.0.1:3011/api";
+}
+
+function isLocalDevelopmentHost(hostname: string) {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1";
 }
 
 function resolveRequestUrl(path: string) {

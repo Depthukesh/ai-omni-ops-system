@@ -64,6 +64,7 @@
 - `/api/brands/:id/asset-files/:fileName`
 - `/api/auth/users/:userId/avatar/:fileName`
 - 站内接口负责按 `storageKey` 从 OSS 读取，不再把 `.runtime/generated-works/` 或其他本地目录当作正式真源
+- 仅在本地开发且未配置 OSS 时，允许暂时回退到 `.runtime/local-oss/<storageKey>` 作为联调副本；但站内接口、`storageKey` 前缀与业务记录结构必须保持和正式 OSS 链路一致
 
 ## 5. 三类作品存储要求
 
@@ -138,6 +139,7 @@
 - 文案已基本进入规范化存储
 - `works` 主链路现已改为纯 OSS 存储，站内保留统一资产读取入口
 - `reports` 的品牌增长报告、可视化报告、全年营销规划、小红书营销策划方案 HTML 产物已真实写入 OSS
+- 本地开发若缺失 OSS 配置，`OssStorageService` 现可回退到 `.runtime/local-oss`，避免报告生成在“保存 HTML 附件”阶段直接 500；生产态仍坚持 OSS 真源
 - 品牌产品图与品牌资料附件已改为 OSS 真源，站内读取接口直接代理 OSS 对象
 - 用户头像已支持真实上传到 OSS，并通过站内头像接口读取
 - 原创/二创图片已进入受控副本链路

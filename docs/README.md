@@ -111,6 +111,12 @@
   - 恢复后台技能中心目录树，并将 `SKILL.md + 同目录参考资料` 统一聚合到提示词读取链路中
 - `docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
   - 修复小红书素材库中飞书图片/视频加入后仍空白的问题；受保护媒体改为先鉴权拉 blob，再用 object URL 预览
+- `docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
+  - 修复品牌增长报告、可视化报告、全年营销规划三条链路对 provider / model 的错绑与错选问题，避免文本报告误走图像 provider 或不兼容模型
+- `docs/changes/2026-05-13-local-report-storage-fallback.md`
+  - 修复本地未配置 OSS 时报告生成在保存 HTML 附件阶段直接 500 的问题；本地开发改为回退到 `.runtime/local-oss`，生产态仍坚持 OSS 真源
+- `docs/changes/2026-05-13-local-web-api-direct-backend.md`
+  - 修复本地页面通过 Next `/api` rewrite 调用报告生成接口时出现 `socket hang up / ECONNRESET` 的问题；本地 `localhost/127.0.0.1` 改为浏览器直接请求 `127.0.0.1:3011/api`
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

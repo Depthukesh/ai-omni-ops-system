@@ -237,9 +237,18 @@ type ThirdPartyChatConfig = {
 };
 
 type VisualProviderType = "DEEPSEEK" | "KIMI" | "GLM" | "ARK";
+type GrowthReportProviderType = "THIRD_PARTY" | VisualProviderType;
 
 type DomesticVisualProviderConfig = ThirdPartyChatConfig & {
   provider: VisualProviderType;
+  requestTimeoutMs?: number;
+  payloadExtras?: Record<string, unknown>;
+  temperatureOverride?: number;
+  tokenLimitField?: "max_tokens" | "max_completion_tokens";
+};
+
+type GrowthReportProviderConfig = ThirdPartyChatConfig & {
+  provider: GrowthReportProviderType;
   requestTimeoutMs?: number;
   payloadExtras?: Record<string, unknown>;
   temperatureOverride?: number;
@@ -2808,7 +2817,8 @@ export class ReportsService {
   }
 
   private async generateReportByModel(skillPrompt: string, inputPayload: Record<string, unknown>): Promise<GrowthReportModelResult> {
-    const config = await this.loadThirdPartyChatConfig(await this.loadGrowthReportGenerationSettings());
+    const settings = await this.loadGrowthReportGenerationSettings();
+    const providers = await this.loadGrowthReportProviderConfigs(settings);
     const systemPrompt = [
       skillPrompt,
       "",
@@ -2833,43 +2843,48 @@ export class ReportsService {
     ].join("\n");
 
     let lastError = "";
-    for (const baseUrl of config.baseUrls.slice(0, 2)) {
-      for (const apiKey of config.apiKeys) {
-        try {
-          const response = await this.requestModelCompletion(baseUrl, config.completionPath, apiKey, {
-            model: config.models[0],
-            stream: false,
-            temperature: config.temperature,
-            max_tokens: config.maxTokens,
-            response_format: { type: "json_object" },
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-          }, 25000);
+    const attemptErrors: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls.slice(0, 2)) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildGrowthReportProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 90000,
+              );
 
-          if (!response.ok) {
-            lastError = `模型接口请求失败: ${response.status}`;
-            continue;
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
+                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${response.status}`);
+                continue;
+              }
+
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractVisualResponseContent(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=empty`);
+                continue;
+              }
+
+              return this.normalizeModelResult(content);
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptErrors.push(`${provider.provider}:${modelName}@${baseUrl}=${error instanceof Error ? error.message : "调用失败"}`);
+            }
           }
-
-          const payload = await response.json() as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const content = payload.choices?.[0]?.message?.content?.trim();
-          if (!content) {
-            lastError = "模型返回为空";
-            continue;
-          }
-
-          return this.normalizeModelResult(content);
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : "模型调用失败";
         }
       }
     }
 
-    throw new ServiceUnavailableException(`品牌增长报告生成失败：${lastError || "未获取到有效响应"}`);
+    const detail = attemptErrors.length ? `；尝试记录：${attemptErrors.slice(0, 6).join(" | ")}` : "";
+    throw new ServiceUnavailableException(`品牌增长报告生成失败：${lastError || "未获取到有效响应"}${detail}`);
   }
 
   private async generateVisualReportByModel(
@@ -4079,6 +4094,136 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private async loadGrowthReportProviderConfigs(settings: ModelGenerationSettings): Promise<GrowthReportProviderConfig[]> {
+    const requestedModels = this.parseDelimitedModels(settings.modelName);
+    const [thirdPartyProvider, deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-global"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-glm"),
+      this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
+    ]);
+
+    const providers: GrowthReportProviderConfig[] = [];
+    if (deepseekProvider) {
+      const models = this.pickProviderModels(deepseekProvider.modelWhitelist, requestedModels, ["deepseek-v4-pro", "deepseek-v4-flash"]);
+      if (models.length) {
+        providers.push({
+          provider: "DEEPSEEK",
+          baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
+          completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(deepseekProvider).slice(0, 2),
+          models,
+          temperature: Math.min(settings.temperature || 0.3, 0.3),
+          maxTokens: Math.min(settings.maxTokens || 6000, 6000),
+          requestTimeoutMs: 120000,
+          payloadExtras: {
+            response_format: { type: "json_object" },
+            thinking: { type: "disabled" },
+          },
+        });
+      }
+    }
+    if (glmProvider) {
+      const models = this.pickProviderModels(glmProvider.modelWhitelist, requestedModels, ["GLM-5.1"]);
+      if (models.length) {
+        providers.push({
+          provider: "GLM",
+          baseUrls: this.apiProvidersService.getBaseUrls(glmProvider),
+          completionPath: this.apiProvidersService.getStringExtra(glmProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(glmProvider).slice(0, 2),
+          models,
+          temperature: Math.min(settings.temperature || 0.3, 0.3),
+          maxTokens: Math.min(settings.maxTokens || 6000, 6000),
+          requestTimeoutMs: 120000,
+          payloadExtras: {
+            response_format: { type: "json_object" },
+          },
+        });
+      }
+    }
+    if (kimiProvider) {
+      const models = this.pickProviderModels(kimiProvider.modelWhitelist, requestedModels, ["kimi-k2.6"]);
+      if (models.length) {
+        providers.push({
+          provider: "KIMI",
+          baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
+          completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(kimiProvider).slice(0, 2),
+          models,
+          temperature: 1,
+          temperatureOverride: 1,
+          maxTokens: Math.min(settings.maxTokens || 6000, 6000),
+          requestTimeoutMs: 180000,
+          tokenLimitField: "max_completion_tokens",
+          payloadExtras: {
+            response_format: { type: "json_object" },
+          },
+        });
+      }
+    }
+    if (doubaoProvider) {
+      const models = this.pickProviderModels(
+        doubaoProvider.modelWhitelist,
+        requestedModels,
+        ["doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "doubao-seed-1-8-251228"],
+      );
+      if (models.length) {
+        providers.push({
+          provider: "ARK",
+          baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
+          completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
+          apiKeys: this.apiProvidersService.getApiKeys(doubaoProvider).slice(0, 1),
+          models: models.slice(0, 1),
+          temperature: Math.min(settings.temperature || 0.3, 0.3),
+          maxTokens: Math.min(settings.maxTokens || 6000, 6000),
+          requestTimeoutMs: 150000,
+          payloadExtras: {
+            response_format: { type: "json_object" },
+          },
+        });
+      }
+    }
+    if (thirdPartyProvider) {
+      const models = this.pickProviderModels(
+        thirdPartyProvider.modelWhitelist,
+        requestedModels,
+        ["gpt-5.5", "gpt-5.4-nano", "claude-sonnet-4-6", "gemini-3.1-pro-preview"],
+      );
+      if (models.length) {
+        const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
+        const prioritizedBaseUrls = settings.baseUrl
+          ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+          : configuredBaseUrls;
+        const usableBaseUrls = [
+          ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
+          ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
+        ];
+        if (usableBaseUrls.length) {
+          providers.push({
+            provider: "THIRD_PARTY",
+            baseUrls: usableBaseUrls,
+            completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
+            apiKeys: this.apiProvidersService.getApiKeys(thirdPartyProvider).slice(0, 4),
+            models,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            requestTimeoutMs: 90000,
+            payloadExtras: {
+              response_format: { type: "json_object" },
+            },
+          });
+        }
+      }
+    }
+
+    if (!providers.length) {
+      throw new ServiceUnavailableException("品牌增长报告模型配置读取失败");
+    }
+
+    return providers;
+  }
+
   private async loadDomesticVisualProviderConfigs(settings: ModelGenerationSettings): Promise<DomesticVisualProviderConfig[]> {
     const requestedModels = this.parseDelimitedModels(settings.modelName);
     const [deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
@@ -4194,6 +4339,26 @@ ${normalizedMarkdown}`;
     return payload;
   }
 
+  private buildGrowthReportProviderPayload(
+    provider: GrowthReportProviderConfig,
+    modelName: string,
+    systemPrompt: string,
+    userPrompt: string,
+  ) {
+    const payload: Record<string, unknown> = {
+      model: modelName,
+      stream: false,
+      temperature: provider.temperatureOverride ?? provider.temperature,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      ...(provider.payloadExtras ?? {}),
+    };
+    payload[provider.tokenLimitField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"] = provider.maxTokens;
+    return payload;
+  }
+
   private extractVisualResponseContent(payload: {
     choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
   }) {
@@ -4219,6 +4384,23 @@ ${normalizedMarkdown}`;
       .split(/[、,，\s]+/)
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  private resolveCompatibleModelNames(
+    availableModels: string[] | undefined,
+    configuredModels: string,
+    preferredModels: string[],
+    fallbackModelName: string,
+  ) {
+    const normalizedAvailable = Array.isArray(availableModels)
+      ? availableModels.map((item) => item.trim()).filter(Boolean)
+      : [];
+    const requestedModels = this.parseDelimitedModels(configuredModels);
+    if (!normalizedAvailable.length) {
+      return configuredModels || fallbackModelName;
+    }
+    const models = this.pickProviderModels(normalizedAvailable, requestedModels, preferredModels);
+    return models.length ? models.join(", ") : fallbackModelName;
   }
 
   private collectRegexMatches(content: string, pattern: RegExp) {
@@ -4477,10 +4659,22 @@ ${normalizedMarkdown}`;
   private async loadGrowthReportGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("brand-omni-growth-analysis");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_growth_report");
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-global");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-kimi",
+      "text-domestic-glm",
+      "text-domestic-doubao",
+      "text-global",
+    ]);
+    const modelName = this.resolveCompatibleModelNames(
+      provider?.modelWhitelist,
+      prompt?.modelName || skill?.defaultModel || "",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k2.6", "GLM-5.1", "doubao-seed-2-0-pro-260215", "gpt-5.5"],
+      provider?.defaultModel || "deepseek-v4-pro",
+    );
     return {
       baseUrl: provider?.baseUrl || "",
-      modelName: prompt?.modelName || skill?.defaultModel || "gpt-5.4-nano",
+      modelName,
       temperature: prompt?.temperature ?? 0.3,
       maxTokens: prompt?.maxTokens ?? 6000,
       promptContent: prompt?.content || "",
@@ -4490,13 +4684,21 @@ ${normalizedMarkdown}`;
   private async loadVisualReportGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("article-visual-report-designer");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_visual_report");
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-glm",
+      "text-domestic-kimi",
+      "text-domestic-doubao",
+    ]);
+    const modelName = this.resolveCompatibleModelNames(
+      provider?.modelWhitelist,
+      prompt?.modelName || skill?.defaultModel || "",
+      ["deepseek-v4-flash", "deepseek-v4-pro", "GLM-5.1", "kimi-k2.6", "doubao-seed-2-0-pro-260215"],
+      provider?.defaultModel || "deepseek-v4-flash",
+    );
     return {
       baseUrl: provider?.baseUrl && !provider.baseUrl.includes(".local") ? provider.baseUrl : "",
-      modelName:
-        prompt?.modelName
-        || skill?.defaultModel
-        || "gpt-5.5, gpt-5.4-nano, claude-sonnet-4-6, gemini-3.1-pro-preview",
+      modelName,
       temperature: prompt?.temperature ?? 0.4,
       maxTokens: prompt?.maxTokens ?? 1800,
       promptContent: prompt?.content || "",
@@ -4506,13 +4708,21 @@ ${normalizedMarkdown}`;
   private async loadAnnualMarketingPlanGenerationSettings(): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("enterprise-annual-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_annual_marketing_plan");
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-global");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+      "text-domestic-kimi",
+      "text-global",
+    ]);
+    const modelName = this.resolveCompatibleModelNames(
+      provider?.modelWhitelist,
+      prompt?.modelName || skill?.defaultModel || "",
+      ["deepseek-v4-pro", "doubao-seed-2-0-pro-260215", "kimi-k2.6", "gpt-5.5", "claude-sonnet-4-6"],
+      provider?.defaultModel || "deepseek-v4-pro",
+    );
     return {
       baseUrl: provider?.baseUrl || "",
-      modelName:
-        prompt?.modelName
-        || skill?.defaultModel
-        || "gpt-5.5, claude-sonnet-4-6, deepseek-v4-flash, doubao-seed-2-0-mini-260215",
+      modelName,
       temperature: prompt?.temperature ?? 0.5,
       maxTokens: prompt?.maxTokens ?? 4200,
       promptContent: prompt?.content || "",
@@ -4813,10 +5023,17 @@ ${normalizedMarkdown}`;
     return payload;
   }
 
-  private async resolvePreferredProvider(providerName: string | undefined, runtimeKey: string) {
+  private async resolvePreferredProvider(providerName: string | undefined, runtimeKey: string, allowedRuntimeKeys: string[] = [runtimeKey]) {
     const activeProviders = await this.apiProvidersService.listActiveProviders();
     if (providerName?.trim()) {
       const matched = activeProviders.find((item) => item.name === providerName.trim());
+      const matchedRuntimeKey = matched ? this.apiProvidersService.getRuntimeKey(matched) : "";
+      if (matched && (!allowedRuntimeKeys.length || allowedRuntimeKeys.includes(matchedRuntimeKey))) {
+        return matched;
+      }
+    }
+    for (const allowedRuntimeKey of allowedRuntimeKeys) {
+      const matched = activeProviders.find((item) => this.apiProvidersService.getRuntimeKey(item) === allowedRuntimeKey);
       if (matched) {
         return matched;
       }
