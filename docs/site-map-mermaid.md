@@ -77,7 +77,7 @@ flowchart TD
     F --> F1["dev:web:stable"]
     F --> F2["dev:server:stable"]
     F --> F3["seed-demo.cjs"]
-    F1 --> F11["next.config.ts /api -> 3011 rewrite"]
+    F1 --> F11["api/[...path]/route.ts 同域代理到 3011/api"]
 
     G --> G1[".github/workflows/deploy.yml"]
     G --> G2["ecosystem.config.cjs"]
@@ -204,6 +204,7 @@ flowchart LR
     C3 --> C13["按兼容 provider 重排模型，避免 gpt 模型误落国内 provider"]
     C --> C14["本地无 OSS 时回退 .runtime/local-oss，但仍沿用 reports/<brandId>/<fileName>"]
     C --> C15["本地 localhost/127.0.0.1 直连 3011/api，绕开 Next /api rewrite ECONNRESET"]
+    C --> C16["线上同域 /api 走 api/[...path]/route.ts，避免 rewrite 502/socket hang up"]
 ```
 
 ## 6. 小红书工作台深度地图
