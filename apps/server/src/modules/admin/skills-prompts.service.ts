@@ -80,6 +80,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_xhs_plan"],
     promptScenes: ["小红书营销规划"],
   },
+  skill_xhs_calendar: {
+    promptIds: ["prompt_xhs_calendar"],
+    promptScenes: ["小红书营销日历生成"],
+  },
+  "xiaohongshu-marketing-calendar": {
+    promptIds: ["prompt_xhs_calendar"],
+    promptScenes: ["小红书营销日历生成"],
+  },
   skill_article_report: {
     promptIds: ["prompt_visual_report"],
     promptScenes: ["HTML 可视化报告生成"],

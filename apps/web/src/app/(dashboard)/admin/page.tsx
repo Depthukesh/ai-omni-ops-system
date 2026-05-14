@@ -219,6 +219,13 @@ const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             skillSlug: "xiaohongshu-brand-marketing-plan",
             promptScene: "小红书营销规划",
           },
+          {
+            id: "xhs-calendar-main",
+            label: "营销日历-生成7天营销日历",
+            description: "对应前台营销日历工作区，基于营销策划方案、半年规划、热点与历史记录生成未来 7 天日历。",
+            skillSlug: "xiaohongshu-marketing-calendar",
+            promptScene: "小红书营销日历生成",
+          },
         ],
       },
       {

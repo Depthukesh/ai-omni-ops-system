@@ -5091,13 +5091,27 @@ ${normalizedMarkdown}`;
   }
 
   private async loadXiaohongshuMarketingCalendarGenerationSettings(): Promise<ModelGenerationSettings> {
-    const provider = await this.resolvePreferredProvider(undefined, "text-domestic-deepseek");
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-kimi",
+      "text-domestic-doubao",
+      "text-global",
+    ]);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "deepseek-v4-pro, kimi-k2.6, doubao-seed-2-0-pro-260215",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
     return {
       baseUrl: provider?.baseUrl || "",
-      modelName: "deepseek-v4-pro, kimi-k2.6, doubao-seed-2-0-pro-260215",
-      temperature: 0.6,
-      maxTokens: 12000,
-      promptContent: this.loadXiaohongshuMarketingCalendarPrompt(),
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? 0.6,
+      maxTokens: prompt?.maxTokens ?? 12000,
+      promptContent: prompt?.content || this.loadXiaohongshuMarketingCalendarPrompt(),
+      preferredModelName,
     };
   }
 

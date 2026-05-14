@@ -3,15 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  buildCalendarMonthMatrix,
   formatCalendarDate,
-  formatCalendarDay,
   formatCalendarListValue,
-  formatCalendarMonthLabel,
+  formatCalendarMonthDay,
   formatCalendarOptionalValue,
   formatCalendarWeekday,
   getCalendarFestivalLabel,
-  getCalendarMonthKey,
 } from "./calendar-helpers";
 import { formatDateTime } from "./datetime-helpers";
 import { buildPublishedPreview } from "./preview-builders";
@@ -184,7 +181,6 @@ export default function XiaohongshuPage() {
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
   const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
-  const [activeCalendarMonth, setActiveCalendarMonth] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "seed" | "error" | "loading">("loading");
@@ -787,20 +783,6 @@ export default function XiaohongshuPage() {
     },
   });
   const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
-  const calendarMonthKeys = useMemo(() => {
-    const values = new Set<string>();
-    for (const item of calendarAllItems) {
-      values.add(getCalendarMonthKey(item.date));
-    }
-    return Array.from(values).filter(Boolean).sort();
-  }, [calendarAllItems]);
-  const activeCalendarMonthIndex = Math.max(calendarMonthKeys.indexOf(activeCalendarMonth), 0);
-  const resolvedCalendarMonth = calendarMonthKeys[activeCalendarMonthIndex] || "";
-  const currentMonthItems = useMemo(
-    () => calendarAllItems.filter((item) => getCalendarMonthKey(item.date) === resolvedCalendarMonth),
-    [calendarAllItems, resolvedCalendarMonth],
-  );
-  const calendarMonthMatrix = useMemo(() => buildCalendarMonthMatrix(resolvedCalendarMonth, currentMonthItems), [currentMonthItems, resolvedCalendarMonth]);
   const calendarTaskStatusText = getPhaseTaskStatusText(latestCalendarTask);
   const isOriginalTaskActive = Boolean(latestOriginalTask && isTaskActive(latestOriginalTask.taskStatus));
   const originalInlineError = latestOriginalTask?.taskStatus === "FAILED" ? latestOriginalTask.errorMessage?.trim() || "" : "";
@@ -918,9 +900,9 @@ export default function XiaohongshuPage() {
     calendarAllItems,
     selectedCalendarItemId,
     setSelectedCalendarItemId,
-    activeCalendarMonth,
-    setActiveCalendarMonth,
-    calendarMonthKeys,
+    activeCalendarMonth: "",
+    setActiveCalendarMonth: () => "",
+    calendarMonthKeys: [],
   });
 
   async function handleGeneratePlan() {
@@ -1198,26 +1180,15 @@ export default function XiaohongshuPage() {
           calendarTaskStatusText={calendarTaskStatusText}
           calendarInlineError={calendarInlineError}
           calendarAllItems={calendarAllItems}
-          resolvedCalendarMonth={resolvedCalendarMonth}
-          activeCalendarMonthIndex={activeCalendarMonthIndex}
-          calendarMonthKeys={calendarMonthKeys}
-          calendarMonthMatrix={calendarMonthMatrix}
           isCalendarDetailOpen={isCalendarDetailOpen}
           selectedCalendarItem={selectedCalendarItem}
           onRefresh={() => refreshCalendarWorkspace()}
           onGenerate={() => handleGenerateCalendar()}
-          onPrevMonth={() => setActiveCalendarMonth(calendarMonthKeys[Math.max(activeCalendarMonthIndex - 1, 0)] || resolvedCalendarMonth)}
-          onNextMonth={() =>
-            setActiveCalendarMonth(
-              calendarMonthKeys[Math.min(activeCalendarMonthIndex + 1, calendarMonthKeys.length - 1)] || resolvedCalendarMonth,
-            )
-          }
           onOpenDetail={handleOpenCalendarDetail}
           onCloseDetail={() => setIsCalendarDetailOpen(false)}
           getTaskStatusClass={getTaskStatusClass}
           formatDateTime={formatDateTime}
-          formatCalendarMonthLabel={formatCalendarMonthLabel}
-          formatCalendarDay={formatCalendarDay}
+          formatCalendarMonthDay={formatCalendarMonthDay}
           formatCalendarWeekday={formatCalendarWeekday}
           getCalendarFestivalLabel={getCalendarFestivalLabel}
           formatCalendarDate={formatCalendarDate}

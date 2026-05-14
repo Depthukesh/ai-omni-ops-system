@@ -3429,6 +3429,11 @@ button {
   gap: 12px;
 }
 
+.calendar-grid--seven-day {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .calendar-month-toolbar {
   margin-top: 12px;
   display: flex;
@@ -3442,6 +3447,23 @@ button {
   font-size: 22px;
   line-height: 1.2;
   margin-top: 4px;
+}
+
+.calendar-seven-day-toolbar {
+  margin-top: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.calendar-seven-day-toolbar strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .calendar-weekdays {
@@ -3466,6 +3488,11 @@ button {
 
 .calendar-card--month {
   min-height: 148px;
+  padding: 16px;
+}
+
+.calendar-card--seven-day {
+  min-height: 188px;
   padding: 16px;
 }
 
@@ -3518,6 +3545,14 @@ button {
   color: var(--muted);
   line-height: 1.7;
   min-height: 44px;
+}
+
+.calendar-card-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #5b6dff;
+  min-height: 18px;
 }
 
 .calendar-card-festival {
@@ -5773,6 +5808,10 @@ button {
   }
 
   .calendar-grid--month {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar-grid--seven-day {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

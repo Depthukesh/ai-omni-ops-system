@@ -105,7 +105,10 @@
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
 - 营销日历
   - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
-- 生成依赖 `品牌增长报告`、`半年营销规划`、`小红书营销策划方案` 三项前置输入，并读取 `第三方api接口文生文国内.txt` 中的国内文生文 provider 配置
+  - 当前已补入前后台技能中心：技能 slug 为 `xiaohongshu-marketing-calendar`，提示词为 `prompt_xhs_calendar`，默认回源 `提示词/营销日历提示词.txt`
+  - 当前生成运行时会优先读取后台技能中心为营销日历配置的默认模型与提示词内容，默认以 `deepseek-v4-pro` 作为文本模型兜底
+  - 当前日历视图已从月份矩阵改为“未来 7 天”真实日历卡片，一排展示月份、日期、星期与主题；点击单日卡片后在详情弹窗中查看完整内容
+  - 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 - 原创笔记
   - 已支持原创图文作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求
@@ -357,6 +360,7 @@
 - 参考变更：`docs/changes/2026-05-14-feishu-partial-table-match-backfill.md`
 - 参考变更：`docs/changes/2026-05-14-feishu-table-dedup-and-unique-count.md`
 - 参考变更：`docs/changes/2026-05-14-feishu-sync-diagnostics-and-workspace-fallback.md`
+- 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 
 ### 5.3 每日热点链路
 
@@ -371,8 +375,10 @@
 1. 用户在 `/xiaohongshu` 的“营销日历”点击“一键生成”或“生成接下来 7 天”
 2. 前端先校验 `品牌增长报告`、`半年营销规划`、`小红书营销策划方案` 是否已存在
 3. 后端 `ReportsModule` 创建 `XHS_MARKETING_CALENDAR` 后台任务，并把状态写入任务记录
-4. 任务执行时读取品牌资料、小红书收集结果、每日热点、历史营销日历和国内文生文 provider 配置
-5. 生成成功后写回新的 7 天营销日历；失败时前端直接展示中文错误
+4. 任务执行时读取品牌资料、小红书收集结果、每日热点、历史营销日历，以及前后台统一注册的 `xiaohongshu-marketing-calendar / prompt_xhs_calendar` 技能配置
+5. 运行时优先采用后台技能中心为营销日历指定的模型，默认以 `deepseek-v4-pro` 作为文本模型兜底
+6. 生成成功后写回新的 7 天营销日历；前端按 7 张真实日历卡片展示月份、日期与主题，点击后查看当天详情；失败时前端直接展示中文错误
+7. 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 
 ### 5.4 原创笔记链路
 
@@ -414,9 +420,11 @@
 2. `SkillsPromptsService` 启动时优先检查 PostgreSQL 中的 `SkillConfig`、`PromptTemplate`
 3. 若注册表为空，则把 `mock-data` 与真实 `SKILL.md + 同目录参考资料` 回填进数据库
 4. `ReportsModule` 与 `WorksModule` 当前已优先从注册表读取品牌增长、小红书原创/二创/视频相关提示词
-5. 数据库已有旧内容时，后台读取链路仍会优先回源聚合文件内容，避免历史旧 `PromptTemplate.content` 把新参考资料挡住
-6. 数据库不可用时，后端才回退到 `mock-data + 文件`
-7. 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
+5. 小红书营销日历现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `xiaohongshu-marketing-calendar / prompt_xhs_calendar`
+6. 数据库已有旧内容时，后台读取链路仍会优先回源聚合文件内容，避免历史旧 `PromptTemplate.content` 把新参考资料挡住
+7. 数据库不可用时，后端才回退到 `mock-data + 文件`
+- 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
+- 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 
 ## 6. 当前已确认的真实能力
 

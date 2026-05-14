@@ -16,22 +16,15 @@ export interface CalendarWorkspaceProps {
   calendarTaskStatusText: string;
   calendarInlineError: string;
   calendarAllItems: XiaohongshuMarketingCalendarItem[];
-  resolvedCalendarMonth: string;
-  activeCalendarMonthIndex: number;
-  calendarMonthKeys: string[];
-  calendarMonthMatrix: Array<XiaohongshuMarketingCalendarItem | null>;
   isCalendarDetailOpen: boolean;
   selectedCalendarItem?: XiaohongshuMarketingCalendarItem;
   onRefresh: AsyncAction;
   onGenerate: AsyncAction;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
   onOpenDetail: (itemId: string) => void;
   onCloseDetail: () => void;
   getTaskStatusClass: (status?: XiaohongshuMarketingCalendarTaskRecord["taskStatus"]) => string;
   formatDateTime: OptionalDateFormatter;
-  formatCalendarMonthLabel: (value: string) => string;
-  formatCalendarDay: (value: string) => string;
+  formatCalendarMonthDay: (value: string) => string;
   formatCalendarWeekday: (value: string) => string;
   getCalendarFestivalLabel: (value: string) => string;
   formatCalendarDate: (value: string) => string;
@@ -53,22 +46,15 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     calendarTaskStatusText,
     calendarInlineError,
     calendarAllItems,
-    resolvedCalendarMonth,
-    activeCalendarMonthIndex,
-    calendarMonthKeys,
-    calendarMonthMatrix,
     isCalendarDetailOpen,
     selectedCalendarItem,
     onRefresh,
     onGenerate,
-    onPrevMonth,
-    onNextMonth,
     onOpenDetail,
     onCloseDetail,
     getTaskStatusClass,
     formatDateTime,
-    formatCalendarMonthLabel,
-    formatCalendarDay,
+    formatCalendarMonthDay,
     formatCalendarWeekday,
     getCalendarFestivalLabel,
     formatCalendarDate,
@@ -136,64 +122,38 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
           <div className="empty-state">当前还没有营销日历，点击右上角“一键生成”开始生成未来 7 天排期。</div>
         ) : (
           <div>
-            <div className="calendar-month-toolbar">
+            <div className="calendar-seven-day-toolbar">
               <div>
-                <span>月历视图</span>
-                <strong>{formatCalendarMonthLabel(resolvedCalendarMonth)}</strong>
-              </div>
-              <div className="strategy-inline-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={onPrevMonth}
-                  disabled={activeCalendarMonthIndex <= 0}
-                >
-                  上个月
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={onNextMonth}
-                  disabled={activeCalendarMonthIndex >= calendarMonthKeys.length - 1}
-                >
-                  下个月
-                </button>
+                <span>未来 7 天日历</span>
+                <strong>{latestCalendar?.summary || "按真实日历卡片查看未来 7 天主题与日期安排"}</strong>
               </div>
             </div>
-            <div className="calendar-weekdays">
-              {["一", "二", "三", "四", "五", "六", "日"].map((weekday) => (
-                <span key={weekday}>{weekday}</span>
+            <div className="calendar-grid calendar-grid--seven-day">
+              {calendarAllItems.map((item) => (
+                <article
+                  className="entity-card personal-card calendar-card calendar-card--seven-day calendar-card--interactive"
+                  key={item.id}
+                  onClick={() => onOpenDetail(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenDetail(item.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="calendar-card-date">
+                    <strong>{formatCalendarMonthDay(item.date)}</strong>
+                    <span>{formatCalendarWeekday(item.date)}</span>
+                  </div>
+                  <div className="calendar-card-body">
+                    <p className="calendar-card-festival">{getCalendarFestivalLabel(item.date) || "日常排期"}</p>
+                    <p className="calendar-card-topic">{item.topicName}</p>
+                    <p className="calendar-card-summary">{formatCalendarOptionalValue(item.noteType)}</p>
+                  </div>
+                </article>
               ))}
-            </div>
-            <div className="calendar-grid calendar-grid--month">
-              {calendarMonthMatrix.map((cell, index) =>
-                cell ? (
-                  <article
-                    className="entity-card personal-card calendar-card calendar-card--month calendar-card--interactive"
-                    key={cell.date}
-                    onClick={() => onOpenDetail(cell.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onOpenDetail(cell.id);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="calendar-card-date">
-                      <strong>{formatCalendarDay(cell.date)}</strong>
-                      <span>{formatCalendarWeekday(cell.date)}</span>
-                    </div>
-                    <div className="calendar-card-body">
-                      <p className="calendar-card-festival">{getCalendarFestivalLabel(cell.date)}</p>
-                      <p className="calendar-card-topic">{cell.topicName}</p>
-                    </div>
-                  </article>
-                ) : (
-                  <div className="calendar-card calendar-card--empty" key={`empty-${index}`} />
-                ),
-              )}
             </div>
           </div>
         )}
@@ -224,6 +184,10 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                 <div>
                   <span>植入产品</span>
                   <strong>{formatCalendarOptionalValue(selectedCalendarItem.productName)}</strong>
+                </div>
+                <div>
+                  <span>笔记类型</span>
+                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</strong>
                 </div>
                 <div>
                   <span>适合人群</span>
