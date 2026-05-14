@@ -134,9 +134,11 @@
 - `SkillConfig`
   - 用途：后台技能中心中的技能元信息
   - 关键字段：`name`、`slug`、`category`、`status`、`provider`、`defaultModel`、`pointsCost`、`description`
+  - 当前约定：当多个 Provider 存在同名模型且后台明确指定平台时，`defaultModel` 允许保存为 `providerId::modelName`，用于运行时优先命中指定 Provider；旧数据仍兼容纯模型名
 - `PromptTemplate`
   - 用途：后台技能中心中的提示词模板正文与参数
   - 关键字段：`name`、`scene`、`version`、`status`、`modelName`、`temperature`、`maxTokens`、`content`
+  - 当前约定：`modelName` 同样兼容 `providerId::modelName` 作用域值；用户态覆盖层沿用相同格式
 
 ### 3.7 接口供应商注册域
 
@@ -144,7 +146,7 @@
   - 用途：后台接口供应商配置中心与运行时 Provider 真源
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`
   - JSON 字段：`modelWhitelistJson`、`customHeadersJson`、`extraParamsJson`
-  - 当前约定：`extraParamsJson.runtimeKey` 作为运行时分组键；`ReportsModule` 与 `WorksModule` 按 `runtimeKey` 查询激活中的 Provider
+  - 当前约定：`extraParamsJson.runtimeKey` 作为运行时分组键；`ReportsModule` 与 `WorksModule` 按 `runtimeKey` 查询激活中的 Provider。当前已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两类 Provider，其中图像生成通过 `extraParamsJson.requestMode=images-generations` 切到 `/v1/images/generations`
 - `ThirdPartyPlatformConfig`
   - 用途：后台平台级第三方接口配置基线，供后台“接口供应商”平台页与个人中心“第三方接口配置”同步读取
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`defaultModel`、`remark`

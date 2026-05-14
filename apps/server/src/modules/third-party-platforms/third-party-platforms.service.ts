@@ -572,13 +572,13 @@ export class ThirdPartyPlatformsService {
     const existingRows = await this.prismaService.$queryRaw<Array<{ id: string }>>`
       SELECT "id"
       FROM "ThirdPartyPlatformConfig"
-      LIMIT 1
     `;
-    if (existingRows.length) {
-      return;
-    }
+    const existingIds = new Set(existingRows.map((item) => item.id));
 
     for (const item of THIRD_PARTY_PLATFORM_SEEDS) {
+      if (existingIds.has(item.id)) {
+        continue;
+      }
       await this.prismaService.$queryRaw`
         INSERT INTO "ThirdPartyPlatformConfig" (
           "id",

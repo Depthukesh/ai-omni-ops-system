@@ -9,6 +9,7 @@ import {
   getUserSkills,
   resetUserSkill,
   updateUserSkill,
+  type UserSkillEditorModelOption,
   type UserSkillEditorOptions,
   type UserSkillRecord,
 } from "../../../../services/personal-center";
@@ -373,7 +374,7 @@ export default function PersonalCenterSkillsPage() {
                 </div>
                 <div>
                   <span>默认模型</span>
-                  <strong>{skill.effectiveSkill.defaultModel}</strong>
+                  <strong>{formatScopedModelLabel(skill.effectiveSkill.defaultModel, editorOptions.modelOptions)}</strong>
                 </div>
                 <div>
                   <span>提示词</span>
@@ -444,7 +445,7 @@ export default function PersonalCenterSkillsPage() {
                     <div className="personal-grid" style={{ marginBottom: 12 }}>
                       <div>
                         <span>平台模型</span>
-                        <strong>{prompt.basePrompt.modelName}</strong>
+                        <strong>{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}</strong>
                       </div>
                       <div>
                         <span>平台温度</span>
@@ -467,13 +468,15 @@ export default function PersonalCenterSkillsPage() {
                           value={promptDraft.modelName}
                           onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "modelName", event.target.value, setSkillDrafts)}
                         >
-                          {buildModelOptions(editorOptions.modelOptions, prompt.basePrompt.modelName, promptDraft.modelName).map((model) => (
-                            <option key={model} value={model}>
-                              {model}
+                          {buildModelOptions(editorOptions.modelOptions, prompt.basePrompt.modelName, promptDraft.modelName).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
                             </option>
                           ))}
                         </select>
-                        <small className="personal-meta">默认跟随后台当前模型：{prompt.basePrompt.modelName}</small>
+                        <small className="personal-meta">
+                          默认跟随后台当前模型：{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}
+                        </small>
                       </label>
 
                       <div className="personal-grid">
@@ -580,14 +583,47 @@ function isSkillDraftDirty(skill: UserSkillRecord, draft: UserSkillEditDraft) {
   return serializeComparableDraft(skill, draft) !== serializeComparableDraft(skill, buildSkillDraft(skill));
 }
 
-function buildModelOptions(modelOptions: string[], ...currentValues: Array<string | undefined>) {
-  return Array.from(
-    new Set(
-      [...modelOptions, ...currentValues]
-        .map((item) => String(item || "").trim())
-        .filter(Boolean),
-    ),
-  );
+function buildModelOptions(modelOptions: UserSkillEditorModelOption[], ...currentValues: Array<string | undefined>) {
+  const optionsByValue = new Map(modelOptions.map((item) => [item.value, item]));
+  for (const rawValue of currentValues) {
+    const value = String(rawValue || "").trim();
+    if (!value || optionsByValue.has(value)) {
+      continue;
+    }
+    optionsByValue.set(value, buildFallbackModelOption(value));
+  }
+  return Array.from(optionsByValue.values());
+}
+
+function formatScopedModelLabel(value: string, modelOptions: UserSkillEditorModelOption[]) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "-";
+  }
+  return modelOptions.find((item) => item.value === normalized)?.label || buildFallbackModelOption(normalized).label;
+}
+
+function buildFallbackModelOption(value: string): UserSkillEditorModelOption {
+  const normalized = String(value || "").trim();
+  const separatorIndex = normalized.indexOf("::");
+  if (separatorIndex <= 0) {
+    return {
+      value: normalized,
+      label: normalized,
+      modelName: normalized,
+      providerId: "",
+      providerName: "",
+    };
+  }
+  const providerId = normalized.slice(0, separatorIndex).trim();
+  const modelName = normalized.slice(separatorIndex + 2).trim();
+  return {
+    value: normalized,
+    label: `${modelName} · ${providerId}`,
+    modelName,
+    providerId,
+    providerName: providerId,
+  };
 }
 
 function buildUpdatePayload(skill: UserSkillRecord, draft: UserSkillEditDraft) {

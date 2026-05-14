@@ -397,6 +397,7 @@ flowchart TD
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
     PC3 --> PAPI6["/user-skills 读取/保存/重置"]
+    PC3 --> PAPI62["/user-skills/editor-options 返回 Provider 作用域模型选项"]
     PC31 --> PAPI61["/third-party-platforms 读取 / 保存私有 Key"]
     PAPI1 --> PM1["AuthModule"]
     PAPI11 --> PM1
@@ -456,6 +457,7 @@ flowchart TD
     AS1 --> AAPI7["/admin/knowledge-bases"]
     AS1 --> AAPI8["/admin/knowledge-base-files"]
     AS1 --> AAPI9["/admin/third-party-platforms"]
+    AS1 --> AAPI91["ApiProviderConfig 含 Right Codes 文生文/文生图种子"]
 ```
 
 ## 8. 前端 service 到后端 API 关系图
@@ -541,7 +543,7 @@ flowchart TD
     FI["UserFeishuIntegration"]
     SC["SkillConfig"]
     PT["PromptTemplate"]
-    TP["ThirdPartyPlatformConfig 平台基线"]
+    TP["ThirdPartyPlatformConfig 平台基线（含 Right Codes）"]
     TPS["UserThirdPartyPlatformSecret 品牌私有 Key"]
 
     U --> MO

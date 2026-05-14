@@ -100,8 +100,16 @@ export type UserSkillRecord = {
   prompts: UserSkillPromptRecord[];
 };
 
+export type UserSkillEditorModelOption = {
+  value: string;
+  label: string;
+  modelName: string;
+  providerId: string;
+  providerName: string;
+};
+
 export type UserSkillEditorOptions = {
-  modelOptions: string[];
+  modelOptions: UserSkillEditorModelOption[];
 };
 
 export type UserThirdPartyPlatformRecord = {

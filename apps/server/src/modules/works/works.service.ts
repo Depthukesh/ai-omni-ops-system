@@ -442,6 +442,8 @@ type ThirdPartyChatConfig = {
 
 type TextProviderConfig = ThirdPartyChatConfig & {
   provider: "THIRD_PARTY" | "DEEPSEEK" | "KIMI" | "ARK";
+  providerId?: string;
+  providerName?: string;
   models: string[];
   temperature: number;
   maxTokens: number;
@@ -453,11 +455,15 @@ type TextProviderConfig = ThirdPartyChatConfig & {
 type SkillModelPreference = {
   preferredModelName: string;
   configuredModels: string[];
+  preferredProviderIds: string[];
 };
 
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
+  providerId: string;
+  providerName: string;
   models: string[];
+  requestMode: "chat-completions" | "images-generations";
   requestTimeoutMs?: number;
 };
 
@@ -2057,7 +2063,7 @@ export class WorksService {
                   baseUrl,
                   provider.completionPath,
                   apiKey,
-                  this.buildImageGenerationPayload(modelName, promptCandidate, params.referenceImageUrls),
+                  this.buildImageGenerationPayload(provider, modelName, promptCandidate, params.referenceImageUrls),
                   provider.requestTimeoutMs ?? 180000,
                 );
                 if (!response.ok) {
@@ -3566,6 +3572,8 @@ export class WorksService {
 
     return {
       provider: providerLabel,
+      providerId: provider.id,
+      providerName: provider.name,
       baseUrls,
       completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/chat/completions",
       apiKeys,
@@ -3585,8 +3593,23 @@ export class WorksService {
   private parseDelimitedModels(value: string) {
     return String(value || "")
       .split(/[、,，\s]+/)
-      .map((item) => item.trim())
+      .map((item) => this.parseScopedModelSelection(item).modelName)
       .filter(Boolean);
+  }
+
+  private parseScopedModelSelection(value: string) {
+    const normalized = String(value || "").trim();
+    const separatorIndex = normalized.indexOf("::");
+    if (separatorIndex <= 0) {
+      return {
+        providerId: "",
+        modelName: normalized,
+      };
+    }
+    return {
+      providerId: normalized.slice(0, separatorIndex).trim(),
+      modelName: normalized.slice(separatorIndex + 2).trim(),
+    };
   }
 
   private mergeModelPreferenceOrder(...values: string[]) {
@@ -3601,28 +3624,46 @@ export class WorksService {
     return merged;
   }
 
+  private extractPreferredProviderIds(...values: string[]) {
+    const preferredProviderIds: string[] = [];
+    for (const value of values) {
+      for (const token of String(value || "").split(/[、,，\s]+/)) {
+        const providerId = this.parseScopedModelSelection(token).providerId;
+        if (providerId && !preferredProviderIds.includes(providerId)) {
+          preferredProviderIds.push(providerId);
+        }
+      }
+    }
+    return preferredProviderIds;
+  }
+
   private reorderTextProvidersByPrimaryModel(
     providers: TextProviderConfig[],
     preferredModelName: string,
+    preferredProviderIds: string[] = [],
   ) {
     const normalizedPreferredModelName = preferredModelName.trim();
-    if (!normalizedPreferredModelName) {
-      return providers;
-    }
     const normalizedProviders = providers.map((provider) => ({
       ...provider,
       models: provider.models.includes(normalizedPreferredModelName)
         ? this.pickProviderModels(provider.models, [normalizedPreferredModelName], [normalizedPreferredModelName])
         : provider.models,
     }));
-    const matchingProviders = normalizedProviders.filter((provider) => provider.models.includes(normalizedPreferredModelName));
-    if (!matchingProviders.length) {
-      return normalizedProviders;
-    }
-    return [
-      ...matchingProviders,
-      ...normalizedProviders.filter((provider) => !provider.models.includes(normalizedPreferredModelName)),
-    ];
+    return normalizedProviders.sort((left, right) => {
+      const leftProviderRank = left.providerId ? preferredProviderIds.indexOf(left.providerId) : -1;
+      const rightProviderRank = right.providerId ? preferredProviderIds.indexOf(right.providerId) : -1;
+      const normalizedLeftProviderRank = leftProviderRank === -1 ? Number.MAX_SAFE_INTEGER : leftProviderRank;
+      const normalizedRightProviderRank = rightProviderRank === -1 ? Number.MAX_SAFE_INTEGER : rightProviderRank;
+      if (normalizedLeftProviderRank !== normalizedRightProviderRank) {
+        return normalizedLeftProviderRank - normalizedRightProviderRank;
+      }
+      const leftMatchesModel = normalizedPreferredModelName ? left.models.includes(normalizedPreferredModelName) : false;
+      const rightMatchesModel = normalizedPreferredModelName ? right.models.includes(normalizedPreferredModelName) : false;
+      if (leftMatchesModel !== rightMatchesModel) {
+        return leftMatchesModel ? -1 : 1;
+      }
+      return (left.providerName || left.provider).localeCompare(right.providerName || right.provider, "zh-CN");
+    });
   }
 
   private buildTextAttemptLabel(provider: TextProviderConfig["provider"], modelName: string, baseUrl: string) {
@@ -3674,6 +3715,7 @@ export class WorksService {
     return {
       preferredModelName: configuredModels[0] || fallbackModels[0] || "",
       configuredModels,
+      preferredProviderIds: this.extractPreferredProviderIds(skill?.defaultModel || "", prompt?.modelName || ""),
     };
   }
 
@@ -3690,15 +3732,17 @@ export class WorksService {
   }
 
   private async loadOriginalCopyProviders(brandId: string | undefined, preference?: SkillModelPreference) {
-    const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
+    const [deepseekProvider, doubaoProvider, kimiProvider, globalProviders] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys] = await Promise.all([
+    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys, globalApiKeyGroups] = await Promise.all([
       this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
       this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
       this.resolveBrandAwareApiKeys(brandId, kimiProvider),
+      Promise.all(globalProviders.map((item) => this.resolveBrandAwareApiKeys(brandId, item))),
     ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
@@ -3728,24 +3772,38 @@ export class WorksService {
         jsonResponse: true,
         tokenLimitField: "max_completion_tokens",
       }),
+      ...globalProviders.map((provider, index) =>
+        this.buildTextProviderConfig(provider, "THIRD_PARTY", preferredModels, {
+          apiKeys: globalApiKeyGroups[index],
+          temperature: 0.7,
+          maxTokens: 2200,
+          requestTimeoutMs: 180000,
+          jsonResponse: true,
+        })),
     ].filter((item): item is TextProviderConfig => Boolean(item));
 
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
     }
-    return this.reorderTextProvidersByPrimaryModel(providers, preference?.preferredModelName || "");
+    return this.reorderTextProvidersByPrimaryModel(
+      providers,
+      preference?.preferredModelName || "",
+      preference?.preferredProviderIds || [],
+    );
   }
 
   private async loadOriginalImagePromptProviders(brandId: string | undefined, preference?: SkillModelPreference) {
-    const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
+    const [deepseekProvider, doubaoProvider, kimiProvider, globalProviders] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+      this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys] = await Promise.all([
+    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys, globalApiKeyGroups] = await Promise.all([
       this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
       this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
       this.resolveBrandAwareApiKeys(brandId, kimiProvider),
+      Promise.all(globalProviders.map((item) => this.resolveBrandAwareApiKeys(brandId, item))),
     ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
@@ -3775,12 +3833,24 @@ export class WorksService {
         jsonResponse: true,
         tokenLimitField: "max_completion_tokens",
       }),
+      ...globalProviders.map((provider, index) =>
+        this.buildTextProviderConfig(provider, "THIRD_PARTY", preferredModels, {
+          apiKeys: globalApiKeyGroups[index],
+          temperature: 0.8,
+          maxTokens: 2800,
+          requestTimeoutMs: 180000,
+          jsonResponse: true,
+        })),
     ].filter((item): item is TextProviderConfig => Boolean(item));
 
     if (!providers.length) {
       throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
     }
-    return this.reorderTextProvidersByPrimaryModel(providers, preference?.preferredModelName || "");
+    return this.reorderTextProvidersByPrimaryModel(
+      providers,
+      preference?.preferredModelName || "",
+      preference?.preferredProviderIds || [],
+    );
   }
 
   private async generateRewriteCopy(params: {
@@ -4460,30 +4530,40 @@ export class WorksService {
   }
 
   private async loadImageGenerationProviders(brandId?: string): Promise<ImageProviderConfig[]> {
-    const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey("image-generation");
-    if (!provider) {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
+    if (!providers.length) {
       throw new ServiceUnavailableException("未找到文生图接口配置");
     }
-    const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-    const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
-    const models = this.pickProviderModels(
-      provider.modelWhitelist,
-      [],
-      ["gpt-image-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"],
-    );
-    if (!baseUrls.length || !apiKeys.length || !models.length) {
-      throw new ServiceUnavailableException("未找到文生图接口配置");
-    }
-    return [
-      {
+    const configs: ImageProviderConfig[] = [];
+    for (const provider of providers) {
+      const baseUrls = this.apiProvidersService.getBaseUrls(provider);
+      const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+      const models = this.pickProviderModels(
+        provider.modelWhitelist,
+        [],
+        ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"],
+      );
+      if (!baseUrls.length || !apiKeys.length || !models.length) {
+        continue;
+      }
+      configs.push({
         provider: "IMAGE_API",
+        providerId: provider.id,
+        providerName: provider.name,
         baseUrls,
         completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
         apiKeys,
         models,
+        requestMode: this.apiProvidersService.getStringExtra(provider, "requestMode") === "images-generations"
+          ? "images-generations"
+          : "chat-completions",
         requestTimeoutMs: provider.timeoutMs || 240000,
-      },
-    ];
+      });
+    }
+    if (!configs.length) {
+      throw new ServiceUnavailableException("未找到文生图接口配置");
+    }
+    return configs;
   }
 
   private resolveVideoGenerationConfigPath(backend: VideoBackendKey) {
@@ -4989,7 +5069,21 @@ export class WorksService {
     return payload;
   }
 
-  private buildImageGenerationPayload(modelName: string, prompt: string, referenceImageUrls: string[]) {
+  private buildImageGenerationPayload(
+    provider: ImageProviderConfig,
+    modelName: string,
+    prompt: string,
+    referenceImageUrls: string[],
+  ) {
+    if (provider.requestMode === "images-generations") {
+      return {
+        model: modelName,
+        prompt,
+        image: referenceImageUrls,
+        size: "1024x1024",
+        response_format: "url",
+      };
+    }
     const content: Array<Record<string, unknown>> = [
       {
         type: "text",

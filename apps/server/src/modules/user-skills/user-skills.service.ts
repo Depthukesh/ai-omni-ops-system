@@ -25,8 +25,16 @@ export type UserSkillRecord = {
   prompts: UserSkillPromptRecord[];
 };
 
+export type UserSkillEditorModelOption = {
+  value: string;
+  label: string;
+  modelName: string;
+  providerId: string;
+  providerName: string;
+};
+
 export type UserSkillEditorOptions = {
-  modelOptions: string[];
+  modelOptions: UserSkillEditorModelOption[];
 };
 
 export type UpdateUserSkillPayload = {
@@ -130,17 +138,25 @@ export class UserSkillsService {
 
   async getEditorOptions() {
     const activeProviders = await this.apiProvidersService.listActiveProviders();
-    const modelOptions = Array.from(
-      new Set(
-        activeProviders
-          .flatMap((item) => [item.defaultModel, ...item.modelWhitelist])
-          .map((item) => String(item || "").trim())
-          .filter(Boolean),
-      ),
-    );
+    const modelOptions = activeProviders.flatMap((item) => {
+      const models = Array.from(
+        new Set([item.defaultModel, ...item.modelWhitelist].map((modelName) => String(modelName || "").trim()).filter(Boolean)),
+      );
+      return models.map((modelName) => ({
+        value: this.buildScopedModelValue(item.id, modelName),
+        label: `${modelName} · ${item.name}`,
+        modelName,
+        providerId: item.id,
+        providerName: item.name,
+      }));
+    });
     return {
-      modelOptions,
+      modelOptions: modelOptions.sort((a, b) => a.label.localeCompare(b.label, "zh-CN")),
     };
+  }
+
+  private buildScopedModelValue(providerId: string, modelName: string) {
+    return `${providerId}::${modelName}`;
   }
 
   async listUserSkills(auth: RequestAuthContext) {

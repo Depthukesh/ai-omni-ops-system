@@ -300,6 +300,7 @@ type ModelGenerationSettings = {
   promptContent: string;
   preferredModelName?: string;
   brandId?: string;
+  preferredProviderIds?: string[];
 };
 
 type GrowthReportModelResult = {
@@ -4355,7 +4356,15 @@ ${normalizedMarkdown}`;
   }
 
   private async loadThirdPartyChatConfig(settings: ModelGenerationSettings): Promise<ThirdPartyChatConfig> {
-    const provider = await this.requireRuntimeProvider("text-global", "第三方文生文接口配置读取失败");
+    const provider = await this.resolveRuntimeProviderByBaseUrl(
+      "text-global",
+      settings.baseUrl,
+      settings.preferredProviderIds,
+      "第三方文生文接口配置读取失败",
+    );
+    if (!provider) {
+      throw new ServiceUnavailableException("第三方文生文接口配置读取失败");
+    }
     const requestedModels = this.parseDelimitedModels(settings.modelName);
     const models = this.pickProviderModels(
       provider.modelWhitelist,
@@ -4389,7 +4398,7 @@ ${normalizedMarkdown}`;
   private async loadGrowthReportProviderConfigs(settings: ModelGenerationSettings): Promise<GrowthReportProviderConfig[]> {
     const requestedModels = this.parseDelimitedModels(settings.modelName);
     const [thirdPartyProvider, deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
-      this.apiProvidersService.findActiveProviderByRuntimeKey("text-global"),
+      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-glm"),
@@ -4691,10 +4700,25 @@ ${normalizedMarkdown}`;
   }
 
   private parseDelimitedModels(value: string) {
-    return value
+    return String(value || "")
       .split(/[、,，\s]+/)
-      .map((item) => item.trim())
+      .map((item) => this.parseScopedModelSelection(item).modelName)
       .filter(Boolean);
+  }
+
+  private parseScopedModelSelection(value: string) {
+    const normalized = String(value || "").trim();
+    const separatorIndex = normalized.indexOf("::");
+    if (separatorIndex <= 0) {
+      return {
+        providerId: "",
+        modelName: normalized,
+      };
+    }
+    return {
+      providerId: normalized.slice(0, separatorIndex).trim(),
+      modelName: normalized.slice(separatorIndex + 2).trim(),
+    };
   }
 
   private mergeModelPreferenceOrder(...values: string[]) {
@@ -4707,6 +4731,19 @@ ${normalizedMarkdown}`;
       }
     }
     return merged;
+  }
+
+  private extractPreferredProviderIds(...values: string[]) {
+    const preferredProviderIds: string[] = [];
+    for (const value of values) {
+      for (const token of String(value || "").split(/[、,，\s]+/)) {
+        const providerId = this.parseScopedModelSelection(token).providerId;
+        if (providerId && !preferredProviderIds.includes(providerId)) {
+          preferredProviderIds.push(providerId);
+        }
+      }
+    }
+    return preferredProviderIds;
   }
 
   private resolveCompatibleModelNames(
@@ -5038,13 +5075,14 @@ ${normalizedMarkdown}`;
   private async loadGrowthReportGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("brand-omni-growth-analysis");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_growth_report");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
       "text-domestic-deepseek",
       "text-domestic-kimi",
       "text-domestic-glm",
       "text-domestic-doubao",
       "text-global",
-    ]);
+    ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
@@ -5064,18 +5102,20 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
     };
   }
 
   private async loadVisualReportGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("article-visual-report-designer");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_visual_report");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
       "text-domestic-deepseek",
       "text-domestic-glm",
       "text-domestic-kimi",
       "text-domestic-doubao",
-    ]);
+    ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
@@ -5095,18 +5135,20 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
     };
   }
 
   private async loadAnnualMarketingPlanGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("enterprise-annual-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_annual_marketing_plan");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
       "text-domestic-deepseek",
       "text-domestic-doubao",
       "text-domestic-kimi",
       "text-global",
-    ]);
+    ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
@@ -5126,13 +5168,15 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
     };
   }
 
   private async loadXiaohongshuMarketingPlanGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-brand-marketing-plan");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_plan");
-    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", ["text-domestic-deepseek"], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
@@ -5147,18 +5191,20 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || "",
       preferredModelName,
       brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
     };
   }
 
   private async loadXiaohongshuMarketingCalendarGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
     const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
       "text-domestic-deepseek",
       "text-domestic-kimi",
       "text-domestic-doubao",
       "text-global",
-    ]);
+    ], preferredSelections);
     const preferredModelNames = this.mergeModelPreferenceOrder(
       skill?.defaultModel || "",
       prompt?.modelName || "",
@@ -5173,6 +5219,7 @@ ${normalizedMarkdown}`;
       promptContent: prompt?.content || this.loadXiaohongshuMarketingCalendarPrompt(),
       preferredModelName,
       brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
     };
   }
 
@@ -5456,8 +5503,21 @@ ${normalizedMarkdown}`;
     return payload;
   }
 
-  private async resolvePreferredProvider(providerName: string | undefined, runtimeKey: string, allowedRuntimeKeys: string[] = [runtimeKey]) {
+  private async resolvePreferredProvider(
+    providerName: string | undefined,
+    runtimeKey: string,
+    allowedRuntimeKeys: string[] = [runtimeKey],
+    preferredValues: string[] = [],
+  ) {
     const activeProviders = await this.apiProvidersService.listActiveProviders();
+    const preferredProviderIds = this.extractPreferredProviderIds(...preferredValues);
+    for (const providerId of preferredProviderIds) {
+      const matched = activeProviders.find((item) => item.id === providerId);
+      const matchedRuntimeKey = matched ? this.apiProvidersService.getRuntimeKey(matched) : "";
+      if (matched && (!allowedRuntimeKeys.length || allowedRuntimeKeys.includes(matchedRuntimeKey))) {
+        return matched;
+      }
+    }
     if (providerName?.trim()) {
       const matched = activeProviders.find((item) => item.name === providerName.trim());
       const matchedRuntimeKey = matched ? this.apiProvidersService.getRuntimeKey(matched) : "";
@@ -5472,6 +5532,41 @@ ${normalizedMarkdown}`;
       }
     }
     return activeProviders.find((item) => this.apiProvidersService.getRuntimeKey(item) === runtimeKey);
+  }
+
+  private async resolveRuntimeProviderByBaseUrl(
+    runtimeKey: string,
+    baseUrl?: string,
+    preferredProviderIds: string[] = [],
+    errorMessage?: string,
+  ) {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey(runtimeKey);
+    for (const providerId of preferredProviderIds) {
+      const matched = providers.find((item) => item.id === providerId);
+      if (matched) {
+        return matched;
+      }
+    }
+    const normalizedBaseUrl = this.normalizeProviderBaseUrl(baseUrl);
+    if (normalizedBaseUrl) {
+      const matched = providers.find((item) =>
+        this.apiProvidersService.getBaseUrls(item).some((providerBaseUrl) => this.normalizeProviderBaseUrl(providerBaseUrl) === normalizedBaseUrl),
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+    if (providers[0]) {
+      return providers[0];
+    }
+    if (errorMessage) {
+      throw new ServiceUnavailableException(errorMessage);
+    }
+    return undefined;
+  }
+
+  private normalizeProviderBaseUrl(value?: string) {
+    return String(value || "").trim().replace(/\/+$/, "").toLowerCase();
   }
 
   private async requireRuntimeProvider(runtimeKey: string, errorMessage: string) {

@@ -96,3 +96,23 @@
 - 严格隔离补充
   - `ReportsModule` 与 `WorksModule` 的品牌级 Key 解析现已改为严格模式：只要命中平台基线，就必须使用该品牌 Owner 的私有 Key
   - 若品牌 Owner 尚未配置对应平台 API Key，会直接返回“请先前往个人中心-第三方接口配置完成设置后再试”的中文提醒
+
+## 8. 2026-05-14 Right Codes 平台补充
+
+- 平台与运行时种子
+  - `ApiProviderConfig` 新增 `Right Codes · 文生文（可带图）`
+    - 基础地址：`https://www.right.codes/draw`
+    - 对应接口：`/v1/chat/completions`
+    - 模型白名单：`gpt-5.3-codex`、`gpt-5.4`、`gpt-5.5`、`claude-opus-4-6`、`claude-opus-4-7`、`claude-sonnet-4-6`、`gemini-3.1-pro-preview`、`gemini-3-flash-preview`
+  - `ApiProviderConfig` 新增 `Right Codes · 文生图/图生图`
+    - 基础地址：`https://www.right.codes/draw`
+    - 对应接口：`/v1/images/generations`
+    - 模型白名单：`gpt-image-2`、`gpt-image-2-vip`、`nano-banana-2`
+  - `ThirdPartyPlatformConfig` 平台引导从“仅空库初始化”改为“自动补齐缺失平台种子”，避免老库里看不到新平台
+- 技能中心模型区分
+  - `/api/user-skills/editor-options` 现在会返回带 Provider 作用域的模型选项，前端标签格式为 `模型名 · Provider名`
+  - 当多个平台存在同名模型时，后台和个人中心技能页都会把选项值保存为 `providerId::modelName`
+  - 运行时会先按 `providerId` 命中指定 Provider，再用真实 `modelName` 发起调用，从而把 `Right Codes` 与柏拉图平台的同名模型区分开
+- Works 图像生成兼容补充
+  - 文生图运行时从“只支持一条 image-generation Provider + chat completion 风格 payload”升级为“支持多个 image-generation Provider”
+  - 当 Provider 标记 `requestMode=images-generations` 时，生成链路会改走 `/v1/images/generations` 风格 payload，兼容 `Right Codes`
