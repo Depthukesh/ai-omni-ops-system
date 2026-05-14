@@ -190,6 +190,7 @@ export class UserSkillsService {
     const context = this.assertUserContext(auth);
     const baseSkills = await this.skillsPromptsService.listSkills();
     const basePrompts = await this.skillsPromptsService.listPrompts();
+    const modelSelectionResolver = await this.createModelSelectionResolver();
     const baseSkill = baseSkills.find((item) => item.id === skillId);
     if (!baseSkill) {
       throw new NotFoundException("技能不存在");
@@ -224,7 +225,7 @@ export class UserSkillsService {
       if (hasSkillOverridePayload) {
         const normalizedProfileData = {
           displayName: normalizeOptionalText(payload.displayName),
-          defaultModel: normalizeOptionalText(payload.defaultModel),
+          defaultModel: this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver),
           description: normalizeOptionalText(payload.description),
         };
         const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
@@ -281,7 +282,7 @@ export class UserSkillsService {
         const normalizedOverrideData = {
           baseSkillId: skillId,
           content: normalizeOptionalText(promptOverride.content),
-          modelName: normalizeOptionalText(promptOverride.modelName),
+          modelName: this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver),
           temperature: normalizeOptionalNumber(promptOverride.temperature),
           maxTokens: normalizeOptionalInt(promptOverride.maxTokens),
         };
@@ -347,7 +348,7 @@ export class UserSkillsService {
       if (hasSkillOverridePayload) {
         const normalizedProfileData = {
           displayName: normalizeOptionalText(payload.displayName) ?? undefined,
-          defaultModel: normalizeOptionalText(payload.defaultModel) ?? undefined,
+          defaultModel: this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver) ?? undefined,
           description: normalizeOptionalText(payload.description) ?? undefined,
         };
         const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== undefined);
@@ -355,7 +356,7 @@ export class UserSkillsService {
           mockUserSkillProfiles.splice(mockUserSkillProfiles.indexOf(existingProfile), 1);
         } else if (existingProfile) {
           existingProfile.displayName = normalizeOptionalText(payload.displayName) ?? undefined;
-          existingProfile.defaultModel = normalizeOptionalText(payload.defaultModel) ?? undefined;
+          existingProfile.defaultModel = this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver) ?? undefined;
           existingProfile.description = normalizeOptionalText(payload.description) ?? undefined;
           existingProfile.updatedAt = now;
         } else if (hasEffectiveSkillOverride) {
@@ -365,7 +366,7 @@ export class UserSkillsService {
             brandId: context.brandId,
             baseSkillId: skillId,
             displayName: normalizeOptionalText(payload.displayName) ?? undefined,
-            defaultModel: normalizeOptionalText(payload.defaultModel) ?? undefined,
+            defaultModel: this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver) ?? undefined,
             description: normalizeOptionalText(payload.description) ?? undefined,
             createdAt: now,
             updatedAt: now,
@@ -382,7 +383,7 @@ export class UserSkillsService {
         );
         const normalizedOverrideData = {
           content: normalizeOptionalText(promptOverride.content) ?? undefined,
-          modelName: normalizeOptionalText(promptOverride.modelName) ?? undefined,
+          modelName: this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver) ?? undefined,
           temperature: normalizeOptionalNumber(promptOverride.temperature) ?? undefined,
           maxTokens: normalizeOptionalInt(promptOverride.maxTokens) ?? undefined,
         };
@@ -417,6 +418,52 @@ export class UserSkillsService {
     }
 
     return this.getUserSkill(skillId, auth);
+  }
+
+  private async createModelSelectionResolver() {
+    const activeProviders = await this.apiProvidersService.listActiveProviders();
+    const optionValueSet = new Set<string>();
+    const labelToValueMap = new Map<string, string>();
+    for (const provider of activeProviders) {
+      const providerModels = Array.from(
+        new Set([provider.defaultModel, ...provider.modelWhitelist].map((item) => String(item || "").trim()).filter(Boolean)),
+      );
+      for (const modelName of providerModels) {
+        const value = this.buildScopedModelValue(provider.id, modelName);
+        optionValueSet.add(value);
+        labelToValueMap.set(`${modelName} · ${provider.name}`, value);
+      }
+    }
+    return {
+      optionValueSet,
+      labelToValueMap,
+    };
+  }
+
+  private normalizeModelSelectionValue(
+    value: string | null | undefined,
+    resolver: {
+      optionValueSet: Set<string>;
+      labelToValueMap: Map<string, string>;
+    },
+  ) {
+    const normalized = normalizeOptionalText(value);
+    if (!normalized) {
+      return null;
+    }
+    if (resolver.optionValueSet.has(normalized)) {
+      return normalized;
+    }
+    const normalizedFromLabel = resolver.labelToValueMap.get(normalized);
+    if (normalizedFromLabel) {
+      return normalizedFromLabel;
+    }
+    const separatorIndex = normalized.indexOf("::");
+    if (separatorIndex > 0) {
+      const fallbackModelName = normalized.slice(separatorIndex + 2).trim();
+      return fallbackModelName || null;
+    }
+    return normalized;
   }
 
   async resetUserSkill(skillId: string, auth: RequestAuthContext) {

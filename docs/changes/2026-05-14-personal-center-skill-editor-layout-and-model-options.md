@@ -44,3 +44,17 @@
 
 - 当前个人中心模型下拉会汇总所有激活文本 Provider 的模型白名单；如果后续需要按单个技能的 `runtimeKey` 再继续收窄选项，需要在 `editor-options` 中补技能维度过滤
 - 当前仅精简了个人中心右侧编辑区，不影响后台平台技能中心的基线维护方式
+
+## 6. 2026-05-15 保存兼容补充
+
+- 用户反馈在个人中心切换“提示词模型”后保存失败
+- 本次补充：
+  - 后端 `UserSkillsService.updateUserSkill()` 在写入 `defaultModel / promptOverride.modelName` 前，会先把传入值归一化：
+    - 精确命中 `providerId::modelName` 时按作用域值保存
+    - 若前端传来 `模型名 · Provider名` 标签文本，会先映射回真实作用域值
+    - 若传入的是未知作用域值，则安全回退为纯模型名，避免脏值导致保存链路报错
+  - 前端 `buildUpdatePayload()` 改为只提交实际发生变化的 `promptOverrides`，不再把所有提示词的空覆盖一并提交
+- 验证结果：
+  - `GetDiagnostics` 通过
+  - `npm --workspace apps/web run build` 通过
+  - `npm --workspace apps/server run build` 通过

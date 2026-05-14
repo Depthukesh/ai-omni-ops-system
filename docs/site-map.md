@@ -161,6 +161,7 @@
   - 当前不再保留同技能的重复上下摘要块，只保留技能标题、保存/重置操作和下方提示词编辑卡
   - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
   - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
+  - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入用户覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
   - 当前仍支持保存到用户自己的技能库、重置回后台平台基线、品牌上下文切换与退出登录
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
   - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
@@ -342,6 +343,7 @@
   - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
   - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
+  - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
 - `TasksModule`：任务记录与重试
 - `TasksModule`

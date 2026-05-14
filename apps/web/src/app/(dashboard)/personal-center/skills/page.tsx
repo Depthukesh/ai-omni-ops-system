@@ -627,20 +627,25 @@ function buildFallbackModelOption(value: string): UserSkillEditorModelOption {
 }
 
 function buildUpdatePayload(skill: UserSkillRecord, draft: UserSkillEditDraft) {
-  return {
-    displayName: toNullableText(draft.displayName, skill.baseSkill.name),
-    defaultModel: toNullableText(draft.defaultModel, skill.baseSkill.defaultModel),
-    description: toNullableText(draft.description, skill.baseSkill.description),
-    promptOverrides: skill.prompts.map((prompt) => {
+  const promptOverrides = skill.prompts
+    .map((prompt) => {
       const promptDraft = draft.prompts[prompt.id];
-      return {
+      const override = {
         promptId: prompt.id,
         content: toNullableText(promptDraft?.content, prompt.basePrompt.content),
         modelName: toNullableText(promptDraft?.modelName, prompt.basePrompt.modelName),
         temperature: toNullableNumber(promptDraft?.temperature, prompt.basePrompt.temperature),
         maxTokens: toNullableInt(promptDraft?.maxTokens, prompt.basePrompt.maxTokens),
       };
-    }),
+      const hasEffectiveOverride = Object.entries(override).some(([key, value]) => key !== "promptId" && value !== null);
+      return hasEffectiveOverride ? override : undefined;
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  return {
+    displayName: toNullableText(draft.displayName, skill.baseSkill.name),
+    defaultModel: toNullableText(draft.defaultModel, skill.baseSkill.defaultModel),
+    description: toNullableText(draft.description, skill.baseSkill.description),
+    promptOverrides,
   };
 }
 

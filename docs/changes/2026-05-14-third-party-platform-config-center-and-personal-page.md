@@ -116,3 +116,12 @@
 - Works 图像生成兼容补充
   - 文生图运行时从“只支持一条 image-generation Provider + chat completion 风格 payload”升级为“支持多个 image-generation Provider”
   - 当 Provider 标记 `requestMode=images-generations` 时，生成链路会改走 `/v1/images/generations` 风格 payload，兼容 `Right Codes`
+
+## 9. 2026-05-15 原创参考图拆解提示词补充
+
+- 用户反馈“添加笔记 -> 创作”时因缺少 `提示词/拆解图片提示词.txt` 而直接报错
+- 本次补充：
+  - `WorksService.loadImageAnalysisPrompt()` 在外部 txt 缺失时，不再抛出“未找到拆解图片提示词文件”
+  - 改为内置回退到默认拆解提示词：
+    - `反推出参考图的AI生图中文描述词，要极致详尽涵盖风格、构图、视角、元素，整理成一段连贯的能够指导 AI 作图工具创作类似作品的生图提示词。`
+  - 该 fallback 已扩展为更完整的执行说明，覆盖风格、构图、视角、元素、光线、色彩、镜头语言、排版与可迁移视觉特征，避免原创笔记在缺失外部 txt 时中断

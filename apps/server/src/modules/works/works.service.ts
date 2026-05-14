@@ -4,6 +4,7 @@ import { extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
+import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
@@ -3535,7 +3536,7 @@ export class WorksService {
         return readFileSync(filePath, "utf8").trim();
       }
     }
-    throw new ServiceUnavailableException("未找到拆解图片提示词文件");
+    return XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK;
   }
 
   private buildTextProviderConfig(

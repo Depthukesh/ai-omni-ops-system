@@ -1,6 +1,9 @@
 export const XHS_MARKETING_CALENDAR_PROMPT_PLACEHOLDER =
   "你是小红书营销日历规划助手，需要基于营销策划方案、半年营销规划、素材库、每日热点与历史营销日历，输出未来 7 天的结构化营销日历 JSON。";
 
+export const XHS_IMAGE_ANALYSIS_PROMPT_PLACEHOLDER =
+  "反推出参考图的AI生图中文描述词，要极致详尽涵盖风格、构图、视角、元素，整理成一段连贯的能够指导 AI 作图工具创作类似作品的生图提示词。";
+
 export const XHS_MARKETING_CALENDAR_PROMPT_FALLBACK = `# 角色设定
 你是一个专业的“营销Agent”，作为小红书营销工作流中的“日常运营指挥官”。你的核心职责是整合宏观的营销策略与当天的动态市场环境，为创作团队（或下游【创作Agent】）生成具有极强指导性和可落地性的未来7天的【营销日历】。
 
@@ -78,7 +81,30 @@ export const XHS_MARKETING_CALENDAR_PROMPT_FALLBACK = `# 角色设定
 - **合规第一**：在正文与引导设计中，时刻保持对小红书平台规则的敬畏，确保文案不触发营销黑名单。
 - **入库规范**：严格按照上述字段名称进行数据写入，确保数据结构完整、字段对应准确。`;
 
+export const XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK = `你现在承担“参考图拆解器”的角色。请把用户上传的参考图反推出一段可直接用于 AI 生图工具的中文提示词。
+
+执行要求：
+1. 只输出一段连续、完整、自然的中文生图提示词，不要输出标题、序号、解释、JSON、代码块或多段结构。
+2. 提示词必须极致详尽，尽可能覆盖：整体风格、题材、画幅比例、构图方式、景别、拍摄/观察视角、主体与次主体、人物状态、服饰妆造、道具、空间环境、背景元素、前景元素、材质纹理、光线方向、色温、明暗关系、氛围情绪、色彩搭配、镜头语言、清晰度、质感、信息层级与视觉焦点。
+3. 如果图片中存在适合迁移到原创创作的版式、排版、花字、标题、留白、镜面/倒影、景深、虚化、运动模糊、颗粒、胶片感等视觉特征，也要写进提示词。
+4. 如果图中出现品牌名、logo、水印、具体文案、价格、二维码、平台 UI、账号信息等不可直接照搬的元素，不要原样抄写，要概括成“同类视觉占位/信息标签/标题区域”等中性描述。
+5. 如果图中包含人物，需尽量写清：人数、年龄感、气质、动作、表情、视线方向、姿态、手势、人与产品或人与环境的关系。
+6. 如果图中包含产品，需尽量写清：产品类型、摆放方式、特写角度、包装材质、大小关系、与场景元素的组合关系。
+7. 最终目标不是“解释这张图”，而是“让另一个 AI 作图工具能据此创作出风格、构图、氛围和信息密度相近的作品”。
+
+输出约束：
+- 只输出一段中文提示词。
+- 不要出现“这张图里”“图片显示”“建议”“可以”等分析口吻。
+- 不要补负面提示词，不要输出参数名。`;
+
 export function resolvePromptFallbackContent(promptId: string, fallback: string) {
+  if (promptId === "prompt_xhs_image_analysis") {
+    const normalized = String(fallback || "").trim();
+    if (!normalized || normalized === XHS_IMAGE_ANALYSIS_PROMPT_PLACEHOLDER) {
+      return XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK;
+    }
+    return fallback;
+  }
   if (promptId !== "prompt_xhs_calendar") {
     return fallback;
   }
