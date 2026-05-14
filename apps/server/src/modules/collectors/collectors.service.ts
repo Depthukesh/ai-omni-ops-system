@@ -904,11 +904,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       targetUsers: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.targetUsers),
     };
 
-    if (Object.values(matchedByName).some(Boolean)) {
+    const hasAllNamedMatches = Object.values(matchedByName).every(Boolean);
+    if (hasAllNamedMatches) {
       return matchedByName;
     }
 
-    return this.classifyFeishuTablesByContent(baseToken, userAccessToken, tables, binding);
+    const matchedByContent = await this.classifyFeishuTablesByContent(baseToken, userAccessToken, tables, binding);
+    if (Object.values(matchedByName).some(Boolean)) {
+      return {
+        brandAccounts: matchedByName.brandAccounts ?? matchedByContent.brandAccounts,
+        competitorAccounts: matchedByName.competitorAccounts ?? matchedByContent.competitorAccounts,
+        brandNotes: matchedByName.brandNotes ?? matchedByContent.brandNotes,
+        benchmarkNotes: matchedByName.benchmarkNotes ?? matchedByContent.benchmarkNotes,
+        targetUsers: matchedByName.targetUsers ?? matchedByContent.targetUsers,
+      };
+    }
+
+    return matchedByContent;
   }
 
   private findFeishuTableByKeywords(tables: FeishuTableRecord[], keywords: readonly string[]) {
