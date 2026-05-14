@@ -282,6 +282,10 @@ const xiaohongshuPlanSkillContent = readPromptSourceBundle(
   "prompt_xhs_plan",
   "你是小红书品牌营销顾问，需要输出年度种草策略、内容支柱和月度排期建议。",
 ).content;
+const xiaohongshuCalendarSkillContent = readPromptSourceBundle(
+  "prompt_xhs_calendar",
+  "你是小红书营销日历规划助手，需要基于营销策划方案、半年营销规划、素材库、每日热点与历史营销日历，输出未来 7 天的结构化营销日历 JSON。",
+).content;
 
 const xiaohongshuOriginalCopySkillContent = readPromptSourceBundle(
   "prompt_xhs_original_copy",
@@ -977,7 +981,7 @@ export const database: MockDatabase = {
       modelName: "deepseek-v4-pro",
       temperature: 0.6,
       maxTokens: 12000,
-      content: "你是小红书营销日历规划助手，需要基于营销策划方案、半年营销规划、素材库、每日热点与历史营销日历，输出未来 7 天的结构化营销日历 JSON。",
+      content: xiaohongshuCalendarSkillContent,
       updatedAt: "2026-05-14T22:30:00.000Z",
     },
     {

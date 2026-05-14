@@ -176,6 +176,7 @@ export type XiaohongshuMarketingCalendarItem = {
   contentGoal?: string;
   expressionFocus?: string;
   topicContent?: string;
+  noteKeywords: string[];
   titleDirections: string[];
   bodyStructure?: string;
   coverFormat?: string;

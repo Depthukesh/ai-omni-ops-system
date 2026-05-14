@@ -112,6 +112,7 @@ type XiaohongshuMarketingCalendarItem = {
   contentGoal?: string;
   expressionFocus?: string;
   topicContent?: string;
+  noteKeywords: string[];
   titleDirections: string[];
   bodyStructure?: string;
   coverFormat?: string;
@@ -3411,11 +3412,15 @@ export class ReportsService {
       expectedDates.length
         ? `必须严格覆盖这 7 个日期，且顺序保持一致：${expectedDates.join("、")}`
         : "必须严格覆盖从 startDate 开始的连续 7 个日期，且顺序保持一致。",
-      "items 中每一项都必须包含非空的 date、topicName、contentGoal、expressionFocus、topicContent。",
+      "items 中每一项都必须尽量完整填写字段，除 productName 可按需留空外，其余字段默认都要返回非空内容。",
+      "items 中每一项都必须包含非空的 date、topicName、noteType、targetAudience、contentGoal、expressionFocus、topicContent、bodyStructure、coverFormat、imageBrief。",
+      "items 中每一项都必须包含 noteKeywords、titleDirections、coverKeywords 三个数组；noteKeywords 至少 3 个，titleDirections 建议 2-3 个，coverKeywords 至少 3 个。",
       "不允许合并日期、不允许跳过日期、不允许返回少于 7 条，也不允许输出历史日期。",
       "只输出 JSON 对象，不要输出 Markdown 或代码块。",
       "JSON 必须包含 title、summary、items；items 必须正好 7 条。",
       "items 的 date 必须只从 expectedDates 中选取，每个日期只能出现一次。",
+      "JSON 项字段固定为：date、topicName、productName、noteType、targetAudience、contentGoal、expressionFocus、topicContent、noteKeywords、titleDirections、bodyStructure、coverFormat、coverKeywords、imageBrief。",
+      "topicName 要像真实日历主题，简洁但有传播感；topicContent、bodyStructure、imageBrief 要写成可直接交给创作执行的完整说明，不要只写短句。",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -5904,6 +5909,7 @@ ${normalizedMarkdown}`;
         contentGoal: String(item.contentGoal ?? "").trim() || undefined,
         expressionFocus: String(item.expressionFocus ?? "").trim() || undefined,
         topicContent: String(item.topicContent ?? "").trim() || undefined,
+        noteKeywords: this.normalizeStringArray(item.noteKeywords, [], 6),
         titleDirections: this.normalizeStringArray(item.titleDirections, [], 3),
         bodyStructure: String(item.bodyStructure ?? "").trim() || undefined,
         coverFormat: String(item.coverFormat ?? "").trim() || undefined,

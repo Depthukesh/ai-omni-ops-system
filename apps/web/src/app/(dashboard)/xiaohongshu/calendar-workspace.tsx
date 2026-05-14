@@ -93,7 +93,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
         <div className="report-editor-head">
           <div>
             <strong>{latestCalendar?.title || "营销日历"}</strong>
-            <p>按月查看营销日历；点击任一日期卡片后，在弹窗中查看当天的完整选题详情。</p>
+            <p>按未来 7 天查看营销日历；点击任一日期卡片后，在详情面板中查看当天的完整执行方案。</p>
           </div>
           <div className="report-editor-actions">
             <span className={`archive-pill ${canGenerateCalendar ? "status-ready" : "status-in_progress"}`}>
@@ -127,6 +127,10 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                 <span>未来 7 天日历</span>
                 <strong>{latestCalendar?.summary || "按真实日历卡片查看未来 7 天主题与日期安排"}</strong>
               </div>
+              <div className="calendar-seven-day-legend">
+                <span>点击单日卡片</span>
+                <strong>查看完整选题、标题方向、正文结构和配图说明</strong>
+              </div>
             </div>
             <div className="calendar-grid calendar-grid--seven-day">
               {calendarAllItems.map((item) => (
@@ -150,7 +154,11 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   <div className="calendar-card-body">
                     <p className="calendar-card-festival">{getCalendarFestivalLabel(item.date) || "日常排期"}</p>
                     <p className="calendar-card-topic">{item.topicName}</p>
-                    <p className="calendar-card-summary">{formatCalendarOptionalValue(item.noteType)}</p>
+                    <p className="calendar-card-summary">{formatCalendarOptionalValue(item.contentGoal)}</p>
+                    <div className="calendar-card-tags">
+                      <span>{formatCalendarOptionalValue(item.noteType)}</span>
+                      <span>{formatCalendarOptionalValue(item.productName || "未植入产品")}</span>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -165,66 +173,103 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             <button type="button" className="media-preview-close" onClick={onCloseDetail}>
               关闭
             </button>
-            <article className="entity-card personal-card">
-              <div className="entity-card-head">
+            <article className="entity-card personal-card calendar-detail-card">
+              <div className="calendar-detail-hero">
                 <div>
+                  <p className="calendar-detail-eyebrow">{formatCalendarDate(selectedCalendarItem.date)}</p>
                   <strong>{selectedCalendarItem.topicName}</strong>
-                  <p className="personal-meta">{formatCalendarDate(selectedCalendarItem.date)}</p>
+                  <p className="personal-meta">{formatCalendarOptionalValue(selectedCalendarItem.contentGoal)}</p>
+                </div>
+                <div className="calendar-detail-hero-tags">
+                  <span>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</span>
+                  <span>{getCalendarFestivalLabel(selectedCalendarItem.date) || "日常排期"}</span>
                 </div>
               </div>
-              <div className="personal-grid">
-                <div>
-                  <span>日期</span>
-                  <strong>{formatCalendarDate(selectedCalendarItem.date)}</strong>
-                </div>
-                <div>
-                  <span>选题名称</span>
-                  <strong>{selectedCalendarItem.topicName}</strong>
-                </div>
-                <div>
-                  <span>植入产品</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.productName)}</strong>
-                </div>
-                <div>
-                  <span>笔记类型</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</strong>
-                </div>
-                <div>
-                  <span>适合人群</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.targetAudience)}</strong>
-                </div>
-                <div>
-                  <span>内容目的</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.contentGoal)}</strong>
-                </div>
-                <div>
-                  <span>表达重点</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.expressionFocus)}</strong>
-                </div>
-                <div className="field-full">
-                  <span>选题内容</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.topicContent)}</strong>
-                </div>
-                <div className="field-full">
-                  <span>标题方向</span>
-                  <strong>{formatCalendarListValue(selectedCalendarItem.titleDirections)}</strong>
-                </div>
-                <div className="field-full">
-                  <span>正文结构</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.bodyStructure)}</strong>
-                </div>
-                <div>
-                  <span>封面形式</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.coverFormat)}</strong>
-                </div>
-                <div>
-                  <span>封面关键词</span>
-                  <strong>{formatCalendarListValue(selectedCalendarItem.coverKeywords)}</strong>
-                </div>
-                <div className="field-full">
-                  <span>封面及配图说明</span>
-                  <strong>{formatCalendarOptionalValue(selectedCalendarItem.imageBrief)}</strong>
-                </div>
+
+              <div className="calendar-detail-grid">
+                <section className="calendar-detail-section">
+                  <h4>基础信息</h4>
+                  <div className="calendar-detail-info-grid">
+                    <div>
+                      <span>日期</span>
+                      <strong>{formatCalendarDate(selectedCalendarItem.date)}</strong>
+                    </div>
+                    <div>
+                      <span>植入产品</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.productName)}</strong>
+                    </div>
+                    <div>
+                      <span>笔记类型</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</strong>
+                    </div>
+                    <div>
+                      <span>适合人群</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.targetAudience)}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="calendar-detail-section">
+                  <h4>选题策略</h4>
+                  <div className="calendar-detail-stack">
+                    <div>
+                      <span>内容目的</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.contentGoal)}</strong>
+                    </div>
+                    <div>
+                      <span>表达重点</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.expressionFocus)}</strong>
+                    </div>
+                    <div>
+                      <span>选题内容</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.topicContent)}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="calendar-detail-section">
+                  <h4>关键词与标题</h4>
+                  <div className="calendar-detail-stack">
+                    <div>
+                      <span>笔记关键词</span>
+                      <div className="calendar-detail-chip-row">
+                        {selectedCalendarItem.noteKeywords?.length ? selectedCalendarItem.noteKeywords.map((keyword) => (
+                          <em key={keyword}>{keyword}</em>
+                        )) : <strong>未填写</strong>}
+                      </div>
+                    </div>
+                    <div>
+                      <span>标题方向</span>
+                      <strong>{formatCalendarListValue(selectedCalendarItem.titleDirections)}</strong>
+                    </div>
+                    <div>
+                      <span>正文结构</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.bodyStructure)}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="calendar-detail-section">
+                  <h4>封面与配图</h4>
+                  <div className="calendar-detail-stack">
+                    <div>
+                      <span>封面形式</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.coverFormat)}</strong>
+                    </div>
+                    <div>
+                      <span>封面关键词</span>
+                      <div className="calendar-detail-chip-row">
+                        {selectedCalendarItem.coverKeywords?.length ? selectedCalendarItem.coverKeywords.map((keyword) => (
+                          <em key={keyword}>{keyword}</em>
+                        )) : <strong>未填写</strong>}
+                      </div>
+                    </div>
+                    <div>
+                      <span>封面及配图说明</span>
+                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.imageBrief)}</strong>
+                    </div>
+                  </div>
+                </section>
               </div>
             </article>
           </div>

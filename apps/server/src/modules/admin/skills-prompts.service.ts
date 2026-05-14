@@ -200,7 +200,7 @@ export class SkillsPromptsService {
 
   async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
     const currentSourceBundle = this.getPromptSourceBundle(id, "");
-    const sourceControlledPrompt = currentSourceBundle.referenceFiles.length > 0;
+    const sourceControlledPrompt = Boolean(currentSourceBundle.entryFilePath);
     const normalizedSubmittedContent =
       payload.content !== undefined ? this.normalizePromptContent(payload.content) : undefined;
     const hasSubmittedContentChange =
