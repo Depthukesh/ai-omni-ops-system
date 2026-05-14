@@ -318,7 +318,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const tables = await this.listFeishuTables(baseToken, userAccessToken);
       const matchedTables = await this.matchFeishuTables(baseToken, userAccessToken, tables, binding);
       await this.clearExistingXiaohongshuCollectorAssets(brandId);
-      const tableCount = Object.values(matchedTables).filter(Boolean).length;
+      const tableCount = this.countUniqueMatchedTables(matchedTables);
       let syncedCount = 0;
 
       if (matchedTables.brandAccounts) {
@@ -896,31 +896,127 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     tables: FeishuTableRecord[],
     binding: FeishuBindingRecord,
   ) {
-    const matchedByName = {
-      brandAccounts: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.brandAccounts),
-      competitorAccounts: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.competitorAccounts),
-      brandNotes: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.brandNotes),
-      benchmarkNotes: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.benchmarkNotes),
-      targetUsers: this.findFeishuTableByKeywords(tables, FEISHU_TABLE_MATCHERS.targetUsers),
-    };
+    const matchedByName = this.matchFeishuTablesByName(tables);
 
     const hasAllNamedMatches = Object.values(matchedByName).every(Boolean);
     if (hasAllNamedMatches) {
-      return matchedByName;
+      return this.dedupeMatchedFeishuTables(matchedByName);
     }
 
     const matchedByContent = await this.classifyFeishuTablesByContent(baseToken, userAccessToken, tables, binding);
     if (Object.values(matchedByName).some(Boolean)) {
-      return {
+      return this.dedupeMatchedFeishuTables({
         brandAccounts: matchedByName.brandAccounts ?? matchedByContent.brandAccounts,
         competitorAccounts: matchedByName.competitorAccounts ?? matchedByContent.competitorAccounts,
         brandNotes: matchedByName.brandNotes ?? matchedByContent.brandNotes,
         benchmarkNotes: matchedByName.benchmarkNotes ?? matchedByContent.benchmarkNotes,
         targetUsers: matchedByName.targetUsers ?? matchedByContent.targetUsers,
-      };
+      });
     }
 
-    return matchedByContent;
+    return this.dedupeMatchedFeishuTables(matchedByContent);
+  }
+
+  private dedupeMatchedFeishuTables(matchedTables: {
+    brandAccounts: FeishuTableRecord | null;
+    competitorAccounts: FeishuTableRecord | null;
+    brandNotes: FeishuTableRecord | null;
+    benchmarkNotes: FeishuTableRecord | null;
+    targetUsers: FeishuTableRecord | null;
+  }) {
+    const usedTableIds = new Set<string>();
+    const reserve = (table: FeishuTableRecord | null) => {
+      if (!table?.tableId || usedTableIds.has(table.tableId)) {
+        return null;
+      }
+      usedTableIds.add(table.tableId);
+      return table;
+    };
+
+    return {
+      brandAccounts: reserve(matchedTables.brandAccounts),
+      competitorAccounts: reserve(matchedTables.competitorAccounts),
+      brandNotes: reserve(matchedTables.brandNotes),
+      benchmarkNotes: reserve(matchedTables.benchmarkNotes),
+      targetUsers: reserve(matchedTables.targetUsers),
+    };
+  }
+
+  private matchFeishuTablesByName(tables: FeishuTableRecord[]) {
+    const remaining = [...tables];
+    const pick = (keywords: readonly string[]) => {
+      const best = this.findBestFeishuTableByKeywords(remaining, keywords);
+      if (!best) {
+        return null;
+      }
+      const index = remaining.findIndex((item) => item.tableId === best.tableId);
+      if (index >= 0) {
+        remaining.splice(index, 1);
+      }
+      return best;
+    };
+
+    return {
+      brandAccounts: pick(FEISHU_TABLE_MATCHERS.brandAccounts),
+      competitorAccounts: pick(FEISHU_TABLE_MATCHERS.competitorAccounts),
+      brandNotes: pick(FEISHU_TABLE_MATCHERS.brandNotes),
+      benchmarkNotes: pick(FEISHU_TABLE_MATCHERS.benchmarkNotes),
+      targetUsers: pick(FEISHU_TABLE_MATCHERS.targetUsers),
+    };
+  }
+
+  private findBestFeishuTableByKeywords(tables: FeishuTableRecord[], keywords: readonly string[]) {
+    let bestTable: FeishuTableRecord | null = null;
+    let bestScore = 0;
+
+    for (const table of tables) {
+      const score = this.scoreFeishuTableName(table.tableName, keywords);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTable = table;
+      }
+    }
+
+    return bestTable;
+  }
+
+  private scoreFeishuTableName(tableName: string, keywords: readonly string[]) {
+    const normalizedName = this.normalizeFieldKey(tableName);
+    let bestScore = 0;
+
+    for (const keyword of keywords) {
+      const normalizedKeyword = this.normalizeFieldKey(keyword);
+      if (!normalizedKeyword) {
+        continue;
+      }
+      if (normalizedName === normalizedKeyword) {
+        bestScore = Math.max(bestScore, 1000 + normalizedKeyword.length);
+        continue;
+      }
+      if (normalizedName.startsWith(normalizedKeyword) || normalizedName.endsWith(normalizedKeyword)) {
+        bestScore = Math.max(bestScore, 700 + normalizedKeyword.length);
+        continue;
+      }
+      if (normalizedName.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedName)) {
+        bestScore = Math.max(bestScore, 400 + normalizedKeyword.length);
+      }
+    }
+
+    return bestScore;
+  }
+
+  private countUniqueMatchedTables(matchedTables: {
+    brandAccounts: FeishuTableRecord | null;
+    competitorAccounts: FeishuTableRecord | null;
+    brandNotes: FeishuTableRecord | null;
+    benchmarkNotes: FeishuTableRecord | null;
+    targetUsers: FeishuTableRecord | null;
+  }) {
+    return new Set(
+      Object.values(matchedTables)
+        .map((item) => item?.tableId || "")
+        .filter(Boolean),
+    ).size;
   }
 
   private findFeishuTableByKeywords(tables: FeishuTableRecord[], keywords: readonly string[]) {
