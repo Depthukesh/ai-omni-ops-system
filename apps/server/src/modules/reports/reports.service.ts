@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type AssetRecord } from "../../common/mock-data";
+import { XHS_MARKETING_CALENDAR_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { AppConfigService } from "../../config/app-config.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
@@ -5958,7 +5959,7 @@ ${normalizedMarkdown}`;
         return readFileSync(filePath, "utf8").trim();
       }
     }
-    throw new ServiceUnavailableException("未找到营销日历提示词文件");
+    return XHS_MARKETING_CALENDAR_PROMPT_FALLBACK;
   }
 
   private extractJsonObject(content: string) {

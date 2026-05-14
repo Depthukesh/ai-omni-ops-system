@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
+import { resolvePromptFallbackContent } from "../../common/prompt-fallbacks";
 import { PrismaService } from "../../prisma/prisma.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
@@ -523,7 +524,7 @@ export class UserSkillsService {
         const override = promptOverrides.find((item) => item.basePromptId === promptId);
         const effectivePrompt: PromptTemplateRecord = {
           ...basePrompt,
-          content: override?.content ?? basePrompt.content,
+          content: resolvePromptFallbackContent(promptId, override?.content ?? basePrompt.content),
           modelName: override?.modelName ?? basePrompt.modelName,
           temperature: override?.temperature ?? basePrompt.temperature,
           maxTokens: override?.maxTokens ?? basePrompt.maxTokens,

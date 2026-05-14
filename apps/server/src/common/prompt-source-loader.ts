@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
+import { resolvePromptFallbackContent } from "./prompt-fallbacks";
 
 export type PromptSourceBundle = {
   content: string;
@@ -161,9 +162,10 @@ export function resolvePromptSourceEntryPath(promptId: string) {
 
 export function readPromptSourceBundle(promptId: string, fallback: string): PromptSourceBundle {
   const entryFilePath = resolvePromptSourceEntryPath(promptId);
+  const normalizedFallback = resolvePromptFallbackContent(promptId, fallback);
   if (!entryFilePath) {
     return {
-      content: fallback,
+      content: normalizedFallback,
       referenceFiles: [],
     };
   }
@@ -173,13 +175,13 @@ export function readPromptSourceBundle(promptId: string, fallback: string): Prom
     const referenceEntries = listReadableReferenceEntries(entryFilePath);
 
     return {
-      content: formatPromptSourceBundle(entryContent || fallback, referenceEntries),
+      content: formatPromptSourceBundle(entryContent || normalizedFallback, referenceEntries),
       entryFilePath,
       referenceFiles: referenceEntries.map((entry) => entry.fileName),
     };
   } catch {
     return {
-      content: fallback,
+      content: normalizedFallback,
       entryFilePath,
       referenceFiles: [],
     };
