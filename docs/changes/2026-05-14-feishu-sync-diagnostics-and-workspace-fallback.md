@@ -32,12 +32,19 @@
   - `benchmarkNotes` 本次同步条数
   - 当前工作区中的对标作品条数
 
+### 4. 修复 `discovery/item` 对标作品被误删
+
+- 文件：`apps/server/src/modules/collectors/collectors.service.ts`
+- `extractNoteIdFromUrl()` 现同时支持 `explore/:noteId` 和 `discovery/item/:noteId`，避免飞书行里明明带有真实小红书链接，却因未提取到笔记 ID 而退回使用飞书 `recordId`
+- 旧版对标头像脏数据清理逻辑现只会删除“头像 CDN 链接”或“`noteId` 为 `rec...` 且链接本身不是真实小红书作品链接”的记录，不再把刚同步进来的 `discovery/item/...` 对标作品误判成历史脏数据后立即删掉
+
 ## 影响
 
 - 下一轮用户点击“从飞书同步”后，不再只能看到模糊的总数提示，而能直接判断：
   - 是否命中了 `对标作品信息及数据`
   - 本次对标作品是否真的写入
   - 页面当前看到的工作区数据是否与同步响应一致
+- 对标作品表中的 `https://www.xiaohongshu.com/discovery/item/...` 链接现在可以稳定提取真实 `noteId`，不会再因为落成飞书 `recordId(rec...)` 而在去重清理阶段被误删
 
 ## 验证
 

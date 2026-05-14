@@ -2657,7 +2657,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         const noteId = this.readMetaString(this.asMeta(asset.metadataJson), "noteId");
         return (
           validTitles.has(asset.title.trim())
-          && (this.isAvatarCdnUrl(url) || noteId.startsWith("rec"))
+          && (this.isAvatarCdnUrl(url) || (noteId.startsWith("rec") && !this.isRealXiaohongshuNoteUrl(url)))
         );
       })
       .map((asset) => asset.id);
@@ -3142,7 +3142,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractNoteIdFromUrl(url: string) {
-    const match = url.match(/explore\/([^/?#]+)/i);
+    const match = url.match(/(?:explore|discovery\/item)\/([^/?#]+)/i);
     return match?.[1] ?? "";
   }
 
