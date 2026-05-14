@@ -145,6 +145,14 @@
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`
   - JSON 字段：`modelWhitelistJson`、`customHeadersJson`、`extraParamsJson`
   - 当前约定：`extraParamsJson.runtimeKey` 作为运行时分组键；`ReportsModule` 与 `WorksModule` 按 `runtimeKey` 查询激活中的 Provider
+- `ThirdPartyPlatformConfig`
+  - 用途：后台平台级第三方接口配置基线，供后台“接口供应商”平台页与个人中心“第三方接口配置”同步读取
+  - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`defaultModel`、`remark`
+  - JSON 字段：`modelIdsJson`
+- `UserThirdPartyPlatformSecret`
+  - 用途：保存当前用户在当前品牌下、针对某个平台配置的私有 API Key
+  - 关键字段：`userId`、`brandId`、`platformId`、`apiKey`
+  - 当前约定：唯一键为 `userId + brandId + platformId`，只有品牌 Owner 可写
 
 ## 4. 业务板块与数据表映射
 
@@ -191,6 +199,9 @@
 - 我的作品：`MediaAsset`
 - 邀请通知已读状态：`BrandInviteReadState`
 - 邀请站内消息：`BrandInviteNotification`
+- 第三方接口配置：
+  - 平台基线：`ThirdPartyPlatformConfig`
+  - 当前品牌下当前用户私有 Key：`UserThirdPartyPlatformSecret`
 
 ### 4.4 后台管理 `/admin`
 
@@ -200,6 +211,8 @@
 - 品牌成员与权限：`Brand`、`BrandMember`
 - API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`、`customHeadersJson`、`extraParamsJson`、`modelWhitelistJson`、`remark`
   - 当前视频模型下拉、报告生成和小红书创作生成链路已开始直接读取 `ApiProviderConfig`
+- 第三方平台配置管理：当前后台“接口供应商”可见页已切到平台级配置视图；数据库可用时通过 `ThirdPartyPlatformConfig` 持久化平台基线，通过 `UserThirdPartyPlatformSecret` 持久化个人中心 Owner 私有 API Key
+  - 当前这层主要用于后台平台配置与个人中心展示/私有 Key 管理，不直接替代 `ApiProviderConfig` 的运行时 `runtimeKey` 真源
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`

@@ -1,0 +1,476 @@
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { database } from "../../common/mock-data";
+import {
+  THIRD_PARTY_PLATFORM_SEEDS,
+  type ThirdPartyPlatformRecord,
+} from "../../common/third-party-platform-catalog";
+import { PrismaService } from "../../prisma/prisma.service";
+
+export type CreateThirdPartyPlatformPayload = {
+  name: string;
+  providerType: ThirdPartyPlatformRecord["providerType"];
+  status?: ThirdPartyPlatformRecord["status"];
+  baseUrl: string;
+  tutorialUrl?: string;
+  modelIds?: string[];
+  defaultModel?: string;
+  remark?: string;
+};
+
+export type UpdateThirdPartyPlatformPayload = {
+  name?: string;
+  providerType?: ThirdPartyPlatformRecord["providerType"];
+  status?: ThirdPartyPlatformRecord["status"];
+  baseUrl?: string;
+  tutorialUrl?: string;
+  modelIds?: string[];
+  defaultModel?: string;
+  remark?: string;
+};
+
+export type UpdateMyThirdPartyPlatformSecretPayload = {
+  apiKey?: string;
+};
+
+export type UserThirdPartyPlatformRecord = ThirdPartyPlatformRecord & {
+  apiKey: string;
+  effectiveApiKeyMasked: string;
+};
+
+type ThirdPartyPlatformRow = {
+  id: string;
+  name: string;
+  providerType: ThirdPartyPlatformRecord["providerType"];
+  status: ThirdPartyPlatformRecord["status"];
+  baseUrl: string;
+  tutorialUrl: string;
+  modelIdsJson: unknown;
+  defaultModel: string;
+  remark: string;
+  updatedAt: Date | string;
+};
+
+type UserThirdPartyPlatformSecretRow = {
+  id: string;
+  userId: string;
+  brandId: string;
+  platformId: string;
+  apiKey: string;
+  updatedAt: Date | string;
+};
+
+@Injectable()
+export class ThirdPartyPlatformsService {
+  private bootstrapPromise?: Promise<void>;
+
+  constructor(private readonly prismaService: PrismaService) {}
+
+  async listPlatforms() {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
+        SELECT *
+        FROM "ThirdPartyPlatformConfig"
+        ORDER BY "updatedAt" DESC, "name" ASC
+      `;
+      return rows.map((item) => this.normalizePlatformRow(item));
+    }
+
+    if (!database.thirdPartyPlatforms?.length) {
+      database.thirdPartyPlatforms = THIRD_PARTY_PLATFORM_SEEDS.map((item) => ({ ...item }));
+    }
+    return [...database.thirdPartyPlatforms].map((item) => ({ ...item }));
+  }
+
+  async getPlatformById(platformId: string) {
+    return (await this.listPlatforms()).find((item) => item.id === platformId);
+  }
+
+  async createPlatform(payload: CreateThirdPartyPlatformPayload) {
+    const nextRecord = this.buildPlatformRecord({
+      id: `third_party_platform_${Date.now()}`,
+      name: payload.name,
+      providerType: payload.providerType,
+      status: payload.status || "DRAFT",
+      baseUrl: payload.baseUrl,
+      tutorialUrl: payload.tutorialUrl || "",
+      modelIds: payload.modelIds || [],
+      defaultModel: payload.defaultModel || "",
+      remark: payload.remark || "",
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
+        INSERT INTO "ThirdPartyPlatformConfig" (
+          "id",
+          "name",
+          "providerType",
+          "status",
+          "baseUrl",
+          "tutorialUrl",
+          "modelIdsJson",
+          "defaultModel",
+          "remark",
+          "updatedAt"
+        )
+        VALUES (
+          ${nextRecord.id},
+          ${nextRecord.name},
+          ${nextRecord.providerType},
+          ${nextRecord.status},
+          ${nextRecord.baseUrl},
+          ${nextRecord.tutorialUrl},
+          ${JSON.stringify(nextRecord.modelIds)}::jsonb,
+          ${nextRecord.defaultModel},
+          ${nextRecord.remark},
+          ${new Date(nextRecord.updatedAt)}
+        )
+        RETURNING *
+      `;
+      return this.normalizePlatformRow(rows[0] ?? nextRecord);
+    }
+
+    if (!database.thirdPartyPlatforms) {
+      database.thirdPartyPlatforms = [];
+    }
+    database.thirdPartyPlatforms.unshift(nextRecord);
+    return nextRecord;
+  }
+
+  async updatePlatform(platformId: string, payload: UpdateThirdPartyPlatformPayload) {
+    const current = await this.getPlatformById(platformId);
+    if (!current) {
+      throw new NotFoundException("第三方平台不存在");
+    }
+
+    const nextRecord = this.buildPlatformRecord({
+      ...current,
+      name: payload.name ?? current.name,
+      providerType: payload.providerType ?? current.providerType,
+      status: payload.status ?? current.status,
+      baseUrl: payload.baseUrl ?? current.baseUrl,
+      tutorialUrl: payload.tutorialUrl ?? current.tutorialUrl,
+      modelIds: payload.modelIds ?? current.modelIds,
+      defaultModel: payload.defaultModel ?? current.defaultModel,
+      remark: payload.remark ?? current.remark,
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
+        UPDATE "ThirdPartyPlatformConfig"
+        SET
+          "name" = ${nextRecord.name},
+          "providerType" = ${nextRecord.providerType},
+          "status" = ${nextRecord.status},
+          "baseUrl" = ${nextRecord.baseUrl},
+          "tutorialUrl" = ${nextRecord.tutorialUrl},
+          "modelIdsJson" = ${JSON.stringify(nextRecord.modelIds)}::jsonb,
+          "defaultModel" = ${nextRecord.defaultModel},
+          "remark" = ${nextRecord.remark},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${platformId}
+        RETURNING *
+      `;
+      return this.normalizePlatformRow(rows[0] ?? nextRecord);
+    }
+
+    database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).map((item) =>
+      item.id === platformId ? nextRecord : item,
+    );
+    return nextRecord;
+  }
+
+  async deletePlatform(platformId: string) {
+    const current = await this.getPlatformById(platformId);
+    if (!current) {
+      throw new NotFoundException("第三方平台不存在");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      await this.prismaService.$queryRawUnsafe(
+        `DELETE FROM "UserThirdPartyPlatformSecret" WHERE "platformId" = $1`,
+        platformId,
+      );
+      const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
+        DELETE FROM "ThirdPartyPlatformConfig"
+        WHERE "id" = ${platformId}
+        RETURNING *
+      `;
+      return this.normalizePlatformRow(rows[0] ?? current);
+    }
+
+    database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter((item) => item.id !== platformId);
+    database.userThirdPartyPlatformSecrets = (database.userThirdPartyPlatformSecrets || []).filter(
+      (item) => item.platformId !== platformId,
+    );
+    return current;
+  }
+
+  async listUserPlatforms(userId: string, brandId: string) {
+    const [platforms, secrets] = await Promise.all([this.listPlatforms(), this.listUserSecrets(userId, brandId)]);
+    return platforms.map<UserThirdPartyPlatformRecord>((item) => {
+      const secret = secrets.find((entry) => entry.platformId === item.id);
+      const apiKey = secret?.apiKey || "";
+      return {
+        ...item,
+        apiKey,
+        effectiveApiKeyMasked: this.maskSecret(apiKey),
+      };
+    });
+  }
+
+  async updateUserPlatformSecret(userId: string, brandId: string, platformId: string, payload: UpdateMyThirdPartyPlatformSecretPayload) {
+    const platform = await this.getPlatformById(platformId);
+    if (!platform) {
+      throw new NotFoundException("第三方平台不存在");
+    }
+
+    const nextApiKey = String(payload.apiKey || "").trim();
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const existingRows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+        SELECT *
+        FROM "UserThirdPartyPlatformSecret"
+        WHERE "userId" = ${userId}
+          AND "brandId" = ${brandId}
+          AND "platformId" = ${platformId}
+        LIMIT 1
+      `;
+      const existing = existingRows[0];
+
+      if (existing) {
+        const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+          UPDATE "UserThirdPartyPlatformSecret"
+          SET
+            "apiKey" = ${nextApiKey},
+            "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = ${existing.id}
+          RETURNING *
+        `;
+        return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
+      }
+
+      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+        INSERT INTO "UserThirdPartyPlatformSecret" (
+          "id",
+          "userId",
+          "brandId",
+          "platformId",
+          "apiKey",
+          "updatedAt"
+        )
+        VALUES (
+          ${`user_platform_secret_${Date.now()}`},
+          ${userId},
+          ${brandId},
+          ${platformId},
+          ${nextApiKey},
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+      `;
+      return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
+    }
+
+    if (!database.userThirdPartyPlatformSecrets) {
+      database.userThirdPartyPlatformSecrets = [];
+    }
+    const existing = database.userThirdPartyPlatformSecrets.find(
+      (item) => item.userId === userId && item.brandId === brandId && item.platformId === platformId,
+    );
+    if (existing) {
+      existing.apiKey = nextApiKey;
+      existing.updatedAt = new Date().toISOString();
+      return this.normalizeUserPlatform(platform, existing.apiKey);
+    }
+
+    database.userThirdPartyPlatformSecrets.push({
+      id: `user_platform_secret_${Date.now()}`,
+      userId,
+      brandId,
+      platformId,
+      apiKey: nextApiKey,
+      updatedAt: new Date().toISOString(),
+    });
+    return this.normalizeUserPlatform(platform, nextApiKey);
+  }
+
+  private normalizeUserPlatform(platform: ThirdPartyPlatformRecord, apiKey: string): UserThirdPartyPlatformRecord {
+    return {
+      ...platform,
+      apiKey,
+      effectiveApiKeyMasked: this.maskSecret(apiKey),
+    };
+  }
+
+  private async listUserSecrets(userId: string, brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+        SELECT *
+        FROM "UserThirdPartyPlatformSecret"
+        WHERE "userId" = ${userId}
+          AND "brandId" = ${brandId}
+      `;
+      return rows.map((item) => ({
+        id: item.id,
+        userId: item.userId,
+        brandId: item.brandId,
+        platformId: item.platformId,
+        apiKey: String(item.apiKey || ""),
+        updatedAt: this.normalizeDate(item.updatedAt),
+      }));
+    }
+
+    return (database.userThirdPartyPlatformSecrets || [])
+      .filter((item) => item.userId === userId && item.brandId === brandId)
+      .map((item) => ({ ...item }));
+  }
+
+  private buildPlatformRecord(input: ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
+    const modelIds = Array.from(
+      new Set(
+        (input.modelIds || [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    const defaultModel = modelIds.includes(input.defaultModel) ? input.defaultModel : modelIds[0] || "";
+    return {
+      id: input.id,
+      name: String(input.name || "").trim(),
+      providerType: input.providerType,
+      status: input.status,
+      baseUrl: String(input.baseUrl || "").trim(),
+      tutorialUrl: String(input.tutorialUrl || "").trim(),
+      modelIds,
+      defaultModel,
+      remark: String(input.remark || "").trim(),
+      updatedAt: this.normalizeDate(input.updatedAt),
+    };
+  }
+
+  private normalizePlatformRow(row: ThirdPartyPlatformRow | ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
+    const modelIds =
+      "modelIdsJson" in row
+        ? (Array.isArray(row.modelIdsJson) ? (row.modelIdsJson as string[]) : [])
+        : row.modelIds;
+
+    return this.buildPlatformRecord({
+      id: row.id,
+      name: row.name,
+      providerType: row.providerType,
+      status: row.status,
+      baseUrl: row.baseUrl,
+      tutorialUrl: row.tutorialUrl,
+      modelIds,
+      defaultModel: row.defaultModel,
+      remark: row.remark,
+      updatedAt: this.normalizeDate(row.updatedAt),
+    });
+  }
+
+  private normalizeDate(value: Date | string) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return String(value || new Date().toISOString());
+  }
+
+  private maskSecret(value: string) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      return "未设置";
+    }
+    if (normalized.length <= 8) {
+      return `${normalized.slice(0, 2)}****`;
+    }
+    return `${normalized.slice(0, 4)}********${normalized.slice(-4)}`;
+  }
+
+  private async ensureTablesReady() {
+    if (!this.bootstrapPromise) {
+      this.bootstrapPromise = this.bootstrapTables();
+    }
+    await this.bootstrapPromise;
+  }
+
+  private async bootstrapTables() {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return;
+    }
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "ThirdPartyPlatformConfig" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "providerType" TEXT NOT NULL,
+        "status" TEXT NOT NULL,
+        "baseUrl" TEXT NOT NULL DEFAULT '',
+        "tutorialUrl" TEXT NOT NULL DEFAULT '',
+        "modelIdsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "defaultModel" TEXT NOT NULL DEFAULT '',
+        "remark" TEXT NOT NULL DEFAULT '',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "UserThirdPartyPlatformSecret" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "brandId" TEXT NOT NULL,
+        "platformId" TEXT NOT NULL,
+        "apiKey" TEXT NOT NULL DEFAULT '',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "UserThirdPartyPlatformSecret_user_brand_platform_key"
+      ON "UserThirdPartyPlatformSecret" ("userId", "brandId", "platformId")
+    `);
+
+    const existingRows = await this.prismaService.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ThirdPartyPlatformConfig"
+      LIMIT 1
+    `;
+    if (existingRows.length) {
+      return;
+    }
+
+    for (const item of THIRD_PARTY_PLATFORM_SEEDS) {
+      await this.prismaService.$queryRaw`
+        INSERT INTO "ThirdPartyPlatformConfig" (
+          "id",
+          "name",
+          "providerType",
+          "status",
+          "baseUrl",
+          "tutorialUrl",
+          "modelIdsJson",
+          "defaultModel",
+          "remark",
+          "updatedAt"
+        )
+        VALUES (
+          ${item.id},
+          ${item.name},
+          ${item.providerType},
+          ${item.status},
+          ${item.baseUrl},
+          ${item.tutorialUrl},
+          ${JSON.stringify(item.modelIds)}::jsonb,
+          ${item.defaultModel},
+          ${item.remark},
+          ${new Date(item.updatedAt)}
+        )
+      `;
+    }
+  }
+}

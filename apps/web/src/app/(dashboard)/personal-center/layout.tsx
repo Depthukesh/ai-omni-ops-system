@@ -33,6 +33,11 @@ const routeItems = [
     description: "查看当前账号可使用的平台技能基线，并为后续个人覆盖层预留入口",
   },
   {
+    href: "/personal-center/third-party-platforms",
+    label: "第三方接口配置",
+    description: "按平台查看第三方接口地址、模型 ID、说明文档与当前账号的私有 API Key",
+  },
+  {
     href: "/personal-center/security",
     label: "安全设置",
     description: "查看当前浏览器登录态、品牌上下文与退出入口，并为后续密码与会话管理预留位置",

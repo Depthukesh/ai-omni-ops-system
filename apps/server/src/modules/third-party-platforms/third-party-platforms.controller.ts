@@ -1,0 +1,81 @@
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
+import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "../admin/admin-access";
+import {
+  ThirdPartyPlatformsService,
+  type CreateThirdPartyPlatformPayload,
+  type UpdateMyThirdPartyPlatformSecretPayload,
+  type UpdateThirdPartyPlatformPayload,
+} from "./third-party-platforms.service";
+
+@Controller()
+export class ThirdPartyPlatformsController {
+  constructor(
+    private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    private readonly authService: AuthService,
+  ) {}
+
+  @Get("admin/third-party-platforms")
+  async listAdminPlatforms(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.thirdPartyPlatformsService.listPlatforms();
+  }
+
+  @Post("admin/third-party-platforms")
+  async createAdminPlatform(
+    @Body() payload: CreateThirdPartyPlatformPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.thirdPartyPlatformsService.createPlatform(payload);
+  }
+
+  @Patch("admin/third-party-platforms/:id")
+  async updateAdminPlatform(
+    @Param("id") id: string,
+    @Body() payload: UpdateThirdPartyPlatformPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.thirdPartyPlatformsService.updatePlatform(id, payload);
+  }
+
+  @Delete("admin/third-party-platforms/:id")
+  async deleteAdminPlatform(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.thirdPartyPlatformsService.deletePlatform(id);
+  }
+
+  @Get("third-party-platforms")
+  async listUserPlatforms(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth?.brandId) {
+      throw new UnauthorizedException("请先登录并进入品牌工作区");
+    }
+    const access = await this.authService.assertBrandAccess(auth.brandId, auth);
+    const platforms = await this.thirdPartyPlatformsService.listUserPlatforms(access.userId, access.brandId);
+    return {
+      brandId: access.brandId,
+      role: access.role,
+      canManage: access.role === "OWNER",
+      platforms,
+    };
+  }
+
+  @Patch("third-party-platforms/:id/secret")
+  async updateUserPlatformSecret(
+    @Param("id") id: string,
+    @Body() payload: UpdateMyThirdPartyPlatformSecretPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth?.brandId) {
+      throw new UnauthorizedException("请先登录并进入品牌工作区");
+    }
+    const access = await this.authService.assertBrandOwnerAccess(auth.brandId, auth);
+    return this.thirdPartyPlatformsService.updateUserPlatformSecret(access.userId, access.brandId, id, payload);
+  }
+}

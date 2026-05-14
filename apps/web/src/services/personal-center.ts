@@ -104,6 +104,28 @@ export type UserSkillEditorOptions = {
   modelOptions: string[];
 };
 
+export type UserThirdPartyPlatformRecord = {
+  id: string;
+  name: string;
+  providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  baseUrl: string;
+  tutorialUrl: string;
+  modelIds: string[];
+  defaultModel: string;
+  remark: string;
+  updatedAt: string;
+  apiKey: string;
+  effectiveApiKeyMasked: string;
+};
+
+export type GetMyThirdPartyPlatformsResponse = {
+  brandId: string;
+  role: string;
+  canManage: boolean;
+  platforms: UserThirdPartyPlatformRecord[];
+};
+
 export type UpdateUserSkillPayload = {
   displayName?: string | null;
   defaultModel?: string | null;
@@ -389,6 +411,14 @@ export async function updateUserSkill(skillId: string, payload: UpdateUserSkillP
 
 export async function resetUserSkill(skillId: string) {
   return jsonRequest<UserSkillRecord>(`/user-skills/${skillId}/reset`, "POST", {});
+}
+
+export async function getMyThirdPartyPlatforms() {
+  return request<GetMyThirdPartyPlatformsResponse>("/third-party-platforms");
+}
+
+export async function updateMyThirdPartyPlatformSecret(platformId: string, payload: { apiKey?: string }) {
+  return jsonRequest<UserThirdPartyPlatformRecord>(`/third-party-platforms/${platformId}/secret`, "PATCH", payload);
 }
 
 export async function createMedia(payload: {

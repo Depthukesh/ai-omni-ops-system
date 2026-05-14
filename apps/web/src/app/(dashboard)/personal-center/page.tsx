@@ -180,6 +180,12 @@ export default function PersonalCenterPage() {
         description: "查看账号可见的技能基线与提示词参考。",
       },
       {
+        href: "/personal-center/third-party-platforms",
+        label: "第三方接口配置",
+        value: "平台同步",
+        description: "按平台查看接口地址、模型 ID、说明文档，并维护当前账号自己的 API Key。",
+      },
+      {
         href: "/personal-center/team",
         label: "团队协作",
         value: `${brands.length || 0} 个品牌`,

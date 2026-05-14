@@ -183,6 +183,19 @@ export type ApiProviderRecord = {
   updatedAt: string;
 };
 
+export type ThirdPartyPlatformRecord = {
+  id: string;
+  name: string;
+  providerType: "OPENAI" | "GEMINI" | "DOUBAO" | "CUSTOM";
+  status: "ACTIVE" | "DISABLED" | "DRAFT";
+  baseUrl: string;
+  tutorialUrl: string;
+  modelIds: string[];
+  defaultModel: string;
+  remark: string;
+  updatedAt: string;
+};
+
 const XHS_MARKETING_CALENDAR_PROMPT_SEED = `# 角色设定
 你是一个专业的“营销Agent”，作为小红书营销工作流中的“日常运营指挥官”。你的核心职责是整合宏观的营销策略与当天的动态市场环境，为创作团队（或下游【创作Agent】）生成具有极强指导性和可落地性的未来7天的【营销日历】。
 
@@ -1099,6 +1112,41 @@ export async function archiveApiProvider(providerId: string) {
 
 export async function deleteApiProvider(providerId: string) {
   return request<ApiProviderRecord>(`/admin/api-providers/${providerId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getThirdPartyPlatforms() {
+  return request<ThirdPartyPlatformRecord[]>("/admin/third-party-platforms");
+}
+
+export async function createThirdPartyPlatform(payload: {
+  name: string;
+  providerType: ThirdPartyPlatformRecord["providerType"];
+  status?: ThirdPartyPlatformRecord["status"];
+  baseUrl: string;
+  tutorialUrl?: string;
+  modelIds?: string[];
+  defaultModel?: string;
+  remark?: string;
+}) {
+  return jsonRequest<ThirdPartyPlatformRecord>("/admin/third-party-platforms", "POST", payload);
+}
+
+export async function updateThirdPartyPlatform(
+  platformId: string,
+  payload: Partial<
+    Pick<
+      ThirdPartyPlatformRecord,
+      "name" | "providerType" | "status" | "baseUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
+    >
+  >,
+) {
+  return jsonRequest<ThirdPartyPlatformRecord>(`/admin/third-party-platforms/${platformId}`, "PATCH", payload);
+}
+
+export async function deleteThirdPartyPlatform(platformId: string) {
+  return request<ThirdPartyPlatformRecord>(`/admin/third-party-platforms/${platformId}`, {
     method: "DELETE",
   });
 }

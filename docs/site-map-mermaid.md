@@ -35,10 +35,10 @@ flowchart TD
     B --> B3["小红书工作台 /xiaohongshu"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
-    B5 --> B51["接口供应商配置中心"]
-    B51 --> B511["搜索 / 状态筛选 / 类型筛选"]
-    B51 --> B512["API Key 遮挡显示"]
-    B51 --> B513["JSON 摘要折叠"]
+    B5 --> B51["接口供应商平台配置中心"]
+    B51 --> B511["左侧平台列表 + 搜索 / 状态筛选 / 类型筛选"]
+    B51 --> B512["右侧平台详情：链接 / 模型 ID / 默认模型 / 文档"]
+    B51 --> B513["前台 Owner 另在个人中心维护私有 API Key"]
     B2 --> B21["每日热点：4:00 定时 + 缺失时工作区自动补抓"]
     B --> B6["兼容认证页 /login /register（注册含邀请码）"]
     B --> B7["会员/点数/订单"]
@@ -385,6 +385,7 @@ flowchart TD
     PC --> PC1["/personal-center/orders"]
     PC --> PC2["/personal-center/works"]
     PC --> PC3["/personal-center/skills 用户技能覆盖编辑器"]
+    PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team"]
@@ -396,11 +397,13 @@ flowchart TD
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
     PC3 --> PAPI6["/user-skills 读取/保存/重置"]
+    PC31 --> PAPI61["/third-party-platforms 读取 / 保存私有 Key"]
     PAPI1 --> PM1["AuthModule"]
     PAPI11 --> PM1
     PAPI2 --> PM1
     PAPI3 --> PM2["OrdersModule"]
     PAPI6 --> PM6["UserSkillsModule"]
+    PAPI61 --> PM61["ThirdPartyPlatformsModule"]
     PAPI4 --> PM3["TasksModule"]
     PAPI5 --> PM4["MediaModule"]
 
@@ -421,10 +424,10 @@ flowchart TD
     Admin --> AUI5["模型消耗"]
     Admin --> AUI6["技能中心"]
     Admin --> AUI7["知识库管理"]
-    Admin --> AUI8["接口供应商（名称 / API 地址 / 教程链接 / API Key / 默认模型 / Headers / 扩展参数）"]
-    AUI8 --> AUI81["搜索 + 状态筛选 + 类型筛选"]
-    AUI8 --> AUI82["API Key 默认遮挡，按需显示"]
-    AUI8 --> AUI83["Headers / 扩展参数默认摘要折叠"]
+    Admin --> AUI8["接口供应商（按平台分组）"]
+    AUI8 --> AUI81["左侧：新建平台 + 平台列表 + 搜索/状态/类型筛选"]
+    AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]
+    AUI8 --> AUI83["后台不填 API Key；前台 Owner 单独维护私有 Key"]
     AUI6 --> AUI61["左侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
     AUI6 --> AUI62["左侧二级分类：业务模块"]
@@ -452,7 +455,7 @@ flowchart TD
     AS1 --> AAPI6["/admin/prompts"]
     AS1 --> AAPI7["/admin/knowledge-bases"]
     AS1 --> AAPI8["/admin/knowledge-base-files"]
-    AS1 --> AAPI9["/admin/api-providers"]
+    AS1 --> AAPI9["/admin/third-party-platforms"]
 ```
 
 ## 8. 前端 service 到后端 API 关系图
@@ -490,6 +493,7 @@ flowchart TD
     App --> M8["MediaModule"]
     App --> M9["OrdersModule"]
     App --> M10["Admin Modules"]
+    App --> M12["ThirdPartyPlatformsModule"]
 
     M1 --> Infra4
     M2 --> Infra4
@@ -512,6 +516,8 @@ flowchart TD
     M10 --> M11["SkillsPromptsService"]
     M11 --> M4
     M11 --> M5
+    M12 --> M1
+    M12 --> Infra1
 ```
 
 ## 10. 核心数据模型关系图
@@ -533,6 +539,8 @@ flowchart TD
     FI["UserFeishuIntegration"]
     SC["SkillConfig"]
     PT["PromptTemplate"]
+    TP["ThirdPartyPlatformConfig"]
+    TPS["UserThirdPartyPlatformSecret"]
 
     U --> MO
     U --> PL
@@ -540,6 +548,7 @@ flowchart TD
     U --> T
     U --> MA
     U --> FI
+    U --> TPS
 
     B --> P
     B --> BS
@@ -549,9 +558,11 @@ flowchart TD
     B --> BA
     B --> T
     B --> MA
+    B --> TPS
 
     T --> MA
     SC --> PT
+    TP --> TPS
 ```
 
 ## 11. 运行与维护地图
@@ -595,6 +606,7 @@ flowchart LR
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
 - 个人中心作品中心：`apps/web/src/app/(dashboard)/personal-center/works/page.tsx`
 - 个人中心技能中心：`apps/web/src/app/(dashboard)/personal-center/skills/page.tsx`
+- 个人中心第三方接口配置：`apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
 - 个人中心安全设置：`apps/web/src/app/(dashboard)/personal-center/security/page.tsx`（账号资料编辑 + 会话安全）
 - 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
@@ -687,7 +699,8 @@ flowchart LR
 
 ### 13.7 后台管理 API 入口索引
 
-- API Provider：`apps/server/src/modules/admin/api-providers.controller.ts`（支持第三方接口配置中心字段与真实持久化）
+- API Provider：`apps/server/src/modules/admin/api-providers.controller.ts`（保留运行时 Provider 真源）
+- 第三方平台配置：`apps/server/src/modules/third-party-platforms/third-party-platforms.controller.ts`（后台平台基线 + 前台私有 Key）
 - 会员/积分规则：`apps/server/src/modules/admin/billing-rules.controller.ts`
 - 知识库：`apps/server/src/modules/admin/knowledge-bases.controller.ts`
 - 知识库文件：`apps/server/src/modules/admin/knowledge-base-files.controller.ts`

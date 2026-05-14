@@ -10,9 +10,11 @@ import {
   adminOrderSeed,
   billingRulesSeed,
   createApiProvider,
+  createThirdPartyPlatform,
   createKnowledgeBase,
   createKnowledgeBaseFile,
   deleteApiProvider,
+  deleteThirdPartyPlatform,
   deleteKnowledgeBase,
   deleteKnowledgeBaseFile,
   completeKnowledgeBaseSyncRun,
@@ -26,6 +28,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  getThirdPartyPlatforms,
   knowledgeBaseFileSeed,
   knowledgeBaseSyncRunSeed,
   knowledgeBaseSeed,
@@ -40,6 +43,7 @@ import {
   updatePromptTemplate,
   updateSkillConfig,
   updateBillingRules,
+  updateThirdPartyPlatform,
   type ApiProviderRecord,
   type AdminUserRecord,
   type BillingRules,
@@ -55,6 +59,7 @@ import {
   type PointsPackageRule,
   type PromptTemplateRecord,
   type SkillConfigRecord,
+  type ThirdPartyPlatformRecord,
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
@@ -118,6 +123,26 @@ type CreateApiProviderDraft = {
   extraParamsJson: string;
   remark: string;
 };
+type ThirdPartyPlatformEditDraft = {
+  name: string;
+  providerType: ThirdPartyPlatformRecord["providerType"];
+  status: ThirdPartyPlatformRecord["status"];
+  baseUrl: string;
+  tutorialUrl: string;
+  modelIds: string;
+  defaultModel: string;
+  remark: string;
+};
+type CreateThirdPartyPlatformDraft = {
+  name: string;
+  providerType: ThirdPartyPlatformRecord["providerType"];
+  status: ThirdPartyPlatformRecord["status"];
+  baseUrl: string;
+  tutorialUrl: string;
+  modelIds: string;
+  defaultModel: string;
+  remark: string;
+};
 
 type CreateKnowledgeBaseFileDraft = {
   fileName: string;
@@ -155,7 +180,12 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
   { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
-  { key: "providers", label: "接口供应商", shortLabel: "接口", description: "统一维护第三方接口名称、API 地址、教程文档链接、API Key 与模型白名单。" },
+  {
+    key: "providers",
+    label: "接口供应商",
+    shortLabel: "接口",
+    description: "按平台维护第三方接口链接、说明文档与模型 ID，前台 Owner 再填写当前账号私有 API Key。",
+  },
 ];
 
 const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
@@ -311,17 +341,22 @@ export default function AdminPage() {
     buildSyncRunDrafts(knowledgeBaseSyncRunSeed),
   );
   const [providers, setProviders] = useState<ApiProviderRecord[]>(apiProviderSeed);
+  const [thirdPartyPlatforms, setThirdPartyPlatforms] = useState<ThirdPartyPlatformRecord[]>([]);
   const [skillDrafts, setSkillDrafts] = useState<Record<string, SkillEditDraft>>(buildSkillDrafts(skillConfigSeed));
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptEditDraft>>(buildPromptDrafts(promptTemplateSeed));
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
     buildKnowledgeBaseDrafts(knowledgeBaseSeed),
   );
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ApiProviderEditDraft>>(buildProviderDrafts(apiProviderSeed));
+  const [platformDrafts, setPlatformDrafts] = useState<Record<string, ThirdPartyPlatformEditDraft>>({});
   const [newKnowledgeBase, setNewKnowledgeBase] = useState<CreateKnowledgeBaseDraft>(buildCreateKnowledgeBaseDraft());
   const [newKnowledgeBaseFileDrafts, setNewKnowledgeBaseFileDrafts] = useState<Record<string, CreateKnowledgeBaseFileDraft>>(
     buildKnowledgeBaseFileCreateDrafts(knowledgeBaseSeed),
   );
   const [newProvider, setNewProvider] = useState<CreateApiProviderDraft>(buildCreateApiProviderDraft());
+  const [newThirdPartyPlatform, setNewThirdPartyPlatform] = useState<CreateThirdPartyPlatformDraft>(
+    buildCreateThirdPartyPlatformDraft(),
+  );
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
@@ -338,6 +373,7 @@ export default function AdminPage() {
   const [updatingProviderId, setUpdatingProviderId] = useState("");
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
+  const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
@@ -397,6 +433,7 @@ export default function AdminPage() {
       knowledgeBaseFilesResult,
       knowledgeBaseSyncRunsResult,
       providerResult,
+      thirdPartyPlatformResult,
     ] =
       await Promise.allSettled([
       canReadOrders ? getAdminOrders() : Promise.resolve([]),
@@ -409,6 +446,7 @@ export default function AdminPage() {
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
       canReadProviders ? getApiProviders() : Promise.resolve([]),
+      canReadProviders ? getThirdPartyPlatforms() : Promise.resolve([]),
     ]);
     let usingSeed = false;
 
@@ -491,6 +529,20 @@ export default function AdminPage() {
     } else {
       setProviders(apiProviderSeed);
       setProviderDrafts(buildProviderDrafts(apiProviderSeed));
+      usingSeed = true;
+    }
+
+    if (thirdPartyPlatformResult.status === "fulfilled") {
+      setThirdPartyPlatforms(thirdPartyPlatformResult.value);
+      setPlatformDrafts(buildThirdPartyPlatformDrafts(thirdPartyPlatformResult.value));
+      setSelectedThirdPartyPlatformId((current) => current || thirdPartyPlatformResult.value[0]?.id || "");
+    } else {
+      const fallbackPlatforms = buildThirdPartyPlatformsFromProviders(
+        providerResult.status === "fulfilled" ? providerResult.value : apiProviderSeed,
+      );
+      setThirdPartyPlatforms(fallbackPlatforms);
+      setPlatformDrafts(buildThirdPartyPlatformDrafts(fallbackPlatforms));
+      setSelectedThirdPartyPlatformId((current) => current || fallbackPlatforms[0]?.id || "");
       usingSeed = true;
     }
 
@@ -1524,6 +1576,144 @@ export default function AdminPage() {
     }
   }
 
+  function handlePlatformDraftChange(platformId: string, patch: Partial<ThirdPartyPlatformEditDraft>) {
+    const base = thirdPartyPlatforms.find((item) => item.id === platformId);
+    if (!base) {
+      return;
+    }
+    setPlatformDrafts((current) => ({
+      ...current,
+      [platformId]: {
+        ...(current[platformId] || buildThirdPartyPlatformDraft(base)),
+        ...patch,
+      },
+    }));
+  }
+
+  async function handleSaveThirdPartyPlatform(platformId: string) {
+    const currentPlatform = thirdPartyPlatforms.find((item) => item.id === platformId);
+    const draft = platformDrafts[platformId];
+    if (!currentPlatform || !draft) {
+      return;
+    }
+
+    setUpdatingProviderId(platformId);
+    setNotice("");
+    setErrorMessage("");
+
+    const payload = buildThirdPartyPlatformPayload(draft);
+
+    try {
+      const updated = await updateThirdPartyPlatform(platformId, payload);
+      setThirdPartyPlatforms((current) => current.map((item) => (item.id === platformId ? updated : item)));
+      setPlatformDrafts((current) => ({
+        ...current,
+        [platformId]: buildThirdPartyPlatformDraft(updated),
+      }));
+      setNotice(`第三方平台已更新：${updated.name}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const updatedAt = new Date().toISOString();
+        const updated: ThirdPartyPlatformRecord = {
+          ...currentPlatform,
+          ...payload,
+          updatedAt,
+        };
+        setThirdPartyPlatforms((current) => current.map((item) => (item.id === platformId ? updated : item)));
+        setPlatformDrafts((current) => ({
+          ...current,
+          [platformId]: buildThirdPartyPlatformDraft(updated),
+        }));
+        setNotice("第三方平台已更新到本地演示数据。");
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "第三方平台保存失败";
+      setErrorMessage(`第三方平台保存失败：${message}`);
+    } finally {
+      setUpdatingProviderId("");
+    }
+  }
+
+  async function handleDeleteThirdPartyPlatform(platformId: string) {
+    setUpdatingProviderId(platformId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const removed = await deleteThirdPartyPlatform(platformId);
+      setThirdPartyPlatforms((current) => current.filter((item) => item.id !== platformId));
+      setPlatformDrafts((current) => {
+        const next = { ...current };
+        delete next[platformId];
+        return next;
+      });
+      setSelectedThirdPartyPlatformId((current) => (current === platformId ? "" : current));
+      setNotice(`第三方平台已删除：${removed.name}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const removed = thirdPartyPlatforms.find((item) => item.id === platformId);
+        setThirdPartyPlatforms((current) => current.filter((item) => item.id !== platformId));
+        setPlatformDrafts((current) => {
+          const next = { ...current };
+          delete next[platformId];
+          return next;
+        });
+        setSelectedThirdPartyPlatformId((current) => (current === platformId ? "" : current));
+        setNotice(`第三方平台已从本地演示数据删除：${removed?.name || platformId}`);
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "第三方平台删除失败";
+      setErrorMessage(`第三方平台删除失败：${message}`);
+    } finally {
+      setUpdatingProviderId("");
+    }
+  }
+
+  async function handleCreateThirdPartyPlatform() {
+    setIsCreatingProvider(true);
+    setNotice("");
+    setErrorMessage("");
+
+    const payload = buildThirdPartyPlatformPayload(newThirdPartyPlatform);
+
+    try {
+      const created = await createThirdPartyPlatform(payload);
+      setThirdPartyPlatforms((current) => [created, ...current]);
+      setPlatformDrafts((current) => ({
+        [created.id]: buildThirdPartyPlatformDraft(created),
+        ...current,
+      }));
+      setSelectedThirdPartyPlatformId(created.id);
+      setNewThirdPartyPlatform(buildCreateThirdPartyPlatformDraft());
+      setNotice(`第三方平台已创建：${created.name}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const createdAt = new Date().toISOString();
+        const created: ThirdPartyPlatformRecord = {
+          id: `third_party_platform_local_${Date.now()}`,
+          ...payload,
+          updatedAt: createdAt,
+        };
+        setThirdPartyPlatforms((current) => [created, ...current]);
+        setPlatformDrafts((current) => ({
+          [created.id]: buildThirdPartyPlatformDraft(created),
+          ...current,
+        }));
+        setSelectedThirdPartyPlatformId(created.id);
+        setNewThirdPartyPlatform(buildCreateThirdPartyPlatformDraft());
+        setNotice("第三方平台已创建到本地演示数据。");
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "第三方平台创建失败";
+      setErrorMessage(`第三方平台创建失败：${message}`);
+    } finally {
+      setIsCreatingProvider(false);
+    }
+  }
+
   const summary = useMemo(
     () => ({
       orderCount: orders.length,
@@ -1537,7 +1727,7 @@ export default function AdminPage() {
       skillCount: skills.length,
       promptCount: prompts.length,
       knowledgeBaseCount: knowledgeBases.length,
-      providerCount: providers.length,
+      providerCount: thirdPartyPlatforms.length,
     }),
     [
       orders,
@@ -1548,12 +1738,12 @@ export default function AdminPage() {
       skills.length,
       prompts.length,
       knowledgeBases.length,
-      providers.length,
+      thirdPartyPlatforms.length,
     ],
   );
-  const filteredProviders = useMemo(() => {
+  const filteredThirdPartyPlatforms = useMemo(() => {
     const keyword = providerSearch.trim().toLowerCase();
-    return providers.filter((item) => {
+    return thirdPartyPlatforms.filter((item) => {
       if (providerStatusFilter !== "ALL" && item.status !== providerStatusFilter) {
         return false;
       }
@@ -1569,25 +1759,25 @@ export default function AdminPage() {
         item.baseUrl,
         item.defaultModel,
         item.remark,
-        ...item.modelWhitelist,
+        ...item.modelIds,
       ]
         .join(" ")
         .toLowerCase()
         .includes(keyword);
     });
-  }, [providerSearch, providerStatusFilter, providerTypeFilter, providers]);
+  }, [providerSearch, providerStatusFilter, providerTypeFilter, thirdPartyPlatforms]);
   const providerInsights = useMemo(
     () => ({
-      activeCount: providers.filter((item) => item.status === "ACTIVE").length,
-      draftCount: providers.filter((item) => item.status === "DRAFT").length,
-      disabledCount: providers.filter((item) => item.status === "DISABLED").length,
-      filteredCount: filteredProviders.length,
+      activeCount: thirdPartyPlatforms.filter((item) => item.status === "ACTIVE").length,
+      draftCount: thirdPartyPlatforms.filter((item) => item.status === "DRAFT").length,
+      disabledCount: thirdPartyPlatforms.filter((item) => item.status === "DISABLED").length,
+      filteredCount: filteredThirdPartyPlatforms.length,
     }),
-    [filteredProviders.length, providers],
+    [filteredThirdPartyPlatforms.length, thirdPartyPlatforms],
   );
-  const createProviderModelOptions = useMemo(
-    () => getProviderDefaultModelOptions(newProvider.modelWhitelist, newProvider.defaultModel),
-    [newProvider.defaultModel, newProvider.modelWhitelist],
+  const createThirdPartyPlatformModelOptions = useMemo(
+    () => getThirdPartyPlatformDefaultModelOptions(newThirdPartyPlatform.modelIds, newThirdPartyPlatform.defaultModel),
+    [newThirdPartyPlatform.defaultModel, newThirdPartyPlatform.modelIds],
   );
 
   const accessibleTabs = tabs.filter((item) => {
@@ -1651,6 +1841,21 @@ export default function AdminPage() {
   const isSavingSkillCenter =
     (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
+  const selectedThirdPartyPlatform = useMemo(
+    () =>
+      filteredThirdPartyPlatforms.find((item) => item.id === selectedThirdPartyPlatformId)
+      ?? filteredThirdPartyPlatforms[0],
+    [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId],
+  );
+  const selectedThirdPartyPlatformDraft = selectedThirdPartyPlatform
+    ? platformDrafts[selectedThirdPartyPlatform.id] || buildThirdPartyPlatformDraft(selectedThirdPartyPlatform)
+    : undefined;
+
+  useEffect(() => {
+    if (!filteredThirdPartyPlatforms.find((item) => item.id === selectedThirdPartyPlatformId)) {
+      setSelectedThirdPartyPlatformId(filteredThirdPartyPlatforms[0]?.id || "");
+    }
+  }, [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId]);
 
   function handleSelectSkillPrimary(primaryId: string) {
     const nextPrimary = SKILL_CENTER_TREE.find((item) => item.id === primaryId);
@@ -2661,9 +2866,9 @@ export default function AdminPage() {
             <section className="panel admin-provider-form">
               <div className="admin-provider-form-head">
                 <div>
-                  <span className="admin-provider-kicker">API Provider</span>
-                  <h2>新增接口供应商</h2>
-                  <p>集中维护第三方接口的连接信息、鉴权密钥与模型白名单，所有业务链路从这里同步。</p>
+                  <span className="admin-provider-kicker">第三方平台</span>
+                  <h2>新增平台基线</h2>
+                  <p>按平台聚合维护 Base URL、说明文档与模型 ID；前台 Owner 再填写当前品牌下自己的 API Key。</p>
                 </div>
                 <span className="archive-pill status-in_progress">CREATE</span>
               </div>
@@ -2672,25 +2877,26 @@ export default function AdminPage() {
                 <h3>基础信息</h3>
                 <div className="admin-provider-grid">
                   <label className="admin-provider-field">
-                    <span>Provider 名称</span>
+                    <span>平台名称</span>
                     <input
-                      value={newProvider.name}
+                      value={newThirdPartyPlatform.name}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
                           name: event.target.value,
                         }))
                       }
+                      placeholder="例如：柏拉图平台"
                     />
                   </label>
                   <label className="admin-provider-field">
                     <span>Provider 类型</span>
                     <select
-                      value={newProvider.providerType}
+                      value={newThirdPartyPlatform.providerType}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
-                          providerType: event.target.value as ApiProviderRecord["providerType"],
+                          providerType: event.target.value as ThirdPartyPlatformRecord["providerType"],
                         }))
                       }
                     >
@@ -2700,24 +2906,41 @@ export default function AdminPage() {
                       <option value="CUSTOM">CUSTOM</option>
                     </select>
                   </label>
-                  <label className="admin-provider-field admin-provider-field--wide">
-                    <span>Base URL</span>
-                    <input
-                      value={newProvider.baseUrl}
+                  <label className="admin-provider-field">
+                    <span>状态</span>
+                    <select
+                      value={newThirdPartyPlatform.status}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
+                          ...current,
+                          status: event.target.value as ThirdPartyPlatformRecord["status"],
+                        }))
+                      }
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="DRAFT">DRAFT</option>
+                      <option value="DISABLED">DISABLED</option>
+                    </select>
+                  </label>
+                  <label className="admin-provider-field admin-provider-field--wide">
+                    <span>第三方平台链接</span>
+                    <input
+                      value={newThirdPartyPlatform.baseUrl}
+                      onChange={(event) =>
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
                           baseUrl: event.target.value,
                         }))
                       }
+                      placeholder="https://hk-api.gptbest.vip"
                     />
                   </label>
                   <label className="admin-provider-field admin-provider-field--wide">
-                    <span>教程文档链接</span>
+                    <span>说明文档</span>
                     <input
-                      value={newProvider.tutorialUrl}
+                      value={newThirdPartyPlatform.tutorialUrl}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
                           tutorialUrl: event.target.value,
                         }))
@@ -2728,62 +2951,37 @@ export default function AdminPage() {
               </div>
 
               <div className="admin-provider-group">
-                <h3>鉴权与默认值</h3>
+                <h3>模型配置</h3>
                 <div className="admin-provider-grid">
-                  <label className="admin-provider-field admin-provider-field--wide">
-                    <div className="admin-provider-field-topline">
-                      <span>API Key</span>
-                      <button
-                        type="button"
-                        className="secondary-button admin-provider-inline-button"
-                        onClick={() => setCreateProviderSecretVisible((current) => !current)}
-                      >
-                        {createProviderSecretVisible ? "隐藏" : "显示"}
-                      </button>
-                    </div>
-                    <div className="admin-provider-secret-input">
-                      <input
-                        type={createProviderSecretVisible ? "text" : "password"}
-                        value={newProvider.apiKey}
-                        onChange={(event) =>
-                          setNewProvider((current) => ({
-                            ...current,
-                            apiKey: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <small className="admin-provider-hint">
-                      当前预览: {maskProviderSecret(newProvider.apiKey)}
-                    </small>
-                  </label>
                   <label className="admin-provider-field">
                     <span>默认模型</span>
                     <select
-                      value={newProvider.defaultModel}
+                      value={newThirdPartyPlatform.defaultModel}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
                           defaultModel: event.target.value,
                         }))
                       }
-                      disabled={!createProviderModelOptions.length}
+                      disabled={!createThirdPartyPlatformModelOptions.length}
                     >
-                      <option value="">{createProviderModelOptions.length ? "请选择默认模型" : "请先填写模型白名单"}</option>
-                      {createProviderModelOptions.map((model) => (
+                      <option value="">
+                        {createThirdPartyPlatformModelOptions.length ? "请选择默认模型" : "请先填写模型 ID"}
+                      </option>
+                      {createThirdPartyPlatformModelOptions.map((model) => (
                         <option key={model} value={model}>
                           {model}
                         </option>
                       ))}
                     </select>
-                    <small className="admin-provider-hint">默认模型从可用模型列表中选择，避免手填出错。</small>
+                    <small className="admin-provider-hint">后台这里只维护平台基线，不再填写 API Key。</small>
                   </label>
                   <label className="admin-provider-field">
                     <span>备注</span>
                     <input
-                      value={newProvider.remark}
+                      value={newThirdPartyPlatform.remark}
                       onChange={(event) =>
-                        setNewProvider((current) => ({
+                        setNewThirdPartyPlatform((current) => ({
                           ...current,
                           remark: event.target.value,
                         }))
@@ -2791,60 +2989,49 @@ export default function AdminPage() {
                     />
                   </label>
                 </div>
-              </div>
-
-              <div className="admin-provider-group">
-                <div className="admin-provider-section-head">
-                  <strong>模型配置</strong>
-                </div>
                 <label className="admin-provider-field admin-provider-field--full">
-                  <span>模型白名单（逗号分隔）</span>
+                  <span>大模型 ID（逗号分隔）</span>
                   <textarea
-                    value={newProvider.modelWhitelist}
+                    value={newThirdPartyPlatform.modelIds}
                     onChange={(event) =>
-                      setNewProvider((current) => {
-                        const nextWhitelist = event.target.value;
-                        return {
-                          ...current,
-                          modelWhitelist: nextWhitelist,
-                          defaultModel: resolveProviderDefaultModel(nextWhitelist, current.defaultModel),
-                        };
-                      })
+                      setNewThirdPartyPlatform((current) => ({
+                        ...current,
+                        modelIds: event.target.value,
+                        defaultModel: resolveThirdPartyPlatformDefaultModel(event.target.value, current.defaultModel),
+                      }))
                     }
+                    placeholder="deepseek-v4-pro, gpt-4.1, claude-3.7-sonnet"
                   />
                 </label>
-                <small className="admin-provider-hint">填写所有可调用模型，默认模型下拉会自动同步这份列表。</small>
               </div>
 
               <div className="admin-provider-actions">
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={() => void handleCreateProvider()}
-                  disabled={isCreatingProvider || !newProvider.name.trim() || !newProvider.baseUrl.trim()}
+                  onClick={() => void handleCreateThirdPartyPlatform()}
+                  disabled={isCreatingProvider || !newThirdPartyPlatform.name.trim() || !newThirdPartyPlatform.baseUrl.trim()}
                 >
-                  {isCreatingProvider ? "创建中..." : "新建 Provider"}
+                  {isCreatingProvider ? "创建中..." : "新建平台"}
                 </button>
               </div>
-            </section>
 
-            <section className="admin-provider-stack">
               <article className="panel admin-provider-filter-card">
                 <div className="admin-provider-filter-head">
                   <div>
-                    <strong>接口供应商列表</strong>
-                    <p>支持按名称、模型、URL、备注搜索，并可按状态和类型快速收敛结果。</p>
+                    <strong>平台列表</strong>
+                    <p>左侧按平台切换项目，右侧维护当前平台的链接、模型 ID、说明文档与备注。</p>
                   </div>
                   <span className="archive-pill status_success">
-                    {providerInsights.filteredCount}/{providers.length}
+                    {providerInsights.filteredCount}/{thirdPartyPlatforms.length}
                   </span>
                 </div>
                 <div className="admin-provider-filter-grid">
                   <label className="admin-provider-field admin-provider-field--wide">
-                    <span>搜索供应商</span>
+                    <span>搜索平台</span>
                     <input
                       value={providerSearch}
-                      placeholder="按 Provider 名称、模型、Base URL、备注搜索"
+                      placeholder="按平台名、模型 ID、Base URL、备注搜索"
                       onChange={(event) => setProviderSearch(event.target.value)}
                     />
                   </label>
@@ -2884,218 +3071,281 @@ export default function AdminPage() {
                   <span className="admin-provider-chip">DISABLED {providerInsights.disabledCount}</span>
                   <span className="admin-provider-chip">数据源 {dataSource === "api" ? "API" : "SEED"}</span>
                 </div>
-              </article>
-
-              {filteredProviders.length ? filteredProviders.map((item) => {
-                const draft = providerDrafts[item.id] || buildProviderDraft(item);
-                const isSecretVisible = Boolean(revealedProviderKeys[item.id]);
-                const modelOptions = getProviderDefaultModelOptions(draft.modelWhitelist, draft.defaultModel);
-
-                return (
-                  <article className="panel admin-provider-card" key={item.id}>
-                    <div className="admin-provider-card-head">
-                      <div>
-                        <div className="admin-provider-title">
-                          <strong>{item.name}</strong>
-                          <span className="admin-provider-type">{item.providerType}</span>
+                <div className="personal-list" style={{ marginTop: 16 }}>
+                  {filteredThirdPartyPlatforms.length ? (
+                    filteredThirdPartyPlatforms.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="entity-card personal-card"
+                        onClick={() => setSelectedThirdPartyPlatformId(item.id)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: item.id === selectedThirdPartyPlatform?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
+                          background: item.id === selectedThirdPartyPlatform?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
+                        }}
+                      >
+                        <div className="entity-card-head">
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p className="personal-meta">{item.baseUrl}</p>
+                          </div>
+                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
                         </div>
-                        <p className="admin-provider-meta">
-                          近 24h {item.requestCount24h} 次 · 成功率 {item.successRate}% · 更新 {formatDateTime(item.updatedAt)}
-                        </p>
-                      </div>
-                      <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
-                    </div>
-
-                    <div className="admin-provider-metrics">
-                      <div>
-                        <span>最近调用</span>
-                        <strong>{formatDateTime(item.lastCalledAt)}</strong>
-                      </div>
-                      <div>
-                        <span>累计成本</span>
-                        <strong>{item.totalCostYuan} 元</strong>
-                      </div>
-                      <div>
-                        <span>模型白名单</span>
-                        <strong>{item.modelWhitelist.length} 个</strong>
-                      </div>
-                      <div>
-                        <span>默认模型</span>
-                        <strong>{item.defaultModel || "-"}</strong>
-                      </div>
-                    </div>
-
-                    <div className="admin-provider-section">
-                      <div className="admin-provider-section-head">
-                        <strong>连接配置</strong>
-                      </div>
-                      <div className="admin-provider-grid">
-                        <label className="admin-provider-field">
-                          <span>状态</span>
-                          <select
-                            value={draft.status}
-                            onChange={(event) =>
-                              handleProviderDraftChange(item.id, {
-                                status: event.target.value as ApiProviderRecord["status"],
-                              })
-                            }
-                          >
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="DRAFT">DRAFT</option>
-                            <option value="DISABLED">DISABLED</option>
-                          </select>
-                        </label>
-                        <label className="admin-provider-field admin-provider-field--wide">
-                          <span>Base URL</span>
-                          <input
-                            value={draft.baseUrl}
-                            onChange={(event) =>
-                              handleProviderDraftChange(item.id, {
-                                baseUrl: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label className="admin-provider-field admin-provider-field--wide">
-                          <span>教程文档链接</span>
-                          <input
-                            value={draft.tutorialUrl}
-                            onChange={(event) =>
-                              handleProviderDraftChange(item.id, {
-                                tutorialUrl: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="admin-provider-section">
-                      <div className="admin-provider-section-head">
-                        <strong>鉴权与默认值</strong>
-                      </div>
-                      <div className="admin-provider-grid">
-                        <label className="admin-provider-field admin-provider-field--wide">
-                          <div className="admin-provider-field-topline">
-                            <span>API Key</span>
-                            <button
-                              type="button"
-                              className="secondary-button admin-provider-inline-button"
-                              onClick={() =>
-                                setRevealedProviderKeys((current) => ({
-                                  ...current,
-                                  [item.id]: !current[item.id],
-                                }))
-                              }
-                            >
-                              {isSecretVisible ? "隐藏" : "显示"}
-                            </button>
+                        <div className="personal-grid">
+                          <div>
+                            <span>平台类型</span>
+                            <strong>{item.providerType}</strong>
                           </div>
-                          <div className="admin-provider-secret-input">
-                            <input
-                              type={isSecretVisible ? "text" : "password"}
-                              value={draft.apiKey}
-                              onChange={(event) =>
-                                handleProviderDraftChange(item.id, {
-                                  apiKey: event.target.value,
-                                })
-                              }
-                            />
+                          <div>
+                            <span>模型数</span>
+                            <strong>{item.modelIds.length}</strong>
                           </div>
-                          <small className="admin-provider-hint">
-                            当前预览: {maskProviderSecret(draft.apiKey)}
-                          </small>
-                        </label>
-                        <label className="admin-provider-field">
-                          <span>默认模型</span>
-                          <select
-                            value={draft.defaultModel}
-                            onChange={(event) =>
-                              handleProviderDraftChange(item.id, {
-                                defaultModel: event.target.value,
-                              })
-                            }
-                            disabled={!modelOptions.length}
-                          >
-                            <option value="">{modelOptions.length ? "请选择默认模型" : "请先填写模型白名单"}</option>
-                            {modelOptions.map((model) => (
-                              <option key={model} value={model}>
-                                {model}
-                              </option>
-                            ))}
-                          </select>
-                          <small className="admin-provider-hint">默认模型从可用模型列表中选择。</small>
-                        </label>
-                        <label className="admin-provider-field">
-                          <span>备注</span>
-                          <input
-                            value={draft.remark}
-                            onChange={(event) =>
-                              handleProviderDraftChange(item.id, {
-                                remark: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                    </div>
+                          <div>
+                            <span>默认模型</span>
+                            <strong>{item.defaultModel || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>更新时间</span>
+                            <strong>{formatDateTime(item.updatedAt)}</strong>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-canvas-box">没有匹配的平台，可调整搜索条件或先在上方新增平台。</div>
+                  )}
+                </div>
+              </article>
+            </section>
 
-                    <div className="admin-provider-section">
-                      <div className="admin-provider-section-head">
-                        <strong>模型配置</strong>
+            <section className="admin-provider-stack">
+              {selectedThirdPartyPlatform && selectedThirdPartyPlatformDraft ? (
+                <article className="panel admin-provider-card">
+                  <div className="admin-provider-card-head">
+                    <div>
+                      <div className="admin-provider-title">
+                        <strong>{selectedThirdPartyPlatform.name}</strong>
+                        <span className="admin-provider-type">{selectedThirdPartyPlatform.providerType}</span>
                       </div>
-                      <label className="admin-provider-field admin-provider-field--full">
-                        <span>模型白名单（逗号分隔）</span>
-                        <textarea
-                          value={draft.modelWhitelist}
+                      <p className="admin-provider-meta">
+                        Base URL：{selectedThirdPartyPlatform.baseUrl} · 更新 {formatDateTime(selectedThirdPartyPlatform.updatedAt)}
+                      </p>
+                    </div>
+                    <span className={`archive-pill ${getStatusClassName(selectedThirdPartyPlatform.status)}`}>
+                      {selectedThirdPartyPlatform.status}
+                    </span>
+                  </div>
+
+                  <div className="admin-provider-metrics">
+                    <div>
+                      <span>模型总数</span>
+                      <strong>{selectedThirdPartyPlatform.modelIds.length}</strong>
+                    </div>
+                    <div>
+                      <span>默认模型</span>
+                      <strong>{selectedThirdPartyPlatform.defaultModel || "-"}</strong>
+                    </div>
+                    <div>
+                      <span>说明文档</span>
+                      <strong>{selectedThirdPartyPlatform.tutorialUrl ? "已配置" : "未配置"}</strong>
+                    </div>
+                    <div>
+                      <span>数据源</span>
+                      <strong>{dataSource === "api" ? "API" : "SEED"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="admin-provider-section">
+                    <div className="admin-provider-section-head">
+                      <strong>平台信息</strong>
+                    </div>
+                    <div className="admin-provider-grid">
+                      <label className="admin-provider-field">
+                        <span>平台名称</span>
+                        <input
+                          value={selectedThirdPartyPlatformDraft.name}
                           onChange={(event) =>
-                            handleProviderDraftChange(item.id, {
-                              modelWhitelist: event.target.value,
-                              defaultModel: resolveProviderDefaultModel(event.target.value, draft.defaultModel),
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              name: event.target.value,
                             })
                           }
                         />
                       </label>
-                      <small className="admin-provider-hint">只展示用户需要维护的模型配置，其他运行参数继续按原值保留。</small>
+                      <label className="admin-provider-field">
+                        <span>Provider 类型</span>
+                        <select
+                          value={selectedThirdPartyPlatformDraft.providerType}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              providerType: event.target.value as ThirdPartyPlatformRecord["providerType"],
+                            })
+                          }
+                        >
+                          <option value="OPENAI">OPENAI</option>
+                          <option value="GEMINI">GEMINI</option>
+                          <option value="DOUBAO">DOUBAO</option>
+                          <option value="CUSTOM">CUSTOM</option>
+                        </select>
+                      </label>
+                      <label className="admin-provider-field">
+                        <span>状态</span>
+                        <select
+                          value={selectedThirdPartyPlatformDraft.status}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              status: event.target.value as ThirdPartyPlatformRecord["status"],
+                            })
+                          }
+                        >
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="DRAFT">DRAFT</option>
+                          <option value="DISABLED">DISABLED</option>
+                        </select>
+                      </label>
+                      <label className="admin-provider-field admin-provider-field--wide">
+                        <span>第三方平台链接</span>
+                        <input
+                          value={selectedThirdPartyPlatformDraft.baseUrl}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              baseUrl: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="admin-provider-field admin-provider-field--wide">
+                        <span>说明文档</span>
+                        <input
+                          value={selectedThirdPartyPlatformDraft.tutorialUrl}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              tutorialUrl: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
                     </div>
+                  </div>
 
-                    <div className="admin-provider-actions">
-                      {draft.tutorialUrl.trim() ? (
-                        <a href={draft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                          打开教程文档
-                        </a>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={() => void handleSaveProvider(item.id)}
-                        disabled={updatingProviderId === item.id}
-                      >
-                        {updatingProviderId === item.id ? "保存中..." : "保存 Provider 配置"}
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleArchiveProvider(item.id)}
-                        disabled={updatingProviderId === item.id || item.status === "DISABLED"}
-                      >
-                        归档 Provider
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() => void handleDeleteProvider(item.id)}
-                        disabled={updatingProviderId === item.id}
-                      >
-                        删除 Provider
-                      </button>
+                  <div className="admin-provider-section">
+                    <div className="admin-provider-section-head">
+                      <strong>模型板块</strong>
                     </div>
-                  </article>
-                );
-              }) : (
+                    <div className="admin-provider-grid">
+                      <label className="admin-provider-field">
+                        <span>默认模型</span>
+                        <select
+                          value={selectedThirdPartyPlatformDraft.defaultModel}
+                          onChange={(event) =>
+                            handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                              defaultModel: event.target.value,
+                            })
+                          }
+                          disabled={!getThirdPartyPlatformDefaultModelOptions(
+                            selectedThirdPartyPlatformDraft.modelIds,
+                            selectedThirdPartyPlatformDraft.defaultModel,
+                          ).length}
+                        >
+                          <option value="">
+                            {getThirdPartyPlatformDefaultModelOptions(
+                              selectedThirdPartyPlatformDraft.modelIds,
+                              selectedThirdPartyPlatformDraft.defaultModel,
+                            ).length
+                              ? "请选择默认模型"
+                              : "请先填写模型 ID"}
+                          </option>
+                          {getThirdPartyPlatformDefaultModelOptions(
+                            selectedThirdPartyPlatformDraft.modelIds,
+                            selectedThirdPartyPlatformDraft.defaultModel,
+                          ).map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="admin-provider-field">
+                        <span>当前模型预览</span>
+                        <div className="admin-provider-chip-row">
+                          {parseThirdPartyPlatformModelIds(selectedThirdPartyPlatformDraft.modelIds).length ? (
+                            parseThirdPartyPlatformModelIds(selectedThirdPartyPlatformDraft.modelIds).map((model) => (
+                              <span key={model} className="admin-provider-chip">
+                                {model}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="admin-provider-chip">未配置模型</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <label className="admin-provider-field admin-provider-field--full">
+                      <span>大模型 ID（逗号分隔）</span>
+                      <textarea
+                        value={selectedThirdPartyPlatformDraft.modelIds}
+                        onChange={(event) =>
+                          handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                            modelIds: event.target.value,
+                            defaultModel: resolveThirdPartyPlatformDefaultModel(
+                              event.target.value,
+                              selectedThirdPartyPlatformDraft.defaultModel,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="admin-provider-section">
+                    <div className="admin-provider-section-head">
+                      <strong>补充说明</strong>
+                    </div>
+                    <label className="admin-provider-field admin-provider-field--full">
+                      <span>备注</span>
+                      <textarea
+                        value={selectedThirdPartyPlatformDraft.remark}
+                        onChange={(event) =>
+                          handlePlatformDraftChange(selectedThirdPartyPlatform.id, {
+                            remark: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <small className="admin-provider-hint">
+                      前端“个人中心-第三方接口配置”会同步这里的平台基线，只有 Owner 能在前台设置自己的 API Key。
+                    </small>
+                  </div>
+
+                  <div className="admin-provider-actions">
+                    {selectedThirdPartyPlatformDraft.tutorialUrl.trim() ? (
+                      <a href={selectedThirdPartyPlatformDraft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                        打开说明文档
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleSaveThirdPartyPlatform(selectedThirdPartyPlatform.id)}
+                      disabled={updatingProviderId === selectedThirdPartyPlatform.id}
+                    >
+                      {updatingProviderId === selectedThirdPartyPlatform.id ? "保存中..." : "保存平台配置"}
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={() => void handleDeleteThirdPartyPlatform(selectedThirdPartyPlatform.id)}
+                      disabled={updatingProviderId === selectedThirdPartyPlatform.id}
+                    >
+                      删除平台
+                    </button>
+                  </div>
+                </article>
+              ) : (
                 <article className="panel admin-provider-empty">
-                  <strong>没有匹配的接口供应商</strong>
-                  <p>可以清空搜索词或切回“全部状态 / 全部类型”，也可以直接在左侧创建新的 Provider。</p>
+                  <strong>请选择左侧平台</strong>
+                  <p>选中后可在右侧查看并维护平台链接、说明文档、模型 ID 和默认模型。</p>
                 </article>
               )}
             </section>
@@ -3411,6 +3661,200 @@ function buildCreateApiProviderDraft(): CreateApiProviderDraft {
     extraParamsJson: "{}",
     remark: "",
   };
+}
+
+function buildThirdPartyPlatformDraft(item: ThirdPartyPlatformRecord): ThirdPartyPlatformEditDraft {
+  return {
+    name: item.name,
+    providerType: item.providerType,
+    status: item.status,
+    baseUrl: item.baseUrl,
+    tutorialUrl: item.tutorialUrl,
+    modelIds: item.modelIds.join(", "),
+    defaultModel: item.defaultModel,
+    remark: item.remark,
+  };
+}
+
+function buildThirdPartyPlatformDrafts(list: ThirdPartyPlatformRecord[]) {
+  return Object.fromEntries(list.map((item) => [item.id, buildThirdPartyPlatformDraft(item)])) as Record<
+    string,
+    ThirdPartyPlatformEditDraft
+  >;
+}
+
+function buildCreateThirdPartyPlatformDraft(): CreateThirdPartyPlatformDraft {
+  return {
+    name: "",
+    providerType: "OPENAI",
+    status: "DRAFT",
+    baseUrl: "",
+    tutorialUrl: "",
+    modelIds: "",
+    defaultModel: "",
+    remark: "",
+  };
+}
+
+function buildThirdPartyPlatformPayload(
+  draft: Pick<
+    CreateThirdPartyPlatformDraft,
+    "name" | "providerType" | "status" | "baseUrl" | "tutorialUrl" | "modelIds" | "defaultModel" | "remark"
+  >,
+) {
+  const modelIds = parseThirdPartyPlatformModelIds(draft.modelIds);
+  return {
+    name: draft.name.trim(),
+    providerType: draft.providerType,
+    status: draft.status,
+    baseUrl: draft.baseUrl.trim(),
+    tutorialUrl: draft.tutorialUrl.trim(),
+    modelIds,
+    defaultModel: resolveThirdPartyPlatformDefaultModel(draft.modelIds, draft.defaultModel),
+    remark: draft.remark.trim(),
+  };
+}
+
+function parseThirdPartyPlatformModelIds(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function getThirdPartyPlatformDefaultModelOptions(modelIds: string, currentDefaultModel: string) {
+  return Array.from(new Set([...parseThirdPartyPlatformModelIds(modelIds), currentDefaultModel.trim()].filter(Boolean)));
+}
+
+function resolveThirdPartyPlatformDefaultModel(modelIds: string, currentDefaultModel: string) {
+  const options = parseThirdPartyPlatformModelIds(modelIds);
+  const normalizedCurrent = currentDefaultModel.trim();
+  if (!options.length) {
+    return normalizedCurrent;
+  }
+  if (normalizedCurrent && options.includes(normalizedCurrent)) {
+    return normalizedCurrent;
+  }
+  return options[0] || "";
+}
+
+function buildThirdPartyPlatformsFromProviders(list: ApiProviderRecord[]): ThirdPartyPlatformRecord[] {
+  const grouped = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      providerType: ThirdPartyPlatformRecord["providerType"];
+      statuses: Set<ThirdPartyPlatformRecord["status"]>;
+      baseUrl: string;
+      tutorialUrl: string;
+      modelIds: Set<string>;
+      defaultModel: string;
+      remark: string;
+      updatedAt: string;
+    }
+  >();
+
+  for (const item of list) {
+    const normalizedBaseUrl = normalizeThirdPartyPlatformBaseUrl(item.baseUrl);
+    const key = normalizedBaseUrl || item.id;
+    const current = grouped.get(key);
+    if (current) {
+      current.statuses.add(item.status);
+      item.modelWhitelist.forEach((model) => current.modelIds.add(model));
+      if (!current.defaultModel && item.defaultModel.trim()) {
+        current.defaultModel = item.defaultModel.trim();
+      }
+      if (!current.tutorialUrl && item.tutorialUrl.trim()) {
+        current.tutorialUrl = item.tutorialUrl.trim();
+      }
+      if (!current.remark && item.remark.trim()) {
+        current.remark = item.remark.trim();
+      }
+      if (new Date(item.updatedAt).getTime() > new Date(current.updatedAt).getTime()) {
+        current.updatedAt = item.updatedAt;
+      }
+      continue;
+    }
+
+    grouped.set(key, {
+      id: `third_party_platform_fallback_${grouped.size + 1}`,
+      name: resolveThirdPartyPlatformName(item.baseUrl, item.name),
+      providerType: item.providerType,
+      statuses: new Set([item.status]),
+      baseUrl: item.baseUrl.trim(),
+      tutorialUrl: item.tutorialUrl.trim(),
+      modelIds: new Set(item.modelWhitelist.map((model) => model.trim()).filter(Boolean)),
+      defaultModel: item.defaultModel.trim(),
+      remark: item.remark.trim(),
+      updatedAt: item.updatedAt,
+    });
+  }
+
+  return Array.from(grouped.values())
+    .map<ThirdPartyPlatformRecord>((item) => {
+      const modelIds = Array.from(item.modelIds);
+      const defaultModel = modelIds.includes(item.defaultModel) ? item.defaultModel : modelIds[0] || "";
+      return {
+        id: item.id,
+        name: item.name,
+        providerType: item.providerType,
+        status: resolveThirdPartyPlatformStatus(item.statuses),
+        baseUrl: item.baseUrl,
+        tutorialUrl: item.tutorialUrl,
+        modelIds,
+        defaultModel,
+        remark: item.remark,
+        updatedAt: item.updatedAt,
+      };
+    })
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+function normalizeThirdPartyPlatformBaseUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.replace(/\/+$/, "").toLowerCase();
+}
+
+function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return fallbackName.trim() || "第三方平台";
+  }
+  try {
+    const host = new URL(trimmed).host.toLowerCase();
+    const hostNameMap: Record<string, string> = {
+      "hk-api.gptbest.vip": "柏拉图平台",
+      "api.gptbest.vip": "柏拉图平台",
+      "api.bltcy.ai": "柏拉图平台",
+      "api.deepseek.com": "DeepSeek 平台",
+      "ark.cn-beijing.volces.com": "火山方舟平台",
+      "api.moonshot.cn": "Kimi 平台",
+      "open.bigmodel.cn": "GLM 平台",
+    };
+    return hostNameMap[host] || fallbackName.trim() || host;
+  } catch {
+    return fallbackName.trim() || trimmed;
+  }
+}
+
+function resolveThirdPartyPlatformStatus(
+  statuses: Set<ThirdPartyPlatformRecord["status"]>,
+): ThirdPartyPlatformRecord["status"] {
+  if (statuses.has("ACTIVE")) {
+    return "ACTIVE";
+  }
+  if (statuses.has("DRAFT")) {
+    return "DRAFT";
+  }
+  return "DISABLED";
 }
 
 function buildApiProviderPayload(

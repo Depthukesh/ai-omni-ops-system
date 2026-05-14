@@ -164,6 +164,12 @@
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
   - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
   - 参考变更：`docs/changes/2026-05-14-personal-center-skill-editor-layout-and-model-options.md`
+- `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
+  - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
+  - 当前品牌下只有 Owner 可维护自己的私有 API Key；普通成员保持只读
+  - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前账号在当前品牌下的私有 Key
+  - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
+  - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
 - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
@@ -204,11 +210,14 @@
   - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
   - 参考变更：`docs/changes/2026-05-13-global-skill-model-priority-unification.md`
 - 知识库管理
-- API Provider 管理
-  - 当前后台 `/admin` 的接口供应商页已升级为第三方接口配置中心，可统一维护 `名称 / Provider 类型 / Base URL / 教程文档链接 / API Key / 默认模型 / Organization / Project / Timeout / Stream / 自定义 Headers / 扩展参数 / 模型白名单 / 备注`
-  - 当前已作为 `ReportsModule` 与 `WorksModule` 的运行时真源；报告生成、原创/二创/视频生成与视频模型下拉都通过 `runtimeKey` 读取后台激活中的 Provider 配置
-  - 当前列表区已补管理型交互：支持按名称/模型/Base URL/备注搜索，支持按状态与 Provider 类型筛选，并显示结果数与状态分布
-  - 当前创建表单与编辑卡片中的 API Key 默认遮挡显示，需按需手动展开；`自定义 Headers` / `扩展参数` 默认折叠为摘要，避免配置中心再次退化成长表单墙
+- 接口供应商
+  - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑
+  - 后台当前按平台维护 `名称 / Provider 类型 / 状态 / 第三方平台链接 / 说明文档 / 大模型 ID / 默认模型 / 备注`，支持新增与删除平台
+  - 后台页不再填写 API Key；前台个人中心的 Owner 再在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
+  - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
+  - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
+  - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
+  - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
@@ -342,6 +351,9 @@
 
 - `admin/api-providers`
   - 当前已支持后台真实读取与保存接口供应商配置；数据库可用时优先读写 `ApiProviderConfig` 运行时表，不可用时回退到 `mock-data`
+- `ThirdPartyPlatformsModule`
+  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由 Owner 保存私有 API Key
+  - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `UserThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
 - `admin/billing-rules`
 - `admin/knowledge-bases`
 - `admin/model-usage`
@@ -454,7 +466,7 @@
 - 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
 - `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径
-- 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/security`、`/tasks`、`/team`、`/invites` 八段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
+- 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/third-party-platforms`、`/security`、`/tasks`、`/team`、`/invites` 九段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`third-party-platforms` 已支持按平台查看基线并由 Owner 保存私有 API Key，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
 - 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页
 - 注册当前已切为邀请码准入；项目内已预置 300 个 6 位邀请码，并通过 seed 写入 `RegistrationInviteCode`
 - 后台用户管理已进入“单用户弹窗编辑”阶段，但批量操作、分页排序和更完整的品牌权限运营闭环仍待继续补齐

@@ -125,6 +125,7 @@ model User {
   skillProfiles  UserSkillProfile[]
   promptOverrides UserPromptOverride[]
   skillResetLogs UserSkillResetLog[]
+  thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
 }
 
 model EmailVerificationCode {
@@ -240,6 +241,7 @@ model Brand {
   userSkillProfiles  UserSkillProfile[]
   userPromptOverrides UserPromptOverride[]
   userSkillResetLogs UserSkillResetLog[]
+  thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
 
   @@index([ownerUserId, createdAt])
 }
@@ -639,4 +641,35 @@ model ApiProviderConfig {
   totalCostYuan      Float
   lastCalledAt       DateTime
   updatedAt          DateTime @updatedAt
+}
+
+model ThirdPartyPlatformConfig {
+  id           String   @id
+  name         String
+  providerType String
+  status       String
+  baseUrl      String
+  tutorialUrl  String
+  modelIdsJson Json
+  defaultModel String
+  remark       String
+  updatedAt    DateTime @updatedAt
+
+  userSecrets  UserThirdPartyPlatformSecret[]
+}
+
+model UserThirdPartyPlatformSecret {
+  id         String   @id
+  userId     String
+  brandId    String
+  platformId String
+  apiKey     String
+  updatedAt  DateTime @updatedAt
+
+  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  platform   ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, brandId, platformId])
+  @@index([brandId, platformId])
 }

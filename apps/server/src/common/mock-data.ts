@@ -1,4 +1,5 @@
 import { SYSTEM_API_PROVIDER_SEEDS } from "./api-provider-catalog";
+import { THIRD_PARTY_PLATFORM_SEEDS, type ThirdPartyPlatformRecord } from "./third-party-platform-catalog";
 import { readPromptSourceBundle } from "./prompt-source-loader";
 
 export type UserRecord = {
@@ -332,6 +333,15 @@ export type MockDatabase = {
   knowledgeBaseFiles: KnowledgeBaseFileRecord[];
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
   apiProviders: ApiProviderRecord[];
+  thirdPartyPlatforms: ThirdPartyPlatformRecord[];
+  userThirdPartyPlatformSecrets: Array<{
+    id: string;
+    userId: string;
+    brandId: string;
+    platformId: string;
+    apiKey: string;
+    updatedAt: string;
+  }>;
 };
 
 export const database: MockDatabase = {
@@ -1199,6 +1209,8 @@ export const database: MockDatabase = {
     },
   ],
   apiProviders: SYSTEM_API_PROVIDER_SEEDS.map((item) => ({ ...item })),
+  thirdPartyPlatforms: THIRD_PARTY_PLATFORM_SEEDS.map((item) => ({ ...item })),
+  userThirdPartyPlatformSecrets: [],
 };
 
 export function createId(prefix: string): string {

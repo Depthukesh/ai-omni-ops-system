@@ -147,6 +147,8 @@
   - 将营销日历补入前后台技能中心与提示词注册表，营销日历生成统一读取技能配置；后续继续修正为完整回源 `营销日历提示词.txt`，并为读不到源文件或残留旧占位短文案的环境补上内置完整 fallback，同时允许后台技能中心直接编辑保存提示词，并把前端日历卡片收回到“日期 + 主题”、详情弹窗恢复为可编辑保存的当天排期面板
 - `docs/changes/2026-05-14-personal-center-skill-editor-layout-and-model-options.md`
   - 个人中心技能中心继续精简为单层编辑区，并把提示词模型改为跟随后台 Provider 配置动态下发的模型下拉
+- `docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
+  - 个人中心新增“第三方接口配置”页，后台“接口供应商”改成按平台分组的左右布局，平台基线与 Owner 私有 API Key 分层管理
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
