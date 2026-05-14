@@ -1843,15 +1843,19 @@ export default function AdminPage() {
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
   const selectedThirdPartyPlatform = useMemo(
     () =>
-      filteredThirdPartyPlatforms.find((item) => item.id === selectedThirdPartyPlatformId)
-      ?? filteredThirdPartyPlatforms[0],
-    [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId],
+      thirdPartyPlatforms.find((item) => item.id === selectedThirdPartyPlatformId)
+      ?? filteredThirdPartyPlatforms[0]
+      ?? thirdPartyPlatforms[0],
+    [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId, thirdPartyPlatforms],
   );
   const selectedThirdPartyPlatformDraft = selectedThirdPartyPlatform
     ? platformDrafts[selectedThirdPartyPlatform.id] || buildThirdPartyPlatformDraft(selectedThirdPartyPlatform)
     : undefined;
 
   useEffect(() => {
+    if (!filteredThirdPartyPlatforms.length) {
+      return;
+    }
     if (!filteredThirdPartyPlatforms.find((item) => item.id === selectedThirdPartyPlatformId)) {
       setSelectedThirdPartyPlatformId(filteredThirdPartyPlatforms[0]?.id || "");
     }
@@ -2863,158 +2867,160 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "providers" ? (
           <div className="admin-provider-layout">
-            <section className="panel admin-provider-form">
-              <div className="admin-provider-form-head">
-                <div>
-                  <span className="admin-provider-kicker">第三方平台</span>
-                  <h2>新增平台基线</h2>
-                  <p>按平台聚合维护 Base URL、说明文档与模型 ID；前台 Owner 再填写当前品牌下自己的 API Key。</p>
+            <div className="admin-provider-stack">
+              <section className="panel admin-provider-form">
+                <div className="admin-provider-form-head">
+                  <div>
+                    <span className="admin-provider-kicker">第三方平台</span>
+                    <h2>新增平台基线</h2>
+                    <p>按平台聚合维护链接、说明文档与模型 ID；前台 Owner 再填写当前品牌下自己的 API Key。</p>
+                  </div>
+                  <span className="archive-pill status-in_progress">CREATE</span>
                 </div>
-                <span className="archive-pill status-in_progress">CREATE</span>
-              </div>
 
-              <div className="admin-provider-group">
-                <h3>基础信息</h3>
-                <div className="admin-provider-grid">
-                  <label className="admin-provider-field">
-                    <span>平台名称</span>
-                    <input
-                      value={newThirdPartyPlatform.name}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      placeholder="例如：柏拉图平台"
-                    />
-                  </label>
-                  <label className="admin-provider-field">
-                    <span>Provider 类型</span>
-                    <select
-                      value={newThirdPartyPlatform.providerType}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          providerType: event.target.value as ThirdPartyPlatformRecord["providerType"],
-                        }))
-                      }
-                    >
-                      <option value="OPENAI">OPENAI</option>
-                      <option value="GEMINI">GEMINI</option>
-                      <option value="DOUBAO">DOUBAO</option>
-                      <option value="CUSTOM">CUSTOM</option>
-                    </select>
-                  </label>
-                  <label className="admin-provider-field">
-                    <span>状态</span>
-                    <select
-                      value={newThirdPartyPlatform.status}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          status: event.target.value as ThirdPartyPlatformRecord["status"],
-                        }))
-                      }
-                    >
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="DISABLED">DISABLED</option>
-                    </select>
-                  </label>
-                  <label className="admin-provider-field admin-provider-field--wide">
-                    <span>第三方平台链接</span>
-                    <input
-                      value={newThirdPartyPlatform.baseUrl}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          baseUrl: event.target.value,
-                        }))
-                      }
-                      placeholder="https://hk-api.gptbest.vip"
-                    />
-                  </label>
-                  <label className="admin-provider-field admin-provider-field--wide">
-                    <span>说明文档</span>
-                    <input
-                      value={newThirdPartyPlatform.tutorialUrl}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          tutorialUrl: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
+                <div className="admin-provider-group">
+                  <h3>基础信息</h3>
+                  <div className="admin-provider-grid">
+                    <label className="admin-provider-field">
+                      <span>平台名称</span>
+                      <input
+                        value={newThirdPartyPlatform.name}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="例如：柏拉图平台"
+                      />
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>Provider 类型</span>
+                      <select
+                        value={newThirdPartyPlatform.providerType}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            providerType: event.target.value as ThirdPartyPlatformRecord["providerType"],
+                          }))
+                        }
+                      >
+                        <option value="OPENAI">OPENAI</option>
+                        <option value="GEMINI">GEMINI</option>
+                        <option value="DOUBAO">DOUBAO</option>
+                        <option value="CUSTOM">CUSTOM</option>
+                      </select>
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>状态</span>
+                      <select
+                        value={newThirdPartyPlatform.status}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            status: event.target.value as ThirdPartyPlatformRecord["status"],
+                          }))
+                        }
+                      >
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="DRAFT">DRAFT</option>
+                        <option value="DISABLED">DISABLED</option>
+                      </select>
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>第三方平台链接</span>
+                      <input
+                        value={newThirdPartyPlatform.baseUrl}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            baseUrl: event.target.value,
+                          }))
+                        }
+                        placeholder="https://hk-api.gptbest.vip"
+                      />
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>说明文档</span>
+                      <input
+                        value={newThirdPartyPlatform.tutorialUrl}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            tutorialUrl: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
-              </div>
 
-              <div className="admin-provider-group">
-                <h3>模型配置</h3>
-                <div className="admin-provider-grid">
-                  <label className="admin-provider-field">
-                    <span>默认模型</span>
-                    <select
-                      value={newThirdPartyPlatform.defaultModel}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          defaultModel: event.target.value,
-                        }))
-                      }
-                      disabled={!createThirdPartyPlatformModelOptions.length}
-                    >
-                      <option value="">
-                        {createThirdPartyPlatformModelOptions.length ? "请选择默认模型" : "请先填写模型 ID"}
-                      </option>
-                      {createThirdPartyPlatformModelOptions.map((model) => (
-                        <option key={model} value={model}>
-                          {model}
+                <div className="admin-provider-group">
+                  <h3>模型配置</h3>
+                  <div className="admin-provider-grid">
+                    <label className="admin-provider-field">
+                      <span>默认模型</span>
+                      <select
+                        value={newThirdPartyPlatform.defaultModel}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            defaultModel: event.target.value,
+                          }))
+                        }
+                        disabled={!createThirdPartyPlatformModelOptions.length}
+                      >
+                        <option value="">
+                          {createThirdPartyPlatformModelOptions.length ? "请选择默认模型" : "请先填写模型 ID"}
                         </option>
-                      ))}
-                    </select>
-                    <small className="admin-provider-hint">后台这里只维护平台基线，不再填写 API Key。</small>
-                  </label>
-                  <label className="admin-provider-field">
-                    <span>备注</span>
-                    <input
-                      value={newThirdPartyPlatform.remark}
-                      onChange={(event) =>
-                        setNewThirdPartyPlatform((current) => ({
-                          ...current,
-                          remark: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
+                        {createThirdPartyPlatformModelOptions.map((model) => (
+                          <option key={model} value={model}>
+                            {model}
+                          </option>
+                        ))}
+                      </select>
+                      <small className="admin-provider-hint">后台这里只维护平台基线，不再填写 API Key。</small>
+                    </label>
+                    <label className="admin-provider-field">
+                      <span>备注</span>
+                      <input
+                        value={newThirdPartyPlatform.remark}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            remark: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="admin-provider-field admin-provider-field--full">
+                      <span>大模型 ID（逗号分隔）</span>
+                      <textarea
+                        value={newThirdPartyPlatform.modelIds}
+                        onChange={(event) =>
+                          setNewThirdPartyPlatform((current) => ({
+                            ...current,
+                            modelIds: event.target.value,
+                            defaultModel: resolveThirdPartyPlatformDefaultModel(event.target.value, current.defaultModel),
+                          }))
+                        }
+                        placeholder="deepseek-v4-pro, gpt-4.1, claude-3.7-sonnet"
+                      />
+                    </label>
+                  </div>
                 </div>
-                <label className="admin-provider-field admin-provider-field--full">
-                  <span>大模型 ID（逗号分隔）</span>
-                  <textarea
-                    value={newThirdPartyPlatform.modelIds}
-                    onChange={(event) =>
-                      setNewThirdPartyPlatform((current) => ({
-                        ...current,
-                        modelIds: event.target.value,
-                        defaultModel: resolveThirdPartyPlatformDefaultModel(event.target.value, current.defaultModel),
-                      }))
-                    }
-                    placeholder="deepseek-v4-pro, gpt-4.1, claude-3.7-sonnet"
-                  />
-                </label>
-              </div>
 
-              <div className="admin-provider-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => void handleCreateThirdPartyPlatform()}
-                  disabled={isCreatingProvider || !newThirdPartyPlatform.name.trim() || !newThirdPartyPlatform.baseUrl.trim()}
-                >
-                  {isCreatingProvider ? "创建中..." : "新建平台"}
-                </button>
-              </div>
+                <div className="admin-provider-actions">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleCreateThirdPartyPlatform()}
+                    disabled={isCreatingProvider || !newThirdPartyPlatform.name.trim() || !newThirdPartyPlatform.baseUrl.trim()}
+                  >
+                    {isCreatingProvider ? "创建中..." : "新建平台"}
+                  </button>
+                </div>
+              </section>
 
               <article className="panel admin-provider-filter-card">
                 <div className="admin-provider-filter-head">
@@ -3027,12 +3033,15 @@ export default function AdminPage() {
                   </span>
                 </div>
                 <div className="admin-provider-filter-grid">
-                  <label className="admin-provider-field admin-provider-field--wide">
+                  <label className="admin-provider-field">
                     <span>搜索平台</span>
                     <input
+                      type="search"
+                      name="admin-platform-search"
                       value={providerSearch}
                       placeholder="按平台名、模型 ID、Base URL、备注搜索"
                       onChange={(event) => setProviderSearch(event.target.value)}
+                      autoComplete="off"
                     />
                   </label>
                   <label className="admin-provider-field">
@@ -3089,7 +3098,7 @@ export default function AdminPage() {
                         <div className="entity-card-head">
                           <div>
                             <strong>{item.name}</strong>
-                            <p className="personal-meta">{item.baseUrl}</p>
+                            <p className="personal-meta">平台类型：{item.providerType}</p>
                           </div>
                           <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
                         </div>
@@ -3118,7 +3127,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </article>
-            </section>
+            </div>
 
             <section className="admin-provider-stack">
               {selectedThirdPartyPlatform && selectedThirdPartyPlatformDraft ? (
@@ -3130,7 +3139,7 @@ export default function AdminPage() {
                         <span className="admin-provider-type">{selectedThirdPartyPlatform.providerType}</span>
                       </div>
                       <p className="admin-provider-meta">
-                        Base URL：{selectedThirdPartyPlatform.baseUrl} · 更新 {formatDateTime(selectedThirdPartyPlatform.updatedAt)}
+                        更新于 {formatDateTime(selectedThirdPartyPlatform.updatedAt)}
                       </p>
                     </div>
                     <span className={`archive-pill ${getStatusClassName(selectedThirdPartyPlatform.status)}`}>
@@ -3319,6 +3328,11 @@ export default function AdminPage() {
                   </div>
 
                   <div className="admin-provider-actions">
+                    {selectedThirdPartyPlatformDraft.baseUrl.trim() ? (
+                      <a href={selectedThirdPartyPlatformDraft.baseUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                        第三方平台链接
+                      </a>
+                    ) : null}
                     {selectedThirdPartyPlatformDraft.tutorialUrl.trim() ? (
                       <a href={selectedThirdPartyPlatformDraft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
                         打开说明文档

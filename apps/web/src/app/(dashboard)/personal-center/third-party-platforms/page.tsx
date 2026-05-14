@@ -67,14 +67,20 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
   }, [platforms, search]);
 
   useEffect(() => {
+    if (!filteredPlatforms.length) {
+      return;
+    }
     if (!filteredPlatforms.find((item) => item.id === selectedPlatformId)) {
       setSelectedPlatformId(filteredPlatforms[0]?.id || "");
     }
   }, [filteredPlatforms, selectedPlatformId]);
 
   const selectedPlatform = useMemo(
-    () => filteredPlatforms.find((item) => item.id === selectedPlatformId) ?? filteredPlatforms[0],
-    [filteredPlatforms, selectedPlatformId],
+    () =>
+      platforms.find((item) => item.id === selectedPlatformId)
+      ?? filteredPlatforms[0]
+      ?? platforms[0],
+    [filteredPlatforms, platforms, selectedPlatformId],
   );
   const selectedDraft = selectedPlatform ? drafts[selectedPlatform.id] : undefined;
   const isDirty = selectedPlatform && selectedDraft ? selectedDraft.apiKey !== selectedPlatform.apiKey : false;
@@ -224,7 +230,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
           <h2>第三方接口配置</h2>
           <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID、说明文档；当前品牌只有 Owner 可以维护自己的 API Key。</p>
         </div>
-        <span>{filteredPlatforms.length} 个平台</span>
+        <span>{search.trim() ? `${filteredPlatforms.length}/${platforms.length}` : platforms.length} 个平台</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
@@ -271,11 +277,22 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         <label className="field personal-search" style={{ minWidth: 280 }}>
           <span>搜索平台</span>
           <input
+            type="search"
+            name="platform-search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="搜索平台名称、Base URL、模型 ID、备注"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
           />
         </label>
+        {search.trim() ? (
+          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+            清空搜索
+          </button>
+        ) : null}
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
           <span className="status-text">{canManage ? "Owner 可维护 API Key" : "普通成员无权设置 API Key"}</span>
@@ -300,7 +317,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               <div className="entity-card-head">
                 <div>
                   <strong>{platform.name}</strong>
-                  <p className="personal-meta">{platform.baseUrl}</p>
+                  <p className="personal-meta">平台类型：{platform.providerType}</p>
                 </div>
                 <span className={`archive-pill ${platform.apiKey ? "status-in_progress" : "status-ready"}`}>
                   {platform.apiKey ? "已配置Key" : "未配置Key"}
@@ -334,7 +351,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
             <div className="entity-card-head">
               <div>
                 <strong>{selectedPlatform.name}</strong>
-                <p className="personal-meta">{selectedPlatform.providerType} · {selectedPlatform.baseUrl}</p>
+                <p className="personal-meta">平台类型：{selectedPlatform.providerType}</p>
               </div>
               <span className={`archive-pill ${selectedPlatform.status === "ACTIVE" ? "status-ready" : selectedPlatform.status === "DRAFT" ? "status-in_progress" : "status-paused"}`}>
                 {selectedPlatform.status}
@@ -361,7 +378,13 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
             <div className="personal-grid" style={{ marginBottom: 16 }}>
               <div>
                 <span>第三方平台链接</span>
-                <strong>{selectedPlatform.baseUrl}</strong>
+                {selectedPlatform.baseUrl ? (
+                  <a href={selectedPlatform.baseUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ width: "fit-content", marginTop: 8 }}>
+                    第三方平台链接
+                  </a>
+                ) : (
+                  <strong>-</strong>
+                )}
               </div>
               <div>
                 <span>平台默认模型</span>
@@ -430,7 +453,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
             </div>
           </article>
         ) : (
-          <div className="empty-canvas-box">请选择左侧平台查看配置详情。</div>
+          <div className="empty-canvas-box">
+            {search.trim() ? "暂无匹配平台，请先清空搜索词后再查看配置详情。" : "请选择左侧平台查看配置详情。"}
+          </div>
         )}
       </div>
     </section>

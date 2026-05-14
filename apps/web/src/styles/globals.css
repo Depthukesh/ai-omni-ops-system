@@ -4974,7 +4974,7 @@ button {
 
 .admin-provider-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -4991,8 +4991,6 @@ button {
 }
 
 .admin-provider-form {
-  position: sticky;
-  top: 18px;
   padding: 22px;
   display: grid;
   gap: 18px;
@@ -5012,7 +5010,7 @@ button {
 .admin-provider-form-head h2 {
   margin: 10px 0 8px;
   color: #173f50;
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.18;
 }
 
@@ -5084,7 +5082,7 @@ button {
 
 .admin-provider-filter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(180px, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -5101,7 +5099,7 @@ button {
 
 .admin-provider-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -5151,7 +5149,7 @@ button {
 
 .admin-provider-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -5294,11 +5292,7 @@ button {
 
 @media (max-width: 1320px) {
   .admin-provider-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-provider-form {
-    position: static;
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   }
 
   .admin-provider-filter-grid {
@@ -5307,6 +5301,10 @@ button {
 }
 
 @media (max-width: 900px) {
+  .admin-provider-layout {
+    grid-template-columns: 1fr;
+  }
+
   .admin-provider-filter-head,
   .admin-provider-field-topline,
   .admin-provider-secret-input {
