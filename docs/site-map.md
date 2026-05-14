@@ -24,6 +24,7 @@
 - `/personal-center`：个人中心
 - `/personal-center/*`、`/brand-growth`、`/xiaohongshu`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
 - `/admin`：后台管理台，仅管理员角色账号可进入
+- `/help/xhs-draft-publisher`：小红书电脑端一键发布扩展的下载与安装帮助页
 - `/login`：兼容登录页，已接入账号密码登录，并提供回流根页注册入口
 - `/register`：兼容注册页，已接入邀请码注册表单，注册成功后自动进入工作台
 - `/admin/login`：后台管理员专用登录页
@@ -116,14 +117,20 @@
   - 已支持原创图文作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求
   - “封面参考图 / 配图参考图”已升级为模板图库选择 + 本地上传兜底双入口；模板选中后会先下载成 `File`，再继续复用现有参考图分析与生图链路
+  - 当前原创链路已拆成两层技能：`原创配图提示词` 负责生成封面/内页提示词，`原创图片生成` 负责选择最终图像模型、继承参考图结构并执行成品图生成
   - 原创模板图库当前通过 `GET /api/works/xiaohongshu/original/reference-templates` 返回分类与模板清单，并通过站内 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 受控读取图片资源
   - 本地开发因前端走 `3001`、后端走 `3011` 属于跨端口请求；模板资源接口现已暴露 `Content-Disposition` 给浏览器端 `fetch`，回填表单时可保留真实模板文件名，不再退回显示 `asset`
+  - 上传参考图当前会同时参与两步：先进入 `analyzeReferenceImages()` 做风格拆解，再在最终文生图阶段以原图 data URL 形式继续传给图像模型，不再只保留文字化风格档案
+  - 最终成品图 prompt 已显式增加竖版 `1242x1660`、中文排版、标题层级和 8% 安全边距约束，用于收紧文字贴边和越界问题
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，可在个人中心任务中心继续查看
   - 当前支持在小红书工作区和个人中心任务中心对运行中的任务发起 `取消任务`；取消属于 best-effort 中断，会尽量阻止后续步骤继续写回成功状态
+- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 - 二创笔记
   - 已支持二创图文作品列表、添加弹窗、编辑、删除
   - 已接入素材库作品选择、产品选择、用户要求
+  - 当前二创链路已拆成两层技能：`二创配图提示词` 负责生成封面/内页提示词，`二创图片生成` 负责选择最终图像模型、跟随对标图结构并执行成品图生成
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
+- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 - 视频笔记
   - 已支持视频作品列表、添加弹窗、编辑、删除
   - 已接入营销日历选题、产品选择、参考图上传、视频模型、时长、提示词输出和双段用户要求
@@ -339,12 +346,15 @@
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
   - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 站内接口读取，不直接暴露底层 OSS 链接
-  - 原创文案、原创配图提示词、二创文案、二创配图提示词、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
+  - 原创文案、原创配图提示词、原创图片生成、二创文案、二创配图提示词、二创图片生成、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
   - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
   - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
+  - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
+  - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
+  - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
@@ -421,23 +431,25 @@
 2. 页面可选带入产品、封面参考图、配图参考图、配图数量、是否植入营销策划方案与用户要求；参考图既可本地上传，也可从模板图库选择
 3. 模板图库会先从 `/api/works/xiaohongshu/original/reference-templates` 拉分类与模板清单，支持关键词搜索、点击提示与每页 10 张分页；用户选中后再通过站内模板资产接口下载成 `File`
 4. 后端 `WorksModule` 串联参考图分析、原创文案、`xhs-original-image-prompt` 配图提示词与文生图生成
-5. 当用户选择 `不植入营销策划方案` 时，原创生成可直接基于营销日历、产品、参考图和用户要求继续执行，不再强依赖先生成营销策划方案
-6. 原创模板素材统一走 `reference-templates/xiaohongshu/original/...` 存储前缀；开发态未配置 OSS 时可临时回退到 `.runtime/local-oss`
-7. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
-8. 成品图文保存到作品记录，并同步沉淀到“我的作品”
-9. `/admin` 技能中心可分别查看原创文案提示词与原创配图提示词
-10. 模板库当前已移除 `夏日出行露营city walk小红书封面` 与 `夏日出行露营city walk小红书封面 / 效果图` 两组模板，封面模板与配图模板入口共用同一份裁剪后的清单
-11. 参考变更：`docs/changes/2026-05-14-xhs-original-reference-template-library.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-14-xhs-template-picker-pagination-and-pruning.md`
+5. 当前最终文生图阶段会继续读取 `xhs-original-image-generation / prompt_xhs_original_image_generation`，并把上传参考图原图一起传给图像模型
+6. 当用户选择 `不植入营销策划方案` 时，原创生成可直接基于营销日历、产品、参考图和用户要求继续执行，不再强依赖先生成营销策划方案
+7. 原创模板素材统一走 `reference-templates/xiaohongshu/original/...` 存储前缀；开发态未配置 OSS 时可临时回退到 `.runtime/local-oss`
+8. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
+9. 成品图文保存到作品记录，并同步沉淀到“我的作品”
+10. `/admin` 技能中心当前可分别查看原创文案、原创配图提示词与原创图片生成三段技能
+11. 模板库当前已移除 `夏日出行露营city walk小红书封面` 与 `夏日出行露营city walk小红书封面 / 效果图` 两组模板，封面模板与配图模板入口共用同一份裁剪后的清单
+12. 参考变更：`docs/changes/2026-05-14-xhs-original-reference-template-library.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-14-xhs-template-picker-pagination-and-pruning.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 
 ### 5.4B 二创笔记链路
 
 1. 用户在 `/xiaohongshu` 的“二创笔记”中从素材库选择一条已入库作品
 2. 页面可选带入产品、是否植入营销策划方案与用户要求
-3. 后端 `WorksModule` 基于素材库作品、二创文案提示词、二创配图提示词与文生图链路生成成品
-4. 当用户选择 `不植入营销策划方案` 时，二创生成可直接基于素材库内容、产品信息和用户要求继续执行，不再强依赖先生成营销策划方案
-5. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
-6. 成品图文保存到作品记录，并同步沉淀到“我的作品”
-7. 参考变更：`docs/changes/2026-05-05-rewrite-note-workflow.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`
+3. 后端 `WorksModule` 基于素材库作品、二创文案提示词、二创配图提示词与独立的二创图片生成技能链路生成成品
+4. 当前最终文生图阶段会读取 `rewrite_image_generation / prompt_xhs_rewrite_image_generation`，并继续把素材库来源图片与产品图一并传给图像模型
+5. 当用户选择 `不植入营销策划方案` 时，二创生成可直接基于素材库内容、产品信息和用户要求继续执行，不再强依赖先生成营销策划方案
+6. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
+7. 成品图文保存到作品记录，并同步沉淀到“我的作品”
+8. 参考变更：`docs/changes/2026-05-05-rewrite-note-workflow.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 
 ### 5.5 视频笔记链路
 

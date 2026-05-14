@@ -17,6 +17,11 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/original_image/SKILL.md",
     "../提示词/original_image/SKILL.md",
   ],
+  prompt_xhs_original_image_generation: [
+    "提示词/original_image_generation/SKILL.md",
+    "../../../提示词/original_image_generation/SKILL.md",
+    "../提示词/original_image_generation/SKILL.md",
+  ],
   prompt_xhs_rewrite_copy: [
     "../../../提示词/rewrite_copy/SKILL.md",
     "../提示词/rewrite_copy/SKILL.md",
@@ -24,6 +29,11 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
   prompt_xhs_rewrite_note: [
     "../../../提示词/rewrite_image/SKILL.md",
     "../提示词/rewrite_image/SKILL.md",
+  ],
+  prompt_xhs_rewrite_image_generation: [
+    "提示词/rewrite_image_generation/SKILL.md",
+    "../../../提示词/rewrite_image_generation/SKILL.md",
+    "../提示词/rewrite_image_generation/SKILL.md",
   ],
   prompt_xhs_video_note: [
     "../../../提示词/short-video-api-studio/short-video-api-studio/SKILL.md",

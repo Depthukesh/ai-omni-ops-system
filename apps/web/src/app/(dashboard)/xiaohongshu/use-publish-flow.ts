@@ -97,6 +97,39 @@ export function usePublishFlow(options: {
     };
   }, [activeMobilePublishSession?.mobileUrl]);
 
+  useEffect(() => {
+    if (!publishingTarget || isDesktopExtensionReady) {
+      return;
+    }
+    let cancelled = false;
+    const probe = async () => {
+      const installed = await probeDesktopPublisher({
+        timeoutMs: 2400,
+        onReady: () => {
+          if (!cancelled) {
+            setIsDesktopExtensionReady(true);
+          }
+        },
+        onMissing: () => {
+          if (!cancelled) {
+            setIsDesktopExtensionReady(false);
+          }
+        },
+      });
+      if (!cancelled && installed) {
+        setIsDesktopExtensionReady(true);
+      }
+    };
+    void probe();
+    const timer = window.setInterval(() => {
+      void probe();
+    }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isDesktopExtensionReady, publishingTarget]);
+
   function openPublishModal(target: PublishableWorkTarget) {
     setPublishingTarget(target);
     setPublishingAccountValue(options.defaultAccountId || options.platformAccounts.find((item) => item.platform === "XIAOHONGSHU")?.id || "");
@@ -106,6 +139,7 @@ export function usePublishFlow(options: {
     options.setNotice("");
     options.setErrorMessage("");
     void probeDesktopPublisher({
+      timeoutMs: 2400,
       onReady: () => setIsDesktopExtensionReady(true),
       onMissing: () => setIsDesktopExtensionReady(false),
     });
@@ -145,7 +179,7 @@ export function usePublishFlow(options: {
       }
 
       const installed = await probeDesktopPublisher({
-        timeoutMs: 800,
+        timeoutMs: 2400,
         onReady: () => setIsDesktopExtensionReady(true),
         onMissing: () => setIsDesktopExtensionReady(false),
       });

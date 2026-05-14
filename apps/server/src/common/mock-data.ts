@@ -298,9 +298,19 @@ const xiaohongshuOriginalNoteSkillContent = readPromptSourceBundle(
   "根据营销规划方案、营销日历、原创笔记正文、产品信息和用户要求，生成封面提示词与原创配图提示词。",
 ).content;
 
+const xiaohongshuOriginalImageGenerationSkillContent = readPromptSourceBundle(
+  "prompt_xhs_original_image_generation",
+  "根据原创配图提示词、参考图、产品图和排版要求，生成最终小红书原创成品图。",
+).content;
+
 const xiaohongshuRewriteNoteSkillContent = readPromptSourceBundle(
   "prompt_xhs_rewrite_note",
   "根据用户输入的小红书对标配图及二创文案，生成全新的二创配图提示词。",
+).content;
+
+const xiaohongshuRewriteImageGenerationSkillContent = readPromptSourceBundle(
+  "prompt_xhs_rewrite_image_generation",
+  "根据二创配图提示词、对标图、产品图和排版要求，生成最终小红书二创成品图。",
 ).content;
 
 const xiaohongshuRewriteCopySkillContent = readPromptSourceBundle(
@@ -921,6 +931,18 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-06T09:00:00.000Z",
     },
     {
+      id: "skill_xhs_original_image_generation",
+      name: "小红书原创图片生成",
+      slug: "xhs-original-image-generation",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "图像生成",
+      defaultModel: "provider_runtime_image_generation::gpt-image-2",
+      pointsCost: 180,
+      description: "用于控制原创封面图与内页配图的最终出图模型、参考图跟随策略与画面安全区约束。",
+      updatedAt: "2026-05-15T16:20:00.000Z",
+    },
+    {
       id: "skill_xhs_rewrite_copy",
       name: "小红书二创笔记文案",
       slug: "rewrite_copy",
@@ -943,6 +965,18 @@ export const database: MockDatabase = {
       pointsCost: 180,
       description: "用于根据对标内容与二创文案生成全新的二创配图提示词。",
       updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "skill_xhs_rewrite_image_generation",
+      name: "小红书二创图片生成",
+      slug: "rewrite_image_generation",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "图像生成",
+      defaultModel: "provider_runtime_image_generation::gpt-image-2",
+      pointsCost: 200,
+      description: "用于控制二创封面图与内页配图的最终出图模型、参考图跟随策略与画面安全区约束。",
+      updatedAt: "2026-05-15T16:20:00.000Z",
     },
     {
       id: "skill_xhs_video_note",
@@ -1031,6 +1065,18 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-06T09:00:00.000Z",
     },
     {
+      id: "prompt_xhs_original_image_generation",
+      name: "小红书原创图片生成提示词",
+      scene: "小红书原创图片生成",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "provider_runtime_image_generation::gpt-image-2",
+      temperature: 0.2,
+      maxTokens: 4000,
+      content: xiaohongshuOriginalImageGenerationSkillContent,
+      updatedAt: "2026-05-15T16:20:00.000Z",
+    },
+    {
       id: "prompt_xhs_rewrite_copy",
       name: "小红书二创笔记文案提示词",
       scene: "小红书二创笔记文案",
@@ -1053,6 +1099,18 @@ export const database: MockDatabase = {
       maxTokens: 6000,
       content: xiaohongshuRewriteNoteSkillContent,
       updatedAt: "2026-05-07T15:40:00.000Z",
+    },
+    {
+      id: "prompt_xhs_rewrite_image_generation",
+      name: "小红书二创图片生成提示词",
+      scene: "小红书二创图片生成",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "provider_runtime_image_generation::gpt-image-2",
+      temperature: 0.2,
+      maxTokens: 4000,
+      content: xiaohongshuRewriteImageGenerationSkillContent,
+      updatedAt: "2026-05-15T16:20:00.000Z",
     },
     {
       id: "prompt_xhs_video_note",

@@ -96,6 +96,7 @@ flowchart LR
     Root --> Home["/"]
     Root --> Auth["(auth)"]
     Root --> Dash["(dashboard)"]
+    Root --> Help["/help/xhs-draft-publisher"]
     Root --> Publish["/publish/mobile/[token]"]
 
     Auth --> Login["/login"]
@@ -358,13 +359,17 @@ flowchart LR
     D --> D11["模板图库选择 + 本地上传兜底"]
     D --> D12["模板选中后下载成 File 继续复用原链路"]
     D --> D13["可选植入营销策划方案"]
+    D --> D14["原创配图提示词 -> 原创图片生成 两段技能"]
+    D --> D15["参考图拆解文本 + 原图一起参与最终生图"]
     D --> D2["编辑弹窗"]
     D --> D3["作品卡片"]
     D --> D4["一键发布"]
+    D4 --> D41["弹窗内提供扩展下载与安装教程入口"]
 
     E["二创笔记"]
     E --> E1["创建弹窗"]
     E --> E11["可选植入营销策划方案"]
+    E --> E12["二创配图提示词 -> 二创图片生成 两段技能"]
     E --> E2["编辑弹窗"]
     E --> E3["作品卡片"]
     E --> E4["一键发布"]
@@ -434,7 +439,9 @@ flowchart TD
     AUI6 --> AUI62["左侧二级分类：业务模块"]
     AUI6 --> AUI63["左侧三级分类：具体技能项"]
     AUI63 --> AUI631["原创笔记-原创文案 / 原创笔记-原创配图"]
+    AUI63 --> AUI6311["原创笔记-图片生成"]
     AUI63 --> AUI632["二创笔记-二创文案 / 二创笔记-二创配图"]
+    AUI63 --> AUI6321["二创笔记-图片生成"]
     AUI63 --> AUI633["视频笔记-视频创作"]
     AUI63 --> AUI634["营销日历-生成7天营销日历"]
     AUI6 --> AUI65["左侧目录式技能导航"]
@@ -509,6 +516,8 @@ flowchart TD
     M5 --> M51["原创/二创成品图保存前统一规范为 1242x1660 竖版 3:4"]
     M5 --> M52["视频笔记统一读取 short-video-api-studio 并保存结构化视频提示词字段"]
     M5 --> M53["视频笔记当前只生成 1 条主成片，失败时才串行回退下一个视频后端"]
+    M5 --> M54["原创/二创最终出图会继续传入参考图原图与产品图"]
+    M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能"]
     M6 --> M5
     M6 --> M7
     M6 --> M8
@@ -605,6 +614,7 @@ flowchart LR
 - 首页：`apps/web/src/app/page.tsx`
 - 登录页：`apps/web/src/app/(auth)/login/page.tsx`
 - 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邀请码）
+- 扩展帮助页：`apps/web/src/app/help/xhs-draft-publisher/page.tsx`
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 当前 `brand-growth/workspace.tsx` 已加前台 `Owner` 权限闸门；非 Owner 不再继续渲染策略操作面板
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`

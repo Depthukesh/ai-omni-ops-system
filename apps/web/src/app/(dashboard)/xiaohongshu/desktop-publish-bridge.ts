@@ -68,12 +68,16 @@ export async function probeDesktopPublisher(options?: {
     return false;
   }
 
-  const timeoutMs = options?.timeoutMs ?? 1200;
+  const timeoutMs = options?.timeoutMs ?? 2400;
   return new Promise<boolean>((resolve) => {
     let finished = false;
+    let pingTimer: number | undefined;
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
+      if (pingTimer) {
+        window.clearInterval(pingTimer);
+      }
     };
     const onMessage = (event: MessageEvent) => {
       const payload = event.data as BridgeMessagePayload;
@@ -98,6 +102,11 @@ export async function probeDesktopPublisher(options?: {
 
     window.addEventListener("message", onMessage);
     pingDesktopPublisher();
+    pingTimer = window.setInterval(() => {
+      if (!finished) {
+        pingDesktopPublisher();
+      }
+    }, 500);
   });
 }
 

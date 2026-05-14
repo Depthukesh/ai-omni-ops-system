@@ -2909,6 +2909,16 @@ button {
   line-height: 1.8;
 }
 
+.publish-dialog-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.publish-dialog-link-row .secondary-button {
+  text-decoration: none;
+}
+
 .publish-qr-panel {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
@@ -2970,6 +2980,20 @@ button {
 
 .publish-qr-meta--warn {
   color: #b56a12;
+}
+
+.publish-help-card {
+  display: grid;
+  gap: 16px;
+}
+
+.publish-help-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+  color: #4b5875;
+  line-height: 1.8;
 }
 
 .xhs-material-detail-button {

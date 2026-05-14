@@ -282,6 +282,13 @@ const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             promptScene: "小红书原创笔记配图",
           },
           {
+            id: "xhs-original-image-generation",
+            label: "原创笔记-图片生成",
+            description: "对应前台原创笔记工作台，控制最终出图模型、参考图跟随策略与中文排版安全区。",
+            skillSlug: "xhs-original-image-generation",
+            promptScene: "小红书原创图片生成",
+          },
+          {
             id: "xhs-rewrite-copy",
             label: "二创笔记-二创文案",
             description: "对应前台二创笔记工作台，生成二创标题、正文与标签。",
@@ -294,6 +301,13 @@ const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             description: "对应前台二创笔记工作台，生成参考图拆解后的二创配图提示词。",
             skillSlug: "rewrite_image",
             promptScene: "小红书二创笔记配图",
+          },
+          {
+            id: "xhs-rewrite-image-generation",
+            label: "二创笔记-图片生成",
+            description: "对应前台二创笔记工作台，控制最终出图模型、对标图跟随策略与中文排版安全区。",
+            skillSlug: "rewrite_image_generation",
+            promptScene: "小红书二创图片生成",
           },
           {
             id: "xhs-video-note",

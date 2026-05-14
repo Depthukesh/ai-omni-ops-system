@@ -15,6 +15,14 @@
 apps/web/public/extensions/xhs-draft-publisher
 ```
 
+## 站点访问权限
+- 扩展安装后，还需要确认它已被允许访问以下站点：
+  - `http://localhost:3001/*`
+  - `http://127.0.0.1:3001/*`
+  - `https://17ai.site/*`
+  - `https://creator.xiaohongshu.com/*`
+- 如果扩展面板显示“已请求访问权限”，请打开扩展详情页，把“站点访问权限”改成允许访问当前站点与 `creator.xiaohongshu.com`。
+
 ## 使用前提
 - 当前浏览器已登录小红书创作者中心。
 - 站内小红书作品已经生成完成。

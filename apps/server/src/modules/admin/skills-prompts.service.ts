@@ -113,6 +113,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_xhs_original_note"],
     promptScenes: ["小红书原创笔记配图"],
   },
+  skill_xhs_original_image_generation: {
+    promptIds: ["prompt_xhs_original_image_generation"],
+    promptScenes: ["小红书原创图片生成"],
+  },
+  "xhs-original-image-generation": {
+    promptIds: ["prompt_xhs_original_image_generation"],
+    promptScenes: ["小红书原创图片生成"],
+  },
   skill_xhs_rewrite_copy: {
     promptIds: ["prompt_xhs_rewrite_copy"],
     promptScenes: ["小红书二创笔记文案"],
@@ -128,6 +136,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   rewrite_image: {
     promptIds: ["prompt_xhs_rewrite_note"],
     promptScenes: ["小红书二创笔记配图"],
+  },
+  skill_xhs_rewrite_image_generation: {
+    promptIds: ["prompt_xhs_rewrite_image_generation"],
+    promptScenes: ["小红书二创图片生成"],
+  },
+  rewrite_image_generation: {
+    promptIds: ["prompt_xhs_rewrite_image_generation"],
+    promptScenes: ["小红书二创图片生成"],
   },
   skill_xhs_video_note: {
     promptIds: ["prompt_xhs_video_note"],

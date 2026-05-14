@@ -468,6 +468,12 @@ type ImageProviderConfig = ThirdPartyChatConfig & {
   requestTimeoutMs?: number;
 };
 
+type ImageGenerationRuntimeConfig = {
+  providers: ImageProviderConfig[];
+  executionPrompt: string;
+  preferredModelName: string;
+};
+
 type VideoBackendKey = "hailuo" | "kling" | "seedance" | "veo" | "wan";
 
 type VideoProviderConfig = {
@@ -854,15 +860,25 @@ export class WorksService {
       });
       await this.ensureTaskNotCancelled(task.id);
 
+      const originalImageGenerationConfig = await this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "xhs-original-image-generation",
+        promptId: "prompt_xhs_original_image_generation",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+      });
+
       const coverImage = await this.generateImageAsset({
         brandId,
         taskId: task.id,
         title: `原创笔记封面 - ${copyResult.title}`,
         role: "COVER",
         order: 0,
+        providers: originalImageGenerationConfig.providers,
+        executionPrompt: originalImageGenerationConfig.executionPrompt,
         prompt: imagePromptResult.coverPrompt,
         textPlan: imagePromptResult.coverText,
         referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+        referenceImagePayloads: referenceFiles.map((item) => item.payload),
       });
 
       const galleryImages = await Promise.all(
@@ -873,9 +889,12 @@ export class WorksService {
             title: `原创笔记配图${index + 1} - ${copyResult.title}`,
             role: "GALLERY",
             order: index + 1,
+            providers: originalImageGenerationConfig.providers,
+            executionPrompt: originalImageGenerationConfig.executionPrompt,
             prompt,
             textPlan: imagePromptResult.imageTexts[index],
             referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
+            referenceImagePayloads: referenceFiles.map((item) => item.payload),
           }),
         ),
       );
@@ -1085,12 +1104,21 @@ export class WorksService {
       });
       await this.ensureTaskNotCancelled(task.id);
 
+      const rewriteImageGenerationConfig = await this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "rewrite_image_generation",
+        promptId: "prompt_xhs_rewrite_image_generation",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+      });
+
       const coverImage = await this.generateImageAsset({
         brandId,
         taskId: task.id,
         title: `二创笔记封面 - ${copyResult.title}`,
         role: "COVER",
         order: 0,
+        providers: rewriteImageGenerationConfig.providers,
+        executionPrompt: rewriteImageGenerationConfig.executionPrompt,
         prompt: imagePromptResult.coverPrompt,
         textPlan: imagePromptResult.coverText,
         referenceImageUrls: rewriteReferenceImageUrls,
@@ -1104,6 +1132,8 @@ export class WorksService {
             title: `二创笔记配图${index + 1} - ${copyResult.title}`,
             role: "GALLERY",
             order: index + 1,
+            providers: rewriteImageGenerationConfig.providers,
+            executionPrompt: rewriteImageGenerationConfig.executionPrompt,
             prompt,
             textPlan: imagePromptResult.imageTexts[index],
             referenceImageUrls: rewriteReferenceImageUrls,
@@ -2044,17 +2074,20 @@ export class WorksService {
     title: string;
     role: "COVER" | "GALLERY";
     order: number;
+    providers: ImageProviderConfig[];
+    executionPrompt?: string;
     prompt: string;
     textPlan?: ImageTextPlanEntry;
     referenceImageUrls: string[];
+    referenceImagePayloads?: UploadFilePayload[];
   }) {
-    const providers = await this.loadImageGenerationProviders(params.brandId);
     let lastError = "";
     const promptsToTry = this.buildImagePromptCandidates(
-      this.buildImagePromptWithTextPlan(params.prompt, params.textPlan, params.role, params.order),
+      this.buildImagePromptWithTextPlan(params.executionPrompt, params.prompt, params.textPlan, params.role, params.order),
     );
+    const referenceImages = this.buildImageGenerationReferenceInputs(params.referenceImageUrls, params.referenceImagePayloads);
 
-    for (const provider of providers) {
+    for (const provider of params.providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
@@ -2064,7 +2097,7 @@ export class WorksService {
                   baseUrl,
                   provider.completionPath,
                   apiKey,
-                  this.buildImageGenerationPayload(provider, modelName, promptCandidate, params.referenceImageUrls),
+                  this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
                   provider.requestTimeoutMs ?? 180000,
                 );
                 if (!response.ok) {
@@ -3667,6 +3700,35 @@ export class WorksService {
     });
   }
 
+  private reorderImageProvidersByPrimaryModel(
+    providers: ImageProviderConfig[],
+    preferredModelName: string,
+    preferredProviderIds: string[] = [],
+  ) {
+    const normalizedPreferredModelName = preferredModelName.trim();
+    const normalizedProviders = providers.map((provider) => ({
+      ...provider,
+      models: provider.models.includes(normalizedPreferredModelName)
+        ? this.pickProviderModels(provider.models, [normalizedPreferredModelName], [normalizedPreferredModelName])
+        : provider.models,
+    }));
+    return normalizedProviders.sort((left, right) => {
+      const leftProviderRank = preferredProviderIds.indexOf(left.providerId);
+      const rightProviderRank = preferredProviderIds.indexOf(right.providerId);
+      const normalizedLeftProviderRank = leftProviderRank === -1 ? Number.MAX_SAFE_INTEGER : leftProviderRank;
+      const normalizedRightProviderRank = rightProviderRank === -1 ? Number.MAX_SAFE_INTEGER : rightProviderRank;
+      if (normalizedLeftProviderRank !== normalizedRightProviderRank) {
+        return normalizedLeftProviderRank - normalizedRightProviderRank;
+      }
+      const leftMatchesModel = normalizedPreferredModelName ? left.models.includes(normalizedPreferredModelName) : false;
+      const rightMatchesModel = normalizedPreferredModelName ? right.models.includes(normalizedPreferredModelName) : false;
+      if (leftMatchesModel !== rightMatchesModel) {
+        return leftMatchesModel ? -1 : 1;
+      }
+      return left.providerName.localeCompare(right.providerName, "zh-CN");
+    });
+  }
+
   private buildTextAttemptLabel(provider: TextProviderConfig["provider"], modelName: string, baseUrl: string) {
     return `${provider}/${modelName}@${this.describeProviderBaseUrl(baseUrl)}`;
   }
@@ -4530,11 +4592,31 @@ export class WorksService {
     };
   }
 
-  private async loadImageGenerationProviders(brandId?: string): Promise<ImageProviderConfig[]> {
+  private async loadImageGenerationExecutionConfig(params: {
+    brandId?: string;
+    skillSlug: string;
+    promptId: string;
+    fallbackModels: string[];
+  }): Promise<ImageGenerationRuntimeConfig> {
+    const [preference, prompt] = await Promise.all([
+      this.loadSkillModelPreference(params.skillSlug, params.promptId, params.fallbackModels),
+      this.skillsPromptsService.getActivePromptById(params.promptId),
+    ]);
+    return {
+      providers: await this.loadImageGenerationProviders(params.brandId, preference),
+      executionPrompt: String(prompt?.content || "").trim(),
+      preferredModelName: preference.preferredModelName,
+    };
+  }
+
+  private async loadImageGenerationProviders(brandId?: string, preference?: SkillModelPreference): Promise<ImageProviderConfig[]> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
       throw new ServiceUnavailableException("未找到文生图接口配置");
     }
+    const preferredModels = preference?.configuredModels?.length
+      ? preference.configuredModels
+      : ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"];
     const configs: ImageProviderConfig[] = [];
     for (const provider of providers) {
       const baseUrls = this.apiProvidersService.getBaseUrls(provider);
@@ -4542,7 +4624,7 @@ export class WorksService {
       const models = this.pickProviderModels(
         provider.modelWhitelist,
         [],
-        ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"],
+        preferredModels,
       );
       if (!baseUrls.length || !apiKeys.length || !models.length) {
         continue;
@@ -4564,7 +4646,10 @@ export class WorksService {
     if (!configs.length) {
       throw new ServiceUnavailableException("未找到文生图接口配置");
     }
-    return configs;
+    if (!preference) {
+      return configs;
+    }
+    return this.reorderImageProvidersByPrimaryModel(configs, preference.preferredModelName, preference.preferredProviderIds);
   }
 
   private resolveVideoGenerationConfigPath(backend: VideoBackendKey) {
@@ -5203,7 +5288,15 @@ export class WorksService {
     };
   }
 
+  private buildImageGenerationReferenceInputs(referenceImageUrls: string[], referenceImagePayloads?: UploadFilePayload[]) {
+    const uploadedReferenceImages = (referenceImagePayloads || [])
+      .filter((item) => item?.dataBase64)
+      .map((item) => this.toDataUrl(item));
+    return Array.from(new Set([...uploadedReferenceImages, ...referenceImageUrls].map((item) => String(item || "").trim()).filter(Boolean))).slice(0, 6);
+  }
+
   private buildImagePromptWithTextPlan(
+    executionPrompt: string | undefined,
     prompt: string,
     textPlan: ImageTextPlanEntry | undefined,
     role: "COVER" | "GALLERY",
@@ -5213,14 +5306,18 @@ export class WorksService {
     const badges = (textPlan?.badges || []).map((item) => this.normalizeImageTextValue(item, 16)).filter(Boolean);
     const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
     return [
+      executionPrompt?.trim() || "",
+      "",
       prompt.trim(),
       "",
       `补充强制要求：这是一张${imageLabel}，必须输出带清晰中文排版的社媒成品图，不能只生成纯场景摄影图。`,
       "画面必须为竖版小红书图文比例，严格按 1242x1660（宽3:高4）构图，禁止输出横图、方图或接近方图的比例。",
       title ? `画面主标题必须直接排版为：${title}` : "",
       badges.length ? `画面中还必须出现这些小标签：${badges.join("、")}` : "",
+      "如果输入中带有参考图，必须显著继承其构图、视角、主体摆位、光线和留白关系，不能只保留泛化氛围。",
       "文字必须直接出现在画面主体版式中，清晰可读，不能只写在手写卡片、包装角落、远处招牌或模糊背景里。",
-      "标题和小标签必须有明确的字号层级、颜色对比和留白，任何一项都不能省略。",
+      "所有标题和标签必须完整落在画面安全区内，四周至少保留 8% 安全边距，严禁任何文字超出图片边界、贴边、被裁切或被主体遮挡。",
+      "主标题最多两行，小标签数量从简，必须有明确的字号层级、颜色对比和留白，任何一项都不能省略。",
     ]
       .filter(Boolean)
       .join("\n");
