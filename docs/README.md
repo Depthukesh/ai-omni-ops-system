@@ -151,6 +151,8 @@
   - 个人中心新增“第三方接口配置”页，后台“接口供应商”改成按平台分组的左右布局，平台基线与 Owner 私有 API Key 分层管理；后续继续补上严格品牌隔离、Right Codes 平台种子与技能中心同名模型的 Provider 作用域区分
 - `docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
   - 修复小红书电脑端发布扩展在 `17ai.site` 未注入导致的“等待电脑端扩展”，补入扩展下载/安装帮助页，并把原创/二创最终图片生成升级为独立技能，真正让参考图原图参与最终生图
+- `docs/changes/2026-05-15-xhs-reference-template-same-origin-preview-fallback.md`
+  - 原创模板图库资源地址改为同域 `/api`，降低不同浏览器因绝对地址不一致导致的裂图；模板卡片新增“预览加载失败”占位提示
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

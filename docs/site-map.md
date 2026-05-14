@@ -118,13 +118,13 @@
   - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求
   - “封面参考图 / 配图参考图”已升级为模板图库选择 + 本地上传兜底双入口；模板选中后会先下载成 `File`，再继续复用现有参考图分析与生图链路
   - 当前原创链路已拆成两层技能：`原创配图提示词` 负责生成封面/内页提示词，`原创图片生成` 负责选择最终图像模型、继承参考图结构并执行成品图生成
-  - 原创模板图库当前通过 `GET /api/works/xiaohongshu/original/reference-templates` 返回分类与模板清单，并通过站内 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 受控读取图片资源
+  - 原创模板图库当前通过 `GET /api/works/xiaohongshu/original/reference-templates` 返回分类与模板清单，并通过站内 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域受控读取图片资源；若某张模板对象缺失，前端会显示“模板预览加载失败”占位而不是只保留浏览器裂图图标
   - 本地开发因前端走 `3001`、后端走 `3011` 属于跨端口请求；模板资源接口现已暴露 `Content-Disposition` 给浏览器端 `fetch`，回填表单时可保留真实模板文件名，不再退回显示 `asset`
   - 上传参考图当前会同时参与两步：先进入 `analyzeReferenceImages()` 做风格拆解，再在最终文生图阶段以原图 data URL 形式继续传给图像模型，不再只保留文字化风格档案
   - 最终成品图 prompt 已显式增加竖版 `1242x1660`、中文排版、标题层级和 8% 安全边距约束，用于收紧文字贴边和越界问题
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，可在个人中心任务中心继续查看
   - 当前支持在小红书工作区和个人中心任务中心对运行中的任务发起 `取消任务`；取消属于 best-effort 中断，会尽量阻止后续步骤继续写回成功状态
-- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
+- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`、`docs/changes/2026-05-15-xhs-reference-template-same-origin-preview-fallback.md`
 - 二创笔记
   - 已支持二创图文作品列表、添加弹窗、编辑、删除
   - 已接入素材库作品选择、产品选择、用户要求
@@ -345,7 +345,7 @@
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
-  - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 站内接口读取，不直接暴露底层 OSS 链接
+  - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域站内接口读取，不直接暴露底层 OSS 链接，降低不同浏览器因绝对地址不一致导致的裂图差异
   - 原创文案、原创配图提示词、原创图片生成、二创文案、二创配图提示词、二创图片生成、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
   - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型

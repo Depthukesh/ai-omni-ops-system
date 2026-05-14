@@ -3819,6 +3819,33 @@ button {
   background: #eef2ff;
 }
 
+.reference-template-image.is-hidden {
+  display: none;
+}
+
+.reference-template-image-fallback {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 20px 18px;
+  background: linear-gradient(180deg, #eef2ff 0%, #f7f8fd 100%);
+  color: #51607f;
+  text-align: center;
+}
+
+.reference-template-image-fallback strong {
+  font-size: 14px;
+  color: #2d3a56;
+  line-height: 1.5;
+}
+
+.reference-template-image-fallback span {
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .reference-template-card-hint {
   position: absolute;
   left: 12px;

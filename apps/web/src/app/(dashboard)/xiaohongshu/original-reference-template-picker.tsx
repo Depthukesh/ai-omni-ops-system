@@ -29,6 +29,7 @@ export function OriginalReferenceTemplatePicker(props: OriginalReferenceTemplate
   const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORY_ID);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [failedImageIds, setFailedImageIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!props.open) {
@@ -38,6 +39,7 @@ export function OriginalReferenceTemplatePicker(props: OriginalReferenceTemplate
     setActiveCategoryId(ALL_CATEGORY_ID);
     setSelectedIds([]);
     setCurrentPage(1);
+    setFailedImageIds([]);
   }, [props.open]);
 
   const filteredItems = useMemo(() => {
@@ -177,7 +179,21 @@ export function OriginalReferenceTemplatePicker(props: OriginalReferenceTemplate
                     onClick={() => toggleSelect(item.id)}
                   >
                     <div className="reference-template-image-shell">
-                      <img className="reference-template-image" src={item.assetUrl} alt={item.title} loading="lazy" />
+                      {failedImageIds.includes(item.id) ? (
+                        <div className="reference-template-image-fallback">
+                          <strong>模板预览加载失败</strong>
+                          <span>该模板资源可能尚未同步完成，请先刷新模板或切换其他模板。</span>
+                        </div>
+                      ) : null}
+                      <img
+                        className={`reference-template-image ${failedImageIds.includes(item.id) ? "is-hidden" : ""}`}
+                        src={item.assetUrl}
+                        alt={item.title}
+                        loading="lazy"
+                        onError={() =>
+                          setFailedImageIds((current) => (current.includes(item.id) ? current : [...current, item.id]))
+                        }
+                      />
                       <div className={`reference-template-card-hint ${selected ? "is-selected" : ""}`}>
                         <span className="reference-template-card-hint-icon" aria-hidden="true">
                           <svg viewBox="0 0 20 20" focusable="false">

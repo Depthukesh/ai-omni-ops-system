@@ -5872,7 +5872,7 @@ export class WorksService {
   }
 
   private resolveOriginalReferenceTemplateAssetUrl(templateId: string) {
-    return `${this.appConfigService.getPublicApiBaseUrl()}/works/xiaohongshu/original/reference-templates/${encodeURIComponent(templateId)}/asset`;
+    return `/api/works/xiaohongshu/original/reference-templates/${encodeURIComponent(templateId)}/asset`;
   }
 
   private findOriginalReferenceTemplateById(templateId: string) {
