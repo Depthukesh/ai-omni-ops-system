@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
-import { resetUserSkill, updateUserSkill, getUserSkills, type UserSkillRecord } from "../../../../services/personal-center";
+import {
+  getUserSkillEditorOptions,
+  getUserSkills,
+  resetUserSkill,
+  updateUserSkill,
+  type UserSkillEditorOptions,
+  type UserSkillRecord,
+} from "../../../../services/personal-center";
 import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SkillStatusFilter = "ALL" | UserSkillRecord["baseSkill"]["status"];
@@ -44,6 +51,7 @@ export default function PersonalCenterSkillsPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [savingSkillId, setSavingSkillId] = useState("");
   const [resettingSkillId, setResettingSkillId] = useState("");
+  const [editorOptions, setEditorOptions] = useState<UserSkillEditorOptions>({ modelOptions: [] });
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -105,11 +113,16 @@ export default function PersonalCenterSkillsPage() {
     setNotice("");
     setErrorMessage("");
 
-    const [meResult, skillsResult] = await Promise.allSettled([getMe(), getUserSkills()]);
+    const [meResult, skillsResult, editorOptionsResult] = await Promise.allSettled([
+      getMe(),
+      getUserSkills(),
+      getUserSkillEditorOptions(),
+    ]);
 
     if (
       (meResult.status === "rejected" && isAuthFailure(meResult.reason))
       || (skillsResult.status === "rejected" && isAuthFailure(skillsResult.reason))
+      || (editorOptionsResult.status === "rejected" && isAuthFailure(editorOptionsResult.reason))
     ) {
       await handleSessionExpired();
       return;
@@ -133,6 +146,12 @@ export default function PersonalCenterSkillsPage() {
       setSkillDrafts({});
       setSelectedSkillId("");
       setErrorMessage(skillsResult.reason instanceof Error ? skillsResult.reason.message : "技能中心加载失败");
+    }
+
+    if (editorOptionsResult.status === "fulfilled") {
+      setEditorOptions(editorOptionsResult.value);
+    } else {
+      setEditorOptions({ modelOptions: [] });
     }
 
     setIsLoading(false);
@@ -384,59 +403,7 @@ export default function PersonalCenterSkillsPage() {
               </span>
             </div>
 
-            <div className="personal-grid" style={{ marginBottom: 16 }}>
-              <div>
-                <span>平台技能名</span>
-                <strong>{selectedSkill.baseSkill.name}</strong>
-              </div>
-              <div>
-                <span>点数成本</span>
-                <strong>{selectedSkill.baseSkill.pointsCost}</strong>
-              </div>
-              <div>
-                <span>个人状态</span>
-                <strong>{selectedSkill.isCustomized ? "已保存个人覆盖" : "默认跟随平台"}</strong>
-              </div>
-              <div>
-                <span>最近重置</span>
-                <strong>{formatDateTime(selectedSkill.lastResetAt)}</strong>
-              </div>
-            </div>
-
-            <div className="personal-list">
-              <label className="field">
-                <span>技能名称</span>
-                <input
-                  value={currentDraft.displayName}
-                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "displayName", event.target.value, setSkillDrafts)}
-                  placeholder={selectedSkill.baseSkill.name}
-                />
-                <small className="personal-meta">不改就沿用平台值：{selectedSkill.baseSkill.name}</small>
-              </label>
-
-              <label className="field">
-                <span>默认模型</span>
-                <input
-                  value={currentDraft.defaultModel}
-                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "defaultModel", event.target.value, setSkillDrafts)}
-                  placeholder={selectedSkill.baseSkill.defaultModel}
-                />
-                <small className="personal-meta">不改就沿用平台值：{selectedSkill.baseSkill.defaultModel}</small>
-              </label>
-
-              <label className="field">
-                <span>技能说明</span>
-                <textarea
-                  value={currentDraft.description}
-                  onChange={(event) => updateSkillDraftField(selectedSkill.id, "description", event.target.value, setSkillDrafts)}
-                  rows={4}
-                  placeholder={selectedSkill.baseSkill.description}
-                />
-                <small className="personal-meta">不改就沿用平台说明；后台修改平台说明后，未自定义字段会自动跟随。</small>
-              </label>
-            </div>
-
-            <div className="personal-actions" style={{ marginTop: 16, marginBottom: 16 }}>
+            <div className="personal-actions" style={{ marginBottom: 16 }}>
               <button
                 type="button"
                 className="primary-button"
@@ -454,6 +421,10 @@ export default function PersonalCenterSkillsPage() {
                 {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
               </button>
             </div>
+
+            <p className="personal-meta" style={{ marginBottom: 16 }}>
+              当前共 {selectedSkill.prompts.length} 条提示词；模型默认跟随后台平台配置，你可以在下面按提示词单独切换。
+            </p>
 
             <div className="personal-list">
               {selectedSkill.prompts.map((prompt) => {
@@ -492,11 +463,17 @@ export default function PersonalCenterSkillsPage() {
                     <div className="personal-list">
                       <label className="field">
                         <span>提示词模型</span>
-                        <input
+                        <select
                           value={promptDraft.modelName}
                           onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "modelName", event.target.value, setSkillDrafts)}
-                          placeholder={prompt.basePrompt.modelName}
-                        />
+                        >
+                          {buildModelOptions(editorOptions.modelOptions, prompt.basePrompt.modelName, promptDraft.modelName).map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                        </select>
+                        <small className="personal-meta">默认跟随后台当前模型：{prompt.basePrompt.modelName}</small>
                       </label>
 
                       <div className="personal-grid">
@@ -577,21 +554,6 @@ function buildSkillDraft(skill: UserSkillRecord): UserSkillEditDraft {
   };
 }
 
-function updateSkillDraftField(
-  skillId: string,
-  field: keyof Omit<UserSkillEditDraft, "prompts">,
-  value: string,
-  setSkillDrafts: React.Dispatch<React.SetStateAction<Record<string, UserSkillEditDraft>>>,
-) {
-  setSkillDrafts((current) => ({
-    ...current,
-    [skillId]: {
-      ...current[skillId],
-      [field]: value,
-    },
-  }));
-}
-
 function updatePromptDraftField(
   skillId: string,
   promptId: string,
@@ -616,6 +578,16 @@ function updatePromptDraftField(
 
 function isSkillDraftDirty(skill: UserSkillRecord, draft: UserSkillEditDraft) {
   return serializeComparableDraft(skill, draft) !== serializeComparableDraft(skill, buildSkillDraft(skill));
+}
+
+function buildModelOptions(modelOptions: string[], ...currentValues: Array<string | undefined>) {
+  return Array.from(
+    new Set(
+      [...modelOptions, ...currentValues]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function buildUpdatePayload(skill: UserSkillRecord, draft: UserSkillEditDraft) {

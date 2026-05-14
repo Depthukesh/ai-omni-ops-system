@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import { resolvePromptFallbackContent } from "../../common/prompt-fallbacks";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ApiProvidersService } from "../admin/api-providers.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 
@@ -22,6 +23,10 @@ export type UserSkillRecord = {
     name: string;
   };
   prompts: UserSkillPromptRecord[];
+};
+
+export type UserSkillEditorOptions = {
+  modelOptions: string[];
 };
 
 export type UpdateUserSkillPayload = {
@@ -120,7 +125,23 @@ export class UserSkillsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly skillsPromptsService: SkillsPromptsService,
+    private readonly apiProvidersService: ApiProvidersService,
   ) {}
+
+  async getEditorOptions() {
+    const activeProviders = await this.apiProvidersService.listActiveProviders();
+    const modelOptions = Array.from(
+      new Set(
+        activeProviders
+          .flatMap((item) => [item.defaultModel, ...item.modelWhitelist])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    return {
+      modelOptions,
+    };
+  }
 
   async listUserSkills(auth: RequestAuthContext) {
     const context = this.assertUserContext(auth);

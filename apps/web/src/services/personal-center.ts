@@ -100,6 +100,10 @@ export type UserSkillRecord = {
   prompts: UserSkillPromptRecord[];
 };
 
+export type UserSkillEditorOptions = {
+  modelOptions: string[];
+};
+
 export type UpdateUserSkillPayload = {
   displayName?: string | null;
   defaultModel?: string | null;
@@ -369,6 +373,10 @@ export async function getMedia() {
 
 export async function getUserSkills() {
   return request<UserSkillRecord[]>("/user-skills");
+}
+
+export async function getUserSkillEditorOptions() {
+  return request<UserSkillEditorOptions>("/user-skills/editor-options");
 }
 
 export async function getUserSkill(skillId: string) {

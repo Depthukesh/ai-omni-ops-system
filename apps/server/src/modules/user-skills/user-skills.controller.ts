@@ -18,6 +18,15 @@ export class UserSkillsController {
     return this.userSkillsService.listUserSkills(auth);
   }
 
+  @Get("editor-options")
+  async editorOptions(@Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    if (!auth) {
+      throw new UnauthorizedException("请先登录");
+    }
+    return this.userSkillsService.getEditorOptions();
+  }
+
   @Get(":skillId")
   async detail(
     @Param("skillId") skillId: string,
