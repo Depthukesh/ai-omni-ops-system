@@ -119,19 +119,6 @@ type CreateApiProviderDraft = {
   remark: string;
 };
 
-const SOURCE_CONTROLLED_PROMPT_IDS = new Set([
-  "prompt_growth_report",
-  "prompt_annual_plan",
-  "prompt_annual_marketing_plan",
-  "prompt_xhs_plan",
-  "prompt_xhs_calendar",
-  "prompt_visual_report",
-  "prompt_xhs_original_copy",
-  "prompt_xhs_original_note",
-  "prompt_xhs_rewrite_copy",
-  "prompt_xhs_rewrite_note",
-  "prompt_xhs_video_note",
-]);
 type CreateKnowledgeBaseFileDraft = {
   fileName: string;
   fileType: KnowledgeBaseFileRecord["fileType"];
@@ -1661,9 +1648,6 @@ export default function AdminPage() {
   const skillCenterName = activeSkillConfig?.name || activeSkillLeaf?.label || activePromptConfig?.name || "-";
   const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
   const isSkillPrimaryExpanded = (primaryId: string) => expandedSkillPrimaryId === primaryId;
-  const isAutoBundledPrompt = Boolean(
-    activePromptConfig && (SOURCE_CONTROLLED_PROMPT_IDS.has(activePromptConfig.id) || skillCenterPromptValue.includes("## 自动聚合参考资料")),
-  );
   const isSavingSkillCenter =
     (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
@@ -2149,15 +2133,9 @@ export default function AdminPage() {
                     <textarea
                       value={skillCenterPromptValue}
                       onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
-                      readOnly={isAutoBundledPrompt}
                       placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
                     />
                   </label>
-                  {isAutoBundledPrompt ? (
-                    <p className="personal-meta">
-                      当前内容回源自原始提示词文件或 `SKILL.md` 目录；如需修改，请直接回到原始提示词目录维护。
-                    </p>
-                  ) : null}
                   <div className="admin-skill-form-actions">
                     <button
                       type="button"

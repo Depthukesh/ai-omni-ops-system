@@ -379,7 +379,7 @@
 3. 后端 `ReportsModule` 创建 `XHS_MARKETING_CALENDAR` 后台任务，并把状态写入任务记录
 4. 任务执行时读取品牌资料、小红书收集结果、每日热点、历史营销日历，以及前后台统一注册的 `xiaohongshu-marketing-calendar / prompt_xhs_calendar` 技能配置
 5. 运行时优先采用后台技能中心为营销日历指定的模型，默认以 `deepseek-v4-pro` 作为文本模型兜底
-6. 生成成功后写回新的 7 天营销日历；前端按 7 张真实日历卡片展示月份、日期与主题，点击后查看当天详情；失败时前端直接展示中文错误
+6. 生成成功后写回新的 7 天营销日历；前端按 7 张真实日历卡片展示月份、日期与主题，点击后查看当天详情并支持直接编辑保存；失败时前端直接展示中文错误
 7. 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 
 ### 5.4 原创笔记链路

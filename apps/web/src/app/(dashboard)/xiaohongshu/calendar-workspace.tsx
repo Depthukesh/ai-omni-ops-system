@@ -18,10 +18,32 @@ export interface CalendarWorkspaceProps {
   calendarAllItems: XiaohongshuMarketingCalendarItem[];
   isCalendarDetailOpen: boolean;
   selectedCalendarItem?: XiaohongshuMarketingCalendarItem;
+  calendarItemDraft: XiaohongshuMarketingCalendarItem | null;
+  isEditingCalendarItem: boolean;
+  isSavingCalendarItem: boolean;
   onRefresh: AsyncAction;
   onGenerate: AsyncAction;
   onOpenDetail: (itemId: string) => void;
   onCloseDetail: () => void;
+  onStartEditDetail: () => void;
+  onCancelEditDetail: () => void;
+  onSaveDetail: AsyncAction;
+  onDetailFieldChange: (
+    field:
+      | "date"
+      | "topicName"
+      | "productName"
+      | "noteType"
+      | "targetAudience"
+      | "contentGoal"
+      | "expressionFocus"
+      | "topicContent"
+      | "bodyStructure"
+      | "coverFormat"
+      | "imageBrief",
+    value: string,
+  ) => void;
+  onDetailListFieldChange: (field: "noteKeywords" | "titleDirections" | "coverKeywords", value: string) => void;
   getTaskStatusClass: (status?: XiaohongshuMarketingCalendarTaskRecord["taskStatus"]) => string;
   formatDateTime: OptionalDateFormatter;
   formatCalendarMonthDay: (value: string) => string;
@@ -48,10 +70,18 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     calendarAllItems,
     isCalendarDetailOpen,
     selectedCalendarItem,
+    calendarItemDraft,
+    isEditingCalendarItem,
+    isSavingCalendarItem,
     onRefresh,
     onGenerate,
     onOpenDetail,
     onCloseDetail,
+    onStartEditDetail,
+    onCancelEditDetail,
+    onSaveDetail,
+    onDetailFieldChange,
+    onDetailListFieldChange,
     getTaskStatusClass,
     formatDateTime,
     formatCalendarMonthDay,
@@ -125,11 +155,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             <div className="calendar-seven-day-toolbar">
               <div>
                 <span>未来 7 天日历</span>
-                <strong>{latestCalendar?.summary || "按真实日历卡片查看未来 7 天主题与日期安排"}</strong>
-              </div>
-              <div className="calendar-seven-day-legend">
-                <span>点击单日卡片</span>
-                <strong>查看完整选题、标题方向、正文结构和配图说明</strong>
+                <strong>{latestCalendar?.summary || "点击单日卡片查看详情，并在详情弹窗中直接修改当天内容。"}</strong>
               </div>
             </div>
             <div className="calendar-grid calendar-grid--seven-day">
@@ -152,13 +178,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                     <span>{formatCalendarWeekday(item.date)}</span>
                   </div>
                   <div className="calendar-card-body">
-                    <p className="calendar-card-festival">{getCalendarFestivalLabel(item.date) || "日常排期"}</p>
                     <p className="calendar-card-topic">{item.topicName}</p>
-                    <p className="calendar-card-summary">{formatCalendarOptionalValue(item.contentGoal)}</p>
-                    <div className="calendar-card-tags">
-                      <span>{formatCalendarOptionalValue(item.noteType)}</span>
-                      <span>{formatCalendarOptionalValue(item.productName || "未植入产品")}</span>
-                    </div>
                   </div>
                 </article>
               ))}
@@ -173,108 +193,172 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             <button type="button" className="media-preview-close" onClick={onCloseDetail}>
               关闭
             </button>
-            <article className="entity-card personal-card calendar-detail-card">
-              <div className="calendar-detail-hero">
+            <article className="entity-card personal-card calendar-detail-card calendar-detail-card--plain">
+              <div className="calendar-detail-header">
                 <div>
-                  <p className="calendar-detail-eyebrow">{formatCalendarDate(selectedCalendarItem.date)}</p>
-                  <strong>{selectedCalendarItem.topicName}</strong>
-                  <p className="personal-meta">{formatCalendarOptionalValue(selectedCalendarItem.contentGoal)}</p>
+                  <strong>{isEditingCalendarItem ? calendarItemDraft?.topicName || selectedCalendarItem.topicName : selectedCalendarItem.topicName}</strong>
+                  <p className="personal-meta">{formatCalendarDate(selectedCalendarItem.date)}</p>
                 </div>
-                <div className="calendar-detail-hero-tags">
-                  <span>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</span>
-                  <span>{getCalendarFestivalLabel(selectedCalendarItem.date) || "日常排期"}</span>
+                <div className="calendar-detail-actions">
+                  {isEditingCalendarItem ? (
+                    <>
+                      <button type="button" className="secondary-button" onClick={onCancelEditDetail} disabled={isSavingCalendarItem}>
+                        取消
+                      </button>
+                      <button type="button" className="primary-button" onClick={() => void onSaveDetail()} disabled={isSavingCalendarItem}>
+                        {isSavingCalendarItem ? "保存中..." : "保存修改"}
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="secondary-button" onClick={onStartEditDetail}>
+                      编辑当天内容
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="calendar-detail-grid">
-                <section className="calendar-detail-section">
-                  <h4>基础信息</h4>
-                  <div className="calendar-detail-info-grid">
-                    <div>
-                      <span>日期</span>
-                      <strong>{formatCalendarDate(selectedCalendarItem.date)}</strong>
-                    </div>
-                    <div>
-                      <span>植入产品</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.productName)}</strong>
-                    </div>
-                    <div>
-                      <span>笔记类型</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.noteType)}</strong>
-                    </div>
-                    <div>
-                      <span>适合人群</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.targetAudience)}</strong>
-                    </div>
-                  </div>
-                </section>
+              <div className="calendar-detail-plain-grid">
+                <div className="calendar-detail-plain-column">
+                  <DetailField
+                    label="日期"
+                    value={isEditingCalendarItem ? calendarItemDraft?.date || "" : selectedCalendarItem.date}
+                    editing={isEditingCalendarItem}
+                    onChange={(value) => onDetailFieldChange("date", value)}
+                  />
+                  <DetailField
+                    label="植入产品"
+                    value={isEditingCalendarItem ? calendarItemDraft?.productName || "" : selectedCalendarItem.productName || ""}
+                    editing={isEditingCalendarItem}
+                    onChange={(value) => onDetailFieldChange("productName", value)}
+                  />
+                  <DetailField
+                    label="适合人群"
+                    value={isEditingCalendarItem ? calendarItemDraft?.targetAudience || "" : selectedCalendarItem.targetAudience || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("targetAudience", value)}
+                  />
+                  <DetailField
+                    label="表达重点"
+                    value={isEditingCalendarItem ? calendarItemDraft?.expressionFocus || "" : selectedCalendarItem.expressionFocus || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("expressionFocus", value)}
+                  />
+                  <DetailField
+                    label="选题内容"
+                    value={isEditingCalendarItem ? calendarItemDraft?.topicContent || "" : selectedCalendarItem.topicContent || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("topicContent", value)}
+                  />
+                  <DetailField
+                    label="标题方向"
+                    value={
+                      isEditingCalendarItem
+                        ? (calendarItemDraft?.titleDirections || []).join("\n")
+                        : formatCalendarListValue(selectedCalendarItem.titleDirections)
+                    }
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailListFieldChange("titleDirections", value)}
+                  />
+                  <DetailField
+                    label="正文结构"
+                    value={isEditingCalendarItem ? calendarItemDraft?.bodyStructure || "" : selectedCalendarItem.bodyStructure || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("bodyStructure", value)}
+                  />
+                </div>
 
-                <section className="calendar-detail-section">
-                  <h4>选题策略</h4>
-                  <div className="calendar-detail-stack">
-                    <div>
-                      <span>内容目的</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.contentGoal)}</strong>
-                    </div>
-                    <div>
-                      <span>表达重点</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.expressionFocus)}</strong>
-                    </div>
-                    <div>
-                      <span>选题内容</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.topicContent)}</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="calendar-detail-section">
-                  <h4>关键词与标题</h4>
-                  <div className="calendar-detail-stack">
-                    <div>
-                      <span>笔记关键词</span>
-                      <div className="calendar-detail-chip-row">
-                        {selectedCalendarItem.noteKeywords?.length ? selectedCalendarItem.noteKeywords.map((keyword) => (
-                          <em key={keyword}>{keyword}</em>
-                        )) : <strong>未填写</strong>}
-                      </div>
-                    </div>
-                    <div>
-                      <span>标题方向</span>
-                      <strong>{formatCalendarListValue(selectedCalendarItem.titleDirections)}</strong>
-                    </div>
-                    <div>
-                      <span>正文结构</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.bodyStructure)}</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="calendar-detail-section">
-                  <h4>封面与配图</h4>
-                  <div className="calendar-detail-stack">
-                    <div>
-                      <span>封面形式</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.coverFormat)}</strong>
-                    </div>
-                    <div>
-                      <span>封面关键词</span>
-                      <div className="calendar-detail-chip-row">
-                        {selectedCalendarItem.coverKeywords?.length ? selectedCalendarItem.coverKeywords.map((keyword) => (
-                          <em key={keyword}>{keyword}</em>
-                        )) : <strong>未填写</strong>}
-                      </div>
-                    </div>
-                    <div>
-                      <span>封面及配图说明</span>
-                      <strong>{formatCalendarOptionalValue(selectedCalendarItem.imageBrief)}</strong>
-                    </div>
-                  </div>
-                </section>
+                <div className="calendar-detail-plain-column">
+                  <DetailField
+                    label="选题名称"
+                    value={isEditingCalendarItem ? calendarItemDraft?.topicName || "" : selectedCalendarItem.topicName}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("topicName", value)}
+                  />
+                  <DetailField
+                    label="笔记类型"
+                    value={isEditingCalendarItem ? calendarItemDraft?.noteType || "" : selectedCalendarItem.noteType || ""}
+                    editing={isEditingCalendarItem}
+                    onChange={(value) => onDetailFieldChange("noteType", value)}
+                  />
+                  <DetailField
+                    label="内容目的"
+                    value={isEditingCalendarItem ? calendarItemDraft?.contentGoal || "" : selectedCalendarItem.contentGoal || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("contentGoal", value)}
+                  />
+                  <DetailField
+                    label="笔记关键词"
+                    value={
+                      isEditingCalendarItem
+                        ? (calendarItemDraft?.noteKeywords || []).join("\n")
+                        : formatCalendarListValue(selectedCalendarItem.noteKeywords)
+                    }
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailListFieldChange("noteKeywords", value)}
+                  />
+                  <DetailField
+                    label="封面形式"
+                    value={isEditingCalendarItem ? calendarItemDraft?.coverFormat || "" : selectedCalendarItem.coverFormat || ""}
+                    editing={isEditingCalendarItem}
+                    onChange={(value) => onDetailFieldChange("coverFormat", value)}
+                  />
+                  <DetailField
+                    label="封面关键词"
+                    value={
+                      isEditingCalendarItem
+                        ? (calendarItemDraft?.coverKeywords || []).join("\n")
+                        : formatCalendarListValue(selectedCalendarItem.coverKeywords)
+                    }
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailListFieldChange("coverKeywords", value)}
+                  />
+                  <DetailField
+                    label="封面及配图说明"
+                    value={isEditingCalendarItem ? calendarItemDraft?.imageBrief || "" : selectedCalendarItem.imageBrief || ""}
+                    editing={isEditingCalendarItem}
+                    multiline
+                    onChange={(value) => onDetailFieldChange("imageBrief", value)}
+                  />
+                </div>
               </div>
             </article>
           </div>
         </div>
       ) : null}
     </article>
+  );
+}
+
+type DetailFieldProps = {
+  label: string;
+  value: string;
+  editing: boolean;
+  multiline?: boolean;
+  onChange: (value: string) => void;
+};
+
+function DetailField(props: DetailFieldProps) {
+  return (
+    <div className="calendar-detail-row">
+      <span>{props.label}</span>
+      {props.editing ? (
+        props.multiline ? (
+          <textarea value={props.value} onChange={(event) => props.onChange(event.target.value)} rows={props.label === "选题名称" ? 3 : 5} />
+        ) : (
+          <input value={props.value} onChange={(event) => props.onChange(event.target.value)} />
+        )
+      ) : (
+        <strong>{props.value?.trim() ? props.value : "未填写"}</strong>
+      )}
+    </div>
   );
 }

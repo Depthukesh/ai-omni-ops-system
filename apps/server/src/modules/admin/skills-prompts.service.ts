@@ -6,6 +6,7 @@ import { database, type PromptTemplateRecord, type SkillConfigRecord } from "../
 import {
   PROMPT_SOURCE_CANDIDATES,
   readPromptSourceBundle,
+  resolvePromptSourceEntryPath,
 } from "../../common/prompt-source-loader";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -199,16 +200,8 @@ export class SkillsPromptsService {
   }
 
   async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
-    const currentSourceBundle = this.getPromptSourceBundle(id, "");
-    const sourceControlledPrompt = Boolean(currentSourceBundle.entryFilePath);
     const normalizedSubmittedContent =
       payload.content !== undefined ? this.normalizePromptContent(payload.content) : undefined;
-    const hasSubmittedContentChange =
-      normalizedSubmittedContent !== undefined && normalizedSubmittedContent !== currentSourceBundle.content;
-
-    if (sourceControlledPrompt && hasSubmittedContentChange) {
-      throw new BadRequestException("当前提示词已自动聚合参考资料，请直接回到原始文档目录维护 SKILL.md 与参考稿。");
-    }
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
@@ -219,7 +212,7 @@ export class SkillsPromptsService {
 
       const currentContent = this.readPromptContent(current.id, current.content);
       const nextContent = normalizedSubmittedContent ?? currentContent;
-      if (normalizedSubmittedContent !== undefined && !sourceControlledPrompt) {
+      if (normalizedSubmittedContent !== undefined) {
         this.writePromptContentToFile(id, nextContent);
       }
 
@@ -256,9 +249,7 @@ export class SkillsPromptsService {
     }
     if (normalizedSubmittedContent !== undefined) {
       const nextContent = normalizedSubmittedContent;
-      if (!sourceControlledPrompt) {
-        this.writePromptContentToFile(id, nextContent);
-      }
+      this.writePromptContentToFile(id, nextContent);
       prompt.content = nextContent;
     } else {
       prompt.content = this.readPromptContent(prompt.id, prompt.content);
@@ -574,17 +565,7 @@ export class SkillsPromptsService {
   }
 
   private resolvePromptFilePath(promptId: string) {
-    const candidates = this.promptFileCandidates[promptId];
-    if (!candidates?.length) {
-      return undefined;
-    }
-    for (const candidate of candidates) {
-      const filePath = resolve(process.cwd(), candidate);
-      if (existsSync(filePath)) {
-        return filePath;
-      }
-    }
-    return undefined;
+    return resolvePromptSourceEntryPath(promptId);
   }
 
   private getPromptSourceBundle(promptId: string, fallback: string) {

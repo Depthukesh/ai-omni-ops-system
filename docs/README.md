@@ -144,7 +144,7 @@
 - `docs/changes/2026-05-14-feishu-sync-diagnostics-and-workspace-fallback.md`
   - 飞书同步接口新增命中表、分类写入条数和工作区计数诊断，品牌增长页同步后优先采用响应里的工作区并对 `benchmarkNotes` 提供回退保护
 - `docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
-  - 将营销日历补入前后台技能中心与提示词注册表，营销日历生成统一读取技能配置；后续继续修正为完整回源 `营销日历提示词.txt`，并把前端日历视图与详情面板升级为更完整的 7 天排期面板
+  - 将营销日历补入前后台技能中心与提示词注册表，营销日历生成统一读取技能配置；后续继续修正为完整回源 `营销日历提示词.txt`，允许后台技能中心直接编辑保存提示词，并把前端日历卡片收回到“日期 + 主题”、详情弹窗恢复为可编辑保存的当天排期面板
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

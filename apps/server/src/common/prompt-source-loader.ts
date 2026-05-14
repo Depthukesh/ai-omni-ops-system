@@ -49,6 +49,16 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
 const IGNORED_DIRECTORIES = new Set(["__pycache__", "outputs", "scripts"]);
 const READABLE_REFERENCE_EXTENSIONS = new Set([".md", ".txt"]);
 
+function buildPromptSearchRoots() {
+  const cwd = process.cwd();
+  return [
+    cwd,
+    resolve(cwd, ".."),
+    resolve(cwd, "../.."),
+    resolve(cwd, "../../.."),
+  ];
+}
+
 type PromptReferenceEntry = {
   fileName: string;
   content: string;
@@ -137,10 +147,12 @@ export function resolvePromptSourceEntryPath(promptId: string) {
     return undefined;
   }
 
-  for (const candidate of candidates) {
-    const filePath = resolve(process.cwd(), candidate);
-    if (existsSync(filePath)) {
-      return filePath;
+  for (const root of buildPromptSearchRoots()) {
+    for (const candidate of candidates) {
+      const filePath = resolve(root, candidate);
+      if (existsSync(filePath)) {
+        return filePath;
+      }
     }
   }
 
