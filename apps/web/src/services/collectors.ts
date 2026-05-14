@@ -142,7 +142,7 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
 };
 
 function resolveBrandId(brandId?: string) {
-  return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+  return brandId || getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
 
 export async function getXiaohongshuCollectionWorkspace(brandId?: string) {

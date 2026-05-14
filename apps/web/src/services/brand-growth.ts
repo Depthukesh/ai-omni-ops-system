@@ -454,7 +454,7 @@ export function normalizeBrandArchiveBundle(bundle: BrandArchiveBundle): BrandAr
 export const DEMO_BRAND_ID = "br_demo_001";
 
 function resolveBrandId(brandId?: string) {
-  return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
+  return brandId || getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
 
 export const brandArchiveSeed: BrandArchiveBundle = {
