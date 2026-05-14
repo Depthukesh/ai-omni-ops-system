@@ -190,7 +190,32 @@ export async function syncXiaohongshuTargetUsers(sourceUrls: string[], brandId?:
 }
 
 export async function syncXiaohongshuFromFeishu(brandId?: string) {
-  return jsonRequest<{ syncedCount: number; tableCount: number; workspace: XhsCollectionWorkspace }>(
+  return jsonRequest<{
+    syncedCount: number;
+    tableCount: number;
+    workspace: XhsCollectionWorkspace;
+    matchedTables: {
+      brandAccounts: { tableId: string; tableName: string } | null;
+      competitorAccounts: { tableId: string; tableName: string } | null;
+      brandNotes: { tableId: string; tableName: string } | null;
+      benchmarkNotes: { tableId: string; tableName: string } | null;
+      targetUsers: { tableId: string; tableName: string } | null;
+    };
+    syncBreakdown: {
+      brandAccounts: number;
+      competitorAccounts: number;
+      brandNotes: number;
+      benchmarkNotes: number;
+      targetUsers: number;
+    };
+    workspaceCounts: {
+      brandAccounts: number;
+      competitorAccounts: number;
+      brandNotes: number;
+      benchmarkNotes: number;
+      targetUsers: number;
+    };
+  }>(
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/feishu-sync`,
     "POST",
     {},

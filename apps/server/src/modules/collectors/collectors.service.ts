@@ -148,6 +148,22 @@ export type XhsCollectionWorkspace = {
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
+type FeishuMatchedTableMap = {
+  brandAccounts: FeishuTableRecord | null;
+  competitorAccounts: FeishuTableRecord | null;
+  brandNotes: FeishuTableRecord | null;
+  benchmarkNotes: FeishuTableRecord | null;
+  targetUsers: FeishuTableRecord | null;
+};
+
+type FeishuSyncBreakdown = {
+  brandAccounts: number;
+  competitorAccounts: number;
+  brandNotes: number;
+  benchmarkNotes: number;
+  targetUsers: number;
+};
+
 export type DailyHotspotItemRecord = {
   id: string;
   rank: number;
@@ -319,22 +335,34 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const matchedTables = await this.matchFeishuTables(baseToken, userAccessToken, tables, binding);
       await this.clearExistingXiaohongshuCollectorAssets(brandId);
       const tableCount = this.countUniqueMatchedTables(matchedTables);
+      const syncBreakdown: FeishuSyncBreakdown = {
+        brandAccounts: 0,
+        competitorAccounts: 0,
+        brandNotes: 0,
+        benchmarkNotes: 0,
+        targetUsers: 0,
+      };
       let syncedCount = 0;
 
       if (matchedTables.brandAccounts) {
-        syncedCount += await this.syncFeishuAccountTable(brandId, baseToken, matchedTables.brandAccounts, "XHS_BRAND_ACCOUNT");
+        syncBreakdown.brandAccounts = await this.syncFeishuAccountTable(brandId, baseToken, matchedTables.brandAccounts, "XHS_BRAND_ACCOUNT");
+        syncedCount += syncBreakdown.brandAccounts;
       }
       if (matchedTables.competitorAccounts) {
-        syncedCount += await this.syncFeishuAccountTable(brandId, baseToken, matchedTables.competitorAccounts, "XHS_COMPETITOR_ACCOUNT");
+        syncBreakdown.competitorAccounts = await this.syncFeishuAccountTable(brandId, baseToken, matchedTables.competitorAccounts, "XHS_COMPETITOR_ACCOUNT");
+        syncedCount += syncBreakdown.competitorAccounts;
       }
       if (matchedTables.brandNotes) {
-        syncedCount += await this.syncFeishuBrandNotesTable(brandId, baseToken, matchedTables.brandNotes);
+        syncBreakdown.brandNotes = await this.syncFeishuBrandNotesTable(brandId, baseToken, matchedTables.brandNotes);
+        syncedCount += syncBreakdown.brandNotes;
       }
       if (matchedTables.benchmarkNotes) {
-        syncedCount += await this.syncFeishuBenchmarkNotesTable(brandId, baseToken, matchedTables.benchmarkNotes);
+        syncBreakdown.benchmarkNotes = await this.syncFeishuBenchmarkNotesTable(brandId, baseToken, matchedTables.benchmarkNotes);
+        syncedCount += syncBreakdown.benchmarkNotes;
       }
       if (matchedTables.targetUsers) {
-        syncedCount += await this.syncFeishuTargetUsersTable(brandId, baseToken, matchedTables.targetUsers);
+        syncBreakdown.targetUsers = await this.syncFeishuTargetUsersTable(brandId, baseToken, matchedTables.targetUsers);
+        syncedCount += syncBreakdown.targetUsers;
       }
       await this.cleanupDuplicateCollectorAssets(brandId);
 
@@ -346,11 +374,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         lastSyncAt,
       });
 
+      const workspace = await this.getXiaohongshuWorkspace(brandId);
       return {
         syncedCount,
         tableCount,
-        workspace: await this.getXiaohongshuWorkspace(brandId),
+        workspace,
         binding: await this.getFeishuBinding(brandId),
+        matchedTables: this.serializeMatchedTables(matchedTables),
+        syncBreakdown,
+        workspaceCounts: this.buildWorkspaceCounts(workspace),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "飞书副本同步失败";
@@ -917,13 +949,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.dedupeMatchedFeishuTables(matchedByContent);
   }
 
-  private dedupeMatchedFeishuTables(matchedTables: {
-    brandAccounts: FeishuTableRecord | null;
-    competitorAccounts: FeishuTableRecord | null;
-    brandNotes: FeishuTableRecord | null;
-    benchmarkNotes: FeishuTableRecord | null;
-    targetUsers: FeishuTableRecord | null;
-  }) {
+  private dedupeMatchedFeishuTables(matchedTables: FeishuMatchedTableMap) {
     const usedTableIds = new Set<string>();
     const reserve = (table: FeishuTableRecord | null) => {
       if (!table?.tableId || usedTableIds.has(table.tableId)) {
@@ -1005,18 +1031,42 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return bestScore;
   }
 
-  private countUniqueMatchedTables(matchedTables: {
-    brandAccounts: FeishuTableRecord | null;
-    competitorAccounts: FeishuTableRecord | null;
-    brandNotes: FeishuTableRecord | null;
-    benchmarkNotes: FeishuTableRecord | null;
-    targetUsers: FeishuTableRecord | null;
-  }) {
+  private countUniqueMatchedTables(matchedTables: FeishuMatchedTableMap) {
     return new Set(
       Object.values(matchedTables)
         .map((item) => item?.tableId || "")
         .filter(Boolean),
     ).size;
+  }
+
+  private serializeMatchedTables(matchedTables: FeishuMatchedTableMap) {
+    return {
+      brandAccounts: matchedTables.brandAccounts
+        ? { tableId: matchedTables.brandAccounts.tableId, tableName: matchedTables.brandAccounts.tableName }
+        : null,
+      competitorAccounts: matchedTables.competitorAccounts
+        ? { tableId: matchedTables.competitorAccounts.tableId, tableName: matchedTables.competitorAccounts.tableName }
+        : null,
+      brandNotes: matchedTables.brandNotes
+        ? { tableId: matchedTables.brandNotes.tableId, tableName: matchedTables.brandNotes.tableName }
+        : null,
+      benchmarkNotes: matchedTables.benchmarkNotes
+        ? { tableId: matchedTables.benchmarkNotes.tableId, tableName: matchedTables.benchmarkNotes.tableName }
+        : null,
+      targetUsers: matchedTables.targetUsers
+        ? { tableId: matchedTables.targetUsers.tableId, tableName: matchedTables.targetUsers.tableName }
+        : null,
+    };
+  }
+
+  private buildWorkspaceCounts(workspace: XhsCollectionWorkspace) {
+    return {
+      brandAccounts: workspace.brandAccounts.length,
+      competitorAccounts: workspace.competitorAccounts.length,
+      brandNotes: workspace.brandNotes.length,
+      benchmarkNotes: workspace.benchmarkNotes.length,
+      targetUsers: workspace.targetUsers.length,
+    };
   }
 
   private findFeishuTableByKeywords(tables: FeishuTableRecord[], keywords: readonly string[]) {

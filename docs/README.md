@@ -141,6 +141,8 @@
   - 品牌增长页的品牌域 service 改为显式 `brandId` 优先，避免同步和刷新时被本地缓存品牌上下文覆盖
 - `docs/changes/2026-05-14-feishu-table-dedup-and-unique-count.md`
   - 飞书同步改为唯一表去重分配与唯一表计数，修复 4 张表被错误显示为 5 张及近名表重复占用问题
+- `docs/changes/2026-05-14-feishu-sync-diagnostics-and-workspace-fallback.md`
+  - 飞书同步接口新增命中表、分类写入条数和工作区计数诊断，品牌增长页同步后优先采用响应里的工作区并对 `benchmarkNotes` 提供回退保护
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

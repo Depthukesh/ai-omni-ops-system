@@ -904,8 +904,20 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     try {
       const response = await syncXiaohongshuFromFeishu(activeBrandId || archive.brand.id);
+      setCollectionWorkspace(response.workspace);
       await loadArchive();
-      setNotice(`飞书同步完成，已更新 ${response.syncedCount} 条结果，命中 ${response.tableCount} 张数据表。`);
+      setCollectionWorkspace((current) => {
+        if (!current.benchmarkNotes.length && response.workspace.benchmarkNotes.length) {
+          return response.workspace;
+        }
+        return current;
+      });
+      const benchmarkTableName = response.matchedTables.benchmarkNotes?.tableName || "未命中";
+      const benchmarkSyncedCount = response.syncBreakdown.benchmarkNotes;
+      const benchmarkWorkspaceCount = response.workspaceCounts.benchmarkNotes;
+      setNotice(
+        `飞书同步完成，已更新 ${response.syncedCount} 条结果，命中 ${response.tableCount} 张数据表。对标作品表：${benchmarkTableName}；本次同步 ${benchmarkSyncedCount} 条；当前工作区 ${benchmarkWorkspaceCount} 条。`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "同步失败";
       setErrorMessage(`飞书同步失败：${message}`);

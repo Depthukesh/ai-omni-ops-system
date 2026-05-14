@@ -351,8 +351,12 @@
 1. 用户在飞书多维表格中维护品牌/竞品主页链接
 2. 前端在 `/brand-growth` 里保存飞书应用配置和飞书副本绑定；品牌域 service 若已显式传入 `brandId`，必须优先使用该值，不能再被本地会话缓存品牌覆盖
 3. 后端通过用户级飞书 OAuth 读取飞书表；同步时采用“表名优先、内容补齐缺项、唯一表去重分配”的匹配策略，避免只命中部分表名后直接跳过剩余表，也避免同一张表被多个角色重复占用并抬高命中表数
-4. 同步结果沉淀为小红书工作区数据
-5. `/xiaohongshu` 页面消费这些结果继续生成策划方案与营销日历
+4. 飞书同步接口除返回总 `syncedCount`、`tableCount` 外，还会补充各角色命中的 `matchedTables`、分类写入条数 `syncBreakdown` 和同步后工作区计数 `workspaceCounts`，便于直接区分“未命中对标表”“命中但写入 0 条”与“写入后重载读空”
+5. 品牌增长页点击“从飞书同步”后会先落同步响应里的 `workspace`，再触发 `loadArchive()`；若重载后把 `benchmarkNotes` 刷成 0，但同步响应中已有对标作品，则继续保留该结果，避免页面把刚同步出来的数据瞬间刷没
+6. `/xiaohongshu` 页面消费这些结果继续生成策划方案与营销日历
+- 参考变更：`docs/changes/2026-05-14-feishu-partial-table-match-backfill.md`
+- 参考变更：`docs/changes/2026-05-14-feishu-table-dedup-and-unique-count.md`
+- 参考变更：`docs/changes/2026-05-14-feishu-sync-diagnostics-and-workspace-fallback.md`
 
 ### 5.3 每日热点链路
 
