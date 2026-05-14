@@ -385,7 +385,7 @@ flowchart TD
     PC --> PC1["/personal-center/orders"]
     PC --> PC2["/personal-center/works"]
     PC --> PC3["/personal-center/skills 用户技能覆盖编辑器"]
-    PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key"]
+    PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 品牌隔离运行时覆盖"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team"]
@@ -425,7 +425,7 @@ flowchart TD
     Admin --> AUI6["技能中心"]
     Admin --> AUI7["知识库管理"]
     Admin --> AUI8["接口供应商（按平台分组）"]
-    AUI8 --> AUI81["左侧：新建平台 + 平台列表 + 搜索/状态/类型筛选"]
+    AUI8 --> AUI81["左侧：平台列表 + 搜索/状态/类型筛选"]
     AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]
     AUI8 --> AUI83["后台不填 API Key；前台 Owner 单独维护私有 Key"]
     AUI6 --> AUI61["左侧一级分类：点击后展开"]
@@ -517,6 +517,8 @@ flowchart TD
     M11 --> M4
     M11 --> M5
     M12 --> M1
+    M12 --> M4
+    M12 --> M5
     M12 --> Infra1
 ```
 
@@ -539,8 +541,8 @@ flowchart TD
     FI["UserFeishuIntegration"]
     SC["SkillConfig"]
     PT["PromptTemplate"]
-    TP["ThirdPartyPlatformConfig"]
-    TPS["UserThirdPartyPlatformSecret"]
+    TP["ThirdPartyPlatformConfig 平台基线"]
+    TPS["UserThirdPartyPlatformSecret 品牌私有 Key"]
 
     U --> MO
     U --> PL
@@ -559,6 +561,8 @@ flowchart TD
     B --> T
     B --> MA
     B --> TPS
+    TP --> M4R["Reports/Works 运行时按 baseUrl 匹配平台"]
+    TPS --> M4R
 
     T --> MA
     SC --> PT

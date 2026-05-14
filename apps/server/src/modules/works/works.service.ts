@@ -13,6 +13,7 @@ import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
+import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 
 type UploadFilePayload = {
@@ -510,7 +511,28 @@ export class WorksService {
     private readonly apiProvidersService: ApiProvidersService,
     @Inject(SkillsPromptsService)
     private readonly skillsPromptsService: SkillsPromptsService,
+    @Inject(ThirdPartyPlatformsService)
+    private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
   ) {}
+
+  private async resolveBrandAwareApiKeys(brandId: string | undefined, provider: ApiProviderRecord | undefined) {
+    if (!provider) {
+      return [];
+    }
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(
+      brandId,
+      this.apiProvidersService.getBaseUrls(provider),
+    );
+    if (resolution.status === "owner-api-key-missing") {
+      throw new ServiceUnavailableException(
+        `当前品牌的 Owner 尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成设置后再试。`,
+      );
+    }
+    if (resolution.status === "resolved") {
+      return resolution.apiKeys;
+    }
+    return this.apiProvidersService.getApiKeys(provider);
+  }
 
   async listXiaohongshuVideoProviderOptions() {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("video-generation");
@@ -780,7 +802,7 @@ export class WorksService {
       "prompt_xhs_original_copy",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const originalCopyProviders = await this.loadOriginalCopyProviders(originalCopyPreference);
+    const originalCopyProviders = await this.loadOriginalCopyProviders(brandId, originalCopyPreference);
     const task = await this.createOriginalTask({
       userId,
       brandId,
@@ -795,11 +817,12 @@ export class WorksService {
 
       const referenceFiles = this.normalizeReferenceFiles(payload);
       const referenceStyles = referenceFiles.length
-        ? await this.analyzeReferenceImages(referenceFiles, originalMarketingPlanMarkdown)
+        ? await this.analyzeReferenceImages(referenceFiles, originalMarketingPlanMarkdown, brandId)
         : { coverReferenceStyle: undefined, galleryReferenceStyles: [], modelName: undefined };
       await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateOriginalCopy({
+        brandId,
         marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -810,6 +833,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateOriginalImagePrompts({
+        brandId,
         marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -1019,7 +1043,7 @@ export class WorksService {
       "prompt_xhs_rewrite_copy",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const rewriteCopyProviders = await this.loadOriginalCopyProviders(rewriteCopyPreference);
+    const rewriteCopyProviders = await this.loadOriginalCopyProviders(brandId, rewriteCopyPreference);
     const task = await this.createRewriteTask({
       userId,
       brandId,
@@ -1031,6 +1055,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateRewriteCopy({
+        brandId,
         marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
@@ -1041,6 +1066,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
+        brandId,
         marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
@@ -1238,7 +1264,7 @@ export class WorksService {
       "prompt_xhs_video_note",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const videoTextProviders = await this.loadOriginalCopyProviders(videoTextPreference);
+    const videoTextProviders = await this.loadOriginalCopyProviders(brandId, videoTextPreference);
     const task = await this.createVideoTask({
       userId,
       brandId,
@@ -1261,6 +1287,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const copyResult = await this.generateVideoCopy({
+        brandId,
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -1271,6 +1298,7 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
 
       const promptResult = await this.generateVideoPromptPack({
+        brandId,
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -1635,8 +1663,9 @@ export class WorksService {
   private async analyzeReferenceImages(
     files: Array<{ label: string; payload: UploadFilePayload }>,
     marketingPlanMarkdown: string,
+    brandId?: string,
   ) {
-    const provider = await this.loadDoubaoImageAnalysisProvider();
+    const provider = await this.loadDoubaoImageAnalysisProvider(brandId);
     const prompt = this.loadImageAnalysisPrompt();
     const result: string[] = [];
 
@@ -1706,6 +1735,7 @@ export class WorksService {
   }
 
   private async generateOriginalCopy(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -1736,7 +1766,7 @@ export class WorksService {
       "prompt_xhs_original_copy",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalCopyProviders(preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -1840,6 +1870,7 @@ export class WorksService {
   }
 
   private async generateOriginalImagePrompts(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -1876,7 +1907,7 @@ export class WorksService {
       "prompt_xhs_original_note",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalImagePromptProviders(preference);
+    const providers = await this.loadOriginalImagePromptProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       topic_context: params.selectedCalendarItem
@@ -2010,7 +2041,7 @@ export class WorksService {
     textPlan?: ImageTextPlanEntry;
     referenceImageUrls: string[];
   }) {
-    const providers = await this.loadImageGenerationProviders();
+    const providers = await this.loadImageGenerationProviders(params.brandId);
     let lastError = "";
     const promptsToTry = this.buildImagePromptCandidates(
       this.buildImagePromptWithTextPlan(params.prompt, params.textPlan, params.role, params.order),
@@ -3506,6 +3537,7 @@ export class WorksService {
     providerLabel: TextProviderConfig["provider"],
     preferredModels: string[],
     options: {
+      apiKeys?: string[];
       temperature: number;
       maxTokens: number;
       requestTimeoutMs: number;
@@ -3518,7 +3550,7 @@ export class WorksService {
       return undefined;
     }
     const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+    const apiKeys = (options.apiKeys || []).length ? (options.apiKeys || []) : this.apiProvidersService.getApiKeys(provider);
     const models = this.pickProviderModels(provider.modelWhitelist, [], preferredModels);
     if (!baseUrls.length || !apiKeys.length || !models.length) {
       return undefined;
@@ -3657,11 +3689,16 @@ export class WorksService {
     return ordered.length ? ordered : normalizedAvailable;
   }
 
-  private async loadOriginalCopyProviders(preference?: SkillModelPreference) {
+  private async loadOriginalCopyProviders(brandId: string | undefined, preference?: SkillModelPreference) {
     const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+    ]);
+    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
+      this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(brandId, kimiProvider),
     ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
@@ -3669,6 +3706,7 @@ export class WorksService {
 
     const providers = [
       this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
+        apiKeys: deepseekApiKeys,
         temperature: 0.3,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
@@ -3676,12 +3714,14 @@ export class WorksService {
         thinkingDisabled: true,
       }),
       this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
+        apiKeys: doubaoApiKeys,
         temperature: 0.6,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         jsonResponse: true,
       }),
       this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
+        apiKeys: kimiApiKeys,
         temperature: 1,
         maxTokens: 2200,
         requestTimeoutMs: 180000,
@@ -3696,11 +3736,16 @@ export class WorksService {
     return this.reorderTextProvidersByPrimaryModel(providers, preference?.preferredModelName || "");
   }
 
-  private async loadOriginalImagePromptProviders(preference?: SkillModelPreference) {
+  private async loadOriginalImagePromptProviders(brandId: string | undefined, preference?: SkillModelPreference) {
     const [deepseekProvider, doubaoProvider, kimiProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
+    ]);
+    const [deepseekApiKeys, doubaoApiKeys, kimiApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(brandId, deepseekProvider),
+      this.resolveBrandAwareApiKeys(brandId, doubaoProvider),
+      this.resolveBrandAwareApiKeys(brandId, kimiProvider),
     ]);
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
@@ -3708,6 +3753,7 @@ export class WorksService {
 
     const providers = [
       this.buildTextProviderConfig(deepseekProvider, "DEEPSEEK", preferredModels, {
+        apiKeys: deepseekApiKeys,
         temperature: 0.3,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
@@ -3715,12 +3761,14 @@ export class WorksService {
         thinkingDisabled: true,
       }),
       this.buildTextProviderConfig(doubaoProvider, "ARK", preferredModels, {
+        apiKeys: doubaoApiKeys,
         temperature: 0.5,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         jsonResponse: true,
       }),
       this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
+        apiKeys: kimiApiKeys,
         temperature: 1,
         maxTokens: 2800,
         requestTimeoutMs: 180000,
@@ -3736,6 +3784,7 @@ export class WorksService {
   }
 
   private async generateRewriteCopy(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     sourceMaterial: {
       id: string;
@@ -3775,7 +3824,7 @@ export class WorksService {
       "prompt_xhs_rewrite_copy",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalCopyProviders(preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -3886,6 +3935,7 @@ export class WorksService {
   }
 
   private async generateRewriteImagePrompts(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     sourceMaterial: {
       id: string;
@@ -3922,7 +3972,7 @@ export class WorksService {
       "prompt_xhs_rewrite_note",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalImagePromptProviders(preference);
+    const providers = await this.loadOriginalImagePromptProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
       benchmark_note: {
@@ -4044,6 +4094,7 @@ export class WorksService {
   }
 
   private async generateVideoCopy(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -4074,7 +4125,7 @@ export class WorksService {
       "prompt_xhs_video_note",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalCopyProviders(preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -4199,6 +4250,7 @@ export class WorksService {
   }
 
   private async generateVideoPromptPack(params: {
+    brandId: string;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -4242,7 +4294,7 @@ export class WorksService {
       "prompt_xhs_video_note",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
     );
-    const providers = await this.loadOriginalCopyProviders(preference);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
       topic_context: params.selectedCalendarItem
@@ -4382,13 +4434,20 @@ export class WorksService {
     );
   }
 
-  private async loadDoubaoImageAnalysisProvider() {
+  private async loadDoubaoImageAnalysisProvider(brandId?: string) {
     const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao");
-    const config = this.buildTextProviderConfig(provider, "ARK", ["doubao-seed-1-8-251228", "doubao-seed-2-0-pro-260215"], {
-      temperature: 0.2,
-      maxTokens: 1400,
-      requestTimeoutMs: 180000,
-    });
+    const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+    const config = this.buildTextProviderConfig(
+      provider,
+      "ARK",
+      ["doubao-seed-1-8-251228", "doubao-seed-2-0-pro-260215"],
+      {
+        apiKeys,
+        temperature: 0.2,
+        maxTokens: 1400,
+        requestTimeoutMs: 180000,
+      },
+    );
     if (!config) {
       throw new ServiceUnavailableException("已上传参考图，但未找到 Doubao-Seed-1.8 的可用配置");
     }
@@ -4400,13 +4459,13 @@ export class WorksService {
     };
   }
 
-  private async loadImageGenerationProviders(): Promise<ImageProviderConfig[]> {
+  private async loadImageGenerationProviders(brandId?: string): Promise<ImageProviderConfig[]> {
     const provider = await this.apiProvidersService.findActiveProviderByRuntimeKey("image-generation");
     if (!provider) {
       throw new ServiceUnavailableException("未找到文生图接口配置");
     }
     const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+    const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
     const models = this.pickProviderModels(
       provider.modelWhitelist,
       [],
@@ -4448,7 +4507,7 @@ export class WorksService {
     throw new ServiceUnavailableException(`未找到 ${backend} 视频接口配置文件`);
   }
 
-  private async loadVideoProviderConfig(backend: VideoBackendKey): Promise<VideoProviderConfig> {
+  private async loadVideoProviderConfig(brandId: string | undefined, backend: VideoBackendKey): Promise<VideoProviderConfig> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("video-generation");
     const provider = providers.find((item) => this.parseVideoBackendKey(this.apiProvidersService.getStringExtra(item, "backendKey")) === backend);
     if (!provider) {
@@ -4456,7 +4515,7 @@ export class WorksService {
     }
 
     const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-    const apiKeys = this.apiProvidersService.getApiKeys(provider);
+    const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
     if (!baseUrls.length || !apiKeys.length) {
       throw new ServiceUnavailableException(`${backend} 视频接口配置读取失败`);
     }
@@ -4659,7 +4718,7 @@ export class WorksService {
     const providerErrors: string[] = [];
 
     for (const backend of providerOrder) {
-      const config = await this.loadVideoProviderConfig(backend);
+      const config = await this.loadVideoProviderConfig(params.brandId, backend);
       const modelName = this.resolveVideoModelName(
         config,
         backend,

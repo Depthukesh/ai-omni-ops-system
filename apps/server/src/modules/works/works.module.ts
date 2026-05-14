@@ -6,11 +6,12 @@ import { AuthModule } from "../auth/auth.module";
 import { BrandsModule } from "../brands/brands.module";
 import { CollectorsModule } from "../collectors/collectors.module";
 import { ReportsModule } from "../reports/reports.module";
+import { ThirdPartyPlatformsModule } from "../third-party-platforms/third-party-platforms.module";
 import { WorksController } from "./works.controller";
 import { WorksService } from "./works.service";
 
 @Module({
-  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule],
+  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule, ThirdPartyPlatformsModule],
   controllers: [WorksController],
   providers: [WorksService],
   exports: [WorksService],

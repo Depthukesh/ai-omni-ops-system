@@ -64,6 +64,8 @@
 - 当前后台可见的“接口供应商”页已切到平台级配置视图，前台个人中心读取同一份平台基线；但报告与创作生成链路的运行时真源仍是 `ApiProviderConfig`
 - 前台个人中心只支持维护当前品牌下当前账号的私有 API Key，不支持编辑平台基线字段
 - 当前私有 API Key 权限只开放给品牌 Owner，普通成员保持只读
+- 当前运行时仍以 `ApiProviderConfig + runtimeKey` 决定可用 Provider，但当 Provider `baseUrl` 能匹配到 `ThirdPartyPlatformConfig` 时，会强制读取当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 API Key；若 Owner 未配置，则直接返回中文提醒，不再回退公共 Key
+- 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离；不同品牌不会直接共用同一套平台私钥
 
 ## 6. 2026-05-14 补充修正
 
@@ -71,11 +73,26 @@
   - 搜索框增加关闭自动填充，避免浏览器把账号或手机号误填进搜索框后把平台列表过滤成 0 条
   - 当搜索结果为空时，不再把当前选中平台直接清空，避免出现“刚进入页面就整块内容消失”的假空白
   - 页面增加“清空搜索”，便于快速恢复完整平台列表
+  - 当浏览器误把纯数字串填进搜索框且导致结果为 0 条时，页面会自动清空该异常搜索值，避免左侧项目一点击就全部消失
 - 个人中心平台详情不再直接裸露展示 Base URL
   - 顶部摘要去掉 `OPENAI · https://...` 这类长链接文案
   - “第三方平台链接”改为按钮式跳转，不再直接把原始链接文字铺在卡片里
 - 后台“接口供应商”平台页补了一轮排版收口
-  - 左侧拆成两张卡：`新增平台基线` 与 `平台列表`
-  - 原先一整张超长左侧卡片已拆开，避免把右侧详情区挤压得过窄
-  - 平台配置表单改为单列字段布局，筛选区也改为单列，降低长表单墙和字段错位问题
+  - 左侧已移除“新增平台基线”表单，只保留`平台列表`
+  - 页面不再提供新建平台入口，避免把后台排版重新拉成长表单墙
+  - 平台列表筛选区维持单列，降低字段错位问题
   - 右侧详情头部去掉原始 Base URL 长文案，改成更紧凑的更新时间摘要，并补上“第三方平台链接”快捷跳转按钮
+
+## 7. 2026-05-14 运行时补充
+
+- `ThirdPartyPlatformsService` 新增品牌运行时 API Key 解析能力
+  - 先按 `ApiProviderConfig.baseUrl / extraParams.baseUrls` 匹配平台级 `ThirdPartyPlatformConfig`
+  - 再按 `brandId -> ownerUserId -> platformId` 读取 `UserThirdPartyPlatformSecret`
+  - 命中平台时必须返回品牌 Owner 私有 Key；若 Owner 未配置，则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
+- `ReportsModule` 生成链路已接入品牌级私钥覆盖
+  - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案、营销日历都会把当前 `brandId` 透传到运行时 Provider 解析
+- `WorksModule` 生成链路已接入品牌级私钥覆盖
+  - 原创文案、原创配图提示词、二创文案、二创配图提示词、参考图分析、文生图、视频文案、视频提示词、视频成片生成都会优先读取当前品牌私钥
+- 严格隔离补充
+  - `ReportsModule` 与 `WorksModule` 的品牌级 Key 解析现已改为严格模式：只要命中平台基线，就必须使用该品牌 Owner 的私有 Key
+  - 若品牌 Owner 尚未配置对应平台 API Key，会直接返回“请先前往个人中心-第三方接口配置完成设置后再试”的中文提醒

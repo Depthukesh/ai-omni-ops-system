@@ -168,7 +168,10 @@
   - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
   - 当前品牌下只有 Owner 可维护自己的私有 API Key；普通成员保持只读
   - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前账号在当前品牌下的私有 Key
+  - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
   - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
+  - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
+  - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
@@ -212,7 +215,7 @@
 - 知识库管理
 - 接口供应商
   - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑
-  - 后台当前按平台维护 `名称 / Provider 类型 / 状态 / 第三方平台链接 / 说明文档 / 大模型 ID / 默认模型 / 备注`，支持新增与删除平台
+  - 后台当前按平台维护 `名称 / Provider 类型 / 状态 / 第三方平台链接 / 说明文档 / 大模型 ID / 默认模型 / 备注`，当前页面不再提供新增入口
   - 后台页不再填写 API Key；前台个人中心的 Owner 再在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
@@ -309,6 +312,7 @@
   - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
   - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
+  - 当 `ApiProviderConfig` 的 `baseUrl` 能匹配到平台级 `ThirdPartyPlatformConfig` 时，报告链路必须读取当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；若未配置则直接中断并提醒先到个人中心完成配置
   - 品牌增长报告现已对齐可视化报告/半年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
   - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
   - 品牌增长可视化报告、半年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
@@ -331,6 +335,7 @@
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
   - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 站内接口读取，不直接暴露底层 OSS 链接
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
+  - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
 - `TasksModule`：任务记录与重试
 - `TasksModule`
@@ -353,6 +358,7 @@
   - 当前已支持后台真实读取与保存接口供应商配置；数据库可用时优先读写 `ApiProviderConfig` 运行时表，不可用时回退到 `mock-data`
 - `ThirdPartyPlatformsModule`
   - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由 Owner 保存私有 API Key
+  - 当前该模块还负责把平台基线 + 品牌 Owner 私钥映射回 `ReportsModule` 与 `WorksModule` 的真实运行时；解析顺序为 `brandId -> ownerUserId -> platformId(baseUrl 匹配)`，命中平台后若缺少品牌私钥会直接返回提醒，不再允许继续落回 `ApiProviderConfig` 公共 Key
   - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `UserThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
 - `admin/billing-rules`
 - `admin/knowledge-bases`

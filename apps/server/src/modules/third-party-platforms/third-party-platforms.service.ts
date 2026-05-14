@@ -37,6 +37,23 @@ export type UserThirdPartyPlatformRecord = ThirdPartyPlatformRecord & {
   effectiveApiKeyMasked: string;
 };
 
+export type BrandRuntimeApiKeyResolution =
+  | {
+      status: "no-platform-match" | "brand-context-missing";
+      platform?: undefined;
+      apiKeys: [];
+    }
+  | {
+      status: "resolved";
+      platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl">;
+      apiKeys: string[];
+    }
+  | {
+      status: "owner-api-key-missing";
+      platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl">;
+      apiKeys: [];
+    };
+
 type ThirdPartyPlatformRow = {
   id: string;
   name: string;
@@ -301,6 +318,61 @@ export class ThirdPartyPlatformsService {
     return this.normalizeUserPlatform(platform, nextApiKey);
   }
 
+  async resolveBrandRuntimeApiKeys(brandId: string | undefined, baseUrls: string[]): Promise<BrandRuntimeApiKeyResolution> {
+    const normalizedBrandId = String(brandId || "").trim();
+    if (!normalizedBrandId) {
+      return {
+        status: "brand-context-missing",
+        apiKeys: [],
+      };
+    }
+
+    const platform = await this.findPlatformByBaseUrls(baseUrls);
+    if (!platform) {
+      return {
+        status: "no-platform-match",
+        apiKeys: [],
+      };
+    }
+
+    const ownerUserId = await this.resolveBrandOwnerUserId(normalizedBrandId);
+    if (!ownerUserId) {
+      return {
+        status: "owner-api-key-missing",
+        platform: {
+          id: platform.id,
+          name: platform.name,
+          baseUrl: platform.baseUrl,
+        },
+        apiKeys: [],
+      };
+    }
+
+    const secret = await this.findUserPlatformSecret(ownerUserId, normalizedBrandId, platform.id);
+    const apiKey = String(secret?.apiKey || "").trim();
+    if (!apiKey) {
+      return {
+        status: "owner-api-key-missing",
+        platform: {
+          id: platform.id,
+          name: platform.name,
+          baseUrl: platform.baseUrl,
+        },
+        apiKeys: [],
+      };
+    }
+
+    return {
+      status: "resolved",
+      platform: {
+        id: platform.id,
+        name: platform.name,
+        baseUrl: platform.baseUrl,
+      },
+      apiKeys: [apiKey],
+    };
+  }
+
   private normalizeUserPlatform(platform: ThirdPartyPlatformRecord, apiKey: string): UserThirdPartyPlatformRecord {
     return {
       ...platform,
@@ -331,6 +403,54 @@ export class ThirdPartyPlatformsService {
     return (database.userThirdPartyPlatformSecrets || [])
       .filter((item) => item.userId === userId && item.brandId === brandId)
       .map((item) => ({ ...item }));
+  }
+
+  private async findPlatformByBaseUrls(baseUrls: string[]) {
+    const normalizedBaseUrls = Array.from(
+      new Set(
+        baseUrls
+          .map((item) => this.normalizeBaseUrl(item))
+          .filter(Boolean),
+      ),
+    );
+    if (!normalizedBaseUrls.length) {
+      return undefined;
+    }
+
+    return (await this.listPlatforms()).find((item) => normalizedBaseUrls.includes(this.normalizeBaseUrl(item.baseUrl)));
+  }
+
+  private async resolveBrandOwnerUserId(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.$queryRaw<Array<{ ownerUserId: string | null }>>`
+        SELECT "ownerUserId"
+        FROM "Brand"
+        WHERE "id" = ${brandId}
+        LIMIT 1
+      `;
+      return String(rows[0]?.ownerUserId || "").trim();
+    }
+
+    return String(database.brands.find((item) => item.id === brandId)?.ownerUserId || "").trim();
+  }
+
+  private async findUserPlatformSecret(userId: string, brandId: string, platformId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+        SELECT *
+        FROM "UserThirdPartyPlatformSecret"
+        WHERE "userId" = ${userId}
+          AND "brandId" = ${brandId}
+          AND "platformId" = ${platformId}
+        LIMIT 1
+      `;
+      return rows[0];
+    }
+
+    return (database.userThirdPartyPlatformSecrets || []).find(
+      (item) => item.userId === userId && item.brandId === brandId && item.platformId === platformId,
+    );
   }
 
   private buildPlatformRecord(input: ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
@@ -381,6 +501,20 @@ export class ThirdPartyPlatformsService {
       return value.toISOString();
     }
     return String(value || new Date().toISOString());
+  }
+
+  private normalizeBaseUrl(value: string) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      return "";
+    }
+    try {
+      const target = new URL(normalized);
+      const pathname = target.pathname.replace(/\/+$/, "");
+      return `${target.protocol}//${target.host}${pathname}`.toLowerCase();
+    } catch {
+      return normalized.replace(/\/+$/, "").toLowerCase();
+    }
   }
 
   private maskSecret(value: string) {
