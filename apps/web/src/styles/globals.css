@@ -3652,6 +3652,7 @@ button {
 }
 
 .reference-template-card {
+  position: relative;
   padding: 0;
   border: 1px solid #e3e8f5;
   border-radius: 20px;
@@ -3672,12 +3673,56 @@ button {
   box-shadow: 0 18px 36px rgba(92, 111, 255, 0.18);
 }
 
+.reference-template-image-shell {
+  position: relative;
+}
+
 .reference-template-image {
   display: block;
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
   background: #eef2ff;
+}
+
+.reference-template-card-hint {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(22, 29, 49, 0.68);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
+
+.reference-template-card-hint.is-selected {
+  background: rgba(66, 92, 232, 0.88);
+}
+
+.reference-template-card-hint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.reference-template-card-hint-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .reference-template-card-body {
@@ -3697,6 +3742,50 @@ button {
   color: #6f7890;
   font-size: 12px;
   line-height: 1.6;
+}
+
+.reference-template-pagination {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reference-template-pagination-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #667085;
+  font-size: 13px;
+}
+
+.reference-template-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reference-template-page-button {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #dbe3f3;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #51607a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reference-template-page-button.is-active {
+  border-color: rgba(92, 111, 255, 0.24);
+  background: linear-gradient(180deg, #eef1ff 0%, #e3e9ff 100%);
+  color: #425ce8;
+  box-shadow: 0 10px 24px rgba(92, 111, 255, 0.14);
 }
 
 .personal-actions {

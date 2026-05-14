@@ -133,6 +133,8 @@
   - 小红书原创笔记新增参考模板图库、站内模板资源接口与模板导入脚本；模板选中后继续复用现有参考图分析和 `xhs-original-image-prompt` 生图链路
 - `docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`
   - 小红书原创/二创笔记创建弹窗新增“植入营销策划方案”开关；选择“否”时不再强依赖先生成营销策划方案
+- `docs/changes/2026-05-14-xhs-template-picker-pagination-and-pruning.md`
+  - 小红书模板选择器增加图片点击提示和每页 10 张分页，并从模板库移除 city walk 两组模板
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

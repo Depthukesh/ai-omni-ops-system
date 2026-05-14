@@ -7,6 +7,7 @@ const OSS = require("ali-oss");
 const PROJECT_ROOT = process.cwd();
 const DEFAULT_SOURCE_ROOT = "D:\\aiproject\\AI全域运营\\AI全域智能体\\a 夏日生活小红书封面合集";
 const STORAGE_PREFIX = "reference-templates/xiaohongshu/original";
+const EXCLUDED_SOURCE_DIR_PREFIXES = ["i 夏日出行露营city walk小红书封面"];
 const GENERATED_OUTPUT_PATH = path.join(
   PROJECT_ROOT,
   "apps",
@@ -36,6 +37,9 @@ async function main() {
   const items = [];
   for (const filePath of imageFiles) {
     const relativePath = normalizePath(path.relative(sourceRoot, filePath));
+    if (isExcludedRelativePath(relativePath)) {
+      continue;
+    }
     const relativeDir = normalizePath(path.dirname(relativePath));
     const categoryKey = relativeDir === "." ? "" : relativeDir;
     const categoryLabel = buildCategoryLabel(relativeDir);
@@ -253,6 +257,13 @@ function createHash(value) {
 
 function normalizePath(value) {
   return String(value || "").replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function isExcludedRelativePath(relativePath) {
+  return EXCLUDED_SOURCE_DIR_PREFIXES.some((prefix) => {
+    const normalizedPrefix = normalizePath(prefix);
+    return relativePath === normalizedPrefix || relativePath.startsWith(`${normalizedPrefix}/`);
+  });
 }
 
 main().catch((error) => {

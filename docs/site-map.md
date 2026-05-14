@@ -374,14 +374,15 @@
 
 1. 用户在 `/xiaohongshu` 的“原创笔记”中选择营销日历选题或自定义选题
 2. 页面可选带入产品、封面参考图、配图参考图、配图数量、是否植入营销策划方案与用户要求；参考图既可本地上传，也可从模板图库选择
-3. 模板图库会先从 `/api/works/xiaohongshu/original/reference-templates` 拉分类与模板清单，用户选中后再通过站内模板资产接口下载成 `File`
+3. 模板图库会先从 `/api/works/xiaohongshu/original/reference-templates` 拉分类与模板清单，支持关键词搜索、点击提示与每页 10 张分页；用户选中后再通过站内模板资产接口下载成 `File`
 4. 后端 `WorksModule` 串联参考图分析、原创文案、`xhs-original-image-prompt` 配图提示词与文生图生成
 5. 当用户选择 `不植入营销策划方案` 时，原创生成可直接基于营销日历、产品、参考图和用户要求继续执行，不再强依赖先生成营销策划方案
 6. 原创模板素材统一走 `reference-templates/xiaohongshu/original/...` 存储前缀；开发态未配置 OSS 时可临时回退到 `.runtime/local-oss`
 7. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
 8. 成品图文保存到作品记录，并同步沉淀到“我的作品”
 9. `/admin` 技能中心可分别查看原创文案提示词与原创配图提示词
-10. 参考变更：`docs/changes/2026-05-14-xhs-original-reference-template-library.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`
+10. 模板库当前已移除 `夏日出行露营city walk小红书封面` 与 `夏日出行露营city walk小红书封面 / 效果图` 两组模板，封面模板与配图模板入口共用同一份裁剪后的清单
+11. 参考变更：`docs/changes/2026-05-14-xhs-original-reference-template-library.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-14-xhs-template-picker-pagination-and-pruning.md`
 
 ### 5.4B 二创笔记链路
 
