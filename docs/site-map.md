@@ -169,7 +169,7 @@
   - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
   - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
   - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入用户覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
-  - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `UserSkillProfile`、`UserPromptOverride`、`UserSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null` 和 `promptIdsJson -> jsonb` 写入，避免历史库在切模型或重置平台基线时触发 500
+  - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `UserSkillProfile`、`UserPromptOverride`、`UserSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null`、`promptIdsJson -> jsonb` 写入，以及 `baseSkillId` 为空的历史提示词覆盖记录，避免历史库在切模型或重置平台基线时触发 500
   - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若用户覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
   - 当前仍支持保存到用户自己的技能库、重置回后台平台基线、品牌上下文切换与退出登录
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线

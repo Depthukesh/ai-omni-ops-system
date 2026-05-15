@@ -214,7 +214,16 @@ export class UserSkillsService {
         FROM "UserSkillProfile"
         WHERE "userId" = ${context.userId}
           AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-          AND "baseSkillId" = ${skillId}
+          AND (
+            "baseSkillId" = ${skillId}
+            OR COALESCE("baseSkillId", '') = ''
+          )
+        ORDER BY
+          CASE
+            WHEN "baseSkillId" = ${skillId} THEN 0
+            ELSE 1
+          END,
+          "updatedAt" DESC
         LIMIT 1
       `;
       const existingProfile = existingProfileRows[0];
@@ -278,8 +287,17 @@ export class UserSkillsService {
           FROM "UserPromptOverride"
           WHERE "userId" = ${context.userId}
             AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-            AND "baseSkillId" = ${skillId}
             AND "basePromptId" = ${promptOverride.promptId}
+            AND (
+              "baseSkillId" = ${skillId}
+              OR COALESCE("baseSkillId", '') = ''
+            )
+          ORDER BY
+            CASE
+              WHEN "baseSkillId" = ${skillId} THEN 0
+              ELSE 1
+            END,
+            "updatedAt" DESC
           LIMIT 1
         `;
         const existingOverride = existingOverrideRows[0];
@@ -499,7 +517,13 @@ export class UserSkillsService {
         DELETE FROM "UserPromptOverride"
         WHERE "userId" = ${context.userId}
           AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-          AND "baseSkillId" = ${skillId}
+          AND (
+            "baseSkillId" = ${skillId}
+            OR (
+              COALESCE("baseSkillId", '') = ''
+              AND "basePromptId" = ANY (${promptIds}::text[])
+            )
+          )
       `;
       await this.prismaService.$executeRaw`
         INSERT INTO "UserSkillResetLog" (
@@ -616,7 +640,12 @@ export class UserSkillsService {
         if (!basePrompt) {
           return undefined;
         }
-        const override = promptOverrides.find((item) => item.baseSkillId === baseSkill.id && item.basePromptId === promptId);
+        const override = promptOverrides.find((item) =>
+          item.basePromptId === promptId && (
+            item.baseSkillId === baseSkill.id
+            || isLegacyUnscopedSkillId(item.baseSkillId)
+          ),
+        );
         const effectivePrompt: PromptTemplateRecord = {
           ...basePrompt,
           content: resolvePromptFallbackContent(promptId, override?.content ?? basePrompt.content),
@@ -927,6 +956,10 @@ function normalizeOptionalInt(value: unknown) {
 
 function toSqlNullable<T>(value: T | undefined) {
   return value === undefined ? null : value;
+}
+
+function isLegacyUnscopedSkillId(value: string | null | undefined) {
+  return !String(value || "").trim();
 }
 
 function normalizeDate(value: Date | string | null | undefined) {
