@@ -55,12 +55,12 @@ export class ThirdPartyPlatformsController {
     if (!auth?.brandId) {
       throw new UnauthorizedException("请先登录并进入品牌工作区");
     }
-    const access = await this.authService.assertBrandAccess(auth.brandId, auth);
+    const access = await this.authService.assertBrandPermission(auth.brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
     const platforms = await this.thirdPartyPlatformsService.listUserPlatforms(access.userId, access.brandId);
     return {
       brandId: access.brandId,
       role: access.role,
-      canManage: access.role === "OWNER",
+      canManage: access.permissions["personalCenter.thirdPartyPlatforms"].edit,
       platforms,
     };
   }
@@ -75,7 +75,7 @@ export class ThirdPartyPlatformsController {
     if (!auth?.brandId) {
       throw new UnauthorizedException("请先登录并进入品牌工作区");
     }
-    const access = await this.authService.assertBrandOwnerAccess(auth.brandId, auth);
+    const access = await this.authService.assertBrandPermission(auth.brandId, "personalCenter.thirdPartyPlatforms", "edit", auth);
     return this.thirdPartyPlatformsService.updateUserPlatformSecret(access.userId, access.brandId, id, payload);
   }
 }

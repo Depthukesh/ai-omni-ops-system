@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Res, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
@@ -17,6 +17,7 @@ import {
   type UploadBrandProductImagePayload,
   type UpdateBackgroundPayload,
   type UpdateBrandMemberPayload,
+  type UpdateBrandPermissionSettingsPayload,
   type UpdateMyBrandInviteNotificationReadStatePayload,
   type UpdateMyBrandInviteReadStatePayload,
   type UpdateProductPayload,
@@ -120,6 +121,13 @@ export class BrandsController {
     return this.brandsService.listBrandMembers(id, auth?.userId);
   }
 
+  @Get(":id/member-permissions")
+  async memberPermissions(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
+    return this.brandsService.getBrandPermissionSettings(id, auth?.userId);
+  }
+
   @Post(":id/members")
   async addMember(
     @Param("id") id: string,
@@ -127,6 +135,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.addBrandMember(id, payload, auth?.userId);
   }
 
@@ -138,12 +147,25 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.updateBrandMember(id, memberId, payload, auth?.userId);
+  }
+
+  @Patch(":id/member-permissions")
+  async updateMemberPermissions(
+    @Param("id") id: string,
+    @Body() payload: UpdateBrandPermissionSettingsPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
+    return this.brandsService.updateBrandPermissionSettings(id, payload, auth?.userId);
   }
 
   @Get(":id/invites")
   async invites(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.listBrandInvites(id, auth?.userId);
   }
 
@@ -154,6 +176,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.createBrandInvite(id, payload, auth?.userId);
   }
 
@@ -164,12 +187,14 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.revokeBrandInvite(id, inviteId, auth?.userId);
   }
 
   @Get(":id/role-audit-logs")
   async roleAuditLogs(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAdminAccess(id, auth);
     return this.brandsService.listBrandRoleAuditLogs(id, auth?.userId);
   }
 
@@ -202,7 +227,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.background", "edit", auth);
     return this.brandsService.updateBackground(id, payload);
   }
 
@@ -213,7 +238,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.products", "edit", auth);
     return this.brandsService.createProduct(id, payload);
   }
 
@@ -224,7 +249,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ): Promise<BrandProductImageUploadRecord> {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.products", "edit", auth);
     return this.brandsService.uploadProductImage(id, payload);
   }
 
@@ -246,7 +271,10 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ): Promise<BrandAssetFileUploadRecord> {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    const access = await this.authService.assertBrandAccess(id, auth);
+    if (!access.permissions["brandGrowth.library.industryFeeds"].edit && !access.permissions["brandGrowth.library.businessAssets"].edit) {
+      throw new UnauthorizedException("当前账号没有该板块的编辑权限");
+    }
     return this.brandsService.uploadAssetFile(id, payload);
   }
 
@@ -269,7 +297,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.products", "edit", auth);
     return this.brandsService.updateProduct(id, productId, payload);
   }
 
@@ -280,7 +308,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.products", "edit", auth);
     return this.brandsService.deleteProduct(id, productId);
   }
 
@@ -291,7 +319,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.survey", "edit", auth);
     return this.brandsService.upsertSurvey(id, payload);
   }
 
@@ -302,7 +330,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
     return this.brandsService.replacePlatformAccounts(id, payload);
   }
 
@@ -313,7 +341,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
     return this.brandsService.replaceCompetitorAccounts(id, payload);
   }
 
@@ -324,7 +352,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.industryFeeds", "edit", auth);
     return this.brandsService.replaceIndustryFeeds(id, payload);
   }
 
@@ -335,7 +363,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
     return this.brandsService.replaceBusinessAssets(id, payload);
   }
 
@@ -346,7 +374,7 @@ export class BrandsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(id, auth);
+    await this.authService.assertBrandPermission(id, "brandGrowth.collection.xiaohongshuCollection", "edit", auth);
     return this.brandsService.upsertFeishuBinding(id, payload);
   }
 }

@@ -12,6 +12,10 @@ const errLog = path.join(runtimeRoot, "server-3011.err.log");
 const pidFile = path.join(runtimeRoot, "server-3011.pid");
 const port = 3011;
 const healthUrl = `http://127.0.0.1:${port}/api/health`;
+const builtEntryCandidates = [
+  path.join(serverRoot, "dist", "apps", "server", "src", "main.js"),
+  path.join(serverRoot, "dist", "main.js"),
+];
 
 function resolveNpmCli() {
   const candidates = [
@@ -31,6 +35,22 @@ function resolveNpmCli() {
 
 function ensureDirectory(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
+}
+
+function resolveBuiltEntry() {
+  for (const candidate of builtEntryCandidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    [
+      "未找到后端编译入口，无法启动稳定服务。",
+      "已检查：",
+      ...builtEntryCandidates.map((candidate) => `- ${candidate}`),
+    ].join("\n"),
+  );
 }
 
 function sleep(ms) {
@@ -184,10 +204,11 @@ async function main() {
   console.log("开始构建后端服务...");
   await runStep(process.execPath, [npmCli, "run", "build"], serverRoot, "Server build");
   console.log("构建完成，启动 3011 后端服务...");
+  const builtEntry = resolveBuiltEntry();
 
   const outFd = fs.openSync(outLog, "a");
   const errFd = fs.openSync(errLog, "a");
-  const child = spawn(process.execPath, ["dist/main.js"], {
+  const child = spawn(process.execPath, [builtEntry], {
     cwd: serverRoot,
     env: process.env,
     detached: true,
@@ -213,6 +234,7 @@ async function main() {
   }
 
   console.log(`后端服务已稳定启动，PID=${child.pid}`);
+  console.log(`运行入口：${builtEntry}`);
   console.log(`健康检查：${healthUrl}`);
   console.log(`标准输出日志：${outLog}`);
   console.log(`错误日志：${errLog}`);

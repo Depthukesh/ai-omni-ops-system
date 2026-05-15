@@ -221,6 +221,7 @@ model Brand {
   foundedYear        Int?
   brandDescription   String?
   enterpriseIntro    String?
+  memberPermissionsJson Json?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 

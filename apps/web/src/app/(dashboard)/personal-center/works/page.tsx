@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import { getXiaohongshuMedia } from "../../../../services/xiaohongshu";
 import { getMedia, mediaSeed, type MediaRecord } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
 
 type MediaTypeFilter = "ALL" | MediaRecord["mediaType"];
 type MediaScopeFilter = "ALL" | "XIAOHONGSHU" | "OTHER";
@@ -187,7 +187,7 @@ export default function PersonalCenterWorksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>

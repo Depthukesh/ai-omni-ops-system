@@ -50,6 +50,23 @@ export function getBrandDisplayName(brand?: { id?: string; brandName?: string } 
   return brand?.id || fallbackBrandId ? "已绑定品牌" : "未绑定品牌";
 }
 
+export function formatCollaboratorRoleLabel(role?: string | null) {
+  switch (role) {
+    case "ADMIN":
+    case "OWNER":
+      return "管理员";
+    case "STAFF":
+    case "EDITOR":
+    case "OPERATOR":
+      return "员工";
+    case "TALENT":
+    case "VIEWER":
+      return "达人";
+    default:
+      return role || "未设置";
+  }
+}
+
 export function emitBrandInviteReadStateChanged() {
   if (typeof window === "undefined") {
     return;

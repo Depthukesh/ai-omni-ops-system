@@ -43,6 +43,7 @@ import {
   deleteBrandProduct,
   DEMO_BRAND_ID,
   getBrandArchive,
+  getBrandPermissionSettings,
   getFeishuAppConfig,
   getBrandFeishuBinding,
   getFeishuAuthStatus,
@@ -53,6 +54,8 @@ import {
   type BrandArchiveStepKey,
   type BrandAsset,
   type BrandBackground,
+  type BrandPermissionKey,
+  type BrandPermissionSettingsRecord,
   type CurrentUserProfile,
   type FeishuAppConfigRecord,
   type FeishuAuthStatusRecord,
@@ -138,6 +141,20 @@ const strategySections: Array<{
 ];
 
 const FEISHU_XHS_TEMPLATE_URL = "https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink";
+const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
+  background: "brandGrowth.library.background",
+  products: "brandGrowth.library.products",
+  survey: "brandGrowth.library.survey",
+  platformAccounts: "brandGrowth.collection.xiaohongshuCollection",
+  competitorAccounts: "brandGrowth.collection.xiaohongshuCollection",
+  industryFeeds: "brandGrowth.library.industryFeeds",
+  businessAssets: "brandGrowth.library.businessAssets",
+  xiaohongshuCollection: "brandGrowth.collection.xiaohongshuCollection",
+  dailyHotspot: "brandGrowth.collection.dailyHotspot",
+  growthReport: "brandGrowth.report.growthReport",
+  visualGrowthReport: "brandGrowth.report.visualGrowthReport",
+  annualMarketingPlan: "brandGrowth.report.halfYearMarketingPlan",
+};
 
 function cloneSeed(): BrandArchiveBundle {
   return JSON.parse(JSON.stringify(brandArchiveSeed)) as BrandArchiveBundle;
@@ -314,6 +331,7 @@ export function BrandGrowthWorkspace() {
   const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
   const [activeBrandId, setActiveBrandId] = useState<string>(DEMO_BRAND_ID);
   const [currentBrandRole, setCurrentBrandRole] = useState("");
+  const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
   const [hasOwnerAccess, setHasOwnerAccess] = useState(true);
   const [feishuBindingForm, setFeishuBindingForm] = useState(createEmptyFeishuBindingForm);
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
@@ -345,7 +363,19 @@ export function BrandGrowthWorkspace() {
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
   const completion = useMemo(() => getCompletion(archive), [archive]);
-  const currentSection = strategySections.find((item) => item.key === activeSection) ?? strategySections[0];
+  const visibleStrategySections = useMemo(() => {
+    const permissionMap = brandPermissionSettings?.currentUserPermissions;
+    if (!permissionMap) {
+      return strategySections;
+    }
+    return strategySections
+      .map((section) => ({
+        ...section,
+        pages: section.pages.filter((page) => permissionMap[strategyPagePermissionMap[page.key]]?.view),
+      }))
+      .filter((section) => section.pages.length > 0);
+  }, [brandPermissionSettings]);
+  const currentSection = visibleStrategySections.find((item) => item.key === activeSection) ?? visibleStrategySections[0] ?? strategySections[0];
   const currentPage = currentSection.pages.find((item) => item.key === activePage) ?? currentSection.pages[0];
   const activeBrandPage = isBrandArchiveStep(activePage) ? activePage : undefined;
   const activeStepMeta = activeBrandPage ? archive.steps.find((step) => step.key === activeBrandPage) : undefined;
@@ -397,11 +427,27 @@ export function BrandGrowthWorkspace() {
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
   const canSyncFeishuWorkspace = Boolean(feishuBinding?.wikiUrl) && Boolean(feishuAuthStatus?.connected);
+  const hasCurrentPageEditPermission = Boolean(brandPermissionSettings?.currentUserPermissions?.[strategyPagePermissionMap[currentPage.key]]?.edit);
   useEffect(() => {
     if (dailyHotspotWorkspace.selectedDate && dailyHotspotWorkspace.selectedDate !== selectedHotspotDate) {
       setSelectedHotspotDate(dailyHotspotWorkspace.selectedDate);
     }
   }, [dailyHotspotWorkspace.selectedDate, selectedHotspotDate]);
+
+  useEffect(() => {
+    if (!visibleStrategySections.length) {
+      return;
+    }
+    if (!visibleStrategySections.some((section) => section.key === activeSection)) {
+      setActiveSection(visibleStrategySections[0].key);
+      setActivePage(visibleStrategySections[0].pages[0]?.key ?? "background");
+      return;
+    }
+    const matchedSection = visibleStrategySections.find((section) => section.key === activeSection);
+    if (matchedSection && !matchedSection.pages.some((page) => page.key === activePage)) {
+      setActivePage(matchedSection.pages[0]?.key ?? "background");
+    }
+  }, [activePage, activeSection, visibleStrategySections]);
 
   useEffect(() => {
     void loadArchive();
@@ -515,14 +561,17 @@ export function BrandGrowthWorkspace() {
     try {
       const activeBrandId = await resolveActiveBrandId(archive.brand.id);
       const me = await getMe().catch(() => null);
-      const matchedBrand = me?.brands?.find((item) => item.id === activeBrandId);
-      const matchedRole = matchedBrand?.role || "";
-      setCurrentBrandRole(matchedRole);
-      if (matchedRole && matchedRole !== "OWNER") {
+      const permissionSettingsResult = await getBrandPermissionSettings(activeBrandId);
+      const hasAnyBrandGrowthViewPermission = Object.entries(permissionSettingsResult.currentUserPermissions).some(
+        ([key, flags]) => key.startsWith("brandGrowth.") && Boolean(flags.view),
+      );
+      setBrandPermissionSettings(permissionSettingsResult);
+      setCurrentBrandRole(permissionSettingsResult.currentUserRole);
+      if (!hasAnyBrandGrowthViewPermission) {
         setHasOwnerAccess(false);
         setDataSource("api");
         setNotice("");
-        setErrorMessage("当前账号不是品牌主账号，品牌增长策略仅允许 Owner 操作。请前往小红书等内容板块继续工作。");
+        setErrorMessage("当前账号没有品牌增长策略的查看权限，请联系管理员开通对应板块后再进入。");
         return;
       }
 
@@ -710,6 +759,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 }
 
   async function handleGenerateReport() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.growthReport"]?.edit) {
+      setErrorMessage("当前账号没有生成品牌增长报告的编辑权限。");
+      return;
+    }
     if (!canGenerateGrowthReport) {
       setErrorMessage("请先完成小红书平台下 4 项收集数据后，再生成品牌增长报告。");
       return;
@@ -731,6 +784,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSaveReport() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.growthReport"]?.edit) {
+      setErrorMessage("当前账号没有编辑品牌增长报告的权限。");
+      return;
+    }
     if (!reportWorkspace.latest?.id) {
       setErrorMessage("请先生成品牌增长报告，再进行保存。");
       return;
@@ -757,6 +814,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleGenerateVisualReport() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.visualGrowthReport"]?.edit) {
+      setErrorMessage("当前账号没有生成可视化报告的编辑权限。");
+      return;
+    }
     if (!canGenerateVisualGrowthReport) {
       setErrorMessage("请先生成品牌增长报告，再生成品牌增长可视化报告。");
       return;
@@ -778,6 +839,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleGenerateAnnualMarketingPlan() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.report.halfYearMarketingPlan"]?.edit) {
+      setErrorMessage("当前账号没有生成半年营销规划的编辑权限。");
+      return;
+    }
     if (!canGenerateAnnualMarketingPlan) {
       setErrorMessage("请先生成品牌增长报告，再生成半年营销规划。");
       return;
@@ -799,6 +864,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSyncDailyHotspotWorkspace(platformTitles?: string[]) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.dailyHotspot"]?.edit) {
+      setErrorMessage("当前账号没有同步每日热点的编辑权限。");
+      return;
+    }
     setIsSyncingDailyHotspots(true);
     clearMessages();
 
@@ -820,6 +889,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleDailyHotspotDateChange(date: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.dailyHotspot"]?.view) {
+      setErrorMessage("当前账号没有查看每日热点的权限。");
+      return;
+    }
     setSelectedHotspotDate(date);
     setIsSyncingDailyHotspots(true);
     clearMessages();
@@ -836,6 +909,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSaveFeishuBinding() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑小红书收集数据的权限。");
+      return;
+    }
     if (!feishuBindingForm.wikiUrl.trim()) {
       setErrorMessage("请先粘贴飞书副本链接。");
       return;
@@ -861,6 +938,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSaveFeishuAppConfig() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑小红书收集数据的权限。");
+      return;
+    }
     if (!feishuAppConfigForm.appId.trim() || !feishuAppConfigForm.appSecret.trim()) {
       setErrorMessage("请先填写当前用户自己的 App ID 和 App Secret。");
       return;
@@ -890,6 +971,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSyncFeishuWorkspace() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
     if (!feishuBinding?.wikiUrl) {
       setErrorMessage("请先绑定飞书多维表格链接。");
       return;
@@ -927,6 +1012,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleAddBenchmarkNoteToMaterial(assetId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑小红书收集数据的权限。");
+      return;
+    }
     if (!assetId) {
       return;
     }
@@ -1099,6 +1188,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
   async function saveActivePage() {
     if (!activeBrandPage) {
+      return;
+    }
+    if (!brandPermissionSettings?.currentUserPermissions[strategyPagePermissionMap[activeBrandPage]]?.edit) {
+      setErrorMessage("当前账号没有编辑当前页面的权限。");
       return;
     }
 
@@ -1318,7 +1411,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   function renderPrimaryAction() {
     if (activeBrandPage) {
       return (
-        <button type="button" className="primary-button" onClick={() => void saveActivePage()} disabled={isSaving || isHydrating}>
+        <button type="button" className="primary-button" onClick={() => void saveActivePage()} disabled={isSaving || isHydrating || !hasCurrentPageEditPermission}>
           {isSaving ? "保存中..." : activeBrandPage === "products" || activeBrandPage === "survey" ? "保存并下一步" : "保存页面"}
         </button>
       );
@@ -1350,7 +1443,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             type="button"
             className="primary-button"
             onClick={() => void handleSaveReport()}
-            disabled={isSavingReport || isHydrating}
+            disabled={isSavingReport || isHydrating || !hasCurrentPageEditPermission}
           >
             {isSavingReport ? "保存中..." : "保存报告"}
           </button>
@@ -1361,7 +1454,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           type="button"
           className="primary-button"
           onClick={() => void handleGenerateReport()}
-          disabled={isGeneratingReport || isHydrating || !canGenerateGrowthReport}
+          disabled={isGeneratingReport || isHydrating || !canGenerateGrowthReport || !hasCurrentPageEditPermission}
         >
           {isGeneratingReport ? "生成中..." : "生成报告"}
         </button>
@@ -1381,7 +1474,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           type="button"
           className="primary-button"
           onClick={() => void handleGenerateVisualReport()}
-          disabled={isGeneratingVisualReport || isHydrating || !canGenerateVisualGrowthReport || isVisualReportTaskActive}
+          disabled={isGeneratingVisualReport || isHydrating || !canGenerateVisualGrowthReport || isVisualReportTaskActive || !hasCurrentPageEditPermission}
         >
           {isGeneratingVisualReport ? "提交中..." : isVisualReportTaskActive ? "生成中..." : "生成可视化报告"}
         </button>
@@ -1401,7 +1494,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         type="button"
         className="primary-button"
         onClick={() => void handleGenerateAnnualMarketingPlan()}
-        disabled={isGeneratingAnnualMarketingPlan || isHydrating || !canGenerateAnnualMarketingPlan || isAnnualMarketingPlanTaskActive}
+        disabled={isGeneratingAnnualMarketingPlan || isHydrating || !canGenerateAnnualMarketingPlan || isAnnualMarketingPlanTaskActive || !hasCurrentPageEditPermission}
       >
         {isGeneratingAnnualMarketingPlan ? "提交中..." : isAnnualMarketingPlanTaskActive ? "生成中..." : "生成规划"}
       </button>
@@ -1413,7 +1506,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       <section className="strategy-layout">
         <aside className="strategy-level-panel strategy-level-panel--directory">
           <div className="strategy-level-button-list">
-            {strategySections.map((section) => (
+            {visibleStrategySections.map((section) => (
               <button
                 key={section.key}
                 type="button"
@@ -1446,11 +1539,11 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           <article className="workspace-panel strategy-page-header">
             <div>
               <strong>当前无权限进入品牌增长策略</strong>
-              <p>品牌增长策略仅允许当前品牌的 Owner 操作；普通成员请前往小红书及后续内容板块继续协作。</p>
+              <p>当前账号未获得品牌增长策略的查看权限；请联系管理员在团队权限设置中为对应板块勾选可见权限。</p>
             </div>
             <div className="strategy-page-header-actions">
               <div className="workspace-status">
-                <span className="archive-pill status-pending">{currentBrandRole || "无品牌角色"}</span>
+                <span className="archive-pill status-pending">{currentBrandRole || "无团队角色"}</span>
                 {!isHydrating && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
               </div>
               <div className="strategy-inline-actions">

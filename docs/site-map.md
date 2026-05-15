@@ -90,10 +90,12 @@
 - 品牌增长可视化报告
 - 半年营销规划
 - 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
+- 当前页面已接入品牌成员权限模板：管理员默认拥有全部权限；员工/达人按团队页配置的 `view/edit` 模板决定是否可进入页面以及是否可执行保存、同步和报告生成动作
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
 - 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
+- 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 
 ### 3.2 小红书 `/xiaohongshu`
 
@@ -178,7 +180,8 @@
   - 参考变更：`docs/changes/2026-05-15-user-skills-table-compat-fix.md`
 - `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
   - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
-  - 当前品牌下只有 Owner 可维护自己的私有 API Key；普通成员保持只读
+  - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护自己的私有 API Key，仅有 `view` 的成员保持只读
+  - 当前品牌与角色展示已统一到三角色口径，品牌切换下拉与页面头部状态均显示 `管理员 / 员工 / 达人`
   - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前账号在当前品牌下的私有 Key
   - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
   - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
@@ -186,10 +189,16 @@
   - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
   - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
+  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
 - `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
-- `/personal-center/team`：团队协作页已收口为 `Owner` 主控模型；团队成员列表仍走真实 `BrandMember` 数据，但只有 Owner 可邀请成员、查看审计与调整角色。“直接添加成员”改成对指定账号发送待确认邀请，“创建邀请”改成纯邀请链接生成，手动邀请码加入入口已移除；未登录打开邀请链接时会保留 `inviteCode` 并回流到登录后页面
+- `/personal-center/team`：团队协作页已统一三角色 `管理员 / 员工 / 达人`
+  - 团队成员、邀请和审计对外统一显示三角色；内部仍保留 `OWNER` 仅表示品牌归属主账号
+  - 管理员拥有该品牌前端全部权限，可邀请成员、查看审计、调整成员角色，并配置员工/达人的权限模板
+  - 权限设置区位于“待处理邀请”和“当前品牌成员”之间，按一级目录/分组/项目展示，每项支持勾选 `可见权限 / 编辑权限`
+  - “直接添加成员”继续走待确认邀请；“创建邀请”继续只生成邀请链接；手动邀请码加入入口保持移除；未登录打开邀请链接时会保留 `inviteCode` 并回流到登录后页面
+  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 - 前台共享顶栏已新增全局待处理邀请提示条，登录后若存在待接受邀请，会在导航下方直接提醒，并每 60 秒自动刷新一次邀请状态；提示条已联动未读待处理数量
   - 该提示条现默认跳转到 `/personal-center/invites`
 - 规划中：
@@ -229,7 +238,7 @@
 - 接口供应商
   - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑
   - 后台当前按平台维护 `名称 / Provider 类型 / 状态 / 第三方平台链接 / 说明文档 / 大模型 ID / 默认模型 / 备注`，当前页面不再提供新增入口
-  - 后台页不再填写 API Key；前台个人中心的 Owner 再在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
+  - 后台页不再填写 API Key；前台个人中心由拥有 `personalCenter.thirdPartyPlatforms.edit` 的成员在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
@@ -280,7 +289,13 @@
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
   - 当前 `FEISHU_XHS_TEMPLATE_URL` 已改为最新飞书 Base 副本链接，品牌增长页顶部与收集区的“打开飞书模板”入口统一复用这一路径
   - 当前品牌增长页里的飞书媒体地址会先校验是否为真实飞书/Lark 附件链接；命中飞书附件才走站内 `feishu-media` 代理，普通外链资源继续直出，非法串直接丢弃
-- 当前品牌增长策略已收口为 `Owner` 专属工作区：非 Owner 进入 `/brand-growth` 时不再继续加载操作面板，而是提示前往小红书或个人中心；对应品牌资料写接口、飞书绑定和报告生成接口也同步做 `Owner` 鉴权
+- 当前品牌增长策略会先读取当前品牌的团队权限模板，并按页面映射到 `brandGrowth.*` 权限键：
+  - 无任一 `view` 权限时直接拦截进入
+  - 当前页无 `edit` 权限时，保存/同步/生成类按钮直接禁用或拦截
+  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
+  - 进入 `/brand-growth` 时先读取当前品牌团队权限；若当前账号在品牌增长策略下所有板块都没有 `view`，前端直接提示联系管理员开通
+  - 品牌资料保存、飞书绑定、热点同步、报告生成等操作按对应板块的 `edit` 权限控制
+  - 当前已接入的权限键覆盖品牌资料库、收集数据、品牌增长报告三组目录
  - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
   - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
@@ -379,7 +394,7 @@
 - `admin/api-providers`
   - 当前已支持后台真实读取与保存接口供应商配置；数据库可用时优先读写 `ApiProviderConfig` 运行时表，不可用时回退到 `mock-data`
 - `ThirdPartyPlatformsModule`
-  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由 Owner 保存私有 API Key
+  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由拥有对应权限的成员保存私有 API Key
   - 当前该模块还负责把平台基线 + 品牌 Owner 私钥映射回 `ReportsModule` 与 `WorksModule` 的真实运行时；解析顺序为 `brandId -> ownerUserId -> platformId(baseUrl 匹配)`，命中平台后若缺少品牌私钥会直接返回提醒，不再允许继续落回 `ApiProviderConfig` 公共 Key
   - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `UserThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
 - `admin/billing-rules`

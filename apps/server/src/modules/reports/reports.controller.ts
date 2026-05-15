@@ -18,14 +18,14 @@ export class ReportsController {
   @Get("brands/:brandId/growth-report")
   async getGrowthReportWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.growthReport", "view", auth);
     return this.reportsService.getGrowthReportWorkspace(brandId);
   }
 
   @Post("brands/:brandId/growth-report/generate")
   async generateGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.growthReport", "edit", auth);
     return this.reportsService.generateGrowthReport(brandId);
   }
 
@@ -48,21 +48,21 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.growthReport", "edit", auth);
     return this.reportsService.updateGrowthReport(brandId, reportId, payload);
   }
 
   @Get("brands/:brandId/visual-growth-report")
   async getVisualGrowthReportWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "view", auth);
     return this.reportsService.getVisualGrowthReportWorkspace(brandId);
   }
 
   @Post("brands/:brandId/visual-growth-report/generate")
   async generateVisualGrowthReport(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "edit", auth);
     return this.reportsService.generateVisualGrowthReport(brandId);
   }
 
@@ -74,35 +74,35 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.visualGrowthReport", "edit", auth);
     return this.reportsService.updateVisualGrowthReport(brandId, reportId, payload);
   }
 
   @Get("brands/:brandId/half-year-marketing-plan")
   async getHalfYearMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.halfYearMarketingPlan", "view", auth);
     return this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
   }
 
   @Get("brands/:brandId/annual-marketing-plan")
   async getAnnualMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.halfYearMarketingPlan", "view", auth);
     return this.reportsService.getAnnualMarketingPlanWorkspace(brandId);
   }
 
   @Post("brands/:brandId/half-year-marketing-plan/generate")
   async generateHalfYearMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.halfYearMarketingPlan", "edit", auth);
     return this.reportsService.generateAnnualMarketingPlan(brandId);
   }
 
   @Post("brands/:brandId/annual-marketing-plan/generate")
   async generateAnnualMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandOwnerAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "brandGrowth.report.halfYearMarketingPlan", "edit", auth);
     return this.reportsService.generateAnnualMarketingPlan(brandId);
   }
 

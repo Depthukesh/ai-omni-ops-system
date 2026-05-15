@@ -13,7 +13,7 @@ import {
   type UserSkillEditorOptions,
   type UserSkillRecord,
 } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SkillStatusFilter = "ALL" | UserSkillRecord["baseSkill"]["status"];
 type UserSkillPromptEditDraft = {
@@ -292,7 +292,7 @@ export default function PersonalCenterSkillsPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>

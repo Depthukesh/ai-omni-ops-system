@@ -5,6 +5,16 @@ import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { AssetCategory, BrandInviteStatus, BrandMemberRole, BrandMemberStatus, PlatformType, Prisma } from "@prisma/client";
+import {
+  BRAND_PERMISSION_TREE,
+  buildDefaultBrandPermissionConfig,
+  getBrandRolePermissionMap,
+  normalizeBrandCollaboratorRole,
+  normalizeBrandPermissionConfig,
+  type BrandCollaboratorRole,
+  type BrandPermissionConfig,
+  type BrandPermissionMap,
+} from "../../../../../packages/shared/src/brand-permissions";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -24,18 +34,22 @@ export type CreateBrandPayload = {
 
 export type AddBrandMemberPayload = {
   account: string;
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
 };
 
 export type UpdateBrandMemberPayload = {
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
   status?: "ACTIVE" | "DISABLED" | "REMOVED";
 };
 
 export type CreateBrandInvitePayload = {
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
   note?: string;
   expiresInDays?: number;
+};
+
+export type UpdateBrandPermissionSettingsPayload = {
+  permissionConfig: BrandPermissionConfig;
 };
 
 export type AcceptBrandInviteByCodePayload = {
@@ -172,9 +186,22 @@ export type BrandMemberListItem = {
 export type BrandMemberListRecord = {
   brandId: string;
   brandName: string;
-  currentUserRole: string;
+  currentUserRole: BrandCollaboratorRole;
+  isCurrentUserOwner: boolean;
   canManageMembers: boolean;
   items: BrandMemberListItem[];
+};
+
+export type BrandPermissionSettingsRecord = {
+  brandId: string;
+  brandName: string;
+  currentUserRole: BrandCollaboratorRole;
+  isCurrentUserOwner: boolean;
+  canManageMembers: boolean;
+  canManagePermissions: boolean;
+  permissionConfig: BrandPermissionConfig;
+  currentUserPermissions: BrandPermissionMap;
+  permissionTree: typeof BRAND_PERMISSION_TREE;
 };
 
 export type BrandInviteListItem = {
@@ -320,7 +347,7 @@ export class BrandsService {
     if (!(await this.prismaService.canUseDatabase())) {
       return this.listBrandInvitesFromMock(id, currentUserId);
     }
-    await this.requireBrandOwner(id, currentUserId);
+    await this.requireBrandAdmin(id, currentUserId);
     return this.buildBrandInviteListFromDatabase(id);
   }
 
@@ -332,8 +359,8 @@ export class BrandsService {
       return this.createBrandInviteFromMock(id, payload, currentUserId);
     }
 
-    const manager = await this.requireBrandOwner(id, currentUserId);
-    const role = parseManageableBrandRole(payload.role);
+    const manager = await this.requireBrandAdmin(id, currentUserId);
+    const role = parseCollaboratorBrandRole(payload.role);
     this.assertCanAssignBrandRole(manager.role, role);
     await this.createBrandInviteRecord(id, {
       inviteAccount: "",
@@ -342,7 +369,7 @@ export class BrandsService {
       note: payload.note,
       expiresInDays: payload.expiresInDays,
       invitedByUserId: currentUserId,
-      auditSummary: `创建品牌邀请链接 -> ${role}`,
+      auditSummary: `创建品牌邀请链接 -> ${normalizeBrandCollaboratorRole(role)}`,
       auditAction: "INVITE_CREATED",
     });
 
@@ -357,7 +384,7 @@ export class BrandsService {
       return this.revokeBrandInviteFromMock(id, inviteId, currentUserId);
     }
 
-    const manager = await this.requireBrandOwner(id, currentUserId);
+    const manager = await this.requireBrandAdmin(id, currentUserId);
     const invite = await this.prismaService.brandInvite.findFirst({
       where: {
         id: inviteId,
@@ -880,7 +907,7 @@ export class BrandsService {
       return this.addBrandMemberFromMock(id, payload, currentUserId);
     }
 
-    const manager = await this.requireBrandOwner(id, currentUserId);
+    const manager = await this.requireBrandAdmin(id, currentUserId);
     const account = payload.account.trim();
     if (!account) {
       throw new ServiceUnavailableException("请输入要添加的成员账号");
@@ -903,14 +930,14 @@ export class BrandsService {
       throw new NotFoundException("未找到对应用户，请先注册该账号");
     }
 
-    const role = parseManageableBrandRole(payload.role);
+    const role = parseCollaboratorBrandRole(payload.role);
     this.assertCanAssignBrandRole(manager.role, role);
     await this.createBrandInviteRecord(id, {
       inviteAccount: account,
       inviteeUserId: targetUser.id,
       role,
       invitedByUserId: currentUserId,
-      auditSummary: `发起待确认成员邀请：${account} -> ${role}`,
+      auditSummary: `发起待确认成员邀请：${account} -> ${normalizeBrandCollaboratorRole(role)}`,
       auditAction: "MEMBER_INVITE_CREATED",
     });
 
@@ -925,7 +952,7 @@ export class BrandsService {
       return this.updateBrandMemberFromMock(id, memberId, payload, currentUserId);
     }
 
-    const manager = await this.requireBrandOwner(id, currentUserId);
+    const manager = await this.requireBrandAdmin(id, currentUserId);
     const targetMember = await this.prismaService.brandMember.findFirst({
       where: {
         id: memberId,
@@ -950,7 +977,7 @@ export class BrandsService {
     }
     this.assertCanManageTargetMember(manager.role, targetMember.role);
 
-    const nextRole = payload.role ? parseManageableBrandRole(payload.role) : targetMember.role;
+    const nextRole = payload.role ? parseCollaboratorBrandRole(payload.role) : targetMember.role;
     const nextStatus = payload.status ? parseManageableBrandStatus(payload.status) : targetMember.status;
     this.assertCanAssignBrandRole(manager.role, nextRole);
 
@@ -968,7 +995,7 @@ export class BrandsService {
         operatorUserId: currentUserId,
         targetUserId: targetMember.user.id,
         action: "MEMBER_UPDATED",
-        summary: `更新品牌成员：${targetMember.role}/${targetMember.status} -> ${nextRole}/${nextStatus}`,
+        summary: `更新品牌成员：${normalizeBrandCollaboratorRole(targetMember.role)}/${targetMember.status} -> ${normalizeBrandCollaboratorRole(nextRole)}/${nextStatus}`,
         detailJson: {
           memberId,
           beforeRole: targetMember.role,
@@ -990,8 +1017,58 @@ export class BrandsService {
       return this.listBrandRoleAuditLogsFromMock(id, currentUserId);
     }
 
-    await this.requireBrandOwner(id, currentUserId);
+    await this.requireBrandAdmin(id, currentUserId);
     return this.buildBrandRoleAuditLogsFromDatabase(id);
+  }
+
+  async getBrandPermissionSettings(id: string, currentUserId?: string): Promise<BrandPermissionSettingsRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      return this.getBrandPermissionSettingsFromMock(id, currentUserId);
+    }
+
+    return this.buildBrandPermissionSettingsFromDatabase(id, currentUserId);
+  }
+
+  async updateBrandPermissionSettings(
+    id: string,
+    payload: UpdateBrandPermissionSettingsPayload,
+    currentUserId?: string,
+  ): Promise<BrandPermissionSettingsRecord> {
+    if (!currentUserId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    if (!(await this.prismaService.canUseDatabase())) {
+      throw new ServiceUnavailableException("当前 mock 模式暂不支持团队权限配置，请先连接数据库");
+    }
+
+    const manager = await this.requireBrandAdmin(id, currentUserId);
+    const nextPermissionConfig = normalizeBrandPermissionConfig(payload.permissionConfig);
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.brand.update({
+        where: { id },
+        data: {
+          memberPermissionsJson: nextPermissionConfig as Prisma.InputJsonValue,
+        },
+      });
+
+      await this.logBrandRoleAudit(tx, {
+        brandId: id,
+        operatorUserId: currentUserId,
+        action: "PERMISSION_TEMPLATE_UPDATED",
+        summary: `更新品牌协作权限模板：${normalizeBrandCollaboratorRole(manager.role)}`,
+        detailJson: {
+          roles: {
+            STAFF: nextPermissionConfig.STAFF,
+            TALENT: nextPermissionConfig.TALENT,
+          },
+        },
+      });
+    });
+
+    return this.buildBrandPermissionSettingsFromDatabase(id, currentUserId);
   }
 
   async transferBrandOwnership(id: string, payload: TransferBrandOwnerPayload, currentUserId?: string) {
@@ -1093,6 +1170,7 @@ export class BrandsService {
             foundedYear: payload.foundedYear ?? new Date().getFullYear(),
             brandDescription: payload.brandDescription ?? "",
             enterpriseIntro: payload.enterpriseIntro ?? "",
+            memberPermissionsJson: buildDefaultBrandPermissionConfig() as Prisma.InputJsonValue,
           },
         });
 
@@ -1672,7 +1750,8 @@ export class BrandsService {
     return {
       brandId: brand.id,
       brandName: brand.brandName,
-      currentUserRole: BrandMemberRole.OWNER,
+      currentUserRole: "ADMIN",
+      isCurrentUserOwner: true,
       canManageMembers: true,
       items: [
         {
@@ -1681,7 +1760,7 @@ export class BrandsService {
           nickname: owner.nickname || owner.mobile,
           mobile: owner.mobile,
           email: owner.email || "",
-          role: BrandMemberRole.OWNER,
+          role: "ADMIN",
           status: BrandMemberStatus.ACTIVE,
           joinedAt: new Date().toISOString(),
           isCurrentUser: true,
@@ -1771,25 +1850,30 @@ export class BrandsService {
       },
     });
 
+    const sortedMembers = [...members].sort(
+      (left, right) => compareBrandMemberRole(left.role, right.role) || left.joinedAt.getTime() - right.joinedAt.getTime(),
+    );
+
     return {
       brandId: currentMembership.brand.id,
       brandName: currentMembership.brand.brandName,
-      currentUserRole: currentMembership.role,
+      currentUserRole: normalizeBrandCollaboratorRole(currentMembership.role),
+      isCurrentUserOwner: currentMembership.role === BrandMemberRole.OWNER,
       canManageMembers: canManageBrandMembers(currentMembership.role),
-      items: members
+      items: sortedMembers
         .map((item) => ({
           id: item.id,
           userId: item.user.id,
           nickname: item.user.nickname ?? item.user.mobile,
           mobile: item.user.mobile,
           email: item.user.email ?? "",
-          role: item.role,
+          role: normalizeBrandCollaboratorRole(item.role),
           status: item.status,
           joinedAt: item.joinedAt.toISOString(),
           isCurrentUser: item.user.id === currentUserId,
           isOwner: item.role === BrandMemberRole.OWNER,
         }))
-        .sort((a, b) => compareBrandMemberRole(a.role, b.role) || a.joinedAt.localeCompare(b.joinedAt)),
+      ,
     };
   }
 
@@ -1863,6 +1947,42 @@ export class BrandsService {
       brandId: brand.id,
       brandName: brand.brandName,
       items: invites.map((item) => this.mapBrandInviteListItem(item)),
+    };
+  }
+
+  private async buildBrandPermissionSettingsFromDatabase(id: string, currentUserId: string): Promise<BrandPermissionSettingsRecord> {
+    const currentMembership = await this.prismaService.brandMember.findFirst({
+      where: {
+        brandId: id,
+        userId: currentUserId,
+        status: BrandMemberStatus.ACTIVE,
+      },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            brandName: true,
+            ownerUserId: true,
+            memberPermissionsJson: true,
+          },
+        },
+      },
+    });
+    if (!currentMembership) {
+      throw new UnauthorizedException("当前账号无权查看该品牌权限");
+    }
+
+    const permissionConfig = normalizeBrandPermissionConfig(currentMembership.brand.memberPermissionsJson);
+    return {
+      brandId: currentMembership.brand.id,
+      brandName: currentMembership.brand.brandName,
+      currentUserRole: normalizeBrandCollaboratorRole(currentMembership.role),
+      isCurrentUserOwner: currentMembership.brand.ownerUserId === currentUserId,
+      canManageMembers: canManageBrandMembers(currentMembership.role),
+      canManagePermissions: normalizeBrandCollaboratorRole(currentMembership.role) === "ADMIN",
+      permissionConfig,
+      currentUserPermissions: getBrandRolePermissionMap(currentMembership.role, permissionConfig),
+      permissionTree: BRAND_PERMISSION_TREE,
     };
   }
 
@@ -2097,7 +2217,7 @@ export class BrandsService {
       inviteeNickname: item.inviteeUser?.nickname ?? undefined,
       inviteeMobile: item.inviteeUser?.mobile ?? undefined,
       inviteeEmail: item.inviteeUser?.email ?? undefined,
-      role: item.role,
+      role: normalizeBrandCollaboratorRole(item.role),
       status: item.status,
       note: item.note ?? undefined,
       invitedByUserId: item.invitedByUser.id,
@@ -2380,16 +2500,17 @@ export class BrandsService {
     invitedByUser: { nickname: string | null; mobile: string };
   }) {
     const inviterName = invite.invitedByUser.nickname ?? invite.invitedByUser.mobile;
+    const inviteRole = normalizeBrandCollaboratorRole(invite.role);
     if (invite.status === BrandInviteStatus.ACCEPTED) {
-      return `你已接受 ${invite.brand.brandName} 的 ${invite.role} 邀请，邀请人：${inviterName}`;
+      return `你已接受 ${invite.brand.brandName} 的 ${inviteRole} 邀请，邀请人：${inviterName}`;
     }
     if (invite.status === BrandInviteStatus.REVOKED) {
-      return `原邀请角色：${invite.role}，邀请人：${inviterName}`;
+      return `原邀请角色：${inviteRole}，邀请人：${inviterName}`;
     }
     if (invite.status === BrandInviteStatus.EXPIRED) {
-      return `原邀请角色：${invite.role}，邀请人：${inviterName}`;
+      return `原邀请角色：${inviteRole}，邀请人：${inviterName}`;
     }
-    return `邀请角色：${invite.role}，邀请人：${inviterName}`;
+    return `邀请角色：${inviteRole}，邀请人：${inviterName}`;
   }
 
   private buildInviteAccountCandidates(user: {
@@ -2427,6 +2548,14 @@ export class BrandsService {
     const membership = await this.requireBrandMembership(id, userId);
     if (!canManageBrandMembers(membership.role)) {
       throw new UnauthorizedException("当前角色无权管理品牌成员");
+    }
+    return membership;
+  }
+
+  private async requireBrandAdmin(id: string, userId: string) {
+    const membership = await this.requireBrandMembership(id, userId);
+    if (normalizeBrandCollaboratorRole(membership.role) !== "ADMIN") {
+      throw new UnauthorizedException("只有管理员可以管理团队成员和权限");
     }
     return membership;
   }
@@ -2542,29 +2671,40 @@ export class BrandsService {
   }
 
   private assertCanAssignBrandRole(managerRole: BrandMemberRole, targetRole: BrandMemberRole) {
-    if (managerRole === BrandMemberRole.OWNER) {
-      return;
-    }
-    if (managerRole === BrandMemberRole.ADMIN) {
-      if (targetRole === BrandMemberRole.OWNER || targetRole === BrandMemberRole.ADMIN) {
-        throw new UnauthorizedException("当前角色无权授予该成员角色");
-      }
+    if (normalizeBrandCollaboratorRole(managerRole) === "ADMIN" && targetRole !== BrandMemberRole.OWNER) {
       return;
     }
     throw new UnauthorizedException("当前角色无权管理品牌成员");
   }
 
   private assertCanManageTargetMember(managerRole: BrandMemberRole, targetRole: BrandMemberRole) {
-    if (managerRole === BrandMemberRole.OWNER) {
-      return;
-    }
-    if (managerRole === BrandMemberRole.ADMIN) {
-      if (targetRole === BrandMemberRole.OWNER || targetRole === BrandMemberRole.ADMIN) {
+    if (normalizeBrandCollaboratorRole(managerRole) === "ADMIN") {
+      if (targetRole === BrandMemberRole.OWNER) {
         throw new UnauthorizedException("当前角色无权修改该成员");
       }
       return;
     }
     throw new UnauthorizedException("当前角色无权管理品牌成员");
+  }
+
+  private getBrandPermissionSettingsFromMock(id: string, currentUserId: string): BrandPermissionSettingsRecord {
+    const brand = this.getBrand(id);
+    if (brand.ownerUserId !== currentUserId) {
+      throw new UnauthorizedException("当前账号无权查看该品牌权限");
+    }
+
+    const permissionConfig = buildDefaultBrandPermissionConfig();
+    return {
+      brandId: brand.id,
+      brandName: brand.brandName,
+      currentUserRole: "ADMIN",
+      isCurrentUserOwner: true,
+      canManageMembers: true,
+      canManagePermissions: true,
+      permissionConfig,
+      currentUserPermissions: getBrandRolePermissionMap("ADMIN", permissionConfig),
+      permissionTree: BRAND_PERMISSION_TREE,
+    };
   }
 
   private async getArchiveFromDatabase(id: string) {
@@ -3346,29 +3486,30 @@ export class BrandsService {
 
 function compareBrandMemberRole(left: string, right: string) {
   const order: Record<string, number> = {
+    ADMIN: 0,
+    STAFF: 1,
+    TALENT: 2,
     OWNER: 0,
-    ADMIN: 1,
-    EDITOR: 2,
-    OPERATOR: 3,
-    VIEWER: 4,
+    EDITOR: 1,
+    OPERATOR: 1,
+    VIEWER: 2,
   };
   return (order[left] ?? 99) - (order[right] ?? 99);
 }
 
 function canManageBrandMembers(role: string) {
-  return role === BrandMemberRole.OWNER;
+  return normalizeBrandCollaboratorRole(role) === "ADMIN";
 }
 
-function parseManageableBrandRole(role?: string): BrandMemberRole {
+function parseCollaboratorBrandRole(role?: string): BrandMemberRole {
   switch (role) {
     case BrandMemberRole.ADMIN:
       return BrandMemberRole.ADMIN;
-    case BrandMemberRole.EDITOR:
-      return BrandMemberRole.EDITOR;
-    case BrandMemberRole.OPERATOR:
-      return BrandMemberRole.OPERATOR;
-    case BrandMemberRole.VIEWER:
+    case "TALENT":
       return BrandMemberRole.VIEWER;
+    case "STAFF":
+    case BrandMemberRole.EDITOR:
+    case BrandMemberRole.OPERATOR:
     default:
       return BrandMemberRole.EDITOR;
   }

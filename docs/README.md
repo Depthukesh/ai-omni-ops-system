@@ -155,6 +155,8 @@
   - 原创模板图库资源地址改为同域 `/api`，降低不同浏览器因绝对地址不一致导致的裂图；模板卡片新增“预览加载失败”占位提示
 - `docs/changes/2026-05-15-user-skills-table-compat-fix.md`
   - 个人中心技能中心保存/重置链路补齐旧表结构兼容、SQL 空值归一化与 `jsonb` 写入转换，修复修改模型或重置平台基线时的 500
+- `docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
+  - 团队协作统一为三角色 `管理员 / 员工 / 达人`，新增品牌级权限矩阵，并接通团队页、品牌增长策略、第三方接口配置与本地稳定联调链路
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

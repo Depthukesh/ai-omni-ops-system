@@ -81,3 +81,5 @@ export type BrandArchiveBundle = {
     description: string;
   }>;
 };
+
+export * from "./brand-permissions";

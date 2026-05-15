@@ -7,6 +7,7 @@ import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeRe
 import { getOrders, orderSeed, type OrderRecord } from "../../../../services/personal-center";
 import {
   buildPersonalCenterLoginPath,
+  formatCollaboratorRoleLabel,
   formatDateTime,
   isAuthFailure,
   personalOrderStatusClassMap,
@@ -198,7 +199,7 @@ export default function PersonalCenterOrdersPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>

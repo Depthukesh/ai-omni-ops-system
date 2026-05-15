@@ -2,6 +2,48 @@ import { getStoredCurrentBrandId } from "./auth-session";
 import { request, jsonRequest } from "./http";
 
 export type PlatformType = "XIAOHONGSHU" | "DOUYIN" | "VIDEO_CHANNEL" | "WECHAT_OA";
+export type BrandCollaboratorRole = "ADMIN" | "STAFF" | "TALENT";
+export type BrandPermissionAction = "view" | "edit";
+export type BrandPermissionFlags = {
+  view: boolean;
+  edit: boolean;
+};
+export type BrandPermissionKey =
+  | "brandGrowth.library.background"
+  | "brandGrowth.library.products"
+  | "brandGrowth.library.survey"
+  | "brandGrowth.library.industryFeeds"
+  | "brandGrowth.library.businessAssets"
+  | "brandGrowth.collection.xiaohongshuCollection"
+  | "brandGrowth.collection.dailyHotspot"
+  | "brandGrowth.report.growthReport"
+  | "brandGrowth.report.visualGrowthReport"
+  | "brandGrowth.report.halfYearMarketingPlan"
+  | "xiaohongshu.plan"
+  | "xiaohongshu.assets"
+  | "xiaohongshu.calendar"
+  | "xiaohongshu.original"
+  | "xiaohongshu.remix"
+  | "xiaohongshu.video"
+  | "personalCenter.skills"
+  | "personalCenter.thirdPartyPlatforms"
+  | "personalCenter.tasks"
+  | "personalCenter.works"
+  | "personalCenter.team";
+export type BrandPermissionMap = Record<BrandPermissionKey, BrandPermissionFlags>;
+export type BrandPermissionConfig = Record<BrandCollaboratorRole, BrandPermissionMap>;
+export type BrandPermissionTreeNode = {
+  key: string;
+  label: string;
+  groups: Array<{
+    key: string;
+    label: string;
+    items: Array<{
+      key: BrandPermissionKey;
+      label: string;
+    }>;
+  }>;
+};
 export type BrandArchiveStepKey =
   | "background"
   | "products"
@@ -164,18 +206,19 @@ export type BrandMemberRecord = {
 export type BrandMemberListRecord = {
   brandId: string;
   brandName: string;
-  currentUserRole: string;
+  currentUserRole: BrandCollaboratorRole;
+  isCurrentUserOwner: boolean;
   canManageMembers: boolean;
   items: BrandMemberRecord[];
 };
 
 export type AddBrandMemberPayload = {
   account: string;
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
 };
 
 export type UpdateBrandMemberPayload = {
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
   status?: "ACTIVE" | "DISABLED" | "REMOVED";
 };
 
@@ -292,9 +335,25 @@ export type TransferBrandOwnerPayload = {
 };
 
 export type CreateBrandInvitePayload = {
-  role?: "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER";
+  role?: BrandCollaboratorRole;
   note?: string;
   expiresInDays?: number;
+};
+
+export type BrandPermissionSettingsRecord = {
+  brandId: string;
+  brandName: string;
+  currentUserRole: BrandCollaboratorRole;
+  isCurrentUserOwner: boolean;
+  canManageMembers: boolean;
+  canManagePermissions: boolean;
+  permissionConfig: BrandPermissionConfig;
+  currentUserPermissions: BrandPermissionMap;
+  permissionTree: BrandPermissionTreeNode[];
+};
+
+export type UpdateBrandPermissionSettingsPayload = {
+  permissionConfig: BrandPermissionConfig;
 };
 
 export type BrandArchiveBundle = {
@@ -585,6 +644,17 @@ export async function getBrandInvites(brandId: string) {
 export async function createBrandInvite(brandId: string, payload: CreateBrandInvitePayload) {
   return request<BrandInviteListRecord>(`/brands/${brandId}/invites`, {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBrandPermissionSettings(brandId: string) {
+  return request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`);
+}
+
+export async function updateBrandPermissionSettings(brandId: string, payload: UpdateBrandPermissionSettingsPayload) {
+  return request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }

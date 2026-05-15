@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import { cancelTask, getTasks, retryTask, taskSeed, type TaskRecord } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure, personalTaskStatusClassMap } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure, personalTaskStatusClassMap } from "../route-helpers";
 
 export default function PersonalCenterTasksPage() {
   const router = useRouter();
@@ -216,7 +216,7 @@ export default function PersonalCenterTasksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>

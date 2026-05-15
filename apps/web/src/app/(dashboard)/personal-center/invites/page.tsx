@@ -14,6 +14,7 @@ import {
 import {
   buildPersonalCenterLoginPath,
   emitBrandInviteReadStateChanged,
+  formatCollaboratorRoleLabel,
   formatDateTime,
   isAuthFailure,
 } from "../route-helpers";
@@ -637,7 +638,7 @@ export default function PersonalCenterInvitesPage() {
             {filteredPendingInvites.map((item) => (
               <tr key={item.id}>
                 <td>{item.brandName}</td>
-                <td>{item.role}</td>
+                <td>{formatCollaboratorRoleLabel(item.role)}</td>
                 <td>{item.invitedByName}</td>
                 <td>{item.inviteAccount || "邀请链接"}</td>
                 <td>{formatDateTime(item.expiresAt)}</td>
@@ -708,7 +709,7 @@ export default function PersonalCenterInvitesPage() {
                 {pagedInviteItems.map((item) => (
                   <tr key={item.id}>
                     <td>{item.brandName}</td>
-                    <td>{item.role}</td>
+                    <td>{formatCollaboratorRoleLabel(item.role)}</td>
                     <td>
                       <div className="table-status-stack">
                         <span>{item.status}</span>

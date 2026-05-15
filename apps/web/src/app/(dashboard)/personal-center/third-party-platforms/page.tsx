@@ -10,7 +10,7 @@ import {
   type GetMyThirdPartyPlatformsResponse,
   type UserThirdPartyPlatformRecord,
 } from "../../../../services/personal-center";
-import { buildPersonalCenterLoginPath, formatDateTime, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type PlatformDraft = {
   apiKey: string;
@@ -75,6 +75,16 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     }
   }, [filteredPlatforms, selectedPlatformId]);
 
+  useEffect(() => {
+    const normalizedKeyword = search.trim();
+    if (!normalizedKeyword || filteredPlatforms.length || !platforms.length) {
+      return;
+    }
+    if (/^\d{6,}$/.test(normalizedKeyword)) {
+      setSearch("");
+    }
+  }, [filteredPlatforms.length, platforms.length, search]);
+
   const selectedPlatform = useMemo(
     () =>
       platforms.find((item) => item.id === selectedPlatformId)
@@ -135,6 +145,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         ]),
       ) as Record<string, PlatformDraft>,
     );
+    setSearch("");
     setSelectedPlatformId((current) => current || result.platforms[0]?.id || "");
     setRole(result.role || "");
     setCanManage(Boolean(result.canManage));
@@ -228,14 +239,16 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       <div className="panel-header">
         <div>
           <h2>第三方接口配置</h2>
-          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID、说明文档；当前品牌只有 Owner 可以维护自己的 API Key。</p>
+          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID、说明文档；拥有该板块编辑权限的成员才可以维护自己的 API Key。</p>
         </div>
         <span>{search.trim() ? `${filteredPlatforms.length}/${platforms.length}` : platforms.length} 个平台</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <div className="workspace-status">
-          <span className={`archive-pill ${canManage ? "status-ready" : "status-paused"}`}>{role || "未识别角色"}</span>
+          <span className={`archive-pill ${canManage ? "status-ready" : "status-paused"}`}>
+            {formatCollaboratorRoleLabel(role) || "未识别角色"}
+          </span>
           {isLoading ? <span className="status-text">正在加载第三方接口配置...</span> : null}
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
           {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
@@ -252,7 +265,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -295,7 +308,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         ) : null}
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
-          <span className="status-text">{canManage ? "Owner 可维护 API Key" : "普通成员无权设置 API Key"}</span>
+          <span className="status-text">{canManage ? "当前角色可维护 API Key" : "当前角色仅可查看平台基线"}</span>
         </div>
       </div>
 
@@ -371,7 +384,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
 
             {!canManage ? (
               <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-                当前品牌只有 Owner 可以设置第三方接口配置，普通成员只能查看平台基线。
+                当前角色没有第三方接口配置的编辑权限，只能查看平台基线与已脱敏的有效 Key。
               </div>
             ) : null}
 

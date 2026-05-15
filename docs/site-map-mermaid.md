@@ -391,10 +391,10 @@ flowchart TD
     PC --> PC1["/personal-center/orders"]
     PC --> PC2["/personal-center/works"]
     PC --> PC3["/personal-center/skills 用户技能覆盖编辑器"]
-    PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 品牌隔离运行时覆盖"]
+    PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 权限控制"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
-    PC --> PC6["/personal-center/team"]
+    PC --> PC6["/personal-center/team 三角色 + 权限矩阵"]
     PC --> PC7["/personal-center/invites"]
     PCS1 --> PAPI1["/auth/profile 读写"]
     PC4 --> PAPI11["/auth/profile/avatar + /auth/users/:userId/avatar/:fileName"]
@@ -404,7 +404,7 @@ flowchart TD
     PCS1 --> PAPI5["/media"]
     PC3 --> PAPI6["/user-skills 读取/保存/重置（旧表缺列自动补齐，旧图片默认模型安全回填到 Right Codes）"]
     PC3 --> PAPI62["/user-skills/editor-options 返回 Provider 作用域模型选项"]
-    PC31 --> PAPI61["/third-party-platforms 读取 / 保存私有 Key"]
+    PC31 --> PAPI61["/third-party-platforms 按板块权限读取 / 保存私有 Key"]
     PAPI1 --> PM1["AuthModule"]
     PAPI11 --> PM1
     PAPI2 --> PM1
@@ -617,7 +617,7 @@ flowchart LR
 - 注册页：`apps/web/src/app/(auth)/register/page.tsx`（真实注册表单 + 邀请码）
 - 扩展帮助页：`apps/web/src/app/help/xhs-draft-publisher/page.tsx`
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
-- 当前 `brand-growth/workspace.tsx` 已加前台 `Owner` 权限闸门；非 Owner 不再继续渲染策略操作面板
+- 当前 `brand-growth/workspace.tsx` 已改为读取团队权限模板；无品牌增长策略 `view` 权限时不再继续渲染策略操作面板
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
@@ -627,7 +627,7 @@ flowchart LR
 - 个人中心安全设置：`apps/web/src/app/(dashboard)/personal-center/security/page.tsx`（账号资料编辑 + 会话安全）
 - 个人中心任务中心：`apps/web/src/app/(dashboard)/personal-center/tasks/page.tsx`
 - 个人中心团队协作：`apps/web/src/app/(dashboard)/personal-center/team/page.tsx`
-- 当前团队协作页已改为“Owner 发邀请 / 成员确认加入”模型，移除手动邀请码加入区块
+- 当前团队协作页已统一为 `管理员 / 员工 / 达人` 三角色，并新增员工/达人权限矩阵区块
 - 个人中心邀请通知：`apps/web/src/app/(dashboard)/personal-center/invites/page.tsx`
 - 后台管理：`apps/web/src/app/(dashboard)/admin/page.tsx`
 - 后台用户管理面板：`apps/web/src/app/(dashboard)/admin/users-management-panel.tsx`

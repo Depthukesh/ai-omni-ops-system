@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../services/auth";
-import { buildPersonalCenterLoginPath, getBrandDisplayName, isAuthFailure } from "./route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, getBrandDisplayName, isAuthFailure } from "./route-helpers";
 
 const routeItems = [
   {
@@ -186,7 +186,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
                   {brands.length ? (
                     brands.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.brandName} · {item.role}
+                        {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
                       </option>
                     ))
                   ) : (

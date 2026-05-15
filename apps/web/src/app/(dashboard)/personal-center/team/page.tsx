@@ -11,16 +11,33 @@ import {
   createBrandInvite,
   getBrandInvites,
   getBrandMembers,
+  getBrandPermissionSettings,
   getBrandRoleAuditLogs,
   getMyBrandInvites,
   revokeBrandInvite,
   transferBrandOwner,
+  updateBrandPermissionSettings,
   updateBrandMember,
+  type BrandCollaboratorRole,
   type BrandInviteRecord,
   type BrandRoleAuditLogRecord,
   type BrandMemberRecord,
+  type BrandPermissionKey,
+  type BrandPermissionSettingsRecord,
 } from "../../../../services/brand-growth";
-import { buildPersonalCenterLoginPath, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
+import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, getBrandDisplayName, isAuthFailure } from "../route-helpers";
+
+const roleLabelMap: Record<BrandCollaboratorRole, string> = {
+  ADMIN: "管理员",
+  STAFF: "员工",
+  TALENT: "达人",
+};
+
+const memberStatusLabels: Record<string, string> = {
+  ACTIVE: "正常",
+  DISABLED: "停用",
+  REMOVED: "移除",
+};
 
 export default function PersonalCenterTeamPage() {
   const router = useRouter();
@@ -29,14 +46,16 @@ export default function PersonalCenterTeamPage() {
   const [invites, setInvites] = useState<BrandInviteRecord[]>([]);
   const [myPendingInvites, setMyPendingInvites] = useState<Array<BrandInviteRecord & { brandId: string; brandName: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<BrandRoleAuditLogRecord[]>([]);
+  const [permissionSettings, setPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [userName, setUserName] = useState("");
   const [userId, setUserId] = useState("");
-  const [currentUserRole, setCurrentUserRole] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState<BrandCollaboratorRole | "">("");
+  const [isCurrentUserOwner, setIsCurrentUserOwner] = useState(false);
   const [canManageMembers, setCanManageMembers] = useState(false);
   const [inviteAccount, setInviteAccount] = useState("");
-  const [inviteRole, setInviteRole] = useState<"ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER">("EDITOR");
-  const [pendingInviteRole, setPendingInviteRole] = useState<"ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER">("EDITOR");
+  const [inviteRole, setInviteRole] = useState<BrandCollaboratorRole>("STAFF");
+  const [pendingInviteRole, setPendingInviteRole] = useState<BrandCollaboratorRole>("STAFF");
   const [pendingInviteNote, setPendingInviteNote] = useState("");
   const [pendingInviteExpiresInDays, setPendingInviteExpiresInDays] = useState("7");
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, string>>({});
@@ -47,6 +66,7 @@ export default function PersonalCenterTeamPage() {
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [isSubmittingPendingInvite, setIsSubmittingPendingInvite] = useState(false);
   const [savingMemberId, setSavingMemberId] = useState("");
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   const [revokingInviteId, setRevokingInviteId] = useState("");
   const [acceptingInviteId, setAcceptingInviteId] = useState("");
   const [isAcceptingInviteCode, setIsAcceptingInviteCode] = useState(false);
@@ -92,8 +112,12 @@ export default function PersonalCenterTeamPage() {
       setMyPendingInvites(myInviteResult.items);
 
       if (nextBrandId) {
-        const membersResult = await getBrandMembers(nextBrandId);
+        const [membersResult, permissionResult] = await Promise.all([
+          getBrandMembers(nextBrandId),
+          getBrandPermissionSettings(nextBrandId).catch(() => null),
+        ]);
         syncMembersState(membersResult);
+        setPermissionSettings(permissionResult);
         const [invitesResult, auditResult] = await Promise.all([
           membersResult.canManageMembers ? getBrandInvites(nextBrandId).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
           membersResult.canManageMembers
@@ -108,9 +132,11 @@ export default function PersonalCenterTeamPage() {
         setAuditLogs([]);
         setMyPendingInvites(myInviteResult.items);
         setCurrentUserRole("");
+        setIsCurrentUserOwner(false);
         setCanManageMembers(false);
         setMemberRoleDrafts({});
         setMemberStatusDrafts({});
+        setPermissionSettings(null);
       }
     } catch (error) {
       if (isAuthFailure(error)) {
@@ -124,7 +150,9 @@ export default function PersonalCenterTeamPage() {
       setMyPendingInvites([]);
       setCurrentBrandId("");
       setCurrentUserRole("");
+      setIsCurrentUserOwner(false);
       setCanManageMembers(false);
+      setPermissionSettings(null);
       setErrorMessage(error instanceof Error ? error.message : "团队协作页加载失败");
     } finally {
       setIsLoading(false);
@@ -180,9 +208,15 @@ export default function PersonalCenterTeamPage() {
     router.replace(buildPersonalCenterLoginPath(nextPath));
   }
 
-  function syncMembersState(result: { items: BrandMemberRecord[]; currentUserRole: string; canManageMembers: boolean }) {
+  function syncMembersState(result: {
+    items: BrandMemberRecord[];
+    currentUserRole: BrandCollaboratorRole;
+    isCurrentUserOwner: boolean;
+    canManageMembers: boolean;
+  }) {
     setMembers(result.items);
     setCurrentUserRole(result.currentUserRole);
+    setIsCurrentUserOwner(result.isCurrentUserOwner);
     setCanManageMembers(result.canManageMembers);
     setMemberRoleDrafts(
       Object.fromEntries(result.items.map((item) => [item.id, item.role])),
@@ -208,7 +242,7 @@ export default function PersonalCenterTeamPage() {
       });
       setInvites(result.items);
       setInviteAccount("");
-      setInviteRole("EDITOR");
+      setInviteRole("STAFF");
       setNotice("已向该账号发出加入邀请，对方确认后才会加入团队。");
     } catch (error) {
       if (isAuthFailure(error)) {
@@ -231,7 +265,7 @@ export default function PersonalCenterTeamPage() {
     setErrorMessage("");
     try {
       const result = await updateBrandMember(currentBrandId, memberId, {
-        role: memberRoleDrafts[memberId] as "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER" | undefined,
+        role: memberRoleDrafts[memberId] as BrandCollaboratorRole | undefined,
         status: memberStatusDrafts[memberId] as "ACTIVE" | "DISABLED" | "REMOVED" | undefined,
       });
       syncMembersState(result);
@@ -263,7 +297,7 @@ export default function PersonalCenterTeamPage() {
         expiresInDays: Number.parseInt(pendingInviteExpiresInDays, 10) || 7,
       });
       setInvites(result.items);
-      setPendingInviteRole("EDITOR");
+      setPendingInviteRole("STAFF");
       setPendingInviteNote("");
       setPendingInviteExpiresInDays("7");
       setNotice("邀请链接已生成，可直接发送给成员，对方确认后才会加入团队。");
@@ -384,7 +418,7 @@ export default function PersonalCenterTeamPage() {
     try {
       const result = await transferBrandOwner(currentBrandId, { memberId: ownerTransferMemberId });
       syncMembersState(result);
-      setNotice("品牌主账号已转移，当前账号已自动降级为 ADMIN。");
+      setNotice("品牌主账号已转移，当前账号继续以管理员身份留在团队中。");
       const [inviteResult, auditResult] = await Promise.all([
         getBrandInvites(currentBrandId).catch(() => ({ items: [] })),
         getBrandRoleAuditLogs(currentBrandId).catch(() => ({ items: [] })),
@@ -402,11 +436,70 @@ export default function PersonalCenterTeamPage() {
     }
   }
 
+  function handlePermissionToggle(
+    role: Exclude<BrandCollaboratorRole, "ADMIN">,
+    key: BrandPermissionKey,
+    action: "view" | "edit",
+    checked: boolean,
+  ) {
+    setPermissionSettings((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextFlags = {
+        ...current.permissionConfig[role][key],
+        [action]: checked,
+      };
+      if (action === "view" && !checked) {
+        nextFlags.edit = false;
+      }
+      if (action === "edit" && checked) {
+        nextFlags.view = true;
+      }
+
+      return {
+        ...current,
+        permissionConfig: {
+          ...current.permissionConfig,
+          [role]: {
+            ...current.permissionConfig[role],
+            [key]: nextFlags,
+          },
+        },
+      };
+    });
+  }
+
+  async function handleSavePermissionSettings() {
+    if (!currentBrandId || !permissionSettings?.canManagePermissions) {
+      return;
+    }
+
+    setIsSavingPermissions(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const result = await updateBrandPermissionSettings(currentBrandId, {
+        permissionConfig: permissionSettings.permissionConfig,
+      });
+      setPermissionSettings(result);
+      setNotice("员工和达人的权限模板已保存。");
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      setErrorMessage(error instanceof Error ? error.message : "权限模板保存失败");
+    } finally {
+      setIsSavingPermissions(false);
+    }
+  }
+
   const currentBrand = useMemo(
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
   );
-  const isOwner = currentUserRole === "OWNER";
   const ownerTransferCandidates = useMemo(
     () => members.filter((item) => !item.isOwner && !item.isCurrentUser && item.status === "ACTIVE"),
     [members],
@@ -423,7 +516,7 @@ export default function PersonalCenterTeamPage() {
       <div className="panel-header">
         <div>
           <h2>团队协作</h2>
-          <p className="panel-subtext">先落品牌上下文和角色可视化，下一步再继续接品牌成员列表、邀请和角色管理接口。</p>
+          <p className="panel-subtext">当前团队角色已统一为管理员、员工、达人；管理员可管理成员并配置员工/达人在各板块的可见与编辑权限。</p>
         </div>
         <span>{brands.length} 个可访问品牌</span>
       </div>
@@ -449,7 +542,7 @@ export default function PersonalCenterTeamPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {item.role}
+                {item.brandName} · {roleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -472,13 +565,13 @@ export default function PersonalCenterTeamPage() {
         </article>
         <article className="metric-card">
           <span>当前角色</span>
-          <strong>{currentUserRole || "未记录"}</strong>
-          <p>角色来自当前用户在品牌工作区下的真实 `BrandMember` 记录。</p>
+          <strong>{currentUserRole ? roleLabelMap[currentUserRole] : "未记录"}</strong>
+          <p>团队协作角色已统一收口为管理员、员工、达人三类。</p>
         </article>
         <article className="metric-card">
           <span>成员管理权限</span>
           <strong>{canManageMembers ? "可管理" : "只读查看"}</strong>
-          <p>{canManageMembers ? "当前角色可继续进入邀请成员与角色管理。" : "当前角色暂以查看品牌成员和角色信息为主。"}</p>
+          <p>{canManageMembers ? "当前管理员可继续邀请成员、调整角色并配置权限模板。" : "当前账号仅可查看团队与权限结果。"}</p>
         </article>
       </div>
 
@@ -496,7 +589,7 @@ export default function PersonalCenterTeamPage() {
               myPendingInvites.map((item) => (
                 <div key={item.id} style={{ display: "grid", gap: 6, padding: "10px 0", borderBottom: "1px solid rgba(148,163,184,0.18)" }}>
                   <strong>{item.brandName}</strong>
-                  <span>邀请角色：{item.role}</span>
+                  <span>邀请角色：{roleLabel(item.role)}</span>
                   <span>邀请账号：{item.inviteAccount}</span>
                   <span>邀请人：{item.invitedByName}</span>
                   <span>过期时间：{formatDateTime(item.expiresAt)}</span>
@@ -521,14 +614,14 @@ export default function PersonalCenterTeamPage() {
           <div className="entity-card-head">
             <div>
               <strong>当前阶段已可见内容</strong>
-              <p className="personal-meta">当前团队协作页已切到“Owner 发邀请、成员确认后加入”的协作口径。</p>
+              <p className="personal-meta">当前团队协作页已切到“三角色 + 权限矩阵”的协作口径。</p>
             </div>
             <span className="archive-pill status-ready">P1</span>
           </div>
           <div className="personal-list">
             <p>当前品牌名称、行业和你的真实品牌角色已经可见。</p>
-            <p>只有 Owner 可以继续邀请成员、调整角色和查看审计记录。</p>
-            <p>直接添加成员已改为“发送确认邀请”，不再立即入组。</p>
+            <p>管理员拥有该品牌前端所有权限，并可继续邀请成员、调整角色和查看审计记录。</p>
+            <p>员工和达人权限可按板块勾选设置，包含可见权限与编辑权限。</p>
           </div>
         </article>
         {inviteCodeFromQuery ? (
@@ -573,10 +666,10 @@ export default function PersonalCenterTeamPage() {
               </label>
               <label className="field" style={{ minWidth: 180 }}>
                 <span>初始角色</span>
-                <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER")}>
+                <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as BrandCollaboratorRole)}>
                   {buildAssignableRoleOptions(currentUserRole).map((item) => (
                     <option key={item} value={item}>
-                      {item}
+                      {roleLabelMap[item]}
                     </option>
                   ))}
                 </select>
@@ -595,11 +688,11 @@ export default function PersonalCenterTeamPage() {
                 <span>邀请角色</span>
                 <select
                   value={pendingInviteRole}
-                  onChange={(event) => setPendingInviteRole(event.target.value as "ADMIN" | "EDITOR" | "OPERATOR" | "VIEWER")}
+                  onChange={(event) => setPendingInviteRole(event.target.value as BrandCollaboratorRole)}
                 >
                   {buildAssignableRoleOptions(currentUserRole).map((item) => (
                     <option key={item} value={item}>
-                      {item}
+                      {roleLabelMap[item]}
                     </option>
                   ))}
                 </select>
@@ -627,7 +720,7 @@ export default function PersonalCenterTeamPage() {
         </div>
       ) : null}
 
-      {isOwner ? (
+      {isCurrentUserOwner ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
           <h3>品牌主账号转移</h3>
           <div className="personal-actions" style={{ flexWrap: "wrap" }}>
@@ -641,7 +734,7 @@ export default function PersonalCenterTeamPage() {
                 {ownerTransferCandidates.length ? (
                   ownerTransferCandidates.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.nickname} · {item.role}
+                      {item.nickname} · {roleLabel(item.role)}
                     </option>
                   ))
                 ) : (
@@ -658,85 +751,9 @@ export default function PersonalCenterTeamPage() {
               {isTransferringOwner ? "转移中..." : "确认转移主账号"}
             </button>
           </div>
-          <p className="panel-subtext">转移后，接收成员会升级为 `OWNER`，当前账号会自动降级为 `ADMIN` 并写入审计日志。</p>
+          <p className="panel-subtext">转移后，接收成员会成为品牌归属主账号；当前账号继续以管理员身份留在团队中，并写入审计日志。</p>
         </article>
       ) : null}
-
-      <article className="light-data-panel" style={{ marginBottom: 16 }}>
-        <h3>当前品牌成员</h3>
-        <table className="soft-table">
-          <thead>
-            <tr>
-              <th>成员</th>
-              <th>角色</th>
-              <th>状态</th>
-              <th>手机号</th>
-              <th>邮箱</th>
-              <th>加入时间</th>
-              {canManageMembers ? <th>管理</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  {item.nickname}
-                  {item.isCurrentUser ? "（我）" : ""}
-                  {item.isOwner ? " · 主账号" : ""}
-                </td>
-                <td>{item.role}</td>
-                <td>{item.status}</td>
-                <td>{item.mobile}</td>
-                <td>{item.email || "未记录"}</td>
-                <td>{formatDateTime(item.joinedAt)}</td>
-                {canManageMembers ? (
-                  <td>
-                    {item.isOwner || item.isCurrentUser ? (
-                      <span>当前版本不支持修改</span>
-                    ) : (
-                      <div style={{ display: "grid", gap: 8 }}>
-                        <select
-                          value={memberRoleDrafts[item.id] ?? item.role}
-                          onChange={(event) => setMemberRoleDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                        >
-                          {buildAssignableRoleOptions(currentUserRole).map((role) => (
-                            <option key={role} value={role}>
-                              {role}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={memberStatusDrafts[item.id] ?? item.status}
-                          onChange={(event) => setMemberStatusDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                        >
-                          {["ACTIVE", "DISABLED", "REMOVED"].map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => void handleSaveMember(item.id)}
-                          disabled={savingMemberId === item.id}
-                        >
-                          {savingMemberId === item.id ? "保存中..." : "保存"}
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-            {!members.length ? (
-              <tr>
-                <td colSpan={canManageMembers ? 7 : 6}>当前品牌暂无可展示的成员记录</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </article>
 
       {canManageMembers ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
@@ -775,7 +792,7 @@ export default function PersonalCenterTeamPage() {
                       </button>
                     </div>
                   </td>
-                  <td>{item.role}</td>
+                  <td>{roleLabel(item.role)}</td>
                   <td>{item.status}</td>
                   <td>{item.isMatchedUser ? (item.inviteeNickname || item.inviteeMobile || item.inviteeEmail || item.inviteeUserId) : "未匹配到现有用户"}</td>
                   <td>{item.invitedByName}</td>
@@ -807,6 +824,178 @@ export default function PersonalCenterTeamPage() {
           </table>
         </article>
       ) : null}
+
+      {permissionSettings ? (
+        <article className="light-data-panel" style={{ marginBottom: 16 }}>
+          <div className="entity-card-head" style={{ marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>团队权限设置</h3>
+              <p className="panel-subtext" style={{ marginTop: 8 }}>
+                位置按需求放在“待处理邀请”和“当前品牌成员”之间。管理员默认拥有全部前端权限，以下仅配置员工与达人。
+              </p>
+            </div>
+            <div className="personal-actions">
+              <span className={`archive-pill ${permissionSettings.canManagePermissions ? "status-ready" : "status-paused"}`}>
+                {permissionSettings.canManagePermissions ? "管理员可编辑" : "当前为只读"}
+              </span>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSavePermissionSettings()}
+                disabled={!permissionSettings.canManagePermissions || isSavingPermissions}
+              >
+                {isSavingPermissions ? "保存中..." : "保存权限设置"}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 16 }}>
+            {permissionSettings.permissionTree.map((section) => (
+              <div key={section.key} className="entity-card personal-card">
+                <div className="entity-card-head">
+                  <div>
+                    <strong>{section.label}</strong>
+                    <p className="personal-meta">按项目配置员工和达人的可见权限、编辑权限。</p>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {section.groups.map((group) => (
+                    <div key={group.key} style={{ display: "grid", gap: 8 }}>
+                      <strong>{group.label}</strong>
+                      <table className="soft-table">
+                        <thead>
+                          <tr>
+                            <th>项目</th>
+                            <th>员工可见</th>
+                            <th>员工编辑</th>
+                            <th>达人可见</th>
+                            <th>达人编辑</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.items.map((item) => (
+                            <tr key={item.key}>
+                              <td>{item.label}</td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={permissionSettings.permissionConfig.STAFF[item.key].view}
+                                  onChange={(event) => handlePermissionToggle("STAFF", item.key, "view", event.target.checked)}
+                                  disabled={!permissionSettings.canManagePermissions}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={permissionSettings.permissionConfig.STAFF[item.key].edit}
+                                  onChange={(event) => handlePermissionToggle("STAFF", item.key, "edit", event.target.checked)}
+                                  disabled={!permissionSettings.canManagePermissions}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={permissionSettings.permissionConfig.TALENT[item.key].view}
+                                  onChange={(event) => handlePermissionToggle("TALENT", item.key, "view", event.target.checked)}
+                                  disabled={!permissionSettings.canManagePermissions}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={permissionSettings.permissionConfig.TALENT[item.key].edit}
+                                  onChange={(event) => handlePermissionToggle("TALENT", item.key, "edit", event.target.checked)}
+                                  disabled={!permissionSettings.canManagePermissions}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      ) : null}
+
+      <article className="light-data-panel" style={{ marginBottom: 16 }}>
+        <h3>当前品牌成员</h3>
+        <table className="soft-table">
+          <thead>
+            <tr>
+              <th>成员</th>
+              <th>角色</th>
+              <th>状态</th>
+              <th>手机号</th>
+              <th>邮箱</th>
+              <th>加入时间</th>
+              {canManageMembers ? <th>管理</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  {item.nickname}
+                  {item.isCurrentUser ? "（我）" : ""}
+                  {item.isOwner ? " · 品牌主账号" : ""}
+                </td>
+                <td>{roleLabel(item.role)}</td>
+                <td>{memberStatusLabels[item.status] || item.status}</td>
+                <td>{item.mobile}</td>
+                <td>{item.email || "未记录"}</td>
+                <td>{formatDateTime(item.joinedAt)}</td>
+                {canManageMembers ? (
+                  <td>
+                    {item.isOwner || item.isCurrentUser ? (
+                      <span>当前版本不支持修改</span>
+                    ) : (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <select
+                          value={memberRoleDrafts[item.id] ?? item.role}
+                          onChange={(event) => setMemberRoleDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                        >
+                          {buildAssignableRoleOptions(currentUserRole).map((role) => (
+                            <option key={role} value={role}>
+                              {roleLabelMap[role]}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={memberStatusDrafts[item.id] ?? item.status}
+                          onChange={(event) => setMemberStatusDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                        >
+                          {["ACTIVE", "DISABLED", "REMOVED"].map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleSaveMember(item.id)}
+                          disabled={savingMemberId === item.id}
+                        >
+                          {savingMemberId === item.id ? "保存中..." : "保存"}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+            {!members.length ? (
+              <tr>
+                <td colSpan={canManageMembers ? 7 : 6}>当前品牌暂无可展示的成员记录</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </article>
 
       {canManageMembers ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
@@ -841,31 +1030,6 @@ export default function PersonalCenterTeamPage() {
         </article>
       ) : null}
 
-      <article className="light-data-panel" style={{ marginBottom: 16 }}>
-        <h3>品牌角色建议矩阵</h3>
-        <table className="soft-table">
-          <thead>
-            <tr>
-              <th>角色</th>
-              <th>可查看</th>
-              <th>可操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>OWNER</td>
-              <td>品牌全部任务、作品、成员与配置</td>
-              <td>操作品牌增长策略、邀请成员、调整角色、查看品牌全量数据</td>
-            </tr>
-            <tr>
-              <td>EDITOR / OPERATOR / VIEWER</td>
-              <td>当前品牌下与内容生产相关的任务、作品和协作信息</td>
-              <td>聚焦小红书及后续内容板块，不操作品牌增长策略和团队邀请</td>
-            </tr>
-          </tbody>
-        </table>
-      </article>
-
       <div className="personal-actions">
         <Link href="/personal-center/tasks" className="primary-button">
           去任务中心
@@ -878,9 +1042,13 @@ export default function PersonalCenterTeamPage() {
   );
 }
 
-function buildAssignableRoleOptions(currentUserRole: string) {
-  if (currentUserRole === "OWNER") {
-    return ["ADMIN", "EDITOR", "OPERATOR", "VIEWER"] as const;
+function buildAssignableRoleOptions(currentUserRole: BrandCollaboratorRole | "") {
+  if (currentUserRole === "ADMIN") {
+    return ["ADMIN", "STAFF", "TALENT"] as const;
   }
-  return ["EDITOR", "OPERATOR", "VIEWER"] as const;
+  return ["STAFF", "TALENT"] as const;
+}
+
+function roleLabel(role: string) {
+  return formatCollaboratorRoleLabel(role);
 }

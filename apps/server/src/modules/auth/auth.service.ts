@@ -3,6 +3,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { BrandMemberRole, BrandMemberStatus, SystemRole } from "@prisma/client";
+import {
+  getBrandRolePermissionMap,
+  hasBrandPermission,
+  normalizeBrandCollaboratorRole,
+  normalizeBrandPermissionConfig,
+  type BrandCollaboratorRole,
+  type BrandPermissionAction,
+  type BrandPermissionConfig,
+  type BrandPermissionKey,
+  type BrandPermissionMap,
+} from "../../../../../packages/shared/src/brand-permissions";
 import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import {
@@ -497,23 +508,34 @@ export class AuthService {
     if (!auth?.userId) {
       throw new UnauthorizedException("请先登录");
     }
-    const currentUser = await this.resolveCurrentUser(undefined, auth);
-    const brands = await this.listAccessibleBrands(currentUser.id);
-    const matchedBrand = brands.find((item) => item.id === brandId);
-    if (!matchedBrand) {
-      throw new UnauthorizedException("当前账号无权访问该品牌");
-    }
-    return {
-      userId: currentUser.id,
-      brandId: matchedBrand.id,
-      role: matchedBrand.role,
-    };
+    return this.loadBrandAccess(brandId, auth.userId);
   }
 
   async assertBrandOwnerAccess(brandId: string, auth?: RequestAuthContext) {
     const access = await this.assertBrandAccess(brandId, auth);
-    if (access.role !== BrandMemberRole.OWNER) {
-      throw new UnauthorizedException("只有主账号可以操作品牌增长策略");
+    if (!access.isOwner) {
+      throw new UnauthorizedException("只有品牌归属主账号可以执行该操作");
+    }
+    return access;
+  }
+
+  async assertBrandAdminAccess(brandId: string, auth?: RequestAuthContext) {
+    const access = await this.assertBrandAccess(brandId, auth);
+    if (access.role !== "ADMIN") {
+      throw new UnauthorizedException("当前账号不是管理员，无法执行该操作");
+    }
+    return access;
+  }
+
+  async assertBrandPermission(
+    brandId: string,
+    permissionKey: BrandPermissionKey,
+    action: BrandPermissionAction,
+    auth?: RequestAuthContext,
+  ) {
+    const access = await this.assertBrandAccess(brandId, auth);
+    if (!hasBrandPermission(access.role, access.permissionConfig, permissionKey, action)) {
+      throw new UnauthorizedException(action === "edit" ? "当前账号没有该板块的编辑权限" : "当前账号没有该板块的查看权限");
     }
     return access;
   }
@@ -1119,7 +1141,7 @@ export class AuthService {
         id: item.brand.id,
         brandName: item.brand.brandName,
         industry: item.brand.industry ?? "",
-        role: item.role,
+        role: normalizeBrandCollaboratorRole(item.role),
       }));
     }
 
@@ -1141,8 +1163,66 @@ export class AuthService {
         id: item.id,
         brandName: item.brandName,
         industry: item.industry ?? "",
-        role: "OWNER",
+        role: "ADMIN",
       }));
+  }
+
+  private async loadBrandAccess(brandId: string, userId: string): Promise<{
+    userId: string;
+    brandId: string;
+    role: BrandCollaboratorRole;
+    rawRole: string;
+    isOwner: boolean;
+    permissionConfig: BrandPermissionConfig;
+    permissions: BrandPermissionMap;
+  }> {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureOwnerBrandMemberships(userId);
+      const membership = await this.prismaService.brandMember.findFirst({
+        where: {
+          brandId,
+          userId,
+          status: BrandMemberStatus.ACTIVE,
+        },
+        include: {
+          brand: {
+            select: {
+              id: true,
+              ownerUserId: true,
+              memberPermissionsJson: true,
+            },
+          },
+        },
+      });
+      if (!membership) {
+        throw new UnauthorizedException("当前账号无权访问该品牌");
+      }
+      const permissionConfig = normalizeBrandPermissionConfig(membership.brand.memberPermissionsJson);
+      return {
+        userId,
+        brandId: membership.brand.id,
+        role: normalizeBrandCollaboratorRole(membership.role),
+        rawRole: membership.role,
+        isOwner: membership.brand.ownerUserId === userId,
+        permissions: getBrandRolePermissionMap(membership.role, permissionConfig),
+        permissionConfig,
+      };
+    }
+
+    const ownedBrand = database.brands.find((item) => item.id === brandId && item.ownerUserId === userId);
+    if (!ownedBrand) {
+      throw new UnauthorizedException("当前账号无权访问该品牌");
+    }
+    const permissionConfig = normalizeBrandPermissionConfig(undefined);
+    return {
+      userId,
+      brandId,
+      role: "ADMIN",
+      rawRole: BrandMemberRole.OWNER,
+      isOwner: true,
+      permissions: getBrandRolePermissionMap("ADMIN", permissionConfig),
+      permissionConfig,
+    };
   }
 
   private pickCurrentBrandId(
