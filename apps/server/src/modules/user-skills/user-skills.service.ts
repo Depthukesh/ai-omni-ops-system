@@ -227,9 +227,9 @@ export class UserSkillsService {
 
       if (hasSkillOverridePayload) {
         const normalizedProfileData = {
-          displayName: normalizeOptionalText(payload.displayName),
-          defaultModel: this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver),
-          description: normalizeOptionalText(payload.description),
+          displayName: toSqlNullable(normalizeOptionalText(payload.displayName)),
+          defaultModel: toSqlNullable(this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver)),
+          description: toSqlNullable(normalizeOptionalText(payload.description)),
         };
         const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
 
@@ -284,10 +284,10 @@ export class UserSkillsService {
         const existingOverride = existingOverrideRows[0];
         const normalizedOverrideData = {
           baseSkillId: skillId,
-          content: normalizeOptionalText(promptOverride.content),
-          modelName: this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver),
-          temperature: normalizeOptionalNumber(promptOverride.temperature),
-          maxTokens: normalizeOptionalInt(promptOverride.maxTokens),
+          content: toSqlNullable(normalizeOptionalText(promptOverride.content)),
+          modelName: toSqlNullable(this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver)),
+          temperature: toSqlNullable(normalizeOptionalNumber(promptOverride.temperature)),
+          maxTokens: toSqlNullable(normalizeOptionalInt(promptOverride.maxTokens)),
         };
         const hasEffectivePromptOverride = Object.entries(normalizedOverrideData)
           .some(([key, value]) => key !== "baseSkillId" && value !== null && value !== undefined);
@@ -894,6 +894,10 @@ function normalizeOptionalInt(value: unknown) {
     return normalized;
   }
   return Math.round(normalized);
+}
+
+function toSqlNullable<T>(value: T | undefined) {
+  return value === undefined ? null : value;
 }
 
 function normalizeDate(value: Date | string | null | undefined) {

@@ -10,6 +10,7 @@
 - `UserSkillProfile`、`UserPromptOverride`、`UserSkillResetLog` 三张表的建表逻辑此前只有 `CREATE TABLE IF NOT EXISTS`
 - 对于已经存在的旧表，没有继续执行 `ALTER TABLE ADD COLUMN IF NOT EXISTS`
 - 当线上库里的旧表缺少后来新增的字段时，读接口仍可能正常，但保存时一旦执行 `INSERT / UPDATE` 写入这些新列，就会直接触发数据库层报错，最终在前端表现为 `Internal server error`
+- 此外，`PATCH /api/user-skills/:skillId` 的数据库分支此前会把 `undefined` 直接作为参数传给 Prisma `$executeRaw`；当用户只修改提示词模型、其余覆盖字段未填写时，`content / temperature / maxTokens` 很容易保持 `undefined`，也会直接触发 500
 
 ## 3. 修复内容
 
@@ -20,6 +21,7 @@
   - `UserSkillResetLog`
 - 对新增字段统一使用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...`
 - 本次继续补充 `UserPromptOverride.basePromptId` 的旧表兼容，避免页面能加载但保存时一命中按提示词维度查询/写入就直接触发数据库错误
+- 本次继续把数据库写入参数统一归一化为 SQL 可接受的 `null`，不再把 `undefined` 直接传入 `$executeRaw`，避免只改单个模型字段时因为未传的覆盖值而报 500
 - 让旧环境首次命中技能中心接口时，就能自动补齐缺失列，而不是等到保存时直接失败
 
 ## 4. 验证结果
