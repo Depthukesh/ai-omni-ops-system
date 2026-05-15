@@ -22,6 +22,9 @@
 - 对新增字段统一使用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...`
 - 本次继续补充 `UserPromptOverride.basePromptId` 的旧表兼容，避免页面能加载但保存时一命中按提示词维度查询/写入就直接触发数据库错误
 - 本次继续把数据库写入参数统一归一化为 SQL 可接受的 `null`，不再把 `undefined` 直接传入 `$executeRaw`，避免只改单个模型字段时因为未传的覆盖值而报 500
+- 本次继续把三张表的 `userId / brandId / baseSkillId` 等基础列也纳入 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 兼容范围，避免更早期旧表只补了“新增业务列”，却仍因基础过滤列缺失而在查询或写入时失败
+- 本次同时修正 `UserPromptOverride` 的匹配维度：读写用户提示词覆盖时不再只按 `basePromptId` 命中，而是按 `baseSkillId + basePromptId` 一起隔离，避免同一条平台提示词被多个技能复用时出现覆盖串位
+- 本次同时修正重置链路向 `UserSkillResetLog.promptIdsJson` 写入时的 JSONB 类型转换，避免 `POST /api/user-skills/:skillId/reset` 因 `text -> jsonb` 未显式 cast 而报 500
 - 让旧环境首次命中技能中心接口时，就能自动补齐缺失列，而不是等到保存时直接失败
 
 ## 4. 验证结果

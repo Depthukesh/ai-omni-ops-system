@@ -402,7 +402,7 @@ flowchart TD
     PCS1 --> PAPI3["/orders"]
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
-    PC3 --> PAPI6["/user-skills 读取/保存/重置（旧图片默认模型会安全回填到 Right Codes）"]
+    PC3 --> PAPI6["/user-skills 读取/保存/重置（旧表缺列自动补齐，旧图片默认模型安全回填到 Right Codes）"]
     PC3 --> PAPI62["/user-skills/editor-options 返回 Provider 作用域模型选项"]
     PC31 --> PAPI61["/third-party-platforms 读取 / 保存私有 Key"]
     PAPI1 --> PM1["AuthModule"]

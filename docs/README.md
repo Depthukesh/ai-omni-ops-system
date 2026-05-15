@@ -153,6 +153,8 @@
   - 修复小红书电脑端发布扩展在 `17ai.site` 未注入导致的“等待电脑端扩展”，补入扩展下载/安装帮助页，并把原创/二创最终图片生成升级为独立技能，真正让参考图原图参与最终生图；后续继续把图片生成技能的默认模型基线、数据库旧记录和用户覆盖层旧记录一起切到 `Right Codes images-generations`
 - `docs/changes/2026-05-15-xhs-reference-template-same-origin-preview-fallback.md`
   - 原创模板图库资源地址改为同域 `/api`，降低不同浏览器因绝对地址不一致导致的裂图；模板卡片新增“预览加载失败”占位提示
+- `docs/changes/2026-05-15-user-skills-table-compat-fix.md`
+  - 个人中心技能中心保存/重置链路补齐旧表结构兼容、SQL 空值归一化与 `jsonb` 写入转换，修复修改模型或重置平台基线时的 500
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

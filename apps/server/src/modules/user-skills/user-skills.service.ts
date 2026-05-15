@@ -278,6 +278,7 @@ export class UserSkillsService {
           FROM "UserPromptOverride"
           WHERE "userId" = ${context.userId}
             AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+            AND "baseSkillId" = ${skillId}
             AND "basePromptId" = ${promptOverride.promptId}
           LIMIT 1
         `;
@@ -516,7 +517,7 @@ export class UserSkillsService {
           ${context.brandId ?? null},
           ${skillId},
           ${"RESET_TO_PLATFORM"},
-          ${JSON.stringify(promptIds)},
+          ${JSON.stringify(promptIds)}::jsonb,
           ${now}
         )
       `;
@@ -615,7 +616,7 @@ export class UserSkillsService {
         if (!basePrompt) {
           return undefined;
         }
-        const override = promptOverrides.find((item) => item.basePromptId === promptId);
+        const override = promptOverrides.find((item) => item.baseSkillId === baseSkill.id && item.basePromptId === promptId);
         const effectivePrompt: PromptTemplateRecord = {
           ...basePrompt,
           content: resolvePromptFallbackContent(promptId, override?.content ?? basePrompt.content),
@@ -668,6 +669,15 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "displayName" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -699,6 +709,12 @@ export class UserSkillsService {
         "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "basePromptId" TEXT NOT NULL DEFAULT ''
@@ -736,6 +752,15 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "resetType" TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM'
     `);
     await this.prismaService.$executeRawUnsafe(`
@@ -755,6 +780,10 @@ export class UserSkillsService {
     await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "UserPromptOverride_user_brand_prompt_idx"
       ON "UserPromptOverride" ("userId", "brandId", "basePromptId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "UserPromptOverride_user_brand_skill_prompt_idx"
+      ON "UserPromptOverride" ("userId", "brandId", "baseSkillId", "basePromptId")
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "UserSkillResetLog_user_brand_skill_idx"
