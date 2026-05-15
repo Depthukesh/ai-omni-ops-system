@@ -50,6 +50,7 @@
 - 新增参考图优先通道策略：当本次生成携带封面/配图参考图时，运行时会优先尝试 `images-generations` provider，而不是先走旧的 `chat-completions` 图片 provider，避免参考模板只被弱参考、没有真正形成图生图垫图效果。
 - 将原创/二创两条“图片生成”技能的默认模型基线从旧的 `provider_runtime_image_generation::gpt-image-2` 正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`，并把技能展示用的 provider 文案同步改为 `Right Codes · 文生图/图生图`，让后台技能中心、个人中心技能中心与实际运行时一致。
 - 对已存在的数据库和用户覆盖层补充“仅针对旧默认值”的安全回填：若 `SkillConfig`、`PromptTemplate`、`UserSkillProfile`、`UserPromptOverride` 里仍是旧图片默认模型，则自动切到 `Right Codes`；若后台或用户后来手动改成了其他值，则保持原配置不覆盖。
+- 为后台技能中心与个人中心技能中心补充读接口显示归一化：即使数据库或用户覆盖层里暂时还残留旧的 `provider_runtime_image_generation::gpt-image-2`，接口返回给页面前也会直接改写成 `provider_runtime_image_generation_right_codes::gpt-image-2`，避免页面短时间内继续显示旧 provider。
 - 真实链路结论同步明确：
   - 旧链路中，参考图会先进入 `analyzeReferenceImages()` 生成文字化“风格档案”。
   - 旧链路的最终图片生成阶段并没有继续把用户上传参考图原图传给模型。

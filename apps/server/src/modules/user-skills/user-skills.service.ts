@@ -469,6 +469,13 @@ export class UserSkillsService {
     return normalized;
   }
 
+  private normalizeImageGenerationModelValue(value: string | undefined) {
+    return value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL
+      ? RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL
+      : value;
+  }
+
+
   async resetUserSkill(skillId: string, auth: RequestAuthContext) {
     const context = this.assertUserContext(auth);
     const skill = await this.skillsPromptsService.getSkillById(skillId);
@@ -612,7 +619,7 @@ export class UserSkillsService {
         const effectivePrompt: PromptTemplateRecord = {
           ...basePrompt,
           content: resolvePromptFallbackContent(promptId, override?.content ?? basePrompt.content),
-          modelName: override?.modelName ?? basePrompt.modelName,
+          modelName: this.normalizeImageGenerationModelValue(override?.modelName ?? basePrompt.modelName) || "",
           temperature: override?.temperature ?? basePrompt.temperature,
           maxTokens: override?.maxTokens ?? basePrompt.maxTokens,
           updatedAt: normalizeDate(override?.updatedAt ?? basePrompt.updatedAt),
@@ -629,7 +636,7 @@ export class UserSkillsService {
     const effectiveSkill: UserSkillRecord["effectiveSkill"] = {
       ...baseSkill,
       name: profile?.displayName?.trim() || baseSkill.name,
-      defaultModel: profile?.defaultModel?.trim() || baseSkill.defaultModel,
+      defaultModel: this.normalizeImageGenerationModelValue(profile?.defaultModel?.trim() || baseSkill.defaultModel) || "",
       description: profile?.description?.trim() || baseSkill.description,
       updatedAt: normalizeDate(profile?.updatedAt ?? baseSkill.updatedAt),
     };
@@ -802,7 +809,7 @@ export class UserSkillsService {
       brandId: row.brandId || undefined,
       baseSkillId: row.baseSkillId,
       displayName: row.displayName || undefined,
-      defaultModel: row.defaultModel || undefined,
+      defaultModel: this.normalizeImageGenerationModelValue(row.defaultModel || undefined),
       description: row.description || undefined,
       lastResetAt: normalizeDate(row.lastResetAt) || undefined,
       createdAt: normalizeDate(row.createdAt),
@@ -830,7 +837,7 @@ export class UserSkillsService {
       baseSkillId: row.baseSkillId,
       basePromptId: row.basePromptId,
       content: row.content || undefined,
-      modelName: row.modelName || undefined,
+      modelName: this.normalizeImageGenerationModelValue(row.modelName || undefined),
       temperature: row.temperature ?? undefined,
       maxTokens: row.maxTokens ?? undefined,
       createdAt: normalizeDate(row.createdAt),

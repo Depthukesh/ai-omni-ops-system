@@ -632,14 +632,15 @@ export class SkillsPromptsService {
 
   private normalizeSkillConfigRow(row: SkillConfigRow): SkillConfigRecord {
     const isHalfYearPlan = row.id === "skill_annual_plan" || row.slug === "enterprise-annual-plan";
+    const isImageGenerationSkill = row.id === "skill_xhs_original_image_generation" || row.id === "skill_xhs_rewrite_image_generation";
     return {
       id: row.id,
       name: isHalfYearPlan ? "半年营销规划" : row.name,
       slug: row.slug,
       category: row.category,
       status: row.status,
-      provider: row.provider,
-      defaultModel: row.defaultModel,
+      provider: isImageGenerationSkill ? RIGHT_CODES_IMAGE_PROVIDER_LABEL : row.provider,
+      defaultModel: this.normalizeImageGenerationModelValue(row.defaultModel),
       pointsCost: Number(row.pointsCost || 0),
       description: isHalfYearPlan ? "用于输出未来半年营销节点、活动主题和多平台协同规划。" : row.description,
       updatedAt: this.normalizeDate(row.updatedAt),
@@ -654,7 +655,7 @@ export class SkillsPromptsService {
       scene: isHalfYearPlanPrompt ? "半年营销规划生成" : row.scene,
       version: row.version,
       status: row.status,
-      modelName: row.modelName,
+      modelName: this.normalizeImageGenerationModelValue(row.modelName),
       temperature: Number(row.temperature || 0),
       maxTokens: Number(row.maxTokens || 0),
       content: row.content || "",
@@ -670,5 +671,11 @@ export class SkillsPromptsService {
     }
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }
+
+  private normalizeImageGenerationModelValue(value: string) {
+    return value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL
+      ? RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL
+      : value;
   }
 }
