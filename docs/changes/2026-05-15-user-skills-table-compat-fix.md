@@ -19,6 +19,7 @@
   - `UserPromptOverride`
   - `UserSkillResetLog`
 - 对新增字段统一使用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...`
+- 本次继续补充 `UserPromptOverride.basePromptId` 的旧表兼容，避免页面能加载但保存时一命中按提示词维度查询/写入就直接触发数据库错误
 - 让旧环境首次命中技能中心接口时，就能自动补齐缺失列，而不是等到保存时直接失败
 
 ## 4. 验证结果

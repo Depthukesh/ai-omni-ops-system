@@ -701,6 +701,9 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "basePromptId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
