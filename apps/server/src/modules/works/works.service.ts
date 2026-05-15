@@ -2086,8 +2086,9 @@ export class WorksService {
       this.buildImagePromptWithTextPlan(params.executionPrompt, params.prompt, params.textPlan, params.role, params.order),
     );
     const referenceImages = this.buildImageGenerationReferenceInputs(params.referenceImageUrls, params.referenceImagePayloads);
+    const providersToTry = this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages);
 
-    for (const provider of params.providers) {
+    for (const provider of providersToTry) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
@@ -3726,6 +3727,21 @@ export class WorksService {
         return leftMatchesModel ? -1 : 1;
       }
       return left.providerName.localeCompare(right.providerName, "zh-CN");
+    });
+  }
+
+  private prioritizeImageProvidersForReferenceInputs(providers: ImageProviderConfig[], referenceImages: string[]) {
+    const normalizedReferenceImages = referenceImages.map((item) => String(item || "").trim()).filter(Boolean);
+    if (!normalizedReferenceImages.length) {
+      return providers;
+    }
+    if (!providers.some((provider) => provider.requestMode === "images-generations")) {
+      return providers;
+    }
+    return [...providers].sort((left, right) => {
+      const leftRank = left.requestMode === "images-generations" ? 0 : 1;
+      const rightRank = right.requestMode === "images-generations" ? 0 : 1;
+      return leftRank - rightRank;
     });
   }
 
