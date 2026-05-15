@@ -209,25 +209,6 @@ export class UserSkillsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureUserSkillTablesReady();
-      const existingProfileRows = await this.prismaService.$queryRaw<UserSkillProfileRow[]>`
-        SELECT *
-        FROM "UserSkillProfile"
-        WHERE "userId" = ${context.userId}
-          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-          AND (
-            "baseSkillId" = ${skillId}
-            OR COALESCE("baseSkillId", '') = ''
-          )
-        ORDER BY
-          CASE
-            WHEN "baseSkillId" = ${skillId} THEN 0
-            ELSE 1
-          END,
-          "updatedAt" DESC
-        LIMIT 1
-      `;
-      const existingProfile = existingProfileRows[0];
-
       const hasSkillOverridePayload = hasAnyDefinedValue([
         payload.displayName,
         payload.defaultModel,
@@ -242,22 +223,17 @@ export class UserSkillsService {
         };
         const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
 
-        if (existingProfile && !hasEffectiveSkillOverride) {
-          await this.prismaService.$executeRaw`
-            DELETE FROM "UserSkillProfile"
-            WHERE "id" = ${existingProfile.id}
-          `;
-        } else if (existingProfile) {
-          await this.prismaService.$executeRaw`
-            UPDATE "UserSkillProfile"
-            SET
-              "displayName" = ${normalizedProfileData.displayName},
-              "defaultModel" = ${normalizedProfileData.defaultModel},
-              "description" = ${normalizedProfileData.description},
-              "updatedAt" = CURRENT_TIMESTAMP
-            WHERE "id" = ${existingProfile.id}
-          `;
-        } else if (hasEffectiveSkillOverride) {
+        await this.prismaService.$executeRaw`
+          DELETE FROM "UserSkillProfile"
+          WHERE "userId" = ${context.userId}
+            AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+            AND (
+              "baseSkillId" = ${skillId}
+              OR COALESCE("baseSkillId", '') = ''
+            )
+        `;
+
+        if (hasEffectiveSkillOverride) {
           await this.prismaService.$executeRaw`
             INSERT INTO "UserSkillProfile" (
               "id",
@@ -282,25 +258,6 @@ export class UserSkillsService {
       }
 
       for (const promptOverride of requestedPromptOverrides) {
-        const existingOverrideRows = await this.prismaService.$queryRaw<UserPromptOverrideRow[]>`
-          SELECT *
-          FROM "UserPromptOverride"
-          WHERE "userId" = ${context.userId}
-            AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-            AND "basePromptId" = ${promptOverride.promptId}
-            AND (
-              "baseSkillId" = ${skillId}
-              OR COALESCE("baseSkillId", '') = ''
-            )
-          ORDER BY
-            CASE
-              WHEN "baseSkillId" = ${skillId} THEN 0
-              ELSE 1
-            END,
-            "updatedAt" DESC
-          LIMIT 1
-        `;
-        const existingOverride = existingOverrideRows[0];
         const normalizedOverrideData = {
           baseSkillId: skillId,
           content: toSqlNullable(normalizeOptionalText(promptOverride.content)),
@@ -310,24 +267,19 @@ export class UserSkillsService {
         };
         const hasEffectivePromptOverride = Object.entries(normalizedOverrideData)
           .some(([key, value]) => key !== "baseSkillId" && value !== null && value !== undefined);
-        if (existingOverride && !hasEffectivePromptOverride) {
-          await this.prismaService.$executeRaw`
-            DELETE FROM "UserPromptOverride"
-            WHERE "id" = ${existingOverride.id}
-          `;
-        } else if (existingOverride) {
-          await this.prismaService.$executeRaw`
-            UPDATE "UserPromptOverride"
-            SET
-              "baseSkillId" = ${normalizedOverrideData.baseSkillId},
-              "content" = ${normalizedOverrideData.content},
-              "modelName" = ${normalizedOverrideData.modelName},
-              "temperature" = ${normalizedOverrideData.temperature},
-              "maxTokens" = ${normalizedOverrideData.maxTokens},
-              "updatedAt" = CURRENT_TIMESTAMP
-            WHERE "id" = ${existingOverride.id}
-          `;
-        } else if (hasEffectivePromptOverride) {
+
+        await this.prismaService.$executeRaw`
+          DELETE FROM "UserPromptOverride"
+          WHERE "userId" = ${context.userId}
+            AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+            AND "basePromptId" = ${promptOverride.promptId}
+            AND (
+              "baseSkillId" = ${skillId}
+              OR COALESCE("baseSkillId", '') = ''
+            )
+        `;
+
+        if (hasEffectivePromptOverride) {
           await this.prismaService.$executeRaw`
             INSERT INTO "UserPromptOverride" (
               "id",
