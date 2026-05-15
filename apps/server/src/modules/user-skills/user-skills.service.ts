@@ -87,6 +87,9 @@ type UserSkillResetLogRow = {
   createdAt: Date | string;
 };
 
+const LEGACY_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation::gpt-image-2";
+const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation_right_codes::gpt-image-2";
+
 type MockUserSkillProfileRecord = {
   id: string;
   userId: string;
@@ -747,6 +750,28 @@ export class UserSkillsService {
       CREATE INDEX IF NOT EXISTS "UserSkillResetLog_user_brand_skill_idx"
       ON "UserSkillResetLog" ("userId", "brandId", "baseSkillId", "createdAt" DESC)
     `);
+
+    await this.backfillLegacyImageGenerationUserOverrides();
+  }
+
+  private async backfillLegacyImageGenerationUserOverrides() {
+    for (const skillId of ["skill_xhs_original_image_generation", "skill_xhs_rewrite_image_generation"]) {
+      await this.prismaService.$executeRaw`
+        UPDATE "UserSkillProfile"
+        SET "defaultModel" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
+        WHERE "baseSkillId" = ${skillId}
+          AND "defaultModel" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
+      `;
+    }
+
+    for (const promptId of ["prompt_xhs_original_image_generation", "prompt_xhs_rewrite_image_generation"]) {
+      await this.prismaService.$executeRaw`
+        UPDATE "UserPromptOverride"
+        SET "modelName" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
+        WHERE "basePromptId" = ${promptId}
+          AND "modelName" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
+      `;
+    }
   }
 
   private assertUserContext(auth?: RequestAuthContext) {

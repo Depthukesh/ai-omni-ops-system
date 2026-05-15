@@ -56,6 +56,10 @@ type SkillPromptBindingRule = {
   promptScenes?: string[];
 };
 
+const LEGACY_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation::gpt-image-2";
+const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation_right_codes::gpt-image-2";
+const RIGHT_CODES_IMAGE_PROVIDER_LABEL = "Right Codes · 文生图/图生图";
+
 const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   skill_growth_analysis: {
     promptIds: ["prompt_growth_report"],
@@ -528,6 +532,30 @@ export class SkillsPromptsService {
           ${new Date(seedPrompt.updatedAt)}
         )
         ON CONFLICT ("id") DO NOTHING
+      `;
+    }
+
+    await this.backfillImageGenerationSkillDefaults();
+  }
+
+  private async backfillImageGenerationSkillDefaults() {
+    for (const skillId of ["skill_xhs_original_image_generation", "skill_xhs_rewrite_image_generation"]) {
+      await this.prismaService.$executeRaw`
+        UPDATE "SkillConfig"
+        SET
+          "provider" = ${RIGHT_CODES_IMAGE_PROVIDER_LABEL},
+          "defaultModel" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
+        WHERE "id" = ${skillId}
+          AND "defaultModel" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
+      `;
+    }
+
+    for (const promptId of ["prompt_xhs_original_image_generation", "prompt_xhs_rewrite_image_generation"]) {
+      await this.prismaService.$executeRaw`
+        UPDATE "PromptTemplate"
+        SET "modelName" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
+        WHERE "id" = ${promptId}
+          AND "modelName" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
       `;
     }
   }

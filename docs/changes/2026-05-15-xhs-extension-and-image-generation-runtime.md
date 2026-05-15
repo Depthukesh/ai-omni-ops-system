@@ -48,6 +48,8 @@
 - 将 `images-generations` 请求尺寸从固定方图 `1024x1024` 改为直接请求小红书竖版 `1242x1660`，让上游模型尽量按目标成品尺寸出图，而不是先生成方图再依赖后处理收口。
 - 修正保存前的成品图规范化策略：过去会把生成图统一用 `fit: "cover"` 强裁成 `1242x1660`，当上游返回方图时会把左右边缘文字直接裁掉；现在改为按比例差判断，方图或比例差过大的图片走 `contain + 白底补边`，避免标题和标签在落盘阶段被二次裁切。
 - 新增参考图优先通道策略：当本次生成携带封面/配图参考图时，运行时会优先尝试 `images-generations` provider，而不是先走旧的 `chat-completions` 图片 provider，避免参考模板只被弱参考、没有真正形成图生图垫图效果。
+- 将原创/二创两条“图片生成”技能的默认模型基线从旧的 `provider_runtime_image_generation::gpt-image-2` 正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`，并把技能展示用的 provider 文案同步改为 `Right Codes · 文生图/图生图`，让后台技能中心、个人中心技能中心与实际运行时一致。
+- 对已存在的数据库和用户覆盖层补充“仅针对旧默认值”的安全回填：若 `SkillConfig`、`PromptTemplate`、`UserSkillProfile`、`UserPromptOverride` 里仍是旧图片默认模型，则自动切到 `Right Codes`；若后台或用户后来手动改成了其他值，则保持原配置不覆盖。
 - 真实链路结论同步明确：
   - 旧链路中，参考图会先进入 `analyzeReferenceImages()` 生成文字化“风格档案”。
   - 旧链路的最终图片生成阶段并没有继续把用户上传参考图原图传给模型。

@@ -402,7 +402,7 @@ flowchart TD
     PCS1 --> PAPI3["/orders"]
     PCS1 --> PAPI4["/tasks"]
     PCS1 --> PAPI5["/media"]
-    PC3 --> PAPI6["/user-skills 读取/保存/重置"]
+    PC3 --> PAPI6["/user-skills 读取/保存/重置（旧图片默认模型会安全回填到 Right Codes）"]
     PC3 --> PAPI62["/user-skills/editor-options 返回 Provider 作用域模型选项"]
     PC31 --> PAPI61["/third-party-platforms 读取 / 保存私有 Key"]
     PAPI1 --> PM1["AuthModule"]
@@ -518,7 +518,7 @@ flowchart TD
     M5 --> M52["视频笔记统一读取 short-video-api-studio 并保存结构化视频提示词字段"]
     M5 --> M53["视频笔记当前只生成 1 条主成片，失败时才串行回退下一个视频后端"]
     M5 --> M54["原创/二创最终出图会继续传入参考图原图与产品图"]
-    M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能"]
+    M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能，默认模型切到 Right Codes images-generations"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

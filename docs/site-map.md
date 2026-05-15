@@ -169,6 +169,7 @@
   - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
   - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
   - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入用户覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
+  - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若用户覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
   - 当前仍支持保存到用户自己的技能库、重置回后台平台基线、品牌上下文切换与退出登录
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
   - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
@@ -353,6 +354,7 @@
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
   - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
+  - 原创/二创两条图片生成技能当前默认指向 `Right Codes · 文生图/图生图 / provider_runtime_image_generation_right_codes::gpt-image-2`；若数据库里仍残留旧的 `provider_runtime_image_generation::gpt-image-2` 基线，启动时会自动安全回填到新 provider，但不会覆盖后台后来手动改成的其他模型
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 - `TasksModule`：任务记录与重试
