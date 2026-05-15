@@ -26,6 +26,7 @@
 - 本次同时修正 `UserPromptOverride` 的匹配维度：读写用户提示词覆盖时不再只按 `basePromptId` 命中，而是按 `baseSkillId + basePromptId` 一起隔离，避免同一条平台提示词被多个技能复用时出现覆盖串位
 - 本次继续兼容更早期旧记录里 `baseSkillId` 仍为空字符串的情况：保存、读取和重置提示词覆盖时，会优先命中当前技能；若只存在历史空 `baseSkillId` 记录，则自动按当前 `promptId` 兜底并在写回时迁正到当前技能，避免线上老数据在保存时继续触发 500
 - 本次继续把数据库保存分支改成“先删除当前用户/品牌/技能下的候选旧覆盖，再按当前有效值插入一条干净新记录”，减少线上残留旧约束、重复脏行或历史空 `baseSkillId` 记录对保存操作的影响
+- 本次继续收紧线上运行时兜底：`PATCH /api/user-skills/:skillId` 首次保存失败后，会强制把当前技能和提示词的 `SkillConfig / PromptTemplate` 基线补齐一次并自动重试；若仍失败，接口会直接返回更具体的数据库错误信息，避免前端只看到笼统的 `Internal server error`
 - 本次同时修正重置链路向 `UserSkillResetLog.promptIdsJson` 写入时的 JSONB 类型转换，避免 `POST /api/user-skills/:skillId/reset` 因 `text -> jsonb` 未显式 cast 而报 500
 - 让旧环境首次命中技能中心接口时，就能自动补齐缺失列，而不是等到保存时直接失败
 

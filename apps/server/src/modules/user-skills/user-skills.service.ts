@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import { resolvePromptFallbackContent } from "../../common/prompt-fallbacks";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -209,101 +209,15 @@ export class UserSkillsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureUserSkillTablesReady();
-      const hasSkillOverridePayload = hasAnyDefinedValue([
-        payload.displayName,
-        payload.defaultModel,
-        payload.description,
-      ]);
-
-      if (hasSkillOverridePayload) {
-        const normalizedProfileData = {
-          displayName: toSqlNullable(normalizeOptionalText(payload.displayName)),
-          defaultModel: toSqlNullable(this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver)),
-          description: toSqlNullable(normalizeOptionalText(payload.description)),
-        };
-        const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
-
-        await this.prismaService.$executeRaw`
-          DELETE FROM "UserSkillProfile"
-          WHERE "userId" = ${context.userId}
-            AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-            AND (
-              "baseSkillId" = ${skillId}
-              OR COALESCE("baseSkillId", '') = ''
-            )
-        `;
-
-        if (hasEffectiveSkillOverride) {
-          await this.prismaService.$executeRaw`
-            INSERT INTO "UserSkillProfile" (
-              "id",
-              "userId",
-              "brandId",
-              "baseSkillId",
-              "displayName",
-              "defaultModel",
-              "description"
-            )
-            VALUES (
-              ${createId("usp")},
-              ${context.userId},
-              ${context.brandId ?? null},
-              ${skillId},
-              ${normalizedProfileData.displayName},
-              ${normalizedProfileData.defaultModel},
-              ${normalizedProfileData.description}
-            )
-          `;
-        }
-      }
-
-      for (const promptOverride of requestedPromptOverrides) {
-        const normalizedOverrideData = {
-          baseSkillId: skillId,
-          content: toSqlNullable(normalizeOptionalText(promptOverride.content)),
-          modelName: toSqlNullable(this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver)),
-          temperature: toSqlNullable(normalizeOptionalNumber(promptOverride.temperature)),
-          maxTokens: toSqlNullable(normalizeOptionalInt(promptOverride.maxTokens)),
-        };
-        const hasEffectivePromptOverride = Object.entries(normalizedOverrideData)
-          .some(([key, value]) => key !== "baseSkillId" && value !== null && value !== undefined);
-
-        await this.prismaService.$executeRaw`
-          DELETE FROM "UserPromptOverride"
-          WHERE "userId" = ${context.userId}
-            AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-            AND "basePromptId" = ${promptOverride.promptId}
-            AND (
-              "baseSkillId" = ${skillId}
-              OR COALESCE("baseSkillId", '') = ''
-            )
-        `;
-
-        if (hasEffectivePromptOverride) {
-          await this.prismaService.$executeRaw`
-            INSERT INTO "UserPromptOverride" (
-              "id",
-              "userId",
-              "brandId",
-              "baseSkillId",
-              "basePromptId",
-              "content",
-              "modelName",
-              "temperature",
-              "maxTokens"
-            )
-            VALUES (
-              ${createId("upo")},
-              ${context.userId},
-              ${context.brandId ?? null},
-              ${normalizedOverrideData.baseSkillId},
-              ${promptOverride.promptId},
-              ${normalizedOverrideData.content},
-              ${normalizedOverrideData.modelName},
-              ${normalizedOverrideData.temperature},
-              ${normalizedOverrideData.maxTokens}
-            )
-          `;
+      const relatedBasePrompts = basePrompts.filter((item) => allowedPromptIds.has(item.id));
+      try {
+        await this.persistUserSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
+      } catch (firstError) {
+        await this.ensureRegistryEntriesForSkill(baseSkill, relatedBasePrompts);
+        try {
+          await this.persistUserSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
+        } catch (secondError) {
+          throw new InternalServerErrorException(this.describeUserSkillSaveError(secondError));
         }
       }
     } else {
@@ -394,6 +308,118 @@ export class UserSkillsService {
     return this.getUserSkill(skillId, auth);
   }
 
+  private async persistUserSkillOverrides(
+    skillId: string,
+    payload: UpdateUserSkillPayload,
+    requestedPromptOverrides: NonNullable<UpdateUserSkillPayload["promptOverrides"]>,
+    context: {
+      userId: string;
+      brandId?: string;
+    },
+    modelSelectionResolver: {
+      optionValueSet: Set<string>;
+      labelToValueMap: Map<string, string>;
+    },
+  ) {
+    const hasSkillOverridePayload = hasAnyDefinedValue([
+      payload.displayName,
+      payload.defaultModel,
+      payload.description,
+    ]);
+
+    if (hasSkillOverridePayload) {
+      const normalizedProfileData = {
+        displayName: toSqlNullable(normalizeOptionalText(payload.displayName)),
+        defaultModel: toSqlNullable(this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver)),
+        description: toSqlNullable(normalizeOptionalText(payload.description)),
+      };
+      const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
+
+      await this.prismaService.$executeRaw`
+        DELETE FROM "UserSkillProfile"
+        WHERE "userId" = ${context.userId}
+          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+          AND (
+            "baseSkillId" = ${skillId}
+            OR COALESCE("baseSkillId", '') = ''
+          )
+      `;
+
+      if (hasEffectiveSkillOverride) {
+        await this.prismaService.$executeRaw`
+          INSERT INTO "UserSkillProfile" (
+            "id",
+            "userId",
+            "brandId",
+            "baseSkillId",
+            "displayName",
+            "defaultModel",
+            "description"
+          )
+          VALUES (
+            ${createId("usp")},
+            ${context.userId},
+            ${context.brandId ?? null},
+            ${skillId},
+            ${normalizedProfileData.displayName},
+            ${normalizedProfileData.defaultModel},
+            ${normalizedProfileData.description}
+          )
+        `;
+      }
+    }
+
+    for (const promptOverride of requestedPromptOverrides) {
+      const normalizedOverrideData = {
+        baseSkillId: skillId,
+        content: toSqlNullable(normalizeOptionalText(promptOverride.content)),
+        modelName: toSqlNullable(this.normalizeModelSelectionValue(promptOverride.modelName, modelSelectionResolver)),
+        temperature: toSqlNullable(normalizeOptionalNumber(promptOverride.temperature)),
+        maxTokens: toSqlNullable(normalizeOptionalInt(promptOverride.maxTokens)),
+      };
+      const hasEffectivePromptOverride = Object.entries(normalizedOverrideData)
+        .some(([key, value]) => key !== "baseSkillId" && value !== null && value !== undefined);
+
+      await this.prismaService.$executeRaw`
+        DELETE FROM "UserPromptOverride"
+        WHERE "userId" = ${context.userId}
+          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+          AND "basePromptId" = ${promptOverride.promptId}
+          AND (
+            "baseSkillId" = ${skillId}
+            OR COALESCE("baseSkillId", '') = ''
+          )
+      `;
+
+      if (hasEffectivePromptOverride) {
+        await this.prismaService.$executeRaw`
+          INSERT INTO "UserPromptOverride" (
+            "id",
+            "userId",
+            "brandId",
+            "baseSkillId",
+            "basePromptId",
+            "content",
+            "modelName",
+            "temperature",
+            "maxTokens"
+          )
+          VALUES (
+            ${createId("upo")},
+            ${context.userId},
+            ${context.brandId ?? null},
+            ${normalizedOverrideData.baseSkillId},
+            ${promptOverride.promptId},
+            ${normalizedOverrideData.content},
+            ${normalizedOverrideData.modelName},
+            ${normalizedOverrideData.temperature},
+            ${normalizedOverrideData.maxTokens}
+          )
+        `;
+      }
+    }
+  }
+
   private async createModelSelectionResolver() {
     const activeProviders = await this.apiProvidersService.listActiveProviders();
     const optionValueSet = new Set<string>();
@@ -444,6 +470,83 @@ export class UserSkillsService {
     return value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL
       ? RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL
       : value;
+  }
+
+  private async ensureRegistryEntriesForSkill(
+    baseSkill: SkillConfigRecord,
+    basePrompts: PromptTemplateRecord[],
+  ) {
+    await this.prismaService.$executeRaw`
+      INSERT INTO "SkillConfig" (
+        "id",
+        "name",
+        "slug",
+        "category",
+        "status",
+        "provider",
+        "defaultModel",
+        "pointsCost",
+        "description",
+        "updatedAt"
+      )
+      VALUES (
+        ${baseSkill.id},
+        ${baseSkill.name},
+        ${baseSkill.slug},
+        ${baseSkill.category},
+        ${baseSkill.status},
+        ${baseSkill.provider},
+        ${baseSkill.defaultModel},
+        ${baseSkill.pointsCost},
+        ${baseSkill.description},
+        ${new Date(baseSkill.updatedAt)}
+      )
+      ON CONFLICT ("id") DO NOTHING
+    `;
+
+    for (const prompt of basePrompts) {
+      await this.prismaService.$executeRaw`
+        INSERT INTO "PromptTemplate" (
+          "id",
+          "name",
+          "scene",
+          "version",
+          "status",
+          "modelName",
+          "temperature",
+          "maxTokens",
+          "content",
+          "updatedAt"
+        )
+        VALUES (
+          ${prompt.id},
+          ${prompt.name},
+          ${prompt.scene},
+          ${prompt.version},
+          ${prompt.status},
+          ${prompt.modelName},
+          ${prompt.temperature},
+          ${prompt.maxTokens},
+          ${prompt.content},
+          ${new Date(prompt.updatedAt)}
+        )
+        ON CONFLICT ("id") DO NOTHING
+      `;
+    }
+  }
+
+  private describeUserSkillSaveError(error: unknown) {
+    const rawMessage = error instanceof Error ? error.message : String(error || "未知错误");
+    if (/violates foreign key constraint/i.test(rawMessage)) {
+      return `保存技能配置失败：用户覆盖引用的平台技能或提示词基线缺失。${rawMessage}`;
+    }
+    if (/duplicate key value violates unique constraint/i.test(rawMessage)) {
+      return `保存技能配置失败：线上存在重复的用户技能覆盖记录。${rawMessage}`;
+    }
+    if (/column .* does not exist/i.test(rawMessage)) {
+      return `保存技能配置失败：线上用户技能表结构仍未补齐。${rawMessage}`;
+    }
+    return `保存技能配置失败：${rawMessage}`;
   }
 
 
