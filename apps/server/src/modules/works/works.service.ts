@@ -5166,7 +5166,7 @@ export class WorksService {
         model: modelName,
         prompt,
         image: referenceImageUrls,
-        size: "1024x1024",
+        size: "1242x1660",
         response_format: "url",
       };
     }
@@ -5802,11 +5802,24 @@ export class WorksService {
         return buffer;
       }
 
+      const sourceAspectRatio = metadata.width / metadata.height;
+      const targetAspectRatio = targetWidth / targetHeight;
+      const aspectRatioDelta = Math.abs(sourceAspectRatio - targetAspectRatio);
+      const useContainResize = aspectRatioDelta > 0.06;
+
       let pipeline = image.resize({
         width: targetWidth,
         height: targetHeight,
-        fit: "cover",
+        fit: useContainResize ? "contain" : "cover",
         position: "centre",
+        background: useContainResize
+          ? {
+              r: 255,
+              g: 255,
+              b: 255,
+              alpha: 1,
+            }
+          : undefined,
       });
 
       if (normalizedType.includes("jpeg") || normalizedType.includes("jpg") || fileExtension === ".jpg" || fileExtension === ".jpeg") {
