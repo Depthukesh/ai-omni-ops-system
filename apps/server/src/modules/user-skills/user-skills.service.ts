@@ -658,6 +658,24 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "displayName" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "defaultModel" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "description" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "lastResetAt" TIMESTAMPTZ NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserPromptOverride" (
         "id" TEXT PRIMARY KEY,
         "userId" TEXT NOT NULL,
@@ -673,6 +691,27 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "content" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "modelName" TEXT NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "temperature" DOUBLE PRECISION NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "maxTokens" INTEGER NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserSkillResetLog" (
         "id" TEXT PRIMARY KEY,
         "userId" TEXT NOT NULL,
@@ -682,6 +721,15 @@ export class UserSkillsService {
         "promptIdsJson" JSONB NULL,
         "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "resetType" TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM'
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "promptIdsJson" JSONB NULL
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "UserSkillProfile_user_brand_skill_idx"
