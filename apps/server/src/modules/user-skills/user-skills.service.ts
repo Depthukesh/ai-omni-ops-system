@@ -354,7 +354,9 @@ export class UserSkillsService {
             "baseSkillId",
             "displayName",
             "defaultModel",
-            "description"
+            "description",
+            "createdAt",
+            "updatedAt"
           )
           VALUES (
             ${createId("usp")},
@@ -363,7 +365,9 @@ export class UserSkillsService {
             ${skillId},
             ${normalizedProfileData.displayName},
             ${normalizedProfileData.defaultModel},
-            ${normalizedProfileData.description}
+            ${normalizedProfileData.description},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
           )
         `;
       }
@@ -402,7 +406,9 @@ export class UserSkillsService {
             "content",
             "modelName",
             "temperature",
-            "maxTokens"
+            "maxTokens",
+            "createdAt",
+            "updatedAt"
           )
           VALUES (
             ${createId("upo")},
@@ -413,7 +419,9 @@ export class UserSkillsService {
             ${normalizedOverrideData.content},
             ${normalizedOverrideData.modelName},
             ${normalizedOverrideData.temperature},
-            ${normalizedOverrideData.maxTokens}
+            ${normalizedOverrideData.maxTokens},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
           )
         `;
       }
@@ -780,6 +788,12 @@ export class UserSkillsService {
       ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserSkillProfile" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserPromptOverride" (
         "id" TEXT PRIMARY KEY,
         "userId" TEXT NOT NULL,
@@ -823,6 +837,12 @@ export class UserSkillsService {
     `);
     await this.prismaService.$executeRawUnsafe(`
       ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "UserPromptOverride" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "UserSkillResetLog" (
