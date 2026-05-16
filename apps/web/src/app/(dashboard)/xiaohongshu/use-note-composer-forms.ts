@@ -8,6 +8,8 @@ export function useNoteComposerForms(options: {
   noProductOption: string;
   autoImageCountOption: string;
   customTopicOption: string;
+  defaultOriginalAccountRoleValue?: string;
+  availableOriginalAccountRoleValues?: string[];
   defaultVideoProviderValue?: string;
   availableVideoProviderValues?: string[];
 }) {
@@ -18,11 +20,21 @@ export function useNoteComposerForms(options: {
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
   const [originalProductValue, setOriginalProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [originalAccountRoleValue, setOriginalAccountRoleValue] = useState(options.defaultOriginalAccountRoleValue || "BRAND");
   const [originalImageCountValue, setOriginalImageCountValue] = useState(options.autoImageCountOption);
   const [originalInjectMarketingPlanValue, setOriginalInjectMarketingPlanValue] = useState("yes");
   const [originalAdditionalInstruction, setOriginalAdditionalInstruction] = useState("");
   const [coverReferenceFile, setCoverReferenceFile] = useState<File | null>(null);
   const [galleryReferenceFiles, setGalleryReferenceFiles] = useState<File[]>([]);
+
+  function resolveDefaultOriginalAccountRoleValue() {
+    const availableValues = options.availableOriginalAccountRoleValues?.filter(Boolean) || [];
+    const preferredValue = options.defaultOriginalAccountRoleValue || "BRAND";
+    if (!availableValues.length) {
+      return preferredValue;
+    }
+    return availableValues.includes(preferredValue) ? preferredValue : availableValues[0];
+  }
 
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
   const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
@@ -49,12 +61,23 @@ export function useNoteComposerForms(options: {
     setOriginalCalendarValue(calendarItems[0]?.id || options.customTopicOption);
     setOriginalCustomTopic("");
     setOriginalProductValue(products[0]?.id || options.noProductOption);
+    setOriginalAccountRoleValue(resolveDefaultOriginalAccountRoleValue());
     setOriginalImageCountValue(options.autoImageCountOption);
     setOriginalInjectMarketingPlanValue("yes");
     setOriginalAdditionalInstruction("");
     setCoverReferenceFile(null);
     setGalleryReferenceFiles([]);
   }
+
+  useEffect(() => {
+    const availableValues = options.availableOriginalAccountRoleValues?.filter(Boolean) || [];
+    if (!availableValues.length) {
+      return;
+    }
+    if (!availableValues.includes(originalAccountRoleValue)) {
+      setOriginalAccountRoleValue(resolveDefaultOriginalAccountRoleValue());
+    }
+  }, [options.availableOriginalAccountRoleValues, options.defaultOriginalAccountRoleValue, originalAccountRoleValue]);
 
   function openOriginalModal(calendarItems: CalendarOption[], products: ProductOption[]) {
     resetOriginalComposer(calendarItems, products);
@@ -137,6 +160,7 @@ export function useNoteComposerForms(options: {
     originalCalendarValue,
     originalCustomTopic,
     originalProductValue,
+    originalAccountRoleValue,
     originalImageCountValue,
     originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
@@ -166,6 +190,7 @@ export function useNoteComposerForms(options: {
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
+    setOriginalAccountRoleValue,
     setOriginalImageCountValue,
     setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,

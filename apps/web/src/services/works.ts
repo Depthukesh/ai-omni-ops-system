@@ -45,10 +45,26 @@ export type XhsOriginalReferenceTemplateRecord = {
   assetUrl: string;
 };
 
+export type XiaohongshuAccountRole = "BRAND" | "STAFF" | "TALENT";
+
+export function formatXiaohongshuAccountRoleLabel(role?: XiaohongshuAccountRole | null) {
+  switch (role) {
+    case "BRAND":
+      return "品牌号";
+    case "STAFF":
+      return "员工号";
+    case "TALENT":
+      return "达人号";
+    default:
+      return "品牌号";
+  }
+}
+
 export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: XiaohongshuAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -156,6 +172,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  accountRole?: XiaohongshuAccountRole;
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
@@ -198,6 +215,7 @@ export async function generateXiaohongshuOriginalWork(brandId: string, form: Gen
     calendarItemId: form.calendarItemId,
     customTopicName: form.customTopicName,
     productId: form.productId,
+    accountRole: form.accountRole,
     imageCount: form.imageCount,
     includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,

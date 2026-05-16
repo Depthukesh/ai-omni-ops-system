@@ -17,6 +17,7 @@ type OriginalComposerState = {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -109,6 +110,7 @@ export function useWorkComposerActions(options: {
         calendarItemId: isCustomTopic ? undefined : options.original.calendarValue,
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.original.productValue === options.noProductOption ? undefined : options.original.productValue,
+        accountRole: options.original.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
         imageCount:
           options.original.imageCountValue === options.autoImageCountOption
             ? undefined

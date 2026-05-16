@@ -27,6 +27,8 @@ export interface OriginalCreateModalProps {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -41,6 +43,7 @@ export interface OriginalCreateModalProps {
   onCalendarChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
@@ -116,6 +119,16 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
                   </option>
                 ))}
                 <option value={props.noProductOption}>不植入产品</option>
+              </select>
+            </label>
+            <label>
+              <span>账号角色</span>
+              <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
+                {props.accountRoleOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
             </label>
             {props.calendarValue === props.customTopicOption ? (

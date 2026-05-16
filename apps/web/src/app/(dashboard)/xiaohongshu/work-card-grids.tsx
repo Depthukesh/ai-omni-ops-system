@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  formatXiaohongshuAccountRoleLabel,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -40,6 +41,9 @@ export function OriginalWorkCardGrid(props: OriginalWorkCardGridProps) {
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}
+                <span className="xhs-material-card-badge xhs-material-card-badge--left">
+                  {formatXiaohongshuAccountRoleLabel(item.accountRole)}
+                </span>
                 <span className="xhs-material-card-badge">原创</span>
               </button>
               {mediaUrls.length > 1 ? (

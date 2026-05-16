@@ -87,6 +87,8 @@ import {
   type XiaohongshuTone,
 } from "../../../services/xiaohongshu";
 import {
+  formatXiaohongshuAccountRoleLabel,
+  type XiaohongshuAccountRole,
   getXiaohongshuVideoProviders,
   getXiaohongshuVideoWorks,
   getXiaohongshuOriginalReferenceTemplates,
@@ -117,6 +119,11 @@ const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermis
   original: "xiaohongshu.original",
   remix: "xiaohongshu.remix",
   video: "xiaohongshu.video",
+};
+const originalAccountRoleOptionsByBrandRole: Record<string, XiaohongshuAccountRole[]> = {
+  ADMIN: ["BRAND", "STAFF", "TALENT"],
+  STAFF: ["STAFF"],
+  TALENT: ["TALENT"],
 };
 
 const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
@@ -212,6 +219,8 @@ export default function XiaohongshuPage() {
     noProductOption: NO_PRODUCT_OPTION,
     autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
+    defaultOriginalAccountRoleValue: currentBrandRole === "TALENT" ? "TALENT" : currentBrandRole === "STAFF" ? "STAFF" : "BRAND",
+    availableOriginalAccountRoleValues: originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"],
     defaultVideoProviderValue: videoProviderOptions.find((item) => item.recommended)?.backendKey || videoProviderOptions[0]?.backendKey,
     availableVideoProviderValues: videoProviderOptions.map((item) => item.backendKey),
   });
@@ -221,6 +230,7 @@ export default function XiaohongshuPage() {
     originalCalendarValue,
     originalCustomTopic,
     originalProductValue,
+    originalAccountRoleValue,
     originalImageCountValue,
     originalInjectMarketingPlanValue,
     originalAdditionalInstruction,
@@ -250,6 +260,7 @@ export default function XiaohongshuPage() {
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
+    setOriginalAccountRoleValue,
     setOriginalImageCountValue,
     setOriginalInjectMarketingPlanValue,
     setOriginalAdditionalInstruction,
@@ -332,6 +343,14 @@ export default function XiaohongshuPage() {
     }
     return xiaohongshuSections.filter((item) => permissionMap[xiaohongshuSectionPermissionMap[item.key]]?.view);
   }, [brandPermissionSettings]);
+
+  const originalAccountRoleOptions = useMemo(() => {
+    const values = originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"];
+    return values.map((value) => ({
+      value,
+      label: formatXiaohongshuAccountRoleLabel(value),
+    }));
+  }, [currentBrandRole]);
 
   useEffect(() => {
     if (!visibleSections.length) {
@@ -756,6 +775,7 @@ export default function XiaohongshuPage() {
       calendarValue: originalCalendarValue,
       customTopic: originalCustomTopic,
       productValue: originalProductValue,
+      accountRoleValue: originalAccountRoleValue,
       imageCountValue: originalImageCountValue,
       injectMarketingPlanValue: originalInjectMarketingPlanValue,
       additionalInstruction: originalAdditionalInstruction,
@@ -1429,6 +1449,8 @@ export default function XiaohongshuPage() {
           calendarValue={originalCalendarValue}
           customTopic={originalCustomTopic}
           productValue={originalProductValue}
+          accountRoleValue={originalAccountRoleValue}
+          accountRoleOptions={originalAccountRoleOptions}
           imageCountValue={originalImageCountValue}
           injectMarketingPlanValue={originalInjectMarketingPlanValue}
           additionalInstruction={originalAdditionalInstruction}
@@ -1464,6 +1486,7 @@ export default function XiaohongshuPage() {
           onCalendarChange={setOriginalCalendarValue}
           onCustomTopicChange={setOriginalCustomTopic}
           onProductChange={setOriginalProductValue}
+          onAccountRoleChange={setOriginalAccountRoleValue}
           onImageCountChange={setOriginalImageCountValue}
           onInjectMarketingPlanChange={setOriginalInjectMarketingPlanValue}
           onAdditionalInstructionChange={setOriginalAdditionalInstruction}

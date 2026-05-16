@@ -50,6 +50,8 @@ export interface OriginalWorkspaceProps {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   imageCountValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -77,6 +79,7 @@ export interface OriginalWorkspaceProps {
   onCalendarChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onImageCountChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
@@ -206,6 +209,8 @@ export function OriginalWorkspace(props: OriginalWorkspaceProps) {
         calendarValue={props.calendarValue}
         customTopic={props.customTopic}
         productValue={props.productValue}
+        accountRoleValue={props.accountRoleValue}
+        accountRoleOptions={props.accountRoleOptions}
         imageCountValue={props.imageCountValue}
         injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
@@ -220,6 +225,7 @@ export function OriginalWorkspace(props: OriginalWorkspaceProps) {
         onCalendarChange={props.onCalendarChange}
         onCustomTopicChange={props.onCustomTopicChange}
         onProductChange={props.onProductChange}
+        onAccountRoleChange={props.onAccountRoleChange}
         onImageCountChange={props.onImageCountChange}
         onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}

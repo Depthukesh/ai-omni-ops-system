@@ -2833,6 +2833,12 @@ button {
   align-items: center;
 }
 
+.xhs-material-card-badge--left {
+  left: 12px;
+  right: auto;
+  background: rgba(95, 118, 255, 0.92);
+}
+
 .xhs-material-card-carousel {
   display: flex;
   align-items: center;

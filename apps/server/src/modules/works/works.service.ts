@@ -23,10 +23,13 @@ type UploadFilePayload = {
   dataBase64: string;
 };
 
+type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
+
 export type GenerateXiaohongshuOriginalNotePayload = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  accountRole?: OriginalAccountRole;
   imageCount?: number;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
@@ -83,6 +86,7 @@ type OriginalWorkAssetMeta = {
   taskId: string;
   noteCategory: "原创";
   noteType: "图文";
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   htmlContent: string;
@@ -258,6 +262,7 @@ export type XiaohongshuOriginalWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -777,6 +782,7 @@ export class WorksService {
     brandId: string,
     payload: GenerateXiaohongshuOriginalNotePayload,
     auth?: RequestAuthContext,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
   ) {
     const archive = await this.brandsService.getArchive(brandId);
     const includeMarketingPlan = payload.includeMarketingPlan !== false;
@@ -809,6 +815,7 @@ export class WorksService {
       : undefined;
 
     const userId = await this.resolveTaskUserId(brandId, auth);
+    const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
     const taskTitle = `生成小红书原创笔记：${selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题"}`;
     const originalCopyPreference = await this.loadSkillModelPreference(
       "original_copy",
@@ -836,6 +843,7 @@ export class WorksService {
 
       const copyResult = await this.generateOriginalCopy({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -847,6 +855,7 @@ export class WorksService {
 
       const imagePromptResult = await this.generateOriginalImagePrompts({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: originalMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -916,6 +925,7 @@ export class WorksService {
         taskId: task.id,
         noteCategory: "原创",
         noteType: "图文",
+        accountRole: resolvedAccountRole,
         title: copyResult.title,
         content: copyResult.content,
         htmlContent,
@@ -1773,6 +1783,7 @@ export class WorksService {
 
   private async generateOriginalCopy(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -1806,6 +1817,8 @@ export class WorksService {
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -1835,6 +1848,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书原创图文笔记。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，请让人设、语气、叙述视角和可信度与该账号角色一致。`,
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能使用营销日历选题、产品资料、参考图风格和用户要求，禁止自行吸收营销策划方案里的卖点、产品矩阵、价格、门店、促销或投放口径。"
         : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，禁止把产品卖点表、价格、门店、促销口径直接写进正文。",
@@ -1908,6 +1922,7 @@ export class WorksService {
 
   private async generateOriginalImagePrompts(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -1947,6 +1962,8 @@ export class WorksService {
     const providers = await this.loadOriginalImagePromptProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -1980,6 +1997,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前需要输出小红书原创图文的封面与配图提示词。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，画面主体、文案语气、人物出镜关系和可信度表达需与该账号角色匹配。`,
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能基于营销日历选题、产品资料、原创正文、参考图风格和用户要求生成画面，不要吸收营销策划方案中的产品矩阵、卖点清单、价格、门店、促销或投放表达。"
         : "本次允许有限参考营销策划方案，但只能吸收品牌调性、人群洞察、情绪目标、内容结构和场景方向，不要把产品卖点表、价格、门店、促销和投放表达直接翻译成画面文案或主视觉。",
@@ -2944,6 +2962,7 @@ export class WorksService {
       id,
       taskId: taskId || meta.taskId,
       brandId,
+      accountRole: meta.accountRole,
       title: meta.title,
       content: meta.content,
       coverImageUrl: meta.coverImageUrl,
@@ -2989,6 +3008,7 @@ export class WorksService {
       taskId: String(meta.taskId ?? ""),
       noteCategory: "原创",
       noteType: "图文",
+      accountRole: this.resolveOriginalAccountRole(this.readOptionalString(meta.accountRole), "ADMIN"),
       title: String(meta.title ?? "").trim(),
       content: String(meta.content ?? "").trim(),
       htmlContent: String(meta.htmlContent ?? "").trim(),
@@ -3023,6 +3043,40 @@ export class WorksService {
       createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
       updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
     };
+  }
+
+  private resolveOriginalAccountRole(
+    requestedRole: string | undefined,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT",
+  ): OriginalAccountRole {
+    if (collaboratorRole === "STAFF") {
+      if (requestedRole && requestedRole !== "STAFF") {
+        throw new BadRequestException("员工权限只能选择员工号");
+      }
+      return "STAFF";
+    }
+    if (collaboratorRole === "TALENT") {
+      if (requestedRole && requestedRole !== "TALENT") {
+        throw new BadRequestException("达人权限只能选择达人号");
+      }
+      return "TALENT";
+    }
+    if (requestedRole === "STAFF" || requestedRole === "TALENT") {
+      return requestedRole;
+    }
+    return "BRAND";
+  }
+
+  private getOriginalAccountRoleLabel(role: OriginalAccountRole) {
+    switch (role) {
+      case "STAFF":
+        return "员工号";
+      case "TALENT":
+        return "达人号";
+      case "BRAND":
+      default:
+        return "品牌号";
+    }
   }
 
   private async getOriginalWorkRowById(brandId: string, workId: string) {

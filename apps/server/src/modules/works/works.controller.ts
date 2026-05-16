@@ -83,8 +83,8 @@ export class WorksController {
     return this.authService
       .resolveRequestAuthContext(headers)
       .then(async (auth) => {
-        await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "edit", auth);
-        return this.worksService.generateXiaohongshuOriginalNote(brandId, payload, auth);
+        const access = await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "edit", auth);
+        return this.worksService.generateXiaohongshuOriginalNote(brandId, payload, auth, access.role);
       });
   }
 
