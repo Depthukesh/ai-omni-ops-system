@@ -479,14 +479,20 @@ type ImageGenerationRuntimeConfig = {
   preferredModelName: string;
 };
 
-type VideoBackendKey = "hailuo" | "kling" | "seedance" | "veo" | "wan";
+type VideoBackendKey = string;
 
 type VideoProviderConfig = {
   backend: VideoBackendKey;
+  providerId: string;
+  providerName: string;
+  displayLabel: string;
   baseUrls: string[];
   apiKeys: string[];
   createPath: string;
   queryPath: string;
+  queryMethod: "GET" | "POST";
+  queryBodyMode?: "taskId-json";
+  requestProfile?: string;
   textModel: string;
   imageModel: string;
   fastModel?: string;
@@ -497,6 +503,7 @@ type VideoProviderConfig = {
   imageCreatePath?: string;
   textQueryPath?: string;
   imageQueryPath?: string;
+  durationOptions: number[];
   requestTimeoutMs?: number;
 };
 
@@ -4745,7 +4752,11 @@ export class WorksService {
 
   private async loadVideoProviderConfig(brandId: string | undefined, backend: VideoBackendKey): Promise<VideoProviderConfig> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("video-generation");
-    const provider = providers.find((item) => this.parseVideoBackendKey(this.apiProvidersService.getStringExtra(item, "backendKey")) === backend);
+    const requestedBackendKey = this.normalizeVideoBackendLookupKey(backend);
+    const provider = providers.find((item) => {
+      const candidate = this.parseVideoBackendKey(this.apiProvidersService.getStringExtra(item, "backendKey"));
+      return this.normalizeVideoBackendLookupKey(candidate) === requestedBackendKey;
+    });
     if (!provider) {
       throw new ServiceUnavailableException(`${backend} 视频接口配置读取失败`);
     }
@@ -4759,10 +4770,16 @@ export class WorksService {
     const defaultModel = provider.defaultModel || provider.modelWhitelist[0] || backend;
     return {
       backend,
+      providerId: provider.id,
+      providerName: provider.name,
+      displayLabel: this.apiProvidersService.getStringExtra(provider, "displayLabel") || provider.name,
       baseUrls,
       apiKeys,
       createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || "/v2/videos/generations",
       queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
+      queryMethod: this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST" ? "POST" : "GET",
+      queryBodyMode: this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json" ? "taskId-json" : undefined,
+      requestProfile: this.apiProvidersService.getStringExtra(provider, "requestProfile") || undefined,
       textCreatePath: this.apiProvidersService.getStringExtra(provider, "textCreatePath") || undefined,
       imageCreatePath: this.apiProvidersService.getStringExtra(provider, "imageCreatePath") || undefined,
       textQueryPath: this.apiProvidersService.getStringExtra(provider, "textQueryPath") || undefined,
@@ -4773,18 +4790,20 @@ export class WorksService {
       proModel: this.apiProvidersService.getStringExtra(provider, "proModel") || undefined,
       multiImageModel: this.apiProvidersService.getStringExtra(provider, "multiImageModel") || undefined,
       modelName: defaultModel,
+      durationOptions: this.normalizeNumberArray(provider.extraParams?.durationOptions, [], 12),
       requestTimeoutMs: provider.timeoutMs || 240000,
     };
   }
 
   private parseVideoBackendKey(value?: string): VideoBackendKey | undefined {
+    const raw = String(value ?? "").trim();
+    if (!raw) {
+      return undefined;
+    }
     const normalized = String(value ?? "")
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, "")
-      .replace(/_/g, "")
-      .replace(/-/g, "")
-      .replace(/\./g, "");
+      .replace(/[^a-z0-9]+/g, "");
     if (!normalized) {
       return undefined;
     }
@@ -4803,7 +4822,14 @@ export class WorksService {
     if (normalized === "wan") {
       return "wan";
     }
-    return undefined;
+    return raw;
+  }
+
+  private normalizeVideoBackendLookupKey(value?: string) {
+    return String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
   }
 
   private normalizeVideoProvider(value?: string): VideoBackendKey {
@@ -4811,7 +4837,7 @@ export class WorksService {
     if (backend) {
       return backend;
     }
-    throw new BadRequestException("暂不支持所选视频模型，请从 hailuo、kling、veo、wan、seedance2.0 中选择。");
+    throw new BadRequestException("暂不支持所选视频模型，请从视频模型下拉列表重新选择。");
   }
 
   private normalizeRequestedVideoDuration(value?: number) {
@@ -4822,8 +4848,10 @@ export class WorksService {
     return normalized;
   }
 
-  private normalizeProviderDuration(backend: VideoBackendKey, requestedDurationSec: number) {
-    const candidates = backend === "hailuo" ? [6, 10] : [5, 10];
+  private normalizeProviderDuration(config: VideoProviderConfig, requestedDurationSec: number) {
+    const candidates = config.durationOptions.length
+      ? config.durationOptions
+      : (this.normalizeVideoBackendLookupKey(config.backend) === "hailuo" ? [6, 10] : [5, 10]);
     return candidates.reduce((best, current) =>
       Math.abs(current - requestedDurationSec) < Math.abs(best - requestedDurationSec) ? current : best,
     );
@@ -4832,6 +4860,26 @@ export class WorksService {
   private buildVideoProviderFallbackOrder(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
     void hasReferenceImage;
     return [requestedBackend];
+  }
+
+  private resolveLegacyVideoRequestProfile(backend: VideoBackendKey, hasReferenceImage: boolean) {
+    const normalizedBackend = this.normalizeVideoBackendLookupKey(backend);
+    if (normalizedBackend === "hailuo") {
+      return "legacy_hailuo";
+    }
+    if (normalizedBackend === "kling") {
+      return "legacy_kling";
+    }
+    if (normalizedBackend === "veo") {
+      return "legacy_veo";
+    }
+    if (normalizedBackend === "wan") {
+      return "legacy_wan";
+    }
+    if (normalizedBackend === "seedance") {
+      return "legacy_seedance";
+    }
+    return hasReferenceImage ? "legacy_seedance" : "legacy_seedance";
   }
 
   private resolveVideoModelName(
@@ -4858,11 +4906,174 @@ export class WorksService {
     requestedDurationSec: number;
     referenceImageUrl?: string;
   }) {
-    const normalizedDuration = this.normalizeProviderDuration(params.config.backend, params.requestedDurationSec);
+    const normalizedDuration = this.normalizeProviderDuration(params.config, params.requestedDurationSec);
     const hasReferenceImage = Boolean(params.referenceImageUrl);
+    const requestProfile = params.config.requestProfile || this.resolveLegacyVideoRequestProfile(params.config.backend, hasReferenceImage);
+    const negativePrompt = params.negativePrompt?.trim() || undefined;
+    const requireReferenceImage = () => {
+      if (!params.referenceImageUrl) {
+        throw new BadRequestException(`当前视频模型「${params.config.displayLabel}」需要先上传参考图`);
+      }
+      return params.referenceImageUrl;
+    };
 
-    switch (params.config.backend) {
-      case "hailuo":
+    switch (requestProfile) {
+      case "runninghub_hailuo_i2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            enablePromptExpansion: true,
+            imageUrl: requireReferenceImage(),
+            duration: String(normalizedDuration),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_hailuo_t2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            enablePromptExpansion: true,
+            duration: String(normalizedDuration),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_vidu_r2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            imageUrls: [requireReferenceImage()],
+            duration: normalizedDuration,
+            resolution: "720p",
+            aspectRatio: "9:16",
+            audio: "true",
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_vidu_i2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            imageUrl: requireReferenceImage(),
+            duration: String(normalizedDuration),
+            resolution: "720p",
+            audio: true,
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_vidu_t2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            style: "general",
+            aspectRatio: "9:16",
+            resolution: "720p",
+            duration: String(normalizedDuration),
+            audio: true,
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_kling_i2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            ...(negativePrompt ? { negativePrompt } : {}),
+            firstImageUrl: requireReferenceImage(),
+            duration: String(normalizedDuration),
+            cfgScale: 0.5,
+            sound: true,
+            multiShot: false,
+            shotType: "customize",
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_kling_t2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            ...(negativePrompt ? { negativePrompt } : {}),
+            duration: String(normalizedDuration),
+            aspectRatio: "9:16",
+            cfgScale: 0.5,
+            sound: true,
+            multiShot: false,
+            shotType: "customize",
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_seedance_i2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            resolution: "720p",
+            duration: String(normalizedDuration),
+            firstFrameUrl: requireReferenceImage(),
+            generateAudio: true,
+            ratio: "9:16",
+            realPersonMode: true,
+            conversionSlots: ["all"],
+            returnLastFrame: false,
+            seed: -1,
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_seedance_t2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            resolution: "720p",
+            duration: String(normalizedDuration),
+            generateAudio: true,
+            ratio: "9:16",
+            webSearch: false,
+            returnLastFrame: false,
+            seed: -1,
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_happyhorse_r2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            imageUrls: [requireReferenceImage()],
+            resolution: "1080p",
+            aspectRatio: "9:16",
+            duration: String(normalizedDuration),
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "runninghub_happyhorse_t2v":
+        return {
+          payload: {
+            prompt: params.prompt,
+            resolution: "1080p",
+            duration: String(normalizedDuration),
+            aspectRatio: "9:16",
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "legacy_hailuo":
         return {
           payload: {
             model: params.modelName,
@@ -4875,11 +5086,11 @@ export class WorksService {
           queryPath: hasReferenceImage ? params.config.imageQueryPath || params.config.queryPath : params.config.textQueryPath || params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
-      case "kling":
+      case "legacy_kling":
         return {
           payload: {
             prompt: params.prompt,
-            negative_prompt: params.negativePrompt,
+            negative_prompt: negativePrompt,
             aspect_ratio: "9:16",
             duration: String(normalizedDuration),
             model_name: params.modelName,
@@ -4890,7 +5101,7 @@ export class WorksService {
           queryPath: hasReferenceImage ? params.config.imageQueryPath || params.config.queryPath : params.config.textQueryPath || params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
-      case "veo":
+      case "legacy_veo":
         return {
           payload: {
             prompt: params.prompt,
@@ -4903,7 +5114,7 @@ export class WorksService {
           queryPath: params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
-      case "wan":
+      case "legacy_wan":
         return {
           payload: {
             prompt: params.prompt,
@@ -4912,14 +5123,14 @@ export class WorksService {
             size: "720*1280",
             watermark: false,
             prompt_extend: true,
-            negative_prompt: params.negativePrompt,
+            negative_prompt: negativePrompt,
             ...(hasReferenceImage ? { images: [params.referenceImageUrl] } : { audio: false }),
           } as Record<string, unknown>,
           createPath: params.config.createPath,
           queryPath: params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
-      case "seedance":
+      case "legacy_seedance":
       default:
         return {
           payload: {
@@ -4986,6 +5197,8 @@ export class WorksService {
 
         const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
           fallbackDurationSec: requestConfig.renderedDurationSec,
+          queryMethod: config.queryMethod,
+          queryBodyMode: config.queryBodyMode,
         });
         if (!result.videoUrl) {
           throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
@@ -5081,17 +5294,18 @@ export class WorksService {
     backend: VideoBackendKey,
     queryPath: string,
     taskId: string,
-    options: { fallbackDurationSec?: number },
+    options: { fallbackDurationSec?: number; queryMethod?: "GET" | "POST"; queryBodyMode?: "taskId-json" },
   ) {
     let lastState = "";
     let lastError = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const response = await this.requestAuthorizedJson(
         baseUrl,
-        this.resolveVideoQueryPath(queryPath, backend, taskId),
+        this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
         apiKey,
         {
-          method: "GET",
+          method: options.queryMethod || "GET",
+          body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
           timeoutMs: 120000,
         },
       );
@@ -5114,31 +5328,49 @@ export class WorksService {
     throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
   }
 
-  private resolveVideoQueryPath(queryPath: string, backend: VideoBackendKey, taskId: string) {
-    if (backend === "hailuo") {
-      return `${queryPath}?task_id=${encodeURIComponent(taskId)}`;
+  private resolveVideoQueryPath(queryPath: string, taskId: string, queryMethod: "GET" | "POST" = "GET") {
+    if (queryMethod === "POST") {
+      return queryPath;
     }
-    return queryPath.replace("{task_id}", encodeURIComponent(taskId));
+    if (queryPath.includes("{task_id}")) {
+      return queryPath.replace("{task_id}", encodeURIComponent(taskId));
+    }
+    const separator = queryPath.includes("?") ? "&" : "?";
+    return `${queryPath}${separator}task_id=${encodeURIComponent(taskId)}`;
+  }
+
+  private buildVideoQueryBody(taskId: string, queryBodyMode?: "taskId-json") {
+    if (queryBodyMode === "taskId-json") {
+      return { taskId };
+    }
+    return undefined;
   }
 
   private extractVideoTaskId(payload: Record<string, unknown>) {
-    return this.readOptionalString(payload.task_id)
+    return this.readOptionalString(payload.taskId)
+      || this.readOptionalString(payload.task_id)
       || this.readOptionalString(payload.id)
+      || this.readOptionalString(this.asRecord(payload.data)?.taskId)
       || this.readOptionalString(this.asRecord(payload.data)?.task_id)
       || this.readOptionalString(this.asRecord(payload.data)?.id);
   }
 
   private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {
     const topLevelData = this.asRecord(payload.data);
+    const topLevelResults = Array.isArray(payload.results) ? payload.results.map((item) => this.asRecord(item)) : [];
+    const topLevelResult = topLevelResults.find((item) => Boolean(item)) || null;
     const taskStatusRaw = String(
       topLevelData?.task_status
+      || payload.taskStatus
       || payload.status
       || this.readOptionalString(topLevelData?.status)
       || "",
     ).trim();
     const normalizedStatus = this.normalizeVideoTaskStatus(taskStatusRaw);
 
-    const directVideoUrl = this.readOptionalString(topLevelData?.output)
+    const directVideoUrl = this.readOptionalString(topLevelResult?.url)
+      || this.readOptionalString(topLevelResult?.fileUrl)
+      || this.readOptionalString(topLevelData?.output)
       || this.readOptionalString(topLevelData?.video_url)
       || this.readOptionalString(this.asRecord(topLevelData?.task_result)?.url);
     const firstVideo = Array.isArray(this.asRecord(topLevelData?.task_result)?.videos)
@@ -5148,10 +5380,15 @@ export class WorksService {
       || this.readOptionalString(firstVideo?.url)
       || this.readOptionalString(payload.output)
       || this.readOptionalString(payload.download_url);
-    const coverImageUrl = this.readOptionalString(topLevelData?.last_frame_url)
+    const coverImageUrl = this.readOptionalString(topLevelResult?.coverUrl)
+      || this.readOptionalString(topLevelResult?.thumbnailUrl)
+      || this.readOptionalString(topLevelData?.last_frame_url)
       || this.readOptionalString(topLevelData?.cover_url)
       || this.readOptionalString(payload.cover_url);
-    const failReason = this.readOptionalString(payload.fail_reason)
+    const failReason = this.readOptionalString(payload.failedReason)
+      || this.readOptionalString(this.asRecord(payload.failedReason)?.message)
+      || this.readOptionalString(payload.fail_reason)
+      || this.readOptionalString(payload.errorMessage)
       || this.readOptionalString(payload.message)
       || this.readOptionalString(topLevelData?.task_status_msg)
       || this.readOptionalString(this.asRecord(payload.base_resp)?.status_msg);
@@ -5611,6 +5848,16 @@ export class WorksService {
   private normalizeStringArray(raw: unknown, fallback: string[] = [], limit = 8) {
     const values = Array.isArray(raw)
       ? raw.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    return (values.length ? values : fallback).slice(0, limit);
+  }
+
+  private normalizeNumberArray(raw: unknown, fallback: number[] = [], limit = 8) {
+    const values = Array.isArray(raw)
+      ? raw
+          .map((item) => (typeof item === "number" ? item : Number(item)))
+          .filter((item) => Number.isFinite(item))
+          .map((item) => Math.round(item))
       : [];
     return (values.length ? values : fallback).slice(0, limit);
   }

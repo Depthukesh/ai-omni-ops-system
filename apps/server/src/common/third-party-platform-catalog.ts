@@ -18,6 +18,7 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "api.gptbest.vip": "柏拉图平台",
   "api.bltcy.ai": "柏拉图平台",
   "www.right.codes": "Right Codes 平台",
+  "www.runninghub.cn": "RunningHub 平台",
   "api.deepseek.com": "DeepSeek 平台",
   "ark.cn-beijing.volces.com": "火山方舟平台",
   "api.moonshot.cn": "Kimi 平台",

@@ -384,6 +384,8 @@ flowchart LR
     F --> F2["编辑弹窗"]
     F --> F3["作品卡片"]
     F --> F4["视频预览"]
+    F --> F5["视频模型下拉动态读取后台 Provider"]
+    F5 --> F51["当前已含 RunningHub 海螺/Vidu/可灵/seedance/happyhorse"]
 ```
 
 ## 7. 个人中心、支付和后台管理地图
@@ -396,6 +398,7 @@ flowchart TD
     PC --> PC2["/personal-center/works"]
     PC --> PC3["/personal-center/skills 用户技能覆盖编辑器"]
     PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 权限控制"]
+    PC31 --> PC311["当前含 Right Codes + RunningHub 平台基线"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team 三角色 + 权限矩阵"]
@@ -439,6 +442,7 @@ flowchart TD
     AUI8 --> AUI81["左侧：平台列表 + 搜索/状态/类型筛选"]
     AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]
     AUI8 --> AUI83["后台不填 API Key；前台 Owner 单独维护私有 Key"]
+    AUI8 --> AUI84["RunningHub 平台由 https://www.runninghub.cn 自动聚合补齐"]
     AUI6 --> AUI61["左侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
     AUI6 --> AUI62["左侧二级分类：业务模块"]
@@ -469,7 +473,7 @@ flowchart TD
     AS1 --> AAPI7["/admin/knowledge-bases"]
     AS1 --> AAPI8["/admin/knowledge-base-files"]
     AS1 --> AAPI9["/admin/third-party-platforms"]
-    AS1 --> AAPI91["ApiProviderConfig 含 Right Codes 文生文/文生图种子"]
+    AS1 --> AAPI91["ApiProviderConfig 含 Right Codes 与 RunningHub 视频种子"]
 ```
 
 ## 8. 前端 service 到后端 API 关系图
@@ -523,6 +527,7 @@ flowchart TD
     M5 --> M53["视频笔记当前只生成 1 条主成片，失败时才串行回退下一个视频后端"]
     M5 --> M54["原创/二创最终出图会继续传入参考图原图与产品图"]
     M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能，默认模型切到 Right Codes images-generations"]
+    M5 --> M56["视频生成按 requestProfile/queryMethod/queryBodyMode 动态适配 RunningHub"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

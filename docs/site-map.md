@@ -191,9 +191,11 @@
   - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
   - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
   - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由 Owner 单独维护该平台私有 Key
+  - 当前平台基线已补入 `RunningHub 平台`，基础链接为 `https://www.runninghub.cn`；平台页会自动聚合同域下的海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 视频模型，并由 Owner 单独维护该平台私有 Key
   - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
   - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
+  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
 - `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
@@ -246,9 +248,11 @@
   - 后台页不再填写 API Key；前台个人中心由拥有 `personalCenter.thirdPartyPlatforms.edit` 的成员在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
+  - 当前 `ApiProviderConfig` 已补入 RunningHub 视频 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会按 `https://www.runninghub.cn` 自动聚合出 `RunningHub 平台`
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
   - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
+  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
@@ -375,12 +379,15 @@
   - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
   - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
+  - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
+  - 当前 RunningHub 视频 Provider 已补入海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 多组模型；查询统一兼容 `POST /openapi/v2/query` 与 `{ taskId }` 请求体
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
   - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
   - 原创/二创两条图片生成技能当前默认指向 `Right Codes · 文生图/图生图 / provider_runtime_image_generation_right_codes::gpt-image-2`；若数据库里仍残留旧的 `provider_runtime_image_generation::gpt-image-2` 基线，启动时会自动安全回填到新 provider，但不会覆盖后台后来手动改成的其他模型
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
+  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
@@ -486,6 +493,8 @@
 5. 后端当前只生成 1 条 `fullVideoPrompt` 主成片，不再自动按 `segmentPrompts` 逐段发起额外视频任务
 6. 视频后端按顺序逐个回退：只有当前请求失败时，才会继续尝试下一个后端；不会并发生成多个成片
 7. 成品视频、视频提示词与图文内容保存到作品记录，并同步沉淀到“我的作品”
+8. 当前视频 Provider 下拉已可直接读取 RunningHub 视频模型；运行时会按每条 Provider 的 `requestProfile` 组装请求体，并在查询阶段兼容 RunningHub 的 `POST /openapi/v2/query`
+9. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
 
 ### 5.6 技能与提示词注册链路
 

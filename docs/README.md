@@ -159,6 +159,8 @@
   - 团队协作统一为三角色 `管理员 / 员工 / 达人`，新增品牌级权限矩阵，并接通团队页、品牌增长策略、第三方接口配置与本地稳定联调链路
 - `docs/changes/2026-05-15-xhs-original-account-role.md`
   - 小红书原创笔记补充“账号角色”选择，管理员可选品牌号/员工号/达人号，员工和达人按团队角色收口；原创作品会持久化并展示账号角色标记
+- `docs/changes/2026-05-16-runninghub-video-platform.md`
+  - 新增 `RunningHub 平台` 到前后台第三方接口配置基线，并把小红书视频生成运行时升级为可按 Provider 元数据适配 RunningHub 的请求/查询协议
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
