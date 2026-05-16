@@ -31,6 +31,10 @@
 - `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
   - 文案改为“按当前板块编辑权限控制”，不再写死只有 Owner 可维护私钥。
   - 页面头部角色状态胶囊统一改为走三角色中文映射，不再直接回显 `ADMIN` 等原始值。
+- `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+  - 小红书工作区初始化时先读取当前品牌团队权限；若当前账号在小红书目录下所有板块都没有 `view`，前端直接提示无权限进入。
+  - 左侧目录改为只展示当前账号有 `view` 权限的板块，避免员工继续看到被关闭的“营销策划方案”“素材库”等入口。
+  - “营销策划方案”板块在仅有查看权限时切换为只读态，编辑、删除、重新生成、保存按钮会被禁用，并给出权限提示。
 
 ### 3.2 后端
 
@@ -49,6 +53,10 @@
   - 品牌资料、产品、调研、资料投喂、飞书绑定等接口开始按权限键校验编辑权限。
 - `apps/server/src/modules/reports/reports.controller.ts`
   - 品牌增长报告、可视化报告、半年营销规划的读取/生成/更新接口改为按权限键控制。
+- `apps/server/src/modules/reports/reports.controller.ts`
+  - 小红书营销策划方案与营销日历接口补齐 `xiaohongshu.plan / xiaohongshu.calendar` 的 `view/edit` 权限校验，不再只校验品牌成员身份。
+- `apps/server/src/modules/works/works.controller.ts`
+  - 小红书原创、二创、视频作品列表与生成/编辑/删除接口补齐各自板块的 `view/edit` 权限校验，避免前端隐藏后仍能直接调接口绕过。
 - `apps/server/src/modules/third-party-platforms/third-party-platforms.controller.ts`
   - 第三方接口配置读取与私钥保存改为按 `personalCenter.thirdPartyPlatforms` 权限控制。
 
@@ -70,6 +78,7 @@
 - 影响页面
   - `/personal-center/team`
   - `/brand-growth`
+  - `/xiaohongshu`
   - `/personal-center/third-party-platforms`
 - 影响接口
   - `/api/brands/:id/members`
@@ -83,6 +92,7 @@
   - `/api/brands/:id/business-assets`
   - `/api/brands/:id/feishu-binding`
   - `/api/reports/brands/:brandId/*`
+  - `/api/works/brands/:brandId/xiaohongshu/*`
   - `/api/third-party-platforms*`
 - 影响模块
   - `AuthModule`
@@ -101,6 +111,8 @@
   - 权限矩阵位置位于“待处理邀请”和“当前品牌成员”之间。
   - 本地 `3001/3011` 联调下，团队页已实际勾选权限并点击“保存权限设置”，页面成功提示“员工和达人的权限模板已保存。”
   - 本地 `/brand-growth` 已确认管理员可进入品牌增长策略，`刷新数据 / 保存页面` 按钮可用，相关工作区接口返回 `200`。
+  - 当员工账号关闭 `xiaohongshu.plan / xiaohongshu.assets` 可见权限后，`/xiaohongshu` 左侧目录不再展示对应板块；若小红书目录下全部板块都无查看权限，页面直接显示无权限提示。
+  - 当账号仅保留 `xiaohongshu.plan.view` 而关闭 `edit` 时，营销策划方案板块切为只读态，编辑、删除、重新生成、保存入口不可用。
   - 本地 `/personal-center/third-party-platforms` 已确认管理员可查看平台基线并可编辑私有 API Key；角色状态展示已统一为“管理员”。
 - 接口验证
   - 新增团队权限模板接口已接入前端服务层。

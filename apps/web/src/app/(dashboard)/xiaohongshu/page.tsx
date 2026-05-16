@@ -54,6 +54,11 @@ import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services
 import { getMe } from "../../../services/auth";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
+  getBrandPermissionSettings,
+  type BrandPermissionKey,
+  type BrandPermissionSettingsRecord,
+} from "../../../services/brand-growth";
+import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
   generateXiaohongshuMarketingCalendar,
@@ -94,6 +99,7 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
+import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
 
 type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
@@ -104,6 +110,14 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
   { key: "video", label: "视频笔记", description: "把现有主题整理成视频脚本、镜头结构和封面文案。" },
 ];
+const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermissionKey> = {
+  plan: "xiaohongshu.plan",
+  assets: "xiaohongshu.assets",
+  calendar: "xiaohongshu.calendar",
+  original: "xiaohongshu.original",
+  remix: "xiaohongshu.remix",
+  video: "xiaohongshu.video",
+};
 
 const CUSTOM_TOPIC_OPTION = "__CUSTOM__";
 const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
@@ -174,6 +188,9 @@ export default function XiaohongshuPage() {
   const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
   const [materialLightbox, setMaterialLightbox] = useState<MediaLightboxState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
+  const [currentBrandRole, setCurrentBrandRole] = useState("STAFF");
+  const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingCalendar, setIsGeneratingCalendar] = useState(false);
   const [isSavingMarketingPlan, setIsSavingMarketingPlan] = useState(false);
@@ -308,6 +325,23 @@ export default function XiaohongshuPage() {
     setMarketingPlanDraft(latestPlan?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
 
+  const visibleSections = useMemo(() => {
+    const permissionMap = brandPermissionSettings?.currentUserPermissions;
+    if (!permissionMap) {
+      return xiaohongshuSections;
+    }
+    return xiaohongshuSections.filter((item) => permissionMap[xiaohongshuSectionPermissionMap[item.key]]?.view);
+  }, [brandPermissionSettings]);
+
+  useEffect(() => {
+    if (!visibleSections.length) {
+      return;
+    }
+    if (!visibleSections.some((item) => item.key === activeSection)) {
+      setActiveSection(visibleSections[0].key);
+    }
+  }, [activeSection, visibleSections]);
+
   const pollingOriginalTask = findLatestTaskByTypes(workspace.tasks, "XHS_ORIGINAL_NOTE");
   const pollingRewriteTask = findLatestTaskByTypes(workspace.tasks, "XHS_REWRITE_NOTE");
   const pollingVideoTask = findLatestTaskByTypes(workspace.tasks, "XHS_VIDEO_NOTE");
@@ -365,6 +399,32 @@ export default function XiaohongshuPage() {
       setErrorMessage("");
     }
 
+    const permissionSettingsResult = await getBrandPermissionSettings(activeBrandId);
+    const permissionMap = permissionSettingsResult.currentUserPermissions;
+    const hasAnyXiaohongshuViewPermission = Object.entries(permissionMap).some(
+      ([key, flags]) => key.startsWith("xiaohongshu.") && Boolean(flags.view),
+    );
+    setBrandPermissionSettings(permissionSettingsResult);
+    setCurrentBrandRole(permissionSettingsResult.currentUserRole);
+
+    if (!hasAnyXiaohongshuViewPermission) {
+      setHasWorkspaceAccess(false);
+      setDataSource("api");
+      setIsLoading(false);
+      setIsLoadingOriginalReferenceTemplates(false);
+      setErrorMessage("当前账号没有小红书板块的查看权限，请联系管理员在团队权限设置中开启对应板块后再进入。");
+      return;
+    }
+
+    setHasWorkspaceAccess(true);
+    const canViewPlan = Boolean(permissionMap["xiaohongshu.plan"]?.view);
+    const canViewCalendar = Boolean(permissionMap["xiaohongshu.calendar"]?.view);
+    const canViewOriginal = Boolean(permissionMap["xiaohongshu.original"]?.view);
+    const canViewRemix = Boolean(permissionMap["xiaohongshu.remix"]?.view);
+    const canViewVideo = Boolean(permissionMap["xiaohongshu.video"]?.view);
+    const shouldFetchMarketingPlan = canViewPlan || canViewCalendar || canViewOriginal || canViewRemix || canViewVideo;
+    const shouldFetchCalendar = canViewCalendar || canViewOriginal || canViewVideo;
+
     const [
       workspaceResult,
       growthReportResult,
@@ -381,13 +441,15 @@ export default function XiaohongshuPage() {
       getXiaohongshuWorkspace(),
       getGrowthReportWorkspace(),
       getAnnualMarketingPlanWorkspace(),
-      getXiaohongshuMarketingPlanWorkspace(),
-      getXiaohongshuMarketingCalendarWorkspace(),
-      getXiaohongshuOriginalWorks(activeBrandId),
-      getXiaohongshuRewriteWorks(activeBrandId),
-      getXiaohongshuVideoWorks(activeBrandId),
-      getXiaohongshuVideoProviders(activeBrandId),
-      getXiaohongshuOriginalReferenceTemplates(),
+      shouldFetchMarketingPlan ? getXiaohongshuMarketingPlanWorkspace() : Promise.resolve(xiaohongshuMarketingPlanSeed),
+      shouldFetchCalendar ? getXiaohongshuMarketingCalendarWorkspace() : Promise.resolve({ history: [] } as XiaohongshuMarketingCalendarWorkspace),
+      canViewOriginal ? getXiaohongshuOriginalWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuOriginalWorkRecord[] }),
+      canViewRemix ? getXiaohongshuRewriteWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuRewriteWorkRecord[] }),
+      canViewVideo ? getXiaohongshuVideoWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuVideoWorkRecord[] }),
+      canViewVideo ? getXiaohongshuVideoProviders(activeBrandId) : Promise.resolve({ items: DEFAULT_VIDEO_PROVIDER_OPTIONS }),
+      canViewOriginal
+        ? getXiaohongshuOriginalReferenceTemplates()
+        : Promise.resolve({ categories: [] as XhsOriginalReferenceTemplateCategoryRecord[], items: [] as XhsOriginalReferenceTemplateRecord[] }),
     ]);
 
     const messages: string[] = [];
@@ -596,7 +658,10 @@ export default function XiaohongshuPage() {
   }
 
   const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
-  const currentSection = xiaohongshuSections.find((item) => item.key === activeSection) ?? xiaohongshuSections[0];
+  const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? xiaohongshuSections[0];
+  const hasCurrentSectionEditPermission = Boolean(
+    brandPermissionSettings?.currentUserPermissions?.[xiaohongshuSectionPermissionMap[currentSection.key]]?.edit,
+  );
 
   const xhsTasks = useMemo(() => getXiaohongshuTasks(workspace.tasks), [workspace.tasks]);
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
@@ -916,6 +981,10 @@ export default function XiaohongshuPage() {
   });
 
   async function handleGeneratePlan() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit) {
+      setErrorMessage("当前账号没有营销策划方案板块的编辑权限。");
+      return;
+    }
     if (!growthReportWorkspace.latest) {
       setErrorMessage("请先生成品牌增长报告。");
       return;
@@ -944,6 +1013,10 @@ export default function XiaohongshuPage() {
   }
 
   async function handleSaveMarketingPlan() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit) {
+      setErrorMessage("当前账号没有营销策划方案板块的编辑权限。");
+      return;
+    }
     const latestPlan = marketingPlanWorkspace.latest;
     if (!latestPlan) {
       setErrorMessage("当前还没有可保存的小红书营销策划方案。");
@@ -974,6 +1047,10 @@ export default function XiaohongshuPage() {
   }
 
   async function handleGenerateCalendar() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
+      setErrorMessage("当前账号没有营销日历板块的编辑权限。");
+      return;
+    }
     if (!latestGrowthReport) {
       setErrorMessage("请先生成品牌增长报告。");
       return;
@@ -1069,6 +1146,10 @@ export default function XiaohongshuPage() {
   }
 
   async function handleSaveCalendarItem() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
+      setErrorMessage("当前账号没有营销日历板块的编辑权限。");
+      return;
+    }
     if (!latestCalendar || !selectedCalendarItem || !calendarItemDraft) {
       setErrorMessage("当前还没有可保存的营销日历选题。");
       return;
@@ -1107,6 +1188,10 @@ export default function XiaohongshuPage() {
   }
 
   async function handleDeleteMarketingPlan() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit) {
+      setErrorMessage("当前账号没有营销策划方案板块的编辑权限。");
+      return;
+    }
     const latestPlan = marketingPlanWorkspace.latest;
     if (!latestPlan) {
       return;
@@ -1215,6 +1300,7 @@ export default function XiaohongshuPage() {
       return (
         <PlanWorkspace
           sectionLabel={currentSection.label}
+          canEditMarketingPlan={Boolean(brandPermissionSettings?.currentUserPermissions["xiaohongshu.plan"]?.edit)}
           isLoading={isLoading}
           isPublishing={isPublishing}
           isSavingMarketingPlan={isSavingMarketingPlan}
@@ -1554,9 +1640,34 @@ export default function XiaohongshuPage() {
     <main className="dashboard-shell">
       <section className="strategy-shell">
         <div className="strategy-layout xiaohongshu-layout">
+          {!hasWorkspaceAccess ? (
+            <div className="strategy-content-panel xiaohongshu-content-panel">
+              <section className="dashboard-hero xiaohongshu-hero">
+                <div>
+                  <h1>当前无权限进入小红书工作区</h1>
+                  <p>当前账号未获得小红书板块的查看权限，请联系管理员在团队权限设置中为对应板块勾选可见权限。</p>
+                  <div className="workspace-toolbar top-toolbar">
+                    <div className="workspace-status">
+                      <span className="archive-pill status-pending">{formatCollaboratorRoleLabel(currentBrandRole)}</span>
+                      <span className="status-text error-text">当前账号没有小红书板块的查看权限，请联系管理员开通后再进入。</span>
+                    </div>
+                    <div className="personal-actions">
+                      <Link href="/brand-growth" className="secondary-button">
+                        前往品牌增长策略
+                      </Link>
+                      <Link href="/personal-center" className="primary-button">
+                        返回个人中心
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <>
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
-              {xiaohongshuSections.map((item) => (
+              {visibleSections.map((item) => (
                 <button
                   key={item.key}
                   type="button"
@@ -1576,6 +1687,9 @@ export default function XiaohongshuPage() {
                 <p>{heroDescription}</p>
                 <div className="workspace-toolbar top-toolbar">
                   <div className="workspace-status">
+                    <span className={`archive-pill ${hasCurrentSectionEditPermission ? "status-ready" : "status-pending"}`}>
+                      {hasCurrentSectionEditPermission ? "当前板块可编辑" : "当前板块只读"}
+                    </span>
                     <span className={`archive-pill ${dataSource === "api" ? "status-ready" : "status-in_progress"}`}>
                       {dataSource === "api"
                         ? "接口数据"
@@ -1605,6 +1719,8 @@ export default function XiaohongshuPage() {
             </section>
             {renderSectionCard()}
           </div>
+            </>
+          )}
         </div>
       </section>
       <PublishModal

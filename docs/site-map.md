@@ -100,9 +100,10 @@
 ### 3.2 小红书 `/xiaohongshu`
 
 - 顶部导航：已统一为后台同语言的浅底导航壳，使用短标签徽标与当前栏目高亮
-- 左侧导航：已改为更简化的目录式浅底菜单，仅保留分区按钮本体
+- 左侧导航：已改为更简化的目录式浅底菜单，仅保留分区按钮本体；当前只展示当前账号有 `view` 权限的小红书板块
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
+  - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
 - 素材库
   - 当前素材库中的飞书图片/视频预览若命中站内 `feishu-media` 代理，会先通过前端鉴权请求拉取 blob，再转 object URL 给卡片和灯箱展示，避免浏览器媒体请求不带 Bearer Token 导致空白
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
@@ -299,7 +300,9 @@
  - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
   - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
-  - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再读取营销方案、营销日历、作品列表、视频 Provider 与素材库数据
+  - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，并优先读取当前品牌的小红书权限模板
+  - 若当前账号在小红书目录下所有板块都没有 `view`，前端会直接显示无权限提示，不再继续进入工作区
+  - 进入工作区后只会继续请求当前账号有查看权限的营销方案、营销日历、作品列表、视频 Provider 与模板数据，避免无权限板块继续报错
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
   - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出

@@ -109,14 +109,14 @@ export class ReportsController {
   @Get("brands/:brandId/xiaohongshu-marketing-plan")
   async getXiaohongshuMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "view", auth);
     return this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
   }
 
   @Post("brands/:brandId/xiaohongshu-marketing-plan/generate")
   async generateXiaohongshuMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
     return this.reportsService.generateXiaohongshuMarketingPlan(brandId);
   }
 
@@ -128,7 +128,7 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
     return this.reportsService.updateXiaohongshuMarketingPlan(brandId, reportId, payload);
   }
 
@@ -139,21 +139,21 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
     return this.reportsService.deleteXiaohongshuMarketingPlan(brandId, reportId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")
   async getXiaohongshuMarketingCalendarWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "view", auth);
     return this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
   }
 
   @Post("brands/:brandId/xiaohongshu-marketing-calendar/generate")
   async generateXiaohongshuMarketingCalendar(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
     return this.reportsService.generateXiaohongshuMarketingCalendar(brandId);
   }
 
@@ -165,7 +165,7 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandAccess(brandId, auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.calendar", "edit", auth);
     return this.reportsService.updateXiaohongshuMarketingCalendar(brandId, reportId, payload);
   }
 }

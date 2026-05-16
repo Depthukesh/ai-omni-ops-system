@@ -5,6 +5,7 @@ import { type AsyncAction, type OptionalDateFormatter, type StringChangeHandler 
 
 export interface PlanWorkspaceProps {
   sectionLabel: string;
+  canEditMarketingPlan: boolean;
   isLoading: boolean;
   isPublishing: boolean;
   isSavingMarketingPlan: boolean;
@@ -32,6 +33,7 @@ export interface PlanWorkspaceProps {
 export function PlanWorkspace(props: PlanWorkspaceProps) {
   const {
     sectionLabel,
+    canEditMarketingPlan,
     isLoading,
     isPublishing,
     isSavingMarketingPlan,
@@ -76,7 +78,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
               type="button"
               className="secondary-button"
               onClick={onEnterEdit}
-              disabled={isGenerating || isLoading || isDeletingMarketingPlan || isMarketingPlanTaskActive}
+              disabled={!canEditMarketingPlan || isGenerating || isLoading || isDeletingMarketingPlan || isMarketingPlanTaskActive}
             >
               编辑
             </button>
@@ -86,7 +88,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
               type="button"
               className="secondary-button"
               onClick={() => void onDelete()}
-              disabled={isDeletingMarketingPlan || isGenerating || isLoading || isMarketingPlanTaskActive}
+              disabled={!canEditMarketingPlan || isDeletingMarketingPlan || isGenerating || isLoading || isMarketingPlanTaskActive}
             >
               {isDeletingMarketingPlan ? "删除中..." : "删除"}
             </button>
@@ -95,7 +97,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
             type="button"
             className="primary-button"
             onClick={() => void onGenerate()}
-            disabled={isGenerating || isLoading || !canGenerateMarketingPlan || isMarketingPlanTaskActive}
+            disabled={!canEditMarketingPlan || isGenerating || isLoading || !canGenerateMarketingPlan || isMarketingPlanTaskActive}
           >
             {isGenerating ? "提交中..." : isMarketingPlanTaskActive ? "后台生成中..." : latestMarketingPlan ? "重新生成" : "一键生成"}
           </button>
@@ -118,12 +120,15 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
               <span className="archive-pill status-ready">{formatDateTime(latestMarketingPlan.generatedAt)}</span>
             ) : null}
             {latestMarketingPlan?.modelName ? <span className="archive-pill status-pending">{latestMarketingPlan.modelName}</span> : null}
+            <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
+              {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
+            </span>
             {latestMarketingPlan ? (
               <button
                 type="button"
                 className="primary-button"
                 onClick={() => void onSave()}
-                disabled={isSavingMarketingPlan || isGenerating || isDeletingMarketingPlan || isMarketingPlanTaskActive}
+                disabled={!canEditMarketingPlan || isSavingMarketingPlan || isGenerating || isDeletingMarketingPlan || isMarketingPlanTaskActive}
               >
                 {isSavingMarketingPlan ? "保存中..." : "保存报告"}
               </button>
@@ -143,6 +148,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
         {marketingPlanInlineError ? (
           <div className="report-inline-tip report-inline-tip--error">{marketingPlanInlineError}</div>
         ) : null}
+        {!canEditMarketingPlan ? <div className="report-inline-tip">当前账号只有查看权限，不能编辑、删除或重新生成该板块内容。</div> : null}
 
         {!latestMarketingPlan ? (
           <div className="empty-state">当前还没有小红书营销策划方案，点击右上角“一键生成”开始。</div>
@@ -154,6 +160,7 @@ export function PlanWorkspace(props: PlanWorkspaceProps) {
                 className="report-markdown-textarea"
                 value={marketingPlanDraft}
                 onChange={(event) => onChangeDraft(event.target.value)}
+                readOnly={!canEditMarketingPlan}
                 placeholder="这里显示并编辑小红书营销策划方案 Markdown 内容"
               />
             </label>

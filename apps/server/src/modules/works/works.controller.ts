@@ -18,23 +18,42 @@ export class WorksController {
   ) {}
 
   @Get("brands/:brandId/xiaohongshu/original")
-  listXiaohongshuOriginalWorks(@Param("brandId") brandId: string) {
+  async listXiaohongshuOriginalWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "view", auth);
     return this.worksService.listXiaohongshuOriginalWorks(brandId);
   }
 
   @Get("brands/:brandId/xiaohongshu/rewrite")
-  listXiaohongshuRewriteWorks(@Param("brandId") brandId: string) {
+  async listXiaohongshuRewriteWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "view", auth);
     return this.worksService.listXiaohongshuRewriteWorks(brandId);
   }
 
   @Get("brands/:brandId/xiaohongshu/video")
-  listXiaohongshuVideoWorks(@Param("brandId") brandId: string) {
+  async listXiaohongshuVideoWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
     return this.worksService.listXiaohongshuVideoWorks(brandId);
   }
 
   @Get("brands/:brandId/xiaohongshu/video/providers")
-  listXiaohongshuVideoProviders(@Param("brandId") brandId: string) {
-    void brandId;
+  async listXiaohongshuVideoProviders(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
     return this.worksService.listXiaohongshuVideoProviderOptions();
   }
 
@@ -62,8 +81,11 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService
-      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
-      .then((auth) => this.worksService.generateXiaohongshuOriginalNote(brandId, payload, auth));
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "edit", auth);
+        return this.worksService.generateXiaohongshuOriginalNote(brandId, payload, auth);
+      });
   }
 
   @Post("brands/:brandId/xiaohongshu/rewrite/generate")
@@ -73,8 +95,11 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService
-      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
-      .then((auth) => this.worksService.generateXiaohongshuRewriteNote(brandId, payload, auth));
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
+        return this.worksService.generateXiaohongshuRewriteNote(brandId, payload, auth);
+      });
   }
 
   @Post("brands/:brandId/xiaohongshu/video/generate")
@@ -84,8 +109,11 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService
-      .resolveRequestAuthContext(headers, { fallbackToDefaultUser: true })
-      .then((auth) => this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth));
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        return this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth);
+      });
   }
 
   @Patch("brands/:brandId/xiaohongshu/original/:workId")
@@ -93,8 +121,12 @@ export class WorksController {
     @Param("brandId") brandId: string,
     @Param("workId") workId: string,
     @Body() payload: UpdateXiaohongshuOriginalNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.updateXiaohongshuOriginalNote(brandId, workId, payload);
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "edit", auth);
+      return this.worksService.updateXiaohongshuOriginalNote(brandId, workId, payload);
+    });
   }
 
   @Patch("brands/:brandId/xiaohongshu/rewrite/:workId")
@@ -102,8 +134,12 @@ export class WorksController {
     @Param("brandId") brandId: string,
     @Param("workId") workId: string,
     @Body() payload: UpdateXiaohongshuRewriteNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.updateXiaohongshuRewriteNote(brandId, workId, payload);
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
+      return this.worksService.updateXiaohongshuRewriteNote(brandId, workId, payload);
+    });
   }
 
   @Patch("brands/:brandId/xiaohongshu/video/:workId")
@@ -111,23 +147,48 @@ export class WorksController {
     @Param("brandId") brandId: string,
     @Param("workId") workId: string,
     @Body() payload: UpdateXiaohongshuVideoNotePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.worksService.updateXiaohongshuVideoNote(brandId, workId, payload);
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+      return this.worksService.updateXiaohongshuVideoNote(brandId, workId, payload);
+    });
   }
 
   @Delete("brands/:brandId/xiaohongshu/original/:workId")
-  deleteXiaohongshuOriginalNote(@Param("brandId") brandId: string, @Param("workId") workId: string) {
-    return this.worksService.deleteXiaohongshuOriginalNote(brandId, workId);
+  deleteXiaohongshuOriginalNote(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "edit", auth);
+      return this.worksService.deleteXiaohongshuOriginalNote(brandId, workId);
+    });
   }
 
   @Delete("brands/:brandId/xiaohongshu/rewrite/:workId")
-  deleteXiaohongshuRewriteNote(@Param("brandId") brandId: string, @Param("workId") workId: string) {
-    return this.worksService.deleteXiaohongshuRewriteNote(brandId, workId);
+  deleteXiaohongshuRewriteNote(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
+      return this.worksService.deleteXiaohongshuRewriteNote(brandId, workId);
+    });
   }
 
   @Delete("brands/:brandId/xiaohongshu/video/:workId")
-  deleteXiaohongshuVideoNote(@Param("brandId") brandId: string, @Param("workId") workId: string) {
-    return this.worksService.deleteXiaohongshuVideoNote(brandId, workId);
+  deleteXiaohongshuVideoNote(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+      return this.worksService.deleteXiaohongshuVideoNote(brandId, workId);
+    });
   }
 
   @Get("brands/:brandId/assets/:fileName")
