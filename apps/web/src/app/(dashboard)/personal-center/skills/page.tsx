@@ -69,6 +69,8 @@ export default function PersonalCenterSkillsPage() {
   const [systemRole, setSystemRole] = useState<string>("USER");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SkillStatusFilter>("ALL");
+  const [collapsedGroupMap, setCollapsedGroupMap] = useState<Record<string, boolean>>({});
+  const [collapsedSectionMap, setCollapsedSectionMap] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingBrand, setIsSwitchingBrand] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -121,6 +123,21 @@ export default function PersonalCenterSkillsPage() {
     if (!filteredPromptLeaves.find((item) => item.id === selectedLeafId)) {
       setSelectedLeafId(filteredPromptLeaves[0]?.id || "");
     }
+  }, [filteredPromptLeaves, selectedLeafId]);
+
+  useEffect(() => {
+    const currentSelectedLeaf = filteredPromptLeaves.find((item) => item.id === selectedLeafId) ?? filteredPromptLeaves[0];
+    if (!currentSelectedLeaf) {
+      return;
+    }
+    setCollapsedGroupMap((current) => ({
+      ...current,
+      [currentSelectedLeaf.primaryId]: false,
+    }));
+    setCollapsedSectionMap((current) => ({
+      ...current,
+      [buildSectionCollapseKey(currentSelectedLeaf.primaryId, currentSelectedLeaf.sectionId)]: false,
+    }));
   }, [filteredPromptLeaves, selectedLeafId]);
 
   const selectedLeaf = useMemo(
@@ -288,6 +305,7 @@ export default function PersonalCenterSkillsPage() {
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
   );
+  const hasSearchKeyword = Boolean(search.trim());
 
   return (
     <section className="panel personal-center-panel">
@@ -373,55 +391,87 @@ export default function PersonalCenterSkillsPage() {
         <div className="personal-list">
           {groupedPromptLeaves.map((group) => (
             <article key={group.id} className="entity-card personal-card">
-              <div className="entity-card-head">
+              <button
+                type="button"
+                className="entity-card-head"
+                onClick={() => toggleGroupCollapse(group.id, setCollapsedGroupMap)}
+                style={{ width: "100%", border: "none", background: "transparent", textAlign: "left", cursor: "pointer" }}
+              >
                 <div>
                   <strong>{group.label}</strong>
                   <p className="personal-meta">{group.sections.reduce((sum, section) => sum + section.items.length, 0)} 条提示词</p>
                 </div>
-              </div>
-              <div className="personal-list">
-                {group.sections.map((section) => (
-                  <div key={section.id}>
-                    <p className="personal-meta" style={{ marginBottom: 8 }}>{section.label}</p>
-                    <div className="personal-list">
-                      {section.items.map((item) => (
+                <span className="personal-meta">{hasSearchKeyword || !collapsedGroupMap[group.id] ? "收起" : "展开"}</span>
+              </button>
+              {hasSearchKeyword || !collapsedGroupMap[group.id] ? (
+                <div className="personal-list">
+                  {group.sections.map((section) => {
+                    const sectionKey = buildSectionCollapseKey(group.id, section.id);
+                    const sectionExpanded = hasSearchKeyword || !collapsedSectionMap[sectionKey];
+                    return (
+                      <div key={section.id}>
                         <button
-                          key={item.id}
                           type="button"
-                          className="entity-card personal-card"
-                          onClick={() => setSelectedLeafId(item.id)}
+                          onClick={() => toggleSectionCollapse(group.id, section.id, setCollapsedSectionMap)}
                           style={{
                             width: "100%",
+                            marginBottom: 8,
+                            padding: 0,
+                            border: "none",
+                            background: "transparent",
                             textAlign: "left",
-                            border: item.id === selectedLeaf?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
-                            background: item.id === selectedLeaf?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
                           }}
                         >
-                          <div className="entity-card-head">
-                            <div>
-                              <strong>{item.leafLabel}</strong>
-                              <p className="personal-meta">{item.prompt.basePrompt.scene}</p>
-                            </div>
-                            <span className={`archive-pill ${item.prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
-                              {item.prompt.isCustomized ? "已自定义" : "跟随平台"}
-                            </span>
-                          </div>
-                          <div className="personal-grid">
-                            <div>
-                              <span>执行技能</span>
-                              <strong>{item.skill.effectiveSkill.name}</strong>
-                            </div>
-                            <div>
-                              <span>模型</span>
-                              <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
-                            </div>
-                          </div>
+                          <p className="personal-meta" style={{ marginBottom: 0 }}>{section.label}</p>
+                          <span className="personal-meta">{sectionExpanded ? "收起" : "展开"}</span>
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        {sectionExpanded ? (
+                          <div className="personal-list">
+                            {section.items.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                className="entity-card personal-card"
+                                onClick={() => setSelectedLeafId(item.id)}
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                  border: item.id === selectedLeaf?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
+                                  background: item.id === selectedLeaf?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
+                                }}
+                              >
+                                <div className="entity-card-head">
+                                  <div>
+                                    <strong>{item.leafLabel}</strong>
+                                    <p className="personal-meta">{item.prompt.basePrompt.scene}</p>
+                                  </div>
+                                  <span className={`archive-pill ${item.prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
+                                    {item.prompt.isCustomized ? "已自定义" : "跟随平台"}
+                                  </span>
+                                </div>
+                                <div className="personal-grid">
+                                  <div>
+                                    <span>执行技能</span>
+                                    <strong>{item.skill.effectiveSkill.name}</strong>
+                                  </div>
+                                  <div>
+                                    <span>模型</span>
+                                    <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
             </article>
           ))}
           {!groupedPromptLeaves.length ? <div className="empty-canvas-box">暂无匹配提示词，请调整搜索词或状态筛选。</div> : null}
@@ -621,6 +671,32 @@ function buildPromptLeafViews(skills: UserSkillRecord[]) {
   });
 
   return views;
+}
+
+function toggleGroupCollapse(
+  primaryId: string,
+  setCollapsedGroupMap: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+) {
+  setCollapsedGroupMap((current) => ({
+    ...current,
+    [primaryId]: !current[primaryId],
+  }));
+}
+
+function toggleSectionCollapse(
+  primaryId: string,
+  sectionId: string,
+  setCollapsedSectionMap: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+) {
+  const sectionKey = buildSectionCollapseKey(primaryId, sectionId);
+  setCollapsedSectionMap((current) => ({
+    ...current,
+    [sectionKey]: !current[sectionKey],
+  }));
+}
+
+function buildSectionCollapseKey(primaryId: string, sectionId: string) {
+  return `${primaryId}::${sectionId}`;
 }
 
 function groupPromptLeafViews(items: PromptLeafView[]) {

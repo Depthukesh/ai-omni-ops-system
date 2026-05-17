@@ -185,6 +185,7 @@
 - `/personal-center/works`：作品中心第一版，已接真实 `/media` 列表接口，按当前登录用户查看 HTML、图片、视频与文档资产，支持作品范围筛选、类型筛选、关键词搜索、品牌上下文切换、小红书作品回跳与源文件打开；当前作品仍主要按用户维度过滤，品牌内共享与更细作品分类后续继续扩展
 - `/personal-center/skills`：技能中心已升级为“平台基线 + 用户覆盖”双层结构；当前采用左侧分类树、右侧单条提示词编辑器，支持按当前登录用户和当前品牌读取真实 `/api/user-skills`
   - 左侧不再按“总技能卡”展示，而是按统一分类树直接展开到“可编辑提示词叶子项”；视频笔记会明确拆成 `品牌宣传剧本 / 口播带货剧本 / 短剧带货剧本 / 复刻视频拆解 / 故事板提示词 / 短视频提示词`
+  - 左侧一级分类和二级分类现都支持折叠；搜索时会自动展开全部结果分组，选中某条提示词时也会自动展开到对应位置
   - 右侧当前聚焦所选提示词本身，展示所属分类、所属执行技能、提示词场景和提示词编辑字段；保存时继续复用原有用户覆盖层
   - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
   - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
@@ -197,6 +198,7 @@
   - 参考变更：`docs/changes/2026-05-14-personal-center-skill-editor-layout-and-model-options.md`
   - 参考变更：`docs/changes/2026-05-15-user-skills-table-compat-fix.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
+  - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
 - `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
   - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
   - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护自己的私有 API Key，仅有 `view` 的成员保持只读
@@ -243,8 +245,8 @@
 - 品牌成员与权限管理
 - API/模型消耗管理
 - 技能中心
-  - 左侧目录树：品牌增长策略 / 小红书 / 抖音，点击一级项后展开下级树
-  - 左侧二级分类：按业务模块展开，例如品牌增长报告、半年营销规划
+  - 左侧目录树：品牌增长策略 / 小红书 / 抖音，一级分类支持展开/收起
+  - 左侧二级分类：按业务模块展开，例如品牌增长报告、半年营销规划；二级分类同样支持展开/收起
   - 左侧三级分类：具体技能项，例如“品牌增长报告-生成品牌增长报告”
   - 小红书内容生产：已拆分为 `原创笔记-原创文案`、`原创笔记-原创配图`、`二创笔记-二创文案`、`二创笔记-二创配图`，以及视频笔记的 `品牌宣传剧本 / 口播带货剧本 / 短剧带货剧本 / 复刻视频拆解 / 故事板提示词 / 短视频提示词`
   - 当前目录树样式：已改为目录式展开菜单，与左侧后台导航保持同一视觉语言
@@ -253,11 +255,13 @@
   - 后台技能中心当前所有文本类技能已统一运行逻辑：先严格尝试当前卡片里选中的默认模型，再按兼容 provider / model 继续 fallback；失败时统一展示实际尝试顺序
   - 技能提示词：后台当前会自动聚合真实 `SKILL.md` 与技能源目录下的顶层 `.md` / `.txt` 参考资料；原创笔记已拆分为“原创文案”和“原创配图”两套提示词分别呈现
   - 视频笔记提示词现按“剧本策划 / 视频生成”两组分类展示，前后台都可按单条 prompt 修改
+  - 当前选中某个三级提示词时，会自动展开对应一级/二级目录，避免所选项被折叠隐藏
   - 聚合型提示词在后台当前以只读方式展示，需回到原始提示词目录维护，避免把整份聚合内容误写回单个 `SKILL.md`
   - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
   - 参考变更：`docs/changes/2026-05-13-global-skill-model-priority-unification.md`
   - 参考变更：`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
+  - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
 - 知识库管理
 - 接口供应商
   - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑

@@ -208,7 +208,8 @@ export default function AdminPage() {
   const [activeSkillPrimaryId, setActiveSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
   const [activeSkillSectionId, setActiveSkillSectionId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.id || "");
   const [activeSkillLeafId, setActiveSkillLeafId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.items[0]?.id || "");
-  const [expandedSkillPrimaryId, setExpandedSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
+  const [collapsedSkillPrimaryMap, setCollapsedSkillPrimaryMap] = useState<Record<string, boolean>>({});
+  const [collapsedSkillSectionMap, setCollapsedSkillSectionMap] = useState<Record<string, boolean>>({});
   const [orders, setOrders] = useState<OrderRecord[]>(adminOrderSeed);
   const [rules, setRules] = useState<BillingRules>(billingRulesSeed);
   const [users, setUsers] = useState<AdminUserRecord[]>(adminUserSeed);
@@ -1714,7 +1715,9 @@ export default function AdminPage() {
   const skillCenterPromptValue = activePromptDraft?.content || "";
   const skillCenterName = activeSkillLeaf?.label || activePromptConfig?.name || activeSkillConfig?.name || "-";
   const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
-  const isSkillPrimaryExpanded = (primaryId: string) => expandedSkillPrimaryId === primaryId;
+  const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
+  const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
+    !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
   const isSavingSkillCenter =
     (activeSkillConfig ? updatingSkillId === activeSkillConfig.id : false) ||
     (activePromptConfig ? updatingPromptId === activePromptConfig.id : false);
@@ -1746,7 +1749,16 @@ export default function AdminPage() {
     const nextSection = nextPrimary.sections[0];
     const nextLeaf = nextSection?.items[0];
     setActiveSkillPrimaryId(nextPrimary.id);
-    setExpandedSkillPrimaryId(nextPrimary.id);
+    setCollapsedSkillPrimaryMap((current) => ({
+      ...current,
+      [nextPrimary.id]: false,
+    }));
+    if (nextSection) {
+      setCollapsedSkillSectionMap((current) => ({
+        ...current,
+        [buildAdminSkillSectionCollapseKey(nextPrimary.id, nextSection.id)]: false,
+      }));
+    }
     setActiveSkillSectionId(nextSection?.id || "");
     setActiveSkillLeafId(nextLeaf?.id || "");
   }
@@ -1758,16 +1770,45 @@ export default function AdminPage() {
       return;
     }
     setActiveSkillPrimaryId(nextPrimary.id);
-    setExpandedSkillPrimaryId(nextPrimary.id);
+    setCollapsedSkillPrimaryMap((current) => ({
+      ...current,
+      [nextPrimary.id]: false,
+    }));
+    setCollapsedSkillSectionMap((current) => ({
+      ...current,
+      [buildAdminSkillSectionCollapseKey(nextPrimary.id, nextSection.id)]: false,
+    }));
     setActiveSkillSectionId(nextSection.id);
     setActiveSkillLeafId(nextSection.items[0]?.id || "");
   }
 
   function handleSelectSkillLeaf(primaryId: string, sectionId: string, leafId: string) {
     setActiveSkillPrimaryId(primaryId);
-    setExpandedSkillPrimaryId(primaryId);
+    setCollapsedSkillPrimaryMap((current) => ({
+      ...current,
+      [primaryId]: false,
+    }));
+    setCollapsedSkillSectionMap((current) => ({
+      ...current,
+      [buildAdminSkillSectionCollapseKey(primaryId, sectionId)]: false,
+    }));
     setActiveSkillSectionId(sectionId);
     setActiveSkillLeafId(leafId);
+  }
+
+  function handleToggleSkillPrimary(primaryId: string) {
+    setCollapsedSkillPrimaryMap((current) => ({
+      ...current,
+      [primaryId]: !current[primaryId],
+    }));
+  }
+
+  function handleToggleSkillSection(primaryId: string, sectionId: string) {
+    const key = buildAdminSkillSectionCollapseKey(primaryId, sectionId);
+    setCollapsedSkillSectionMap((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
   }
 
   if (isCheckingAccess) {
@@ -2110,7 +2151,7 @@ export default function AdminPage() {
                       <button
                         type="button"
                         className={`admin-skill-primary-button${primaryActive ? " active" : ""}`}
-                        onClick={() => handleSelectSkillPrimary(primary.id)}
+                        onClick={() => handleToggleSkillPrimary(primary.id)}
                       >
                         <span className="admin-skill-primary-mark">{primary.label.slice(0, 1)}</span>
                         <span className="admin-skill-primary-button-copy">
@@ -2123,37 +2164,40 @@ export default function AdminPage() {
                         <div className="admin-skill-tree-sections">
                           {primary.sections.map((section) => {
                             const sectionActive = primary.id === activeSkillPrimaryId && section.id === activeSkillSectionId;
+                            const sectionExpanded = isSkillSectionExpanded(primary.id, section.id);
 
                             return (
                               <div className="entity-card admin-skill-tree-section" key={section.id}>
                                 <button
                                   type="button"
                                   className={`admin-skill-tree-section-button${sectionActive ? " active" : ""}`}
-                                  onClick={() => handleSelectSkillSection(primary.id, section.id)}
+                                  onClick={() => handleToggleSkillSection(primary.id, section.id)}
                                 >
                                   <span className="admin-skill-tree-section-label">{section.label}</span>
-                                  <small>{section.items.length}</small>
+                                  <small>{sectionExpanded ? "收起" : `${section.items.length}`}</small>
                                 </button>
-                                <div className="admin-skill-tree-leaf-list">
-                                  {section.items.map((leaf) => {
-                                    const leafActive =
-                                      primary.id === activeSkillPrimaryId &&
-                                      section.id === activeSkillSectionId &&
-                                      leaf.id === activeSkillLeafId;
+                                {sectionExpanded ? (
+                                  <div className="admin-skill-tree-leaf-list">
+                                    {section.items.map((leaf) => {
+                                      const leafActive =
+                                        primary.id === activeSkillPrimaryId &&
+                                        section.id === activeSkillSectionId &&
+                                        leaf.id === activeSkillLeafId;
 
-                                    return (
-                                      <button
-                                        type="button"
-                                        className={`admin-skill-tree-leaf-button${leafActive ? " active" : ""}`}
-                                        key={leaf.id}
-                                        onClick={() => handleSelectSkillLeaf(primary.id, section.id, leaf.id)}
-                                      >
-                                        <span className="admin-skill-tree-leaf-dot" />
-                                        <strong>{leaf.label}</strong>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                      return (
+                                        <button
+                                          type="button"
+                                          className={`admin-skill-tree-leaf-button${leafActive ? " active" : ""}`}
+                                          key={leaf.id}
+                                          onClick={() => handleSelectSkillLeaf(primary.id, section.id, leaf.id)}
+                                        >
+                                          <span className="admin-skill-tree-leaf-dot" />
+                                          <strong>{leaf.label}</strong>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
                               </div>
                             );
                           })}
@@ -3828,6 +3872,10 @@ function getSkillPrimaryMark(primaryId: string, label: string) {
     return "抖";
   }
   return label.slice(0, 1);
+}
+
+function buildAdminSkillSectionCollapseKey(primaryId: string, sectionId: string) {
+  return `${primaryId}::${sectionId}`;
 }
 
 function formatDateTime(value: string) {

@@ -167,6 +167,8 @@
   - 视频笔记改为“三阶段任务化 + 故事板确认后继续生成短视频”，并将视频提示词按业务阶段拆成 6 条独立 prompt 供前后台技能中心分类展示与修改
 - `docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
   - 技能中心继续收口到“前后台统一分类树 + 单条提示词叶子项可见可改”，修正视频笔记 prompt 已注册但界面仍按总技能展示的问题
+- `docs/changes/2026-05-17-skill-center-collapsible-tree.md`
+  - 技能中心左侧分类树补充一级/二级折叠交互，前后台同步支持，减少提示词增多后的滚动成本
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
