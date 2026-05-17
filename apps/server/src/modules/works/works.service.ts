@@ -3276,6 +3276,7 @@ export class WorksService {
         workflowStage: "GENERATING_VIDEO",
         progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
       });
+      const accessibleStoryboardImageUrl = await this.resolveThirdPartyAccessibleAssetUrl(meta.storyboardImageUrl, brandId);
       const promptResult = await this.generateShortVideoPromptFromStoryboard(brandId, meta);
       const videoResult = await this.generateVideoAsset({
         brandId,
@@ -3286,7 +3287,7 @@ export class WorksService {
         prompt: promptResult.fullVideoPrompt || promptResult.videoPrompt,
         negativePrompt: promptResult.negativePrompt,
         requestedDurationSec: meta.requestedDurationSec,
-        referenceImageUrl: meta.storyboardImageUrl,
+        referenceImageUrl: accessibleStoryboardImageUrl,
       });
       meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
@@ -5929,7 +5930,12 @@ export class WorksService {
         });
         const taskId = this.extractVideoTaskId(createResponse);
         if (!taskId) {
-          throw new ServiceUnavailableException(`${config.backend} 未返回任务 ID`);
+          const createFailureReason = this.readVideoCreateFailureReason(createResponse);
+          throw new ServiceUnavailableException(
+            createFailureReason
+              ? `${config.backend} 创建任务失败：${createFailureReason}`
+              : `${config.backend} 未返回任务 ID`,
+          );
         }
 
         const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
@@ -6090,6 +6096,23 @@ export class WorksService {
       || this.readOptionalString(this.asRecord(payload.data)?.taskId)
       || this.readOptionalString(this.asRecord(payload.data)?.task_id)
       || this.readOptionalString(this.asRecord(payload.data)?.id);
+  }
+
+  private readVideoCreateFailureReason(payload: Record<string, unknown>) {
+    const topLevelData = this.asRecord(payload.data);
+    const nestedError = this.asRecord(payload.error);
+    return this.readOptionalString(payload.errorMessage)
+      || this.readOptionalString(payload.message)
+      || this.readOptionalString(payload.msg)
+      || this.readOptionalString(payload.errorMsg)
+      || this.readOptionalString(payload.error_code)
+      || this.readOptionalString(payload.errorCode)
+      || this.readOptionalString(topLevelData?.errorMessage)
+      || this.readOptionalString(topLevelData?.message)
+      || this.readOptionalString(topLevelData?.msg)
+      || this.readOptionalString(topLevelData?.errorMsg)
+      || this.readOptionalString(nestedError?.message)
+      || this.readOptionalString(nestedError?.msg);
   }
 
   private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {
@@ -6952,6 +6975,21 @@ export class WorksService {
 
   private resolveGeneratedAssetUrl(brandId: string, fileName: string) {
     return `${this.resolveServerBaseUrl()}/api/works/brands/${brandId}/assets/${encodeURIComponent(fileName)}`;
+  }
+
+  private async resolveThirdPartyAccessibleAssetUrl(url: string | undefined, brandId: string) {
+    const normalizedUrl = String(url || "").trim();
+    if (!normalizedUrl) {
+      return "";
+    }
+    const storageKey = this.toStorageKeyFromUrl(normalizedUrl);
+    if (!storageKey.startsWith(`works/${brandId}/`)) {
+      return normalizedUrl;
+    }
+    if (!this.ossStorageService.isEnabled()) {
+      return normalizedUrl;
+    }
+    return this.ossStorageService.getSignedReadUrl(storageKey);
   }
 
   private buildGeneratedAssetStorageKey(brandId: string, fileName: string) {

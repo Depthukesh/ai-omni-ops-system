@@ -81,6 +81,21 @@ export class OssStorageService {
     }
   }
 
+  getSignedReadUrl(storageKey: string, expiresInSeconds = 3600) {
+    if (this.shouldUseLocalFallback()) {
+      return "";
+    }
+    const client = this.getClient();
+    try {
+      return client.signatureUrl(storageKey, {
+        method: "GET",
+        expires: expiresInSeconds,
+      });
+    } catch (error) {
+      throw this.toStorageError(error, `生成 OSS 签名链接失败：${storageKey}`);
+    }
+  }
+
   private getClient() {
     const config = this.appConfigService.getOssConfig();
     if (!config) {
