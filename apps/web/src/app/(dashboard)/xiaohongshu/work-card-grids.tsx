@@ -166,6 +166,8 @@ export function RewriteWorkCardGrid(props: RewriteWorkCardGridProps) {
 
 export interface VideoWorkCardGridProps {
   items: XiaohongshuVideoWorkRecord[];
+  selectedWorkId?: string;
+  onSelect: (item: XiaohongshuVideoWorkRecord) => void;
   onPreview: (item: XiaohongshuVideoWorkRecord) => void;
   onEdit: (item: XiaohongshuVideoWorkRecord) => void;
   onDelete: (workId: string) => void;
@@ -178,13 +180,14 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
     <div className="xhs-material-library">
       <div className="xhs-material-card-grid">
         {props.items.map((item) => {
-          const previewImageUrl = item.coverImageUrl || "";
+          const previewImageUrl = item.storyboardImageUrl || item.coverImageUrl || "";
+          const isActive = props.selectedWorkId === item.id;
           return (
             <article key={item.id} className="xhs-material-card">
               <button
                 type="button"
-                className="xhs-material-card-stage"
-                onClick={() => props.onPreview(item)}
+                className={`xhs-material-card-stage ${isActive ? "is-active" : ""}`}
+                onClick={() => props.onSelect(item)}
               >
                 {previewImageUrl ? (
                   <img className="xhs-material-card-media" src={previewImageUrl} alt={item.title} />
@@ -196,15 +199,18 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
                 <span className="xhs-material-card-badge xhs-material-card-badge--left">
                   {formatXiaohongshuAccountRoleLabel(item.accountRole)}
                 </span>
-                <span className="xhs-material-card-badge">视频</span>
+                <span className="xhs-material-card-badge">{getVideoWorkflowStageLabel(item.workflowStage)}</span>
               </button>
               <div className="xhs-material-card-body">
                 <strong>{item.title}</strong>
-                <p>{item.calendarLabel || item.customTopicName || "自定义选题"}</p>
+                <p>{getVideoKindLabel(item.videoKind)} · {item.calendarLabel || item.customTopicName || "自定义选题"}</p>
                 <p>{props.formatDateTime(item.createdAt)}</p>
                 <div className="xhs-material-card-actions">
+                  <button type="button" className="primary-button" onClick={() => props.onSelect(item)}>
+                    {isActive ? "查看中" : "查看详情"}
+                  </button>
                   <button type="button" className="secondary-button" onClick={() => props.onPreview(item)}>
-                    预览
+                    预览媒体
                   </button>
                   <button type="button" className="secondary-button" onClick={() => props.onEdit(item)}>
                     编辑
@@ -237,4 +243,40 @@ function getPreviewIndex(indexMap: Record<string, number>, noteId?: string, tota
   }
   const current = indexMap[noteId] ?? 0;
   return ((current % total) + total) % total;
+}
+
+function getVideoKindLabel(kind?: XiaohongshuVideoWorkRecord["videoKind"]) {
+  switch (kind) {
+    case "BRAND_PROMO":
+      return "品牌宣传";
+    case "SPOKEN_SELLING":
+      return "口播带货";
+    case "SKIT_SELLING":
+      return "短剧带货";
+    case "REMIX":
+      return "复刻视频";
+    default:
+      return "视频";
+  }
+}
+
+function getVideoWorkflowStageLabel(stage?: XiaohongshuVideoWorkRecord["workflowStage"]) {
+  switch (stage) {
+    case "QUEUED":
+      return "排队中";
+    case "GENERATING_SCRIPT":
+      return "生成剧本";
+    case "GENERATING_STORYBOARD":
+      return "生成故事板";
+    case "WAITING_VIDEO":
+      return "待生成视频";
+    case "GENERATING_VIDEO":
+      return "生成视频";
+    case "SUCCESS":
+      return "已完成";
+    case "FAILED":
+      return "失败";
+    default:
+      return "视频";
+  }
 }

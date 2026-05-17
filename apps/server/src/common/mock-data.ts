@@ -318,6 +318,36 @@ const xiaohongshuRewriteCopySkillContent = readPromptSourceBundle(
   "根据对标作品、营销规划和用户要求，生成小红书二创笔记标题、正文与标签。",
 ).content;
 
+const xiaohongshuVideoBrandScriptSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_brand_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成品牌宣传视频创意剧本。",
+).content;
+
+const xiaohongshuVideoSpokenScriptSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_spoken_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成口播带货视频创意剧本。",
+).content;
+
+const xiaohongshuVideoSkitScriptSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_skit_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成短剧带货视频创意剧本。",
+).content;
+
+const xiaohongshuVideoRemixScriptSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_remix_script",
+  "根据素材库里的视频链接和拆解要求，生成复刻视频剧情脚本。",
+).content;
+
+const xiaohongshuVideoStoryboardSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_storyboard",
+  "根据剧本、产品图和用户要求，生成故事板提示词。",
+).content;
+
+const xiaohongshuVideoShortPromptSkillContent = readPromptSourceBundle(
+  "prompt_xhs_video_short_prompt",
+  "根据故事板提示词和故事板图片，生成短视频提示词。",
+).content;
+
 const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
   "prompt_xhs_video_note",
   "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
@@ -987,7 +1017,7 @@ export const database: MockDatabase = {
       provider: "视频生成 · Seedance",
       defaultModel: "doubao-seedance-2-0-260128",
       pointsCost: 240,
-      description: "用于生成视频笔记文案、视频提示词并衔接第三方视频模型。",
+      description: "用于编排视频笔记的剧本、故事板提示词、故事板图片和短视频生成全流程。",
       updatedAt: "2026-05-06T09:10:00.000Z",
     },
   ],
@@ -1123,6 +1153,78 @@ export const database: MockDatabase = {
       maxTokens: 5000,
       content: xiaohongshuVideoNoteSkillContent,
       updatedAt: "2026-05-06T09:10:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_brand_script",
+      name: "视频笔记-品牌宣传剧本提示词",
+      scene: "视频笔记-品牌宣传剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: xiaohongshuVideoBrandScriptSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_spoken_script",
+      name: "视频笔记-口播带货剧本提示词",
+      scene: "视频笔记-口播带货剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: xiaohongshuVideoSpokenScriptSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_skit_script",
+      name: "视频笔记-短剧带货剧本提示词",
+      scene: "视频笔记-短剧带货剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: xiaohongshuVideoSkitScriptSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_remix_script",
+      name: "视频笔记-复刻视频拆解提示词",
+      scene: "视频笔记-复刻视频拆解",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "doubao-seed-2-0-pro-260215",
+      temperature: 0.2,
+      maxTokens: 6000,
+      content: xiaohongshuVideoRemixScriptSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_storyboard",
+      name: "视频笔记-故事板提示词",
+      scene: "视频笔记-故事板提示词",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "gpt-5.5",
+      temperature: 0.4,
+      maxTokens: 8000,
+      content: xiaohongshuVideoStoryboardSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_xhs_video_short_prompt",
+      name: "视频笔记-短视频提示词",
+      scene: "视频笔记-短视频提示词",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "gpt-5.5",
+      temperature: 0.3,
+      maxTokens: 8000,
+      content: xiaohongshuVideoShortPromptSkillContent,
+      updatedAt: "2026-05-17T10:00:00.000Z",
     },
     {
       id: "prompt_annual_marketing_plan",

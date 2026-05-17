@@ -370,39 +370,39 @@ export interface VideoCreateModalProps {
   customTopicOption: string;
   noProductOption: string;
   customVideoProviderOption: string;
-  customVideoDurationOption: string;
   videoProviderOptions: VideoProviderOptionRecord[];
   products: ProductOption[];
+  materialNotes: MaterialOption[];
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  materialValue: string;
   accountRoleValue: string;
   accountRoleOptions: SelectOption[];
   referenceImageFile: File | null;
+  videoKindValue: string;
   copyAdditionalInstruction: string;
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
   durationValue: string;
-  customDurationValue: string;
   injectMarketingPlanValue: string;
-  outputPromptValue: string;
   additionalInstruction: string;
   onClose: () => void;
   onCreate: AsyncAction;
   onCalendarChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onMaterialChange: StringChangeHandler;
   onAccountRoleChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onReferenceImageFileChange: (file: File | null) => void;
+  onVideoKindChange: StringChangeHandler;
   onCopyAdditionalInstructionChange: StringChangeHandler;
   onProviderChange: StringChangeHandler;
   onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
-  onCustomDurationChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
-  onOutputPromptChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
 }
 
@@ -421,7 +421,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
           <div className="entity-card-head">
             <div>
               <strong>添加视频笔记</strong>
-              <p className="personal-meta">选择营销日历、产品或参考图后，直接触发视频笔记文案、短视频提示词和成片生成链路。</p>
+              <p className="personal-meta">提交后先生成创意剧本和故事板，故事板确认后再继续生成短视频。</p>
             </div>
           </div>
           <div className="personal-grid">
@@ -448,6 +448,15 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
               </select>
             </label>
             <label>
+              <span>视频类型</span>
+              <select value={props.videoKindValue} onChange={(event) => props.onVideoKindChange(event.target.value)}>
+                <option value="BRAND_PROMO">品牌宣传视频</option>
+                <option value="SPOKEN_SELLING">口播带货视频</option>
+                <option value="SKIT_SELLING">短剧带货视频</option>
+                <option value="REMIX">复刻视频</option>
+              </select>
+            </label>
+            <label>
               <span>账号角色</span>
               <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
                 {props.accountRoleOptions.map((item) => (
@@ -467,8 +476,26 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                 />
               </label>
             ) : null}
+            <label>
+              <span>素材库</span>
+              <select value={props.materialValue} onChange={(event) => props.onMaterialChange(event.target.value)}>
+                <option value="">不添加素材</option>
+                {props.materialNotes
+                  .filter((item) => "videoUrl" in item ? Boolean((item as { videoUrl?: string }).videoUrl) : true)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+              </select>
+              <p className="panel-subtext">
+                {props.videoKindValue === "REMIX"
+                  ? "复刻视频必须选择一个视频素材。"
+                  : "可选：只展示素材库中的视频类型素材。"}
+              </p>
+            </label>
             <label className="field-full">
-              <span>上传参考图</span>
+              <span>上传产品图/参考图</span>
               <input
                 type="file"
                 accept="image/*"
@@ -518,25 +545,13 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
             <label>
               <span>视频时长</span>
               <select value={props.durationValue} onChange={(event) => props.onDurationChange(event.target.value)}>
-                {["6", "8", "10", "12", "15", "30"].map((value) => (
+                {["10", "15"].map((value) => (
                   <option key={value} value={value}>
                     {value}s
                   </option>
                 ))}
-                <option value={props.customVideoDurationOption}>自行选择</option>
               </select>
             </label>
-            {props.durationValue === props.customVideoDurationOption ? (
-              <label>
-                <span>自定义视频时长</span>
-                <input
-                  value={props.customDurationValue}
-                  onChange={(event) => props.onCustomDurationChange(event.target.value)}
-                  inputMode="numeric"
-                  placeholder="请输入秒数，例如 18"
-                />
-              </label>
-            ) : null}
             <label>
               <span>植入营销策划方案</span>
               <select value={props.injectMarketingPlanValue} onChange={(event) => props.onInjectMarketingPlanChange(event.target.value)}>
@@ -544,15 +559,8 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                 <option value="no">否</option>
               </select>
             </label>
-            <label>
-              <span>输出视频提示词</span>
-              <select value={props.outputPromptValue} onChange={(event) => props.onOutputPromptChange(event.target.value)}>
-                <option value="yes">是</option>
-                <option value="no">否</option>
-              </select>
-            </label>
             <label className="field-full">
-              <span>用户要求（文案）</span>
+              <span>用户要求（剧本）</span>
               <textarea
                 className="report-markdown-textarea composer-form-textarea"
                 value={props.copyAdditionalInstruction}
@@ -561,7 +569,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
               />
             </label>
             <label className="field-full">
-              <span>用户要求（视频生成）</span>
+              <span>用户要求（故事板/视频）</span>
               <textarea
                 className="report-markdown-textarea composer-form-textarea"
                 value={props.additionalInstruction}

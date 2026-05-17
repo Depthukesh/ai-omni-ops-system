@@ -1,7 +1,9 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
+  type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateXiaohongshuVideoNotePayload,
+  type RegenerateXiaohongshuVideoStoryboardPayload,
   WorksService,
   type GenerateXiaohongshuOriginalNotePayload,
   type GenerateXiaohongshuRewriteNotePayload,
@@ -114,6 +116,32 @@ export class WorksController {
         const access = await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
         return this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth, access.role);
       });
+  }
+
+  @Post("brands/:brandId/xiaohongshu/video/:workId/storyboard/regenerate")
+  regenerateXiaohongshuVideoStoryboard(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: RegenerateXiaohongshuVideoStoryboardPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+      return this.worksService.regenerateXiaohongshuVideoStoryboard(brandId, workId, payload, auth);
+    });
+  }
+
+  @Post("brands/:brandId/xiaohongshu/video/:workId/video/generate")
+  continueXiaohongshuVideoGeneration(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: ContinueXiaohongshuVideoGenerationPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+      return this.worksService.continueXiaohongshuVideoGeneration(brandId, workId, payload, auth);
+    });
   }
 
   @Patch("brands/:brandId/xiaohongshu/original/:workId")

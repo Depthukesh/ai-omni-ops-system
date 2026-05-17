@@ -18,7 +18,6 @@ export function useNoteComposerForms(options: {
   availableVideoProviderValues?: string[];
 }) {
   const customVideoProviderOption = "__custom_video_provider__";
-  const customVideoDurationOption = "__custom_video_duration__";
   const defaultVideoProviderValue = options.defaultVideoProviderValue || "seedance";
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
@@ -69,16 +68,16 @@ export function useNoteComposerForms(options: {
   const [videoCalendarValue, setVideoCalendarValue] = useState("");
   const [videoCustomTopic, setVideoCustomTopic] = useState("");
   const [videoProductValue, setVideoProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [videoMaterialValue, setVideoMaterialValue] = useState("");
   const [videoAccountRoleValue, setVideoAccountRoleValue] = useState(options.defaultVideoAccountRoleValue || "BRAND");
   const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
+  const [videoKindValue, setVideoKindValue] = useState("BRAND_PROMO");
   const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
   const [videoProviderValue, setVideoProviderValue] = useState(defaultVideoProviderValue);
   const [videoCustomProviderValue, setVideoCustomProviderValue] = useState(defaultVideoProviderValue);
   const [videoCustomModelName, setVideoCustomModelName] = useState("");
   const [videoDurationValue, setVideoDurationValue] = useState("10");
-  const [videoCustomDurationValue, setVideoCustomDurationValue] = useState("10");
   const [videoInjectMarketingPlanValue, setVideoInjectMarketingPlanValue] = useState("yes");
-  const [videoOutputPromptValue, setVideoOutputPromptValue] = useState("yes");
   const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
 
   function resetOriginalComposer(calendarItems: CalendarOption[], products: ProductOption[]) {
@@ -169,16 +168,16 @@ export function useNoteComposerForms(options: {
     setVideoCalendarValue(calendarItems[0]?.id || options.customTopicOption);
     setVideoCustomTopic("");
     setVideoProductValue(products[0]?.id || options.noProductOption);
+    setVideoMaterialValue("");
     setVideoAccountRoleValue(resolveDefaultVideoAccountRoleValue());
     setVideoReferenceImageFile(null);
+    setVideoKindValue("BRAND_PROMO");
     setVideoCopyAdditionalInstruction("");
     setVideoProviderValue(resolvedDefaultProvider);
     setVideoCustomProviderValue(resolvedDefaultProvider);
     setVideoCustomModelName("");
     setVideoDurationValue("10");
-    setVideoCustomDurationValue("10");
     setVideoInjectMarketingPlanValue("yes");
-    setVideoOutputPromptValue("yes");
     setVideoAdditionalInstruction("");
   }
 
@@ -222,19 +221,18 @@ export function useNoteComposerForms(options: {
     videoCalendarValue,
     videoCustomTopic,
     videoProductValue,
+    videoMaterialValue,
     videoAccountRoleValue,
     videoReferenceImageFile,
+    videoKindValue,
     videoCopyAdditionalInstruction,
     videoProviderValue,
     videoCustomProviderValue,
     videoCustomModelName,
     videoDurationValue,
-    videoCustomDurationValue,
     videoInjectMarketingPlanValue,
-    videoOutputPromptValue,
     videoAdditionalInstruction,
     customVideoProviderOption,
-    customVideoDurationOption,
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
@@ -254,16 +252,16 @@ export function useNoteComposerForms(options: {
     setVideoCalendarValue,
     setVideoCustomTopic,
     setVideoProductValue,
+    setVideoMaterialValue,
     setVideoAccountRoleValue,
     setVideoReferenceImageFile,
+    setVideoKindValue,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
     setVideoCustomProviderValue,
     setVideoCustomModelName,
     setVideoDurationValue,
-    setVideoCustomDurationValue,
     setVideoInjectMarketingPlanValue,
-    setVideoOutputPromptValue,
     setVideoAdditionalInstruction,
     setIsVideoModalOpen,
     resetOriginalComposer,

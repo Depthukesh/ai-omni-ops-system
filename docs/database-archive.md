@@ -189,6 +189,7 @@
   - 成品 HTML / 图片 / 视频：`MediaAsset`
   - 作品工作区主记录：当前主要通过 `MediaAsset.metadataJson` 承载结构化作品元数据
   - 原创笔记主记录 `kind = XHS_ORIGINAL_NOTE`、二创笔记主记录 `kind = XHS_REWRITE_NOTE`、视频笔记主记录 `kind = XHS_VIDEO_NOTE` 当前都已额外持久化 `accountRole`，用于区分 `品牌号 / 员工号 / 达人号` 发布主体，并直接回传给前端作品卡片展示
+  - 视频笔记主记录 `kind = XHS_VIDEO_NOTE` 当前继续复用 `MediaAsset.metadataJson` 承载三阶段状态，不新增独立视频流程表；中间字段包含 `videoKind`、`workflowStage`、`creativeScript`、`storyboardPrompt`、`storyboardImageUrl`、`progressSteps`、`storyboardRevisions`、`materialId/materialVideoUrl`
   - 历史未带 `accountRole` 的二创/视频旧数据，当前读取时统一回落为 `品牌号`，避免旧作品列表读取失败
 - 访问边界
   - 小红书素材、营销方案、营销日历和飞书媒体代理等按 `brandId` 访问的接口，当前已统一校验当前登录用户是否属于该品牌

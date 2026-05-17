@@ -46,6 +46,28 @@ export type XhsOriginalReferenceTemplateRecord = {
 };
 
 export type XiaohongshuAccountRole = "BRAND" | "STAFF" | "TALENT";
+export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
+export type VideoWorkflowStage =
+  | "QUEUED"
+  | "GENERATING_SCRIPT"
+  | "GENERATING_STORYBOARD"
+  | "WAITING_VIDEO"
+  | "GENERATING_VIDEO"
+  | "SUCCESS"
+  | "FAILED";
+
+export type VideoProgressStepEntry = {
+  key: "SCRIPT" | "STORYBOARD" | "VIDEO";
+  label: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+};
+
+export type VideoStoryboardRevisionEntry = {
+  taskId: string;
+  prompt: string;
+  imageUrl?: string;
+  createdAt: string;
+};
 
 export function formatXiaohongshuAccountRoleLabel(role?: XiaohongshuAccountRole | null) {
   switch (role) {
@@ -131,9 +153,12 @@ export type XiaohongshuVideoWorkRecord = {
   taskId: string;
   brandId?: string;
   accountRole: XiaohongshuAccountRole;
+  videoKind: VideoNoteKind;
+  workflowStage: VideoWorkflowStage;
   title: string;
   content: string;
   coverImageUrl?: string;
+  storyboardImageUrl?: string;
   videoUrl?: string;
   noteCategory: "原创";
   noteType: "视频";
@@ -142,6 +167,9 @@ export type XiaohongshuVideoWorkRecord = {
   customTopicName?: string;
   productId?: string;
   productName?: string;
+  materialId?: string;
+  materialTitle?: string;
+  materialVideoUrl?: string;
   referenceImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
@@ -151,7 +179,10 @@ export type XiaohongshuVideoWorkRecord = {
   resolvedVideoModel?: string;
   requestedDurationSec: number;
   renderedDurationSec?: number;
-  outputVideoPrompt: boolean;
+  creativeScript?: string;
+  storyboardPrompt?: string;
+  progressSteps: VideoProgressStepEntry[];
+  storyboardRevisions: VideoStoryboardRevisionEntry[];
   videoPrompt?: string;
   fullVideoPrompt?: string;
   videoReasoning?: string;
@@ -194,14 +225,15 @@ export type GenerateXiaohongshuVideoNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  materialId?: string;
   accountRole?: XiaohongshuAccountRole;
   referenceImageFile?: File | null;
+  videoKind?: VideoNoteKind;
   copyAdditionalInstruction?: string;
   videoProvider?: string;
   customVideoModelName?: string;
   durationSec?: number;
   includeMarketingPlan?: boolean;
-  outputVideoPrompt?: boolean;
   videoAdditionalInstruction?: string;
 };
 
@@ -315,16 +347,45 @@ export async function generateXiaohongshuVideoWork(brandId: string, form: Genera
     calendarItemId: form.calendarItemId,
     customTopicName: form.customTopicName,
     productId: form.productId,
+    materialId: form.materialId,
     accountRole: form.accountRole,
     referenceImage,
+    videoKind: form.videoKind,
     copyAdditionalInstruction: form.copyAdditionalInstruction,
     videoProvider: form.videoProvider,
     customVideoModelName: form.customVideoModelName,
     durationSec: form.durationSec,
     includeMarketingPlan: form.includeMarketingPlan,
-    outputVideoPrompt: form.outputVideoPrompt,
     videoAdditionalInstruction: form.videoAdditionalInstruction,
   });
+}
+
+export async function regenerateXiaohongshuVideoStoryboard(
+  brandId: string,
+  workId: string,
+  payload: {
+    storyboardPrompt?: string;
+  },
+) {
+  return jsonRequest<{ item: XiaohongshuVideoWorkRecord }>(
+    `/works/brands/${brandId}/xiaohongshu/video/${workId}/storyboard/regenerate`,
+    "POST",
+    payload,
+  );
+}
+
+export async function continueXiaohongshuVideoGeneration(
+  brandId: string,
+  workId: string,
+  payload?: {
+    customVideoModelName?: string;
+  },
+) {
+  return jsonRequest<{ item: XiaohongshuVideoWorkRecord }>(
+    `/works/brands/${brandId}/xiaohongshu/video/${workId}/video/generate`,
+    "POST",
+    payload || {},
+  );
 }
 
 export async function updateXiaohongshuVideoWork(
@@ -333,7 +394,7 @@ export async function updateXiaohongshuVideoWork(
   payload: {
     title?: string;
     content?: string;
-    videoPrompt?: string;
+    storyboardPrompt?: string;
   },
 ) {
   return jsonRequest<{ item: XiaohongshuVideoWorkRecord }>(

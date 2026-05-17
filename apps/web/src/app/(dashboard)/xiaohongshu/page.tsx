@@ -250,19 +250,18 @@ export default function XiaohongshuPage() {
     videoCalendarValue,
     videoCustomTopic,
     videoProductValue,
+    videoMaterialValue,
     videoAccountRoleValue,
     videoReferenceImageFile,
+    videoKindValue,
     videoCopyAdditionalInstruction,
     videoProviderValue,
     videoCustomProviderValue,
     videoCustomModelName,
     videoDurationValue,
-    videoCustomDurationValue,
     videoInjectMarketingPlanValue,
-    videoOutputPromptValue,
     videoAdditionalInstruction,
     customVideoProviderOption,
-    customVideoDurationOption,
     setOriginalCalendarValue,
     setOriginalCustomTopic,
     setOriginalProductValue,
@@ -280,16 +279,16 @@ export default function XiaohongshuPage() {
     setVideoCalendarValue,
     setVideoCustomTopic,
     setVideoProductValue,
+    setVideoMaterialValue,
     setVideoAccountRoleValue,
     setVideoReferenceImageFile,
+    setVideoKindValue,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
     setVideoCustomProviderValue,
     setVideoCustomModelName,
     setVideoDurationValue,
-    setVideoCustomDurationValue,
     setVideoInjectMarketingPlanValue,
-    setVideoOutputPromptValue,
     setVideoAdditionalInstruction,
     resetOriginalComposer,
     openOriginalModal,
@@ -315,7 +314,7 @@ export default function XiaohongshuPage() {
     editingVideoWorkId,
     editingVideoTitle,
     editingVideoContent,
-    editingVideoPrompt,
+    editingVideoStoryboardPrompt,
     savingVideoWorkId,
     setEditingOriginalTitle,
     setEditingOriginalContent,
@@ -325,7 +324,7 @@ export default function XiaohongshuPage() {
     setSavingRewriteWorkId,
     setEditingVideoTitle,
     setEditingVideoContent,
-    setEditingVideoPrompt,
+    setEditingVideoStoryboardPrompt,
     setSavingVideoWorkId,
     startEditOriginalWork,
     cancelEditOriginalWork: handleCancelEditOriginalWork,
@@ -343,6 +342,10 @@ export default function XiaohongshuPage() {
     const latestPlan = marketingPlanWorkspace.latest;
     setMarketingPlanDraft(latestPlan?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
+
+  useEffect(() => {
+    setEditingVideoStoryboardPrompt(videoSelectedWork?.storyboardPrompt || "");
+  }, [setEditingVideoStoryboardPrompt, selectedVideoWorkId]);
 
   const visibleSections = useMemo(() => {
     const permissionMap = brandPermissionSettings?.currentUserPermissions;
@@ -774,7 +777,6 @@ export default function XiaohongshuPage() {
     noProductOption: NO_PRODUCT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
     customVideoProviderOption,
-    customVideoDurationOption,
     autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
     setNotice,
     setErrorMessage,
@@ -811,16 +813,16 @@ export default function XiaohongshuPage() {
       calendarValue: videoCalendarValue,
       customTopic: videoCustomTopic,
       productValue: videoProductValue,
+      materialValue: videoMaterialValue,
       accountRoleValue: videoAccountRoleValue,
       referenceImageFile: videoReferenceImageFile,
+      videoKindValue: videoKindValue,
       copyAdditionalInstruction: videoCopyAdditionalInstruction,
       providerValue: videoProviderValue,
       customProviderValue: videoCustomProviderValue,
       customModelName: videoCustomModelName,
       durationValue: videoDurationValue,
-      customDurationValue: videoCustomDurationValue,
       injectMarketingPlanValue: videoInjectMarketingPlanValue,
-      outputPromptValue: videoOutputPromptValue,
       additionalInstruction: videoAdditionalInstruction,
       closeModal: closeVideoModal,
       resetComposer: resetVideoComposer,
@@ -836,6 +838,8 @@ export default function XiaohongshuPage() {
     deleteRewriteWork: handleDeleteRewriteWork,
     saveVideoWork: handleSaveVideoWork,
     deleteVideoWork: handleDeleteVideoWork,
+    regenerateVideoStoryboard: handleRegenerateVideoStoryboard,
+    generateVideoFromStoryboard: handleGenerateVideoFromStoryboard,
   } = useWorkMutationActions({
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     setNotice,
@@ -876,8 +880,9 @@ export default function XiaohongshuPage() {
       editingWorkId: editingVideoWorkId,
       editingTitle: editingVideoTitle,
       editingContent: editingVideoContent,
-      editingPrompt: editingVideoPrompt,
+      editingStoryboardPrompt: editingVideoStoryboardPrompt,
       setSavingWorkId: setSavingVideoWorkId,
+      setEditingStoryboardPrompt: setEditingVideoStoryboardPrompt,
       cancelEdit: handleCancelEditVideoWork,
     },
   });
@@ -931,7 +936,7 @@ export default function XiaohongshuPage() {
       : activeSection === "remix"
         ? "当前聚焦【二创笔记】主链路：从素材库选择作品，结合产品与用户要求生成差异化二创图文，并统一管理成品。"
         : activeSection === "video"
-          ? "当前聚焦【视频笔记】主链路：选择营销日历选题、产品或参考图，生成视频笔记文案、短视频提示词与成片，并统一管理成品。"
+          ? "当前聚焦【视频笔记】主链路：先生成创意剧本与故事板，确认后再继续生成短视频，并支持离开页面后回来查看阶段状态。"
         : "当前先聚焦【营销策划方案】主链路：读取品牌资料、小红书数据、品牌增长报告和半年营销规划，生成可编辑保存的 Markdown 方案。";
 
   async function handleCancelComposeTask(task: TaskRecord | undefined, label: "原创笔记" | "二创笔记" | "视频笔记") {
@@ -1307,6 +1312,11 @@ export default function XiaohongshuPage() {
     startEditVideoWork(item, setSelectedVideoWorkId);
   }
 
+  function handleSelectVideoWork(item: XiaohongshuVideoWorkRecord) {
+    setSelectedVideoWorkId(item.id);
+    setEditingVideoStoryboardPrompt(item.storyboardPrompt || "");
+  }
+
   function openVideoWorkLightbox(item: XiaohongshuVideoWorkRecord) {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -1601,46 +1611,60 @@ export default function XiaohongshuPage() {
         isCancellingTask={isCancellingVideoTask}
         canCancelTask={isTaskActive(latestVideoTask?.taskStatus)}
         items={videoWorks}
+        materialNotes={materialNotes}
+        selectedWork={videoSelectedWork}
         deletingWorkId={deletingVideoWorkId}
         editingWork={videoEditingWork}
         editingTitle={editingVideoTitle}
         editingContent={editingVideoContent}
-        editingVideoPrompt={editingVideoPrompt}
+        editingStoryboardPrompt={editingVideoStoryboardPrompt}
         savingWorkId={savingVideoWorkId}
         isCreateModalOpen={isVideoModalOpen}
         calendarOptions={originalCalendarOptions}
         customTopicOption={CUSTOM_TOPIC_OPTION}
         noProductOption={NO_PRODUCT_OPTION}
         customVideoProviderOption={customVideoProviderOption}
-        customVideoDurationOption={customVideoDurationOption}
         videoProviderOptions={videoProviderOptions}
         products={workspace.archive.products}
         calendarValue={videoCalendarValue}
         customTopic={videoCustomTopic}
         productValue={videoProductValue}
+        materialValue={videoMaterialValue}
         accountRoleValue={videoAccountRoleValue}
         accountRoleOptions={originalAccountRoleOptions}
         referenceImageFile={videoReferenceImageFile}
+        videoKindValue={videoKindValue}
         copyAdditionalInstruction={videoCopyAdditionalInstruction}
         providerValue={videoProviderValue}
         customProviderValue={videoCustomProviderValue}
         customModelName={videoCustomModelName}
         durationValue={videoDurationValue}
-        customDurationValue={videoCustomDurationValue}
         injectMarketingPlanValue={videoInjectMarketingPlanValue}
-        outputPromptValue={videoOutputPromptValue}
         additionalInstruction={videoAdditionalInstruction}
         onRefresh={() => loadWorkspace()}
         onCancelTask={() => handleCancelComposeTask(latestVideoTask, "视频笔记")}
         onOpenCreate={handleOpenVideoModal}
+        onSelectWork={handleSelectVideoWork}
         onPreview={openVideoWorkLightbox}
         onEdit={handleStartEditVideoWork}
         onDelete={(workId) => void handleDeleteVideoWork(workId)}
+        onRegenerateStoryboard={() => {
+          if (!videoSelectedWork) {
+            return Promise.resolve();
+          }
+          return handleRegenerateVideoStoryboard(videoSelectedWork.id, editingVideoStoryboardPrompt);
+        }}
+        onGenerateVideo={() => {
+          if (!videoSelectedWork) {
+            return Promise.resolve();
+          }
+          return handleGenerateVideoFromStoryboard(videoSelectedWork.id, videoCustomModelName);
+        }}
         onCloseEdit={handleCancelEditVideoWork}
         onSaveEdit={handleSaveVideoWork}
         onEditTitleChange={setEditingVideoTitle}
         onEditContentChange={setEditingVideoContent}
-        onEditVideoPromptChange={setEditingVideoPrompt}
+        onEditStoryboardPromptChange={setEditingVideoStoryboardPrompt}
         onCloseCreate={handleCloseVideoModal}
         onCreate={handleCreateVideoWork}
         onCalendarChange={setVideoCalendarValue}
@@ -1650,6 +1674,7 @@ export default function XiaohongshuPage() {
             setVideoReferenceImageFile(null);
           }
         }}
+        onMaterialChange={setVideoMaterialValue}
         onAccountRoleChange={setVideoAccountRoleValue}
         onCustomTopicChange={setVideoCustomTopic}
         onReferenceImageFileChange={(file) => {
@@ -1658,14 +1683,18 @@ export default function XiaohongshuPage() {
             setVideoProductValue(NO_PRODUCT_OPTION);
           }
         }}
+        onVideoKindChange={(value) => {
+          setVideoKindValue(value);
+          if (value !== "REMIX") {
+            setVideoMaterialValue("");
+          }
+        }}
         onCopyAdditionalInstructionChange={setVideoCopyAdditionalInstruction}
         onProviderChange={setVideoProviderValue}
         onCustomProviderChange={setVideoCustomProviderValue}
         onCustomModelNameChange={setVideoCustomModelName}
         onDurationChange={setVideoDurationValue}
-        onCustomDurationChange={setVideoCustomDurationValue}
         onInjectMarketingPlanChange={setVideoInjectMarketingPlanValue}
-        onOutputPromptChange={setVideoOutputPromptValue}
         onAdditionalInstructionChange={setVideoAdditionalInstruction}
         getTaskStatusClass={getTaskStatusClass}
         getOriginalTaskStatusClass={getWorkTaskStatusClass}

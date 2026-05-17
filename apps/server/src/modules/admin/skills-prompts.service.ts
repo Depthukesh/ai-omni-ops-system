@@ -150,12 +150,40 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["小红书二创图片生成"],
   },
   skill_xhs_video_note: {
-    promptIds: ["prompt_xhs_video_note"],
-    promptScenes: ["小红书视频笔记"],
+    promptIds: [
+      "prompt_xhs_video_brand_script",
+      "prompt_xhs_video_spoken_script",
+      "prompt_xhs_video_skit_script",
+      "prompt_xhs_video_remix_script",
+      "prompt_xhs_video_storyboard",
+      "prompt_xhs_video_short_prompt",
+    ],
+    promptScenes: [
+      "视频笔记-品牌宣传剧本",
+      "视频笔记-口播带货剧本",
+      "视频笔记-短剧带货剧本",
+      "视频笔记-复刻视频拆解",
+      "视频笔记-故事板提示词",
+      "视频笔记-短视频提示词",
+    ],
   },
   "short-video-api-studio": {
-    promptIds: ["prompt_xhs_video_note"],
-    promptScenes: ["小红书视频笔记"],
+    promptIds: [
+      "prompt_xhs_video_brand_script",
+      "prompt_xhs_video_spoken_script",
+      "prompt_xhs_video_skit_script",
+      "prompt_xhs_video_remix_script",
+      "prompt_xhs_video_storyboard",
+      "prompt_xhs_video_short_prompt",
+    ],
+    promptScenes: [
+      "视频笔记-品牌宣传剧本",
+      "视频笔记-口播带货剧本",
+      "视频笔记-短剧带货剧本",
+      "视频笔记-复刻视频拆解",
+      "视频笔记-故事板提示词",
+      "视频笔记-短视频提示词",
+    ],
   },
 };
 

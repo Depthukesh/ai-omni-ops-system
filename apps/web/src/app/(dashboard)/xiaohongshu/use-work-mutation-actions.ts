@@ -2,9 +2,11 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import {
+  continueXiaohongshuVideoGeneration,
   deleteXiaohongshuVideoWork,
   deleteXiaohongshuOriginalWork,
   deleteXiaohongshuRewriteWork,
+  regenerateXiaohongshuVideoStoryboard,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -57,8 +59,9 @@ type VideoMutationOptions = {
   editingWorkId: string;
   editingTitle: string;
   editingContent: string;
-  editingPrompt: string;
+  editingStoryboardPrompt: string;
   setSavingWorkId: StringSetter;
+  setEditingStoryboardPrompt: StringSetter;
   cancelEdit: () => void;
 };
 
@@ -206,10 +209,11 @@ export function useWorkMutationActions(options: {
       const result = await updateXiaohongshuVideoWork(resolvedBrandId, options.video.editingWorkId, {
         title,
         content,
-        videoPrompt: options.video.editingPrompt.trim() || undefined,
+        storyboardPrompt: options.video.editingStoryboardPrompt.trim() || undefined,
       });
       options.video.setWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
       options.video.setSelectedWorkId(result.item.id);
+      options.video.setEditingStoryboardPrompt(result.item.storyboardPrompt || "");
       options.video.cancelEdit();
       options.setNotice("视频笔记已更新。");
     } catch (error) {
@@ -244,6 +248,61 @@ export function useWorkMutationActions(options: {
     }
   }
 
+  async function regenerateVideoStoryboard(workId: string, storyboardPrompt: string) {
+    const nextPrompt = storyboardPrompt.trim();
+    if (!workId) {
+      return;
+    }
+    if (!nextPrompt) {
+      options.setErrorMessage("故事板提示词不能为空。");
+      return;
+    }
+
+    options.video.setSavingWorkId(workId);
+    options.setNotice("");
+    options.setErrorMessage("");
+
+    try {
+      const result = await regenerateXiaohongshuVideoStoryboard(resolvedBrandId, workId, {
+        storyboardPrompt: nextPrompt,
+      });
+      options.video.setWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+      options.video.setSelectedWorkId(result.item.id);
+      options.video.setEditingStoryboardPrompt(result.item.storyboardPrompt || nextPrompt);
+      options.setNotice("故事板已重新提交生成，稍后会刷新最新图片。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "故事板重新生成失败";
+      options.setErrorMessage(`提交失败：${message}`);
+    } finally {
+      options.video.setSavingWorkId("");
+    }
+  }
+
+  async function generateVideoFromStoryboard(workId: string, customVideoModelName?: string) {
+    if (!workId) {
+      return;
+    }
+
+    options.video.setSavingWorkId(workId);
+    options.setNotice("");
+    options.setErrorMessage("");
+
+    try {
+      const result = await continueXiaohongshuVideoGeneration(resolvedBrandId, workId, {
+        customVideoModelName: customVideoModelName?.trim() || undefined,
+      });
+      options.video.setWorks((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+      options.video.setSelectedWorkId(result.item.id);
+      options.video.setEditingStoryboardPrompt(result.item.storyboardPrompt || "");
+      options.setNotice("已进入短视频生成阶段，稍后可返回查看成片。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "短视频生成失败";
+      options.setErrorMessage(`提交失败：${message}`);
+    } finally {
+      options.video.setSavingWorkId("");
+    }
+  }
+
   return {
     saveOriginalWork,
     deleteOriginalWork,
@@ -251,5 +310,7 @@ export function useWorkMutationActions(options: {
     deleteRewriteWork,
     saveVideoWork,
     deleteVideoWork,
+    regenerateVideoStoryboard,
+    generateVideoFromStoryboard,
   };
 }

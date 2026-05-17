@@ -24,6 +24,15 @@ type UploadFilePayload = {
 };
 
 type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
+export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
+type VideoWorkflowStage =
+  | "QUEUED"
+  | "GENERATING_SCRIPT"
+  | "GENERATING_STORYBOARD"
+  | "WAITING_VIDEO"
+  | "GENERATING_VIDEO"
+  | "SUCCESS"
+  | "FAILED";
 
 export type GenerateXiaohongshuOriginalNotePayload = {
   calendarItemId?: string;
@@ -59,21 +68,30 @@ export type GenerateXiaohongshuVideoNotePayload = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  materialId?: string;
   accountRole?: OriginalAccountRole;
   referenceImage?: UploadFilePayload;
+  videoKind?: VideoNoteKind;
   copyAdditionalInstruction?: string;
   videoProvider?: string;
   customVideoModelName?: string;
   durationSec?: number;
   includeMarketingPlan?: boolean;
-  outputVideoPrompt?: boolean;
   videoAdditionalInstruction?: string;
 };
 
 export type UpdateXiaohongshuVideoNotePayload = {
   title?: string;
   content?: string;
-  videoPrompt?: string;
+  storyboardPrompt?: string;
+};
+
+export type RegenerateXiaohongshuVideoStoryboardPayload = {
+  storyboardPrompt?: string;
+};
+
+export type ContinueXiaohongshuVideoGenerationPayload = {
+  customVideoModelName?: string;
 };
 
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
@@ -175,12 +193,69 @@ type RewriteImageAssetMeta = {
   createdAt: string;
 };
 
+type VideoStoryboardRevisionEntry = {
+  taskId: string;
+  prompt: string;
+  imageUrl?: string;
+  createdAt: string;
+};
+
+type VideoProgressStepEntry = {
+  key: "SCRIPT" | "STORYBOARD" | "VIDEO";
+  label: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+};
+
+type ResolvedVideoComposerContext = {
+  accountRole: OriginalAccountRole;
+  videoKind: VideoNoteKind;
+  selectedCalendarItem?: XiaohongshuMarketingCalendarRecord["items"][number];
+  customTopicName?: string;
+  topicLabel: string;
+  product?: {
+    id: string;
+    productName: string;
+    detailDescription: string;
+    usageScenario: string;
+    targetAudience: string;
+    differentiators: string;
+    imageUrl?: string;
+  };
+  material?: {
+    id: string;
+    title: string;
+    description?: string;
+    noteUrl?: string;
+    sourceUrl?: string;
+    videoUrl: string;
+  };
+  referenceImageUrl?: string;
+  includeMarketingPlan: boolean;
+  marketingPlanMarkdown: string;
+  requestedVideoProvider: string;
+  requestedDurationSec: number;
+  copyAdditionalInstruction?: string;
+  videoAdditionalInstruction?: string;
+};
+
+type VideoScriptStageResult = {
+  title: string;
+  content: string;
+  hashtags: string[];
+  creativeScript: string;
+  modelName: string;
+  businessScene?: string;
+  videoType?: string;
+};
+
 type VideoWorkAssetMeta = {
   kind: "XHS_VIDEO_NOTE";
   taskId: string;
   noteCategory: "原创";
   noteType: "视频";
   accountRole: OriginalAccountRole;
+  videoKind: VideoNoteKind;
+  workflowStage: VideoWorkflowStage;
   title: string;
   content: string;
   htmlContent: string;
@@ -190,7 +265,11 @@ type VideoWorkAssetMeta = {
   customTopicName?: string;
   productId?: string;
   productName?: string;
+  materialId?: string;
+  materialTitle?: string;
+  materialVideoUrl?: string;
   referenceImageUrl?: string;
+  storyboardImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
   includeMarketingPlan: boolean;
@@ -199,9 +278,15 @@ type VideoWorkAssetMeta = {
   resolvedVideoModel?: string;
   requestedDurationSec: number;
   renderedDurationSec?: number;
-  outputVideoPrompt: boolean;
+  scriptModel?: string;
+  storyboardPromptModel?: string;
+  storyboardImageModel?: string;
   videoPrompt?: string;
   fullVideoPrompt?: string;
+  storyboardPrompt?: string;
+  creativeScript?: string;
+  progressSteps?: VideoProgressStepEntry[];
+  storyboardRevisions?: VideoStoryboardRevisionEntry[];
   videoReasoning?: string;
   businessScene?: string;
   videoType?: string;
@@ -333,9 +418,12 @@ export type XiaohongshuVideoWorkRecord = {
   taskId: string;
   brandId?: string;
   accountRole: OriginalAccountRole;
+  videoKind: VideoNoteKind;
+  workflowStage: VideoWorkflowStage;
   title: string;
   content: string;
   coverImageUrl?: string;
+  storyboardImageUrl?: string;
   videoUrl?: string;
   noteCategory: "原创";
   noteType: "视频";
@@ -344,6 +432,9 @@ export type XiaohongshuVideoWorkRecord = {
   customTopicName?: string;
   productId?: string;
   productName?: string;
+  materialId?: string;
+  materialTitle?: string;
+  materialVideoUrl?: string;
   referenceImageUrl?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
@@ -353,7 +444,10 @@ export type XiaohongshuVideoWorkRecord = {
   resolvedVideoModel?: string;
   requestedDurationSec: number;
   renderedDurationSec?: number;
-  outputVideoPrompt: boolean;
+  creativeScript?: string;
+  storyboardPrompt?: string;
+  progressSteps: VideoProgressStepEntry[];
+  storyboardRevisions: VideoStoryboardRevisionEntry[];
   videoPrompt?: string;
   fullVideoPrompt?: string;
   videoReasoning?: string;
@@ -1286,245 +1380,75 @@ export class WorksService {
     auth?: RequestAuthContext,
     collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
   ) {
-    const archive = await this.brandsService.getArchive(brandId);
-    const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
-    const latestMarketingPlan = marketingPlanWorkspace.latest;
-    if (!latestMarketingPlan) {
-      throw new BadRequestException("请先生成小红书营销策划方案，再创作视频笔记。");
-    }
-
-    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
-    const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
-    if (!selectedCalendarItem && !payload.customTopicName?.trim()) {
-      throw new BadRequestException("请选择营销日历选题，或填写自定义选题。");
-    }
-
-    if (payload.productId && payload.referenceImage?.dataBase64) {
-      throw new BadRequestException("上传参考图时不能同时选择产品，请二选一。");
-    }
-
-    const selectedProduct = payload.productId
-      ? archive.products.find((item) => item.id === payload.productId)
-      : undefined;
-    const normalizedProduct = selectedProduct
-      ? {
-          id: selectedProduct.id,
-          productName: selectedProduct.productName,
-          detailDescription: selectedProduct.detailDescription || "",
-          usageScenario: selectedProduct.usageScenario || "",
-          targetAudience: selectedProduct.targetAudience || "",
-          differentiators: selectedProduct.differentiators || "",
-          imageUrl: selectedProduct.imageUrl || undefined,
-        }
-      : undefined;
-
+    const context = await this.resolveVideoComposerContext(brandId, payload, collaboratorRole);
     const userId = await this.resolveTaskUserId(brandId, auth);
-    const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
-    const topicLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题";
-    const requestedVideoProvider = this.normalizeVideoProvider(payload.videoProvider);
-    const requestedDurationSec = this.normalizeRequestedVideoDuration(payload.durationSec);
-    const includeMarketingPlan = payload.includeMarketingPlan !== false;
-    const outputVideoPrompt = payload.outputVideoPrompt !== false;
-    const videoMarketingPlanMarkdown = includeMarketingPlan ? latestMarketingPlan.reportMarkdown : "";
-    const videoTextPreference = await this.loadSkillModelPreference(
-      "short-video-api-studio",
-      "prompt_xhs_video_note",
-      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
-    );
-    const videoTextProviders = await this.loadOriginalCopyProviders(brandId, videoTextPreference);
     const task = await this.createVideoTask({
       userId,
       brandId,
-      taskTitle: `生成小红书视频笔记：${topicLabel}`,
-      requestedVideoProvider,
-      modelName: videoTextProviders[0]?.models[0] || videoTextPreference.preferredModelName,
+      taskTitle: `生成视频笔记故事板：${context.topicLabel}`,
+      requestedVideoProvider: context.requestedVideoProvider,
+      modelName: "deepseek-v4-pro",
     });
-
-    try {
-      await this.markTaskRunning(task.id);
-      await this.ensureTaskNotCancelled(task.id);
-
-      const referenceImageFile = payload.referenceImage?.dataBase64
-        ? await this.persistUploadFile(
-            brandId,
-            `${task.id}-video-reference${this.resolveExtensionFromFileName(payload.referenceImage.fileName, ".png")}`,
-            payload.referenceImage,
-          )
-        : undefined;
-      await this.ensureTaskNotCancelled(task.id);
-
-      const copyResult = await this.generateVideoCopy({
-        brandId,
-        accountRole: resolvedAccountRole,
-        marketingPlanMarkdown: videoMarketingPlanMarkdown,
-        selectedCalendarItem,
-        customTopicName: payload.customTopicName?.trim(),
-        product: normalizedProduct,
-        includeMarketingPlan,
-        additionalInstruction: payload.copyAdditionalInstruction?.trim(),
-      });
-      await this.ensureTaskNotCancelled(task.id);
-
-      const promptResult = await this.generateVideoPromptPack({
-        brandId,
-        accountRole: resolvedAccountRole,
-        marketingPlanMarkdown: videoMarketingPlanMarkdown,
-        selectedCalendarItem,
-        customTopicName: payload.customTopicName?.trim(),
-        product: normalizedProduct,
-        noteTitle: copyResult.title,
-        noteContent: copyResult.content,
-        copyBusinessScene: copyResult.businessScene,
-        copyVideoType: copyResult.videoType,
-        copyCommunicationGoal: copyResult.communicationGoal,
-        copyStoryHook: copyResult.storyHook,
-        copyMotionLanguage: copyResult.motionLanguage,
-        copyShotLanguage: copyResult.shotLanguage,
-        copySegmentStrategy: copyResult.segmentStrategy,
-        copyAntiErrorRules: copyResult.antiErrorRules,
-        requestedVideoProvider,
-        requestedDurationSec,
-        referenceImageUrl: referenceImageFile?.url,
-        includeMarketingPlan,
-        additionalInstruction: payload.videoAdditionalInstruction?.trim(),
-      });
-      await this.ensureTaskNotCancelled(task.id);
-
-      const videoResult = await this.generateVideoAsset({
-        brandId,
-        taskId: task.id,
-        title: `视频笔记视频 - ${copyResult.title}`,
-        requestedVideoProvider,
-        customVideoModelName: payload.customVideoModelName?.trim(),
-        prompt: promptResult.fullVideoPrompt || promptResult.videoPrompt,
-        negativePrompt: promptResult.negativePrompt,
-        requestedDurationSec,
-        referenceImageUrl: referenceImageFile?.url,
-      });
-      await this.ensureTaskNotCancelled(task.id);
-      const segmentExecution = {
-        status: "SKIPPED" as const,
-        error: "已关闭自动分段生成，当前仅保留主成片生成",
-        assets: [],
-      };
-
-      const now = new Date().toISOString();
-      const coverImageUrl = referenceImageFile?.url || videoResult.coverImageUrl || selectedProduct?.imageUrl || undefined;
-      const htmlContent = this.renderGeneratedVideoNoteHtml({
-        title: copyResult.title,
-        content: copyResult.content,
-        hashtags: copyResult.hashtags,
-        coverImageUrl,
-        videoUrl: videoResult.url,
-        videoPrompt: outputVideoPrompt ? promptResult.fullVideoPrompt : undefined,
-        noteLabel: "原创视频笔记",
-      });
-      const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-video-note.html`, htmlContent);
-
-      const metadata: VideoWorkAssetMeta = {
-        kind: "XHS_VIDEO_NOTE",
-        taskId: task.id,
-        noteCategory: "原创",
-        noteType: "视频",
-        accountRole: resolvedAccountRole,
-        title: copyResult.title,
-        content: copyResult.content,
-        htmlContent,
-        hashtags: copyResult.hashtags,
-        calendarItemId: selectedCalendarItem?.id,
-        calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date}｜${selectedCalendarItem.topicName}` : undefined,
-        customTopicName: selectedCalendarItem ? undefined : payload.customTopicName?.trim(),
-        productId: selectedProduct?.id,
-        productName: selectedProduct?.productName,
-        referenceImageUrl: referenceImageFile?.url,
-        copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
-        videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
-        includeMarketingPlan,
-        requestedVideoProvider,
-        resolvedVideoProvider: videoResult.provider,
-        resolvedVideoModel: videoResult.modelName,
-        requestedDurationSec,
-        renderedDurationSec: videoResult.renderedDurationSec,
-        outputVideoPrompt,
-        videoPrompt: promptResult.videoPrompt,
-        fullVideoPrompt: promptResult.fullVideoPrompt,
-        videoReasoning: promptResult.videoReasoning,
-        businessScene: promptResult.businessScene,
-        videoType: promptResult.videoType,
-        segmentBrief: promptResult.segmentBrief,
-        referenceStrategy: promptResult.referenceStrategy,
-        padImageStrategy: promptResult.padImageStrategy,
-        continuityRules: promptResult.continuityRules,
-        segmentPrompts: promptResult.segmentPrompts,
-        segmentExecutionStatus: segmentExecution.status,
-        segmentExecutionError: segmentExecution.error,
-        segmentAssets: segmentExecution.assets,
-        providerTaskId: videoResult.providerTaskId,
-        videoUrl: videoResult.url,
-        coverImageUrl,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const workMedia = await this.createWorkHtmlMedia({
-        userId,
-        brandId,
-        taskId: task.id,
-        title: `小红书视频笔记 - ${copyResult.title}`,
-        storageKey: htmlFile.storageKey,
-        sourceUrl: htmlFile.url,
-        metadata,
-      });
-
-      const videoMedia = await this.createWorkVideoMedia({
-        userId,
-        brandId,
-        taskId: task.id,
-        workId: workMedia.id,
-        title: `视频笔记视频 - ${copyResult.title}`,
-        sourceUrl: videoResult.url,
-        provider: videoResult.provider,
-        modelName: videoResult.modelName,
-        providerTaskId: videoResult.providerTaskId,
-        durationSec: videoResult.renderedDurationSec,
-      });
-      const segmentAssetsWithMedia = await this.createVideoSegmentMediaAssets({
-        userId,
-        brandId,
-        taskId: task.id,
-        workId: workMedia.id,
-        title: copyResult.title,
-        assets: segmentExecution.assets,
-      });
-
-      const updatedMetadata: VideoWorkAssetMeta = {
-        ...metadata,
-        videoAssetId: videoMedia.id,
-        segmentAssets: segmentAssetsWithMedia,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await this.updateWorkHtmlMetadata(workMedia.id, brandId, updatedMetadata, workMedia.title);
-      await this.ensureTaskNotCancelled(task.id);
-      await this.markTaskSuccess(task.id, {
-        workId: workMedia.id,
-        title: copyResult.title,
-        videoProvider: videoResult.provider,
-        videoModelName: videoResult.modelName,
-        videoDurationSec: videoResult.renderedDurationSec ?? requestedDurationSec,
-      }, {
-        modelName: `deepseek-v4-pro + ${videoResult.provider}/${videoResult.modelName}`,
-      });
-
-      return {
-        item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, updatedMetadata, "SUCCESS"),
-      };
-    } catch (error) {
-      if (!(await this.isTaskCancelled(task.id))) {
-        await this.markTaskFailed(task.id, error instanceof Error ? error.message : "视频笔记生成失败");
-      }
-      throw error;
-    }
+    const now = new Date().toISOString();
+    const htmlContent = this.renderGeneratedVideoNoteHtml({
+      title: context.topicLabel,
+      content: "",
+      hashtags: [],
+      coverImageUrl: context.referenceImageUrl || context.product?.imageUrl,
+      noteLabel: "视频笔记生成中",
+      videoKindLabel: this.getVideoKindLabel(context.videoKind),
+      workflowStage: "QUEUED",
+      progressSteps: this.buildVideoProgressSteps("QUEUED"),
+    });
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-video-note.html`, htmlContent);
+    const metadata: VideoWorkAssetMeta = {
+      kind: "XHS_VIDEO_NOTE",
+      taskId: task.id,
+      noteCategory: "原创",
+      noteType: "视频",
+      accountRole: context.accountRole,
+      videoKind: context.videoKind,
+      workflowStage: "QUEUED",
+      title: context.topicLabel,
+      content: "",
+      htmlContent,
+      hashtags: [],
+      calendarItemId: context.selectedCalendarItem?.id,
+      calendarLabel: context.selectedCalendarItem ? `${context.selectedCalendarItem.date}｜${context.selectedCalendarItem.topicName}` : undefined,
+      customTopicName: context.selectedCalendarItem ? undefined : context.customTopicName,
+      productId: context.product?.id,
+      productName: context.product?.productName,
+      materialId: context.material?.id,
+      materialTitle: context.material?.title,
+      materialVideoUrl: context.material?.videoUrl,
+      referenceImageUrl: context.referenceImageUrl,
+      copyAdditionalInstruction: context.copyAdditionalInstruction,
+      videoAdditionalInstruction: context.videoAdditionalInstruction,
+      includeMarketingPlan: context.includeMarketingPlan,
+      requestedVideoProvider: context.requestedVideoProvider,
+      resolvedVideoProvider: context.requestedVideoProvider,
+      requestedDurationSec: context.requestedDurationSec,
+      progressSteps: this.buildVideoProgressSteps("QUEUED"),
+      storyboardRevisions: [],
+      segmentPrompts: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `小红书视频笔记 - ${context.topicLabel}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata,
+    });
+    setTimeout(() => {
+      void this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
+    };
   }
 
   async updateXiaohongshuOriginalNote(brandId: string, workId: string, payload: UpdateXiaohongshuOriginalNotePayload) {
@@ -1586,29 +1510,112 @@ export class WorksService {
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
     const nextTitle = payload.title?.trim() || meta.title;
     const nextContent = payload.content?.trim() || meta.content;
-    const nextVideoPrompt = payload.videoPrompt?.trim() || meta.videoPrompt;
+    const nextStoryboardPrompt = payload.storyboardPrompt?.trim() || meta.storyboardPrompt;
     const nextHtmlContent = this.renderGeneratedVideoNoteHtml({
       title: nextTitle,
       content: nextContent,
       hashtags: meta.hashtags,
       coverImageUrl: meta.coverImageUrl,
+      storyboardImageUrl: meta.storyboardImageUrl,
       videoUrl: meta.videoUrl,
-      videoPrompt: meta.outputVideoPrompt ? nextVideoPrompt : undefined,
+      videoPrompt: meta.fullVideoPrompt || meta.videoPrompt,
       noteLabel: "原创视频笔记",
+      videoKindLabel: this.getVideoKindLabel(meta.videoKind),
+      workflowStage: meta.workflowStage,
+      storyboardPrompt: nextStoryboardPrompt,
+      creativeScript: meta.creativeScript,
+      progressSteps: meta.progressSteps,
     });
     const nextMeta: VideoWorkAssetMeta = {
       ...meta,
       title: nextTitle,
       content: nextContent,
       htmlContent: nextHtmlContent,
-      videoPrompt: nextVideoPrompt,
-      fullVideoPrompt: nextVideoPrompt || meta.fullVideoPrompt,
+      storyboardPrompt: nextStoryboardPrompt,
       updatedAt: new Date().toISOString(),
     };
     await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextTitle}`);
     return {
       item: this.mapVideoWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
+    };
+  }
+
+  async regenerateXiaohongshuVideoStoryboard(
+    brandId: string,
+    workId: string,
+    payload: RegenerateXiaohongshuVideoStoryboardPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    if (!meta.storyboardPrompt && !payload.storyboardPrompt?.trim()) {
+      throw new BadRequestException("当前还没有可修改的故事板提示词，请先完成前两阶段生成。");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskTitle: `重新生成故事板：${meta.title}`,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      modelName: meta.storyboardPromptModel || "gpt-5.5",
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      taskId: task.id,
+      workflowStage: "GENERATING_STORYBOARD",
+      storyboardPrompt: payload.storyboardPrompt?.trim() || meta.storyboardPrompt,
+      progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD"),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
+    setTimeout(() => {
+      void this.runRegenerateVideoStoryboardTask(brandId, workId, task.id, target.storageKey || `${workId}.html`);
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
+    };
+  }
+
+  async continueXiaohongshuVideoGeneration(
+    brandId: string,
+    workId: string,
+    payload: ContinueXiaohongshuVideoGenerationPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    if (!meta.storyboardPrompt || !meta.storyboardImageUrl) {
+      throw new BadRequestException("请先完成故事板生成，再继续生成短视频。");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskTitle: `生成短视频：${meta.title}`,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      modelName: payload.customVideoModelName?.trim() || meta.resolvedVideoModel || meta.requestedVideoProvider,
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      taskId: task.id,
+      workflowStage: "GENERATING_VIDEO",
+      progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+      resolvedVideoModel: payload.customVideoModelName?.trim() || meta.resolvedVideoModel,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
+    setTimeout(() => {
+      void this.runContinueVideoGenerationTask(
+        brandId,
+        workId,
+        task.id,
+        target.storageKey || `${workId}.html`,
+        payload.customVideoModelName?.trim(),
+      );
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
     };
   }
 
@@ -1716,8 +1723,10 @@ export class WorksService {
     await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
     const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
     const localReferenceFileName = meta.referenceImageUrl ? this.extractLocalAssetFileName(meta.referenceImageUrl, brandId) : "";
+    const localStoryboardFileName = meta.storyboardImageUrl ? this.extractLocalAssetFileName(meta.storyboardImageUrl, brandId) : "";
     await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
     await this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localStoryboardFileName);
     return { success: true };
   }
 
@@ -2890,9 +2899,15 @@ export class WorksService {
     content: string;
     hashtags: string[];
     coverImageUrl?: string;
+    storyboardImageUrl?: string;
     videoUrl?: string;
     videoPrompt?: string;
     noteLabel: string;
+    videoKindLabel?: string;
+    workflowStage?: VideoWorkflowStage;
+    storyboardPrompt?: string;
+    creativeScript?: string;
+    progressSteps?: VideoProgressStepEntry[];
   }) {
     const paragraphs = params.content
       .split(/\r?\n/)
@@ -2906,8 +2921,41 @@ export class WorksService {
     const cover = params.coverImageUrl
       ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="width:100%;aspect-ratio:0.82;object-fit:cover;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
       : "";
+    const storyboardImage = params.storyboardImageUrl
+      ? [
+          '<section style="margin-top:24px;padding:18px 20px;border-radius:24px;background:#f7f9ff;border:1px solid #dfe5f2;">',
+          '<div style="font-size:13px;letter-spacing:0.04em;color:#5166ff;text-transform:uppercase;">故事板图片</div>',
+          `<img src="${this.escapeHtml(params.storyboardImageUrl)}" alt="" style="width:100%;margin-top:14px;border-radius:20px;border:1px solid #dfe5f2;background:#fff;" />`,
+          "</section>",
+        ].join("")
+      : "";
     const video = params.videoUrl
       ? `<video controls preload="metadata" src="${this.escapeHtml(params.videoUrl)}" style="width:100%;margin-top:20px;border-radius:24px;background:#0f1525;box-shadow:0 18px 40px rgba(24,36,68,0.16);"></video>`
+      : "";
+    const progress = params.progressSteps?.length
+      ? `<section style="margin-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">${params.progressSteps
+          .map((item) => {
+            const background = item.status === "SUCCESS" ? "#e7f8ee" : item.status === "RUNNING" ? "#eef2ff" : item.status === "FAILED" ? "#fff1f1" : "#f7f8fc";
+            const color = item.status === "SUCCESS" ? "#0f8a46" : item.status === "RUNNING" ? "#5166ff" : item.status === "FAILED" ? "#d14343" : "#63708a";
+            return `<div style="padding:14px 12px;border-radius:18px;background:${background};border:1px solid rgba(212,220,239,0.85);"><div style="font-size:12px;color:#63708a;">${this.escapeHtml(item.label)}</div><strong style="display:block;margin-top:6px;color:${color};font-size:14px;">${this.escapeHtml(item.status)}</strong></div>`;
+          })
+          .join("")}</section>`
+      : "";
+    const creativeScript = params.creativeScript
+      ? [
+          '<section style="margin-top:24px;padding:18px 20px;border-radius:24px;background:#f7f9ff;border:1px solid #dfe5f2;">',
+          '<div style="font-size:13px;letter-spacing:0.04em;color:#5166ff;text-transform:uppercase;">创意剧本</div>',
+          `<pre style="margin:12px 0 0;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.8;color:#24314a;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;">${this.escapeHtml(params.creativeScript)}</pre>`,
+          "</section>",
+        ].join("")
+      : "";
+    const storyboardPrompt = params.storyboardPrompt
+      ? [
+          '<section style="margin-top:24px;padding:18px 20px;border-radius:24px;background:#111827;color:#e5eefc;">',
+          '<div style="font-size:13px;letter-spacing:0.04em;color:#8ea3d6;text-transform:uppercase;">故事板提示词</div>',
+          `<pre style="margin:12px 0 0;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.8;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;">${this.escapeHtml(params.storyboardPrompt)}</pre>`,
+          "</section>",
+        ].join("")
       : "";
     const videoPrompt = params.videoPrompt
       ? [
@@ -2927,13 +2975,569 @@ export class WorksService {
       '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
       cover,
       `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="color:#63708a;font-size:13px;margin-bottom:18px;">${this.escapeHtml(params.noteLabel)}</div>`,
+      `<div style="color:#63708a;font-size:13px;margin-bottom:18px;">${this.escapeHtml(
+        [params.noteLabel, params.videoKindLabel, params.workflowStage].filter(Boolean).join("｜"),
+      )}</div>`,
+      progress,
       paragraphs,
       tags,
+      creativeScript,
+      storyboardPrompt,
+      storyboardImage,
       video,
       videoPrompt,
       "</section></main></body></html>",
     ].join("");
+  }
+
+  private getVideoKindLabel(kind: VideoNoteKind) {
+    switch (kind) {
+      case "BRAND_PROMO":
+        return "品牌宣传视频";
+      case "SPOKEN_SELLING":
+        return "口播带货视频";
+      case "SKIT_SELLING":
+        return "短剧带货视频";
+      case "REMIX":
+        return "复刻视频";
+      default:
+        return "视频笔记";
+    }
+  }
+
+  private buildVideoProgressSteps(stage: VideoWorkflowStage): VideoProgressStepEntry[] {
+    const mapStatus = (key: VideoProgressStepEntry["key"]): VideoProgressStepEntry["status"] => {
+      if (stage === "FAILED") {
+        return key === "VIDEO" ? "FAILED" : "SUCCESS";
+      }
+      if (stage === "QUEUED") {
+        return "PENDING";
+      }
+      if (stage === "GENERATING_SCRIPT") {
+        return key === "SCRIPT" ? "RUNNING" : "PENDING";
+      }
+      if (stage === "GENERATING_STORYBOARD") {
+        return key === "SCRIPT" ? "SUCCESS" : key === "STORYBOARD" ? "RUNNING" : "PENDING";
+      }
+      if (stage === "WAITING_VIDEO") {
+        return key === "VIDEO" ? "PENDING" : "SUCCESS";
+      }
+      if (stage === "GENERATING_VIDEO") {
+        return key === "VIDEO" ? "RUNNING" : "SUCCESS";
+      }
+      return "SUCCESS";
+    };
+    return [
+      { key: "SCRIPT", label: "创意剧本", status: mapStatus("SCRIPT") },
+      { key: "STORYBOARD", label: "故事板", status: mapStatus("STORYBOARD") },
+      { key: "VIDEO", label: "短视频", status: mapStatus("VIDEO") },
+    ];
+  }
+
+  private async resolveVideoComposerContext(
+    brandId: string,
+    payload: GenerateXiaohongshuVideoNotePayload,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT",
+  ): Promise<ResolvedVideoComposerContext> {
+    const archive = await this.brandsService.getArchive(brandId);
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
+    const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (includeMarketingPlan && !latestMarketingPlan) {
+      throw new BadRequestException("请先生成小红书营销策划方案，再创作视频笔记。");
+    }
+    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
+    const customTopicName = payload.customTopicName?.trim() || undefined;
+    if (!selectedCalendarItem && !customTopicName) {
+      throw new BadRequestException("请选择营销日历选题，或填写自定义选题。");
+    }
+    if (payload.productId && payload.referenceImage?.dataBase64) {
+      throw new BadRequestException("上传参考图时不能同时选择产品，请二选一。");
+    }
+    const videoKind = (payload.videoKind || "BRAND_PROMO") as VideoNoteKind;
+    const product = payload.productId
+      ? archive.products.find((item) => item.id === payload.productId)
+      : undefined;
+    const normalizedProduct = product
+      ? {
+          id: product.id,
+          productName: product.productName,
+          detailDescription: product.detailDescription || "",
+          usageScenario: product.usageScenario || "",
+          targetAudience: product.targetAudience || "",
+          differentiators: product.differentiators || "",
+          imageUrl: product.imageUrl || undefined,
+        }
+      : undefined;
+    let material: ResolvedVideoComposerContext["material"];
+    if (payload.materialId?.trim()) {
+      const workspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+      const target = workspace.benchmarkNotes.find((item) => item.id === payload.materialId?.trim() && item.isInMaterialLibrary);
+      if (!target) {
+        throw new BadRequestException("未找到你选择的素材库作品，请确认该素材已加入素材库。");
+      }
+      if (videoKind === "REMIX" && !target.videoUrl) {
+        throw new BadRequestException("复刻视频必须选择视频类型素材，请重新选择素材库中的视频素材。");
+      }
+      material = {
+        id: target.id,
+        title: target.title,
+        description: target.description || undefined,
+        noteUrl: target.noteUrl || undefined,
+        sourceUrl: target.sourceUrl || undefined,
+        videoUrl: target.videoUrl || "",
+      };
+    } else if (videoKind === "REMIX") {
+      throw new BadRequestException("复刻视频必须先选择一个视频素材。");
+    }
+    const referenceImageUrl = payload.referenceImage?.dataBase64
+      ? (
+          await this.persistUploadFile(
+            brandId,
+            `${randomUUID()}-video-reference${this.resolveExtensionFromFileName(payload.referenceImage.fileName, ".png")}`,
+            payload.referenceImage,
+          )
+        ).url
+      : undefined;
+    return {
+      accountRole: this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole),
+      videoKind,
+      selectedCalendarItem,
+      customTopicName,
+      topicLabel: selectedCalendarItem?.topicName || customTopicName || "自定义选题",
+      product: normalizedProduct,
+      material,
+      referenceImageUrl,
+      includeMarketingPlan,
+      marketingPlanMarkdown: includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "",
+      requestedVideoProvider: this.normalizeVideoProvider(payload.videoProvider),
+      requestedDurationSec: this.normalizeRequestedVideoDuration(payload.durationSec),
+      copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
+      videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
+    };
+  }
+
+  private async saveVideoWorkMetadataSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    meta: VideoWorkAssetMeta,
+  ) {
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      htmlContent: this.renderGeneratedVideoNoteHtml({
+        title: meta.title,
+        content: meta.content,
+        hashtags: meta.hashtags,
+        coverImageUrl: meta.coverImageUrl,
+        storyboardImageUrl: meta.storyboardImageUrl,
+        videoUrl: meta.videoUrl,
+        videoPrompt: meta.fullVideoPrompt || meta.videoPrompt,
+        noteLabel: "原创视频笔记",
+        videoKindLabel: this.getVideoKindLabel(meta.videoKind),
+        workflowStage: meta.workflowStage,
+        storyboardPrompt: meta.storyboardPrompt,
+        creativeScript: meta.creativeScript,
+        progressSteps: meta.progressSteps,
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextMeta.title}`);
+    return nextMeta;
+  }
+
+  private async runInitialVideoWorkflowTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    context: ResolvedVideoComposerContext,
+    storageKey: string,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        workflowStage: "GENERATING_SCRIPT",
+        progressSteps: this.buildVideoProgressSteps("GENERATING_SCRIPT"),
+      });
+      const scriptResult = context.videoKind === "REMIX"
+        ? await this.generateVideoRemixScript(brandId, context)
+        : await this.generateVideoCreativeScript(brandId, context);
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        title: scriptResult.title,
+        content: scriptResult.content,
+        hashtags: scriptResult.hashtags,
+        creativeScript: scriptResult.creativeScript,
+        businessScene: scriptResult.businessScene,
+        videoType: scriptResult.videoType,
+        scriptModel: scriptResult.modelName,
+        workflowStage: "GENERATING_STORYBOARD",
+        progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD"),
+      });
+      const storyboardResult = await this.generateVideoStoryboardPrompt(brandId, context, meta);
+      const imageConfig = await this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "short-video-api-studio",
+        promptId: "prompt_xhs_video_storyboard",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+      });
+      const storyboardImage = await this.generateImageAsset({
+        brandId,
+        taskId,
+        title: `视频故事板 - ${meta.title}`,
+        role: "COVER",
+        order: 0,
+        providers: imageConfig.providers,
+        executionPrompt: imageConfig.executionPrompt,
+        prompt: storyboardResult.prompt,
+        referenceImageUrls: [context.referenceImageUrl, context.product?.imageUrl].filter((item): item is string => Boolean(item)),
+      });
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "WAITING_VIDEO",
+        storyboardPrompt: storyboardResult.prompt,
+        storyboardImageUrl: storyboardImage.url,
+        coverImageUrl: storyboardImage.url,
+        storyboardPromptModel: storyboardResult.modelName,
+        storyboardImageModel: storyboardImage.modelName,
+        storyboardRevisions: [
+          ...(meta.storyboardRevisions || []),
+          { taskId, prompt: storyboardResult.prompt, imageUrl: storyboardImage.url, createdAt: new Date().toISOString() },
+        ],
+        progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO"),
+      });
+      await this.markTaskSuccess(taskId, { workId, stage: "STORYBOARD_READY", title: meta.title });
+    } catch (error) {
+      await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
+    }
+  }
+
+  private async runRegenerateVideoStoryboardTask(brandId: string, workId: string, taskId: string, storageKey: string) {
+    try {
+      await this.markTaskRunning(taskId);
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      let meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+      const imageConfig = await this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "short-video-api-studio",
+        promptId: "prompt_xhs_video_storyboard",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+      });
+      const storyboardImage = await this.generateImageAsset({
+        brandId,
+        taskId,
+        title: `视频故事板 - ${meta.title}`,
+        role: "COVER",
+        order: 0,
+        providers: imageConfig.providers,
+        executionPrompt: imageConfig.executionPrompt,
+        prompt: meta.storyboardPrompt || "",
+        referenceImageUrls: [meta.referenceImageUrl].filter((item): item is string => Boolean(item)),
+      });
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "WAITING_VIDEO",
+        storyboardImageUrl: storyboardImage.url,
+        coverImageUrl: storyboardImage.url,
+        storyboardImageModel: storyboardImage.modelName,
+        storyboardRevisions: [
+          ...(meta.storyboardRevisions || []),
+          { taskId, prompt: meta.storyboardPrompt || "", imageUrl: storyboardImage.url, createdAt: new Date().toISOString() },
+        ],
+        progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO"),
+      });
+      await this.markTaskSuccess(taskId, { workId, stage: "STORYBOARD_READY", title: meta.title });
+    } catch (error) {
+      await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
+    }
+  }
+
+  private async runContinueVideoGenerationTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    customVideoModelName?: string,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        workflowStage: "GENERATING_VIDEO",
+        progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+      });
+      const promptResult = await this.generateShortVideoPromptFromStoryboard(brandId, meta);
+      const videoResult = await this.generateVideoAsset({
+        brandId,
+        taskId,
+        title: `视频笔记视频 - ${meta.title}`,
+        requestedVideoProvider: meta.requestedVideoProvider,
+        customVideoModelName,
+        prompt: promptResult.fullVideoPrompt || promptResult.videoPrompt,
+        negativePrompt: promptResult.negativePrompt,
+        requestedDurationSec: meta.requestedDurationSec,
+        referenceImageUrl: meta.storyboardImageUrl,
+      });
+      meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "SUCCESS",
+        resolvedVideoProvider: videoResult.provider,
+        resolvedVideoModel: videoResult.modelName,
+        renderedDurationSec: videoResult.renderedDurationSec,
+        videoPrompt: promptResult.videoPrompt,
+        fullVideoPrompt: promptResult.fullVideoPrompt,
+        videoReasoning: promptResult.videoReasoning,
+        segmentBrief: promptResult.segmentBrief,
+        referenceStrategy: promptResult.referenceStrategy,
+        padImageStrategy: promptResult.padImageStrategy,
+        continuityRules: promptResult.continuityRules,
+        segmentPrompts: promptResult.segmentPrompts,
+        segmentExecutionStatus: "SKIPPED",
+        segmentExecutionError: "当前仅保留主成片生成",
+        providerTaskId: videoResult.providerTaskId,
+        videoUrl: videoResult.url,
+        coverImageUrl: videoResult.coverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
+        progressSteps: this.buildVideoProgressSteps("SUCCESS"),
+      });
+      await this.markTaskSuccess(taskId, { workId, stage: "VIDEO_READY", title: meta.title }, { modelName: videoResult.modelName });
+    } catch (error) {
+      await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
+    }
+  }
+
+  private async handleVideoWorkflowFailure(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    error: unknown,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      taskId,
+      workflowStage: "FAILED",
+      progressSteps: this.buildVideoProgressSteps("FAILED"),
+    });
+    if (!(await this.isTaskCancelled(taskId))) {
+      await this.markTaskFailed(taskId, error instanceof Error ? error.message : "视频笔记生成失败");
+    }
+  }
+
+  private async requestVideoStageJson(params: {
+    brandId: string;
+    promptId: string;
+    fallbackModels: string[];
+    fallbackPrompt: string;
+    systemInstruction: string;
+    inputPayload: Record<string, unknown>;
+  }) {
+    const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
+    const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
+    const preference = await this.loadSkillModelPreference("short-video-api-studio", params.promptId, params.fallbackModels);
+    const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
+    const systemPrompt = [skillPrompt, "", params.systemInstruction].join("\n");
+    const userPrompt = ["以下是本次视频阶段输入：", "", JSON.stringify(params.inputPayload, null, 2)].join("\n");
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 180000,
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              return {
+                modelName,
+                parsed: this.parseJsonObject(content),
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "阶段生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("视频阶段生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
+  private async generateVideoCreativeScript(
+    brandId: string,
+    context: ResolvedVideoComposerContext,
+  ): Promise<VideoScriptStageResult> {
+    const promptId = context.videoKind === "SPOKEN_SELLING"
+      ? "prompt_xhs_video_spoken_script"
+      : context.videoKind === "SKIT_SELLING"
+        ? "prompt_xhs_video_skit_script"
+        : "prompt_xhs_video_brand_script";
+    const result = await this.requestVideoStageJson({
+      brandId,
+      promptId,
+      fallbackModels: ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
+      fallbackPrompt: "根据输入内容生成创意剧本。",
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "JSON 结构固定为：",
+        '{ "title": "剧本标题", "content": "创意剧本正文", "creative_script": "完整创意剧本", "hashtags": ["标签"], "business_scene": "商业场景", "video_type": "视频类型" }',
+      ].join("\n"),
+      inputPayload: {
+        topic: context.topicLabel,
+        accountRole: context.accountRole,
+        videoKind: this.getVideoKindLabel(context.videoKind),
+        durationSec: context.requestedDurationSec,
+        marketingPlanMarkdown: this.buildVideoMarketingPlanContext(context.marketingPlanMarkdown),
+        calendar: context.selectedCalendarItem || null,
+        product: context.product || null,
+        additionalInstruction: context.copyAdditionalInstruction || null,
+      },
+    });
+    const title = String(result.parsed.title ?? "").trim() || context.topicLabel;
+    const content = String(result.parsed.content ?? "").trim();
+    const creativeScript = String(result.parsed.creative_script ?? result.parsed.creativeScript ?? content).trim() || content;
+    return {
+      title,
+      content,
+      creativeScript,
+      hashtags: this.normalizeStringArray(result.parsed.hashtags, [], 8),
+      modelName: result.modelName,
+      businessScene: this.readOptionalString(result.parsed.business_scene ?? result.parsed.businessScene),
+      videoType: this.readOptionalString(result.parsed.video_type ?? result.parsed.videoType),
+    };
+  }
+
+  private async generateVideoRemixScript(
+    brandId: string,
+    context: ResolvedVideoComposerContext,
+  ): Promise<VideoScriptStageResult> {
+    const result = await this.requestVideoStageJson({
+      brandId,
+      promptId: "prompt_xhs_video_remix_script",
+      fallbackModels: ["doubao-seed-2-0-pro-260215", "deepseek-v4-pro"],
+      fallbackPrompt: "根据视频链接拆解短视频剧情脚本。",
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "JSON 结构固定为：",
+        '{ "title": "拆解标题", "content": "剧情脚本", "creative_script": "完整拆解脚本", "hashtags": ["标签"], "business_scene": "商业场景", "video_type": "视频类型" }',
+      ].join("\n"),
+      inputPayload: {
+        topic: context.topicLabel,
+        sourceMaterial: context.material,
+        product: context.product || null,
+        marketingPlanMarkdown: this.buildVideoMarketingPlanContext(context.marketingPlanMarkdown),
+        additionalInstruction: context.copyAdditionalInstruction || null,
+      },
+    });
+    const title = String(result.parsed.title ?? "").trim() || `${context.topicLabel}拆解`;
+    const content = String(result.parsed.content ?? "").trim();
+    const creativeScript = String(result.parsed.creative_script ?? result.parsed.creativeScript ?? content).trim() || content;
+    return {
+      title,
+      content,
+      creativeScript,
+      hashtags: this.normalizeStringArray(result.parsed.hashtags, [], 8),
+      modelName: result.modelName,
+      businessScene: this.readOptionalString(result.parsed.business_scene ?? result.parsed.businessScene),
+      videoType: this.readOptionalString(result.parsed.video_type ?? result.parsed.videoType),
+    };
+  }
+
+  private async generateVideoStoryboardPrompt(brandId: string, context: ResolvedVideoComposerContext, meta: VideoWorkAssetMeta) {
+    const result = await this.requestVideoStageJson({
+      brandId,
+      promptId: "prompt_xhs_video_storyboard",
+      fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
+      fallbackPrompt: "根据剧本、产品图和要求生成故事板提示词。",
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "JSON 结构固定为：",
+        '{ "storyboard_prompt": "故事板提示词", "business_scene": "商业场景", "video_type": "视频类型" }',
+      ].join("\n"),
+      inputPayload: {
+        title: meta.title,
+        content: meta.content,
+        creativeScript: meta.creativeScript,
+        videoKind: this.getVideoKindLabel(context.videoKind),
+        product: context.product || null,
+        sourceMaterial: context.material || null,
+        additionalInstruction: context.videoAdditionalInstruction || null,
+      },
+    });
+    return {
+      prompt: String(result.parsed.storyboard_prompt ?? result.parsed.storyboardPrompt ?? "").trim(),
+      modelName: result.modelName,
+      businessScene: this.readOptionalString(result.parsed.business_scene ?? result.parsed.businessScene),
+      videoType: this.readOptionalString(result.parsed.video_type ?? result.parsed.videoType),
+    };
+  }
+
+  private async generateShortVideoPromptFromStoryboard(brandId: string, meta: VideoWorkAssetMeta) {
+    const result = await this.requestVideoStageJson({
+      brandId,
+      promptId: "prompt_xhs_video_short_prompt",
+      fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
+      fallbackPrompt: "根据故事板提示词和故事板图片生成短视频提示词。",
+      systemInstruction: [
+        "请仅输出 JSON 对象，不要输出 Markdown。",
+        "JSON 结构固定为：",
+        '{ "video_prompt": "精简短视频提示词", "full_video_prompt": "完整短视频提示词", "negative_prompt": "不需要出现的内容", "video_reasoning": "生成说明", "segment_brief": "分镜摘要", "reference_strategy": "参考策略", "pad_image_strategy": "垫图策略", "continuity_rules": ["规则"], "segment_prompts": ["分镜提示词"] }',
+      ].join("\n"),
+      inputPayload: {
+        title: meta.title,
+        content: meta.content,
+        creativeScript: meta.creativeScript,
+        storyboardPrompt: meta.storyboardPrompt,
+        storyboardImageUrl: meta.storyboardImageUrl,
+        requestedDurationSec: meta.requestedDurationSec,
+        requestedVideoProvider: meta.requestedVideoProvider,
+      },
+    });
+    const videoPrompt = String(result.parsed.video_prompt ?? result.parsed.videoPrompt ?? "").trim();
+    return {
+      videoPrompt,
+      fullVideoPrompt: String(result.parsed.full_video_prompt ?? result.parsed.fullVideoPrompt ?? videoPrompt).trim() || videoPrompt,
+      negativePrompt: this.readOptionalString(result.parsed.negative_prompt ?? result.parsed.negativePrompt),
+      videoReasoning: this.readOptionalString(result.parsed.video_reasoning ?? result.parsed.videoReasoning),
+      segmentBrief: this.readOptionalString(result.parsed.segment_brief ?? result.parsed.segmentBrief),
+      referenceStrategy: this.readOptionalString(result.parsed.reference_strategy ?? result.parsed.referenceStrategy),
+      padImageStrategy: this.readOptionalString(result.parsed.pad_image_strategy ?? result.parsed.padImageStrategy),
+      continuityRules: this.normalizeStringArray(result.parsed.continuity_rules ?? result.parsed.continuityRules, [], 8),
+      segmentPrompts: this.normalizeStringArray(result.parsed.segment_prompts ?? result.parsed.segmentPrompts, [videoPrompt], 8),
+    };
   }
 
   private mapOriginalWorkFromDatabase(
@@ -3311,12 +3915,15 @@ export class WorksService {
   ): XiaohongshuVideoWorkRecord {
     return {
       id,
-      taskId: taskId || meta.taskId,
+      taskId: meta.taskId || taskId || "",
       brandId,
       accountRole: meta.accountRole,
+      videoKind: meta.videoKind,
+      workflowStage: meta.workflowStage,
       title: meta.title,
       content: meta.content,
       coverImageUrl: meta.coverImageUrl,
+      storyboardImageUrl: meta.storyboardImageUrl,
       videoUrl: meta.videoUrl,
       noteCategory: "原创",
       noteType: "视频",
@@ -3325,6 +3932,9 @@ export class WorksService {
       customTopicName: meta.customTopicName,
       productId: meta.productId,
       productName: meta.productName,
+      materialId: meta.materialId,
+      materialTitle: meta.materialTitle,
+      materialVideoUrl: meta.materialVideoUrl,
       referenceImageUrl: meta.referenceImageUrl,
       copyAdditionalInstruction: meta.copyAdditionalInstruction,
       videoAdditionalInstruction: meta.videoAdditionalInstruction,
@@ -3334,9 +3944,12 @@ export class WorksService {
       resolvedVideoModel: meta.resolvedVideoModel,
       requestedDurationSec: meta.requestedDurationSec,
       renderedDurationSec: meta.renderedDurationSec,
-      outputVideoPrompt: meta.outputVideoPrompt,
-      videoPrompt: meta.outputVideoPrompt ? meta.videoPrompt : undefined,
-      fullVideoPrompt: meta.outputVideoPrompt ? meta.fullVideoPrompt : undefined,
+      creativeScript: meta.creativeScript,
+      storyboardPrompt: meta.storyboardPrompt,
+      progressSteps: meta.progressSteps || [],
+      storyboardRevisions: meta.storyboardRevisions || [],
+      videoPrompt: meta.videoPrompt,
+      fullVideoPrompt: meta.fullVideoPrompt,
       videoReasoning: meta.videoReasoning,
       businessScene: meta.businessScene,
       videoType: meta.videoType,
@@ -3370,6 +3983,8 @@ export class WorksService {
       noteCategory: "原创",
       noteType: "视频",
       accountRole: this.resolveOriginalAccountRole(this.readOptionalString(meta.accountRole), "ADMIN"),
+      videoKind: (this.readOptionalString(meta.videoKind) as VideoNoteKind) || "BRAND_PROMO",
+      workflowStage: (this.readOptionalString(meta.workflowStage) as VideoWorkflowStage) || "QUEUED",
       title: String(meta.title ?? "").trim(),
       content: String(meta.content ?? "").trim(),
       htmlContent: String(meta.htmlContent ?? "").trim(),
@@ -3379,7 +3994,11 @@ export class WorksService {
       customTopicName: this.readOptionalString(meta.customTopicName),
       productId: this.readOptionalString(meta.productId),
       productName: this.readOptionalString(meta.productName),
+      materialId: this.readOptionalString(meta.materialId),
+      materialTitle: this.readOptionalString(meta.materialTitle),
+      materialVideoUrl: this.readOptionalString(meta.materialVideoUrl),
       referenceImageUrl: this.readOptionalString(meta.referenceImageUrl),
+      storyboardImageUrl: this.readOptionalString(meta.storyboardImageUrl),
       copyAdditionalInstruction: this.readOptionalString(meta.copyAdditionalInstruction),
       videoAdditionalInstruction: this.readOptionalString(meta.videoAdditionalInstruction),
       includeMarketingPlan: meta.includeMarketingPlan !== false,
@@ -3388,9 +4007,15 @@ export class WorksService {
       resolvedVideoModel: this.readOptionalString(meta.resolvedVideoModel),
       requestedDurationSec: Number(meta.requestedDurationSec || 10),
       renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
-      outputVideoPrompt: meta.outputVideoPrompt !== false,
+      scriptModel: this.readOptionalString(meta.scriptModel),
+      storyboardPromptModel: this.readOptionalString(meta.storyboardPromptModel),
+      storyboardImageModel: this.readOptionalString(meta.storyboardImageModel),
       videoPrompt: this.readOptionalString(meta.videoPrompt),
       fullVideoPrompt: this.readOptionalString(meta.fullVideoPrompt),
+      storyboardPrompt: this.readOptionalString(meta.storyboardPrompt),
+      creativeScript: this.readOptionalString(meta.creativeScript),
+      progressSteps: this.normalizeVideoProgressSteps(meta.progressSteps),
+      storyboardRevisions: this.normalizeVideoStoryboardRevisions(meta.storyboardRevisions),
       videoReasoning: this.readOptionalString(meta.videoReasoning),
       businessScene: this.readOptionalString(meta.businessScene),
       videoType: this.readOptionalString(meta.videoType),
@@ -3409,6 +4034,48 @@ export class WorksService {
       createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
       updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
     };
+  }
+
+  private normalizeVideoProgressSteps(value: unknown) {
+    const items = Array.isArray(value) ? value : [];
+    const result: VideoProgressStepEntry[] = [];
+    items.forEach((item) => {
+      const record = this.asRecord(item);
+      if (!record) {
+        return;
+      }
+      const key = this.readOptionalString(record.key) as VideoProgressStepEntry["key"];
+      const label = this.readOptionalString(record.label);
+      const status = this.readOptionalString(record.status) as VideoProgressStepEntry["status"];
+      if (!key || !label || !status) {
+        return;
+      }
+      result.push({ key, label, status });
+    });
+    return result;
+  }
+
+  private normalizeVideoStoryboardRevisions(value: unknown) {
+    const items = Array.isArray(value) ? value : [];
+    const result: VideoStoryboardRevisionEntry[] = [];
+    items.forEach((item) => {
+      const record = this.asRecord(item);
+      if (!record) {
+        return;
+      }
+      const taskId = this.readOptionalString(record.taskId);
+      const prompt = this.readOptionalString(record.prompt);
+      if (!taskId || !prompt) {
+        return;
+      }
+      result.push({
+        taskId,
+        prompt,
+        imageUrl: this.readOptionalString(record.imageUrl),
+        createdAt: this.readOptionalString(record.createdAt) || new Date().toISOString(),
+      });
+    });
+    return result;
   }
 
   private normalizeVideoSegmentAssets(value: unknown) {
@@ -4877,11 +5544,13 @@ export class WorksService {
   }
 
   private normalizeRequestedVideoDuration(value?: number) {
+    if (value === 15) {
+      return 15;
+    }
     if (typeof value !== "number" || Number.isNaN(value)) {
       return 10;
     }
-    const normalized = Math.max(1, Math.round(value));
-    return normalized;
+    return 10;
   }
 
   private normalizeProviderDuration(config: VideoProviderConfig, requestedDurationSec: number) {

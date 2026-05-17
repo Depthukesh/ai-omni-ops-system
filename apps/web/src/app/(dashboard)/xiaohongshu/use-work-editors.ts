@@ -17,7 +17,7 @@ export function useWorkEditors() {
   const [editingVideoWorkId, setEditingVideoWorkId] = useState("");
   const [editingVideoTitle, setEditingVideoTitle] = useState("");
   const [editingVideoContent, setEditingVideoContent] = useState("");
-  const [editingVideoPrompt, setEditingVideoPrompt] = useState("");
+  const [editingVideoStoryboardPrompt, setEditingVideoStoryboardPrompt] = useState("");
   const [savingVideoWorkId, setSavingVideoWorkId] = useState("");
 
   function startEditOriginalWork(item: XiaohongshuOriginalWorkRecord, onSelect?: (workId: string) => void) {
@@ -51,14 +51,14 @@ export function useWorkEditors() {
     setEditingVideoWorkId(item.id);
     setEditingVideoTitle(item.title);
     setEditingVideoContent(item.content);
-    setEditingVideoPrompt(item.videoPrompt || item.fullVideoPrompt || "");
+    setEditingVideoStoryboardPrompt(item.storyboardPrompt || "");
   }
 
   function cancelEditVideoWork() {
     setEditingVideoWorkId("");
     setEditingVideoTitle("");
     setEditingVideoContent("");
-    setEditingVideoPrompt("");
+    setEditingVideoStoryboardPrompt("");
   }
 
   return {
@@ -73,7 +73,7 @@ export function useWorkEditors() {
     editingVideoWorkId,
     editingVideoTitle,
     editingVideoContent,
-    editingVideoPrompt,
+    editingVideoStoryboardPrompt,
     savingVideoWorkId,
     setEditingOriginalTitle,
     setEditingOriginalContent,
@@ -83,7 +83,7 @@ export function useWorkEditors() {
     setSavingRewriteWorkId,
     setEditingVideoTitle,
     setEditingVideoContent,
-    setEditingVideoPrompt,
+    setEditingVideoStoryboardPrompt,
     setSavingVideoWorkId,
     startEditOriginalWork,
     cancelEditOriginalWork,

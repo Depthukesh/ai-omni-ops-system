@@ -173,13 +173,13 @@ export interface VideoEditModalProps {
   item?: XiaohongshuVideoWorkRecord;
   title: string;
   content: string;
-  videoPrompt: string;
+  storyboardPrompt: string;
   savingWorkId?: string;
   onClose: () => void;
   onSave: AsyncAction;
   onTitleChange: StringChangeHandler;
   onContentChange: StringChangeHandler;
-  onVideoPromptChange: StringChangeHandler;
+  onStoryboardPromptChange: StringChangeHandler;
   getTaskStatusClass: (status?: TaskStatus) => string;
   getTaskStatusText: (status?: TaskStatus) => string;
 }
@@ -232,12 +232,12 @@ export function VideoEditModal(props: VideoEditModalProps) {
               />
             </label>
             <label className="report-editor-pane">
-              <span>视频生成提示词</span>
+              <span>故事板提示词</span>
               <textarea
                 className="report-markdown-textarea"
-                value={props.videoPrompt}
-                onChange={(event) => props.onVideoPromptChange(event.target.value)}
-                placeholder="可选：调整短视频生成提示词"
+                value={props.storyboardPrompt}
+                onChange={(event) => props.onStoryboardPromptChange(event.target.value)}
+                placeholder="可选：调整故事板提示词"
               />
             </label>
             <div className="strategy-inline-actions">

@@ -47,16 +47,16 @@ type VideoComposerState = {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  materialValue: string;
   accountRoleValue: string;
   referenceImageFile: File | null;
+  videoKindValue: string;
   copyAdditionalInstruction: string;
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
   durationValue: string;
-  customDurationValue: string;
   injectMarketingPlanValue: string;
-  outputPromptValue: string;
   additionalInstruction: string;
   closeModal: () => void;
   resetComposer: (calendarItems: CalendarOption[], products: ProductOption[]) => void;
@@ -73,7 +73,6 @@ export function useWorkComposerActions(options: {
   noProductOption: string;
   customTopicOption: string;
   customVideoProviderOption: string;
-  customVideoDurationOption: string;
   autoImageCountOption: string;
   setNotice: (value: string) => void;
   setErrorMessage: (value: string) => void;
@@ -200,17 +199,26 @@ export function useWorkComposerActions(options: {
     const resolvedProvider = options.video.providerValue === options.customVideoProviderOption
       ? options.video.customProviderValue
       : options.video.providerValue;
-    const resolvedDuration = options.video.durationValue === options.customVideoDurationOption
-      ? Number(options.video.customDurationValue)
-      : Number(options.video.durationValue);
+    const resolvedDuration = Number(options.video.durationValue);
+    const selectedMaterial = options.materialNotes.find((item) => item.id === options.video.materialValue);
 
     if (!resolvedProvider) {
       options.setErrorMessage("请先选择一个视频大模型。");
       return;
     }
 
-    if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
-      options.setErrorMessage("请输入有效的视频时长。");
+    if (![10, 15].includes(resolvedDuration)) {
+      options.setErrorMessage("视频时长只支持 10 秒或 15 秒。");
+      return;
+    }
+
+    if (options.video.videoKindValue === "REMIX" && !options.video.materialValue) {
+      options.setErrorMessage("复刻视频必须先选择一个视频素材。");
+      return;
+    }
+
+    if (options.video.videoKindValue === "REMIX" && !selectedMaterial?.videoUrl) {
+      options.setErrorMessage("复刻视频必须选择素材库中的视频类型素材。");
       return;
     }
 
@@ -228,14 +236,15 @@ export function useWorkComposerActions(options: {
         calendarItemId: isCustomTopic ? undefined : options.video.calendarValue,
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.video.productValue === options.noProductOption ? undefined : options.video.productValue,
+        materialId: options.video.materialValue || undefined,
         accountRole: options.video.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
         referenceImageFile: options.video.referenceImageFile,
+        videoKind: options.video.videoKindValue as "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX",
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
         videoProvider: resolvedProvider,
         customVideoModelName: options.video.customModelName.trim() || undefined,
         durationSec: resolvedDuration,
         includeMarketingPlan: options.video.injectMarketingPlanValue === "yes",
-        outputVideoPrompt: options.video.outputPromptValue === "yes",
         videoAdditionalInstruction: options.video.additionalInstruction.trim() || undefined,
       });
 
@@ -243,7 +252,7 @@ export function useWorkComposerActions(options: {
       options.video.setSelectedWorkId(result.item.id);
       options.video.cancelEdit();
       await options.onRefreshWorkspace();
-      options.setNotice("视频笔记已创作完成，任务状态和“我的作品”已同步刷新。");
+      options.setNotice("视频笔记任务已提交，系统会先生成故事板，完成后你可以继续修改并生成短视频。");
       options.video.resetComposer(options.calendarItems, options.products);
     } catch (error) {
       const message = error instanceof Error ? error.message : "视频笔记创作失败";

@@ -26,6 +26,7 @@ export type ProductOption = {
 export type MaterialOption = {
   id?: string;
   title?: string;
+  videoUrl?: string;
 };
 
 export type PlatformAccount = {
