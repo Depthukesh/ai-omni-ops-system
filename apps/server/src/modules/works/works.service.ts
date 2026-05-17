@@ -5811,6 +5811,37 @@ export class WorksService {
           queryPath: params.config.queryPath,
           renderedDurationSec: normalizedDuration,
         };
+      case "volcengine_seedance": {
+        const content: Array<Record<string, unknown>> = [
+          {
+            type: "text",
+            text: params.prompt,
+          },
+        ];
+        if (hasReferenceImage) {
+          content.push({
+            type: "image_url",
+            role: "first_frame",
+            image_url: {
+              url: requireReferenceImage(),
+            },
+          });
+        }
+        return {
+          payload: {
+            model: params.modelName,
+            content,
+            duration: normalizedDuration,
+            ratio: "9:16",
+            resolution: "720p",
+            generate_audio: true,
+            return_last_frame: false,
+          } as Record<string, unknown>,
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      }
       case "legacy_hailuo":
         return {
           payload: {
@@ -6078,6 +6109,9 @@ export class WorksService {
     if (queryPath.includes("{task_id}")) {
       return queryPath.replace("{task_id}", encodeURIComponent(taskId));
     }
+    if (queryPath.includes("{id}")) {
+      return queryPath.replace("{id}", encodeURIComponent(taskId));
+    }
     const separator = queryPath.includes("?") ? "&" : "?";
     return `${queryPath}${separator}task_id=${encodeURIComponent(taskId)}`;
   }
@@ -6111,12 +6145,14 @@ export class WorksService {
       || this.readOptionalString(topLevelData?.message)
       || this.readOptionalString(topLevelData?.msg)
       || this.readOptionalString(topLevelData?.errorMsg)
+      || this.readOptionalString(nestedError?.code)
       || this.readOptionalString(nestedError?.message)
       || this.readOptionalString(nestedError?.msg);
   }
 
   private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {
     const topLevelData = this.asRecord(payload.data);
+    const topLevelContent = this.asRecord(payload.content);
     const topLevelResults = Array.isArray(payload.results) ? payload.results.map((item) => this.asRecord(item)) : [];
     const topLevelResult = topLevelResults.find((item) => Boolean(item)) || null;
     const taskStatusRaw = String(
@@ -6132,6 +6168,7 @@ export class WorksService {
       || this.readOptionalString(topLevelResult?.fileUrl)
       || this.readOptionalString(topLevelData?.output)
       || this.readOptionalString(topLevelData?.video_url)
+      || this.readOptionalString(topLevelContent?.video_url)
       || this.readOptionalString(this.asRecord(topLevelData?.task_result)?.url);
     const firstVideo = Array.isArray(this.asRecord(topLevelData?.task_result)?.videos)
       ? this.asRecord((this.asRecord(topLevelData?.task_result)?.videos as unknown[])[0])
@@ -6143,6 +6180,7 @@ export class WorksService {
     const coverImageUrl = this.readOptionalString(topLevelResult?.coverUrl)
       || this.readOptionalString(topLevelResult?.thumbnailUrl)
       || this.readOptionalString(topLevelData?.last_frame_url)
+      || this.readOptionalString(topLevelContent?.last_frame_url)
       || this.readOptionalString(topLevelData?.cover_url)
       || this.readOptionalString(payload.cover_url);
     const failReason = this.readOptionalString(payload.failedReason)
@@ -6150,6 +6188,8 @@ export class WorksService {
       || this.readOptionalString(payload.fail_reason)
       || this.readOptionalString(payload.errorMessage)
       || this.readOptionalString(payload.message)
+      || this.readOptionalString(this.asRecord(payload.error)?.code)
+      || this.readOptionalString(this.asRecord(payload.error)?.message)
       || this.readOptionalString(topLevelData?.task_status_msg)
       || this.readOptionalString(this.asRecord(payload.base_resp)?.status_msg);
     const renderedDurationSec = this.parseDurationValue(
@@ -6177,10 +6217,20 @@ export class WorksService {
     if (normalized.includes("SUCCESS") || normalized.includes("SUCCEED")) {
       return "SUCCESS";
     }
+    if (normalized.includes("EXPIRED") || normalized.includes("CANCEL")) {
+      return "FAILED";
+    }
     if (normalized.includes("FAIL")) {
       return "FAILED";
     }
-    if (normalized.includes("NOT_START") || normalized.includes("SUBMITTED") || normalized.includes("PROCESS") || normalized.includes("PROGRESS") || normalized.includes("QUEUE")) {
+    if (
+      normalized.includes("NOT_START")
+      || normalized.includes("SUBMITTED")
+      || normalized.includes("PROCESS")
+      || normalized.includes("PROGRESS")
+      || normalized.includes("QUEUE")
+      || normalized.includes("RUNNING")
+    ) {
       return "IN_PROGRESS";
     }
     return "IN_PROGRESS";

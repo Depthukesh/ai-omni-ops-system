@@ -171,6 +171,8 @@
   - 修复视频笔记最后一步已携带故事板图、却仍按 RunningHub 文生视频模型调用导致失败的问题；后端现会优先自动切到同系列图生视频后端
 - `docs/changes/2026-05-17-video-note-runninghub-reference-image-url-fix.md`
   - 修复视频笔记最终成片阶段把站内鉴权故事板图 URL 直接传给 RunningHub 导致图生任务创建失败的问题，并补充创建失败时的真实错误透传
+- `docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
+  - 新增火山方舟 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128` 视频 Provider，并补齐平台模型聚合与视频生成请求/查询适配，让前台个人中心和后台接口供应商同步可见
 - `docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
   - 技能中心继续收口到“前后台统一分类树 + 单条提示词叶子项可见可改”，修正视频笔记 prompt 已注册但界面仍按总技能展示的问题
 - `docs/changes/2026-05-17-skill-center-collapsible-tree.md`

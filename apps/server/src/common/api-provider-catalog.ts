@@ -72,6 +72,19 @@ type RunningHubVideoSeedInput = {
   durationOptions?: number[];
 };
 
+type VolcengineArkVideoSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  backendKey: string;
+  displayLabel: string;
+  displayOrder: number;
+  remark: string;
+  recommended?: boolean;
+  durationOptions?: number[];
+};
+
 function createRunningHubVideoSeed(input: RunningHubVideoSeedInput) {
   return createSeed({
     id: input.id,
@@ -106,6 +119,47 @@ function createRunningHubVideoSeed(input: RunningHubVideoSeedInput) {
       supportsImageToVideo: input.supportsImageToVideo,
       durationOptions: input.durationOptions || [],
       sourceFolder: "RunningHub 视频生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "DOUBAO",
+    status: "ACTIVE",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "video-generation",
+      runtimeTags: ["video-generation", "works-runtime"],
+      backendKey: input.backendKey,
+      displayLabel: input.displayLabel,
+      displayOrder: input.displayOrder,
+      recommended: input.recommended ?? false,
+      baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
+      createPath: "/contents/generations/tasks",
+      queryPath: "/contents/generations/tasks/{id}",
+      queryMethod: "GET",
+      requestProfile: "volcengine_seedance",
+      textModel: input.modelId,
+      imageModel: input.modelId,
+      fastModel: input.modelId,
+      proModel: input.modelId,
+      supportsTextToVideo: true,
+      supportsImageToVideo: true,
+      durationOptions: input.durationOptions || [5, 10],
+      sourceFolder: "火山方舟 Seedance 视频生成",
     },
     remark: input.remark,
   });
@@ -351,6 +405,33 @@ const RUNNINGHUB_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     supportsTextToVideo: true,
     supportsImageToVideo: false,
     durationOptions: [3, 5, 8, 10, 12, 15],
+  }),
+];
+
+const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createVolcengineArkVideoSeed({
+    id: "provider_runtime_video_volcengine_seedance_20",
+    name: "火山方舟 · Seedance 2.0",
+    tutorialUrl: "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+    modelId: "doubao-seedance-2-0-260128",
+    backendKey: "volcengine_seedance_20",
+    displayLabel: "Seedance 2.0",
+    displayOrder: 60,
+    recommended: true,
+    remark: "火山方舟 Seedance 2.0 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    durationOptions: [5, 10],
+  }),
+  createVolcengineArkVideoSeed({
+    id: "provider_runtime_video_volcengine_seedance_20_fast",
+    name: "火山方舟 · Seedance 2.0 Fast",
+    tutorialUrl: "https://www.volcengine.com/docs/82379/1520757?lang=zh",
+    modelId: "doubao-seedance-2-0-fast-260128",
+    backendKey: "volcengine_seedance_20_fast",
+    displayLabel: "Seedance 2.0 Fast",
+    displayOrder: 61,
+    recommended: true,
+    remark: "火山方舟 Seedance 2.0 Fast 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    durationOptions: [5, 10],
   }),
 ];
 
@@ -801,5 +882,6 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "系统按用户提供的 Seedance 接口资料初始化，当前作为视频笔记的默认推荐后端。",
   }),
+  ...VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS,
   ...RUNNINGHUB_VIDEO_PROVIDER_SEEDS,
 ];

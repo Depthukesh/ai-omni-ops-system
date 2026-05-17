@@ -569,14 +569,19 @@ export class ThirdPartyPlatformsService {
       ON "UserThirdPartyPlatformSecret" ("userId", "brandId", "platformId")
     `);
 
-    const existingRows = await this.prismaService.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
+    const existingRows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
+      SELECT *
       FROM "ThirdPartyPlatformConfig"
     `;
-    const existingIds = new Set(existingRows.map((item) => item.id));
+    const existingById = new Map(existingRows.map((item) => {
+      const normalized = this.normalizePlatformRow(item);
+      return [normalized.id, normalized] as const;
+    }));
 
     for (const item of THIRD_PARTY_PLATFORM_SEEDS) {
-      if (existingIds.has(item.id)) {
+      const current = existingById.get(item.id);
+      if (current) {
+        await this.syncSeedPlatform(current, item);
         continue;
       }
       await this.prismaService.$queryRaw`
@@ -606,5 +611,32 @@ export class ThirdPartyPlatformsService {
         )
       `;
     }
+  }
+
+  private async syncSeedPlatform(current: ThirdPartyPlatformRecord, seed: ThirdPartyPlatformRecord) {
+    const nextModelIds = Array.from(new Set([...(current.modelIds || []), ...(seed.modelIds || [])]));
+    const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
+    const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
+    const nextRemark = current.remark || seed.remark || "";
+    const currentModelIdsJson = JSON.stringify(current.modelIds || []);
+    const nextModelIdsJson = JSON.stringify(nextModelIds);
+    if (
+      currentModelIdsJson === nextModelIdsJson
+      && current.tutorialUrl === nextTutorialUrl
+      && current.defaultModel === nextDefaultModel
+      && current.remark === nextRemark
+    ) {
+      return;
+    }
+    await this.prismaService.$queryRaw`
+      UPDATE "ThirdPartyPlatformConfig"
+      SET
+        "modelIdsJson" = ${nextModelIdsJson}::jsonb,
+        "tutorialUrl" = ${nextTutorialUrl},
+        "defaultModel" = ${nextDefaultModel},
+        "remark" = ${nextRemark},
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${current.id}
+    `;
   }
 }
