@@ -164,6 +164,11 @@ function listReadableReferenceEntries(entryFilePath: string): PromptReferenceEnt
     .filter((entry) => entry.content);
 }
 
+function shouldAggregateReferenceFiles(entryFilePath: string) {
+  const entryFileName = basename(entryFilePath).toLowerCase();
+  return entryFileName === "skill.md";
+}
+
 function formatPromptSourceBundle(entryContent: string, references: PromptReferenceEntry[]) {
   if (!references.length) {
     return entryContent;
@@ -219,7 +224,9 @@ export function readPromptSourceBundle(promptId: string, fallback: string): Prom
 
   try {
     const entryContent = readTextFile(entryFilePath);
-    const referenceEntries = listReadableReferenceEntries(entryFilePath);
+    const referenceEntries = shouldAggregateReferenceFiles(entryFilePath)
+      ? listReadableReferenceEntries(entryFilePath)
+      : [];
 
     return {
       content: formatPromptSourceBundle(entryContent || normalizedFallback, referenceEntries),

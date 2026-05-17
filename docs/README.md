@@ -173,6 +173,8 @@
   - 修正视频笔记提示词在技能中心仍显示旧一行占位文案的问题；改为运行时稳定命中文件，并在启动时把数据库内容回填为文件真实内容
 - `docs/changes/2026-05-18-video-prompt-files-moved-into-repo.md`
   - 继续修正视频提示词线上仍不正确的问题；将 6 个视频提示词文件正式纳入仓库，并把读取优先级切到仓库内受 Git 管理的路径
+- `docs/changes/2026-05-18-video-prompt-leaf-no-reference-bundle.md`
+  - 修正视频提示词叶子项仍把同目录其它 `.txt` 一并拼进内容的问题；当前仅 `SKILL.md` 允许自动聚合参考资料，独立 `.txt` 只展示自身内容
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`
