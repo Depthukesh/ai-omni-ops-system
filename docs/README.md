@@ -175,6 +175,8 @@
   - 继续修正视频提示词线上仍不正确的问题；将 6 个视频提示词文件正式纳入仓库，并把读取优先级切到仓库内受 Git 管理的路径
 - `docs/changes/2026-05-18-video-prompt-leaf-no-reference-bundle.md`
   - 修正视频提示词叶子项仍把同目录其它 `.txt` 一并拼进内容的问题；当前仅 `SKILL.md` 允许自动聚合参考资料，独立 `.txt` 只展示自身内容
+- `docs/changes/2026-05-18-runninghub-shared-query-backfill.md`
+  - 修正 RunningHub 第三方视频模型缺失统一查询接口元数据的问题；当前运行时会对 `runninghub.cn` 强制使用 `/openapi/v2/query`，并在服务启动时回填旧系统 Provider 缺失的查询配置
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

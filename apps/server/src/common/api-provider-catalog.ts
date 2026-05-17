@@ -33,7 +33,9 @@ const SHARED_PROXY_BASE_URLS = [
 ];
 const RIGHT_CODES_DRAW_BASE_URL = "https://www.right.codes/draw";
 const RIGHT_CODES_DRAW_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/draw/";
-const RUNNINGHUB_BASE_URL = "https://www.runninghub.cn";
+export const RUNNINGHUB_BASE_URL = "https://www.runninghub.cn";
+export const RUNNINGHUB_RESULT_QUERY_PATH = "/openapi/v2/query";
+export const RUNNINGHUB_RESULT_QUERY_DOC_URL = "https://www.runninghub.cn/runninghub-api-doc-cn/api-425767306";
 const SHARED_PROXY_API_KEYS = [
   "sk-R6QU1kyqXhd84mMR9PGeyhWp4DXew7pepZsxPp68WZ72CFdm",
   "sk-GmJGbtr0AhajstoECpevk72ZNdKASBjs8pTcofRnOr2WAmXP",
@@ -95,9 +97,10 @@ function createRunningHubVideoSeed(input: RunningHubVideoSeedInput) {
       recommended: input.recommended ?? false,
       baseUrls: [RUNNINGHUB_BASE_URL],
       createPath: input.createPath,
-      queryPath: "/openapi/v2/query",
+      queryPath: RUNNINGHUB_RESULT_QUERY_PATH,
       queryMethod: "POST",
       queryBodyMode: "taskId-json",
+      queryTutorialUrl: RUNNINGHUB_RESULT_QUERY_DOC_URL,
       requestProfile: input.requestProfile,
       supportsTextToVideo: input.supportsTextToVideo,
       supportsImageToVideo: input.supportsImageToVideo,

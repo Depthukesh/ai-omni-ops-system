@@ -5471,6 +5471,9 @@ export class WorksService {
     }
 
     const defaultModel = provider.defaultModel || provider.modelWhitelist[0] || backend;
+    const isRunningHubProvider = [provider.baseUrl, ...baseUrls].some((item) =>
+      String(item || "").trim().toLowerCase().includes("runninghub.cn"),
+    );
     return {
       backend,
       providerId: provider.id,
@@ -5479,9 +5482,19 @@ export class WorksService {
       baseUrls,
       apiKeys,
       createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || "/v2/videos/generations",
-      queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
-      queryMethod: this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST" ? "POST" : "GET",
-      queryBodyMode: this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json" ? "taskId-json" : undefined,
+      queryPath: isRunningHubProvider
+        ? "/openapi/v2/query"
+        : this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
+      queryMethod: isRunningHubProvider
+        ? "POST"
+        : this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST"
+          ? "POST"
+          : "GET",
+      queryBodyMode: isRunningHubProvider
+        ? "taskId-json"
+        : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
+          ? "taskId-json"
+          : undefined,
       requestProfile: this.apiProvidersService.getStringExtra(provider, "requestProfile") || undefined,
       textCreatePath: this.apiProvidersService.getStringExtra(provider, "textCreatePath") || undefined,
       imageCreatePath: this.apiProvidersService.getStringExtra(provider, "imageCreatePath") || undefined,

@@ -275,10 +275,12 @@
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
   - 当前 `ApiProviderConfig` 已补入 RunningHub 视频 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会按 `https://www.runninghub.cn` 自动聚合出 `RunningHub 平台`
+  - 当前 RunningHub 视频 Provider 统一使用 `POST /openapi/v2/query` + `{ taskId }` 查询生成结果；`WorksService` 运行时会对命中 `runninghub.cn` 的 Provider 强制兜底这组查询配置，同时 `ApiProvidersService` 会在启动时把旧 RunningHub 系统 Provider 缺失的查询元数据自动回填到 `extraParamsJson`
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
   - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
   - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
+  - 参考变更：`docs/changes/2026-05-18-runninghub-shared-query-backfill.md`
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商

@@ -1,5 +1,11 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { LEGACY_API_PROVIDER_IDS, SYSTEM_API_PROVIDER_SEEDS } from "../../common/api-provider-catalog";
+import {
+  LEGACY_API_PROVIDER_IDS,
+  RUNNINGHUB_BASE_URL,
+  RUNNINGHUB_RESULT_QUERY_DOC_URL,
+  RUNNINGHUB_RESULT_QUERY_PATH,
+  SYSTEM_API_PROVIDER_SEEDS,
+} from "../../common/api-provider-catalog";
 import { database, type ApiProviderRecord } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -444,11 +450,13 @@ export class ApiProvidersService {
   }
 
   private async bootstrapSystemProviders() {
-    const existingRows = await this.prismaService.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
+    const existingRows = await this.prismaService.$queryRaw<ApiProviderRow[]>`
+      SELECT *
       FROM "ApiProviderConfig"
     `;
-    const existingIds = new Set(existingRows.map((item) => item.id));
+    const existingProviders = existingRows.map((item) => this.normalizeRow(item));
+    const existingById = new Map(existingProviders.map((item) => [item.id, item]));
+    const existingIds = new Set(existingProviders.map((item) => item.id));
     const hasSystemSeed = SYSTEM_API_PROVIDER_SEEDS.some((item) => existingIds.has(item.id));
 
     if (!hasSystemSeed && LEGACY_API_PROVIDER_IDS.some((item) => existingIds.has(item))) {
@@ -461,11 +469,69 @@ export class ApiProvidersService {
     }
 
     for (const provider of SYSTEM_API_PROVIDER_SEEDS) {
-      if (existingIds.has(provider.id)) {
+      const current = existingById.get(provider.id);
+      if (current) {
+        await this.syncSystemProviderSeed(current, provider);
         continue;
       }
       await this.insertProviderSeed(provider);
     }
+  }
+
+  private async syncSystemProviderSeed(current: ApiProviderRecord, seed: ApiProviderRecord) {
+    const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
+    const nextExtraParams = this.mergeSystemProviderExtraParams(current, seed);
+    const currentExtraParamsJson = JSON.stringify(this.normalizeObjectMap(current.extraParams));
+    const nextExtraParamsJson = JSON.stringify(nextExtraParams);
+    if (current.tutorialUrl === nextTutorialUrl && currentExtraParamsJson === nextExtraParamsJson) {
+      return;
+    }
+    await this.prismaService.$executeRaw`
+      UPDATE "ApiProviderConfig"
+      SET
+        "tutorialUrl" = ${nextTutorialUrl},
+        "extraParamsJson" = ${nextExtraParamsJson}::jsonb,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${current.id}
+    `;
+  }
+
+  private mergeSystemProviderExtraParams(current: ApiProviderRecord, seed: ApiProviderRecord) {
+    const currentExtraParams = this.normalizeObjectMap(current.extraParams);
+    const seedExtraParams = this.normalizeObjectMap(seed.extraParams);
+    if (!this.isRunningHubProvider(current, seed)) {
+      return currentExtraParams;
+    }
+    return {
+      ...currentExtraParams,
+      runtimeKey: seedExtraParams.runtimeKey ?? currentExtraParams.runtimeKey,
+      runtimeTags: seedExtraParams.runtimeTags ?? currentExtraParams.runtimeTags,
+      backendKey: seedExtraParams.backendKey ?? currentExtraParams.backendKey,
+      displayLabel: seedExtraParams.displayLabel ?? currentExtraParams.displayLabel,
+      displayOrder: seedExtraParams.displayOrder ?? currentExtraParams.displayOrder,
+      recommended: seedExtraParams.recommended ?? currentExtraParams.recommended,
+      baseUrls: seedExtraParams.baseUrls ?? currentExtraParams.baseUrls,
+      createPath: seedExtraParams.createPath ?? currentExtraParams.createPath,
+      queryPath: RUNNINGHUB_RESULT_QUERY_PATH,
+      queryMethod: "POST",
+      queryBodyMode: "taskId-json",
+      queryTutorialUrl: RUNNINGHUB_RESULT_QUERY_DOC_URL,
+      requestProfile: seedExtraParams.requestProfile ?? currentExtraParams.requestProfile,
+      supportsTextToVideo: seedExtraParams.supportsTextToVideo ?? currentExtraParams.supportsTextToVideo,
+      supportsImageToVideo: seedExtraParams.supportsImageToVideo ?? currentExtraParams.supportsImageToVideo,
+      durationOptions: seedExtraParams.durationOptions ?? currentExtraParams.durationOptions,
+      sourceFolder: seedExtraParams.sourceFolder ?? currentExtraParams.sourceFolder,
+    };
+  }
+
+  private isRunningHubProvider(current: ApiProviderRecord, seed: ApiProviderRecord) {
+    const candidates = [
+      current.baseUrl,
+      seed.baseUrl,
+      ...this.getStringArrayExtra(current, "baseUrls"),
+      ...this.getStringArrayExtra(seed, "baseUrls"),
+    ];
+    return candidates.some((item) => String(item || "").includes(RUNNINGHUB_BASE_URL));
   }
 
   private async insertProviderSeed(provider: ApiProviderRecord) {
