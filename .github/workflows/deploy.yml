@@ -99,6 +99,33 @@ jobs:
                 "$@"
               }
 
+              backup_and_clean_worktree() {
+                local backup_root backup_dir changed_files_path
+                backup_root="$(dirname "$DEPLOY_PATH")/.deploy-worktree-backups"
+                mkdir -p "$backup_root"
+                backup_dir="$backup_root/$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+                changed_files_path="$backup_dir/worktree-files.txt"
+
+                mkdir -p "$backup_dir"
+                git rev-parse HEAD > "$backup_dir/head-before.txt" || true
+                git branch --show-current > "$backup_dir/branch.txt" || true
+                git status --porcelain=v1 -uall > "$backup_dir/git-status.txt" || true
+                git diff --binary > "$backup_dir/worktree.diff" || true
+                git diff --binary --cached > "$backup_dir/index.diff" || true
+                git ls-files -d > "$backup_dir/deleted-files.txt" || true
+                git ls-files -z -m -o --exclude-standard > "$changed_files_path" || true
+
+                if [ -s "$changed_files_path" ]; then
+                  tar -czf "$backup_dir/worktree-files.tar.gz" --null --files-from="$changed_files_path" --ignore-failed-read
+                fi
+
+                printf "%s\n" "$backup_dir" > "$backup_root/latest.txt"
+                echo "检测到远端工作区有未收口改动，已先备份到: $backup_dir"
+
+                run_checked "git reset --hard HEAD" git reset --hard HEAD
+                run_checked "git clean -fd" git clean -fd
+              }
+
               cd "$DEPLOY_PATH"
               log_step "工作区信息"
               pwd
@@ -110,9 +137,15 @@ jobs:
 
               PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
               if [ -n "$PRE_DEPLOY_STATUS" ]; then
-                echo "部署终止：服务器工作区存在未收口改动或额外文件。"
+                echo "检测到服务器工作区存在未收口改动或额外文件，开始自动备份并收口。"
                 printf "%s\n" "$PRE_DEPLOY_STATUS"
-                exit 1
+                backup_and_clean_worktree
+                PRE_DEPLOY_STATUS="$(git status --porcelain=v1 -uall)"
+                if [ -n "$PRE_DEPLOY_STATUS" ]; then
+                  echo "部署终止：自动收口后工作区仍不干净。"
+                  printf "%s\n" "$PRE_DEPLOY_STATUS"
+                  exit 1
+                fi
               fi
 
               run_checked "git pull --ff-only origin main" git pull --ff-only origin main

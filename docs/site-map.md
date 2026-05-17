@@ -44,11 +44,12 @@
 - GitHub 自动部署入口：`.github/workflows/deploy.yml`
 - 生产 PM2 进程定义：`ecosystem.config.cjs`
 - 当前部署约束：
-  - 部署前会先检查服务器仓库 `git status --porcelain -uall` 是否为空；如发现额外文件或未收口改动，直接终止部署
+  - 部署前会先检查服务器仓库 `git status --porcelain -uall`；如发现额外文件或未收口改动，当前工作流会先把现场导出到部署目录同级的 `.deploy-worktree-backups/`，再自动执行 `git reset --hard` 与 `git clean -fd` 收口后继续部署
   - 生产前后端统一通过 `PM2 + ecosystem.config.cjs` 启动
   - 对第三方运行时 Secret，除了在部署脚本里透传给 `pm2 startOrReload --update-env`，还要在 `ecosystem.config.cjs` 的目标进程 `env` 中显式映射，并在部署后校验该 Secret 已进入目标 PM2 进程
   - `apps/server` 默认通过 `SERVER_HOST=127.0.0.1` 仅监听本机 `3011`
   - `apps/web` 生产启动统一绑定 `127.0.0.1:3001`，外部访问只允许经 `nginx` 反代
+  - 参考变更：`docs/changes/2026-05-17-deploy-worktree-auto-backup.md`
 
 ## 3. 前端结构地图
 

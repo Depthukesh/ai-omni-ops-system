@@ -261,7 +261,8 @@
 
 ### 9.2 提交规范
 
-- GitHub Actions 或其他自动部署脚本在执行 `git pull` 前，必须先校验服务器工作区 `git status --porcelain -uall` 为空；一旦发现未收口改动或额外文件，部署必须直接失败并要求人工排查
+- GitHub Actions 或其他自动部署脚本在执行 `git pull` 前，必须先校验服务器工作区 `git status --porcelain -uall`；默认发现未收口改动或额外文件时应视为风险信号
+- 若业务明确采用“自动备份后继续部署”的省事模式，部署脚本也必须先把现场导出到仓库外备份目录，至少保留 `git status` 清单、`git diff --binary` 补丁和未收口文件快照，再执行 `git reset --hard` 与 `git clean -fd`
 - 自动部署完成后，必须补本机健康检查与端口检查，确认 `3001/3011` 仅对 `127.0.0.1` 监听，不允许再次直接暴露到公网
 - 自动部署中的健康检查如果依赖刚重启的 Web/API 进程，必须带有限等待窗口与重试，不允许只做一次立即 `curl` 就把“启动中”误判成部署失败
 - 如果服务器仓库目录已经收口到普通运行用户，部署脚本中的 `git fetch`、`git checkout`、`git status`、`git pull` 也必须切到同一普通用户执行，不允许再由 `root` 直接操作该仓库触发 `dubious ownership`

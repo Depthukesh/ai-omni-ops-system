@@ -87,6 +87,8 @@
   - 前台统一改为“根页认证入口 + 邀请码注册 + 工作台全局登录拦截”，后台继续保持管理员专用登录入口
 - `docs/changes/2026-05-10-deploy-hardening-and-non-root-runtime.md`
   - GitHub Actions 部署前新增服务器工作区阻断，生产 PM2 进程统一切到普通用户并收口到 `ecosystem.config.cjs`，同时增加本机端口和健康检查
+- `docs/changes/2026-05-17-deploy-worktree-auto-backup.md`
+  - 在保留服务器现场追溯资料的前提下，把自动部署从“发现脏工作区直接失败”升级为“先备份 `git status/diff/文件快照`，再自动收口并继续部署”
 - `docs/changes/2026-05-10-oss-phase-2-report-brand-avatar-assets.md`
   - `reports` HTML 产物、品牌资料上传素材、用户头像统一接到 OSS，站内保留稳定资源读取入口
 - `docs/changes/2026-05-10-works-pure-oss-storage.md`
