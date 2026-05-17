@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { flattenSkillCenterLeaves } from "../../skill-center-config";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import {
   getUserSkillEditorOptions,
@@ -11,6 +12,7 @@ import {
   updateUserSkill,
   type UserSkillEditorModelOption,
   type UserSkillEditorOptions,
+  type UserSkillPromptRecord,
   type UserSkillRecord,
 } from "../../../../services/personal-center";
 import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
@@ -28,6 +30,26 @@ type UserSkillEditDraft = {
   description: string;
   prompts: Record<string, UserSkillPromptEditDraft>;
 };
+type PromptLeafView = {
+  id: string;
+  primaryId: string;
+  primaryLabel: string;
+  sectionId: string;
+  sectionLabel: string;
+  leafLabel: string;
+  leafDescription: string;
+  skill: UserSkillRecord;
+  prompt: UserSkillPromptRecord;
+};
+type PromptLeafGroup = {
+  id: string;
+  label: string;
+  sections: Array<{
+    id: string;
+    label: string;
+    items: PromptLeafView[];
+  }>;
+};
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
 const skillStatusFilters: Array<{ key: SkillStatusFilter; label: string }> = [
@@ -41,7 +63,7 @@ export default function PersonalCenterSkillsPage() {
   const router = useRouter();
   const [skills, setSkills] = useState<UserSkillRecord[]>([]);
   const [skillDrafts, setSkillDrafts] = useState<Record<string, UserSkillEditDraft>>({});
-  const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [selectedLeafId, setSelectedLeafId] = useState("");
   const [brands, setBrands] = useState<MeResponse["brands"]>([]);
   const [currentBrandId, setCurrentBrandId] = useState("");
   const [systemRole, setSystemRole] = useState<string>("USER");
@@ -67,47 +89,52 @@ export default function PersonalCenterSkillsPage() {
     void loadSkillsPage();
   }, [router]);
 
-  useEffect(() => {
-    if (!selectedSkillId && skills.length) {
-      setSelectedSkillId(skills[0].id);
-    }
-  }, [selectedSkillId, skills]);
-
-  const filteredSkills = useMemo(() => {
+  const allPromptLeaves = useMemo(() => buildPromptLeafViews(skills), [skills]);
+  const filteredPromptLeaves = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return [...skills]
-      .sort(sortBySkillUpdatedAtDesc)
-      .filter((item) => statusFilter === "ALL" || item.baseSkill.status === statusFilter)
-      .filter((item) => {
-        if (!keyword) {
-          return true;
-        }
-        return [
-          item.effectiveSkill.name,
-          item.baseSkill.name,
-          item.baseSkill.slug,
-          item.baseSkill.category,
-          item.effectiveSkill.defaultModel,
-          item.baseSkill.provider,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword);
-      });
-  }, [search, skills, statusFilter]);
+    return allPromptLeaves.filter((item) => {
+      if (statusFilter !== "ALL" && item.skill.baseSkill.status !== statusFilter) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      return [
+        item.primaryLabel,
+        item.sectionLabel,
+        item.leafLabel,
+        item.leafDescription,
+        item.skill.baseSkill.slug,
+        item.skill.baseSkill.category,
+        item.skill.effectiveSkill.defaultModel,
+        item.prompt.basePrompt.scene,
+        item.prompt.basePrompt.name,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [allPromptLeaves, search, statusFilter]);
+  const groupedPromptLeaves = useMemo(() => groupPromptLeafViews(filteredPromptLeaves), [filteredPromptLeaves]);
 
   useEffect(() => {
-    if (!filteredSkills.find((item) => item.id === selectedSkillId)) {
-      setSelectedSkillId(filteredSkills[0]?.id || "");
+    if (!filteredPromptLeaves.find((item) => item.id === selectedLeafId)) {
+      setSelectedLeafId(filteredPromptLeaves[0]?.id || "");
     }
-  }, [filteredSkills, selectedSkillId]);
+  }, [filteredPromptLeaves, selectedLeafId]);
 
-  const selectedSkill = useMemo(
-    () => filteredSkills.find((item) => item.id === selectedSkillId) ?? filteredSkills[0],
-    [filteredSkills, selectedSkillId],
+  const selectedLeaf = useMemo(
+    () => filteredPromptLeaves.find((item) => item.id === selectedLeafId) ?? filteredPromptLeaves[0],
+    [filteredPromptLeaves, selectedLeafId],
   );
+  const selectedSkill = selectedLeaf?.skill;
+  const selectedPrompt = selectedLeaf?.prompt;
   const currentDraft = selectedSkill ? skillDrafts[selectedSkill.id] : undefined;
+  const currentPromptDraft = selectedPrompt && currentDraft ? currentDraft.prompts[selectedPrompt.id] : undefined;
   const isCurrentSkillDirty = selectedSkill && currentDraft ? isSkillDraftDirty(selectedSkill, currentDraft) : false;
+  const isCurrentPromptDirty = selectedPrompt && currentPromptDraft
+    ? isPromptDraftDirty(selectedPrompt, currentPromptDraft)
+    : false;
 
   async function loadSkillsPage() {
     setIsLoading(true);
@@ -141,11 +168,10 @@ export default function PersonalCenterSkillsPage() {
     if (skillsResult.status === "fulfilled") {
       setSkills(skillsResult.value);
       setSkillDrafts(buildSkillDraftMap(skillsResult.value));
-      setSelectedSkillId((current) => current || skillsResult.value[0]?.id || "");
     } else {
       setSkills([]);
       setSkillDrafts({});
-      setSelectedSkillId("");
+      setSelectedLeafId("");
       setErrorMessage(skillsResult.reason instanceof Error ? skillsResult.reason.message : "技能中心加载失败");
     }
 
@@ -201,7 +227,7 @@ export default function PersonalCenterSkillsPage() {
         ...current,
         [skillId]: buildSkillDraft(updated),
       }));
-      setNotice(`已保存「${updated.effectiveSkill.name}」的个人技能配置。`);
+      setNotice(`已保存「${selectedLeaf?.leafLabel || updated.effectiveSkill.name}」所在技能下的修改。`);
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -268,9 +294,9 @@ export default function PersonalCenterSkillsPage() {
       <div className="panel-header">
         <div>
           <h2>技能中心</h2>
-          <p className="panel-subtext">这里保存当前账号在当前品牌下的个人技能覆盖；不改时默认跟随后台平台基线。</p>
+          <p className="panel-subtext">这里保存当前账号在当前品牌下的个人提示词覆盖；不改时默认跟随后台平台基线。</p>
         </div>
-        <span>{filteredSkills.length} 个技能</span>
+        <span>{filteredPromptLeaves.length} 条提示词</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
@@ -318,11 +344,11 @@ export default function PersonalCenterSkillsPage() {
 
       <div className="personal-toolbar" style={{ alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
         <label className="field personal-search" style={{ minWidth: 240 }}>
-          <span>搜索技能</span>
+          <span>搜索提示词</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索技能名称、slug、分类、模型"
+            placeholder="搜索分类、提示词名称、场景、slug、模型"
           />
         </label>
         <div className="workspace-status">
@@ -343,66 +369,81 @@ export default function PersonalCenterSkillsPage() {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)", gap: 16, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)", gap: 16, marginTop: 16 }}>
         <div className="personal-list">
-          {filteredSkills.map((skill) => (
-            <button
-              key={skill.id}
-              type="button"
-              className="entity-card personal-card"
-              onClick={() => setSelectedSkillId(skill.id)}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                border: skill.id === selectedSkill?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
-                background: skill.id === selectedSkill?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
-              }}
-            >
+          {groupedPromptLeaves.map((group) => (
+            <article key={group.id} className="entity-card personal-card">
               <div className="entity-card-head">
                 <div>
-                  <strong>{skill.effectiveSkill.name}</strong>
-                  <p className="personal-meta">{skill.baseSkill.slug}</p>
-                </div>
-                <span className={`archive-pill ${skill.isCustomized ? "status-in_progress" : "status-ready"}`}>
-                  {skill.isCustomized ? "已自定义" : "跟随平台"}
-                </span>
-              </div>
-              <div className="personal-grid">
-                <div>
-                  <span>分类</span>
-                  <strong>{skill.baseSkill.category}</strong>
-                </div>
-                <div>
-                  <span>默认模型</span>
-                  <strong>{formatScopedModelLabel(skill.effectiveSkill.defaultModel, editorOptions.modelOptions)}</strong>
-                </div>
-                <div>
-                  <span>提示词</span>
-                  <strong>{skill.prompts.length}</strong>
-                </div>
-                <div>
-                  <span>最近同步</span>
-                  <strong>{formatDateTime(skill.effectiveSkill.updatedAt)}</strong>
+                  <strong>{group.label}</strong>
+                  <p className="personal-meta">{group.sections.reduce((sum, section) => sum + section.items.length, 0)} 条提示词</p>
                 </div>
               </div>
-            </button>
+              <div className="personal-list">
+                {group.sections.map((section) => (
+                  <div key={section.id}>
+                    <p className="personal-meta" style={{ marginBottom: 8 }}>{section.label}</p>
+                    <div className="personal-list">
+                      {section.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="entity-card personal-card"
+                          onClick={() => setSelectedLeafId(item.id)}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            border: item.id === selectedLeaf?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
+                            background: item.id === selectedLeaf?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
+                          }}
+                        >
+                          <div className="entity-card-head">
+                            <div>
+                              <strong>{item.leafLabel}</strong>
+                              <p className="personal-meta">{item.prompt.basePrompt.scene}</p>
+                            </div>
+                            <span className={`archive-pill ${item.prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
+                              {item.prompt.isCustomized ? "已自定义" : "跟随平台"}
+                            </span>
+                          </div>
+                          <div className="personal-grid">
+                            <div>
+                              <span>执行技能</span>
+                              <strong>{item.skill.effectiveSkill.name}</strong>
+                            </div>
+                            <div>
+                              <span>模型</span>
+                              <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
           ))}
-          {!filteredSkills.length ? <div className="empty-canvas-box">暂无匹配技能，请调整搜索词或状态筛选。</div> : null}
+          {!groupedPromptLeaves.length ? <div className="empty-canvas-box">暂无匹配提示词，请调整搜索词或状态筛选。</div> : null}
         </div>
 
-        {selectedSkill && currentDraft ? (
+        {selectedLeaf && selectedSkill && selectedPrompt && currentPromptDraft ? (
           <article className="entity-card personal-card">
             <div className="entity-card-head">
               <div>
-                <strong>{selectedSkill.effectiveSkill.name}</strong>
+                <strong>{selectedLeaf.leafLabel}</strong>
                 <p className="personal-meta">
-                  {selectedSkill.baseSkill.slug} · {selectedSkill.baseSkill.provider} · {selectedSkill.baseSkill.category}
+                  {selectedLeaf.primaryLabel} · {selectedLeaf.sectionLabel} · {selectedSkill.baseSkill.slug}
                 </p>
               </div>
               <span className={`archive-pill ${skillStatusClassMap[selectedSkill.baseSkill.status]}`}>
                 {selectedSkill.baseSkill.status}
               </span>
             </div>
+
+            <p className="personal-meta" style={{ marginBottom: 16 }}>
+              {selectedLeaf.leafDescription}
+            </p>
 
             <div className="personal-actions" style={{ marginBottom: 16 }}>
               <button
@@ -411,7 +452,7 @@ export default function PersonalCenterSkillsPage() {
                 onClick={() => void handleSaveSkill(selectedSkill.id)}
                 disabled={!isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
               >
-                {savingSkillId === selectedSkill.id ? "保存中..." : "保存到我的技能库"}
+                {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
               </button>
               <button
                 type="button"
@@ -424,102 +465,104 @@ export default function PersonalCenterSkillsPage() {
             </div>
 
             <p className="personal-meta" style={{ marginBottom: 16 }}>
-              当前共 {selectedSkill.prompts.length} 条提示词；模型默认跟随后台平台配置，你可以在下面按提示词单独切换。
+              当前正在编辑 1 条提示词；保存时会一并提交该执行技能下所有已修改提示词。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
             </p>
 
+            <div className="personal-grid" style={{ marginBottom: 12 }}>
+              <div>
+                <span>所属分类</span>
+                <strong>{selectedLeaf.primaryLabel} / {selectedLeaf.sectionLabel}</strong>
+              </div>
+              <div>
+                <span>执行技能</span>
+                <strong>{selectedSkill.effectiveSkill.name}</strong>
+              </div>
+              <div>
+                <span>提示词场景</span>
+                <strong>{selectedPrompt.basePrompt.scene}</strong>
+              </div>
+              <div>
+                <span>最近更新时间</span>
+                <strong>{formatDateTime(selectedPrompt.effectivePrompt.updatedAt)}</strong>
+              </div>
+            </div>
+
+            <div className="personal-grid" style={{ marginBottom: 12 }}>
+              <div>
+                <span>平台模型</span>
+                <strong>{formatScopedModelLabel(selectedPrompt.basePrompt.modelName, editorOptions.modelOptions)}</strong>
+              </div>
+              <div>
+                <span>平台温度</span>
+                <strong>{selectedPrompt.basePrompt.temperature}</strong>
+              </div>
+              <div>
+                <span>平台 Tokens</span>
+                <strong>{selectedPrompt.basePrompt.maxTokens}</strong>
+              </div>
+              <div>
+                <span>同技能提示词数</span>
+                <strong>{selectedSkill.prompts.length}</strong>
+              </div>
+            </div>
+
             <div className="personal-list">
-              {selectedSkill.prompts.map((prompt) => {
-                const promptDraft = currentDraft.prompts[prompt.id];
-                return (
-                  <article key={prompt.id} className="entity-card personal-card">
-                    <div className="entity-card-head">
-                      <div>
-                        <strong>{prompt.basePrompt.name}</strong>
-                        <p className="personal-meta">{prompt.basePrompt.scene}</p>
-                      </div>
-                      <span className={`archive-pill ${prompt.isCustomized ? "status-in_progress" : "status-ready"}`}>
-                        {prompt.isCustomized ? "提示词已自定义" : "提示词跟随平台"}
-                      </span>
-                    </div>
+              <label className="field">
+                <span>提示词模型</span>
+                <select
+                  value={currentPromptDraft.modelName}
+                  onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "modelName", event.target.value, setSkillDrafts)}
+                >
+                  {buildModelOptions(editorOptions.modelOptions, selectedPrompt.basePrompt.modelName, currentPromptDraft.modelName).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small className="personal-meta">
+                  默认跟随后台当前模型：{formatScopedModelLabel(selectedPrompt.basePrompt.modelName, editorOptions.modelOptions)}
+                </small>
+              </label>
 
-                    <div className="personal-grid" style={{ marginBottom: 12 }}>
-                      <div>
-                        <span>平台模型</span>
-                        <strong>{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}</strong>
-                      </div>
-                      <div>
-                        <span>平台温度</span>
-                        <strong>{prompt.basePrompt.temperature}</strong>
-                      </div>
-                      <div>
-                        <span>平台 Tokens</span>
-                        <strong>{prompt.basePrompt.maxTokens}</strong>
-                      </div>
-                      <div>
-                        <span>最近更新时间</span>
-                        <strong>{formatDateTime(prompt.effectivePrompt.updatedAt)}</strong>
-                      </div>
-                    </div>
+              <div className="personal-grid">
+                <label className="field">
+                  <span>温度</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={currentPromptDraft.temperature}
+                    onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "temperature", event.target.value, setSkillDrafts)}
+                    placeholder={String(selectedPrompt.basePrompt.temperature)}
+                  />
+                </label>
+                <label className="field">
+                  <span>Max Tokens</span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={currentPromptDraft.maxTokens}
+                    onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "maxTokens", event.target.value, setSkillDrafts)}
+                    placeholder={String(selectedPrompt.basePrompt.maxTokens)}
+                  />
+                </label>
+              </div>
 
-                    <div className="personal-list">
-                      <label className="field">
-                        <span>提示词模型</span>
-                        <select
-                          value={promptDraft.modelName}
-                          onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "modelName", event.target.value, setSkillDrafts)}
-                        >
-                          {buildModelOptions(editorOptions.modelOptions, prompt.basePrompt.modelName, promptDraft.modelName).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <small className="personal-meta">
-                          默认跟随后台当前模型：{formatScopedModelLabel(prompt.basePrompt.modelName, editorOptions.modelOptions)}
-                        </small>
-                      </label>
-
-                      <div className="personal-grid">
-                        <label className="field">
-                          <span>温度</span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={promptDraft.temperature}
-                            onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "temperature", event.target.value, setSkillDrafts)}
-                            placeholder={String(prompt.basePrompt.temperature)}
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Max Tokens</span>
-                          <input
-                            type="number"
-                            step="1"
-                            value={promptDraft.maxTokens}
-                            onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "maxTokens", event.target.value, setSkillDrafts)}
-                            placeholder={String(prompt.basePrompt.maxTokens)}
-                          />
-                        </label>
-                      </div>
-
-                      <label className="field">
-                        <span>提示词内容</span>
-                        <textarea
-                          value={promptDraft.content}
-                          onChange={(event) => updatePromptDraftField(selectedSkill.id, prompt.id, "content", event.target.value, setSkillDrafts)}
-                          rows={12}
-                          placeholder={prompt.basePrompt.content}
-                        />
-                        <small className="personal-meta">保存后只覆盖你当前品牌下的个人版本；点击“恢复平台基线”会回到后台默认提示词。</small>
-                      </label>
-                    </div>
-                  </article>
-                );
-              })}
+              <label className="field">
+                <span>提示词内容</span>
+                <textarea
+                  value={currentPromptDraft.content}
+                  onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "content", event.target.value, setSkillDrafts)}
+                  rows={14}
+                  placeholder={selectedPrompt.basePrompt.content}
+                />
+                <small className="personal-meta">
+                  保存后只覆盖你当前品牌下的个人版本；点击“恢复平台基线”会恢复该执行技能下的提示词配置。
+                </small>
+              </label>
             </div>
           </article>
         ) : (
-          <div className="empty-canvas-box">请选择左侧技能查看并编辑个人版本。</div>
+          <div className="empty-canvas-box">请选择左侧提示词查看并编辑个人版本。</div>
         )}
       </div>
     </section>
@@ -532,8 +575,77 @@ const skillStatusClassMap: Record<UserSkillRecord["baseSkill"]["status"], string
   DISABLED: "status-paused",
 };
 
-function sortBySkillUpdatedAtDesc(a: UserSkillRecord, b: UserSkillRecord) {
-  return new Date(b.effectiveSkill.updatedAt).getTime() - new Date(a.effectiveSkill.updatedAt).getTime();
+function buildPromptLeafViews(skills: UserSkillRecord[]) {
+  const configuredLeaves = flattenSkillCenterLeaves();
+  const consumedPromptKeys = new Set<string>();
+  const views: PromptLeafView[] = [];
+
+  configuredLeaves.forEach((leaf) => {
+    const skill = skills.find((item) => item.baseSkill.slug === leaf.skillSlug);
+    const prompt = skill?.prompts.find((item) => item.basePrompt.scene === leaf.promptScene);
+    if (!skill || !prompt) {
+      return;
+    }
+    consumedPromptKeys.add(`${skill.id}::${prompt.id}`);
+    views.push({
+      id: leaf.id,
+      primaryId: leaf.primaryId,
+      primaryLabel: leaf.primaryLabel,
+      sectionId: leaf.sectionId,
+      sectionLabel: leaf.sectionLabel,
+      leafLabel: leaf.label,
+      leafDescription: leaf.description,
+      skill,
+      prompt,
+    });
+  });
+
+  skills.forEach((skill) => {
+    skill.prompts.forEach((prompt) => {
+      const key = `${skill.id}::${prompt.id}`;
+      if (consumedPromptKeys.has(key)) {
+        return;
+      }
+      views.push({
+        id: `fallback-${skill.id}-${prompt.id}`,
+        primaryId: `fallback-${skill.baseSkill.category}`,
+        primaryLabel: skill.baseSkill.category || "未分类",
+        sectionId: `fallback-section-${skill.id}`,
+        sectionLabel: skill.effectiveSkill.name,
+        leafLabel: prompt.basePrompt.name,
+        leafDescription: prompt.basePrompt.scene,
+        skill,
+        prompt,
+      });
+    });
+  });
+
+  return views;
+}
+
+function groupPromptLeafViews(items: PromptLeafView[]) {
+  const groups = new Map<string, PromptLeafGroup>();
+  items.forEach((item) => {
+    if (!groups.has(item.primaryId)) {
+      groups.set(item.primaryId, {
+        id: item.primaryId,
+        label: item.primaryLabel,
+        sections: [],
+      });
+    }
+    const group = groups.get(item.primaryId)!;
+    let section = group.sections.find((entry) => entry.id === item.sectionId);
+    if (!section) {
+      section = {
+        id: item.sectionId,
+        label: item.sectionLabel,
+        items: [],
+      };
+      group.sections.push(section);
+    }
+    section.items.push(item);
+  });
+  return Array.from(groups.values());
 }
 
 function buildSkillDraftMap(skills: UserSkillRecord[]) {
@@ -577,6 +689,20 @@ function updatePromptDraftField(
       },
     },
   }));
+}
+
+function isPromptDraftDirty(prompt: UserSkillPromptRecord, draft: UserSkillPromptEditDraft) {
+  return JSON.stringify({
+    content: normalizeComparableText(draft.content),
+    modelName: normalizeComparableText(draft.modelName),
+    temperature: normalizeComparableNumber(draft.temperature),
+    maxTokens: normalizeComparableInt(draft.maxTokens),
+  }) !== JSON.stringify({
+    content: normalizeComparableText(prompt.effectivePrompt.content),
+    modelName: normalizeComparableText(prompt.effectivePrompt.modelName),
+    temperature: Number(prompt.effectivePrompt.temperature ?? 0),
+    maxTokens: Math.round(Number(prompt.effectivePrompt.maxTokens ?? 0)),
+  });
 }
 
 function isSkillDraftDirty(skill: UserSkillRecord, draft: UserSkillEditDraft) {
@@ -650,9 +776,7 @@ function buildUpdatePayload(skill: UserSkillRecord, draft: UserSkillEditDraft) {
 }
 
 function upsertSkill(current: UserSkillRecord[], next: UserSkillRecord) {
-  return current
-    .map((item) => (item.id === next.id ? next : item))
-    .sort(sortBySkillUpdatedAtDesc);
+  return current.map((item) => (item.id === next.id ? next : item));
 }
 
 function serializeComparableDraft(skill: UserSkillRecord, draft: UserSkillEditDraft) {
