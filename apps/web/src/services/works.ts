@@ -97,6 +97,7 @@ export type XiaohongshuRewriteWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: XiaohongshuAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -129,6 +130,7 @@ export type XiaohongshuVideoWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: XiaohongshuAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -183,6 +185,7 @@ export type GenerateXiaohongshuOriginalNoteForm = {
 export type GenerateXiaohongshuRewriteNoteForm = {
   sourceMaterialId?: string;
   productId?: string;
+  accountRole?: XiaohongshuAccountRole;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
 };
@@ -191,6 +194,7 @@ export type GenerateXiaohongshuVideoNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  accountRole?: XiaohongshuAccountRole;
   referenceImageFile?: File | null;
   copyAdditionalInstruction?: string;
   videoProvider?: string;
@@ -253,6 +257,7 @@ export async function generateXiaohongshuRewriteWork(brandId: string, form: Gene
   return jsonRequest<{ item: XiaohongshuRewriteWorkRecord }>(`/works/brands/${brandId}/xiaohongshu/rewrite/generate`, "POST", {
     sourceMaterialId: form.sourceMaterialId,
     productId: form.productId,
+    accountRole: form.accountRole,
     includeMarketingPlan: form.includeMarketingPlan,
     additionalInstruction: form.additionalInstruction,
   });
@@ -310,6 +315,7 @@ export async function generateXiaohongshuVideoWork(brandId: string, form: Genera
     calendarItemId: form.calendarItemId,
     customTopicName: form.customTopicName,
     productId: form.productId,
+    accountRole: form.accountRole,
     referenceImage,
     copyAdditionalInstruction: form.copyAdditionalInstruction,
     videoProvider: form.videoProvider,

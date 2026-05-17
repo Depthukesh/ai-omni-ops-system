@@ -134,15 +134,23 @@
 - 参考变更：`docs/changes/2026-05-15-xhs-original-account-role.md`
 - 二创笔记
   - 已支持二创图文作品列表、添加弹窗、编辑、删除
-  - 已接入素材库作品选择、产品选择、用户要求
+  - 已接入素材库作品选择、产品选择、账号角色、用户要求
+  - 创建弹窗现已补入“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
+  - 二创文案与配图提示词链路现会感知当前选择的账号角色，让生成结果的人设、口吻和画面关系更贴近发布主体
+  - 二创作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
   - 当前二创链路已拆成两层技能：`二创配图提示词` 负责生成封面/内页提示词，`二创图片生成` 负责选择最终图像模型、跟随对标图结构并执行成品图生成
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
 - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
+- 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
 - 视频笔记
   - 已支持视频作品列表、添加弹窗、编辑、删除
-  - 已接入营销日历选题、产品选择、参考图上传、视频模型、时长、提示词输出和双段用户要求
+  - 已接入营销日历选题、产品选择、账号角色、参考图上传、视频模型、时长、提示词输出和双段用户要求
+  - 创建弹窗现已补入“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
+  - 视频文案与视频提示词链路现会感知当前选择的账号角色，让文案视角、镜头关系和口播语气更贴近发布主体
+  - 视频作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
   - 视频模型下拉现通过 `/api/works/brands/:brandId/xiaohongshu/video/providers` 动态读取后台当前启用的视频 Provider，不再写死前端枚举
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
+- 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
   - `xiaohongshu/page.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
@@ -476,25 +484,26 @@
 ### 5.4B 二创笔记链路
 
 1. 用户在 `/xiaohongshu` 的“二创笔记”中从素材库选择一条已入库作品
-2. 页面可选带入产品、是否植入营销策划方案与用户要求
-3. 后端 `WorksModule` 基于素材库作品、二创文案提示词、二创配图提示词与独立的二创图片生成技能链路生成成品
-4. 当前最终文生图阶段会读取 `rewrite_image_generation / prompt_xhs_rewrite_image_generation`，并继续把素材库来源图片与产品图一并传给图像模型
-5. 当用户选择 `不植入营销策划方案` 时，二创生成可直接基于素材库内容、产品信息和用户要求继续执行，不再强依赖先生成营销策划方案
-6. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
-7. 成品图文保存到作品记录，并同步沉淀到“我的作品”
-8. 参考变更：`docs/changes/2026-05-05-rewrite-note-workflow.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
+2. 页面可选带入产品、账号角色、是否植入营销策划方案与用户要求
+3. 后端 `WorksModule` 会先按当前团队角色收口账号角色，再基于素材库作品、二创文案提示词、二创配图提示词与独立的二创图片生成技能链路生成成品
+4. 当前二创文案与配图提示词都会感知账号角色，让语气、人设和画面主体跟随发布主体调整
+5. 当前最终文生图阶段会读取 `rewrite_image_generation / prompt_xhs_rewrite_image_generation`，并继续把素材库来源图片与产品图一并传给图像模型
+6. 当用户选择 `不植入营销策划方案` 时，二创生成可直接基于素材库内容、产品信息和用户要求继续执行，不再强依赖先生成营销策划方案
+7. 成品图文保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
+8. 参考变更：`docs/changes/2026-05-05-rewrite-note-workflow.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`
 
 ### 5.5 视频笔记链路
 
 1. 用户在 `/xiaohongshu` 的“视频笔记”中选择营销日历选题或自定义选题
-2. 页面可选带入产品或参考图，并指定视频模型、时长、是否植入营销策划方案、是否输出视频提示词与附加要求
-3. 后端 `WorksModule` 现在统一读取真实 `提示词/short-video-api-studio/short-video-api-studio/SKILL.md` 作为视频文案和视频提示词的共同基准，不再误读 `rewrite_copy` 或工作流说明文档
-4. 视频提示词阶段会结构化产出 `businessScene`、`videoType`、`segmentBrief`、`referenceStrategy`、`padImageStrategy`、`continuityRules`、`segmentPrompts`、`fullVideoPrompt`
-5. 后端当前只生成 1 条 `fullVideoPrompt` 主成片，不再自动按 `segmentPrompts` 逐段发起额外视频任务
-6. 视频后端按顺序逐个回退：只有当前请求失败时，才会继续尝试下一个后端；不会并发生成多个成片
-7. 成品视频、视频提示词与图文内容保存到作品记录，并同步沉淀到“我的作品”
-8. 当前视频 Provider 下拉已可直接读取 RunningHub 视频模型；运行时会按每条 Provider 的 `requestProfile` 组装请求体，并在查询阶段兼容 RunningHub 的 `POST /openapi/v2/query`
-9. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
+2. 页面可选带入产品或参考图、账号角色，并指定视频模型、时长、是否植入营销策划方案、是否输出视频提示词与附加要求
+3. 后端 `WorksModule` 会先按当前团队角色收口账号角色，再统一读取真实 `提示词/short-video-api-studio/short-video-api-studio/SKILL.md` 作为视频文案和视频提示词的共同基准，不再误读 `rewrite_copy` 或工作流说明文档
+4. 视频文案与视频提示词阶段当前都会感知账号角色，让文案视角、镜头关系、出镜可信度和口播语气跟随发布主体调整
+5. 视频提示词阶段会结构化产出 `businessScene`、`videoType`、`segmentBrief`、`referenceStrategy`、`padImageStrategy`、`continuityRules`、`segmentPrompts`、`fullVideoPrompt`
+6. 后端当前只生成 1 条 `fullVideoPrompt` 主成片，不再自动按 `segmentPrompts` 逐段发起额外视频任务
+7. 视频后端按顺序逐个回退：只有当前请求失败时，才会继续尝试下一个后端；不会并发生成多个成片
+8. 成品视频、视频提示词与图文内容保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
+9. 当前视频 Provider 下拉已可直接读取 RunningHub 视频模型；运行时会按每条 Provider 的 `requestProfile` 组装请求体，并在查询阶段兼容 RunningHub 的 `POST /openapi/v2/query`
+10. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`
 
 ### 5.6 技能与提示词注册链路
 

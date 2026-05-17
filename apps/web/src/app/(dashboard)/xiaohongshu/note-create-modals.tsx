@@ -269,12 +269,15 @@ export interface RewriteCreateModalProps {
   products: ProductOption[];
   materialValue: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   injectMarketingPlanValue: string;
   additionalInstruction: string;
   onClose: () => void;
   onCreate: AsyncAction;
   onMaterialChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
 }
@@ -317,6 +320,16 @@ export function RewriteCreateModal(props: RewriteCreateModalProps) {
                   </option>
                 ))}
                 <option value={props.noProductOption}>不植入产品</option>
+              </select>
+            </label>
+            <label>
+              <span>账号角色</span>
+              <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
+                {props.accountRoleOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -363,6 +376,8 @@ export interface VideoCreateModalProps {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
@@ -377,6 +392,7 @@ export interface VideoCreateModalProps {
   onCreate: AsyncAction;
   onCalendarChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onReferenceImageFileChange: (file: File | null) => void;
   onCopyAdditionalInstructionChange: StringChangeHandler;
@@ -429,6 +445,16 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
                   </option>
                 ))}
                 <option value={props.noProductOption}>不植入产品</option>
+              </select>
+            </label>
+            <label>
+              <span>账号角色</span>
+              <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
+                {props.accountRoleOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
             </label>
             {props.calendarValue === props.customTopicOption ? (

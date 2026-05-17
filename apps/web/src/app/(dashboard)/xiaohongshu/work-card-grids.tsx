@@ -119,6 +119,9 @@ export function RewriteWorkCardGrid(props: RewriteWorkCardGridProps) {
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}
+                <span className="xhs-material-card-badge xhs-material-card-badge--left">
+                  {formatXiaohongshuAccountRoleLabel(item.accountRole)}
+                </span>
                 <span className="xhs-material-card-badge">二创</span>
               </button>
               {mediaUrls.length > 1 ? (
@@ -190,6 +193,9 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}
+                <span className="xhs-material-card-badge xhs-material-card-badge--left">
+                  {formatXiaohongshuAccountRoleLabel(item.accountRole)}
+                </span>
                 <span className="xhs-material-card-badge">视频</span>
               </button>
               <div className="xhs-material-card-body">

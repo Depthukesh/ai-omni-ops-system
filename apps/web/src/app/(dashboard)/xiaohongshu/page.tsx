@@ -221,6 +221,10 @@ export default function XiaohongshuPage() {
     customTopicOption: CUSTOM_TOPIC_OPTION,
     defaultOriginalAccountRoleValue: currentBrandRole === "TALENT" ? "TALENT" : currentBrandRole === "STAFF" ? "STAFF" : "BRAND",
     availableOriginalAccountRoleValues: originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"],
+    defaultRewriteAccountRoleValue: currentBrandRole === "TALENT" ? "TALENT" : currentBrandRole === "STAFF" ? "STAFF" : "BRAND",
+    availableRewriteAccountRoleValues: originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"],
+    defaultVideoAccountRoleValue: currentBrandRole === "TALENT" ? "TALENT" : currentBrandRole === "STAFF" ? "STAFF" : "BRAND",
+    availableVideoAccountRoleValues: originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"],
     defaultVideoProviderValue: videoProviderOptions.find((item) => item.recommended)?.backendKey || videoProviderOptions[0]?.backendKey,
     availableVideoProviderValues: videoProviderOptions.map((item) => item.backendKey),
   });
@@ -239,12 +243,14 @@ export default function XiaohongshuPage() {
     isRewriteModalOpen,
     rewriteMaterialValue,
     rewriteProductValue,
+    rewriteAccountRoleValue,
     rewriteInjectMarketingPlanValue,
     rewriteAdditionalInstruction,
     isVideoModalOpen,
     videoCalendarValue,
     videoCustomTopic,
     videoProductValue,
+    videoAccountRoleValue,
     videoReferenceImageFile,
     videoCopyAdditionalInstruction,
     videoProviderValue,
@@ -268,11 +274,13 @@ export default function XiaohongshuPage() {
     setGalleryReferenceFiles,
     setRewriteMaterialValue,
     setRewriteProductValue,
+    setRewriteAccountRoleValue,
     setRewriteInjectMarketingPlanValue,
     setRewriteAdditionalInstruction,
     setVideoCalendarValue,
     setVideoCustomTopic,
     setVideoProductValue,
+    setVideoAccountRoleValue,
     setVideoReferenceImageFile,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
@@ -790,6 +798,7 @@ export default function XiaohongshuPage() {
     rewrite: {
       materialValue: rewriteMaterialValue,
       productValue: rewriteProductValue,
+      accountRoleValue: rewriteAccountRoleValue,
       injectMarketingPlanValue: rewriteInjectMarketingPlanValue,
       additionalInstruction: rewriteAdditionalInstruction,
       closeModal: closeRewriteModal,
@@ -802,6 +811,7 @@ export default function XiaohongshuPage() {
       calendarValue: videoCalendarValue,
       customTopic: videoCustomTopic,
       productValue: videoProductValue,
+      accountRoleValue: videoAccountRoleValue,
       referenceImageFile: videoReferenceImageFile,
       copyAdditionalInstruction: videoCopyAdditionalInstruction,
       providerValue: videoProviderValue,
@@ -1533,6 +1543,8 @@ export default function XiaohongshuPage() {
           products={workspace.archive.products}
           materialValue={rewriteMaterialValue}
           productValue={rewriteProductValue}
+          accountRoleValue={rewriteAccountRoleValue}
+          accountRoleOptions={originalAccountRoleOptions}
           injectMarketingPlanValue={rewriteInjectMarketingPlanValue}
           additionalInstruction={rewriteAdditionalInstruction}
           onRefresh={() => loadWorkspace()}
@@ -1560,6 +1572,7 @@ export default function XiaohongshuPage() {
           onCreate={handleCreateRewriteWork}
           onMaterialChange={setRewriteMaterialValue}
           onProductChange={setRewriteProductValue}
+          onAccountRoleChange={setRewriteAccountRoleValue}
           onInjectMarketingPlanChange={setRewriteInjectMarketingPlanValue}
           onAdditionalInstructionChange={setRewriteAdditionalInstruction}
           getTaskStatusClass={getTaskStatusClass}
@@ -1605,6 +1618,8 @@ export default function XiaohongshuPage() {
         calendarValue={videoCalendarValue}
         customTopic={videoCustomTopic}
         productValue={videoProductValue}
+        accountRoleValue={videoAccountRoleValue}
+        accountRoleOptions={originalAccountRoleOptions}
         referenceImageFile={videoReferenceImageFile}
         copyAdditionalInstruction={videoCopyAdditionalInstruction}
         providerValue={videoProviderValue}
@@ -1635,6 +1650,7 @@ export default function XiaohongshuPage() {
             setVideoReferenceImageFile(null);
           }
         }}
+        onAccountRoleChange={setVideoAccountRoleValue}
         onCustomTopicChange={setVideoCustomTopic}
         onReferenceImageFileChange={(file) => {
           setVideoReferenceImageFile(file);

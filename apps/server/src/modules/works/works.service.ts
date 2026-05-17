@@ -45,6 +45,7 @@ export type UpdateXiaohongshuOriginalNotePayload = {
 export type GenerateXiaohongshuRewriteNotePayload = {
   sourceMaterialId?: string;
   productId?: string;
+  accountRole?: OriginalAccountRole;
   includeMarketingPlan?: boolean;
   additionalInstruction?: string;
 };
@@ -58,6 +59,7 @@ export type GenerateXiaohongshuVideoNotePayload = {
   calendarItemId?: string;
   customTopicName?: string;
   productId?: string;
+  accountRole?: OriginalAccountRole;
   referenceImage?: UploadFilePayload;
   copyAdditionalInstruction?: string;
   videoProvider?: string;
@@ -133,6 +135,7 @@ type RewriteWorkAssetMeta = {
   taskId: string;
   noteCategory: "二创";
   noteType: "图文";
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   htmlContent: string;
@@ -177,6 +180,7 @@ type VideoWorkAssetMeta = {
   taskId: string;
   noteCategory: "原创";
   noteType: "视频";
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   htmlContent: string;
@@ -295,6 +299,7 @@ export type XiaohongshuRewriteWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -327,6 +332,7 @@ export type XiaohongshuVideoWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  accountRole: OriginalAccountRole;
   title: string;
   content: string;
   coverImageUrl?: string;
@@ -1033,6 +1039,7 @@ export class WorksService {
     brandId: string,
     payload: GenerateXiaohongshuRewriteNotePayload,
     auth?: RequestAuthContext,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
   ) {
     const sourceMaterialId = payload.sourceMaterialId?.trim();
     if (!sourceMaterialId) {
@@ -1080,6 +1087,7 @@ export class WorksService {
     const rewriteReferenceImageUrls = this.collectRewriteReferenceImageUrls(sourceMaterial.imageList || [], selectedProduct);
 
     const userId = await this.resolveTaskUserId(brandId, auth);
+    const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
     const taskTitle = `生成小红书二创笔记：${sourceMaterial.title}`;
     const rewriteCopyPreference = await this.loadSkillModelPreference(
       "rewrite_copy",
@@ -1099,6 +1107,7 @@ export class WorksService {
 
       const copyResult = await this.generateRewriteCopy({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
@@ -1110,6 +1119,7 @@ export class WorksService {
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: includeMarketingPlan ? rewriteMarketingPlanContext : "",
         sourceMaterial: rewritePromptSourceMaterial,
         product: normalizedProduct,
@@ -1175,6 +1185,7 @@ export class WorksService {
         taskId: task.id,
         noteCategory: "二创",
         noteType: "图文",
+        accountRole: resolvedAccountRole,
         title: copyResult.title,
         content: copyResult.content,
         htmlContent,
@@ -1273,6 +1284,7 @@ export class WorksService {
     brandId: string,
     payload: GenerateXiaohongshuVideoNotePayload,
     auth?: RequestAuthContext,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
   ) {
     const archive = await this.brandsService.getArchive(brandId);
     const marketingPlanWorkspace = await this.reportsService.getXiaohongshuMarketingPlanWorkspace(brandId);
@@ -1307,6 +1319,7 @@ export class WorksService {
       : undefined;
 
     const userId = await this.resolveTaskUserId(brandId, auth);
+    const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
     const topicLabel = selectedCalendarItem?.topicName || payload.customTopicName?.trim() || "自定义选题";
     const requestedVideoProvider = this.normalizeVideoProvider(payload.videoProvider);
     const requestedDurationSec = this.normalizeRequestedVideoDuration(payload.durationSec);
@@ -1342,6 +1355,7 @@ export class WorksService {
 
       const copyResult = await this.generateVideoCopy({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -1353,6 +1367,7 @@ export class WorksService {
 
       const promptResult = await this.generateVideoPromptPack({
         brandId,
+        accountRole: resolvedAccountRole,
         marketingPlanMarkdown: videoMarketingPlanMarkdown,
         selectedCalendarItem,
         customTopicName: payload.customTopicName?.trim(),
@@ -1411,6 +1426,7 @@ export class WorksService {
         taskId: task.id,
         noteCategory: "原创",
         noteType: "视频",
+        accountRole: resolvedAccountRole,
         title: copyResult.title,
         content: copyResult.content,
         htmlContent,
@@ -3153,6 +3169,7 @@ export class WorksService {
       id,
       taskId: taskId || meta.taskId,
       brandId,
+      accountRole: meta.accountRole,
       title: meta.title,
       content: meta.content,
       coverImageUrl: meta.coverImageUrl,
@@ -3198,6 +3215,7 @@ export class WorksService {
       taskId: String(meta.taskId ?? ""),
       noteCategory: "二创",
       noteType: "图文",
+      accountRole: this.resolveOriginalAccountRole(this.readOptionalString(meta.accountRole), "ADMIN"),
       title: String(meta.title ?? "").trim(),
       content: String(meta.content ?? "").trim(),
       htmlContent: String(meta.htmlContent ?? "").trim(),
@@ -3295,6 +3313,7 @@ export class WorksService {
       id,
       taskId: taskId || meta.taskId,
       brandId,
+      accountRole: meta.accountRole,
       title: meta.title,
       content: meta.content,
       coverImageUrl: meta.coverImageUrl,
@@ -3350,6 +3369,7 @@ export class WorksService {
       taskId: String(meta.taskId ?? ""),
       noteCategory: "原创",
       noteType: "视频",
+      accountRole: this.resolveOriginalAccountRole(this.readOptionalString(meta.accountRole), "ADMIN"),
       title: String(meta.title ?? "").trim(),
       content: String(meta.content ?? "").trim(),
       htmlContent: String(meta.htmlContent ?? "").trim(),
@@ -3995,6 +4015,7 @@ export class WorksService {
 
   private async generateRewriteCopy(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     sourceMaterial: {
       id: string;
@@ -4037,6 +4058,8 @@ export class WorksService {
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       benchmark_note: {
         id: params.sourceMaterial.id,
         title: params.sourceMaterial.title,
@@ -4068,6 +4091,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书二创图文笔记。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，请让叙述口吻、人设可信度、主观视角与发布主体身份保持一致。`,
       "必须优先围绕 benchmark_note 的核心事件、场景、人物关系和情绪主题进行二创，不能脱离原素材主线另起题。",
       "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，严禁把它升级为标题主钩子、核心卖点或主要带货内容。",
       params.includeMarketingPlan === false
@@ -4146,6 +4170,7 @@ export class WorksService {
 
   private async generateRewriteImagePrompts(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     sourceMaterial: {
       id: string;
@@ -4185,6 +4210,8 @@ export class WorksService {
     const providers = await this.loadOriginalImagePromptProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: params.marketingPlanMarkdown,
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       benchmark_note: {
         id: params.sourceMaterial.id,
         title: params.sourceMaterial.title,
@@ -4213,6 +4240,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前需要输出小红书二创图文的封面与配图提示词。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，画面主体、文案语气、人物出镜关系和可信度表达需与该账号角色匹配。`,
       "请至少返回 1 条封面提示词和 2 条配图提示词。",
       "图片主题必须服务于 benchmark_note 的核心事件和主场景，不能偏离到无关商品展示或纯带货画面。",
       "如果 benchmark_note 中的商品或品牌露出只是背景信息、补给细节或陪跑元素，画面中不得把它放大成核心产品海报或主视觉主体。",
@@ -4305,6 +4333,7 @@ export class WorksService {
 
   private async generateVideoCopy(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -4338,6 +4367,8 @@ export class WorksService {
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -4368,6 +4399,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前要输出一篇可直接发布的小红书原创视频笔记文案。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，请让文案视角、可信度、人物关系和表达语气与该账号角色保持一致。`,
       "请先按 short-video-api-studio 的方法完成商业场景、任务类型、镜头节奏和情绪结构理解，再生成与后续视频镜头相匹配的标题与正文。",
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能使用营销日历选题、产品资料、参考图和用户要求，禁止自行吸收营销策划方案里的卖点、产品矩阵、价格、门店、促销或投放口径。"
@@ -4461,6 +4493,7 @@ export class WorksService {
 
   private async generateVideoPromptPack(params: {
     brandId: string;
+    accountRole: OriginalAccountRole;
     marketingPlanMarkdown: string;
     selectedCalendarItem?: {
       id: string;
@@ -4507,6 +4540,8 @@ export class WorksService {
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const inputPayload = {
       marketingPlanMarkdown: this.buildVideoMarketingPlanContext(params.marketingPlanMarkdown),
+      accountRole: params.accountRole,
+      accountRoleLabel: this.getOriginalAccountRoleLabel(params.accountRole),
       topic_context: params.selectedCalendarItem
         ? {
             date: params.selectedCalendarItem.date,
@@ -4553,6 +4588,7 @@ export class WorksService {
       skillPrompt,
       "",
       "你当前需要输出短视频生成所需的结构化提示词。",
+      `本次发布账号角色为“${this.getOriginalAccountRoleLabel(params.accountRole)}”，镜头人设、出镜关系、叙事可信度和口播语气都必须与该账号角色一致。`,
       "必须尽量遵循 short-video-api-studio 的执行结构，先识别商业场景与任务类型，再给出分段 brief、连续性规则和最终视频提示词。",
       params.includeMarketingPlan === false
         ? "本次明确要求不要植入营销策划方案；你只能基于营销日历选题、产品资料、参考图、正文和用户要求生成镜头，不要吸收营销策划方案中的产品矩阵、卖点清单、价格、门店、促销或投放表达。"

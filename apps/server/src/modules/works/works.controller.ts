@@ -97,8 +97,8 @@ export class WorksController {
     return this.authService
       .resolveRequestAuthContext(headers)
       .then(async (auth) => {
-        await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
-        return this.worksService.generateXiaohongshuRewriteNote(brandId, payload, auth);
+        const access = await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
+        return this.worksService.generateXiaohongshuRewriteNote(brandId, payload, auth, access.role);
       });
   }
 
@@ -111,8 +111,8 @@ export class WorksController {
     return this.authService
       .resolveRequestAuthContext(headers)
       .then(async (auth) => {
-        await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
-        return this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth);
+        const access = await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+        return this.worksService.generateXiaohongshuVideoNote(brandId, payload, auth, access.role);
       });
   }
 

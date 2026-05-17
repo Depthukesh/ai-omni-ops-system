@@ -265,6 +265,8 @@ export interface RewriteWorkspaceProps {
   products: ProductOption[];
   materialValue: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   injectMarketingPlanValue: string;
   additionalInstruction: string;
   onRefresh: AsyncAction;
@@ -284,6 +286,7 @@ export interface RewriteWorkspaceProps {
   onCreate: AsyncAction;
   onMaterialChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
   getTaskStatusClass: (status?: TaskRecord["taskStatus"]) => string;
@@ -424,12 +427,15 @@ export function RewriteWorkspace(props: RewriteWorkspaceProps) {
         products={props.products}
         materialValue={props.materialValue}
         productValue={props.productValue}
+        accountRoleValue={props.accountRoleValue}
+        accountRoleOptions={props.accountRoleOptions}
         injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
         onClose={props.onCloseCreate}
         onCreate={props.onCreate}
         onMaterialChange={props.onMaterialChange}
         onProductChange={props.onProductChange}
+        onAccountRoleChange={props.onAccountRoleChange}
         onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}
       />
@@ -469,6 +475,8 @@ export interface VideoWorkspaceProps {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
+  accountRoleOptions: SelectOption[];
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
@@ -494,6 +502,7 @@ export interface VideoWorkspaceProps {
   onCreate: AsyncAction;
   onCalendarChange: StringChangeHandler;
   onProductChange: StringChangeHandler;
+  onAccountRoleChange: StringChangeHandler;
   onCustomTopicChange: StringChangeHandler;
   onReferenceImageFileChange: (file: File | null) => void;
   onCopyAdditionalInstructionChange: StringChangeHandler;
@@ -610,6 +619,8 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         calendarValue={props.calendarValue}
         customTopic={props.customTopic}
         productValue={props.productValue}
+        accountRoleValue={props.accountRoleValue}
+        accountRoleOptions={props.accountRoleOptions}
         referenceImageFile={props.referenceImageFile}
         copyAdditionalInstruction={props.copyAdditionalInstruction}
         providerValue={props.providerValue}
@@ -624,6 +635,7 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         onCreate={props.onCreate}
         onCalendarChange={props.onCalendarChange}
         onProductChange={props.onProductChange}
+        onAccountRoleChange={props.onAccountRoleChange}
         onCustomTopicChange={props.onCustomTopicChange}
         onReferenceImageFileChange={props.onReferenceImageFileChange}
         onCopyAdditionalInstructionChange={props.onCopyAdditionalInstructionChange}

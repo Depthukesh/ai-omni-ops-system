@@ -33,6 +33,7 @@ type OriginalComposerState = {
 type RewriteComposerState = {
   materialValue: string;
   productValue: string;
+  accountRoleValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
   closeModal: () => void;
@@ -46,6 +47,7 @@ type VideoComposerState = {
   calendarValue: string;
   customTopic: string;
   productValue: string;
+  accountRoleValue: string;
   referenceImageFile: File | null;
   copyAdditionalInstruction: string;
   providerValue: string;
@@ -155,6 +157,7 @@ export function useWorkComposerActions(options: {
       const result = await generateXiaohongshuRewriteWork(resolvedBrandId || "", {
         sourceMaterialId: options.rewrite.materialValue,
         productId: options.rewrite.productValue === options.noProductOption ? undefined : options.rewrite.productValue,
+        accountRole: options.rewrite.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
         includeMarketingPlan: options.rewrite.injectMarketingPlanValue === "yes",
         additionalInstruction: options.rewrite.additionalInstruction.trim() || undefined,
       });
@@ -225,6 +228,7 @@ export function useWorkComposerActions(options: {
         calendarItemId: isCustomTopic ? undefined : options.video.calendarValue,
         customTopicName: isCustomTopic ? customTopicName : undefined,
         productId: options.video.productValue === options.noProductOption ? undefined : options.video.productValue,
+        accountRole: options.video.accountRoleValue as "BRAND" | "STAFF" | "TALENT",
         referenceImageFile: options.video.referenceImageFile,
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
         videoProvider: resolvedProvider,

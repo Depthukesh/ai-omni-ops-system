@@ -10,6 +10,10 @@ export function useNoteComposerForms(options: {
   customTopicOption: string;
   defaultOriginalAccountRoleValue?: string;
   availableOriginalAccountRoleValues?: string[];
+  defaultRewriteAccountRoleValue?: string;
+  availableRewriteAccountRoleValues?: string[];
+  defaultVideoAccountRoleValue?: string;
+  availableVideoAccountRoleValues?: string[];
   defaultVideoProviderValue?: string;
   availableVideoProviderValues?: string[];
 }) {
@@ -36,9 +40,28 @@ export function useNoteComposerForms(options: {
     return availableValues.includes(preferredValue) ? preferredValue : availableValues[0];
   }
 
+  function resolveDefaultRewriteAccountRoleValue() {
+    const availableValues = options.availableRewriteAccountRoleValues?.filter(Boolean) || [];
+    const preferredValue = options.defaultRewriteAccountRoleValue || "BRAND";
+    if (!availableValues.length) {
+      return preferredValue;
+    }
+    return availableValues.includes(preferredValue) ? preferredValue : availableValues[0];
+  }
+
+  function resolveDefaultVideoAccountRoleValue() {
+    const availableValues = options.availableVideoAccountRoleValues?.filter(Boolean) || [];
+    const preferredValue = options.defaultVideoAccountRoleValue || "BRAND";
+    if (!availableValues.length) {
+      return preferredValue;
+    }
+    return availableValues.includes(preferredValue) ? preferredValue : availableValues[0];
+  }
+
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
   const [rewriteMaterialValue, setRewriteMaterialValue] = useState("");
   const [rewriteProductValue, setRewriteProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [rewriteAccountRoleValue, setRewriteAccountRoleValue] = useState(options.defaultRewriteAccountRoleValue || "BRAND");
   const [rewriteInjectMarketingPlanValue, setRewriteInjectMarketingPlanValue] = useState("yes");
   const [rewriteAdditionalInstruction, setRewriteAdditionalInstruction] = useState("");
 
@@ -46,6 +69,7 @@ export function useNoteComposerForms(options: {
   const [videoCalendarValue, setVideoCalendarValue] = useState("");
   const [videoCustomTopic, setVideoCustomTopic] = useState("");
   const [videoProductValue, setVideoProductValue] = useState(options.defaultProductId || options.noProductOption);
+  const [videoAccountRoleValue, setVideoAccountRoleValue] = useState(options.defaultVideoAccountRoleValue || "BRAND");
   const [videoReferenceImageFile, setVideoReferenceImageFile] = useState<File | null>(null);
   const [videoCopyAdditionalInstruction, setVideoCopyAdditionalInstruction] = useState("");
   const [videoProviderValue, setVideoProviderValue] = useState(defaultVideoProviderValue);
@@ -91,6 +115,7 @@ export function useNoteComposerForms(options: {
   function resetRewriteComposer(materials: MaterialOption[], products: ProductOption[]) {
     setRewriteMaterialValue(materials[0]?.id || "");
     setRewriteProductValue(products[0]?.id || options.noProductOption);
+    setRewriteAccountRoleValue(resolveDefaultRewriteAccountRoleValue());
     setRewriteInjectMarketingPlanValue("yes");
     setRewriteAdditionalInstruction("");
   }
@@ -103,6 +128,16 @@ export function useNoteComposerForms(options: {
   function closeRewriteModal() {
     setIsRewriteModalOpen(false);
   }
+
+  useEffect(() => {
+    const availableValues = options.availableRewriteAccountRoleValues?.filter(Boolean) || [];
+    if (!availableValues.length) {
+      return;
+    }
+    if (!availableValues.includes(rewriteAccountRoleValue)) {
+      setRewriteAccountRoleValue(resolveDefaultRewriteAccountRoleValue());
+    }
+  }, [options.availableRewriteAccountRoleValues, options.defaultRewriteAccountRoleValue, rewriteAccountRoleValue]);
 
   useEffect(() => {
     const availableValues = options.availableVideoProviderValues?.filter(Boolean) || [];
@@ -134,6 +169,7 @@ export function useNoteComposerForms(options: {
     setVideoCalendarValue(calendarItems[0]?.id || options.customTopicOption);
     setVideoCustomTopic("");
     setVideoProductValue(products[0]?.id || options.noProductOption);
+    setVideoAccountRoleValue(resolveDefaultVideoAccountRoleValue());
     setVideoReferenceImageFile(null);
     setVideoCopyAdditionalInstruction("");
     setVideoProviderValue(resolvedDefaultProvider);
@@ -155,6 +191,16 @@ export function useNoteComposerForms(options: {
     setIsVideoModalOpen(false);
   }
 
+  useEffect(() => {
+    const availableValues = options.availableVideoAccountRoleValues?.filter(Boolean) || [];
+    if (!availableValues.length) {
+      return;
+    }
+    if (!availableValues.includes(videoAccountRoleValue)) {
+      setVideoAccountRoleValue(resolveDefaultVideoAccountRoleValue());
+    }
+  }, [options.availableVideoAccountRoleValues, options.defaultVideoAccountRoleValue, videoAccountRoleValue]);
+
   return {
     isOriginalModalOpen,
     originalCalendarValue,
@@ -169,12 +215,14 @@ export function useNoteComposerForms(options: {
     isRewriteModalOpen,
     rewriteMaterialValue,
     rewriteProductValue,
+    rewriteAccountRoleValue,
     rewriteInjectMarketingPlanValue,
     rewriteAdditionalInstruction,
     isVideoModalOpen,
     videoCalendarValue,
     videoCustomTopic,
     videoProductValue,
+    videoAccountRoleValue,
     videoReferenceImageFile,
     videoCopyAdditionalInstruction,
     videoProviderValue,
@@ -199,12 +247,14 @@ export function useNoteComposerForms(options: {
     setIsOriginalModalOpen,
     setRewriteMaterialValue,
     setRewriteProductValue,
+    setRewriteAccountRoleValue,
     setRewriteInjectMarketingPlanValue,
     setRewriteAdditionalInstruction,
     setIsRewriteModalOpen,
     setVideoCalendarValue,
     setVideoCustomTopic,
     setVideoProductValue,
+    setVideoAccountRoleValue,
     setVideoReferenceImageFile,
     setVideoCopyAdditionalInstruction,
     setVideoProviderValue,
