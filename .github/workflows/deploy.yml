@@ -101,7 +101,7 @@ jobs:
 
               backup_and_clean_worktree() {
                 local backup_root backup_dir changed_files_path
-                backup_root="$(dirname "$DEPLOY_PATH")/.deploy-worktree-backups"
+                backup_root="$HOME/.deploy-worktree-backups"
                 mkdir -p "$backup_root"
                 backup_dir="$backup_root/$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
                 changed_files_path="$backup_dir/worktree-files.txt"

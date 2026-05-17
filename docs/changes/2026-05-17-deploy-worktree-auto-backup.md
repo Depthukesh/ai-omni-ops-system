@@ -18,7 +18,7 @@
 
 - 更新 `.github/workflows/deploy.yml` 中 `runuser -u aiops -- ...` 的 Git 阶段逻辑：
   - 发现 `git status --porcelain=v1 -uall` 非空时，不再立即 `exit 1`
-  - 先在部署目录同级创建 `.deploy-worktree-backups/<timestamp>-<shortSha>/`
+  - 先在运行用户家目录创建 `$HOME/.deploy-worktree-backups/<timestamp>-<shortSha>/`
   - 导出：
     - `git-status.txt`
     - `head-before.txt`
@@ -77,5 +77,6 @@
 ## 6. 风险与后续
 
 - 本次方案属于“最省事”的自动化折中：能减少用户手动 SSH 清理的成本，但不等于可以忽略服务器异常来源。
+- 2026-05-17 首次上线时曾把备份目录放到部署目录同级，结果命中 `/srv` 父目录权限不足；现已改成写入 `aiops` 家目录下的 `.deploy-worktree-backups/`，避免再次因目录权限导致部署提前失败。
 - 若后续再次出现来源不明的脚本、可疑二进制或大批量未跟踪文件，仍应按安全事件流程单独隔离和排查，而不是长期依赖自动备份后覆盖。
 - 当前本地仍有一条尚未推送成功的 RunningHub 查询接口修正提交；本次部署链修正应与该提交一并推送，才能让 GitHub Actions 拉到最新代码。
