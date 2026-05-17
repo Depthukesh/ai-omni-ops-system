@@ -255,6 +255,7 @@
   - 后台技能中心当前所有文本类技能已统一运行逻辑：先严格尝试当前卡片里选中的默认模型，再按兼容 provider / model 继续 fallback；失败时统一展示实际尝试顺序
   - 技能提示词：后台当前会自动聚合真实 `SKILL.md` 与技能源目录下的顶层 `.md` / `.txt` 参考资料；原创笔记已拆分为“原创文案”和“原创配图”两套提示词分别呈现
   - 视频笔记提示词现按“剧本策划 / 视频生成”两组分类展示，前后台都可按单条 prompt 修改
+  - 对于存在本地提示词文件的条目，后台启动时会按文件内容回填 `PromptTemplate.content`，避免页面继续显示数据库里遗留的一行旧占位文案
   - 当前选中某个三级提示词时，会自动展开对应一级/二级目录，避免所选项被折叠隐藏
   - 聚合型提示词在后台当前以只读方式展示，需回到原始提示词目录维护，避免把整份聚合内容误写回单个 `SKILL.md`
   - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
@@ -262,6 +263,7 @@
   - 参考变更：`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
+  - 参考变更：`docs/changes/2026-05-18-skill-center-video-prompts-file-sync-fix.md`
 - 知识库管理
 - 接口供应商
   - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑

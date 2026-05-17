@@ -169,6 +169,8 @@
   - 技能中心继续收口到“前后台统一分类树 + 单条提示词叶子项可见可改”，修正视频笔记 prompt 已注册但界面仍按总技能展示的问题
 - `docs/changes/2026-05-17-skill-center-collapsible-tree.md`
   - 技能中心左侧分类树补充一级/二级折叠交互，前后台同步支持，减少提示词增多后的滚动成本
+- `docs/changes/2026-05-18-skill-center-video-prompts-file-sync-fix.md`
+  - 修正视频笔记提示词在技能中心仍显示旧一行占位文案的问题；改为运行时稳定命中文件，并在启动时把数据库内容回填为文件真实内容
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

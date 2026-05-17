@@ -561,6 +561,18 @@ export class SkillsPromptsService {
         )
         ON CONFLICT ("id") DO NOTHING
       `;
+      if (this.resolvePromptFilePath(seedPrompt.id)) {
+        await this.prismaService.$executeRaw`
+          UPDATE "PromptTemplate"
+          SET
+            "content" = ${seedPrompt.content},
+            "updatedAt" = CASE
+              WHEN "content" IS DISTINCT FROM ${seedPrompt.content} THEN CURRENT_TIMESTAMP
+              ELSE "updatedAt"
+            END
+          WHERE "id" = ${seedPrompt.id}
+        `;
+      }
     }
 
     await this.backfillImageGenerationSkillDefaults();

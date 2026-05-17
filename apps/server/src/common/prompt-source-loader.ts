@@ -86,12 +86,19 @@ const READABLE_REFERENCE_EXTENSIONS = new Set([".md", ".txt"]);
 
 function buildPromptSearchRoots() {
   const cwd = process.cwd();
-  return [
+  const uniqueRoots = new Set([
     cwd,
     resolve(cwd, ".."),
     resolve(cwd, "../.."),
     resolve(cwd, "../../.."),
-  ];
+    __dirname,
+    resolve(__dirname, ".."),
+    resolve(__dirname, "../.."),
+    resolve(__dirname, "../../.."),
+    resolve(__dirname, "../../../.."),
+    resolve(__dirname, "../../../../.."),
+  ]);
+  return Array.from(uniqueRoots);
 }
 
 type PromptReferenceEntry = {
