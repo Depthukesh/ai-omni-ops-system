@@ -167,6 +167,8 @@
   - 为二创笔记和视频笔记补齐账号角色，并把“所有作品创作默认都要设置账号角色”固化到作品元数据与工程规范
 - `docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
   - 视频笔记改为“三阶段任务化 + 故事板确认后继续生成短视频”，并将视频提示词按业务阶段拆成 6 条独立 prompt 供前后台技能中心分类展示与修改
+- `docs/changes/2026-05-17-video-note-runninghub-image-backend-fallback.md`
+  - 修复视频笔记最后一步已携带故事板图、却仍按 RunningHub 文生视频模型调用导致失败的问题；后端现会优先自动切到同系列图生视频后端
 - `docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
   - 技能中心继续收口到“前后台统一分类树 + 单条提示词叶子项可见可改”，修正视频笔记 prompt 已注册但界面仍按总技能展示的问题
 - `docs/changes/2026-05-17-skill-center-collapsible-tree.md`

@@ -525,7 +525,8 @@
 8. 第 3 阶段根据故事板提示词生成短视频提示词，再结合故事板图片调用用户选择的视频模型生成最终短视频
 9. 成品视频、中间剧本、故事板提示词、故事板图片与阶段状态都保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
 10. 当前视频 Provider 下拉已可直接读取 RunningHub 视频模型；运行时会按每条 Provider 的 `requestProfile` 组装请求体，并在查询阶段兼容 RunningHub 的 `POST /openapi/v2/query`
-11. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`、`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
+11. 当第 3 阶段已经有故事板图、但用户之前选择的是 RunningHub `*_t2v` 文生视频模型时，后端会优先自动切到同系列 `*_i2v` / `*_r2v` 图生视频后端，避免最终成片阶段继续拿文生接口硬跑
+12. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`、`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`、`docs/changes/2026-05-17-video-note-runninghub-image-backend-fallback.md`
 
 ### 5.6 技能与提示词注册链路
 

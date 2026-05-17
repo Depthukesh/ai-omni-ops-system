@@ -5576,8 +5576,27 @@ export class WorksService {
   }
 
   private buildVideoProviderFallbackOrder(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
-    void hasReferenceImage;
-    return [requestedBackend];
+    if (!hasReferenceImage) {
+      return [requestedBackend];
+    }
+    const compatibleImageBackend = this.resolveReferenceImagePreferredVideoBackend(requestedBackend);
+    if (!compatibleImageBackend || compatibleImageBackend === requestedBackend) {
+      return [requestedBackend];
+    }
+    return [compatibleImageBackend, requestedBackend];
+  }
+
+  private resolveReferenceImagePreferredVideoBackend(requestedBackend: VideoBackendKey) {
+    const compatibleBackendMap: Record<string, VideoBackendKey> = {
+      runninghub_hailuo_23_t2v: "runninghub_hailuo_23_i2v",
+      runninghub_vidu_t2v_q3_pro: "runninghub_vidu_i2v_q3_pro",
+      runninghub_kling_30_pro_t2v: "runninghub_kling_30_pro_i2v",
+      runninghub_kling_30_std_t2v: "runninghub_kling_30_std_i2v",
+      runninghub_seedance_20_fast_t2v: "runninghub_seedance_20_fast_i2v",
+      runninghub_seedance_20_t2v: "runninghub_seedance_20_i2v",
+      runninghub_happyhorse_10_t2v: "runninghub_happyhorse_10_r2v",
+    };
+    return compatibleBackendMap[requestedBackend] || requestedBackend;
   }
 
   private resolveLegacyVideoRequestProfile(backend: VideoBackendKey, hasReferenceImage: boolean) {
