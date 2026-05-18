@@ -10,10 +10,11 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
-import { OriginalCreateModal, RewriteCreateModal, VideoCreateModal } from "./note-create-modals";
-import { OriginalEditModal, RewriteEditModal, VideoEditModal } from "./note-edit-modals";
+import { OriginalCreateModal, RewriteCreateModal } from "./note-create-modals";
+import { OriginalEditModal, RewriteEditModal } from "./note-edit-modals";
 import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
 import { VideoWorkspaceDetailPanel } from "./video-workspace-detail-panel";
+import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
   type AsyncAction,
   type OptionalDateFormatter,
@@ -532,62 +533,63 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         </>
       )}
 
-      <VideoEditModal
-        item={props.editingWork}
-        title={props.editingTitle}
-        content={props.editingContent}
-        storyboardPrompt={props.editingStoryboardPrompt}
-        savingWorkId={props.savingWorkId}
-        onClose={props.onCloseEdit}
-        onSave={props.onSaveEdit}
-        onTitleChange={props.onEditTitleChange}
-        onContentChange={props.onEditContentChange}
-        onStoryboardPromptChange={props.onEditStoryboardPromptChange}
-        getTaskStatusClass={props.getOriginalTaskStatusClass}
-        getTaskStatusText={props.getOriginalTaskStatusText}
-      />
-
-      <VideoCreateModal
-        open={props.isCreateModalOpen}
-        isPublishing={props.isPublishing}
-        calendarOptions={props.calendarOptions}
-        customTopicOption={props.customTopicOption}
-        noProductOption={props.noProductOption}
-        customVideoProviderOption={props.customVideoProviderOption}
-        videoProviderOptions={props.videoProviderOptions}
-        products={props.products}
-        materialNotes={props.materialNotes}
-        calendarValue={props.calendarValue}
-        customTopic={props.customTopic}
-        productValue={props.productValue}
-        materialValue={props.materialValue}
-        accountRoleValue={props.accountRoleValue}
-        accountRoleOptions={props.accountRoleOptions}
-        referenceImageFile={props.referenceImageFile}
-        videoKindValue={props.videoKindValue}
-        copyAdditionalInstruction={props.copyAdditionalInstruction}
-        providerValue={props.providerValue}
-        customProviderValue={props.customProviderValue}
-        customModelName={props.customModelName}
-        durationValue={props.durationValue}
-        injectMarketingPlanValue={props.injectMarketingPlanValue}
-        additionalInstruction={props.additionalInstruction}
-        onClose={props.onCloseCreate}
-        onCreate={props.onCreate}
-        onCalendarChange={props.onCalendarChange}
-        onProductChange={props.onProductChange}
-        onMaterialChange={props.onMaterialChange}
-        onAccountRoleChange={props.onAccountRoleChange}
-        onCustomTopicChange={props.onCustomTopicChange}
-        onReferenceImageFileChange={props.onReferenceImageFileChange}
-        onVideoKindChange={props.onVideoKindChange}
-        onCopyAdditionalInstructionChange={props.onCopyAdditionalInstructionChange}
-        onProviderChange={props.onProviderChange}
-        onCustomProviderChange={props.onCustomProviderChange}
-        onCustomModelNameChange={props.onCustomModelNameChange}
-        onDurationChange={props.onDurationChange}
-        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
-        onAdditionalInstructionChange={props.onAdditionalInstructionChange}
+      <VideoWorkspaceModals
+        editModalProps={{
+          item: props.editingWork,
+          title: props.editingTitle,
+          content: props.editingContent,
+          storyboardPrompt: props.editingStoryboardPrompt,
+          savingWorkId: props.savingWorkId,
+          onClose: props.onCloseEdit,
+          onSave: props.onSaveEdit,
+          onTitleChange: props.onEditTitleChange,
+          onContentChange: props.onEditContentChange,
+          onStoryboardPromptChange: props.onEditStoryboardPromptChange,
+          getTaskStatusClass: props.getOriginalTaskStatusClass,
+          getTaskStatusText: props.getOriginalTaskStatusText,
+        }}
+        createModalProps={{
+          open: props.isCreateModalOpen,
+          isPublishing: props.isPublishing,
+          calendarOptions: props.calendarOptions,
+          customTopicOption: props.customTopicOption,
+          noProductOption: props.noProductOption,
+          customVideoProviderOption: props.customVideoProviderOption,
+          videoProviderOptions: props.videoProviderOptions,
+          products: props.products,
+          materialNotes: props.materialNotes,
+          calendarValue: props.calendarValue,
+          customTopic: props.customTopic,
+          productValue: props.productValue,
+          materialValue: props.materialValue,
+          accountRoleValue: props.accountRoleValue,
+          accountRoleOptions: props.accountRoleOptions,
+          referenceImageFile: props.referenceImageFile,
+          videoKindValue: props.videoKindValue,
+          copyAdditionalInstruction: props.copyAdditionalInstruction,
+          providerValue: props.providerValue,
+          customProviderValue: props.customProviderValue,
+          customModelName: props.customModelName,
+          durationValue: props.durationValue,
+          injectMarketingPlanValue: props.injectMarketingPlanValue,
+          additionalInstruction: props.additionalInstruction,
+          onClose: props.onCloseCreate,
+          onCreate: props.onCreate,
+          onCalendarChange: props.onCalendarChange,
+          onProductChange: props.onProductChange,
+          onMaterialChange: props.onMaterialChange,
+          onAccountRoleChange: props.onAccountRoleChange,
+          onCustomTopicChange: props.onCustomTopicChange,
+          onReferenceImageFileChange: props.onReferenceImageFileChange,
+          onVideoKindChange: props.onVideoKindChange,
+          onCopyAdditionalInstructionChange: props.onCopyAdditionalInstructionChange,
+          onProviderChange: props.onProviderChange,
+          onCustomProviderChange: props.onCustomProviderChange,
+          onCustomModelNameChange: props.onCustomModelNameChange,
+          onDurationChange: props.onDurationChange,
+          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
+          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
+        }}
       />
     </article>
   );
