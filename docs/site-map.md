@@ -108,6 +108,7 @@
 - 当前营销策划方案、营销日历、原创/二创/视频和发布任务的最新状态派生与轮询刷新，已进一步抽到 `use-xiaohongshu-workspace-tasks.ts`；`workspace-shell.tsx` 不再内联拼装多组 `findLatestTaskByTypes + useDelayedTaskPolling`
 - 当前原创、二创、视频三个工作区的 props 装配已进一步抽到 `note-workspace-section-props.ts`；`workspace-shell.tsx` 的 `renderSectionCard()` 不再内联维护三大段超长 section 参数拼装
 - 当前原创、二创、视频三个笔记 section 的集合出口与路由判断已进一步抽到 `note-workspace-sections.tsx`；壳层不再直接维护三个 note section 分支
+- 当前原创、二创、视频三个笔记 section 的 container 层已进一步抽到 `note-workspace-section-containers.tsx`；壳层开始只向 note section 传 grouped hooks 与少量共享数据
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
@@ -180,6 +181,7 @@
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-task-hook.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-props-split.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-router-split.md`
+  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-containers.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -374,6 +376,8 @@
   - 当前承接原创、二创、视频三类 section 的 props 拼装、发布目标包装与部分局部字段联动，进一步降低壳层渲染函数密度
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-sections.tsx`
   - 当前承接原创、二创、视频三类笔记 section 的分发渲染，作为 `workspace-shell.tsx` 与具体 note 面板之间的二级路由层
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-containers.tsx`
+  - 当前承接原创、二创、视频三类 note section 的局部状态派生、动作包装与 props 集合出口，作为壳层与二级路由层之间的中间 container
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
   - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出

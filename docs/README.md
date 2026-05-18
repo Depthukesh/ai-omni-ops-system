@@ -206,6 +206,8 @@
   - 继续把原创、二创、视频三个工作区的 props 装配从 `workspace-shell.tsx` 抽到 `note-workspace-section-props.ts`，让 `renderSectionCard()` 更接近薄入口
 - `docs/changes/2026-05-18-xiaohongshu-note-section-router-split.md`
   - 继续把原创、二创、视频三个笔记 section 的集合出口与路由判断从 `workspace-shell.tsx` 抽到 `note-workspace-sections.tsx`，进一步减薄壳层
+- `docs/changes/2026-05-18-xiaohongshu-note-section-containers.md`
+  - 继续把原创、二创、视频三个笔记 section 的 container 层从 `workspace-shell.tsx` 抽到 `note-workspace-section-containers.tsx`，让壳层只保留 grouped hooks 和一级装配
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

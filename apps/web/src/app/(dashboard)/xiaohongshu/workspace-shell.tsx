@@ -20,8 +20,7 @@ import {
   getWorkTaskStatusClass,
   getWorkTaskStatusText,
 } from "./publish-status-helpers";
-import { buildNoteWorkspaceSectionsProps } from "./note-workspace-section-props";
-import { NoteWorkspaceSections } from "./note-workspace-sections";
+import { NoteWorkspaceSectionContainers } from "./note-workspace-section-containers";
 import { isTaskActive } from "./task-polling";
 import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
@@ -506,16 +505,7 @@ export function XiaohongshuWorkspaceShell() {
       })),
     [calendarAllItems],
   );
-  const {
-    isPublishing,
-    isRewriteSubmitting,
-    rewriteSubmittingLabel,
-    isVideoSubmitting,
-    videoSubmittingLabel,
-    createOriginalWork: handleCreateOriginalWork,
-    createRewriteWork: handleCreateRewriteWork,
-    createVideoWork: handleCreateVideoWork,
-  } = useWorkComposerActions({
+  const workComposerActions = useWorkComposerActions({
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     calendarItems: calendarAllItems,
     products: workspace.archive.products,
@@ -578,6 +568,27 @@ export function XiaohongshuWorkspaceShell() {
     },
   });
   const {
+    isPublishing,
+    isRewriteSubmitting,
+    rewriteSubmittingLabel,
+    isVideoSubmitting,
+    videoSubmittingLabel,
+    createOriginalWork: handleCreateOriginalWork,
+    createRewriteWork: handleCreateRewriteWork,
+    createVideoWork: handleCreateVideoWork,
+  } = workComposerActions;
+  const workspaceTasks = useXiaohongshuWorkspaceTasks({
+    tasks: workspace.tasks,
+    marketingPlanTask: latestMarketingPlanTask,
+    calendarTask: latestCalendarTask,
+    isRewriteSubmitting,
+    isVideoSubmitting,
+    isCancellingTaskId,
+    loadWorkspace,
+    refreshMarketingPlanWorkspace,
+    refreshCalendarWorkspace,
+  });
+  const {
     originalTaskCount,
     latestOriginalTask,
     isOriginalTaskActive,
@@ -610,33 +621,14 @@ export function XiaohongshuWorkspaceShell() {
     isCalendarTaskActive,
     calendarInlineError,
     calendarTaskStatusText,
-  } = useXiaohongshuWorkspaceTasks({
-    tasks: workspace.tasks,
-    marketingPlanTask: latestMarketingPlanTask,
-    calendarTask: latestCalendarTask,
-    isRewriteSubmitting,
-    isVideoSubmitting,
-    isCancellingTaskId,
-    loadWorkspace,
-    refreshMarketingPlanWorkspace,
-    refreshCalendarWorkspace,
-  });
+  } = workspaceTasks;
   const topLevelErrorMessage =
     activeSection === "plan" && marketingPlanInlineError
       ? errorMessage.replace(`小红书营销策划方案生成失败：${marketingPlanInlineError}`, "").trim()
       : activeSection === "calendar"
         ? ""
         : errorMessage;
-  const {
-    saveOriginalWork: handleSaveOriginalWork,
-    deleteOriginalWork: handleDeleteOriginalWork,
-    saveRewriteWork: handleSaveRewriteWork,
-    deleteRewriteWork: handleDeleteRewriteWork,
-    saveVideoWork: handleSaveVideoWork,
-    deleteVideoWork: handleDeleteVideoWork,
-    regenerateVideoStoryboard: handleRegenerateVideoStoryboard,
-    generateVideoFromStoryboard: handleGenerateVideoFromStoryboard,
-  } = useWorkMutationActions({
+  const workMutationActions = useWorkMutationActions({
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     setNotice,
     setErrorMessage,
@@ -682,6 +674,16 @@ export function XiaohongshuWorkspaceShell() {
       cancelEdit: handleCancelEditVideoWork,
     },
   });
+  const {
+    saveOriginalWork: handleSaveOriginalWork,
+    deleteOriginalWork: handleDeleteOriginalWork,
+    saveRewriteWork: handleSaveRewriteWork,
+    deleteRewriteWork: handleDeleteRewriteWork,
+    saveVideoWork: handleSaveVideoWork,
+    deleteVideoWork: handleDeleteVideoWork,
+    regenerateVideoStoryboard: handleRegenerateVideoStoryboard,
+    generateVideoFromStoryboard: handleGenerateVideoFromStoryboard,
+  } = workMutationActions;
   const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
   useEffect(() => {
     if (!isCalendarDetailOpen || !selectedCalendarItem || isEditingCalendarItem) {
@@ -1067,240 +1069,6 @@ export function XiaohongshuWorkspaceShell() {
     });
   }
 
-  function handleOpenVideoModal() {
-    openVideoModal(calendarAllItems, workspace.archive.products);
-  }
-
-  function handleCloseVideoModal() {
-    closeVideoModal();
-  }
-
-  function handleStartEditVideoWork(item: XiaohongshuVideoWorkRecord) {
-    startEditVideoWork(item, setSelectedVideoWorkId);
-  }
-
-  function handleSelectVideoWork(item: XiaohongshuVideoWorkRecord) {
-    setSelectedVideoWorkId(item.id);
-    setEditingVideoStoryboardPrompt(item.storyboardPrompt || "");
-  }
-
-  const { originalWorkspaceProps, rewriteWorkspaceProps, videoWorkspaceProps } = buildNoteWorkspaceSectionsProps({
-    original: {
-      sectionLabel: currentSection.label,
-      sectionDescription: currentSection.description,
-      isLoading,
-      isPublishing,
-      isTaskActive: isOriginalTaskActive,
-      taskCount: originalTaskCount,
-      latestTask: latestOriginalTask,
-      taskStatusText: originalTaskStatusText,
-      inlineError: originalInlineError,
-      isCancellingTask: isCancellingOriginalTask,
-      canCancelTask: canCancelOriginalTask,
-      latestPublishTask: latestOriginalPublishTask,
-      items: originalWorks,
-      previewIndexMap: materialPreviewIndexMap,
-      deletingWorkId: deletingOriginalWorkId,
-      editingWork: originalEditingWork,
-      editingTitle: editingOriginalTitle,
-      editingContent: editingOriginalContent,
-      savingWorkId: savingOriginalWorkId,
-      isCreateModalOpen: isOriginalModalOpen,
-      calendarOptions: originalCalendarOptions,
-      customTopicOption: CUSTOM_TOPIC_OPTION,
-      noProductOption: NO_PRODUCT_OPTION,
-      autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
-      products: workspace.archive.products,
-      calendarValue: originalCalendarValue,
-      customTopic: originalCustomTopic,
-      productValue: originalProductValue,
-      accountRoleValue: originalAccountRoleValue,
-      accountRoleOptions: originalAccountRoleOptions,
-      imageCountValue: originalImageCountValue,
-      injectMarketingPlanValue: originalInjectMarketingPlanValue,
-      additionalInstruction: originalAdditionalInstruction,
-      coverReferenceFile,
-      galleryReferenceFiles,
-      referenceTemplateCategories: originalReferenceTemplateCategories,
-      referenceTemplateItems: originalReferenceTemplateItems,
-      isReferenceTemplatesLoading: isLoadingOriginalReferenceTemplates,
-      referenceTemplatesError: originalReferenceTemplatesError,
-      onOpenCreate: handleOpenOriginalModal,
-      onShiftPreview: shiftMaterialPreview,
-      onOpenLightbox: openOriginalWorkLightbox,
-      onEdit: handleStartEditOriginalWork,
-      onCloseEdit: handleCancelEditOriginalWork,
-      onSaveEdit: handleSaveOriginalWork,
-      onEditTitleChange: setEditingOriginalTitle,
-      onEditContentChange: setEditingOriginalContent,
-      onCloseCreate: handleCloseOriginalModal,
-      onCreate: handleCreateOriginalWork,
-      onCalendarChange: setOriginalCalendarValue,
-      onCustomTopicChange: setOriginalCustomTopic,
-      onProductChange: setOriginalProductValue,
-      onAccountRoleChange: setOriginalAccountRoleValue,
-      onImageCountChange: setOriginalImageCountValue,
-      onInjectMarketingPlanChange: setOriginalInjectMarketingPlanValue,
-      onAdditionalInstructionChange: setOriginalAdditionalInstruction,
-      onCoverReferenceFileChange: setCoverReferenceFile,
-      onGalleryReferenceFilesChange: setGalleryReferenceFiles,
-      onReloadReferenceTemplates: reloadOriginalReferenceTemplates,
-      getTaskStatusClass,
-      getOriginalTaskStatusClass: getWorkTaskStatusClass,
-      getOriginalTaskStatusText: getWorkTaskStatusText,
-      getPublishTaskStatusText,
-      getPublishTaskSummaryText,
-      formatDateTime,
-      loadWorkspace,
-      handleCancelComposeTask,
-      handleOpenPublishModal,
-      publishTaskMap,
-      getWorkPublishTaskLabel,
-      handleDeleteOriginalWork,
-    },
-    rewrite: {
-      sectionLabel: currentSection.label,
-      sectionDescription: currentSection.description,
-      isLoading,
-      isPublishing,
-      isTaskActive: isRewriteTaskActive,
-      taskCount: rewriteTaskCount,
-      showSubmittingState: showRewriteSubmittingState,
-      submittingLabel: rewriteSubmittingLabel,
-      latestTask: latestRewriteTask,
-      taskStatusText: rewriteTaskStatusText,
-      inlineError: rewriteInlineError,
-      isCancellingTask: isCancellingRewriteTask,
-      canCancelTask: canCancelRewriteTask,
-      latestPublishTask: latestRewritePublishTask,
-      items: rewriteWorks,
-      materialNotes,
-      previewIndexMap: materialPreviewIndexMap,
-      deletingWorkId: deletingRewriteWorkId,
-      editingWork: rewriteEditingWork,
-      editingTitle: editingRewriteTitle,
-      editingContent: editingRewriteContent,
-      savingWorkId: savingRewriteWorkId,
-      isCreateModalOpen: isRewriteModalOpen,
-      noProductOption: NO_PRODUCT_OPTION,
-      products: workspace.archive.products,
-      materialValue: rewriteMaterialValue,
-      productValue: rewriteProductValue,
-      accountRoleValue: rewriteAccountRoleValue,
-      accountRoleOptions: originalAccountRoleOptions,
-      injectMarketingPlanValue: rewriteInjectMarketingPlanValue,
-      additionalInstruction: rewriteAdditionalInstruction,
-      onOpenCreate: handleOpenRewriteModal,
-      onShiftPreview: shiftMaterialPreview,
-      onOpenLightbox: openRewriteWorkLightbox,
-      onEdit: handleStartEditRewriteWork,
-      onCloseEdit: handleCancelEditRewriteWork,
-      onSaveEdit: handleSaveRewriteWork,
-      onEditTitleChange: setEditingRewriteTitle,
-      onEditContentChange: setEditingRewriteContent,
-      onCloseCreate: handleCloseRewriteModal,
-      onCreate: handleCreateRewriteWork,
-      onMaterialChange: setRewriteMaterialValue,
-      onProductChange: setRewriteProductValue,
-      onAccountRoleChange: setRewriteAccountRoleValue,
-      onInjectMarketingPlanChange: setRewriteInjectMarketingPlanValue,
-      onAdditionalInstructionChange: setRewriteAdditionalInstruction,
-      getTaskStatusClass,
-      getOriginalTaskStatusClass: getWorkTaskStatusClass,
-      getOriginalTaskStatusText: getWorkTaskStatusText,
-      getPublishTaskStatusText,
-      getPublishTaskSummaryText,
-      formatDateTime,
-      loadWorkspace,
-      handleCancelComposeTask,
-      handleOpenPublishModal,
-      publishTaskMap,
-      getWorkPublishTaskLabel,
-      handleDeleteRewriteWork,
-    },
-    video: {
-      sectionLabel: currentSection.label,
-      sectionDescription: currentSection.description,
-      isLoading,
-      isPublishing,
-      isTaskActive: isVideoTaskActive,
-      taskCount: videoTaskCount,
-      showSubmittingState: showVideoSubmittingState,
-      submittingLabel: videoSubmittingLabel,
-      latestTask: latestVideoTask,
-      taskStatusText: videoTaskStatusText,
-      inlineError: videoInlineError,
-      isCancellingTask: isCancellingVideoTask,
-      canCancelTask: canCancelVideoTask,
-      items: videoWorks,
-      materialNotes,
-      selectedWork: videoSelectedWork,
-      deletingWorkId: deletingVideoWorkId,
-      editingWork: videoEditingWork,
-      editingTitle: editingVideoTitle,
-      editingContent: editingVideoContent,
-      editingStoryboardPrompt: editingVideoStoryboardPrompt,
-      savingWorkId: savingVideoWorkId,
-      isCreateModalOpen: isVideoModalOpen,
-      calendarOptions: originalCalendarOptions,
-      customTopicOption: CUSTOM_TOPIC_OPTION,
-      noProductOption: NO_PRODUCT_OPTION,
-      customVideoProviderOption: customVideoProviderOption,
-      videoProviderOptions,
-      products: workspace.archive.products,
-      calendarValue: videoCalendarValue,
-      customTopic: videoCustomTopic,
-      productValue: videoProductValue,
-      materialValue: videoMaterialValue,
-      accountRoleValue: videoAccountRoleValue,
-      accountRoleOptions: originalAccountRoleOptions,
-      referenceImageFile: videoReferenceImageFile,
-      videoKindValue,
-      copyAdditionalInstruction: videoCopyAdditionalInstruction,
-      providerValue: videoProviderValue,
-      customProviderValue: videoCustomProviderValue,
-      customModelName: videoCustomModelName,
-      durationValue: videoDurationValue,
-      injectMarketingPlanValue: videoInjectMarketingPlanValue,
-      additionalInstruction: videoAdditionalInstruction,
-      onOpenCreate: handleOpenVideoModal,
-      onSelectWork: handleSelectVideoWork,
-      onPreview: openVideoWorkLightbox,
-      onEdit: handleStartEditVideoWork,
-      onCloseEdit: handleCancelEditVideoWork,
-      onSaveEdit: handleSaveVideoWork,
-      onEditTitleChange: setEditingVideoTitle,
-      onEditContentChange: setEditingVideoContent,
-      onEditStoryboardPromptChange: setEditingVideoStoryboardPrompt,
-      onCloseCreate: handleCloseVideoModal,
-      onCreate: handleCreateVideoWork,
-      onCalendarChange: setVideoCalendarValue,
-      onMaterialChange: setVideoMaterialValue,
-      onAccountRoleChange: setVideoAccountRoleValue,
-      onCustomTopicChange: setVideoCustomTopic,
-      onVideoKindChangeBase: setVideoKindValue,
-      onCopyAdditionalInstructionChange: setVideoCopyAdditionalInstruction,
-      onProviderChange: setVideoProviderValue,
-      onCustomProviderChange: setVideoCustomProviderValue,
-      onCustomModelNameChange: setVideoCustomModelName,
-      onDurationChange: setVideoDurationValue,
-      onInjectMarketingPlanChange: setVideoInjectMarketingPlanValue,
-      onAdditionalInstructionChange: setVideoAdditionalInstruction,
-      getTaskStatusClass,
-      getOriginalTaskStatusClass: getWorkTaskStatusClass,
-      getOriginalTaskStatusText: getWorkTaskStatusText,
-      formatDateTime,
-      loadWorkspace,
-      handleCancelComposeTask,
-      handleDeleteVideoWork,
-      handleRegenerateVideoStoryboard,
-      handleGenerateVideoFromStoryboard,
-      setVideoProductValue,
-      setVideoReferenceImageFile,
-      setVideoMaterialValue,
-    },
-  });
-
   function openVideoWorkLightbox(item: XiaohongshuVideoWorkRecord) {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -1423,11 +1191,51 @@ export function XiaohongshuWorkspaceShell() {
     }
 
     return (
-      <NoteWorkspaceSections
+      <NoteWorkspaceSectionContainers
         activeSection={activeSection === "original" || activeSection === "remix" ? activeSection : "video"}
-        originalWorkspaceProps={originalWorkspaceProps}
-        rewriteWorkspaceProps={rewriteWorkspaceProps}
-        videoWorkspaceProps={videoWorkspaceProps}
+        currentSection={currentSection}
+        isLoading={isLoading}
+        products={workspace.archive.products}
+        materialNotes={materialNotes}
+        calendarAllItems={calendarAllItems}
+        originalAccountRoleOptions={originalAccountRoleOptions}
+        originalWorks={originalWorks}
+        rewriteWorks={rewriteWorks}
+        videoWorks={videoWorks}
+        selectedVideoWorkId={selectedVideoWorkId}
+        setSelectedVideoWorkId={setSelectedVideoWorkId}
+        previewIndexMap={materialPreviewIndexMap}
+        deletingOriginalWorkId={deletingOriginalWorkId}
+        deletingRewriteWorkId={deletingRewriteWorkId}
+        deletingVideoWorkId={deletingVideoWorkId}
+        originalReferenceTemplateCategories={originalReferenceTemplateCategories}
+        originalReferenceTemplateItems={originalReferenceTemplateItems}
+        isLoadingOriginalReferenceTemplates={isLoadingOriginalReferenceTemplates}
+        originalReferenceTemplatesError={originalReferenceTemplatesError}
+        videoProviderOptions={videoProviderOptions}
+        noProductOption={NO_PRODUCT_OPTION}
+        autoImageCountOption={AUTO_IMAGE_COUNT_OPTION}
+        customTopicOption={CUSTOM_TOPIC_OPTION}
+        composerForms={composerForms}
+        workEditors={workEditors}
+        workComposerActions={workComposerActions}
+        workMutationActions={workMutationActions}
+        workspaceTasks={workspaceTasks}
+        shiftMaterialPreview={shiftMaterialPreview}
+        openOriginalWorkLightbox={openOriginalWorkLightbox}
+        openRewriteWorkLightbox={openRewriteWorkLightbox}
+        openVideoWorkLightbox={openVideoWorkLightbox}
+        loadWorkspace={loadWorkspace}
+        reloadOriginalReferenceTemplates={reloadOriginalReferenceTemplates}
+        handleCancelComposeTask={handleCancelComposeTask}
+        handleOpenPublishModal={handleOpenPublishModal}
+        getTaskStatusClass={getTaskStatusClass}
+        getOriginalTaskStatusClass={getWorkTaskStatusClass}
+        getOriginalTaskStatusText={getWorkTaskStatusText}
+        getPublishTaskStatusText={getPublishTaskStatusText}
+        getPublishTaskSummaryText={getPublishTaskSummaryText}
+        getWorkPublishTaskLabel={getWorkPublishTaskLabel}
+        formatDateTime={formatDateTime}
       />
     );
   }
