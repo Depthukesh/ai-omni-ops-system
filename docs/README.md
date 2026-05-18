@@ -212,6 +212,8 @@
   - 继续把原创、二创、视频三个笔记 section 再拆成独立叶子 container 文件，让 `note-workspace-section-containers.tsx` 收口为共享类型和路由层
 - `docs/changes/2026-05-18-xiaohongshu-note-workspace-shared-panels.md`
   - 继续把 `note-workspaces.tsx` 里重复的头部、创作状态面板和发布状态面板抽成共享展示组件，减薄面板本体
+- `docs/changes/2026-05-18-xiaohongshu-video-detail-panel-split.md`
+  - 继续把 `VideoWorkspace` 的详情区抽成独立子组件，收口阶段状态、故事板区、视频预览和动作按钮
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

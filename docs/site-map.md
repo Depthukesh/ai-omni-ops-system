@@ -110,6 +110,7 @@
 - 当前原创、二创、视频三个笔记 section 的 container 层已进一步抽到 `note-workspace-section-containers.tsx`；壳层开始只向 note section 传 grouped hooks 与少量共享数据
 - 当前原创、二创、视频三个笔记 section 已进一步拆成独立叶子 container：`original-workspace-section-container.tsx`、`rewrite-workspace-section-container.tsx`、`video-workspace-section-container.tsx`；中间层 `note-workspace-section-containers.tsx` 当前只保留共享类型与路由分发，旧的 `note-workspace-sections.tsx` 集合出口已退出主链路
 - 当前 `note-workspaces.tsx` 内部重复的顶部工具栏、创作状态面板和发布状态面板已进一步抽到 `note-workspace-shared-panels.tsx`，面板本体开始只保留原创/二创/视频各自的差异化内容
+- 当前 `VideoWorkspace` 里的详情区已进一步抽到 `video-workspace-detail-panel.tsx`，把阶段状态、故事板区、视频预览和操作按钮从面板本体中继续拆出
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
@@ -185,6 +186,7 @@
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-containers.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-leaf-section-containers.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-workspace-shared-panels.md`
+  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-video-detail-panel-split.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -387,6 +389,8 @@
   - 当前承接视频笔记 section 的状态派生、动作包装与 props 组装
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-shared-panels.tsx`
   - 当前承接原创、二创、视频三个 note 面板复用的头部工具栏、创作状态面板和发布状态面板
+- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
+  - 当前承接视频 note 面板详情区的阶段状态、故事板提示词、媒体预览、修改记录和动作按钮
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
   - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出
