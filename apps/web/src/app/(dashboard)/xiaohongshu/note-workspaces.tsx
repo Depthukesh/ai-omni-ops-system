@@ -12,6 +12,7 @@ import {
 } from "../../../services/works";
 import { OriginalCreateModal, RewriteCreateModal, VideoCreateModal } from "./note-create-modals";
 import { OriginalEditModal, RewriteEditModal, VideoEditModal } from "./note-edit-modals";
+import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
 import {
   type AsyncAction,
   type OptionalDateFormatter,
@@ -19,7 +20,6 @@ import {
   type SelectOption,
   type StringChangeHandler,
 } from "./shared-types";
-import { ManagedImage } from "./managed-image";
 import { OriginalWorkCardGrid, RewriteWorkCardGrid, VideoWorkCardGrid } from "./work-card-grids";
 
 export interface OriginalWorkspaceProps {
@@ -98,76 +98,44 @@ export interface OriginalWorkspaceProps {
 export function OriginalWorkspace(props: OriginalWorkspaceProps) {
   return (
     <article className="workspace-panel strategy-page-card">
-      <div className="strategy-card-toolbar">
-        <div>
-          <strong>{props.sectionLabel}</strong>
-          <p className="panel-subtext">{props.sectionDescription}</p>
-        </div>
-        <div className="strategy-inline-actions">
-          <button type="button" className="secondary-button" onClick={() => void props.onRefresh()} disabled={props.isLoading || props.isPublishing || props.isTaskActive}>
-            刷新列表
-          </button>
-          <button type="button" className="primary-button" onClick={props.onOpenCreate} disabled={props.isPublishing || props.isTaskActive}>
-            添加原创笔记
-          </button>
-        </div>
-      </div>
+      <WorkspaceSectionHeader
+        sectionLabel={props.sectionLabel}
+        sectionDescription={props.sectionDescription}
+        createLabel="添加原创笔记"
+        refreshDisabled={props.isLoading || props.isPublishing || props.isTaskActive}
+        createDisabled={props.isPublishing || props.isTaskActive}
+        onRefresh={props.onRefresh}
+        onOpenCreate={props.onOpenCreate}
+      />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>原创笔记创作状态</strong>
-            <p>点击“添加原创笔记”后，这里会展示最近一次原创笔记任务的状态，并在创作完成后自动刷新到最新结果。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.taskCount ? "status-ready" : "status-in_progress"}`}>
-              {props.taskCount ? `累计 ${props.taskCount} 条任务` : "暂无任务"}
-            </span>
-            {props.latestTask ? (
-              <span className={`archive-pill ${props.getTaskStatusClass(props.latestTask.taskStatus)}`}>{props.taskStatusText}</span>
-            ) : null}
-            {props.latestTask?.updatedAt ? (
-              <span className="archive-pill status-pending">{props.formatDateTime(props.latestTask.updatedAt)}</span>
-            ) : null}
-            {props.canCancelTask ? (
-              <button type="button" className="secondary-button" onClick={() => void props.onCancelTask()} disabled={props.isCancellingTask}>
-                {props.isCancellingTask ? "取消中..." : "取消任务"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-        {props.isTaskActive ? (
-          <div className="report-inline-tip">
-            {props.latestTask?.taskStatus === "QUEUED"
-              ? "原创笔记任务已提交，正在排队。"
-              : `原创笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
-          </div>
-        ) : null}
-        {props.latestTask?.taskStatus === "CANCELLED" ? (
-          <div className="report-inline-tip">最近一次原创笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。</div>
-        ) : null}
-        {props.inlineError ? <div className="report-inline-tip report-inline-tip--error">{props.inlineError}</div> : null}
-      </article>
+      <ComposeTaskStatusPanel
+        title="原创笔记创作状态"
+        description="点击“添加原创笔记”后，这里会展示最近一次原创笔记任务的状态，并在创作完成后自动刷新到最新结果。"
+        taskCount={props.taskCount}
+        latestTask={props.latestTask}
+        taskStatusText={props.taskStatusText}
+        inlineError={props.inlineError}
+        isTaskActive={props.isTaskActive}
+        canCancelTask={props.canCancelTask}
+        isCancellingTask={props.isCancellingTask}
+        queuedText="原创笔记任务已提交，正在排队。"
+        runningText={`原创笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+        cancelledText="最近一次原创笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。"
+        getTaskStatusClass={props.getTaskStatusClass}
+        formatDateTime={props.formatDateTime}
+        onCancelTask={props.onCancelTask}
+      />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>原创笔记发布状态</strong>
-            <p>优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.latestPublishTask ? props.getTaskStatusClass(props.latestPublishTask.taskStatus) : "status-in_progress"}`}>
-              {props.latestPublishTask ? props.getPublishTaskStatusText(props.latestPublishTask) : "暂无发布任务"}
-            </span>
-            {props.latestPublishTask?.updatedAt ? (
-              <span className="archive-pill status-pending">{props.formatDateTime(props.latestPublishTask.updatedAt)}</span>
-            ) : null}
-          </div>
-        </div>
-        {props.latestPublishTask ? (
-          <div className="report-inline-tip">{props.getPublishTaskSummaryText(props.latestPublishTask, "原创")}</div>
-        ) : null}
-      </article>
+      <PublishTaskStatusPanel
+        title="原创笔记发布状态"
+        description="优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。"
+        noteCategory="原创"
+        latestTask={props.latestPublishTask}
+        getTaskStatusClass={props.getTaskStatusClass}
+        getPublishTaskStatusText={props.getPublishTaskStatusText}
+        getPublishTaskSummaryText={props.getPublishTaskSummaryText}
+        formatDateTime={props.formatDateTime}
+      />
 
       {!props.items.length ? (
         <div className="empty-state">当前还没有原创笔记，点击右上角“添加原创笔记”开始创作。</div>
@@ -301,90 +269,46 @@ export interface RewriteWorkspaceProps {
 export function RewriteWorkspace(props: RewriteWorkspaceProps) {
   return (
     <article className="workspace-panel strategy-page-card">
-      <div className="strategy-card-toolbar">
-        <div>
-          <strong>{props.sectionLabel}</strong>
-          <p className="panel-subtext">{props.sectionDescription}</p>
-        </div>
-        <div className="strategy-inline-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void props.onRefresh()}
-            disabled={props.isLoading || props.isPublishing || props.isTaskActive}
-          >
-            刷新列表
-          </button>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={props.onOpenCreate}
-            disabled={props.isPublishing || props.isTaskActive || !props.materialNotes.length}
-          >
-            添加二创笔记
-          </button>
-        </div>
-      </div>
+      <WorkspaceSectionHeader
+        sectionLabel={props.sectionLabel}
+        sectionDescription={props.sectionDescription}
+        createLabel="添加二创笔记"
+        refreshDisabled={props.isLoading || props.isPublishing || props.isTaskActive}
+        createDisabled={props.isPublishing || props.isTaskActive || !props.materialNotes.length}
+        onRefresh={props.onRefresh}
+        onOpenCreate={props.onOpenCreate}
+      />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>二创笔记创作状态</strong>
-            <p>点击“添加二创笔记”后，这里会展示最近一次二创任务的状态，并在创作完成后自动刷新到最新结果。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.taskCount ? "status-ready" : "status-in_progress"}`}>
-              {props.taskCount ? `累计 ${props.taskCount} 条任务` : "暂无任务"}
-            </span>
-            {props.showSubmittingState ? <span className="archive-pill status-in_progress">创作中</span> : null}
-            {props.latestTask ? (
-              <span className={`archive-pill ${props.getTaskStatusClass(props.latestTask.taskStatus)}`}>{props.taskStatusText}</span>
-            ) : null}
-            {props.latestTask?.updatedAt ? (
-              <span className="archive-pill status-pending">{props.formatDateTime(props.latestTask.updatedAt)}</span>
-            ) : null}
-            {props.canCancelTask ? (
-              <button type="button" className="secondary-button" onClick={() => void props.onCancelTask()} disabled={props.isCancellingTask}>
-                {props.isCancellingTask ? "取消中..." : "取消任务"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-        {props.showSubmittingState ? (
-          <div className="report-inline-tip">{`二创笔记已提交，正在生成中：${props.submittingLabel || "本次二创笔记"}，请稍候。`}</div>
-        ) : null}
-        {props.isTaskActive ? (
-          <div className="report-inline-tip">
-            {props.latestTask?.taskStatus === "QUEUED"
-              ? "二创笔记任务已提交，正在排队。"
-              : `二创笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
-          </div>
-        ) : null}
-        {props.latestTask?.taskStatus === "CANCELLED" ? (
-          <div className="report-inline-tip">最近一次二创笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。</div>
-        ) : null}
-        {props.inlineError ? <div className="report-inline-tip report-inline-tip--error">{props.inlineError}</div> : null}
-      </article>
+      <ComposeTaskStatusPanel
+        title="二创笔记创作状态"
+        description="点击“添加二创笔记”后，这里会展示最近一次二创任务的状态，并在创作完成后自动刷新到最新结果。"
+        taskCount={props.taskCount}
+        latestTask={props.latestTask}
+        taskStatusText={props.taskStatusText}
+        inlineError={props.inlineError}
+        isTaskActive={props.isTaskActive}
+        canCancelTask={props.canCancelTask}
+        isCancellingTask={props.isCancellingTask}
+        showSubmittingState={props.showSubmittingState}
+        submittingText={`二创笔记已提交，正在生成中：${props.submittingLabel || "本次二创笔记"}，请稍候。`}
+        queuedText="二创笔记任务已提交，正在排队。"
+        runningText={`二创笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+        cancelledText="最近一次二创笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。"
+        getTaskStatusClass={props.getTaskStatusClass}
+        formatDateTime={props.formatDateTime}
+        onCancelTask={props.onCancelTask}
+      />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>二创笔记发布状态</strong>
-            <p>优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.latestPublishTask ? props.getTaskStatusClass(props.latestPublishTask.taskStatus) : "status-in_progress"}`}>
-              {props.latestPublishTask ? props.getPublishTaskStatusText(props.latestPublishTask) : "暂无发布任务"}
-            </span>
-            {props.latestPublishTask?.updatedAt ? (
-              <span className="archive-pill status-pending">{props.formatDateTime(props.latestPublishTask.updatedAt)}</span>
-            ) : null}
-          </div>
-        </div>
-        {props.latestPublishTask ? (
-          <div className="report-inline-tip">{props.getPublishTaskSummaryText(props.latestPublishTask, "二创")}</div>
-        ) : null}
-      </article>
+      <PublishTaskStatusPanel
+        title="二创笔记发布状态"
+        description="优先走电脑端一键发布到草稿箱；若当前电脑没装扩展，再使用手机扫码接力作为备用方案。"
+        noteCategory="二创"
+        latestTask={props.latestPublishTask}
+        getTaskStatusClass={props.getTaskStatusClass}
+        getPublishTaskStatusText={props.getPublishTaskStatusText}
+        getPublishTaskSummaryText={props.getPublishTaskSummaryText}
+        formatDateTime={props.formatDateTime}
+      />
 
       {!props.items.length ? (
         <div className="empty-state">
@@ -544,60 +468,35 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
 
   return (
     <article className="workspace-panel strategy-page-card">
-      <div className="strategy-card-toolbar">
-        <div>
-          <strong>{props.sectionLabel}</strong>
-          <p className="panel-subtext">{props.sectionDescription}</p>
-        </div>
-        <div className="strategy-inline-actions">
-          <button type="button" className="secondary-button" onClick={() => void props.onRefresh()} disabled={props.isLoading || props.isPublishing || props.isTaskActive}>
-            刷新列表
-          </button>
-          <button type="button" className="primary-button" onClick={props.onOpenCreate} disabled={props.isPublishing || props.isTaskActive}>
-            添加视频笔记
-          </button>
-        </div>
-      </div>
+      <WorkspaceSectionHeader
+        sectionLabel={props.sectionLabel}
+        sectionDescription={props.sectionDescription}
+        createLabel="添加视频笔记"
+        refreshDisabled={props.isLoading || props.isPublishing || props.isTaskActive}
+        createDisabled={props.isPublishing || props.isTaskActive}
+        onRefresh={props.onRefresh}
+        onOpenCreate={props.onOpenCreate}
+      />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>视频笔记创作状态</strong>
-            <p>点击“添加视频笔记”后，这里会展示最近一次视频任务的状态，并在创作完成后自动刷新到最新结果。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.taskCount ? "status-ready" : "status-in_progress"}`}>
-              {props.taskCount ? `累计 ${props.taskCount} 条任务` : "暂无任务"}
-            </span>
-            {props.showSubmittingState ? <span className="archive-pill status-in_progress">创作中</span> : null}
-            {props.latestTask ? (
-              <span className={`archive-pill ${props.getTaskStatusClass(props.latestTask.taskStatus)}`}>{props.taskStatusText}</span>
-            ) : null}
-            {props.latestTask?.updatedAt ? (
-              <span className="archive-pill status-pending">{props.formatDateTime(props.latestTask.updatedAt)}</span>
-            ) : null}
-            {props.canCancelTask ? (
-              <button type="button" className="secondary-button" onClick={() => void props.onCancelTask()} disabled={props.isCancellingTask}>
-                {props.isCancellingTask ? "取消中..." : "取消任务"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-        {props.showSubmittingState ? (
-          <div className="report-inline-tip">{`视频笔记已提交，正在生成中：${props.submittingLabel || "本次视频笔记"}，请稍候。`}</div>
-        ) : null}
-        {props.isTaskActive ? (
-          <div className="report-inline-tip">
-            {props.latestTask?.taskStatus === "QUEUED"
-              ? "视频笔记任务已提交，正在排队。"
-              : `视频笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
-          </div>
-        ) : null}
-        {props.latestTask?.taskStatus === "CANCELLED" ? (
-          <div className="report-inline-tip">最近一次视频笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。</div>
-        ) : null}
-        {props.inlineError ? <div className="report-inline-tip report-inline-tip--error">{props.inlineError}</div> : null}
-      </article>
+      <ComposeTaskStatusPanel
+        title="视频笔记创作状态"
+        description="点击“添加视频笔记”后，这里会展示最近一次视频任务的状态，并在创作完成后自动刷新到最新结果。"
+        taskCount={props.taskCount}
+        latestTask={props.latestTask}
+        taskStatusText={props.taskStatusText}
+        inlineError={props.inlineError}
+        isTaskActive={props.isTaskActive}
+        canCancelTask={props.canCancelTask}
+        isCancellingTask={props.isCancellingTask}
+        showSubmittingState={props.showSubmittingState}
+        submittingText={`视频笔记已提交，正在生成中：${props.submittingLabel || "本次视频笔记"}，请稍候。`}
+        queuedText="视频笔记任务已提交，正在排队。"
+        runningText={`视频笔记正在生成中：${props.latestTask?.taskTitle || "正在创作"}，请稍候刷新查看结果。`}
+        cancelledText="最近一次视频笔记任务已取消，本次创作流程已停止，你可以重新发起新的任务。"
+        getTaskStatusClass={props.getTaskStatusClass}
+        formatDateTime={props.formatDateTime}
+        onCancelTask={props.onCancelTask}
+      />
 
       {!props.items.length ? (
         <div className="empty-state">当前还没有视频笔记，点击右上角“添加视频笔记”开始创作。</div>
@@ -670,10 +569,9 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
                 <div className="report-editor-pane">
                   <span>故事板图片</span>
                   {selectedItem.storyboardImageUrl ? (
-                    <ManagedImage
+                    <img
                       src={selectedItem.storyboardImageUrl}
                       alt={`${selectedItem.title} 故事板`}
-                      loadingMode="eager"
                       style={{ width: "100%", borderRadius: 20, border: "1px solid #dfe5f2" }}
                     />
                   ) : (

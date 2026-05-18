@@ -252,6 +252,9 @@ flowchart TD
     XHSW --> HX4["OriginalWorkspace 原创笔记"]
     XHSW --> HX5["RewriteWorkspace 二创笔记"]
     XHSW --> HX6["VideoWorkspace 视频笔记"]
+    HX4 --> HX45["noteWorkspaceSharedPanels"]
+    HX5 --> HX45
+    HX6 --> HX45
     XHSW --> HX7["PublishModal 发布弹窗"]
     XHSW --> HX8["MediaLightbox 媒体灯箱"]
     HX1 --> HX11["飞书代理资源：鉴权 fetch blob -> object URL"]
@@ -737,6 +740,7 @@ flowchart LR
 - 原创 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/original-workspace-section-container.tsx`
 - 二创 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/rewrite-workspace-section-container.tsx`
 - 视频 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-section-container.tsx`
+- note 面板共享展示块：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-shared-panels.tsx`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`
