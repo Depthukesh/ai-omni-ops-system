@@ -194,6 +194,8 @@
   - 柏拉图第三方平台下线后，移除其平台基线与共享代理 Provider，并在服务启动时自动清理旧数据库残留；视频笔记默认值同步切到火山方舟 Seedance 2.0
 - `docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
   - 输出系统重构路线图，并先落地图片加载优化第一版：统一图片组件、近视口加载、列表渲染收口和媒体缓存头优化
+- `docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
+  - 继续收口受保护媒体重复拉取：把 blob 预览逻辑抽成共享 hook，并为小红书素材库与品牌增长附件预览增加会话级缓存和并发去重
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

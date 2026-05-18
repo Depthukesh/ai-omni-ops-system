@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
-import { requestBlobByUrl } from "../../../services/http";
+import { useProtectedMediaAsset } from "../use-protected-media-asset";
 import { ManagedImage } from "./managed-image";
 import { type MediaKind, type MediaLightboxState, type OptionalDateFormatter } from "./shared-types";
 import { useNearViewport } from "./use-near-viewport";
@@ -16,79 +15,32 @@ type XhsMaterialMediaItem = {
 };
 
 function useMaterialPreviewAsset(sourceUrl?: string, enabled = true) {
-  const [displayUrl, setDisplayUrl] = useState("");
-  const [downloadFileName, setDownloadFileName] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const isProtectedSource = Boolean(sourceUrl && isProtectedCollectorMediaUrl(sourceUrl));
+  const protectedMedia = useProtectedMediaAsset(isProtectedSource ? sourceUrl : undefined, { enabled });
 
-  useEffect(() => {
-    if (!sourceUrl) {
-      setDisplayUrl("");
-      setDownloadFileName("");
-      setIsLoading(false);
-      setErrorMessage("");
-      return;
-    }
-
-    if (!enabled) {
-      setDisplayUrl("");
-      setDownloadFileName("");
-      setIsLoading(false);
-      setErrorMessage("");
-      return;
-    }
-
-    if (!isProtectedCollectorMediaUrl(sourceUrl)) {
-      setDisplayUrl(sourceUrl);
-      setDownloadFileName("");
-      setIsLoading(false);
-      setErrorMessage("");
-      return;
-    }
-
-    let active = true;
-    let currentObjectUrl = "";
-    setIsLoading(true);
-    setErrorMessage("");
-    setDisplayUrl("");
-    setDownloadFileName("");
-
-    void requestBlobByUrl(sourceUrl)
-      .then(({ blob, fileName }) => {
-        if (!active) {
-          return;
-        }
-        currentObjectUrl = URL.createObjectURL(blob);
-        setDisplayUrl(currentObjectUrl);
-        setDownloadFileName(fileName);
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
-        setDisplayUrl("");
-        setDownloadFileName("");
-        setErrorMessage(error instanceof Error ? error.message : "素材加载失败");
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-      }
+  if (!sourceUrl || !enabled) {
+    return {
+      displayUrl: "",
+      downloadFileName: "",
+      isLoading: false,
+      errorMessage: "",
     };
-  }, [enabled, sourceUrl]);
+  }
+
+  if (!isProtectedSource) {
+    return {
+      displayUrl: sourceUrl,
+      downloadFileName: "",
+      isLoading: false,
+      errorMessage: "",
+    };
+  }
 
   return {
-    displayUrl,
-    downloadFileName,
-    isLoading,
-    errorMessage,
+    displayUrl: protectedMedia.objectUrl,
+    downloadFileName: protectedMedia.fileName,
+    isLoading: protectedMedia.isLoading,
+    errorMessage: protectedMedia.errorMessage || "素材加载失败",
   };
 }
 

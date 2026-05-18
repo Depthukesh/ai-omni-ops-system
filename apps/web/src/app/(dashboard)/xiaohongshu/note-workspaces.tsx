@@ -19,6 +19,7 @@ import {
   type SelectOption,
   type StringChangeHandler,
 } from "./shared-types";
+import { ManagedImage } from "./managed-image";
 import { OriginalWorkCardGrid, RewriteWorkCardGrid, VideoWorkCardGrid } from "./work-card-grids";
 
 export interface OriginalWorkspaceProps {
@@ -669,9 +670,10 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
                 <div className="report-editor-pane">
                   <span>故事板图片</span>
                   {selectedItem.storyboardImageUrl ? (
-                    <img
+                    <ManagedImage
                       src={selectedItem.storyboardImageUrl}
                       alt={`${selectedItem.title} 故事板`}
+                      loadingMode="eager"
                       style={{ width: "100%", borderRadius: 20, border: "1px solid #dfe5f2" }}
                     />
                   ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import type {
   AsyncAction,
   FeishuAppConfigForm,
@@ -20,7 +20,7 @@ import type {
   FeishuBindingRecord,
 } from "../../../services/brand-growth";
 import type { DailyHotspotItem, DailyHotspotPlatformRecord } from "../../../services/daily-hotspots";
-import { requestBlobByUrl } from "../../../services/http";
+import { useProtectedMediaAsset } from "../use-protected-media-asset";
 
 export type XiaohongshuCollectionCardKey =
   | "brandAccount"
@@ -91,65 +91,6 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onDailyHotspotDateChange: ValueAction<string>;
   onSyncDailyHotspots: (platformTitles?: string[]) => void | Promise<void>;
   formatHotspotHeat: OptionalNumberFormatter;
-}
-
-function useProtectedMediaAsset(sourceUrl?: string) {
-  const [objectUrl, setObjectUrl] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (!sourceUrl) {
-      setObjectUrl("");
-      setFileName("");
-      setIsLoading(false);
-      setErrorMessage("");
-      return;
-    }
-
-    let active = true;
-    let currentObjectUrl = "";
-    setIsLoading(true);
-    setErrorMessage("");
-
-    void requestBlobByUrl(sourceUrl)
-      .then(({ blob, fileName: resolvedFileName }) => {
-        if (!active) {
-          return;
-        }
-        currentObjectUrl = URL.createObjectURL(blob);
-        setObjectUrl(currentObjectUrl);
-        setFileName(resolvedFileName);
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
-        setObjectUrl("");
-        setFileName("");
-        setErrorMessage(error instanceof Error ? error.message : "附件加载失败");
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-      }
-    };
-  }, [sourceUrl]);
-
-  return {
-    objectUrl,
-    fileName,
-    isLoading,
-    errorMessage,
-  };
 }
 
 function ProtectedImageCard(props: {

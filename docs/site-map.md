@@ -81,6 +81,7 @@
 - 小红书平台
   - 当前“小红书平台”中的“打开飞书模板”入口已直接指向最新的飞书 Base 副本链接 `https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink`
   - 飞书同步排障阶段临时加入的“同步诊断”折叠面板已从正式页面移除；作品卡片默认只保留正文、指标、附件与作品链接等用户向信息
+  - 当前品牌作品/对标作品中的受保护附件预览已切到 `(dashboard)` 共享 blob 缓存层；同一飞书附件在翻页、重复预览和跨卡片回看时不再总是重新鉴权拉取
 - 每日热点
 
 #### 品牌增长报告
@@ -108,8 +109,10 @@
 - 素材库
   - 当前素材库中的飞书图片/视频预览若命中站内 `feishu-media` 代理，会先通过前端鉴权请求拉取 blob，再转 object URL 给卡片和灯箱展示，避免浏览器媒体请求不带 Bearer Token 导致空白
   - 当前素材库第一版性能优化已落地：受保护媒体改为接近视口后再触发 blob 拉取，非当前可视区域素材不再在首屏一次性全部并发请求
+  - 当前素材库第二版性能优化已落地：受保护媒体 blob 预览已切到 `(dashboard)` 共享缓存层；同一素材在滚动回看、重复选中或再次打开时，优先复用已创建的 object URL，并对同 URL 并发请求做去重
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
+  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
 - 营销日历
   - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
   - 当前已补入前后台技能中心：技能 slug 为 `xiaohongshu-marketing-calendar`，提示词为 `prompt_xhs_calendar`，默认优先回源 `提示词/营销日历提示词.txt`
@@ -388,6 +391,7 @@
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
   - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染
   - 飞书媒体代理第一版已把浏览器缓存时间从 5 分钟提升到 30 分钟，用于降低同一素材在工作区反复滚动、打开和灯箱预览时的重复回源成本
+  - 当前前端品牌增长工作区与小红书素材库对飞书附件预览已共享同一套受保护媒体 blob 缓存 hook，减少相同代理地址在会话内的重复请求与重复 `createObjectURL`
 - `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历
 - `ReportsModule`
   - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
@@ -415,6 +419,7 @@
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
   - 当前作品卡片第一版性能优化已落地：首屏前三张图片优先加载，其余卡片图改为延后懒加载；视频卡片预览视频改为 `preload="none"`，降低打开工作区时的媒体并发压力
+  - 当前发布弹窗二维码与视频详情故事板图片也已补入统一图片组件，避免小红书工作区继续散落原生 `<img>` 的默认加载行为
   - 当前作品资产读取接口 `GET /api/works/brands/:brandId/assets/:fileName` 第一版已补浏览器缓存头 `private, max-age=86400`，用于减少图片/视频预览反复回源应用服务
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
   - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域站内接口读取，不直接暴露底层 OSS 链接，降低不同浏览器因绝对地址不一致导致的裂图差异
@@ -437,6 +442,7 @@
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
+  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
   - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
   - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
 - `TasksModule`：任务记录与重试

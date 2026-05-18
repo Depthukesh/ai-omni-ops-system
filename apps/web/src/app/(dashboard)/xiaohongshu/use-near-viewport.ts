@@ -8,7 +8,7 @@ export interface UseNearViewportOptions {
 }
 
 export function useNearViewport<T extends Element>(options?: UseNearViewportOptions): {
-  ref: RefObject<T | null>;
+  ref: RefObject<T>;
   isNearViewport: boolean;
 } {
   const ref = useRef<T | null>(null);
@@ -42,7 +42,7 @@ export function useNearViewport<T extends Element>(options?: UseNearViewportOpti
   }, [isNearViewport, options?.rootMargin, options?.threshold]);
 
   return {
-    ref,
+    ref: ref as RefObject<T>,
     isNearViewport,
   };
 }

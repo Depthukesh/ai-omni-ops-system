@@ -6,6 +6,7 @@ import {
   type XiaohongshuDesktopDraftSession,
   type XiaohongshuMobileDraftSession,
 } from "../../../services/publishing";
+import { ManagedImage } from "./managed-image";
 
 const EXTENSION_DOWNLOAD_URL = "/extensions/xhs-draft-publisher.zip";
 const EXTENSION_GUIDE_URL = "/help/xhs-draft-publisher";
@@ -132,7 +133,7 @@ export function PublishModal(props: PublishModalProps) {
               <div className="publish-qr-panel">
                 <div className="publish-qr-code">
                   {props.mobilePublishQrDataUrl ? (
-                    <img src={props.mobilePublishQrDataUrl} alt="手机扫码接力二维码" />
+                    <ManagedImage src={props.mobilePublishQrDataUrl} alt="手机扫码接力二维码" loadingMode="eager" />
                   ) : (
                     <div className="publish-qr-placeholder">二维码生成中</div>
                   )}
