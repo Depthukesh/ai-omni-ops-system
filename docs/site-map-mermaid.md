@@ -240,6 +240,7 @@ flowchart TD
     XHSW --> HK0["useXiaohongshuWorkspaceLoader"]
     XHSW --> HK8["useXiaohongshuWorkspaceTasks"]
     XHSW --> HK9["noteWorkspaceSectionProps"]
+    XHSW --> HK10["NoteWorkspaceSections"]
     HK0 --> XA["auth.ts /auth/me 校正当前品牌"]
 
     XHSW --> HX1["AssetsWorkspace 素材库"]
@@ -295,6 +296,9 @@ flowchart TD
     HK9 --> HX5
     HK9 --> HX6
     HK9 --> HH5
+    HK10 --> HX4
+    HK10 --> HX5
+    HK10 --> HX6
     HK1 --> SX1["xiaohongshu.ts"]
     HK2 --> SX2["publishing.ts"]
     HK3 --> SX3["works.ts"]
@@ -722,6 +726,7 @@ flowchart LR
 - 工作区加载编排：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
 - 工作区任务轮询与状态派生：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-tasks.ts`
 - 原创/二创/视频 section props 装配：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-props.ts`
+- 原创/二创/视频 section 路由层：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-sections.tsx`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`
