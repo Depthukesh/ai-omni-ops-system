@@ -94,6 +94,12 @@ export type ContinueXiaohongshuVideoGenerationPayload = {
   customVideoModelName?: string;
 };
 
+export type RecoverXiaohongshuVideoGenerationPayload = {
+  workId?: string;
+  providerTaskId?: string;
+  requestedVideoProvider?: string;
+};
+
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
 type ImageTextPlanEntry = {
@@ -1621,6 +1627,127 @@ export class WorksService {
     };
   }
 
+  async recoverXiaohongshuVideoGeneration(
+    brandId: string,
+    payload: RecoverXiaohongshuVideoGenerationPayload,
+  ) {
+    const providerTaskId = payload.providerTaskId?.trim();
+    if (!providerTaskId) {
+      throw new BadRequestException("请提供第三方视频任务 ID。");
+    }
+
+    const target = payload.workId?.trim()
+      ? await this.getVideoWorkRowById(brandId, payload.workId.trim())
+      : await this.findRecoverableVideoWorkRow(brandId, providerTaskId, payload.requestedVideoProvider?.trim());
+    const workId = String(target.id || "").trim();
+    const storageKey = target.storageKey || `${workId}.html`;
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || String(target.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("当前视频笔记缺少站内任务记录，暂无法恢复。");
+    }
+
+    const backend = this.normalizeVideoProvider(
+      payload.requestedVideoProvider?.trim() || meta.resolvedVideoProvider || meta.requestedVideoProvider,
+    );
+    const config = await this.loadVideoProviderConfig(brandId, backend);
+    const snapshot = await this.queryVideoGenerationSnapshot(
+      config.baseUrls[0],
+      config.apiKeys[0],
+      config.backend,
+      config.queryPath,
+      providerTaskId,
+      {
+        fallbackDurationSec: meta.requestedDurationSec,
+        queryMethod: config.queryMethod,
+        queryBodyMode: config.queryBodyMode,
+      },
+    );
+
+    if (snapshot.status === "FAILED") {
+      await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "FAILED",
+        providerTaskId,
+        progressSteps: this.buildVideoProgressSteps("FAILED"),
+      });
+      await this.markTaskFailed(taskId, snapshot.failReason || "第三方视频生成任务失败");
+      throw new ServiceUnavailableException(snapshot.failReason || "第三方视频生成任务失败");
+    }
+
+    if (snapshot.status !== "SUCCESS" || !snapshot.videoUrl) {
+      const nextMeta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "GENERATING_VIDEO",
+        providerTaskId,
+        progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+      });
+      await this.markTaskRunning(taskId);
+      return {
+        recovered: false,
+        providerTaskId,
+        thirdPartyStatus: snapshot.status,
+        item: this.mapVideoWorkRecord(workId, brandId, taskId, nextMeta, "RUNNING"),
+      };
+    }
+
+    const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+      brandId,
+      `${taskId}-video-recovered-${config.backend}.mp4`,
+      snapshot.videoUrl,
+    );
+    const cachedCoverImageUrl = snapshot.coverImageUrl
+      ? await this.cacheRemoteGeneratedImage(
+        brandId,
+        `${taskId}-video-cover-recovered-${config.backend}.png`,
+        snapshot.coverImageUrl,
+        "image/png",
+      )
+      : undefined;
+    const userId = String((target as { userId?: string | null }).userId || "").trim() || await this.getBrandOwnerUserId(brandId);
+    if (!userId) {
+      throw new ServiceUnavailableException("恢复视频成功，但未找到作品归属用户，暂无法回填站内记录。");
+    }
+    const videoMedia = await this.upsertRecoveredVideoMedia({
+      userId,
+      brandId,
+      taskId,
+      workId,
+      title: `视频笔记视频 - ${meta.title}`,
+      sourceUrl: cachedVideoUrl,
+      provider: config.backend,
+      modelName: meta.resolvedVideoModel,
+      providerTaskId,
+      durationSec: snapshot.renderedDurationSec || meta.renderedDurationSec,
+      videoAssetId: meta.videoAssetId,
+    });
+    const nextMeta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      taskId,
+      workflowStage: "SUCCESS",
+      providerTaskId,
+      resolvedVideoProvider: config.backend,
+      renderedDurationSec: snapshot.renderedDurationSec || meta.renderedDurationSec,
+      videoAssetId: videoMedia.id,
+      videoUrl: cachedVideoUrl,
+      coverImageUrl: cachedCoverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
+      progressSteps: this.buildVideoProgressSteps("SUCCESS"),
+    });
+    await this.markTaskSuccess(
+      taskId,
+      { workId, stage: "VIDEO_RECOVERED", title: nextMeta.title, providerTaskId },
+      { modelName: nextMeta.resolvedVideoModel },
+    );
+    return {
+      recovered: true,
+      providerTaskId,
+      thirdPartyStatus: snapshot.status,
+      item: this.mapVideoWorkRecord(workId, brandId, taskId, nextMeta, "SUCCESS"),
+    };
+  }
+
   async deleteXiaohongshuOriginalNote(brandId: string, workId: string) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
@@ -2358,6 +2485,7 @@ export class WorksService {
         data: {
           taskStatus: TaskStatus.SUCCESS,
           finishedAt: new Date(),
+          errorMessage: null,
           outputJson: outputJson as Prisma.InputJsonValue,
           ...(options?.modelName ? { modelName: options.modelName } : {}),
         },
@@ -2559,6 +2687,88 @@ export class WorksService {
     };
     database.media.unshift(record);
     return record;
+  }
+
+  private async upsertRecoveredVideoMedia(params: {
+    userId: string;
+    brandId: string;
+    taskId: string;
+    workId: string;
+    title: string;
+    sourceUrl: string;
+    provider: string;
+    modelName?: string;
+    providerTaskId?: string;
+    durationSec?: number;
+    videoAssetId?: string;
+  }) {
+    const metadata: VideoAssetMeta = {
+      kind: "XHS_VIDEO_NOTE_VIDEO",
+      workId: params.workId,
+      taskId: params.taskId,
+      providerTaskId: params.providerTaskId,
+      provider: params.provider,
+      modelName: params.modelName,
+      durationSec: params.durationSec,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (params.videoAssetId) {
+      if (await this.prismaService.canUseDatabase()) {
+        try {
+          return await this.prismaService.mediaAsset.update({
+            where: { id: params.videoAssetId },
+            data: {
+              userId: params.userId,
+              brandId: params.brandId,
+              taskId: params.taskId,
+              title: params.title,
+              mediaType: MediaType.VIDEO,
+              sourceUrl: params.sourceUrl,
+              storageKey: this.toStorageKeyFromUrl(params.sourceUrl),
+              mimeType: "video/mp4",
+              durationSec: params.durationSec,
+              metadataJson: metadata as Prisma.InputJsonValue,
+            },
+          });
+        } catch {
+          // Fall back to create when the historical media row no longer exists.
+        }
+      } else {
+        const target = database.media.find((item) => item.id === params.videoAssetId);
+        if (target) {
+          const mutableTarget = target as typeof target & {
+            durationSec?: number;
+            metadataJson?: unknown;
+          };
+          target.userId = params.userId;
+          target.brandId = params.brandId;
+          target.taskId = params.taskId;
+          target.title = params.title;
+          target.mediaType = "VIDEO";
+          target.sourceUrl = params.sourceUrl;
+          target.storageKey = this.toStorageKeyFromUrl(params.sourceUrl);
+          target.mimeType = "video/mp4";
+          mutableTarget.durationSec = params.durationSec;
+          mutableTarget.metadataJson = metadata;
+          target.updatedAt = new Date().toISOString();
+          return target;
+        }
+      }
+    }
+
+    return this.createWorkVideoMedia({
+      userId: params.userId,
+      brandId: params.brandId,
+      taskId: params.taskId,
+      workId: params.workId,
+      title: params.title,
+      sourceUrl: params.sourceUrl,
+      provider: params.provider,
+      modelName: params.modelName,
+      providerTaskId: params.providerTaskId,
+      durationSec: params.durationSec,
+    });
   }
 
   private buildVideoSegmentDurations(totalDurationSec: number, segmentCount: number) {
@@ -4125,6 +4335,75 @@ export class WorksService {
       throw new NotFoundException("视频笔记不存在");
     }
     return row;
+  }
+
+  private async findRecoverableVideoWorkRow(brandId: string, providerTaskId: string, requestedVideoProvider?: string) {
+    const normalizedProvider = requestedVideoProvider
+      ? this.normalizeVideoBackendLookupKey(requestedVideoProvider)
+      : "";
+    const matchesProvider = (value?: string) =>
+      !normalizedProvider || this.normalizeVideoBackendLookupKey(value) === normalizedProvider;
+    const isRecoverableStage = (stage?: string) => stage === "FAILED" || stage === "GENERATING_VIDEO" || stage === "WAITING_VIDEO";
+
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const candidates = rows
+        .filter((item) => this.isVideoWorkMeta(item.metadataJson))
+        .map((item) => ({ row: item, meta: this.readVideoWorkMeta(item.metadataJson) }));
+      const exact = candidates.find((item) => item.meta.providerTaskId === providerTaskId);
+      if (exact) {
+        return exact.row;
+      }
+      const recoverable = candidates.filter((item) =>
+        !item.meta.videoUrl
+        && isRecoverableStage(item.meta.workflowStage)
+        && (matchesProvider(item.meta.resolvedVideoProvider) || matchesProvider(item.meta.requestedVideoProvider)),
+      );
+      if (recoverable.length === 1) {
+        return recoverable[0].row;
+      }
+      const failedOnly = recoverable.filter((item) => item.meta.workflowStage === "FAILED");
+      if (failedOnly.length === 1) {
+        return failedOnly[0].row;
+      }
+      if (!recoverable.length) {
+        throw new NotFoundException(`未找到可用于恢复第三方任务 ${providerTaskId} 的视频笔记。`);
+      }
+      throw new BadRequestException("当前品牌下存在多条待恢复的视频笔记，请补充 workId 后重试。");
+    }
+
+    const candidates = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => ({ row: item, meta: this.readVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson) }))
+      .sort((a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime());
+    const exact = candidates.find((item) => item.meta.providerTaskId === providerTaskId);
+    if (exact) {
+      return exact.row;
+    }
+    const recoverable = candidates.filter((item) =>
+      !item.meta.videoUrl
+      && isRecoverableStage(item.meta.workflowStage)
+      && (matchesProvider(item.meta.resolvedVideoProvider) || matchesProvider(item.meta.requestedVideoProvider)),
+    );
+    if (recoverable.length === 1) {
+      return recoverable[0].row;
+    }
+    const failedOnly = recoverable.filter((item) => item.meta.workflowStage === "FAILED");
+    if (failedOnly.length === 1) {
+      return failedOnly[0].row;
+    }
+    if (!recoverable.length) {
+      throw new NotFoundException(`未找到可用于恢复第三方任务 ${providerTaskId} 的视频笔记。`);
+    }
+    throw new BadRequestException("当前品牌下存在多条待恢复的视频笔记，请补充 workId 后重试。");
   }
 
   private getMediaMetadata(item: { metadataJson?: unknown }) {
@@ -6111,17 +6390,7 @@ export class WorksService {
     const maxAttempts = options.pollMaxAttempts && options.pollMaxAttempts > 0 ? options.pollMaxAttempts : 40;
     const pollIntervalMs = options.pollIntervalMs && options.pollIntervalMs >= 1000 ? options.pollIntervalMs : 4000;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const response = await this.requestAuthorizedJson(
-        baseUrl,
-        this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
-        apiKey,
-        {
-          method: options.queryMethod || "GET",
-          body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
-          timeoutMs: 120000,
-        },
-      );
-      const snapshot = this.readVideoTaskSnapshot(response, backend, options.fallbackDurationSec);
+      const snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, options);
       lastState = snapshot.status;
       if (snapshot.status === "SUCCESS" && snapshot.videoUrl) {
         return snapshot;
@@ -6138,6 +6407,31 @@ export class WorksService {
     }
 
     throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
+  }
+
+  private async queryVideoGenerationSnapshot(
+    baseUrl: string,
+    apiKey: string,
+    backend: VideoBackendKey,
+    queryPath: string,
+    taskId: string,
+    options: {
+      fallbackDurationSec?: number;
+      queryMethod?: "GET" | "POST";
+      queryBodyMode?: "taskId-json";
+    },
+  ) {
+    const response = await this.requestAuthorizedJson(
+      baseUrl,
+      this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
+      apiKey,
+      {
+        method: options.queryMethod || "GET",
+        body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
+        timeoutMs: 120000,
+      },
+    );
+    return this.readVideoTaskSnapshot(response, backend, options.fallbackDurationSec);
   }
 
   private resolveVideoQueryPath(queryPath: string, taskId: string, queryMethod: "GET" | "POST" = "GET") {

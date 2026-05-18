@@ -4,6 +4,7 @@ import {
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateXiaohongshuVideoNotePayload,
   type RegenerateXiaohongshuVideoStoryboardPayload,
+  type RecoverXiaohongshuVideoGenerationPayload,
   WorksService,
   type GenerateXiaohongshuOriginalNotePayload,
   type GenerateXiaohongshuRewriteNotePayload,
@@ -141,6 +142,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
       return this.worksService.continueXiaohongshuVideoGeneration(brandId, workId, payload, auth);
+    });
+  }
+
+  @Post("brands/:brandId/xiaohongshu/video/recover")
+  recoverXiaohongshuVideoGeneration(
+    @Param("brandId") brandId: string,
+    @Body() payload: RecoverXiaohongshuVideoGenerationPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "edit", auth);
+      return this.worksService.recoverXiaohongshuVideoGeneration(brandId, payload);
     });
   }
 
