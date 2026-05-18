@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { requestBlobByUrl } from "../../../services/http";
+import { ManagedImage } from "./managed-image";
 import { type MediaKind, type MediaLightboxState, type OptionalDateFormatter } from "./shared-types";
+import { useNearViewport } from "./use-near-viewport";
 import { buildCollectorMediaProxyUrl, getPreviewIndex, isProtectedCollectorMediaUrl } from "./work-media-helpers";
 
 type XhsMaterialMediaItem = {
@@ -13,7 +15,7 @@ type XhsMaterialMediaItem = {
   label: string;
 };
 
-function useMaterialPreviewAsset(sourceUrl?: string) {
+function useMaterialPreviewAsset(sourceUrl?: string, enabled = true) {
   const [displayUrl, setDisplayUrl] = useState("");
   const [downloadFileName, setDownloadFileName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +23,14 @@ function useMaterialPreviewAsset(sourceUrl?: string) {
 
   useEffect(() => {
     if (!sourceUrl) {
+      setDisplayUrl("");
+      setDownloadFileName("");
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
+    if (!enabled) {
       setDisplayUrl("");
       setDownloadFileName("");
       setIsLoading(false);
@@ -72,7 +82,7 @@ function useMaterialPreviewAsset(sourceUrl?: string) {
         URL.revokeObjectURL(currentObjectUrl);
       }
     };
-  }, [sourceUrl]);
+  }, [enabled, sourceUrl]);
 
   return {
     displayUrl,
@@ -89,10 +99,13 @@ function MaterialPreviewStage(props: {
   onSelect: () => void;
   onOpenLightbox: (payload: MediaLightboxState) => void;
 }) {
-  const media = useMaterialPreviewAsset(props.mediaItem?.previewUrl);
+  const { ref, isNearViewport } = useNearViewport<HTMLButtonElement>();
+  const shouldLoadPreview = isNearViewport || props.isSelected;
+  const media = useMaterialPreviewAsset(props.mediaItem?.previewUrl, shouldLoadPreview);
 
   return (
     <button
+      ref={ref}
       type="button"
       className="xhs-material-card-stage"
       onClick={() => {
@@ -109,13 +122,13 @@ function MaterialPreviewStage(props: {
       {props.mediaItem ? (
         media.displayUrl ? (
           props.mediaItem.type === "VIDEO" ? (
-            <video className="xhs-material-card-media" src={media.displayUrl} muted preload="metadata" />
+            <video className="xhs-material-card-media" src={media.displayUrl} muted preload="none" />
           ) : (
-            <img className="xhs-material-card-media" src={media.displayUrl} alt={props.itemTitle} />
+            <ManagedImage className="xhs-material-card-media" src={media.displayUrl} alt={props.itemTitle} />
           )
         ) : (
           <span className="xhs-material-card-empty">
-            {media.errorMessage || (media.isLoading ? "素材加载中..." : "素材暂不可用")}
+            {media.errorMessage || (media.isLoading ? "素材加载中..." : shouldLoadPreview ? "素材暂不可用" : "滚动后加载")}
           </span>
         )
       ) : (

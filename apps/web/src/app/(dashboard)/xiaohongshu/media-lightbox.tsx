@@ -1,5 +1,6 @@
 "use client";
 
+import { ManagedImage } from "./managed-image";
 import { type MediaLightboxState } from "./shared-types";
 
 export interface MediaLightboxProps {
@@ -25,7 +26,12 @@ export function MediaLightbox(props: MediaLightboxProps) {
           {props.state.type === "VIDEO" ? (
             <video controls preload="metadata" className="xhs-material-lightbox-video" src={props.state.url} />
           ) : (
-            <img src={props.state.url} alt={props.state.title} className="media-lightbox-image" />
+            <ManagedImage
+              src={props.state.url}
+              alt={props.state.title}
+              className="media-lightbox-image"
+              loadingMode="eager"
+            />
           )}
         </div>
       </div>

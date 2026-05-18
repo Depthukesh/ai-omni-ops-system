@@ -6,6 +6,7 @@ import {
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
 } from "../../../services/works";
+import { ManagedImage } from "./managed-image";
 import { type OptionalDateFormatter } from "./shared-types";
 
 export interface OriginalWorkCardGridProps {
@@ -25,10 +26,11 @@ export function OriginalWorkCardGrid(props: OriginalWorkCardGridProps) {
   return (
     <div className="xhs-material-library">
       <div className="xhs-material-card-grid">
-        {props.items.map((item) => {
+        {props.items.map((item, index) => {
           const mediaUrls = getWorkMediaUrls(item.coverImageUrl, item.imageUrls);
           const previewIndex = getPreviewIndex(props.previewIndexMap, item.id, mediaUrls.length);
           const previewUrl = mediaUrls[previewIndex];
+          const loadingMode = index < 3 ? "eager" : "lazy";
           return (
             <article key={item.id} className="xhs-material-card">
               <button
@@ -37,7 +39,12 @@ export function OriginalWorkCardGrid(props: OriginalWorkCardGridProps) {
                 onClick={() => props.onOpenLightbox(item, previewIndex)}
               >
                 {previewUrl ? (
-                  <img className="xhs-material-card-media" src={previewUrl} alt={item.title} />
+                  <ManagedImage
+                    className="xhs-material-card-media"
+                    src={previewUrl}
+                    alt={item.title}
+                    loadingMode={loadingMode}
+                  />
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}
@@ -103,10 +110,11 @@ export function RewriteWorkCardGrid(props: RewriteWorkCardGridProps) {
   return (
     <div className="xhs-material-library">
       <div className="xhs-material-card-grid">
-        {props.items.map((item) => {
+        {props.items.map((item, index) => {
           const mediaUrls = getWorkMediaUrls(item.coverImageUrl, item.imageUrls);
           const previewIndex = getPreviewIndex(props.previewIndexMap, item.id, mediaUrls.length);
           const previewUrl = mediaUrls[previewIndex];
+          const loadingMode = index < 3 ? "eager" : "lazy";
           return (
             <article key={item.id} className="xhs-material-card">
               <button
@@ -115,7 +123,12 @@ export function RewriteWorkCardGrid(props: RewriteWorkCardGridProps) {
                 onClick={() => props.onOpenLightbox(item, previewIndex)}
               >
                 {previewUrl ? (
-                  <img className="xhs-material-card-media" src={previewUrl} alt={item.title} />
+                  <ManagedImage
+                    className="xhs-material-card-media"
+                    src={previewUrl}
+                    alt={item.title}
+                    loadingMode={loadingMode}
+                  />
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}
@@ -179,9 +192,10 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
   return (
     <div className="xhs-material-library">
       <div className="xhs-material-card-grid">
-        {props.items.map((item) => {
+        {props.items.map((item, index) => {
           const previewImageUrl = item.storyboardImageUrl || item.coverImageUrl || "";
           const isActive = props.selectedWorkId === item.id;
+          const loadingMode = index < 3 ? "eager" : "lazy";
           return (
             <article key={item.id} className="xhs-material-card">
               <button
@@ -190,9 +204,14 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
                 onClick={() => props.onSelect(item)}
               >
                 {previewImageUrl ? (
-                  <img className="xhs-material-card-media" src={previewImageUrl} alt={item.title} />
+                  <ManagedImage
+                    className="xhs-material-card-media"
+                    src={previewImageUrl}
+                    alt={item.title}
+                    loadingMode={loadingMode}
+                  />
                 ) : item.videoUrl ? (
-                  <video className="xhs-material-card-media" src={item.videoUrl} muted preload="metadata" />
+                  <video className="xhs-material-card-media" src={item.videoUrl} muted preload="none" />
                 ) : (
                   <span className="xhs-material-card-empty">暂无封面</span>
                 )}

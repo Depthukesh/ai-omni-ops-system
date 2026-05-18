@@ -240,6 +240,7 @@ export class WorksController {
   ) {
     const file = await this.worksService.getGeneratedAsset(brandId, fileName);
     response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Cache-Control", "private, max-age=86400");
     return response.send(file.buffer);
   }
 }

@@ -2786,6 +2786,8 @@ button {
   border: 1px solid #e9eef8;
   background: #fff;
   box-shadow: 0 10px 24px rgba(22, 30, 53, 0.06);
+  content-visibility: auto;
+  contain-intrinsic-size: 520px;
 }
 
 .xhs-material-card.is-active {
@@ -3801,6 +3803,8 @@ button {
   text-align: left;
   box-shadow: 0 10px 24px rgba(33, 43, 75, 0.06);
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
 }
 
 .reference-template-card:hover {

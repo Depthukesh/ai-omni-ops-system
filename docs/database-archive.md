@@ -122,6 +122,7 @@
   - 关键字段：`mediaType`、`title`、`sourceUrl`、`storageKey`、`mimeType`、`durationSec`、`metadataJson`
   - 当前 `works` 主链路约定：`sourceUrl` 走站内 `/api/works/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `works/<brandId>/<fileName>`
   - 当前 `reports` 主链路约定：`sourceUrl` 走站内 `/api/reports/brands/:brandId/assets/:fileName`，`storageKey` 指向 OSS 中的 `reports/<brandId>/<fileName>`
+  - 当前图片加载优化第一版只收口读取层：不改 `MediaAsset` 结构，也不新增图片规格字段；浏览器缓存与懒加载策略先在前端组件与读取接口层落地
 
 ### 3.5 飞书集成域
 

@@ -5,6 +5,7 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
+import { ManagedImage } from "./managed-image";
 
 type OriginalReferenceTemplatePickerProps = {
   open: boolean;
@@ -185,11 +186,11 @@ export function OriginalReferenceTemplatePicker(props: OriginalReferenceTemplate
                           <span>该模板资源可能尚未同步完成，请先刷新模板或切换其他模板。</span>
                         </div>
                       ) : null}
-                      <img
+                      <ManagedImage
                         className={`reference-template-image ${failedImageIds.includes(item.id) ? "is-hidden" : ""}`}
                         src={item.assetUrl}
                         alt={item.title}
-                        loading="lazy"
+                        loadingMode="lazy"
                         onError={() =>
                           setFailedImageIds((current) => (current.includes(item.id) ? current : [...current, item.id]))
                         }

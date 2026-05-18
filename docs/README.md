@@ -50,6 +50,9 @@
 - 文件：`docs/personal-center-multi-user-system-plan.md`
 - 作用：记录个人中心、多用户、品牌成员协作、任务中心、用户技能覆盖层、会员积分和后台用户管理的整体目标方案与执行路径
 - 更新时机：相关模块的权限模型、数据模型、执行阶段或页面结构方案发生变化时
+- 文件：`docs/system-refactor-roadmap.md`
+- 作用：记录系统按“不影响现有业务”的方式分阶段拆结构、收口性能与控制膨胀的执行路线
+- 更新时机：当重构阶段、目标边界、优先级或拆分顺序发生变化时
 
 ## 记录原则
 
@@ -189,6 +192,8 @@
   - 修复柏拉图平台 `seedance2.0` 视频任务已创建并扣费，但站内仅轮询 160 秒就误判失败的问题；当前视频 Provider 支持独立轮询窗口，Seedance 默认放宽到约 15 分钟
 - `docs/changes/2026-05-18-remove-platogram-platform.md`
   - 柏拉图第三方平台下线后，移除其平台基线与共享代理 Provider，并在服务启动时自动清理旧数据库残留；视频笔记默认值同步切到火山方舟 Seedance 2.0
+- `docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
+  - 输出系统重构路线图，并先落地图片加载优化第一版：统一图片组件、近视口加载、列表渲染收口和媒体缓存头优化
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

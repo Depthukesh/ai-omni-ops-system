@@ -73,6 +73,7 @@ flowchart TD
     E --> E3["engineering-standards.md"]
     E --> E4["changes/*.md"]
     E --> E5["database-archive.md"]
+    E --> E6["system-refactor-roadmap.md 重构路线图"]
 
     F --> F1["dev:web:stable"]
     F --> F2["dev:server:stable"]
@@ -631,6 +632,7 @@ flowchart LR
     Docs --> D3["changes/*.md 变更记录"]
     Docs --> D4["engineering-standards.md 开发规范"]
     Docs --> D5["database-archive.md 数据库存档"]
+    Docs --> D6["system-refactor-roadmap.md 分阶段拆结构路线"]
 ```
 
 ## 12. 维护规则

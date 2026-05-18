@@ -107,7 +107,9 @@
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
 - 素材库
   - 当前素材库中的飞书图片/视频预览若命中站内 `feishu-media` 代理，会先通过前端鉴权请求拉取 blob，再转 object URL 给卡片和灯箱展示，避免浏览器媒体请求不带 Bearer Token 导致空白
+  - 当前素材库第一版性能优化已落地：受保护媒体改为接近视口后再触发 blob 拉取，非当前可视区域素材不再在首屏一次性全部并发请求
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
+  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 营销日历
   - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
   - 当前已补入前后台技能中心：技能 slug 为 `xiaohongshu-marketing-calendar`，提示词为 `prompt_xhs_calendar`，默认优先回源 `提示词/营销日历提示词.txt`
@@ -126,6 +128,7 @@
   - “封面参考图 / 配图参考图”已升级为模板图库选择 + 本地上传兜底双入口；模板选中后会先下载成 `File`，再继续复用现有参考图分析与生图链路
   - 当前原创链路已拆成两层技能：`原创配图提示词` 负责生成封面/内页提示词，`原创图片生成` 负责选择最终图像模型、继承参考图结构并执行成品图生成
   - 原创模板图库当前通过 `GET /api/works/xiaohongshu/original/reference-templates` 返回分类与模板清单，并通过站内 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域受控读取图片资源；若某张模板对象缺失，前端会显示“模板预览加载失败”占位而不是只保留浏览器裂图图标
+  - 当前原创模板图库第一版性能优化已落地：模板卡片改为统一懒加载图片组件，并对长列表卡片启用浏览器级内容可见性裁剪，降低模板库首屏渲染开销
   - 本地开发因前端走 `3001`、后端走 `3011` 属于跨端口请求；模板资源接口现已暴露 `Content-Disposition` 给浏览器端 `fetch`，回填表单时可保留真实模板文件名，不再退回显示 `asset`
   - 上传参考图当前会同时参与两步：先进入 `analyzeReferenceImages()` 做风格拆解，再在最终文生图阶段以原图 data URL 形式继续传给图像模型，不再只保留文字化风格档案
   - 最终成品图 prompt 已显式增加竖版 `1242x1660`、中文排版、标题层级和 8% 安全边距约束，用于收紧文字贴边和越界问题
@@ -133,6 +136,7 @@
   - 当前支持在小红书工作区和个人中心任务中心对运行中的任务发起 `取消任务`；取消属于 best-effort 中断，会尽量阻止后续步骤继续写回成功状态
 - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`、`docs/changes/2026-05-15-xhs-reference-template-same-origin-preview-fallback.md`
 - 参考变更：`docs/changes/2026-05-15-xhs-original-account-role.md`
+- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 二创笔记
   - 已支持二创图文作品列表、添加弹窗、编辑、删除
   - 已接入素材库作品选择、产品选择、账号角色、用户要求
@@ -143,6 +147,7 @@
   - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
 - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
 - 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
+- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 视频笔记
   - 已支持视频作品列表、三阶段详情面板、添加弹窗、编辑、删除
   - 已接入营销日历选题、自定义选题、产品选择、视频素材库、账号角色、参考图上传、视频模型、时长和双段用户要求
@@ -156,6 +161,7 @@
   - 创作成功后会自动刷新任务状态和作品列表；故事板阶段完成后可直接在详情区修改提示词并重生故事板，或继续生成短视频
 - 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
 - 参考变更：`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
+- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
   - `xiaohongshu/page.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
@@ -381,6 +387,7 @@
   - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
 - `CollectorsModule`：小红书收集、飞书同步、每日热点
   - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染
+  - 飞书媒体代理第一版已把浏览器缓存时间从 5 分钟提升到 30 分钟，用于降低同一素材在工作区反复滚动、打开和灯箱预览时的重复回源成本
 - `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历
 - `ReportsModule`
   - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
@@ -407,6 +414,8 @@
   - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
   - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
   - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
+  - 当前作品卡片第一版性能优化已落地：首屏前三张图片优先加载，其余卡片图改为延后懒加载；视频卡片预览视频改为 `preload="none"`，降低打开工作区时的媒体并发压力
+  - 当前作品资产读取接口 `GET /api/works/brands/:brandId/assets/:fileName` 第一版已补浏览器缓存头 `private, max-age=86400`，用于减少图片/视频预览反复回源应用服务
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
   - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域站内接口读取，不直接暴露底层 OSS 链接，降低不同浏览器因绝对地址不一致导致的裂图差异
   - 原创文案、原创配图提示词、原创图片生成、二创文案、二创配图提示词、二创图片生成、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
@@ -427,6 +436,7 @@
   - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
+  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
   - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
   - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
 - `TasksModule`：任务记录与重试

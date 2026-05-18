@@ -92,7 +92,7 @@ export class CollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     const file = await this.collectorsService.fetchFeishuMedia(brandId, sourceUrl);
     response.setHeader("Content-Type", file.contentType);
-    response.setHeader("Cache-Control", "private, max-age=300");
+    response.setHeader("Cache-Control", "private, max-age=1800");
     response.setHeader(
       "Content-Disposition",
       `${download === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
