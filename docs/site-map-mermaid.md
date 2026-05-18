@@ -238,6 +238,7 @@ flowchart TD
     XHS["/xiaohongshu page.tsx"]
     XHS --> XHSW["workspace-shell.tsx 编排壳层"]
     XHSW --> HK0["useXiaohongshuWorkspaceLoader"]
+    XHSW --> HK8["useXiaohongshuWorkspaceTasks"]
     HK0 --> XA["auth.ts /auth/me 校正当前品牌"]
 
     XHSW --> HX1["AssetsWorkspace 素材库"]
@@ -285,6 +286,10 @@ flowchart TD
     HK0 --> SX5["reports.ts"]
     HK0 --> SX3["works.ts"]
     HK0 --> SX6["brand-growth.ts 权限模板"]
+    HK8 --> HK7
+    HK8 --> HH6["task-status-text-helpers.ts"]
+    HK8 --> HH8["work-task-helpers.ts"]
+    HK8 --> SX5
     HK1 --> SX1["xiaohongshu.ts"]
     HK2 --> SX2["publishing.ts"]
     HK3 --> SX3["works.ts"]
@@ -710,6 +715,7 @@ flowchart LR
 ### 13.4 小红书工作台 hook 与 helper 索引
 
 - 工作区加载编排：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
+- 工作区任务轮询与状态派生：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-tasks.ts`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`

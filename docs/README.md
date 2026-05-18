@@ -200,6 +200,8 @@
   - 小红书工作台先完成“薄入口 + 编排壳层”拆分：`page.tsx` 只保留路由挂载，原有聚合加载、权限闸门、轮询与弹窗编排统一下沉到 `workspace-shell.tsx`
 - `docs/changes/2026-05-18-xiaohongshu-workspace-loader-hook.md`
   - 在薄壳基础上继续把品牌上下文校正、权限门卫、工作区聚合加载和局部刷新抽到 `use-xiaohongshu-workspace-loader.ts`，让 `workspace-shell.tsx` 更聚焦状态消费与 section 装配
+- `docs/changes/2026-05-18-xiaohongshu-workspace-task-hook.md`
+  - 继续把营销策划方案、营销日历、原创/二创/视频和发布任务的轮询与状态派生抽到 `use-xiaohongshu-workspace-tasks.ts`，进一步降低壳层编排密度
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

@@ -105,6 +105,7 @@
 - 左侧导航：已改为更简化的目录式浅底菜单，仅保留分区按钮本体；当前只展示当前账号有 `view` 权限的小红书板块
 - 当前页面入口已拆为薄路由 + 工作区壳层：`page.tsx` 只负责挂载 `workspace-shell.tsx`，原有品牌上下文校正、权限闸门、工作区聚合加载、轮询与弹窗编排统一下沉到壳层文件，便于后续继续拆分 section 容器与共享 hook
 - 当前工作区壳层里的品牌上下文校正、权限门卫、聚合加载和局部刷新，已进一步抽到 `use-xiaohongshu-workspace-loader.ts`，壳层开始从“异步 orchestration + 视图混写”转向“状态消费 + section 装配”
+- 当前营销策划方案、营销日历、原创/二创/视频和发布任务的最新状态派生与轮询刷新，已进一步抽到 `use-xiaohongshu-workspace-tasks.ts`；`workspace-shell.tsx` 不再内联拼装多组 `findLatestTaskByTypes + useDelayedTaskPolling`
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
@@ -174,6 +175,7 @@
   - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-shell-split.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-loader-hook.md`
+  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-task-hook.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -362,6 +364,8 @@
   - 进入工作区后只会继续请求当前账号有查看权限的营销方案、营销日历、作品列表、视频 Provider 与模板数据，避免无权限板块继续报错
 - `apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
   - 当前承接品牌上下文校正、权限门卫、工作区聚合加载、原创模板刷新以及营销方案/营销日历局部刷新逻辑
+- `apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-tasks.ts`
+  - 当前承接营销策划方案、营销日历、原创/二创/视频与发布任务的状态派生、失败内联错误、取消中态和延迟轮询刷新
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
   - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出

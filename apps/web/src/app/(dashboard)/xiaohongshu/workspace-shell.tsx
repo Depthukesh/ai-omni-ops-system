@@ -21,11 +21,11 @@ import {
   getWorkTaskStatusText,
 } from "./publish-status-helpers";
 import { type PublishableWorkTarget } from "./publish-types";
-import { getComposeTaskStatusText, getPhaseTaskStatusText } from "./task-status-text-helpers";
-import { findLatestTaskByTypes, isTaskActive, useDelayedTaskPolling } from "./task-polling";
+import { isTaskActive } from "./task-polling";
 import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
 import { useXiaohongshuWorkspaceLoader } from "./use-xiaohongshu-workspace-loader";
+import { useXiaohongshuWorkspaceTasks } from "./use-xiaohongshu-workspace-tasks";
 import { useWorkComposerActions } from "./use-work-composer-actions";
 import { useWorkEditors } from "./use-work-editors";
 import { useWorkMutationActions } from "./use-work-mutation-actions";
@@ -45,10 +45,8 @@ import {
   getRewriteWorkMediaUrls,
 } from "./work-media-helpers";
 import {
-  buildPublishTaskMap,
   getMatchedDraft,
   getRelatedWorks,
-  readTaskWorkKind,
 } from "./work-task-helpers";
 import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services/personal-center";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
@@ -70,7 +68,6 @@ import {
   getDefaultProduct,
   getDefaultXiaohongshuAccount,
   getXiaohongshuMedia,
-  getXiaohongshuTasks,
   getXiaohongshuWorkspaceSeed,
   type XiaohongshuGoal,
   type XiaohongshuNoteDraft,
@@ -398,47 +395,6 @@ export function XiaohongshuWorkspaceShell() {
     }
   }, [activeSection, visibleSections]);
 
-  const pollingOriginalTask = findLatestTaskByTypes(workspace.tasks, "XHS_ORIGINAL_NOTE");
-  const pollingRewriteTask = findLatestTaskByTypes(workspace.tasks, "XHS_REWRITE_NOTE");
-  const pollingVideoTask = findLatestTaskByTypes(workspace.tasks, "XHS_VIDEO_NOTE");
-  const pollingPublishTask = findLatestTaskByTypes(workspace.tasks, ["XHS_PUBLISH_MOBILE_DRAFT", "XHS_PUBLISH_DESKTOP_DRAFT"]);
-
-  useDelayedTaskPolling({
-    active: isTaskActive(marketingPlanWorkspace.latestTask?.taskStatus),
-    updatedAt: marketingPlanWorkspace.latestTask?.updatedAt,
-    onPoll: () => refreshMarketingPlanWorkspace(true),
-  });
-
-  useDelayedTaskPolling({
-    active: isTaskActive(calendarWorkspace.latestTask?.taskStatus),
-    updatedAt: calendarWorkspace.latestTask?.updatedAt,
-    onPoll: () => refreshCalendarWorkspace(true),
-  });
-
-  useDelayedTaskPolling({
-    active: isTaskActive(pollingOriginalTask?.taskStatus),
-    updatedAt: pollingOriginalTask?.updatedAt,
-    onPoll: () => loadWorkspace(),
-  });
-
-  useDelayedTaskPolling({
-    active: isTaskActive(pollingRewriteTask?.taskStatus),
-    updatedAt: pollingRewriteTask?.updatedAt,
-    onPoll: () => loadWorkspace(),
-  });
-
-  useDelayedTaskPolling({
-    active: isTaskActive(pollingVideoTask?.taskStatus),
-    updatedAt: pollingVideoTask?.updatedAt,
-    onPoll: () => loadWorkspace(),
-  });
-
-  useDelayedTaskPolling({
-    active: isTaskActive(pollingPublishTask?.taskStatus),
-    updatedAt: pollingPublishTask?.updatedAt,
-    onPoll: () => loadWorkspace(),
-  });
-
   const {
     publishingTarget,
     publishingAccountValue,
@@ -499,13 +455,9 @@ export function XiaohongshuWorkspaceShell() {
     brandPermissionSettings?.currentUserPermissions?.[xiaohongshuSectionPermissionMap[currentSection.key]]?.edit,
   );
 
-  const xhsTasks = useMemo(() => getXiaohongshuTasks(workspace.tasks), [workspace.tasks]);
   const xhsMedia = useMemo(() => getXiaohongshuMedia(workspace.media), [workspace.media]);
-  const originalTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_ORIGINAL_NOTE").length, [workspace.tasks]);
-  const latestOriginalTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_ORIGINAL_NOTE"), [workspace.tasks]);
   const materialNotes = useMemo(() => workspace.materialNotes, [workspace.materialNotes]);
   const selectedWork = xhsMedia.find((item) => item.id === selectedWorkId) || xhsMedia[0];
-  const selectedWorkTask = workspace.tasks.find((item) => item.id === selectedWork?.taskId);
   const selectedWorkDraft = useMemo(() => getMatchedDraft(selectedWork, noteDrafts), [noteDrafts, selectedWork]);
   const relatedWorks = useMemo(() => getRelatedWorks(xhsMedia, selectedWork), [selectedWork, xhsMedia]);
   const latestGrowthReport = growthReportWorkspace.latest;
@@ -516,18 +468,6 @@ export function XiaohongshuWorkspaceShell() {
   const latestCalendarTask = calendarWorkspace.latestTask;
   const canGenerateMarketingPlan = Boolean(latestGrowthReport && latestAnnualPlan);
   const canGenerateCalendar = Boolean(latestGrowthReport && latestAnnualPlan && latestMarketingPlan);
-  const isMarketingPlanTaskActive = Boolean(latestMarketingPlanTask && isTaskActive(latestMarketingPlanTask.taskStatus));
-  const isCalendarTaskActive = Boolean(latestCalendarTask && isTaskActive(latestCalendarTask.taskStatus));
-  const marketingPlanInlineError =
-    latestMarketingPlanTask?.taskStatus === "FAILED" ? latestMarketingPlanTask.errorMessage?.trim() || "" : "";
-  const calendarInlineError = latestCalendarTask?.taskStatus === "FAILED" ? latestCalendarTask.errorMessage?.trim() || "" : "";
-  const topLevelErrorMessage =
-    activeSection === "plan" && marketingPlanInlineError
-      ? errorMessage.replace(`小红书营销策划方案生成失败：${marketingPlanInlineError}`, "").trim()
-      : activeSection === "calendar"
-        ? ""
-        : errorMessage;
-  const marketingPlanTaskStatusText = getPhaseTaskStatusText(latestMarketingPlanTask);
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
     [latestMarketingPlan?.reportMarkdown, marketingPlanDraft],
@@ -638,6 +578,56 @@ export function XiaohongshuWorkspaceShell() {
     },
   });
   const {
+    originalTaskCount,
+    latestOriginalTask,
+    isOriginalTaskActive,
+    originalInlineError,
+    originalTaskStatusText,
+    canCancelOriginalTask,
+    isCancellingOriginalTask,
+    rewriteTaskCount,
+    latestRewriteTask,
+    isRewriteTaskActive,
+    showRewriteSubmittingState,
+    rewriteInlineError,
+    rewriteTaskStatusText,
+    canCancelRewriteTask,
+    isCancellingRewriteTask,
+    videoTaskCount,
+    latestVideoTask,
+    isVideoTaskActive,
+    showVideoSubmittingState,
+    videoInlineError,
+    videoTaskStatusText,
+    canCancelVideoTask,
+    isCancellingVideoTask,
+    latestOriginalPublishTask,
+    latestRewritePublishTask,
+    publishTaskMap,
+    isMarketingPlanTaskActive,
+    marketingPlanInlineError,
+    marketingPlanTaskStatusText,
+    isCalendarTaskActive,
+    calendarInlineError,
+    calendarTaskStatusText,
+  } = useXiaohongshuWorkspaceTasks({
+    tasks: workspace.tasks,
+    marketingPlanTask: latestMarketingPlanTask,
+    calendarTask: latestCalendarTask,
+    isRewriteSubmitting,
+    isVideoSubmitting,
+    isCancellingTaskId,
+    loadWorkspace,
+    refreshMarketingPlanWorkspace,
+    refreshCalendarWorkspace,
+  });
+  const topLevelErrorMessage =
+    activeSection === "plan" && marketingPlanInlineError
+      ? errorMessage.replace(`小红书营销策划方案生成失败：${marketingPlanInlineError}`, "").trim()
+      : activeSection === "calendar"
+        ? ""
+        : errorMessage;
+  const {
     saveOriginalWork: handleSaveOriginalWork,
     deleteOriginalWork: handleDeleteOriginalWork,
     saveRewriteWork: handleSaveRewriteWork,
@@ -699,35 +689,6 @@ export function XiaohongshuWorkspaceShell() {
     }
     setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
   }, [isCalendarDetailOpen, isEditingCalendarItem, selectedCalendarItem]);
-  const calendarTaskStatusText = getPhaseTaskStatusText(latestCalendarTask);
-  const isOriginalTaskActive = Boolean(latestOriginalTask && isTaskActive(latestOriginalTask.taskStatus));
-  const originalInlineError = latestOriginalTask?.taskStatus === "FAILED" ? latestOriginalTask.errorMessage?.trim() || "" : "";
-  const originalTaskStatusText = getComposeTaskStatusText(latestOriginalTask);
-  const rewriteTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_REWRITE_NOTE").length, [workspace.tasks]);
-  const latestRewriteTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_REWRITE_NOTE"), [workspace.tasks]);
-  const isRewriteTaskActive = Boolean(latestRewriteTask && isTaskActive(latestRewriteTask.taskStatus));
-  const showRewriteSubmittingState = isRewriteSubmitting && !isRewriteTaskActive;
-  const rewriteInlineError = latestRewriteTask?.taskStatus === "FAILED" ? latestRewriteTask.errorMessage?.trim() || "" : "";
-  const rewriteTaskStatusText = getComposeTaskStatusText(latestRewriteTask);
-  const videoTaskCount = useMemo(() => workspace.tasks.filter((item) => item.taskType === "XHS_VIDEO_NOTE").length, [workspace.tasks]);
-  const latestVideoTask = useMemo(() => findLatestTaskByTypes(workspace.tasks, "XHS_VIDEO_NOTE"), [workspace.tasks]);
-  const isVideoTaskActive = Boolean(latestVideoTask && isTaskActive(latestVideoTask.taskStatus));
-  const showVideoSubmittingState = isVideoSubmitting && !isVideoTaskActive;
-  const videoInlineError = latestVideoTask?.taskStatus === "FAILED" ? latestVideoTask.errorMessage?.trim() || "" : "";
-  const videoTaskStatusText = getComposeTaskStatusText(latestVideoTask);
-  const isCancellingOriginalTask = isCancellingTaskId === latestOriginalTask?.id;
-  const isCancellingRewriteTask = isCancellingTaskId === latestRewriteTask?.id;
-  const isCancellingVideoTask = isCancellingTaskId === latestVideoTask?.id;
-  const mobilePublishTasks = useMemo(
-    () =>
-      workspace.tasks
-        .filter((item) => item.taskType === "XHS_PUBLISH_MOBILE_DRAFT" || item.taskType === "XHS_PUBLISH_DESKTOP_DRAFT")
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
-    [workspace.tasks],
-  );
-  const latestOriginalPublishTask = mobilePublishTasks.find((item) => readTaskWorkKind(item) === "ORIGINAL");
-  const latestRewritePublishTask = mobilePublishTasks.find((item) => readTaskWorkKind(item) === "REWRITE");
-  const publishTaskMap = useMemo(() => buildPublishTaskMap(mobilePublishTasks), [mobilePublishTasks]);
   const heroTitle =
     activeSection === "original"
       ? "原创笔记工作区"
@@ -1257,7 +1218,7 @@ export function XiaohongshuWorkspaceShell() {
           taskStatusText={originalTaskStatusText}
           inlineError={originalInlineError}
           isCancellingTask={isCancellingOriginalTask}
-          canCancelTask={isTaskActive(latestOriginalTask?.taskStatus)}
+          canCancelTask={canCancelOriginalTask}
           latestPublishTask={latestOriginalPublishTask}
           items={originalWorks}
           previewIndexMap={materialPreviewIndexMap}
@@ -1344,7 +1305,7 @@ export function XiaohongshuWorkspaceShell() {
           taskStatusText={rewriteTaskStatusText}
           inlineError={rewriteInlineError}
           isCancellingTask={isCancellingRewriteTask}
-          canCancelTask={isTaskActive(latestRewriteTask?.taskStatus)}
+          canCancelTask={canCancelRewriteTask}
           latestPublishTask={latestRewritePublishTask}
           items={rewriteWorks}
           materialNotes={materialNotes}
@@ -1415,7 +1376,7 @@ export function XiaohongshuWorkspaceShell() {
         taskStatusText={videoTaskStatusText}
         inlineError={videoInlineError}
         isCancellingTask={isCancellingVideoTask}
-        canCancelTask={isTaskActive(latestVideoTask?.taskStatus)}
+        canCancelTask={canCancelVideoTask}
         items={videoWorks}
         materialNotes={materialNotes}
         selectedWork={videoSelectedWork}
