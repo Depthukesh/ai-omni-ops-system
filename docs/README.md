@@ -220,6 +220,8 @@
   - 继续把原创与二创面板的模态挂载层抽成独立组件，对齐三类面板的模态编排模式
 - `docs/changes/2026-05-19-xiaohongshu-original-create-reference-fields-split.md`
   - 继续把原创创建弹窗中的参考模板选择、本地上传与模板应用局部块抽成独立子组件，减薄 `note-create-modals.tsx`
+- `docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
+  - 继续把原创、二创、视频共用的文本编辑弹窗壳层抽成独立组件，让 `note-edit-modals.tsx` 更聚焦差异字段映射
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

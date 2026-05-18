@@ -114,6 +114,7 @@
 - 当前 `VideoWorkspace` 的编辑弹窗和创建弹窗挂载层已进一步抽到 `video-workspace-modals.tsx`，面板本体尾部不再直接维护整段视频模态参数透传
 - 当前原创与二创面板的编辑弹窗、创建弹窗挂载层已进一步抽到 `note-workspace-modals.tsx`，三类 note 面板的模态挂载方式开始统一
 - 当前原创创建弹窗里的“封面参考图 / 配图参考图 / 模板选择器应用”局部块已进一步抽到 `original-create-reference-fields.tsx`，`note-create-modals.tsx` 不再内联维护模板应用状态与上传区细节
+- 当前原创、二创、视频三类编辑弹窗共用的文本编辑壳层已进一步抽到 `note-text-edit-modal.tsx`，`note-edit-modals.tsx` 当前更聚焦标题、摘要和视频差异字段映射
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
@@ -193,6 +194,7 @@
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-video-modal-mount-split.md`
   - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-modal-mount-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-reference-fields-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -403,6 +405,8 @@
   - 当前承接原创与二创 note 面板的编辑弹窗与创建弹窗挂载层
 - `apps/web/src/app/(dashboard)/xiaohongshu/original-create-reference-fields.tsx`
   - 当前承接原创创建弹窗中的封面参考图、配图参考图、本地上传和模板应用局部块
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-text-edit-modal.tsx`
+  - 当前承接原创、二创、视频编辑弹窗共用的文本编辑壳层，视频通过额外字段扩展故事板提示词
 - `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
   - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
   - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出

@@ -258,6 +258,9 @@ flowchart TD
     HX4 --> HX48["noteWorkspaceModals"]
     HX5 --> HX48
     HX4 --> HX49["originalCreateReferenceFields"]
+    HX4 --> HX410["noteTextEditModal"]
+    HX5 --> HX410
+    HX6 --> HX410
     HX6 --> HX46["videoWorkspaceDetailPanel"]
     HX6 --> HX47["videoWorkspaceModals"]
     XHSW --> HX7["PublishModal 发布弹窗"]
@@ -278,6 +281,7 @@ flowchart TD
     HX4 --> HX44["original-reference-template-picker.tsx"]
     HX41 --> HX49
     HX49 --> HX44
+    HX42 --> HX410
     HX5 --> HX41
     HX5 --> HX42
     HX5 --> HX43
@@ -737,6 +741,7 @@ flowchart LR
 - 创建弹窗：`apps/web/src/app/(dashboard)/xiaohongshu/note-create-modals.tsx`
 - 原创参考图字段子组件：`apps/web/src/app/(dashboard)/xiaohongshu/original-create-reference-fields.tsx`
 - 编辑弹窗：`apps/web/src/app/(dashboard)/xiaohongshu/note-edit-modals.tsx`
+- 文本编辑弹窗共享壳层：`apps/web/src/app/(dashboard)/xiaohongshu/note-text-edit-modal.tsx`
 - 作品卡片：`apps/web/src/app/(dashboard)/xiaohongshu/work-card-grids.tsx`
 - 发布弹窗：`apps/web/src/app/(dashboard)/xiaohongshu/publish-modal.tsx`
 - 全局灯箱：`apps/web/src/app/(dashboard)/xiaohongshu/media-lightbox.tsx`
