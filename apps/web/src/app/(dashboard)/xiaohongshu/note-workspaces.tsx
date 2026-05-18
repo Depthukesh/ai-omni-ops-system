@@ -10,10 +10,9 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
-import { OriginalCreateModal, RewriteCreateModal } from "./note-create-modals";
-import { OriginalEditModal, RewriteEditModal } from "./note-edit-modals";
 import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
 import { VideoWorkspaceDetailPanel } from "./video-workspace-detail-panel";
+import { OriginalWorkspaceModals, RewriteWorkspaceModals } from "./note-workspace-modals";
 import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
   type AsyncAction,
@@ -156,53 +155,54 @@ export function OriginalWorkspace(props: OriginalWorkspaceProps) {
         />
       )}
 
-      <OriginalEditModal
-        item={props.editingWork}
-        title={props.editingTitle}
-        content={props.editingContent}
-        savingWorkId={props.savingWorkId}
-        onClose={props.onCloseEdit}
-        onSave={props.onSaveEdit}
-        onTitleChange={props.onEditTitleChange}
-        onContentChange={props.onEditContentChange}
-        getTaskStatusClass={props.getOriginalTaskStatusClass}
-        getTaskStatusText={props.getOriginalTaskStatusText}
-      />
-
-      <OriginalCreateModal
-        open={props.isCreateModalOpen}
-        isPublishing={props.isPublishing}
-        calendarOptions={props.calendarOptions}
-        customTopicOption={props.customTopicOption}
-        noProductOption={props.noProductOption}
-        autoImageCountOption={props.autoImageCountOption}
-        products={props.products}
-        calendarValue={props.calendarValue}
-        customTopic={props.customTopic}
-        productValue={props.productValue}
-        accountRoleValue={props.accountRoleValue}
-        accountRoleOptions={props.accountRoleOptions}
-        imageCountValue={props.imageCountValue}
-        injectMarketingPlanValue={props.injectMarketingPlanValue}
-        additionalInstruction={props.additionalInstruction}
-        coverReferenceFile={props.coverReferenceFile}
-        galleryReferenceFiles={props.galleryReferenceFiles}
-        referenceTemplateCategories={props.referenceTemplateCategories}
-        referenceTemplateItems={props.referenceTemplateItems}
-        isReferenceTemplatesLoading={props.isReferenceTemplatesLoading}
-        referenceTemplatesError={props.referenceTemplatesError}
-        onClose={props.onCloseCreate}
-        onCreate={props.onCreate}
-        onCalendarChange={props.onCalendarChange}
-        onCustomTopicChange={props.onCustomTopicChange}
-        onProductChange={props.onProductChange}
-        onAccountRoleChange={props.onAccountRoleChange}
-        onImageCountChange={props.onImageCountChange}
-        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
-        onAdditionalInstructionChange={props.onAdditionalInstructionChange}
-        onCoverReferenceFileChange={props.onCoverReferenceFileChange}
-        onGalleryReferenceFilesChange={props.onGalleryReferenceFilesChange}
-        onReloadReferenceTemplates={props.onReloadReferenceTemplates}
+      <OriginalWorkspaceModals
+        editModalProps={{
+          item: props.editingWork,
+          title: props.editingTitle,
+          content: props.editingContent,
+          savingWorkId: props.savingWorkId,
+          onClose: props.onCloseEdit,
+          onSave: props.onSaveEdit,
+          onTitleChange: props.onEditTitleChange,
+          onContentChange: props.onEditContentChange,
+          getTaskStatusClass: props.getOriginalTaskStatusClass,
+          getTaskStatusText: props.getOriginalTaskStatusText,
+        }}
+        createModalProps={{
+          open: props.isCreateModalOpen,
+          isPublishing: props.isPublishing,
+          calendarOptions: props.calendarOptions,
+          customTopicOption: props.customTopicOption,
+          noProductOption: props.noProductOption,
+          autoImageCountOption: props.autoImageCountOption,
+          products: props.products,
+          calendarValue: props.calendarValue,
+          customTopic: props.customTopic,
+          productValue: props.productValue,
+          accountRoleValue: props.accountRoleValue,
+          accountRoleOptions: props.accountRoleOptions,
+          imageCountValue: props.imageCountValue,
+          injectMarketingPlanValue: props.injectMarketingPlanValue,
+          additionalInstruction: props.additionalInstruction,
+          coverReferenceFile: props.coverReferenceFile,
+          galleryReferenceFiles: props.galleryReferenceFiles,
+          referenceTemplateCategories: props.referenceTemplateCategories,
+          referenceTemplateItems: props.referenceTemplateItems,
+          isReferenceTemplatesLoading: props.isReferenceTemplatesLoading,
+          referenceTemplatesError: props.referenceTemplatesError,
+          onClose: props.onCloseCreate,
+          onCreate: props.onCreate,
+          onCalendarChange: props.onCalendarChange,
+          onCustomTopicChange: props.onCustomTopicChange,
+          onProductChange: props.onProductChange,
+          onAccountRoleChange: props.onAccountRoleChange,
+          onImageCountChange: props.onImageCountChange,
+          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
+          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
+          onCoverReferenceFileChange: props.onCoverReferenceFileChange,
+          onGalleryReferenceFilesChange: props.onGalleryReferenceFilesChange,
+          onReloadReferenceTemplates: props.onReloadReferenceTemplates,
+        }}
       />
     </article>
   );
@@ -333,38 +333,39 @@ export function RewriteWorkspace(props: RewriteWorkspaceProps) {
         />
       )}
 
-      <RewriteEditModal
-        item={props.editingWork}
-        title={props.editingTitle}
-        content={props.editingContent}
-        savingWorkId={props.savingWorkId}
-        onClose={props.onCloseEdit}
-        onSave={props.onSaveEdit}
-        onTitleChange={props.onEditTitleChange}
-        onContentChange={props.onEditContentChange}
-        getTaskStatusClass={props.getOriginalTaskStatusClass}
-        getTaskStatusText={props.getOriginalTaskStatusText}
-      />
-
-      <RewriteCreateModal
-        open={props.isCreateModalOpen}
-        isPublishing={props.isPublishing}
-        noProductOption={props.noProductOption}
-        materials={props.materialNotes}
-        products={props.products}
-        materialValue={props.materialValue}
-        productValue={props.productValue}
-        accountRoleValue={props.accountRoleValue}
-        accountRoleOptions={props.accountRoleOptions}
-        injectMarketingPlanValue={props.injectMarketingPlanValue}
-        additionalInstruction={props.additionalInstruction}
-        onClose={props.onCloseCreate}
-        onCreate={props.onCreate}
-        onMaterialChange={props.onMaterialChange}
-        onProductChange={props.onProductChange}
-        onAccountRoleChange={props.onAccountRoleChange}
-        onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
-        onAdditionalInstructionChange={props.onAdditionalInstructionChange}
+      <RewriteWorkspaceModals
+        editModalProps={{
+          item: props.editingWork,
+          title: props.editingTitle,
+          content: props.editingContent,
+          savingWorkId: props.savingWorkId,
+          onClose: props.onCloseEdit,
+          onSave: props.onSaveEdit,
+          onTitleChange: props.onEditTitleChange,
+          onContentChange: props.onEditContentChange,
+          getTaskStatusClass: props.getOriginalTaskStatusClass,
+          getTaskStatusText: props.getOriginalTaskStatusText,
+        }}
+        createModalProps={{
+          open: props.isCreateModalOpen,
+          isPublishing: props.isPublishing,
+          noProductOption: props.noProductOption,
+          materials: props.materialNotes,
+          products: props.products,
+          materialValue: props.materialValue,
+          productValue: props.productValue,
+          accountRoleValue: props.accountRoleValue,
+          accountRoleOptions: props.accountRoleOptions,
+          injectMarketingPlanValue: props.injectMarketingPlanValue,
+          additionalInstruction: props.additionalInstruction,
+          onClose: props.onCloseCreate,
+          onCreate: props.onCreate,
+          onMaterialChange: props.onMaterialChange,
+          onProductChange: props.onProductChange,
+          onAccountRoleChange: props.onAccountRoleChange,
+          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
+          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
+        }}
       />
     </article>
   );

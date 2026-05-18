@@ -255,6 +255,8 @@ flowchart TD
     HX4 --> HX45["noteWorkspaceSharedPanels"]
     HX5 --> HX45
     HX6 --> HX45
+    HX4 --> HX48["noteWorkspaceModals"]
+    HX5 --> HX48
     HX6 --> HX46["videoWorkspaceDetailPanel"]
     HX6 --> HX47["videoWorkspaceModals"]
     XHSW --> HX7["PublishModal 发布弹窗"]
@@ -276,6 +278,8 @@ flowchart TD
     HX5 --> HX41
     HX5 --> HX42
     HX5 --> HX43
+    HX48 --> HX41
+    HX48 --> HX42
     HX6 --> HX41
     HX6 --> HX42
     HX6 --> HX43

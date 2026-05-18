@@ -216,6 +216,8 @@
   - 继续把 `VideoWorkspace` 的详情区抽成独立子组件，收口阶段状态、故事板区、视频预览和动作按钮
 - `docs/changes/2026-05-18-xiaohongshu-video-modal-mount-split.md`
   - 继续把 `VideoWorkspace` 的编辑弹窗和创建弹窗挂载层抽成独立组件，减薄面板尾部编排
+- `docs/changes/2026-05-18-xiaohongshu-note-modal-mount-split.md`
+  - 继续把原创与二创面板的模态挂载层抽成独立组件，对齐三类面板的模态编排模式
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
