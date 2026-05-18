@@ -103,6 +103,7 @@
 
 - 顶部导航：已统一为后台同语言的浅底导航壳，使用短标签徽标与当前栏目高亮
 - 左侧导航：已改为更简化的目录式浅底菜单，仅保留分区按钮本体；当前只展示当前账号有 `view` 权限的小红书板块
+- 当前页面入口已拆为薄路由 + 工作区壳层：`page.tsx` 只负责挂载 `workspace-shell.tsx`，原有品牌上下文校正、权限闸门、工作区聚合加载、轮询与弹窗编排统一下沉到壳层文件，便于后续继续拆分 section 容器与共享 hook
 - 营销策划方案
   - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
   - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
@@ -167,9 +168,10 @@
 - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 当前品牌上下文：
   - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
-  - `xiaohongshu/page.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
+  - `xiaohongshu/workspace-shell.tsx` 进入页面时会先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
   - `xiaohongshu/assets-workspace.tsx` 生成飞书素材图片/视频代理 URL 时也会显式透传当前真实 `brandId`，避免素材库媒体预览继续回退到 `DEMO_BRAND_ID`
   - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
+  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-shell-split.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -351,6 +353,8 @@
  - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
   - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+  - 当前已收成薄入口文件，仅负责挂载 `XiaohongshuWorkspaceShell`
+- `apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
   - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，并优先读取当前品牌的小红书权限模板
   - 若当前账号在小红书目录下所有板块都没有 `view`，前端会直接显示无权限提示，不再继续进入工作区
   - 进入工作区后只会继续请求当前账号有查看权限的营销方案、营销日历、作品列表、视频 Provider 与模板数据，避免无权限板块继续报错

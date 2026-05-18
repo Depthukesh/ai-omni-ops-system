@@ -236,25 +236,26 @@ flowchart TD
 ```mermaid
 flowchart TD
     XHS["/xiaohongshu page.tsx"]
-    XHS --> XA["auth.ts /auth/me 校正当前品牌"]
+    XHS --> XHSW["workspace-shell.tsx 编排壳层"]
+    XHSW --> XA["auth.ts /auth/me 校正当前品牌"]
 
-    XHS --> HX1["AssetsWorkspace 素材库"]
-    XHS --> HX2["PlanWorkspace 营销策划方案"]
-    XHS --> HX3["CalendarWorkspace 营销日历"]
-    XHS --> HX4["OriginalWorkspace 原创笔记"]
-    XHS --> HX5["RewriteWorkspace 二创笔记"]
-    XHS --> HX6["VideoWorkspace 视频笔记"]
-    XHS --> HX7["PublishModal 发布弹窗"]
-    XHS --> HX8["MediaLightbox 媒体灯箱"]
+    XHSW --> HX1["AssetsWorkspace 素材库"]
+    XHSW --> HX2["PlanWorkspace 营销策划方案"]
+    XHSW --> HX3["CalendarWorkspace 营销日历"]
+    XHSW --> HX4["OriginalWorkspace 原创笔记"]
+    XHSW --> HX5["RewriteWorkspace 二创笔记"]
+    XHSW --> HX6["VideoWorkspace 视频笔记"]
+    XHSW --> HX7["PublishModal 发布弹窗"]
+    XHSW --> HX8["MediaLightbox 媒体灯箱"]
     HX1 --> HX11["飞书代理资源：鉴权 fetch blob -> object URL"]
 
-    XHS --> HK1["useNoteComposerForms"]
-    XHS --> HK2["usePublishFlow"]
-    XHS --> HK3["useWorkComposerActions"]
-    XHS --> HK4["useWorkEditors"]
-    XHS --> HK5["useWorkMutationActions"]
-    XHS --> HK6["useWorkspaceSelectionSync"]
-    XHS --> HK7["task-polling.ts"]
+    XHSW --> HK1["useNoteComposerForms"]
+    XHSW --> HK2["usePublishFlow"]
+    XHSW --> HK3["useWorkComposerActions"]
+    XHSW --> HK4["useWorkEditors"]
+    XHSW --> HK5["useWorkMutationActions"]
+    XHSW --> HK6["useWorkspaceSelectionSync"]
+    XHSW --> HK7["task-polling.ts"]
 
     HX4 --> HX41["note-create-modals.tsx"]
     HX4 --> HX42["note-edit-modals.tsx"]
@@ -267,17 +268,17 @@ flowchart TD
     HX6 --> HX42
     HX6 --> HX43
 
-    XHS --> HH1["calendar-helpers.ts"]
-    XHS --> HH2["datetime-helpers.ts"]
-    XHS --> HH3["markdown-render.ts"]
-    XHS --> HH4["preview-builders.ts"]
-    XHS --> HH5["publish-status-helpers.ts"]
-    XHS --> HH6["task-status-text-helpers.ts"]
-    XHS --> HH7["work-media-helpers.ts"]
-    XHS --> HH8["work-task-helpers.ts"]
-    XHS --> HH9["desktop-publish-bridge.ts"]
-    XHS --> HH10["shared-types.ts"]
-    XHS --> HH11["publish-types.ts"]
+    XHSW --> HH1["calendar-helpers.ts"]
+    XHSW --> HH2["datetime-helpers.ts"]
+    XHSW --> HH3["markdown-render.ts"]
+    XHSW --> HH4["preview-builders.ts"]
+    XHSW --> HH5["publish-status-helpers.ts"]
+    XHSW --> HH6["task-status-text-helpers.ts"]
+    XHSW --> HH7["work-media-helpers.ts"]
+    XHSW --> HH8["work-task-helpers.ts"]
+    XHSW --> HH9["desktop-publish-bridge.ts"]
+    XHSW --> HH10["shared-types.ts"]
+    XHSW --> HH11["publish-types.ts"]
 
     HK1 --> SX1["xiaohongshu.ts"]
     HK2 --> SX2["publishing.ts"]
@@ -287,7 +288,7 @@ flowchart TD
     HX1 --> HH7["work-media-helpers.ts"]
     HX2 --> SX5["reports.ts"]
     HX3 --> SX5
-    XHS --> SX0["auth-session.ts 本地品牌缓存"]
+    XHSW --> SX0["auth-session.ts 本地品牌缓存"]
     XA --> SX0
     XA --> SX1
     XA --> SX3
@@ -655,6 +656,7 @@ flowchart LR
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 当前 `brand-growth/workspace.tsx` 已改为读取团队权限模板；无品牌增长策略 `view` 权限时不再继续渲染策略操作面板
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+- 小红书工作台壳层：`apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
 - 个人中心作品中心：`apps/web/src/app/(dashboard)/personal-center/works/page.tsx`
@@ -685,7 +687,8 @@ flowchart LR
 
 ### 13.3 小红书工作台代码入口索引
 
-- 页面编排入口：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+- 页面路由入口：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
+- 工作区编排壳层：`apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
 - 素材库工作区：`apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
 - 营销策划方案工作区：`apps/web/src/app/(dashboard)/xiaohongshu/plan-workspace.tsx`
 - 营销日历工作区：`apps/web/src/app/(dashboard)/xiaohongshu/calendar-workspace.tsx`

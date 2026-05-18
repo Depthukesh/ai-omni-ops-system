@@ -196,6 +196,8 @@
   - 输出系统重构路线图，并先落地图片加载优化第一版：统一图片组件、近视口加载、列表渲染收口和媒体缓存头优化
 - `docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
   - 继续收口受保护媒体重复拉取：把 blob 预览逻辑抽成共享 hook，并为小红书素材库与品牌增长附件预览增加会话级缓存和并发去重
+- `docs/changes/2026-05-18-xiaohongshu-workspace-shell-split.md`
+  - 小红书工作台先完成“薄入口 + 编排壳层”拆分：`page.tsx` 只保留路由挂载，原有聚合加载、权限闸门、轮询与弹窗编排统一下沉到 `workspace-shell.tsx`
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
