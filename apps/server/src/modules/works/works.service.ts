@@ -4215,8 +4215,10 @@ export class WorksService {
       copyAdditionalInstruction: this.readOptionalString(meta.copyAdditionalInstruction),
       videoAdditionalInstruction: this.readOptionalString(meta.videoAdditionalInstruction),
       includeMarketingPlan: meta.includeMarketingPlan !== false,
-      requestedVideoProvider: this.readOptionalString(meta.requestedVideoProvider) || "seedance",
-      resolvedVideoProvider: this.readOptionalString(meta.resolvedVideoProvider) || this.readOptionalString(meta.requestedVideoProvider) || "seedance",
+      requestedVideoProvider: this.readOptionalString(meta.requestedVideoProvider) || "volcengine_seedance_20",
+      resolvedVideoProvider: this.readOptionalString(meta.resolvedVideoProvider)
+        || this.readOptionalString(meta.requestedVideoProvider)
+        || "volcengine_seedance_20",
       resolvedVideoModel: this.readOptionalString(meta.resolvedVideoModel),
       requestedDurationSec: Number(meta.requestedDurationSec || 10),
       renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
@@ -4308,7 +4310,7 @@ export class WorksService {
         prompt: String(record.prompt ?? "").trim(),
         videoUrl,
         coverImageUrl: this.readOptionalString(record.coverImageUrl),
-        provider: this.readOptionalString(record.provider) || "seedance",
+        provider: this.readOptionalString(record.provider) || "volcengine_seedance_20",
         modelName: this.readOptionalString(record.modelName),
         providerTaskId: this.readOptionalString(record.providerTaskId),
         renderedDurationSec: typeof record.renderedDurationSec === "number" ? record.renderedDurationSec : undefined,
@@ -5832,7 +5834,7 @@ export class WorksService {
       return undefined;
     }
     if (normalized === "seedance" || normalized === "seedance20") {
-      return "seedance";
+      return "volcengine_seedance_20";
     }
     if (normalized === "hailuo") {
       return "hailuo";

@@ -131,8 +131,8 @@ const NO_PRODUCT_OPTION = "__NO_PRODUCT__";
 const AUTO_IMAGE_COUNT_OPTION = "__AUTO__";
 const DEFAULT_VIDEO_PROVIDER_OPTIONS: VideoProviderOptionRecord[] = [
   {
-    backendKey: "seedance",
-    label: "seedance2.0",
+    backendKey: "volcengine_seedance_20",
+    label: "Seedance 2.0",
     defaultModel: "doubao-seedance-2-0-260128",
     recommended: true,
     supportsTextToVideo: true,

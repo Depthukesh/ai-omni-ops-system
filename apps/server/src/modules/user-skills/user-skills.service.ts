@@ -89,6 +89,8 @@ type UserSkillResetLogRow = {
 
 const LEGACY_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation::gpt-image-2";
 const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation_right_codes::gpt-image-2";
+const LEGACY_VIDEO_NOTE_DEFAULT_MODEL = "seedance";
+const VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL = "doubao-seedance-2-0-260128";
 
 type MockUserSkillProfileRecord = {
   id: string;
@@ -475,9 +477,13 @@ export class UserSkillsService {
   }
 
   private normalizeImageGenerationModelValue(value: string | undefined) {
-    return value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL
-      ? RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL
-      : value;
+    if (value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL) {
+      return RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL;
+    }
+    if (value === LEGACY_VIDEO_NOTE_DEFAULT_MODEL) {
+      return VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL;
+    }
+    return value;
   }
 
   private async ensureRegistryEntriesForSkill(
@@ -895,6 +901,7 @@ export class UserSkillsService {
     `);
 
     await this.backfillLegacyImageGenerationUserOverrides();
+    await this.backfillLegacyVideoNoteUserOverrides();
   }
 
   private async backfillLegacyImageGenerationUserOverrides() {
@@ -915,6 +922,22 @@ export class UserSkillsService {
           AND "modelName" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
       `;
     }
+  }
+
+  private async backfillLegacyVideoNoteUserOverrides() {
+    await this.prismaService.$executeRaw`
+      UPDATE "UserSkillProfile"
+      SET "defaultModel" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
+      WHERE "baseSkillId" = ${"skill_xhs_video_note"}
+        AND "defaultModel" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
+    `;
+
+    await this.prismaService.$executeRaw`
+      UPDATE "UserPromptOverride"
+      SET "modelName" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
+      WHERE "basePromptId" = ${"prompt_xhs_video_note"}
+        AND "modelName" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
+    `;
   }
 
   private assertUserContext(auth?: RequestAuthContext) {

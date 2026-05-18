@@ -3620,9 +3620,6 @@ function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
   try {
     const host = new URL(trimmed).host.toLowerCase();
     const hostNameMap: Record<string, string> = {
-      "hk-api.gptbest.vip": "柏拉图平台",
-      "api.gptbest.vip": "柏拉图平台",
-      "api.bltcy.ai": "柏拉图平台",
       "www.right.codes": "Right Codes 平台",
       "api.deepseek.com": "DeepSeek 平台",
       "ark.cn-beijing.volces.com": "火山方舟平台",

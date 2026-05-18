@@ -18,7 +18,7 @@ export function useNoteComposerForms(options: {
   availableVideoProviderValues?: string[];
 }) {
   const customVideoProviderOption = "__custom_video_provider__";
-  const defaultVideoProviderValue = options.defaultVideoProviderValue || "seedance";
+  const defaultVideoProviderValue = options.defaultVideoProviderValue || "volcengine_seedance_20";
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");

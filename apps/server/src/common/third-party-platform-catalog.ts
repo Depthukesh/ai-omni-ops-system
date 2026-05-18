@@ -13,10 +13,13 @@ export type ThirdPartyPlatformRecord = {
   updatedAt: string;
 };
 
+export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
+  "hk-api.gptbest.vip",
+  "api.gptbest.vip",
+  "api.bltcy.ai",
+]);
+
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
-  "hk-api.gptbest.vip": "柏拉图平台",
-  "api.gptbest.vip": "柏拉图平台",
-  "api.bltcy.ai": "柏拉图平台",
   "www.right.codes": "Right Codes 平台",
   "www.runninghub.cn": "RunningHub 平台",
   "api.deepseek.com": "DeepSeek 平台",
@@ -26,6 +29,16 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
+
+export function isDecommissionedPlatformBaseUrl(baseUrl: string) {
+  try {
+    const url = new URL(String(baseUrl || "").trim());
+    return DECOMMISSIONED_PLATFORM_HOSTS.has(url.host.toLowerCase());
+  } catch {
+    const normalized = String(baseUrl || "").trim().toLowerCase();
+    return Array.from(DECOMMISSIONED_PLATFORM_HOSTS).some((host) => normalized.includes(host));
+  }
+}
 
 function buildThirdPartyPlatformSeeds() {
   const groups = new Map<

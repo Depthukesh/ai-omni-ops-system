@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { database } from "../../common/mock-data";
 import {
   THIRD_PARTY_PLATFORM_SEEDS,
+  isDecommissionedPlatformBaseUrl,
   type ThirdPartyPlatformRecord,
 } from "../../common/third-party-platform-catalog";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -96,6 +97,12 @@ export class ThirdPartyPlatformsService {
     if (!database.thirdPartyPlatforms?.length) {
       database.thirdPartyPlatforms = THIRD_PARTY_PLATFORM_SEEDS.map((item) => ({ ...item }));
     }
+    database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter(
+      (item) => !this.isDecommissionedPlatform(item),
+    );
+    database.userThirdPartyPlatformSecrets = (database.userThirdPartyPlatformSecrets || []).filter((item) =>
+      database.thirdPartyPlatforms?.some((platform) => platform.id === item.platformId),
+    );
     return [...database.thirdPartyPlatforms].map((item) => ({ ...item }));
   }
 
@@ -578,6 +585,21 @@ export class ThirdPartyPlatformsService {
       return [normalized.id, normalized] as const;
     }));
 
+    const decommissionedPlatformIds = Array.from(existingById.values())
+      .filter((item) => this.isDecommissionedPlatform(item))
+      .map((item) => item.id);
+    if (decommissionedPlatformIds.length) {
+      await this.prismaService.$executeRaw`
+        DELETE FROM "UserThirdPartyPlatformSecret"
+        WHERE "platformId" = ANY (${decommissionedPlatformIds}::text[])
+      `;
+      await this.prismaService.$executeRaw`
+        DELETE FROM "ThirdPartyPlatformConfig"
+        WHERE "id" = ANY (${decommissionedPlatformIds}::text[])
+      `;
+      decommissionedPlatformIds.forEach((item) => existingById.delete(item));
+    }
+
     for (const item of THIRD_PARTY_PLATFORM_SEEDS) {
       const current = existingById.get(item.id);
       if (current) {
@@ -638,5 +660,9 @@ export class ThirdPartyPlatformsService {
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${current.id}
     `;
+  }
+
+  private isDecommissionedPlatform(platform: Pick<ThirdPartyPlatformRecord, "baseUrl">) {
+    return isDecommissionedPlatformBaseUrl(platform.baseUrl);
   }
 }

@@ -416,7 +416,8 @@ flowchart TD
     PC32 --> PC321["一级/二级分类支持折叠；搜索时自动展开"]
     PC3 --> PC33["右侧按单条提示词编辑模型/温度/Tokens/内容"]
     PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 权限控制"]
-    PC31 --> PC311["当前含 Right Codes + RunningHub 平台基线"]
+    PC31 --> PC311["当前含 Right Codes + RunningHub + 火山方舟 平台基线"]
+    PC31 --> PC312["已下线平台会在启动时自动清理旧平台基线与私有 Key"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
     PC --> PC6["/personal-center/team 三角色 + 权限矩阵"]
@@ -461,6 +462,7 @@ flowchart TD
     AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]
     AUI8 --> AUI83["后台不填 API Key；前台 Owner 单独维护私有 Key"]
     AUI8 --> AUI84["RunningHub 平台由 https://www.runninghub.cn 自动聚合补齐"]
+    AUI8 --> AUI85["柏拉图下线后会自动清理旧平台与旧 Provider 残留"]
     AUI6 --> AUI61["左侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
     AUI61 --> AUI612["一级分类支持折叠/展开"]
@@ -550,6 +552,7 @@ flowchart TD
     M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能，默认模型切到 Right Codes images-generations"]
     M5 --> M56["视频生成按 requestProfile/queryMethod/queryBodyMode 动态适配 RunningHub"]
     M5 --> M57["原创/二创/视频三类作品创建都默认要求账号角色并写入主记录元数据"]
+    M5 --> M58["历史 seedance 兼容值自动映射到 volcengine_seedance_20，避免落到已下线平台"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import {
+  DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS,
   LEGACY_API_PROVIDER_IDS,
   RUNNINGHUB_BASE_URL,
   RUNNINGHUB_RESULT_QUERY_DOC_URL,
   RUNNINGHUB_RESULT_QUERY_PATH,
   SYSTEM_API_PROVIDER_SEEDS,
 } from "../../common/api-provider-catalog";
+import { isDecommissionedPlatformBaseUrl } from "../../common/third-party-platform-catalog";
 import { database, type ApiProviderRecord } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -468,6 +470,20 @@ export class ApiProvidersService {
       }
     }
 
+    const decommissionedProviderIds = existingProviders
+      .filter((item) => this.isDecommissionedProvider(item))
+      .map((item) => item.id);
+    if (decommissionedProviderIds.length) {
+      await this.prismaService.$executeRaw`
+        DELETE FROM "ApiProviderConfig"
+        WHERE "id" = ANY (${decommissionedProviderIds}::text[])
+      `;
+      for (const providerId of decommissionedProviderIds) {
+        existingById.delete(providerId);
+        existingIds.delete(providerId);
+      }
+    }
+
     for (const provider of SYSTEM_API_PROVIDER_SEEDS) {
       const current = existingById.get(provider.id);
       if (current) {
@@ -532,6 +548,14 @@ export class ApiProvidersService {
       ...this.getStringArrayExtra(seed, "baseUrls"),
     ];
     return candidates.some((item) => String(item || "").includes(RUNNINGHUB_BASE_URL));
+  }
+
+  private isDecommissionedProvider(provider: ApiProviderRecord) {
+    if (DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS.includes(provider.id)) {
+      return true;
+    }
+    const candidates = [provider.baseUrl, ...this.getStringArrayExtra(provider, "baseUrls")];
+    return candidates.some((item) => isDecommissionedPlatformBaseUrl(item));
   }
 
   private async insertProviderSeed(provider: ApiProviderRecord) {

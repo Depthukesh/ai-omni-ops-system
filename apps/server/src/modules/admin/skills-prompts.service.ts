@@ -59,6 +59,9 @@ type SkillPromptBindingRule = {
 const LEGACY_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation::gpt-image-2";
 const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_generation_right_codes::gpt-image-2";
 const RIGHT_CODES_IMAGE_PROVIDER_LABEL = "Right Codes · 文生图/图生图";
+const LEGACY_VIDEO_NOTE_DEFAULT_MODEL = "seedance";
+const VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL = "doubao-seedance-2-0-260128";
+const VOLCENGINE_VIDEO_PROVIDER_LABEL = "火山方舟 · Seedance 2.0";
 
 const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   skill_growth_analysis: {
@@ -576,6 +579,7 @@ export class SkillsPromptsService {
     }
 
     await this.backfillImageGenerationSkillDefaults();
+    await this.backfillLegacyVideoNoteDefaults();
   }
 
   private async backfillImageGenerationSkillDefaults() {
@@ -598,6 +602,24 @@ export class SkillsPromptsService {
           AND "modelName" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
       `;
     }
+  }
+
+  private async backfillLegacyVideoNoteDefaults() {
+    await this.prismaService.$executeRaw`
+      UPDATE "SkillConfig"
+      SET
+        "provider" = ${VOLCENGINE_VIDEO_PROVIDER_LABEL},
+        "defaultModel" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
+      WHERE "id" = ${"skill_xhs_video_note"}
+        AND "defaultModel" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
+    `;
+
+    await this.prismaService.$executeRaw`
+      UPDATE "PromptTemplate"
+      SET "modelName" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
+      WHERE "id" = ${"prompt_xhs_video_note"}
+        AND "modelName" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
+    `;
   }
 
   private async findSkillByIdFromDatabase(id: string) {
@@ -714,8 +736,12 @@ export class SkillsPromptsService {
   }
 
   private normalizeImageGenerationModelValue(value: string) {
-    return value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL
-      ? RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL
-      : value;
+    if (value === LEGACY_IMAGE_GENERATION_DEFAULT_MODEL) {
+      return RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL;
+    }
+    if (value === LEGACY_VIDEO_NOTE_DEFAULT_MODEL) {
+      return VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL;
+    }
+    return value;
   }
 }

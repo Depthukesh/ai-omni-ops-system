@@ -193,6 +193,7 @@
   - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入用户覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
   - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `UserSkillProfile`、`UserPromptOverride`、`UserSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null`、`promptIdsJson -> jsonb` 写入，以及 `baseSkillId` 为空的历史提示词覆盖记录，避免历史库在切模型或重置平台基线时触发 500
   - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若用户覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
+  - 视频笔记技能若数据库或用户覆盖层里仍残留旧默认值 `seedance`，当前也会在接口初始化时自动安全回填到火山方舟 `doubao-seedance-2-0-260128`，避免柏拉图下线后技能中心继续显示不可用模型
   - 当前仍支持保存到用户自己的技能库、重置回后台平台基线、品牌上下文切换与退出登录
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
   - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
@@ -210,6 +211,7 @@
   - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由 Owner 单独维护该平台私有 Key
   - 当前平台基线已补入 `RunningHub 平台`，基础链接为 `https://www.runninghub.cn`；平台页会自动聚合同域下的海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 视频模型，并由 Owner 单独维护该平台私有 Key
   - 当前平台基线已补入火山方舟视频模型 `doubao-seedance-2-0-260128 / doubao-seedance-2-0-fast-260128`；平台页会把这两条模型并入既有 `火山方舟平台`，无需手工新增第二个平台
+  - 柏拉图平台当前已正式下线；服务启动时会自动清理 `hk-api.gptbest.vip / api.gptbest.vip / api.bltcy.ai` 对应的平台基线与私有 Key 残留，前后台都不再展示该平台
   - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
   - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
@@ -278,6 +280,7 @@
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
   - 当前 `ApiProviderConfig` 已补入 RunningHub 视频 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会按 `https://www.runninghub.cn` 自动聚合出 `RunningHub 平台`
+  - 柏拉图共享代理 Provider 已从系统基线移除；若历史数据库里仍残留其接口供应商或平台记录，`ApiProvidersService` 与 `ThirdPartyPlatformsService` 会在启动时自动清理，避免后台继续展示已失效模型
   - 当前 RunningHub 视频 Provider 统一使用 `POST /openapi/v2/query` + `{ taskId }` 查询生成结果；`WorksService` 运行时会对命中 `runninghub.cn` 的 Provider 强制兜底这组查询配置，同时 `ApiProvidersService` 会在启动时把旧 RunningHub 系统 Provider 缺失的查询元数据自动回填到 `extraParamsJson`
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
   - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
@@ -413,7 +416,7 @@
   - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
   - 当前 RunningHub 视频 Provider 已补入海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 多组模型；查询统一兼容 `POST /openapi/v2/query` 与 `{ taskId }` 请求体
   - 当前火山方舟视频 Provider 已补入 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128`；运行时创建接口兼容 `POST /api/v3/contents/generations/tasks`，查询接口兼容 `GET /api/v3/contents/generations/tasks/{id}`
-  - 当前视频运行时已支持按 Provider 元数据配置轮询窗口；柏拉图 `seedance2.0` 默认放宽到约 15 分钟轮询，避免第三方已接单扣费但站内仍因 160 秒超时而误判失败
+  - 柏拉图共享代理视频 Provider 已从系统基线移除；旧视频任务元数据里若仍残留兼容值 `seedance / seedance20`，运行时会自动映射到 `volcengine_seedance_20`，避免历史默认值在创建新任务时直接落到已下线平台
   - 当前视频笔记已补入按第三方 `providerTaskId` 的手动恢复入口：`POST /api/works/brands/:brandId/xiaohongshu/video/recover`；可直接复查第三方任务状态，并在成功时把视频重新抓回站内 OSS 与作品元数据，不必再次扣费重跑
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
@@ -423,6 +426,7 @@
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
   - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
+  - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
   - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
   - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
 - `TasksModule`：任务记录与重试
