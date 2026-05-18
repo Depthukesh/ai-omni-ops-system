@@ -240,8 +240,10 @@ flowchart TD
     XHSW --> HK0["useXiaohongshuWorkspaceLoader"]
     XHSW --> HK8["useXiaohongshuWorkspaceTasks"]
     XHSW --> HK9["noteWorkspaceSectionProps"]
-    XHSW --> HK10["NoteWorkspaceSections"]
     XHSW --> HK11["NoteWorkspaceSectionContainers"]
+    HK11 --> HK12["OriginalWorkspaceSectionContainer"]
+    HK11 --> HK13["RewriteWorkspaceSectionContainer"]
+    HK11 --> HK14["VideoWorkspaceSectionContainer"]
     HK0 --> XA["auth.ts /auth/me 校正当前品牌"]
 
     XHSW --> HX1["AssetsWorkspace 素材库"]
@@ -297,14 +299,13 @@ flowchart TD
     HK9 --> HX5
     HK9 --> HX6
     HK9 --> HH5
-    HK10 --> HX4
-    HK10 --> HX5
-    HK10 --> HX6
     HK11 --> HK9
-    HK11 --> HK10
-    HK11 --> HX4
-    HK11 --> HX5
-    HK11 --> HX6
+    HK12 --> HX4
+    HK12 --> HK9
+    HK13 --> HX5
+    HK13 --> HK9
+    HK14 --> HX6
+    HK14 --> HK9
     HK1 --> SX1["xiaohongshu.ts"]
     HK2 --> SX2["publishing.ts"]
     HK3 --> SX3["works.ts"]
@@ -732,8 +733,10 @@ flowchart LR
 - 工作区加载编排：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
 - 工作区任务轮询与状态派生：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-tasks.ts`
 - 原创/二创/视频 section props 装配：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-props.ts`
-- 原创/二创/视频 section 路由层：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-sections.tsx`
-- 原创/二创/视频 section container 层：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-containers.tsx`
+- 原创/二创/视频 section container 路由层：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-containers.tsx`
+- 原创 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/original-workspace-section-container.tsx`
+- 二创 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/rewrite-workspace-section-container.tsx`
+- 视频 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-section-container.tsx`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`

@@ -115,19 +115,3 @@ export function buildVideoWorkspaceProps(options: BuildVideoWorkspacePropsOption
     },
   };
 }
-
-export function buildNoteWorkspaceSectionsProps(options: {
-  original: BuildOriginalWorkspacePropsOptions;
-  rewrite: BuildRewriteWorkspacePropsOptions;
-  video: BuildVideoWorkspacePropsOptions;
-}): {
-  originalWorkspaceProps: OriginalWorkspaceProps;
-  rewriteWorkspaceProps: RewriteWorkspaceProps;
-  videoWorkspaceProps: VideoWorkspaceProps;
-} {
-  return {
-    originalWorkspaceProps: buildOriginalWorkspaceProps(options.original),
-    rewriteWorkspaceProps: buildRewriteWorkspaceProps(options.rewrite),
-    videoWorkspaceProps: buildVideoWorkspaceProps(options.video),
-  };
-}

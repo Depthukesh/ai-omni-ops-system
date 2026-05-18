@@ -208,6 +208,8 @@
   - 继续把原创、二创、视频三个笔记 section 的集合出口与路由判断从 `workspace-shell.tsx` 抽到 `note-workspace-sections.tsx`，进一步减薄壳层
 - `docs/changes/2026-05-18-xiaohongshu-note-section-containers.md`
   - 继续把原创、二创、视频三个笔记 section 的 container 层从 `workspace-shell.tsx` 抽到 `note-workspace-section-containers.tsx`，让壳层只保留 grouped hooks 和一级装配
+- `docs/changes/2026-05-18-xiaohongshu-note-leaf-section-containers.md`
+  - 继续把原创、二创、视频三个笔记 section 再拆成独立叶子 container 文件，让 `note-workspace-section-containers.tsx` 收口为共享类型和路由层
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
