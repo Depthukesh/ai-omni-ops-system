@@ -20,7 +20,7 @@ import {
   getWorkTaskStatusClass,
   getWorkTaskStatusText,
 } from "./publish-status-helpers";
-import { type PublishableWorkTarget } from "./publish-types";
+import { buildOriginalWorkspaceProps, buildRewriteWorkspaceProps, buildVideoWorkspaceProps } from "./note-workspace-section-props";
 import { isTaskActive } from "./task-polling";
 import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
@@ -1084,6 +1084,223 @@ export function XiaohongshuWorkspaceShell() {
     setEditingVideoStoryboardPrompt(item.storyboardPrompt || "");
   }
 
+  const originalWorkspaceProps = buildOriginalWorkspaceProps({
+    sectionLabel: currentSection.label,
+    sectionDescription: currentSection.description,
+    isLoading,
+    isPublishing,
+    isTaskActive: isOriginalTaskActive,
+    taskCount: originalTaskCount,
+    latestTask: latestOriginalTask,
+    taskStatusText: originalTaskStatusText,
+    inlineError: originalInlineError,
+    isCancellingTask: isCancellingOriginalTask,
+    canCancelTask: canCancelOriginalTask,
+    latestPublishTask: latestOriginalPublishTask,
+    items: originalWorks,
+    previewIndexMap: materialPreviewIndexMap,
+    deletingWorkId: deletingOriginalWorkId,
+    editingWork: originalEditingWork,
+    editingTitle: editingOriginalTitle,
+    editingContent: editingOriginalContent,
+    savingWorkId: savingOriginalWorkId,
+    isCreateModalOpen: isOriginalModalOpen,
+    calendarOptions: originalCalendarOptions,
+    customTopicOption: CUSTOM_TOPIC_OPTION,
+    noProductOption: NO_PRODUCT_OPTION,
+    autoImageCountOption: AUTO_IMAGE_COUNT_OPTION,
+    products: workspace.archive.products,
+    calendarValue: originalCalendarValue,
+    customTopic: originalCustomTopic,
+    productValue: originalProductValue,
+    accountRoleValue: originalAccountRoleValue,
+    accountRoleOptions: originalAccountRoleOptions,
+    imageCountValue: originalImageCountValue,
+    injectMarketingPlanValue: originalInjectMarketingPlanValue,
+    additionalInstruction: originalAdditionalInstruction,
+    coverReferenceFile,
+    galleryReferenceFiles,
+    referenceTemplateCategories: originalReferenceTemplateCategories,
+    referenceTemplateItems: originalReferenceTemplateItems,
+    isReferenceTemplatesLoading: isLoadingOriginalReferenceTemplates,
+    referenceTemplatesError: originalReferenceTemplatesError,
+    onOpenCreate: handleOpenOriginalModal,
+    onShiftPreview: shiftMaterialPreview,
+    onOpenLightbox: openOriginalWorkLightbox,
+    onEdit: handleStartEditOriginalWork,
+    onCloseEdit: handleCancelEditOriginalWork,
+    onSaveEdit: handleSaveOriginalWork,
+    onEditTitleChange: setEditingOriginalTitle,
+    onEditContentChange: setEditingOriginalContent,
+    onCloseCreate: handleCloseOriginalModal,
+    onCreate: handleCreateOriginalWork,
+    onCalendarChange: setOriginalCalendarValue,
+    onCustomTopicChange: setOriginalCustomTopic,
+    onProductChange: setOriginalProductValue,
+    onAccountRoleChange: setOriginalAccountRoleValue,
+    onImageCountChange: setOriginalImageCountValue,
+    onInjectMarketingPlanChange: setOriginalInjectMarketingPlanValue,
+    onAdditionalInstructionChange: setOriginalAdditionalInstruction,
+    onCoverReferenceFileChange: setCoverReferenceFile,
+    onGalleryReferenceFilesChange: setGalleryReferenceFiles,
+    onReloadReferenceTemplates: reloadOriginalReferenceTemplates,
+    getTaskStatusClass,
+    getOriginalTaskStatusClass: getWorkTaskStatusClass,
+    getOriginalTaskStatusText: getWorkTaskStatusText,
+    getPublishTaskStatusText,
+    getPublishTaskSummaryText,
+    formatDateTime,
+    loadWorkspace,
+    handleCancelComposeTask,
+    handleOpenPublishModal,
+    publishTaskMap,
+    getWorkPublishTaskLabel,
+    handleDeleteOriginalWork,
+  });
+
+  const rewriteWorkspaceProps = buildRewriteWorkspaceProps({
+    sectionLabel: currentSection.label,
+    sectionDescription: currentSection.description,
+    isLoading,
+    isPublishing,
+    isTaskActive: isRewriteTaskActive,
+    taskCount: rewriteTaskCount,
+    showSubmittingState: showRewriteSubmittingState,
+    submittingLabel: rewriteSubmittingLabel,
+    latestTask: latestRewriteTask,
+    taskStatusText: rewriteTaskStatusText,
+    inlineError: rewriteInlineError,
+    isCancellingTask: isCancellingRewriteTask,
+    canCancelTask: canCancelRewriteTask,
+    latestPublishTask: latestRewritePublishTask,
+    items: rewriteWorks,
+    materialNotes,
+    previewIndexMap: materialPreviewIndexMap,
+    deletingWorkId: deletingRewriteWorkId,
+    editingWork: rewriteEditingWork,
+    editingTitle: editingRewriteTitle,
+    editingContent: editingRewriteContent,
+    savingWorkId: savingRewriteWorkId,
+    isCreateModalOpen: isRewriteModalOpen,
+    noProductOption: NO_PRODUCT_OPTION,
+    products: workspace.archive.products,
+    materialValue: rewriteMaterialValue,
+    productValue: rewriteProductValue,
+    accountRoleValue: rewriteAccountRoleValue,
+    accountRoleOptions: originalAccountRoleOptions,
+    injectMarketingPlanValue: rewriteInjectMarketingPlanValue,
+    additionalInstruction: rewriteAdditionalInstruction,
+    onOpenCreate: handleOpenRewriteModal,
+    onShiftPreview: shiftMaterialPreview,
+    onOpenLightbox: openRewriteWorkLightbox,
+    onEdit: handleStartEditRewriteWork,
+    onCloseEdit: handleCancelEditRewriteWork,
+    onSaveEdit: handleSaveRewriteWork,
+    onEditTitleChange: setEditingRewriteTitle,
+    onEditContentChange: setEditingRewriteContent,
+    onCloseCreate: handleCloseRewriteModal,
+    onCreate: handleCreateRewriteWork,
+    onMaterialChange: setRewriteMaterialValue,
+    onProductChange: setRewriteProductValue,
+    onAccountRoleChange: setRewriteAccountRoleValue,
+    onInjectMarketingPlanChange: setRewriteInjectMarketingPlanValue,
+    onAdditionalInstructionChange: setRewriteAdditionalInstruction,
+    getTaskStatusClass,
+    getOriginalTaskStatusClass: getWorkTaskStatusClass,
+    getOriginalTaskStatusText: getWorkTaskStatusText,
+    getPublishTaskStatusText,
+    getPublishTaskSummaryText,
+    formatDateTime,
+    loadWorkspace,
+    handleCancelComposeTask,
+    handleOpenPublishModal,
+    publishTaskMap,
+    getWorkPublishTaskLabel,
+    handleDeleteRewriteWork,
+  });
+
+  const videoWorkspaceProps = buildVideoWorkspaceProps({
+    sectionLabel: currentSection.label,
+    sectionDescription: currentSection.description,
+    isLoading,
+    isPublishing,
+    isTaskActive: isVideoTaskActive,
+    taskCount: videoTaskCount,
+    showSubmittingState: showVideoSubmittingState,
+    submittingLabel: videoSubmittingLabel,
+    latestTask: latestVideoTask,
+    taskStatusText: videoTaskStatusText,
+    inlineError: videoInlineError,
+    isCancellingTask: isCancellingVideoTask,
+    canCancelTask: canCancelVideoTask,
+    items: videoWorks,
+    materialNotes,
+    selectedWork: videoSelectedWork,
+    deletingWorkId: deletingVideoWorkId,
+    editingWork: videoEditingWork,
+    editingTitle: editingVideoTitle,
+    editingContent: editingVideoContent,
+    editingStoryboardPrompt: editingVideoStoryboardPrompt,
+    savingWorkId: savingVideoWorkId,
+    isCreateModalOpen: isVideoModalOpen,
+    calendarOptions: originalCalendarOptions,
+    customTopicOption: CUSTOM_TOPIC_OPTION,
+    noProductOption: NO_PRODUCT_OPTION,
+    customVideoProviderOption: customVideoProviderOption,
+    videoProviderOptions,
+    products: workspace.archive.products,
+    calendarValue: videoCalendarValue,
+    customTopic: videoCustomTopic,
+    productValue: videoProductValue,
+    materialValue: videoMaterialValue,
+    accountRoleValue: videoAccountRoleValue,
+    accountRoleOptions: originalAccountRoleOptions,
+    referenceImageFile: videoReferenceImageFile,
+    videoKindValue,
+    copyAdditionalInstruction: videoCopyAdditionalInstruction,
+    providerValue: videoProviderValue,
+    customProviderValue: videoCustomProviderValue,
+    customModelName: videoCustomModelName,
+    durationValue: videoDurationValue,
+    injectMarketingPlanValue: videoInjectMarketingPlanValue,
+    additionalInstruction: videoAdditionalInstruction,
+    onOpenCreate: handleOpenVideoModal,
+    onSelectWork: handleSelectVideoWork,
+    onPreview: openVideoWorkLightbox,
+    onEdit: handleStartEditVideoWork,
+    onCloseEdit: handleCancelEditVideoWork,
+    onSaveEdit: handleSaveVideoWork,
+    onEditTitleChange: setEditingVideoTitle,
+    onEditContentChange: setEditingVideoContent,
+    onEditStoryboardPromptChange: setEditingVideoStoryboardPrompt,
+    onCloseCreate: handleCloseVideoModal,
+    onCreate: handleCreateVideoWork,
+    onCalendarChange: setVideoCalendarValue,
+    onMaterialChange: setVideoMaterialValue,
+    onAccountRoleChange: setVideoAccountRoleValue,
+    onCustomTopicChange: setVideoCustomTopic,
+    onVideoKindChangeBase: setVideoKindValue,
+    onCopyAdditionalInstructionChange: setVideoCopyAdditionalInstruction,
+    onProviderChange: setVideoProviderValue,
+    onCustomProviderChange: setVideoCustomProviderValue,
+    onCustomModelNameChange: setVideoCustomModelName,
+    onDurationChange: setVideoDurationValue,
+    onInjectMarketingPlanChange: setVideoInjectMarketingPlanValue,
+    onAdditionalInstructionChange: setVideoAdditionalInstruction,
+    getTaskStatusClass,
+    getOriginalTaskStatusClass: getWorkTaskStatusClass,
+    getOriginalTaskStatusText: getWorkTaskStatusText,
+    formatDateTime,
+    loadWorkspace,
+    handleCancelComposeTask,
+    handleDeleteVideoWork,
+    handleRegenerateVideoStoryboard,
+    handleGenerateVideoFromStoryboard,
+    setVideoProductValue,
+    setVideoReferenceImageFile,
+    setVideoMaterialValue,
+  });
+
   function openVideoWorkLightbox(item: XiaohongshuVideoWorkRecord) {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -1206,269 +1423,14 @@ export function XiaohongshuWorkspaceShell() {
     }
 
     if (activeSection === "original") {
-      return (
-        <OriginalWorkspace
-          sectionLabel={currentSection.label}
-          sectionDescription={currentSection.description}
-          isLoading={isLoading}
-          isPublishing={isPublishing}
-          isTaskActive={isOriginalTaskActive}
-          taskCount={originalTaskCount}
-          latestTask={latestOriginalTask}
-          taskStatusText={originalTaskStatusText}
-          inlineError={originalInlineError}
-          isCancellingTask={isCancellingOriginalTask}
-          canCancelTask={canCancelOriginalTask}
-          latestPublishTask={latestOriginalPublishTask}
-          items={originalWorks}
-          previewIndexMap={materialPreviewIndexMap}
-          deletingWorkId={deletingOriginalWorkId}
-          editingWork={originalEditingWork}
-          editingTitle={editingOriginalTitle}
-          editingContent={editingOriginalContent}
-          savingWorkId={savingOriginalWorkId}
-          isCreateModalOpen={isOriginalModalOpen}
-          calendarOptions={originalCalendarOptions}
-          customTopicOption={CUSTOM_TOPIC_OPTION}
-          noProductOption={NO_PRODUCT_OPTION}
-          autoImageCountOption={AUTO_IMAGE_COUNT_OPTION}
-          products={workspace.archive.products}
-          calendarValue={originalCalendarValue}
-          customTopic={originalCustomTopic}
-          productValue={originalProductValue}
-          accountRoleValue={originalAccountRoleValue}
-          accountRoleOptions={originalAccountRoleOptions}
-          imageCountValue={originalImageCountValue}
-          injectMarketingPlanValue={originalInjectMarketingPlanValue}
-          additionalInstruction={originalAdditionalInstruction}
-          coverReferenceFile={coverReferenceFile}
-          galleryReferenceFiles={galleryReferenceFiles}
-          referenceTemplateCategories={originalReferenceTemplateCategories}
-          referenceTemplateItems={originalReferenceTemplateItems}
-          isReferenceTemplatesLoading={isLoadingOriginalReferenceTemplates}
-          referenceTemplatesError={originalReferenceTemplatesError}
-          onRefresh={() => loadWorkspace()}
-          onCancelTask={() => handleCancelComposeTask(latestOriginalTask, "原创笔记")}
-          onOpenCreate={handleOpenOriginalModal}
-          onShiftPreview={shiftMaterialPreview}
-          onOpenLightbox={openOriginalWorkLightbox}
-          onPublish={(item) =>
-            handleOpenPublishModal({
-              id: item.id,
-              workKind: "ORIGINAL",
-              noteCategory: "原创",
-              title: item.title,
-              sourceLabel: item.calendarLabel || item.customTopicName || "原创笔记",
-            })
-          }
-          getPublishLabel={(workId) => getWorkPublishTaskLabel(publishTaskMap[workId])}
-          onEdit={handleStartEditOriginalWork}
-          onDelete={(workId) => void handleDeleteOriginalWork(workId)}
-          onCloseEdit={handleCancelEditOriginalWork}
-          onSaveEdit={handleSaveOriginalWork}
-          onEditTitleChange={setEditingOriginalTitle}
-          onEditContentChange={setEditingOriginalContent}
-          onCloseCreate={handleCloseOriginalModal}
-          onCreate={handleCreateOriginalWork}
-          onCalendarChange={setOriginalCalendarValue}
-          onCustomTopicChange={setOriginalCustomTopic}
-          onProductChange={setOriginalProductValue}
-          onAccountRoleChange={setOriginalAccountRoleValue}
-          onImageCountChange={setOriginalImageCountValue}
-          onInjectMarketingPlanChange={setOriginalInjectMarketingPlanValue}
-          onAdditionalInstructionChange={setOriginalAdditionalInstruction}
-          onCoverReferenceFileChange={setCoverReferenceFile}
-          onGalleryReferenceFilesChange={setGalleryReferenceFiles}
-          onReloadReferenceTemplates={reloadOriginalReferenceTemplates}
-          getTaskStatusClass={getTaskStatusClass}
-          getOriginalTaskStatusClass={getWorkTaskStatusClass}
-          getOriginalTaskStatusText={getWorkTaskStatusText}
-          getPublishTaskStatusText={getPublishTaskStatusText}
-          getPublishTaskSummaryText={getPublishTaskSummaryText}
-          formatDateTime={formatDateTime}
-        />
-      );
+      return <OriginalWorkspace {...originalWorkspaceProps} />;
     }
 
     if (activeSection === "remix") {
-      return (
-        <RewriteWorkspace
-          sectionLabel={currentSection.label}
-          sectionDescription={currentSection.description}
-          isLoading={isLoading}
-          isPublishing={isPublishing}
-          isTaskActive={isRewriteTaskActive}
-          taskCount={rewriteTaskCount}
-          showSubmittingState={showRewriteSubmittingState}
-          submittingLabel={rewriteSubmittingLabel}
-          latestTask={latestRewriteTask}
-          taskStatusText={rewriteTaskStatusText}
-          inlineError={rewriteInlineError}
-          isCancellingTask={isCancellingRewriteTask}
-          canCancelTask={canCancelRewriteTask}
-          latestPublishTask={latestRewritePublishTask}
-          items={rewriteWorks}
-          materialNotes={materialNotes}
-          previewIndexMap={materialPreviewIndexMap}
-          deletingWorkId={deletingRewriteWorkId}
-          editingWork={rewriteEditingWork}
-          editingTitle={editingRewriteTitle}
-          editingContent={editingRewriteContent}
-          savingWorkId={savingRewriteWorkId}
-          isCreateModalOpen={isRewriteModalOpen}
-          noProductOption={NO_PRODUCT_OPTION}
-          products={workspace.archive.products}
-          materialValue={rewriteMaterialValue}
-          productValue={rewriteProductValue}
-          accountRoleValue={rewriteAccountRoleValue}
-          accountRoleOptions={originalAccountRoleOptions}
-          injectMarketingPlanValue={rewriteInjectMarketingPlanValue}
-          additionalInstruction={rewriteAdditionalInstruction}
-          onRefresh={() => loadWorkspace()}
-          onCancelTask={() => handleCancelComposeTask(latestRewriteTask, "二创笔记")}
-          onOpenCreate={handleOpenRewriteModal}
-          onShiftPreview={shiftMaterialPreview}
-          onOpenLightbox={openRewriteWorkLightbox}
-          onPublish={(item) =>
-            handleOpenPublishModal({
-              id: item.id,
-              workKind: "REWRITE",
-              noteCategory: "二创",
-              title: item.title,
-              sourceLabel: item.sourceMaterialTitle,
-            })
-          }
-          getPublishLabel={(workId) => getWorkPublishTaskLabel(publishTaskMap[workId])}
-          onEdit={handleStartEditRewriteWork}
-          onDelete={(workId) => void handleDeleteRewriteWork(workId)}
-          onCloseEdit={handleCancelEditRewriteWork}
-          onSaveEdit={handleSaveRewriteWork}
-          onEditTitleChange={setEditingRewriteTitle}
-          onEditContentChange={setEditingRewriteContent}
-          onCloseCreate={handleCloseRewriteModal}
-          onCreate={handleCreateRewriteWork}
-          onMaterialChange={setRewriteMaterialValue}
-          onProductChange={setRewriteProductValue}
-          onAccountRoleChange={setRewriteAccountRoleValue}
-          onInjectMarketingPlanChange={setRewriteInjectMarketingPlanValue}
-          onAdditionalInstructionChange={setRewriteAdditionalInstruction}
-          getTaskStatusClass={getTaskStatusClass}
-          getOriginalTaskStatusClass={getWorkTaskStatusClass}
-          getOriginalTaskStatusText={getWorkTaskStatusText}
-          getPublishTaskStatusText={getPublishTaskStatusText}
-          getPublishTaskSummaryText={getPublishTaskSummaryText}
-          formatDateTime={formatDateTime}
-        />
-      );
+      return <RewriteWorkspace {...rewriteWorkspaceProps} />;
     }
 
-    return (
-      <VideoWorkspace
-        sectionLabel={currentSection.label}
-        sectionDescription={currentSection.description}
-        isLoading={isLoading}
-        isPublishing={isPublishing}
-        isTaskActive={isVideoTaskActive}
-        taskCount={videoTaskCount}
-        showSubmittingState={showVideoSubmittingState}
-        submittingLabel={videoSubmittingLabel}
-        latestTask={latestVideoTask}
-        taskStatusText={videoTaskStatusText}
-        inlineError={videoInlineError}
-        isCancellingTask={isCancellingVideoTask}
-        canCancelTask={canCancelVideoTask}
-        items={videoWorks}
-        materialNotes={materialNotes}
-        selectedWork={videoSelectedWork}
-        deletingWorkId={deletingVideoWorkId}
-        editingWork={videoEditingWork}
-        editingTitle={editingVideoTitle}
-        editingContent={editingVideoContent}
-        editingStoryboardPrompt={editingVideoStoryboardPrompt}
-        savingWorkId={savingVideoWorkId}
-        isCreateModalOpen={isVideoModalOpen}
-        calendarOptions={originalCalendarOptions}
-        customTopicOption={CUSTOM_TOPIC_OPTION}
-        noProductOption={NO_PRODUCT_OPTION}
-        customVideoProviderOption={customVideoProviderOption}
-        videoProviderOptions={videoProviderOptions}
-        products={workspace.archive.products}
-        calendarValue={videoCalendarValue}
-        customTopic={videoCustomTopic}
-        productValue={videoProductValue}
-        materialValue={videoMaterialValue}
-        accountRoleValue={videoAccountRoleValue}
-        accountRoleOptions={originalAccountRoleOptions}
-        referenceImageFile={videoReferenceImageFile}
-        videoKindValue={videoKindValue}
-        copyAdditionalInstruction={videoCopyAdditionalInstruction}
-        providerValue={videoProviderValue}
-        customProviderValue={videoCustomProviderValue}
-        customModelName={videoCustomModelName}
-        durationValue={videoDurationValue}
-        injectMarketingPlanValue={videoInjectMarketingPlanValue}
-        additionalInstruction={videoAdditionalInstruction}
-        onRefresh={() => loadWorkspace()}
-        onCancelTask={() => handleCancelComposeTask(latestVideoTask, "视频笔记")}
-        onOpenCreate={handleOpenVideoModal}
-        onSelectWork={handleSelectVideoWork}
-        onPreview={openVideoWorkLightbox}
-        onEdit={handleStartEditVideoWork}
-        onDelete={(workId) => void handleDeleteVideoWork(workId)}
-        onRegenerateStoryboard={() => {
-          if (!videoSelectedWork) {
-            return Promise.resolve();
-          }
-          return handleRegenerateVideoStoryboard(videoSelectedWork.id, editingVideoStoryboardPrompt);
-        }}
-        onGenerateVideo={() => {
-          if (!videoSelectedWork) {
-            return Promise.resolve();
-          }
-          return handleGenerateVideoFromStoryboard(videoSelectedWork.id, videoCustomModelName);
-        }}
-        onCloseEdit={handleCancelEditVideoWork}
-        onSaveEdit={handleSaveVideoWork}
-        onEditTitleChange={setEditingVideoTitle}
-        onEditContentChange={setEditingVideoContent}
-        onEditStoryboardPromptChange={setEditingVideoStoryboardPrompt}
-        onCloseCreate={handleCloseVideoModal}
-        onCreate={handleCreateVideoWork}
-        onCalendarChange={setVideoCalendarValue}
-        onProductChange={(value) => {
-          setVideoProductValue(value);
-          if (value !== NO_PRODUCT_OPTION && videoReferenceImageFile) {
-            setVideoReferenceImageFile(null);
-          }
-        }}
-        onMaterialChange={setVideoMaterialValue}
-        onAccountRoleChange={setVideoAccountRoleValue}
-        onCustomTopicChange={setVideoCustomTopic}
-        onReferenceImageFileChange={(file) => {
-          setVideoReferenceImageFile(file);
-          if (file) {
-            setVideoProductValue(NO_PRODUCT_OPTION);
-          }
-        }}
-        onVideoKindChange={(value) => {
-          setVideoKindValue(value);
-          if (value !== "REMIX") {
-            setVideoMaterialValue("");
-          }
-        }}
-        onCopyAdditionalInstructionChange={setVideoCopyAdditionalInstruction}
-        onProviderChange={setVideoProviderValue}
-        onCustomProviderChange={setVideoCustomProviderValue}
-        onCustomModelNameChange={setVideoCustomModelName}
-        onDurationChange={setVideoDurationValue}
-        onInjectMarketingPlanChange={setVideoInjectMarketingPlanValue}
-        onAdditionalInstructionChange={setVideoAdditionalInstruction}
-        getTaskStatusClass={getTaskStatusClass}
-        getOriginalTaskStatusClass={getWorkTaskStatusClass}
-        getOriginalTaskStatusText={getWorkTaskStatusText}
-        formatDateTime={formatDateTime}
-      />
-    );
+    return <VideoWorkspace {...videoWorkspaceProps} />;
   }
 
   return (

@@ -202,6 +202,8 @@
   - 在薄壳基础上继续把品牌上下文校正、权限门卫、工作区聚合加载和局部刷新抽到 `use-xiaohongshu-workspace-loader.ts`，让 `workspace-shell.tsx` 更聚焦状态消费与 section 装配
 - `docs/changes/2026-05-18-xiaohongshu-workspace-task-hook.md`
   - 继续把营销策划方案、营销日历、原创/二创/视频和发布任务的轮询与状态派生抽到 `use-xiaohongshu-workspace-tasks.ts`，进一步降低壳层编排密度
+- `docs/changes/2026-05-18-xiaohongshu-note-section-props-split.md`
+  - 继续把原创、二创、视频三个工作区的 props 装配从 `workspace-shell.tsx` 抽到 `note-workspace-section-props.ts`，让 `renderSectionCard()` 更接近薄入口
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
