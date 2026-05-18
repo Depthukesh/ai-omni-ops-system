@@ -878,6 +878,8 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       proModel: "doubao-seedance-2-0-260128",
       supportsTextToVideo: true,
       supportsImageToVideo: true,
+      pollMaxAttempts: 180,
+      pollIntervalMs: 5000,
       sourceFolder: "第三方api接口seedance文生视频或图生视频.txt",
     },
     remark: "系统按用户提供的 Seedance 接口资料初始化，当前作为视频笔记的默认推荐后端。",

@@ -185,6 +185,8 @@
   - 修正视频提示词叶子项仍把同目录其它 `.txt` 一并拼进内容的问题；当前仅 `SKILL.md` 允许自动聚合参考资料，独立 `.txt` 只展示自身内容
 - `docs/changes/2026-05-18-runninghub-shared-query-backfill.md`
   - 修正 RunningHub 第三方视频模型缺失统一查询接口元数据的问题；当前运行时会对 `runninghub.cn` 强制使用 `/openapi/v2/query`，并在服务启动时回填旧系统 Provider 缺失的查询配置
+- `docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
+  - 修复柏拉图平台 `seedance2.0` 视频任务已创建并扣费，但站内仅轮询 160 秒就误判失败的问题；当前视频 Provider 支持独立轮询窗口，Seedance 默认放宽到约 15 分钟
 - `docs/changes/2026-05-09-auth-register-email-verification.md`
   - 记录上一阶段“邮箱验证码注册”的基线；当前已被 2026-05-10 的邀请码注册方案替代
 - `docs/changes/2026-05-09-personal-center-profile-editing.md`

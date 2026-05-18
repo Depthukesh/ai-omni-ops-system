@@ -605,6 +605,8 @@ type VideoProviderConfig = {
   imageQueryPath?: string;
   durationOptions: number[];
   requestTimeoutMs?: number;
+  pollMaxAttempts?: number;
+  pollIntervalMs?: number;
 };
 
 export type VideoProviderOptionRecord = {
@@ -5509,7 +5511,33 @@ export class WorksService {
       modelName: defaultModel,
       durationOptions: this.normalizeNumberArray(provider.extraParams?.durationOptions, [], 12),
       requestTimeoutMs: provider.timeoutMs || 240000,
+      pollMaxAttempts: this.resolveVideoPollMaxAttempts(provider, backend),
+      pollIntervalMs: this.resolveVideoPollIntervalMs(provider, backend),
     };
+  }
+
+  private resolveVideoPollMaxAttempts(provider: ApiProviderRecord, backend: VideoBackendKey) {
+    const configured = this.apiProvidersService.getNumberExtra(provider, "pollMaxAttempts");
+    if (typeof configured === "number" && Number.isFinite(configured) && configured > 0) {
+      return Math.floor(configured);
+    }
+    const normalizedBackend = this.normalizeVideoBackendLookupKey(backend);
+    if (normalizedBackend === "seedance") {
+      return 180;
+    }
+    return 40;
+  }
+
+  private resolveVideoPollIntervalMs(provider: ApiProviderRecord, backend: VideoBackendKey) {
+    const configured = this.apiProvidersService.getNumberExtra(provider, "pollIntervalMs");
+    if (typeof configured === "number" && Number.isFinite(configured) && configured >= 1000) {
+      return Math.floor(configured);
+    }
+    const normalizedBackend = this.normalizeVideoBackendLookupKey(backend);
+    if (normalizedBackend === "seedance") {
+      return 5000;
+    }
+    return 4000;
   }
 
   private parseVideoBackendKey(value?: string): VideoBackendKey | undefined {
@@ -5973,6 +6001,8 @@ export class WorksService {
           fallbackDurationSec: requestConfig.renderedDurationSec,
           queryMethod: config.queryMethod,
           queryBodyMode: config.queryBodyMode,
+          pollMaxAttempts: config.pollMaxAttempts,
+          pollIntervalMs: config.pollIntervalMs,
         });
         if (!result.videoUrl) {
           throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
@@ -6068,11 +6098,19 @@ export class WorksService {
     backend: VideoBackendKey,
     queryPath: string,
     taskId: string,
-    options: { fallbackDurationSec?: number; queryMethod?: "GET" | "POST"; queryBodyMode?: "taskId-json" },
+    options: {
+      fallbackDurationSec?: number;
+      queryMethod?: "GET" | "POST";
+      queryBodyMode?: "taskId-json";
+      pollMaxAttempts?: number;
+      pollIntervalMs?: number;
+    },
   ) {
     let lastState = "";
     let lastError = "";
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    const maxAttempts = options.pollMaxAttempts && options.pollMaxAttempts > 0 ? options.pollMaxAttempts : 40;
+    const pollIntervalMs = options.pollIntervalMs && options.pollIntervalMs >= 1000 ? options.pollIntervalMs : 4000;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const response = await this.requestAuthorizedJson(
         baseUrl,
         this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
@@ -6096,7 +6134,7 @@ export class WorksService {
       } else {
         lastError = snapshot.failReason || "";
       }
-      await wait(4000);
+      await wait(pollIntervalMs);
     }
 
     throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);

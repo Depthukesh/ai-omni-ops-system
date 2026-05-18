@@ -413,6 +413,7 @@
   - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
   - 当前 RunningHub 视频 Provider 已补入海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 多组模型；查询统一兼容 `POST /openapi/v2/query` 与 `{ taskId }` 请求体
   - 当前火山方舟视频 Provider 已补入 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128`；运行时创建接口兼容 `POST /api/v3/contents/generations/tasks`，查询接口兼容 `GET /api/v3/contents/generations/tasks/{id}`
+  - 当前视频运行时已支持按 Provider 元数据配置轮询窗口；柏拉图 `seedance2.0` 默认放宽到约 15 分钟轮询，避免第三方已接单扣费但站内仍因 160 秒超时而误判失败
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
   - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
@@ -421,6 +422,7 @@
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
   - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
+  - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
