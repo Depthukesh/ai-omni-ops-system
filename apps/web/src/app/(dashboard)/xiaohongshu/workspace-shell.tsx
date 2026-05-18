@@ -25,6 +25,7 @@ import { getComposeTaskStatusText, getPhaseTaskStatusText } from "./task-status-
 import { findLatestTaskByTypes, isTaskActive, useDelayedTaskPolling } from "./task-polling";
 import { useNoteComposerForms } from "./use-note-composer-forms";
 import { usePublishFlow } from "./use-publish-flow";
+import { useXiaohongshuWorkspaceLoader } from "./use-xiaohongshu-workspace-loader";
 import { useWorkComposerActions } from "./use-work-composer-actions";
 import { useWorkEditors } from "./use-work-editors";
 import { useWorkMutationActions } from "./use-work-mutation-actions";
@@ -47,28 +48,18 @@ import {
   buildPublishTaskMap,
   getMatchedDraft,
   getRelatedWorks,
-  getWorkBaseTitle,
   readTaskWorkKind,
 } from "./work-task-helpers";
 import { cancelTask, type MediaRecord, type TaskRecord } from "../../../services/personal-center";
-import { getMe } from "../../../services/auth";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import {
-  getBrandPermissionSettings,
-  type BrandPermissionKey,
-  type BrandPermissionSettingsRecord,
-} from "../../../services/brand-growth";
+import { type BrandPermissionKey, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
 import {
   annualMarketingPlanSeed,
   deleteXiaohongshuMarketingPlan,
   generateXiaohongshuMarketingCalendar,
   generateXiaohongshuMarketingPlan,
-  getAnnualMarketingPlanWorkspace,
-  getGrowthReportWorkspace,
-  getXiaohongshuMarketingCalendarWorkspace,
   type XiaohongshuMarketingCalendarItem,
   type XiaohongshuMarketingCalendarWorkspace,
-  getXiaohongshuMarketingPlanWorkspace,
   growthReportSeed,
   updateXiaohongshuMarketingCalendar,
   updateXiaohongshuMarketingPlan,
@@ -80,7 +71,6 @@ import {
   getDefaultXiaohongshuAccount,
   getXiaohongshuMedia,
   getXiaohongshuTasks,
-  getXiaohongshuWorkspace,
   getXiaohongshuWorkspaceSeed,
   type XiaohongshuGoal,
   type XiaohongshuNoteDraft,
@@ -89,11 +79,6 @@ import {
 import {
   formatXiaohongshuAccountRoleLabel,
   type XiaohongshuAccountRole,
-  getXiaohongshuVideoProviders,
-  getXiaohongshuVideoWorks,
-  getXiaohongshuOriginalReferenceTemplates,
-  getXiaohongshuOriginalWorks,
-  getXiaohongshuRewriteWorks,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -334,6 +319,47 @@ export function XiaohongshuWorkspaceShell() {
     cancelEditVideoWork: handleCancelEditVideoWork,
   } = workEditors;
 
+  const {
+    loadWorkspace,
+    reloadOriginalReferenceTemplates,
+    refreshMarketingPlanWorkspace,
+    refreshCalendarWorkspace,
+  } = useXiaohongshuWorkspaceLoader({
+    fallbackBrandId: workspace.archive.brand.id,
+    goal,
+    tone,
+    setWorkspace,
+    setGrowthReportWorkspace,
+    setAnnualPlanWorkspace,
+    setMarketingPlanWorkspace,
+    setCalendarWorkspace,
+    setSelectedProductId,
+    setSelectedAccountId,
+    setTopicIdeas,
+    setNoteDrafts,
+    setSelectedNoteId,
+    setOriginalWorks,
+    setRewriteWorks,
+    setVideoWorks,
+    setVideoProviderOptions,
+    setOriginalReferenceTemplateCategories,
+    setOriginalReferenceTemplateItems,
+    setIsLoadingOriginalReferenceTemplates,
+    setOriginalReferenceTemplatesError,
+    setIsLoading,
+    setBrandPermissionSettings,
+    setCurrentBrandRole,
+    setHasWorkspaceAccess,
+    setNotice,
+    setErrorMessage,
+    setDataSource,
+  });
+  const currentDefaultAccount = useMemo(
+    () => getDefaultXiaohongshuAccount(workspace.archive.platformAccounts),
+    [workspace.archive.platformAccounts],
+  );
+  const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
+
   useEffect(() => {
     void loadWorkspace();
   }, []);
@@ -413,190 +439,6 @@ export function XiaohongshuWorkspaceShell() {
     onPoll: () => loadWorkspace(),
   });
 
-  async function resolveActiveBrandId(fallbackBrandId: string) {
-    const me = await getMe().catch(() => null);
-    return me?.currentBrandId || me?.brands?.[0]?.id || getStoredCurrentBrandId(fallbackBrandId) || fallbackBrandId;
-  }
-
-  async function loadWorkspace(options?: { preserveMessages?: boolean }) {
-    const activeBrandId = await resolveActiveBrandId(workspace.archive.brand.id);
-    setIsLoading(true);
-    setDataSource("loading");
-    setIsLoadingOriginalReferenceTemplates(true);
-    setOriginalReferenceTemplatesError("");
-    if (!options?.preserveMessages) {
-      setNotice("");
-      setErrorMessage("");
-    }
-
-    const permissionSettingsResult = await getBrandPermissionSettings(activeBrandId);
-    const permissionMap = permissionSettingsResult.currentUserPermissions;
-    const hasAnyXiaohongshuViewPermission = Object.entries(permissionMap).some(
-      ([key, flags]) => key.startsWith("xiaohongshu.") && Boolean(flags.view),
-    );
-    setBrandPermissionSettings(permissionSettingsResult);
-    setCurrentBrandRole(permissionSettingsResult.currentUserRole);
-
-    if (!hasAnyXiaohongshuViewPermission) {
-      setHasWorkspaceAccess(false);
-      setDataSource("api");
-      setIsLoading(false);
-      setIsLoadingOriginalReferenceTemplates(false);
-      setErrorMessage("当前账号没有小红书板块的查看权限，请联系管理员在团队权限设置中开启对应板块后再进入。");
-      return;
-    }
-
-    setHasWorkspaceAccess(true);
-    const canViewPlan = Boolean(permissionMap["xiaohongshu.plan"]?.view);
-    const canViewCalendar = Boolean(permissionMap["xiaohongshu.calendar"]?.view);
-    const canViewOriginal = Boolean(permissionMap["xiaohongshu.original"]?.view);
-    const canViewRemix = Boolean(permissionMap["xiaohongshu.remix"]?.view);
-    const canViewVideo = Boolean(permissionMap["xiaohongshu.video"]?.view);
-    const shouldFetchMarketingPlan = canViewPlan || canViewCalendar || canViewOriginal || canViewRemix || canViewVideo;
-    const shouldFetchCalendar = canViewCalendar || canViewOriginal || canViewVideo;
-
-    const [
-      workspaceResult,
-      growthReportResult,
-      annualPlanResult,
-      marketingPlanResult,
-      calendarResult,
-      originalWorksResult,
-      rewriteWorksResult,
-      videoWorksResult,
-      videoProvidersResult,
-      referenceTemplatesResult,
-    ] =
-      await Promise.allSettled([
-      getXiaohongshuWorkspace(),
-      getGrowthReportWorkspace(),
-      getAnnualMarketingPlanWorkspace(),
-      shouldFetchMarketingPlan ? getXiaohongshuMarketingPlanWorkspace() : Promise.resolve(xiaohongshuMarketingPlanSeed),
-      shouldFetchCalendar ? getXiaohongshuMarketingCalendarWorkspace() : Promise.resolve({ history: [] } as XiaohongshuMarketingCalendarWorkspace),
-      canViewOriginal ? getXiaohongshuOriginalWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuOriginalWorkRecord[] }),
-      canViewRemix ? getXiaohongshuRewriteWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuRewriteWorkRecord[] }),
-      canViewVideo ? getXiaohongshuVideoWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuVideoWorkRecord[] }),
-      canViewVideo ? getXiaohongshuVideoProviders(activeBrandId) : Promise.resolve({ items: DEFAULT_VIDEO_PROVIDER_OPTIONS }),
-      canViewOriginal
-        ? getXiaohongshuOriginalReferenceTemplates()
-        : Promise.resolve({ categories: [] as XhsOriginalReferenceTemplateCategoryRecord[], items: [] as XhsOriginalReferenceTemplateRecord[] }),
-    ]);
-
-    const messages: string[] = [];
-
-    if (workspaceResult.status === "fulfilled") {
-      const data = workspaceResult.value;
-      setWorkspace(data);
-      setDataSource("api");
-      const nextProduct = getDefaultProduct(data.archive.products);
-      const nextAccount = getDefaultXiaohongshuAccount(data.archive.platformAccounts);
-      setSelectedProductId(nextProduct?.id || "");
-      setSelectedAccountId(nextAccount?.id || "");
-
-      const nextPlan = buildXiaohongshuPlan({
-        brandName: data.archive.brand.brandName,
-        productName: nextProduct?.productName || "主推产品",
-        usageScenario: nextProduct?.usageScenario || "日常消费",
-        goal,
-        tone,
-      });
-      setTopicIdeas(nextPlan.topicIdeas);
-      setNoteDrafts(nextPlan.noteDrafts);
-      setSelectedNoteId(nextPlan.noteDrafts[0]?.id || "");
-    } else {
-      messages.push("小红书工作台接口暂不可用。页面保留当前数据，不再回退到演示数据。");
-    }
-
-    if (growthReportResult.status === "fulfilled") {
-      setGrowthReportWorkspace(growthReportResult.value);
-    } else {
-      messages.push("品牌增长报告读取失败。");
-    }
-
-    if (annualPlanResult.status === "fulfilled") {
-      setAnnualPlanWorkspace(annualPlanResult.value);
-    } else {
-      messages.push("半年营销规划读取失败。");
-    }
-
-    if (marketingPlanResult.status === "fulfilled") {
-      setMarketingPlanWorkspace(marketingPlanResult.value);
-      if (marketingPlanResult.value.latestTask?.taskStatus === "FAILED" && marketingPlanResult.value.latestTask.errorMessage) {
-        messages.push(`小红书营销策划方案生成失败：${marketingPlanResult.value.latestTask.errorMessage}`);
-      }
-    } else {
-      messages.push("小红书营销策划方案读取失败。");
-    }
-
-    if (calendarResult.status === "fulfilled") {
-      setCalendarWorkspace(calendarResult.value);
-      if (calendarResult.value.latestTask?.taskStatus === "FAILED" && calendarResult.value.latestTask.errorMessage) {
-        messages.push(`营销日历生成失败：${calendarResult.value.latestTask.errorMessage}`);
-      }
-    } else {
-      messages.push("营销日历读取失败。");
-    }
-
-    if (originalWorksResult.status === "fulfilled") {
-      setOriginalWorks(originalWorksResult.value.items);
-    } else {
-      messages.push("原创笔记作品读取失败。");
-    }
-
-    if (rewriteWorksResult.status === "fulfilled") {
-      setRewriteWorks(rewriteWorksResult.value.items);
-    } else {
-      messages.push("二创笔记作品读取失败。");
-    }
-
-    if (videoWorksResult.status === "fulfilled") {
-      setVideoWorks(videoWorksResult.value.items);
-    } else {
-      messages.push("视频笔记作品读取失败。");
-    }
-
-    if (videoProvidersResult.status === "fulfilled" && videoProvidersResult.value.items.length) {
-      setVideoProviderOptions(videoProvidersResult.value.items);
-    } else if (videoProvidersResult.status === "rejected") {
-      messages.push("视频模型选项读取失败，已保留当前默认配置。");
-    }
-
-    if (referenceTemplatesResult.status === "fulfilled") {
-      setOriginalReferenceTemplateCategories(referenceTemplatesResult.value.categories);
-      setOriginalReferenceTemplateItems(referenceTemplatesResult.value.items);
-    } else {
-      setOriginalReferenceTemplatesError("原创参考模板读取失败，请稍后重试。");
-      messages.push("原创参考模板读取失败。");
-    }
-
-    if (workspaceResult.status === "fulfilled") {
-      setDataSource("api");
-    } else if (messages.length) {
-      setDataSource("error");
-    }
-
-    if (messages.length) {
-      setErrorMessage(messages.join(" "));
-    }
-    setIsLoading(false);
-    setIsLoadingOriginalReferenceTemplates(false);
-  }
-
-  async function reloadOriginalReferenceTemplates() {
-    setIsLoadingOriginalReferenceTemplates(true);
-    setOriginalReferenceTemplatesError("");
-    try {
-      const result = await getXiaohongshuOriginalReferenceTemplates();
-      setOriginalReferenceTemplateCategories(result.categories);
-      setOriginalReferenceTemplateItems(result.items);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "原创参考模板读取失败";
-      setOriginalReferenceTemplatesError(message);
-    } finally {
-      setIsLoadingOriginalReferenceTemplates(false);
-    }
-  }
-
   const {
     publishingTarget,
     publishingAccountValue,
@@ -615,7 +457,7 @@ export function XiaohongshuWorkspaceShell() {
     completeMobilePublishSession: handleCompleteMobilePublishSession,
   } = usePublishFlow({
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
-    defaultAccountId: defaultAccount?.id,
+    defaultAccountId: currentDefaultAccount?.id,
     platformAccounts: workspace.archive.platformAccounts,
     onRefreshWorkspace: loadWorkspace,
     setNotice,
@@ -651,43 +493,7 @@ export function XiaohongshuWorkspaceShell() {
     });
   }
 
-  async function refreshMarketingPlanWorkspace(silent = false) {
-    try {
-      const nextWorkspace = await getXiaohongshuMarketingPlanWorkspace();
-      setMarketingPlanWorkspace(nextWorkspace);
-      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
-        setErrorMessage(`小红书营销策划方案生成失败：${nextWorkspace.latestTask.errorMessage}`);
-      }
-      if (nextWorkspace.latestTask?.taskStatus === "SUCCESS") {
-        setNotice("小红书营销策划方案已生成完成，可继续编辑和保存。");
-      }
-    } catch (error) {
-      if (!silent) {
-        const message = error instanceof Error ? error.message : "刷新失败";
-        setErrorMessage(`刷新小红书营销策划方案失败：${message}`);
-      }
-    }
-  }
 
-  async function refreshCalendarWorkspace(silent = false) {
-    try {
-      const nextWorkspace = await getXiaohongshuMarketingCalendarWorkspace();
-      setCalendarWorkspace(nextWorkspace);
-      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
-        setErrorMessage(`营销日历生成失败：${nextWorkspace.latestTask.errorMessage}`);
-      }
-      if (nextWorkspace.latestTask?.taskStatus === "SUCCESS") {
-        setNotice("营销日历已生成完成，可按月份翻页查看，并继续生成接下来 7 天内容安排。");
-      }
-    } catch (error) {
-      if (!silent) {
-        const message = error instanceof Error ? error.message : "刷新失败";
-        setErrorMessage(`刷新营销日历失败：${message}`);
-      }
-    }
-  }
-
-  const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? xiaohongshuSections[0];
   const hasCurrentSectionEditPermission = Boolean(
     brandPermissionSettings?.currentUserPermissions?.[xiaohongshuSectionPermissionMap[currentSection.key]]?.edit,

@@ -237,7 +237,8 @@ flowchart TD
 flowchart TD
     XHS["/xiaohongshu page.tsx"]
     XHS --> XHSW["workspace-shell.tsx 编排壳层"]
-    XHSW --> XA["auth.ts /auth/me 校正当前品牌"]
+    XHSW --> HK0["useXiaohongshuWorkspaceLoader"]
+    HK0 --> XA["auth.ts /auth/me 校正当前品牌"]
 
     XHSW --> HX1["AssetsWorkspace 素材库"]
     XHSW --> HX2["PlanWorkspace 营销策划方案"]
@@ -280,6 +281,10 @@ flowchart TD
     XHSW --> HH10["shared-types.ts"]
     XHSW --> HH11["publish-types.ts"]
 
+    HK0 --> SX1["xiaohongshu.ts"]
+    HK0 --> SX5["reports.ts"]
+    HK0 --> SX3["works.ts"]
+    HK0 --> SX6["brand-growth.ts 权限模板"]
     HK1 --> SX1["xiaohongshu.ts"]
     HK2 --> SX2["publishing.ts"]
     HK3 --> SX3["works.ts"]
@@ -294,6 +299,7 @@ flowchart TD
     XA --> SX3
     XA --> SX4
     XA --> SX5
+    SX6 --> AX6["/brands/:id/permission-settings"]
 
     SX1 --> AX1["/brands/* + /reports/* + /collectors/* 聚合读取"]
     SX2 --> AX2["/publishing/xiaohongshu/*"]
@@ -315,6 +321,7 @@ flowchart TD
     AX4 --> MX3["CollectorsModule 品牌访问校验"]
     AX41 --> MX3
     AX5 --> MX4["ReportsModule 品牌访问校验"]
+    AX6 --> MX5["BrandsModule / BrandMembers 权限模板"]
 
     MX1 --> TX1["Task"]
     MX1 --> TX2["MediaAsset"]
@@ -328,6 +335,7 @@ flowchart TD
     MX3 --> TX7["BusinessAsset"]
     MX4 --> TX1
     MX4 --> TX2
+    MX5 --> TX3
 ```
 
 ### 6.1 小红书工作台内部页面颗粒度
@@ -701,6 +709,7 @@ flowchart LR
 
 ### 13.4 小红书工作台 hook 与 helper 索引
 
+- 工作区加载编排：`apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`
