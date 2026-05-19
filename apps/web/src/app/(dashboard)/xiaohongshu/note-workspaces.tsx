@@ -12,6 +12,11 @@ import {
 } from "../../../services/works";
 import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
 import { VideoWorkspaceDetailPanel } from "./video-workspace-detail-panel";
+import {
+  buildOriginalWorkspaceModalProps,
+  buildRewriteWorkspaceModalProps,
+  buildVideoWorkspaceModalProps,
+} from "./note-workspace-modal-props";
 import { OriginalWorkspaceModals, RewriteWorkspaceModals } from "./note-workspace-modals";
 import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
@@ -155,55 +160,7 @@ export function OriginalWorkspace(props: OriginalWorkspaceProps) {
         />
       )}
 
-      <OriginalWorkspaceModals
-        editModalProps={{
-          item: props.editingWork,
-          title: props.editingTitle,
-          content: props.editingContent,
-          savingWorkId: props.savingWorkId,
-          onClose: props.onCloseEdit,
-          onSave: props.onSaveEdit,
-          onTitleChange: props.onEditTitleChange,
-          onContentChange: props.onEditContentChange,
-          getTaskStatusClass: props.getOriginalTaskStatusClass,
-          getTaskStatusText: props.getOriginalTaskStatusText,
-        }}
-        createModalProps={{
-          open: props.isCreateModalOpen,
-          isPublishing: props.isPublishing,
-          calendarOptions: props.calendarOptions,
-          customTopicOption: props.customTopicOption,
-          noProductOption: props.noProductOption,
-          autoImageCountOption: props.autoImageCountOption,
-          products: props.products,
-          calendarValue: props.calendarValue,
-          customTopic: props.customTopic,
-          productValue: props.productValue,
-          accountRoleValue: props.accountRoleValue,
-          accountRoleOptions: props.accountRoleOptions,
-          imageCountValue: props.imageCountValue,
-          injectMarketingPlanValue: props.injectMarketingPlanValue,
-          additionalInstruction: props.additionalInstruction,
-          coverReferenceFile: props.coverReferenceFile,
-          galleryReferenceFiles: props.galleryReferenceFiles,
-          referenceTemplateCategories: props.referenceTemplateCategories,
-          referenceTemplateItems: props.referenceTemplateItems,
-          isReferenceTemplatesLoading: props.isReferenceTemplatesLoading,
-          referenceTemplatesError: props.referenceTemplatesError,
-          onClose: props.onCloseCreate,
-          onCreate: props.onCreate,
-          onCalendarChange: props.onCalendarChange,
-          onCustomTopicChange: props.onCustomTopicChange,
-          onProductChange: props.onProductChange,
-          onAccountRoleChange: props.onAccountRoleChange,
-          onImageCountChange: props.onImageCountChange,
-          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
-          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
-          onCoverReferenceFileChange: props.onCoverReferenceFileChange,
-          onGalleryReferenceFilesChange: props.onGalleryReferenceFilesChange,
-          onReloadReferenceTemplates: props.onReloadReferenceTemplates,
-        }}
-      />
+      <OriginalWorkspaceModals {...buildOriginalWorkspaceModalProps(props)} />
     </article>
   );
 }
@@ -333,40 +290,7 @@ export function RewriteWorkspace(props: RewriteWorkspaceProps) {
         />
       )}
 
-      <RewriteWorkspaceModals
-        editModalProps={{
-          item: props.editingWork,
-          title: props.editingTitle,
-          content: props.editingContent,
-          savingWorkId: props.savingWorkId,
-          onClose: props.onCloseEdit,
-          onSave: props.onSaveEdit,
-          onTitleChange: props.onEditTitleChange,
-          onContentChange: props.onEditContentChange,
-          getTaskStatusClass: props.getOriginalTaskStatusClass,
-          getTaskStatusText: props.getOriginalTaskStatusText,
-        }}
-        createModalProps={{
-          open: props.isCreateModalOpen,
-          isPublishing: props.isPublishing,
-          noProductOption: props.noProductOption,
-          materials: props.materialNotes,
-          products: props.products,
-          materialValue: props.materialValue,
-          productValue: props.productValue,
-          accountRoleValue: props.accountRoleValue,
-          accountRoleOptions: props.accountRoleOptions,
-          injectMarketingPlanValue: props.injectMarketingPlanValue,
-          additionalInstruction: props.additionalInstruction,
-          onClose: props.onCloseCreate,
-          onCreate: props.onCreate,
-          onMaterialChange: props.onMaterialChange,
-          onProductChange: props.onProductChange,
-          onAccountRoleChange: props.onAccountRoleChange,
-          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
-          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
-        }}
-      />
+      <RewriteWorkspaceModals {...buildRewriteWorkspaceModalProps(props)} />
     </article>
   );
 }
@@ -544,64 +468,7 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
         </>
       )}
 
-      <VideoWorkspaceModals
-        editModalProps={{
-          item: props.editingWork,
-          title: props.editingTitle,
-          content: props.editingContent,
-          storyboardPrompt: props.editingStoryboardPrompt,
-          savingWorkId: props.savingWorkId,
-          onClose: props.onCloseEdit,
-          onSave: props.onSaveEdit,
-          onTitleChange: props.onEditTitleChange,
-          onContentChange: props.onEditContentChange,
-          onStoryboardPromptChange: props.onEditStoryboardPromptChange,
-          getTaskStatusClass: props.getOriginalTaskStatusClass,
-          getTaskStatusText: props.getOriginalTaskStatusText,
-        }}
-        createModalProps={{
-          open: props.isCreateModalOpen,
-          isPublishing: props.isPublishing,
-          calendarOptions: props.calendarOptions,
-          customTopicOption: props.customTopicOption,
-          noProductOption: props.noProductOption,
-          customVideoProviderOption: props.customVideoProviderOption,
-          videoProviderOptions: props.videoProviderOptions,
-          products: props.products,
-          materialNotes: props.materialNotes,
-          calendarValue: props.calendarValue,
-          customTopic: props.customTopic,
-          productValue: props.productValue,
-          materialValue: props.materialValue,
-          accountRoleValue: props.accountRoleValue,
-          accountRoleOptions: props.accountRoleOptions,
-          referenceImageFile: props.referenceImageFile,
-          videoKindValue: props.videoKindValue,
-          copyAdditionalInstruction: props.copyAdditionalInstruction,
-          providerValue: props.providerValue,
-          customProviderValue: props.customProviderValue,
-          customModelName: props.customModelName,
-          durationValue: props.durationValue,
-          injectMarketingPlanValue: props.injectMarketingPlanValue,
-          additionalInstruction: props.additionalInstruction,
-          onClose: props.onCloseCreate,
-          onCreate: props.onCreate,
-          onCalendarChange: props.onCalendarChange,
-          onProductChange: props.onProductChange,
-          onMaterialChange: props.onMaterialChange,
-          onAccountRoleChange: props.onAccountRoleChange,
-          onCustomTopicChange: props.onCustomTopicChange,
-          onReferenceImageFileChange: props.onReferenceImageFileChange,
-          onVideoKindChange: props.onVideoKindChange,
-          onCopyAdditionalInstructionChange: props.onCopyAdditionalInstructionChange,
-          onProviderChange: props.onProviderChange,
-          onCustomProviderChange: props.onCustomProviderChange,
-          onCustomModelNameChange: props.onCustomModelNameChange,
-          onDurationChange: props.onDurationChange,
-          onInjectMarketingPlanChange: props.onInjectMarketingPlanChange,
-          onAdditionalInstructionChange: props.onAdditionalInstructionChange,
-        }}
-      />
+      <VideoWorkspaceModals {...buildVideoWorkspaceModalProps(props)} />
     </article>
   );
 }
