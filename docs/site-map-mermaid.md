@@ -281,20 +281,23 @@ flowchart TD
     XHSW --> HK6["useWorkspaceSelectionSync"]
     XHSW --> HK7["task-polling.ts"]
 
-    HX4 --> HX41["note-create-modals.tsx"]
+    HX4 --> HX41["note-create-modals.tsx 导出层"]
     HX4 --> HX42["note-edit-modals.tsx"]
     HX4 --> HX43["work-card-grids.tsx"]
     HX4 --> HX44["original-reference-template-picker.tsx"]
-    HX41 --> HX413
-    HX41 --> HX49
-    HX41 --> HX414
-    HX41 --> HX412
-    HX41 --> HX411
+    HX41 --> HX417["originalCreateModal"]
+    HX41 --> HX418["rewriteCreateModal"]
+    HX41 --> HX419["videoCreateModal"]
+    HX417 --> HX413
+    HX417 --> HX49
+    HX417 --> HX414
+    HX418 --> HX415
+    HX418 --> HX416
+    HX419 --> HX412
+    HX419 --> HX411
     HX49 --> HX44
     HX42 --> HX410
     HX5 --> HX41
-    HX41 --> HX415
-    HX41 --> HX416
     HX5 --> HX42
     HX5 --> HX43
     HX48 --> HX41

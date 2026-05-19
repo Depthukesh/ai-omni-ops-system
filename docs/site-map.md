@@ -197,6 +197,7 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-basic-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-tail-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-rewrite-create-fields-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-create-modal-shell-files-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-basic-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`

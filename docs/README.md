@@ -226,6 +226,8 @@
   - 继续把原创创建弹窗中的配图数量、营销策划和用户要求尾部区抽成独立子组件，减薄 `note-create-modals.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-rewrite-create-fields-split.md`
   - 继续把二创创建弹窗中的素材、产品、账号角色、营销策划和用户要求收口为独立字段组件，减薄 `note-create-modals.tsx`
+- `docs/changes/2026-05-19-xiaohongshu-create-modal-shell-files-split.md`
+  - 继续把原创、二创、视频三类创建弹窗壳层迁出为独立文件，让 `note-create-modals.tsx` 收敛为统一导出层
 - `docs/changes/2026-05-19-xiaohongshu-video-create-basic-fields-split.md`
   - 继续把视频创建弹窗中的营销日历、产品、账号角色和自定义选题头部区抽成独立子组件，减薄 `note-create-modals.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
