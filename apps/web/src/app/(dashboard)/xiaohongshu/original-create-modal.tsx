@@ -10,6 +10,7 @@ import {
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
+import { ORIGINAL_CREATE_MODAL_COPY } from "./note-create-modal-copy";
 import { NoteCreateModalShell } from "./note-create-modal-shell";
 import { OriginalCreateBasicFields } from "./original-create-basic-fields";
 import { OriginalCreateReferenceFields } from "./original-create-reference-fields";
@@ -55,8 +56,8 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title="添加原创笔记"
-      metaText="选择营销日历选题、产品与参考图后，直接触发完整原创图文生成链路。"
+      title={ORIGINAL_CREATE_MODAL_COPY.title}
+      metaText={ORIGINAL_CREATE_MODAL_COPY.metaText}
       isPublishing={props.isPublishing}
       onClose={props.onClose}
       onCreate={props.onCreate}

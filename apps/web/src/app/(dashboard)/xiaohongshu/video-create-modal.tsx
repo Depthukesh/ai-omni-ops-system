@@ -8,6 +8,7 @@ import {
   type StringChangeHandler,
 } from "./shared-types";
 import { type VideoProviderOptionRecord } from "../../../services/works";
+import { VIDEO_CREATE_MODAL_COPY } from "./note-create-modal-copy";
 import { NoteCreateModalShell } from "./note-create-modal-shell";
 import { VideoCreateBasicFields } from "./video-create-basic-fields";
 import { VideoCreateConfigFields } from "./video-create-config-fields";
@@ -59,8 +60,8 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title="添加视频笔记"
-      metaText="提交后先生成创意剧本和故事板，故事板确认后再继续生成短视频。"
+      title={VIDEO_CREATE_MODAL_COPY.title}
+      metaText={VIDEO_CREATE_MODAL_COPY.metaText}
       isPublishing={props.isPublishing}
       onClose={props.onClose}
       onCreate={props.onCreate}

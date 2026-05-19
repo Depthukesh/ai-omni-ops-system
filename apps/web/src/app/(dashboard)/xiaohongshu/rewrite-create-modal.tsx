@@ -7,6 +7,7 @@ import {
   type SelectOption,
   type StringChangeHandler,
 } from "./shared-types";
+import { REWRITE_CREATE_MODAL_COPY } from "./note-create-modal-copy";
 import { NoteCreateModalShell } from "./note-create-modal-shell";
 import { RewriteCreateBasicFields } from "./rewrite-create-basic-fields";
 import { RewriteCreateTailFields } from "./rewrite-create-tail-fields";
@@ -36,8 +37,8 @@ export function RewriteCreateModal(props: RewriteCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title="添加二创笔记"
-      metaText="从素材库选择参考作品，结合产品与用户要求，直接触发完整二创图文生成链路。"
+      title={REWRITE_CREATE_MODAL_COPY.title}
+      metaText={REWRITE_CREATE_MODAL_COPY.metaText}
       isPublishing={props.isPublishing}
       createDisabled={!props.materials.length}
       onClose={props.onClose}
