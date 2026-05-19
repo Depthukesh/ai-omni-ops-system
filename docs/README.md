@@ -26,6 +26,8 @@
 
 - 示例：`docs/brand-growth-retro-2026-05-04.md`
 - 作用：对某一阶段、某一问题、某一链路做深入复盘，不替代日常变更记录
+- 文件：`docs/xiaohongshu-structure-governance-handoff-2026-05-19.md`
+- 作用：记录小红书结构治理当前阶段的完成度、暂停位置与后续建议续接顺序，供后续继续重构时直接恢复上下文
 
 ### 4. 开发规范
 
@@ -88,6 +90,8 @@
 
 - `docs/changes/2026-05-10-auth-invite-registration-and-gated-frontend.md`
   - 前台统一改为“根页认证入口 + 邀请码注册 + 工作台全局登录拦截”，后台继续保持管理员专用登录入口
+- `docs/changes/2026-05-19-xiaohongshu-structure-governance-winddown.md`
+  - 记录小红书结构治理当前阶段的收口位置，并补充统一创建弹窗配置与后续续接文档
 - `docs/changes/2026-05-10-deploy-hardening-and-non-root-runtime.md`
   - GitHub Actions 部署前新增服务器工作区阻断，生产 PM2 进程统一切到普通用户并收口到 `ecosystem.config.cjs`，同时增加本机端口和健康检查
 - `docs/changes/2026-05-17-deploy-worktree-auto-backup.md`

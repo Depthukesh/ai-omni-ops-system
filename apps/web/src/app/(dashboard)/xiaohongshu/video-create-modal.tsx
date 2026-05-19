@@ -60,8 +60,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title={VIDEO_CREATE_MODAL_COPY.title}
-      metaText={VIDEO_CREATE_MODAL_COPY.metaText}
+      copy={VIDEO_CREATE_MODAL_COPY}
       isPublishing={props.isPublishing}
       onClose={props.onClose}
       onCreate={props.onCreate}

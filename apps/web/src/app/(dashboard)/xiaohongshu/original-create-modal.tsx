@@ -56,8 +56,7 @@ export function OriginalCreateModal(props: OriginalCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title={ORIGINAL_CREATE_MODAL_COPY.title}
-      metaText={ORIGINAL_CREATE_MODAL_COPY.metaText}
+      copy={ORIGINAL_CREATE_MODAL_COPY}
       isPublishing={props.isPublishing}
       onClose={props.onClose}
       onCreate={props.onCreate}

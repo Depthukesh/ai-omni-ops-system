@@ -37,8 +37,7 @@ export function RewriteCreateModal(props: RewriteCreateModalProps) {
   return (
     <NoteCreateModalShell
       open={props.open}
-      title={REWRITE_CREATE_MODAL_COPY.title}
-      metaText={REWRITE_CREATE_MODAL_COPY.metaText}
+      copy={REWRITE_CREATE_MODAL_COPY}
       isPublishing={props.isPublishing}
       createDisabled={!props.materials.length}
       onClose={props.onClose}

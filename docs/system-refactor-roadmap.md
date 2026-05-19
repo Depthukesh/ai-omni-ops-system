@@ -166,3 +166,13 @@
 - `docs/site-map-mermaid.md`
 - `docs/database-archive.md`
 - `docs/generated-content-storage-standards.md`
+
+## 9. 当前阶段快照
+
+### 2026-05-19 小红书结构治理进度
+
+- 当前已在“小红书工作区 + 创建弹窗 + 视频详情区”范围内完成一轮较完整的薄壳化收口
+- `note-create-modals.tsx` 已收口为纯导出层，三类创建弹窗的壳层、字段区、公共外壳与静态文案配置均已拆出
+- `note-workspaces.tsx` 中视频详情区相关的阶段派生、props 装配与挂载层均已外移
+- 当前继续深挖创建弹窗内部的边际收益开始下降，后续更建议转向 `workspace-shell.tsx`、`publish-modal.tsx` 等仍偏厚的外层编排文件
+- 续接前优先查看：`docs/xiaohongshu-structure-governance-handoff-2026-05-19.md`

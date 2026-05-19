@@ -1,12 +1,12 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { type NoteCreateModalCopy } from "./note-create-modal-copy";
 import { type AsyncAction } from "./shared-types";
 
 export interface NoteCreateModalShellProps {
   open: boolean;
-  title: string;
-  metaText: string;
+  copy: NoteCreateModalCopy;
   isPublishing: boolean;
   createDisabled?: boolean;
   children: ReactNode;
@@ -28,8 +28,8 @@ export function NoteCreateModalShell(props: NoteCreateModalShellProps) {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
-              <strong>{props.title}</strong>
-              <p className="personal-meta">{props.metaText}</p>
+              <strong>{props.copy.title}</strong>
+              <p className="personal-meta">{props.copy.metaText}</p>
             </div>
           </div>
           <div className="personal-grid">{props.children}</div>
