@@ -157,3 +157,47 @@
   - 待办清楚
 
 - 如果以上任一项缺失，该任务都不算完整闭环。
+
+## 11. 当前阶段进度快照
+
+### 11.1 小红书结构治理
+
+- 截至 `2026-05-19`，小红书结构治理第一阶段可以视为“主收益区已完成一轮收口”。
+- 当前已完成的主线包括：
+  - `note-create-modals.tsx` 已收口为纯导出层
+  - 原创、二创、视频三类创建弹窗已拆为独立壳层文件
+  - 三类创建弹窗字段区已拆为独立子组件
+  - 创建弹窗公共外壳已统一到 `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-shell.tsx`
+  - 创建弹窗静态文案已统一到 `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-copy.ts`
+  - `note-workspaces.tsx` 内视频详情区的阶段派生、props 装配、挂载层已分别拆到独立文件
+  - 工作区模态挂载层已统一收口
+
+### 11.2 当前建议暂停点
+
+- 创建弹窗主链路和视频详情区主链路已经相对干净。
+- 如果继续在这两个区域内部深挖，边际收益开始下降。
+- 后续更值得继续优化的区域，优先转向：
+  - `apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
+  - `apps/web/src/app/(dashboard)/xiaohongshu/publish-modal.tsx`
+  - `apps/web/src/app/(dashboard)/xiaohongshu/work-card-grids.tsx`
+
+### 11.3 恢复前必看
+
+- 恢复小红书结构治理前，必须先读：
+  - `docs/xiaohongshu-structure-governance-handoff-2026-05-19.md`
+  - `docs/changes/2026-05-19-xiaohongshu-structure-governance-winddown.md`
+  - `docs/site-map.md`
+  - `docs/site-map-mermaid.md`
+  - `docs/system-refactor-roadmap.md`
+
+### 11.4 恢复时必须遵守
+
+- 只做低风险、可独立提交的小步拆分。
+- 不改 API 协议。
+- 不改数据库结构。
+- 不改主业务流程。
+- 每一刀都必须同步更新：
+  - `docs/changes/*.md`
+  - `docs/README.md`
+  - `docs/site-map.md`
+  - `docs/site-map-mermaid.md`
