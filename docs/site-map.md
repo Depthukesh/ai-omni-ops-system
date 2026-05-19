@@ -111,6 +111,7 @@
 - 当前原创、二创、视频三个笔记 section 已进一步拆成独立叶子 container：`original-workspace-section-container.tsx`、`rewrite-workspace-section-container.tsx`、`video-workspace-section-container.tsx`；中间层 `note-workspace-section-containers.tsx` 当前只保留共享类型与路由分发，旧的 `note-workspace-sections.tsx` 集合出口已退出主链路
 - 当前 `note-workspaces.tsx` 内部重复的顶部工具栏、创作状态面板和发布状态面板已进一步抽到 `note-workspace-shared-panels.tsx`，面板本体开始只保留原创/二创/视频各自的差异化内容
 - 当前 `note-workspaces.tsx` 里原创、二创、视频三类模态的 `editModalProps/createModalProps` 参数装配已进一步抽到 `note-workspace-modal-props.ts`，面板本体不再内联维护三大段超长映射对象
+- 当前原创、二创、视频三类创建弹窗的共享 overlay、标题区和底部动作区已进一步抽到 `note-create-modal-shell.tsx`，三个创建弹窗文件只保留字段区差异编排
 - 当前 `VideoWorkspace` 里“修改故事板 / 生成短视频 / 找回视频结果”三类按钮的可用性派生已进一步抽到 `video-workspace-stage-flags.ts`，面板本体不再内联维护三段 workflowStage 判断
 - 当前 `VideoWorkspaceDetailPanel` 的 props 装配已进一步抽到 `video-workspace-detail-props.ts`，视频工作区本体不再内联维护整段详情区参数透传
 - 当前视频详情区的判空与挂载逻辑已进一步抽到 `video-workspace-detail-section.tsx`，`VideoWorkspace` 不再直接内联维护 `selectedItem ? ... : null` 分支
@@ -206,6 +207,7 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-create-modal-shell-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-stage-flags-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-props-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-section-split.md`
@@ -413,6 +415,8 @@
   - 当前承接原创、二创、视频三个 note 面板复用的头部工具栏、创作状态面板和发布状态面板
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modal-props.ts`
   - 当前承接原创、二创、视频工作区到模态挂载层的参数装配 builder
+- `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-shell.tsx`
+  - 当前承接原创、二创、视频三类创建弹窗的共享外层壳与底部动作区
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
   - 当前承接视频 note 面板详情区的阶段状态、故事板提示词、媒体预览、修改记录和动作按钮
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-stage-flags.ts`

@@ -245,6 +245,7 @@ flowchart TD
     XHSW --> HK16["videoWorkspaceStageFlags"]
     XHSW --> HK17["videoWorkspaceDetailProps"]
     XHSW --> HK18["videoWorkspaceDetailSection"]
+    XHSW --> HK19["noteCreateModalShell"]
     HK11 --> HK12["OriginalWorkspaceSectionContainer"]
     HK11 --> HK13["RewriteWorkspaceSectionContainer"]
     HK11 --> HK14["VideoWorkspaceSectionContainer"]
@@ -337,6 +338,9 @@ flowchart TD
     HK16 --> HX46
     HK17 --> HX46
     HK18 --> HX46
+    HK19 --> HX410
+    HK19 --> HX417
+    HK19 --> HX418
     HK11 --> HK9
     HK12 --> HX4
     HK12 --> HK9
@@ -784,6 +788,7 @@ flowchart LR
 - 视频详情区挂载层：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-section.tsx`
 - 视频模态挂载导出层：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
 - 工作区模态参数装配：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modal-props.ts`
+- 创建弹窗公共壳层：`apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-shell.tsx`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`

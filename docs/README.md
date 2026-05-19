@@ -244,6 +244,8 @@
   - 继续把原创、二创、视频共用的文本编辑弹窗壳层抽成独立组件，让 `note-edit-modals.tsx` 更聚焦差异字段映射
 - `docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`
   - 继续把 `note-workspaces.tsx` 里原创、二创、视频三类模态的 props 装配抽成独立 builder，让工作区面板更聚焦展示与编排
+- `docs/changes/2026-05-19-xiaohongshu-note-create-modal-shell-split.md`
+  - 继续把原创、二创、视频三类创建弹窗的重复外层壳抽成共享组件，让三个创建弹窗文件更聚焦字段区差异
 - `docs/changes/2026-05-19-xiaohongshu-video-timeout-hardening-and-recovery-entry.md`
   - 加固 Seedance 视频轮询窗口的 15 分钟硬下限，并在视频详情面板补入“找回视频结果”入口，避免任务仍在运行时过早报错
 - `docs/changes/2026-05-19-xiaohongshu-video-provider-taskid-early-persist.md`
