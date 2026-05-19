@@ -11,6 +11,7 @@ import {
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
 import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
+import { buildVideoWorkspaceDetailPanelProps } from "./video-workspace-detail-props";
 import { VideoWorkspaceDetailPanel } from "./video-workspace-detail-panel";
 import {
   buildOriginalWorkspaceModalProps,
@@ -430,20 +431,11 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
           />
           {selectedItem ? (
             <VideoWorkspaceDetailPanel
-              selectedItem={selectedItem}
-              editingStoryboardPrompt={props.editingStoryboardPrompt}
-              savingWorkId={props.savingWorkId}
-              canRegenerateStoryboard={canRegenerateStoryboard}
-              canGenerateVideo={canGenerateVideo}
-              canRecoverVideo={canRecoverVideo}
-              onEditStoryboardPromptChange={props.onEditStoryboardPromptChange}
-              onRegenerateStoryboard={props.onRegenerateStoryboard}
-              onGenerateVideo={props.onGenerateVideo}
-              onRecoverVideo={props.onRecoverVideo}
-              onPreview={props.onPreview}
-              getOriginalTaskStatusClass={props.getOriginalTaskStatusClass}
-              getOriginalTaskStatusText={props.getOriginalTaskStatusText}
-              formatDateTime={props.formatDateTime}
+              {...buildVideoWorkspaceDetailPanelProps(props, selectedItem, {
+                canRegenerateStoryboard,
+                canGenerateVideo,
+                canRecoverVideo,
+              })}
             />
           ) : null}
         </>
