@@ -111,6 +111,7 @@
 - 当前原创、二创、视频三个笔记 section 已进一步拆成独立叶子 container：`original-workspace-section-container.tsx`、`rewrite-workspace-section-container.tsx`、`video-workspace-section-container.tsx`；中间层 `note-workspace-section-containers.tsx` 当前只保留共享类型与路由分发，旧的 `note-workspace-sections.tsx` 集合出口已退出主链路
 - 当前 `note-workspaces.tsx` 内部重复的顶部工具栏、创作状态面板和发布状态面板已进一步抽到 `note-workspace-shared-panels.tsx`，面板本体开始只保留原创/二创/视频各自的差异化内容
 - 当前 `note-workspaces.tsx` 里原创、二创、视频三类模态的 `editModalProps/createModalProps` 参数装配已进一步抽到 `note-workspace-modal-props.ts`，面板本体不再内联维护三大段超长映射对象
+- 当前 `VideoWorkspace` 里“修改故事板 / 生成短视频 / 找回视频结果”三类按钮的可用性派生已进一步抽到 `video-workspace-stage-flags.ts`，面板本体不再内联维护三段 workflowStage 判断
 - 当前 `VideoWorkspace` 里的详情区已进一步抽到 `video-workspace-detail-panel.tsx`，把阶段状态、故事板区、视频预览和操作按钮从面板本体中继续拆出
 - 当前原创、二创、视频三类面板的编辑弹窗与创建弹窗挂载实现已进一步统一收口到 `note-workspace-modals.tsx`；`video-workspace-modals.tsx` 当前只保留兼容导出层，外部接线保持不变
 - 当前原创创建弹窗里的“封面参考图 / 配图参考图 / 模板选择器应用”局部块已进一步抽到 `original-create-reference-fields.tsx`，`note-create-modals.tsx` 不再内联维护模板应用状态与上传区细节
@@ -203,6 +204,7 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-stage-flags-split.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -409,6 +411,8 @@
   - 当前承接原创、二创、视频工作区到模态挂载层的参数装配 builder
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
   - 当前承接视频 note 面板详情区的阶段状态、故事板提示词、媒体预览、修改记录和动作按钮
+- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-stage-flags.ts`
+  - 当前承接视频详情区阶段按钮可用性的纯派生判断
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
   - 当前收敛为视频 note 模态挂载的兼容导出层，继续对外暴露 `VideoWorkspaceModals`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modals.tsx`

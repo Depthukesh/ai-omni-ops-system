@@ -17,6 +17,7 @@ import {
   buildRewriteWorkspaceModalProps,
   buildVideoWorkspaceModalProps,
 } from "./note-workspace-modal-props";
+import { getVideoWorkspaceStageFlags } from "./video-workspace-stage-flags";
 import { OriginalWorkspaceModals, RewriteWorkspaceModals } from "./note-workspace-modals";
 import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
@@ -379,27 +380,7 @@ export interface VideoWorkspaceProps {
 
 export function VideoWorkspace(props: VideoWorkspaceProps) {
   const selectedItem = props.selectedWork;
-  const canRegenerateStoryboard = Boolean(
-    selectedItem?.storyboardPrompt
-      && selectedItem.workflowStage !== "QUEUED"
-      && selectedItem.workflowStage !== "GENERATING_SCRIPT"
-      && selectedItem.workflowStage !== "GENERATING_STORYBOARD",
-  );
-  const canGenerateVideo = Boolean(
-    selectedItem?.storyboardPrompt
-      && selectedItem.storyboardImageUrl
-      && selectedItem.workflowStage !== "QUEUED"
-      && selectedItem.workflowStage !== "GENERATING_SCRIPT"
-      && selectedItem.workflowStage !== "GENERATING_STORYBOARD"
-      && selectedItem.workflowStage !== "GENERATING_VIDEO",
-  );
-  const canRecoverVideo = Boolean(
-    selectedItem?.providerTaskId
-      && !selectedItem.videoUrl
-      && (selectedItem.workflowStage === "FAILED"
-        || selectedItem.workflowStage === "GENERATING_VIDEO"
-        || selectedItem.workflowStage === "WAITING_VIDEO"),
-  );
+  const { canRegenerateStoryboard, canGenerateVideo, canRecoverVideo } = getVideoWorkspaceStageFlags(selectedItem);
 
   return (
     <article className="workspace-panel strategy-page-card">
