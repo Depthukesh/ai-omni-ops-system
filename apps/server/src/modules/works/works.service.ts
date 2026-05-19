@@ -546,6 +546,13 @@ type GeneratedVideoResult = {
   renderedDurationSec?: number;
 };
 
+type VideoProviderTaskSnapshot = {
+  provider: string;
+  modelName: string;
+  providerTaskId: string;
+  renderedDurationSec?: number;
+};
+
 type ThirdPartyChatConfig = {
   baseUrls: string[];
   completionPath: string;
@@ -613,6 +620,7 @@ type VideoProviderConfig = {
   requestTimeoutMs?: number;
   pollMaxAttempts?: number;
   pollIntervalMs?: number;
+  minimumPollWindowMs?: number;
 };
 
 export type VideoProviderOptionRecord = {
@@ -2531,6 +2539,24 @@ export class WorksService {
     }
   }
 
+  private async updateTaskOutputJson(taskId: string, outputJson: Record<string, unknown>) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          outputJson: outputJson as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId);
+    if (task) {
+      task.outputJson = outputJson;
+      task.updatedAt = new Date().toISOString();
+    }
+  }
+
   private async createWorkHtmlMedia(params: {
     userId: string;
     brandId: string;
@@ -3500,6 +3526,26 @@ export class WorksService {
         negativePrompt: promptResult.negativePrompt,
         requestedDurationSec: meta.requestedDurationSec,
         referenceImageUrl: accessibleStoryboardImageUrl,
+        onProviderTaskCreated: async (snapshot) => {
+          meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+            ...meta,
+            taskId,
+            workflowStage: "GENERATING_VIDEO",
+            resolvedVideoProvider: snapshot.provider,
+            resolvedVideoModel: snapshot.modelName,
+            renderedDurationSec: snapshot.renderedDurationSec,
+            providerTaskId: snapshot.providerTaskId,
+            progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+          });
+          await this.updateTaskOutputJson(taskId, {
+            workId,
+            stage: "VIDEO_PROVIDER_TASK_CREATED",
+            title: meta.title,
+            providerTaskId: snapshot.providerTaskId,
+            provider: snapshot.provider,
+            modelName: snapshot.modelName,
+          });
+        },
       });
       meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
@@ -5758,6 +5804,13 @@ export class WorksService {
     const isRunningHubProvider = [provider.baseUrl, ...baseUrls].some((item) =>
       String(item || "").trim().toLowerCase().includes("runninghub.cn"),
     );
+    const pollIntervalMs = this.resolveVideoPollIntervalMs(provider, backend);
+    const configuredPollMaxAttempts = this.resolveVideoPollMaxAttempts(provider, backend);
+    const minimumPollWindowMs = this.resolveVideoMinimumPollWindowMs(backend);
+    const pollMaxAttempts = minimumPollWindowMs
+      ? Math.max(configuredPollMaxAttempts, Math.ceil(minimumPollWindowMs / pollIntervalMs))
+      : configuredPollMaxAttempts;
+
     return {
       backend,
       providerId: provider.id,
@@ -5792,8 +5845,9 @@ export class WorksService {
       modelName: defaultModel,
       durationOptions: this.normalizeNumberArray(provider.extraParams?.durationOptions, [], 12),
       requestTimeoutMs: provider.timeoutMs || 240000,
-      pollMaxAttempts: this.resolveVideoPollMaxAttempts(provider, backend),
-      pollIntervalMs: this.resolveVideoPollIntervalMs(provider, backend),
+      pollMaxAttempts,
+      pollIntervalMs,
+      minimumPollWindowMs,
     };
   }
 
@@ -5819,6 +5873,14 @@ export class WorksService {
       return 5000;
     }
     return 4000;
+  }
+
+  private resolveVideoMinimumPollWindowMs(backend: VideoBackendKey) {
+    const normalizedBackend = this.normalizeVideoBackendLookupKey(backend);
+    if (normalizedBackend.includes("seedance")) {
+      return 15 * 60 * 1000;
+    }
+    return 0;
   }
 
   private parseVideoBackendKey(value?: string): VideoBackendKey | undefined {
@@ -6237,6 +6299,7 @@ export class WorksService {
     negativePrompt?: string;
     requestedDurationSec: number;
     referenceImageUrl?: string;
+    onProviderTaskCreated?: (snapshot: VideoProviderTaskSnapshot) => Promise<void> | void;
   }): Promise<GeneratedVideoResult> {
     const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
     const providerOrder = this.buildVideoProviderFallbackOrder(requestedBackend, Boolean(params.referenceImageUrl));
@@ -6268,8 +6331,8 @@ export class WorksService {
           body: requestConfig.payload,
           timeoutMs: config.requestTimeoutMs ?? 240000,
         });
-        const taskId = this.extractVideoTaskId(createResponse);
-        if (!taskId) {
+        const providerTaskId = this.extractVideoTaskId(createResponse);
+        if (!providerTaskId) {
           const createFailureReason = this.readVideoCreateFailureReason(createResponse);
           throw new ServiceUnavailableException(
             createFailureReason
@@ -6278,7 +6341,14 @@ export class WorksService {
           );
         }
 
-        const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, taskId, {
+        await params.onProviderTaskCreated?.({
+          provider: config.backend,
+          modelName,
+          providerTaskId,
+          renderedDurationSec: requestConfig.renderedDurationSec,
+        });
+
+        const result = await this.pollVideoGenerationResult(baseUrl, apiKey, config.backend, requestConfig.queryPath, providerTaskId, {
           fallbackDurationSec: requestConfig.renderedDurationSec,
           queryMethod: config.queryMethod,
           queryBodyMode: config.queryBodyMode,
@@ -6306,7 +6376,7 @@ export class WorksService {
           coverImageUrl: cachedCoverImageUrl,
           provider: config.backend,
           modelName,
-          providerTaskId: taskId,
+          providerTaskId,
           renderedDurationSec: result.renderedDurationSec || requestConfig.renderedDurationSec,
         };
       } catch (error) {
@@ -6391,8 +6461,21 @@ export class WorksService {
     let lastError = "";
     const maxAttempts = options.pollMaxAttempts && options.pollMaxAttempts > 0 ? options.pollMaxAttempts : 40;
     const pollIntervalMs = options.pollIntervalMs && options.pollIntervalMs >= 1000 ? options.pollIntervalMs : 4000;
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, options);
+    const minimumPollWindowMs = this.resolveVideoMinimumPollWindowMs(backend);
+    const deadlineAt = Date.now() + Math.max(maxAttempts * pollIntervalMs, minimumPollWindowMs);
+    while (Date.now() < deadlineAt) {
+      let snapshot: Awaited<ReturnType<WorksService["queryVideoGenerationSnapshot"]>>;
+      try {
+        snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, options);
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "视频任务查询失败";
+        const remainingMs = deadlineAt - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
+        await wait(Math.min(pollIntervalMs, remainingMs));
+        continue;
+      }
       lastState = snapshot.status;
       if (snapshot.status === "SUCCESS" && snapshot.videoUrl) {
         return snapshot;
@@ -6405,7 +6488,11 @@ export class WorksService {
       } else {
         lastError = snapshot.failReason || "";
       }
-      await wait(pollIntervalMs);
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs <= 0) {
+        break;
+      }
+      await wait(Math.min(pollIntervalMs, remainingMs));
     }
 
     throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);

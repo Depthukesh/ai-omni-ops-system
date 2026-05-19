@@ -485,6 +485,9 @@
   - 当前火山方舟视频 Provider 已补入 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128`；运行时创建接口兼容 `POST /api/v3/contents/generations/tasks`，查询接口兼容 `GET /api/v3/contents/generations/tasks/{id}`
   - 柏拉图共享代理视频 Provider 已从系统基线移除；旧视频任务元数据里若仍残留兼容值 `seedance / seedance20`，运行时会自动映射到 `volcengine_seedance_20`，避免历史默认值在创建新任务时直接落到已下线平台
   - 当前视频笔记已补入按第三方 `providerTaskId` 的手动恢复入口：`POST /api/works/brands/:brandId/xiaohongshu/video/recover`；可直接复查第三方任务状态，并在成功时把视频重新抓回站内 OSS 与作品元数据，不必再次扣费重跑
+  - 当前 Seedance 视频链路会额外强制执行“至少 15 分钟”的有效轮询窗口；即使后台 Provider 元数据仍残留较短轮询参数，也不会在 15 分钟内因轮询查询异常或旧配置覆盖而提前报错
+  - 当前视频第 3 阶段在第三方创建任务成功后，会立刻把 `providerTaskId` 写进作品元数据和站内任务 `outputJson`；即使后续轮询失败，也不会再丢失恢复所需的第三方任务 ID
+  - 当前 `/xiaohongshu` 视频详情面板已补入“找回视频结果”入口；只要当前作品已带 `providerTaskId` 且尚未回填成片，可直接从页面内触发第三方任务复查并把结果同步回当前列表
   - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
   - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
   - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
@@ -498,6 +501,8 @@
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
   - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
   - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
+  - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-timeout-hardening-and-recovery-entry.md`
+  - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-provider-taskid-early-persist.md`
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户

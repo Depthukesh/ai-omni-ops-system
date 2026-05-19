@@ -9,9 +9,11 @@ export interface VideoWorkspaceDetailPanelProps {
   savingWorkId?: string;
   canRegenerateStoryboard: boolean;
   canGenerateVideo: boolean;
+  canRecoverVideo: boolean;
   onEditStoryboardPromptChange: (value: string) => void;
   onRegenerateStoryboard: () => void | Promise<void>;
   onGenerateVideo: () => void | Promise<void>;
+  onRecoverVideo: (item: XiaohongshuVideoWorkRecord) => void | Promise<void>;
   onPreview: (item: XiaohongshuVideoWorkRecord) => void;
   getOriginalTaskStatusClass: (status?: XiaohongshuVideoWorkRecord["taskStatus"]) => string;
   getOriginalTaskStatusText: (status?: XiaohongshuVideoWorkRecord["taskStatus"]) => string;
@@ -127,6 +129,14 @@ export function VideoWorkspaceDetailPanel(props: VideoWorkspaceDetailPanelProps)
           disabled={!props.canGenerateVideo || props.savingWorkId === selectedItem.id}
         >
           {selectedItem.videoUrl ? "重新生成短视频" : "生成短视频"}
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void props.onRecoverVideo(selectedItem)}
+          disabled={!props.canRecoverVideo || props.savingWorkId === selectedItem.id}
+        >
+          {props.savingWorkId === selectedItem.id && !selectedItem.videoUrl ? "找回中..." : "找回视频结果"}
         </button>
         <button type="button" className="secondary-button" onClick={() => props.onPreview(selectedItem)}>
           预览媒体

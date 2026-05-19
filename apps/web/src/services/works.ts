@@ -152,6 +152,7 @@ export type XiaohongshuVideoWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  providerTaskId?: string;
   accountRole: XiaohongshuAccountRole;
   videoKind: VideoNoteKind;
   workflowStage: VideoWorkflowStage;
@@ -386,6 +387,22 @@ export async function continueXiaohongshuVideoGeneration(
     "POST",
     payload || {},
   );
+}
+
+export async function recoverXiaohongshuVideoGeneration(
+  brandId: string,
+  payload: {
+    workId?: string;
+    providerTaskId: string;
+    requestedVideoProvider?: string;
+  },
+) {
+  return jsonRequest<{
+    recovered: boolean;
+    providerTaskId: string;
+    thirdPartyStatus: string;
+    item: XiaohongshuVideoWorkRecord;
+  }>(`/works/brands/${brandId}/xiaohongshu/video/recover`, "POST", payload);
 }
 
 export async function updateXiaohongshuVideoWork(

@@ -222,6 +222,10 @@
   - 继续把原创创建弹窗中的参考模板选择、本地上传与模板应用局部块抽成独立子组件，减薄 `note-create-modals.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
   - 继续把原创、二创、视频共用的文本编辑弹窗壳层抽成独立组件，让 `note-edit-modals.tsx` 更聚焦差异字段映射
+- `docs/changes/2026-05-19-xiaohongshu-video-timeout-hardening-and-recovery-entry.md`
+  - 加固 Seedance 视频轮询窗口的 15 分钟硬下限，并在视频详情面板补入“找回视频结果”入口，避免任务仍在运行时过早报错
+- `docs/changes/2026-05-19-xiaohongshu-video-provider-taskid-early-persist.md`
+  - 在第三方视频任务创建成功后立刻持久化 `providerTaskId`，避免轮询失败后丢失恢复所需的第三方任务 ID
 - `docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 新增视频笔记按第三方 `taskId` 的恢复入口；可在站内误判失败但第三方实际已成功时，直接复查任务并把视频重新抓回 OSS 与作品记录，无需再次扣费重跑
 - `docs/changes/2026-05-09-auth-register-email-verification.md`

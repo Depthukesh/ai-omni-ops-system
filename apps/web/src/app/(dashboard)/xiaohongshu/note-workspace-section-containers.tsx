@@ -144,6 +144,7 @@ export type WorkMutationActionsState = Pick<
   | "deleteVideoWork"
   | "regenerateVideoStoryboard"
   | "generateVideoFromStoryboard"
+  | "recoverVideoResult"
 >;
 
 export type WorkspaceTasksState = Pick<

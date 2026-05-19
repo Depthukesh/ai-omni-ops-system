@@ -64,13 +64,14 @@ export function buildRewriteWorkspaceProps(options: BuildRewriteWorkspacePropsOp
 interface BuildVideoWorkspacePropsOptions
   extends Omit<
     VideoWorkspaceProps,
-    "onRefresh" | "onCancelTask" | "onDelete" | "onRegenerateStoryboard" | "onGenerateVideo" | "onProductChange" | "onReferenceImageFileChange" | "onVideoKindChange"
+    "onRefresh" | "onCancelTask" | "onDelete" | "onRegenerateStoryboard" | "onGenerateVideo" | "onRecoverVideo" | "onProductChange" | "onReferenceImageFileChange" | "onVideoKindChange"
   > {
   loadWorkspace: () => void | Promise<void>;
   handleCancelComposeTask: (task: TaskRecord | undefined, label: ComposeTaskLabel) => void | Promise<void>;
   handleDeleteVideoWork: (workId: string) => void | Promise<void>;
   handleRegenerateVideoStoryboard: (workId: string, storyboardPrompt: string) => void | Promise<void>;
   handleGenerateVideoFromStoryboard: (workId: string, modelName: string) => void | Promise<void>;
+  handleRecoverVideoResult: (item: XiaohongshuVideoWorkRecord) => void | Promise<void>;
   setVideoProductValue: (value: string) => void;
   setVideoReferenceImageFile: (file: File | null) => void;
   setVideoMaterialValue: (value: string) => void;
@@ -95,6 +96,7 @@ export function buildVideoWorkspaceProps(options: BuildVideoWorkspacePropsOption
       }
       return options.handleGenerateVideoFromStoryboard(options.selectedWork.id, options.customModelName);
     },
+    onRecoverVideo: (item: XiaohongshuVideoWorkRecord) => options.handleRecoverVideoResult(item),
     onProductChange: (value: string) => {
       options.setVideoProductValue(value);
       if (value !== options.noProductOption && options.referenceImageFile) {

@@ -7,6 +7,7 @@ import {
   deleteXiaohongshuOriginalWork,
   deleteXiaohongshuRewriteWork,
   regenerateXiaohongshuVideoStoryboard,
+  recoverXiaohongshuVideoGeneration,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -303,6 +304,41 @@ export function useWorkMutationActions(options: {
     }
   }
 
+  async function recoverVideoResult(item: XiaohongshuVideoWorkRecord) {
+    if (!item.id) {
+      return;
+    }
+    if (!item.providerTaskId?.trim()) {
+      options.setErrorMessage("当前视频记录缺少第三方任务 ID，暂时无法找回结果。");
+      return;
+    }
+
+    options.video.setSavingWorkId(item.id);
+    options.setNotice("");
+    options.setErrorMessage("");
+
+    try {
+      const result = await recoverXiaohongshuVideoGeneration(resolvedBrandId, {
+        workId: item.id,
+        providerTaskId: item.providerTaskId.trim(),
+        requestedVideoProvider: item.resolvedVideoProvider || item.requestedVideoProvider,
+      });
+      options.video.setWorks((current) => current.map((entry) => (entry.id === result.item.id ? result.item : entry)));
+      options.video.setSelectedWorkId(result.item.id);
+      options.video.setEditingStoryboardPrompt(result.item.storyboardPrompt || "");
+      options.setNotice(
+        result.recovered
+          ? "视频结果已找回并同步到当前页面。"
+          : `已复查第三方任务，当前仍在处理中：${result.thirdPartyStatus || "IN_PROGRESS"}。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "视频结果找回失败";
+      options.setErrorMessage(`找回失败：${message}`);
+    } finally {
+      options.video.setSavingWorkId("");
+    }
+  }
+
   return {
     saveOriginalWork,
     deleteOriginalWork,
@@ -312,5 +348,6 @@ export function useWorkMutationActions(options: {
     deleteVideoWork,
     regenerateVideoStoryboard,
     generateVideoFromStoryboard,
+    recoverVideoResult,
   };
 }

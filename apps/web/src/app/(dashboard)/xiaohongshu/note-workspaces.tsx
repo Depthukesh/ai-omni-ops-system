@@ -425,6 +425,7 @@ export interface VideoWorkspaceProps {
   onDelete: (workId: string) => ReturnType<AsyncAction>;
   onRegenerateStoryboard: AsyncAction;
   onGenerateVideo: AsyncAction;
+  onRecoverVideo: (item: XiaohongshuVideoWorkRecord) => ReturnType<AsyncAction>;
   onCloseEdit: () => void;
   onSaveEdit: AsyncAction;
   onEditTitleChange: StringChangeHandler;
@@ -467,6 +468,13 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
       && selectedItem.workflowStage !== "GENERATING_SCRIPT"
       && selectedItem.workflowStage !== "GENERATING_STORYBOARD"
       && selectedItem.workflowStage !== "GENERATING_VIDEO",
+  );
+  const canRecoverVideo = Boolean(
+    selectedItem?.providerTaskId
+      && !selectedItem.videoUrl
+      && (selectedItem.workflowStage === "FAILED"
+        || selectedItem.workflowStage === "GENERATING_VIDEO"
+        || selectedItem.workflowStage === "WAITING_VIDEO"),
   );
 
   return (
@@ -522,9 +530,11 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
               savingWorkId={props.savingWorkId}
               canRegenerateStoryboard={canRegenerateStoryboard}
               canGenerateVideo={canGenerateVideo}
+              canRecoverVideo={canRecoverVideo}
               onEditStoryboardPromptChange={props.onEditStoryboardPromptChange}
               onRegenerateStoryboard={props.onRegenerateStoryboard}
               onGenerateVideo={props.onGenerateVideo}
+              onRecoverVideo={props.onRecoverVideo}
               onPreview={props.onPreview}
               getOriginalTaskStatusClass={props.getOriginalTaskStatusClass}
               getOriginalTaskStatusText={props.getOriginalTaskStatusText}

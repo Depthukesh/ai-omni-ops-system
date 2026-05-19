@@ -128,6 +128,7 @@ export function VideoWorkspaceSectionContainer(props: NoteWorkspaceSectionContai
     handleDeleteVideoWork: workMutationActions.deleteVideoWork,
     handleRegenerateVideoStoryboard: workMutationActions.regenerateVideoStoryboard,
     handleGenerateVideoFromStoryboard: workMutationActions.generateVideoFromStoryboard,
+    handleRecoverVideoResult: workMutationActions.recoverVideoResult,
     setVideoProductValue: composerForms.setVideoProductValue,
     setVideoReferenceImageFile: composerForms.setVideoReferenceImageFile,
     setVideoMaterialValue: composerForms.setVideoMaterialValue,
