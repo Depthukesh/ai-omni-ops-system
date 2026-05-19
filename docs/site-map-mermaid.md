@@ -255,7 +255,7 @@ flowchart TD
     HX4 --> HX45["noteWorkspaceSharedPanels"]
     HX5 --> HX45
     HX6 --> HX45
-    HX4 --> HX48["noteWorkspaceModals"]
+    HX4 --> HX48["noteWorkspaceModals 统一挂载层"]
     HX5 --> HX48
     HX4 --> HX413["originalCreateBasicFields"]
     HX4 --> HX49["originalCreateReferenceFields"]
@@ -268,7 +268,7 @@ flowchart TD
     HX6 --> HX412["videoCreateBasicFields"]
     HX6 --> HX411["videoCreateConfigFields"]
     HX6 --> HX46["videoWorkspaceDetailPanel"]
-    HX6 --> HX47["videoWorkspaceModals"]
+    HX6 --> HX47["videoWorkspaceModals 导出层"]
     XHSW --> HX7["PublishModal 发布弹窗"]
     XHSW --> HX8["MediaLightbox 媒体灯箱"]
     HX1 --> HX11["飞书代理资源：鉴权 fetch blob -> object URL"]
@@ -302,8 +302,7 @@ flowchart TD
     HX5 --> HX43
     HX48 --> HX41
     HX48 --> HX42
-    HX6 --> HX41
-    HX6 --> HX42
+    HX47 --> HX48
     HX6 --> HX43
 
     XHSW --> HH1["calendar-helpers.ts"]
@@ -772,7 +771,7 @@ flowchart LR
 - 视频 section 叶子 container：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-section-container.tsx`
 - note 面板共享展示块：`apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-shared-panels.tsx`
 - 视频详情子组件：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
-- 视频模态挂载组件：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
+- 视频模态挂载导出层：`apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
 - 创作表单状态：`apps/web/src/app/(dashboard)/xiaohongshu/use-note-composer-forms.ts`
 - 发布状态机：`apps/web/src/app/(dashboard)/xiaohongshu/use-publish-flow.ts`
 - 作品创建动作：`apps/web/src/app/(dashboard)/xiaohongshu/use-work-composer-actions.ts`

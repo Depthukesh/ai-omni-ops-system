@@ -111,8 +111,7 @@
 - 当前原创、二创、视频三个笔记 section 已进一步拆成独立叶子 container：`original-workspace-section-container.tsx`、`rewrite-workspace-section-container.tsx`、`video-workspace-section-container.tsx`；中间层 `note-workspace-section-containers.tsx` 当前只保留共享类型与路由分发，旧的 `note-workspace-sections.tsx` 集合出口已退出主链路
 - 当前 `note-workspaces.tsx` 内部重复的顶部工具栏、创作状态面板和发布状态面板已进一步抽到 `note-workspace-shared-panels.tsx`，面板本体开始只保留原创/二创/视频各自的差异化内容
 - 当前 `VideoWorkspace` 里的详情区已进一步抽到 `video-workspace-detail-panel.tsx`，把阶段状态、故事板区、视频预览和操作按钮从面板本体中继续拆出
-- 当前 `VideoWorkspace` 的编辑弹窗和创建弹窗挂载层已进一步抽到 `video-workspace-modals.tsx`，面板本体尾部不再直接维护整段视频模态参数透传
-- 当前原创与二创面板的编辑弹窗、创建弹窗挂载层已进一步抽到 `note-workspace-modals.tsx`，三类 note 面板的模态挂载方式开始统一
+- 当前原创、二创、视频三类面板的编辑弹窗与创建弹窗挂载实现已进一步统一收口到 `note-workspace-modals.tsx`；`video-workspace-modals.tsx` 当前只保留兼容导出层，外部接线保持不变
 - 当前原创创建弹窗里的“封面参考图 / 配图参考图 / 模板选择器应用”局部块已进一步抽到 `original-create-reference-fields.tsx`，`note-create-modals.tsx` 不再内联维护模板应用状态与上传区细节
 - 当前原创、二创、视频三类编辑弹窗共用的文本编辑壳层已进一步抽到 `note-text-edit-modal.tsx`，`note-edit-modals.tsx` 当前更聚焦标题、摘要和视频差异字段映射
 - 营销策划方案
@@ -198,6 +197,7 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-tail-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-rewrite-create-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-create-modal-shell-files-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-workspace-modals-unify.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-basic-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
@@ -406,9 +406,9 @@
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
   - 当前承接视频 note 面板详情区的阶段状态、故事板提示词、媒体预览、修改记录和动作按钮
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
-  - 当前承接视频 note 面板的编辑弹窗与创建弹窗挂载层
+  - 当前收敛为视频 note 模态挂载的兼容导出层，继续对外暴露 `VideoWorkspaceModals`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modals.tsx`
-  - 当前承接原创与二创 note 面板的编辑弹窗与创建弹窗挂载层
+  - 当前统一承接原创、二创、视频三类 note 面板的编辑弹窗与创建弹窗挂载实现
 - `apps/web/src/app/(dashboard)/xiaohongshu/original-create-reference-fields.tsx`
   - 当前承接原创创建弹窗中的封面参考图、配图参考图、本地上传和模板应用局部块
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-text-edit-modal.tsx`
