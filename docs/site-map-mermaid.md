@@ -261,6 +261,8 @@ flowchart TD
     HX4 --> HX49["originalCreateReferenceFields"]
     HX4 --> HX414["originalCreateTailFields"]
     HX4 --> HX410["noteTextEditModal"]
+    HX5 --> HX415["rewriteCreateBasicFields"]
+    HX5 --> HX416["rewriteCreateTailFields"]
     HX5 --> HX410
     HX6 --> HX410
     HX6 --> HX412["videoCreateBasicFields"]
@@ -291,6 +293,8 @@ flowchart TD
     HX49 --> HX44
     HX42 --> HX410
     HX5 --> HX41
+    HX41 --> HX415
+    HX41 --> HX416
     HX5 --> HX42
     HX5 --> HX43
     HX48 --> HX41

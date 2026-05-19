@@ -15,6 +15,8 @@ import {
 import { OriginalCreateBasicFields } from "./original-create-basic-fields";
 import { OriginalCreateReferenceFields } from "./original-create-reference-fields";
 import { OriginalCreateTailFields } from "./original-create-tail-fields";
+import { RewriteCreateBasicFields } from "./rewrite-create-basic-fields";
+import { RewriteCreateTailFields } from "./rewrite-create-tail-fields";
 import { VideoCreateBasicFields } from "./video-create-basic-fields";
 import { VideoCreateConfigFields } from "./video-create-config-fields";
 
@@ -163,53 +165,24 @@ export function RewriteCreateModal(props: RewriteCreateModalProps) {
             </div>
           </div>
           <div className="personal-grid">
-            <label className="field-full">
-              <span>素材库</span>
-              <select value={props.materialValue} onChange={(event) => props.onMaterialChange(event.target.value)}>
-                {props.materials.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>产品</span>
-              <select value={props.productValue} onChange={(event) => props.onProductChange(event.target.value)}>
-                {props.products.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.productName}
-                  </option>
-                ))}
-                <option value={props.noProductOption}>不植入产品</option>
-              </select>
-            </label>
-            <label>
-              <span>账号角色</span>
-              <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
-                {props.accountRoleOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>植入营销策划方案</span>
-              <select value={props.injectMarketingPlanValue} onChange={(event) => props.onInjectMarketingPlanChange(event.target.value)}>
-                <option value="yes">是</option>
-                <option value="no">否</option>
-              </select>
-            </label>
-            <label className="field-full">
-              <span>用户要求</span>
-              <textarea
-                className="report-markdown-textarea"
-                value={props.additionalInstruction}
-                onChange={(event) => props.onAdditionalInstructionChange(event.target.value)}
-                placeholder="例如：保留原作品的爆点结构，但语气更像品牌官方账号，图片更高级一点。"
-              />
-            </label>
+            <RewriteCreateBasicFields
+              noProductOption={props.noProductOption}
+              materials={props.materials}
+              products={props.products}
+              materialValue={props.materialValue}
+              productValue={props.productValue}
+              accountRoleValue={props.accountRoleValue}
+              accountRoleOptions={props.accountRoleOptions}
+              onMaterialChange={props.onMaterialChange}
+              onProductChange={props.onProductChange}
+              onAccountRoleChange={props.onAccountRoleChange}
+            />
+            <RewriteCreateTailFields
+              injectMarketingPlanValue={props.injectMarketingPlanValue}
+              additionalInstruction={props.additionalInstruction}
+              onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
+              onAdditionalInstructionChange={props.onAdditionalInstructionChange}
+            />
           </div>
           <div className="strategy-inline-actions">
             <button type="button" className="primary-button" onClick={() => void props.onCreate()} disabled={props.isPublishing || !props.materials.length}>
