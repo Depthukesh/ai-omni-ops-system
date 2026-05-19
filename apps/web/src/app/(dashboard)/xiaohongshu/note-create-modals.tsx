@@ -13,6 +13,7 @@ import {
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
 import { OriginalCreateReferenceFields } from "./original-create-reference-fields";
+import { VideoCreateBasicFields } from "./video-create-basic-fields";
 import { VideoCreateConfigFields } from "./video-create-config-fields";
 
 export interface OriginalCreateModalProps {
@@ -329,57 +330,21 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
             </div>
           </div>
           <div className="personal-grid">
-            <label>
-              <span>营销日历</span>
-              <select value={props.calendarValue} onChange={(event) => props.onCalendarChange(event.target.value)}>
-                {props.calendarOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-                <option value={props.customTopicOption}>自己有选题，不使用系统选题</option>
-              </select>
-            </label>
-            <label>
-              <span>产品</span>
-              <select value={props.productValue} onChange={(event) => props.onProductChange(event.target.value)}>
-                {props.products.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.productName}
-                  </option>
-                ))}
-                <option value={props.noProductOption}>不植入产品</option>
-              </select>
-            </label>
-            <label>
-              <span>视频类型</span>
-              <select value={props.videoKindValue} onChange={(event) => props.onVideoKindChange(event.target.value)}>
-                <option value="BRAND_PROMO">品牌宣传视频</option>
-                <option value="SPOKEN_SELLING">口播带货视频</option>
-                <option value="SKIT_SELLING">短剧带货视频</option>
-                <option value="REMIX">复刻视频</option>
-              </select>
-            </label>
-            <label>
-              <span>账号角色</span>
-              <select value={props.accountRoleValue} onChange={(event) => props.onAccountRoleChange(event.target.value)}>
-                {props.accountRoleOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {props.calendarValue === props.customTopicOption ? (
-              <label className="field-full">
-                <span>自定义选题</span>
-                <input
-                  value={props.customTopic}
-                  onChange={(event) => props.onCustomTopicChange(event.target.value)}
-                  placeholder="请输入你的视频笔记选题"
-                />
-              </label>
-            ) : null}
+            <VideoCreateBasicFields
+              calendarOptions={props.calendarOptions}
+              customTopicOption={props.customTopicOption}
+              noProductOption={props.noProductOption}
+              products={props.products}
+              calendarValue={props.calendarValue}
+              customTopic={props.customTopic}
+              productValue={props.productValue}
+              accountRoleValue={props.accountRoleValue}
+              accountRoleOptions={props.accountRoleOptions}
+              onCalendarChange={props.onCalendarChange}
+              onProductChange={props.onProductChange}
+              onAccountRoleChange={props.onAccountRoleChange}
+              onCustomTopicChange={props.onCustomTopicChange}
+            />
             <VideoCreateConfigFields
               noProductOption={props.noProductOption}
               customVideoProviderOption={props.customVideoProviderOption}

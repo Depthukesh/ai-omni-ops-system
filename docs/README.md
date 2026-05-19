@@ -220,6 +220,8 @@
   - 继续把原创与二创面板的模态挂载层抽成独立组件，对齐三类面板的模态编排模式
 - `docs/changes/2026-05-19-xiaohongshu-original-create-reference-fields-split.md`
   - 继续把原创创建弹窗中的参考模板选择、本地上传与模板应用局部块抽成独立子组件，减薄 `note-create-modals.tsx`
+- `docs/changes/2026-05-19-xiaohongshu-video-create-basic-fields-split.md`
+  - 继续把视频创建弹窗中的营销日历、产品、账号角色和自定义选题头部区抽成独立子组件，减薄 `note-create-modals.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
   - 继续把视频创建弹窗中的类型、素材、参考图、模型、时长和说明字段配置区抽成独立子组件，减薄 `note-create-modals.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`

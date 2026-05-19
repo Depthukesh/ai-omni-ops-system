@@ -261,6 +261,7 @@ flowchart TD
     HX4 --> HX410["noteTextEditModal"]
     HX5 --> HX410
     HX6 --> HX410
+    HX6 --> HX412["videoCreateBasicFields"]
     HX6 --> HX411["videoCreateConfigFields"]
     HX6 --> HX46["videoWorkspaceDetailPanel"]
     HX6 --> HX47["videoWorkspaceModals"]
@@ -281,6 +282,7 @@ flowchart TD
     HX4 --> HX43["work-card-grids.tsx"]
     HX4 --> HX44["original-reference-template-picker.tsx"]
     HX41 --> HX49
+    HX41 --> HX412
     HX41 --> HX411
     HX49 --> HX44
     HX42 --> HX410
