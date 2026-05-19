@@ -258,6 +258,7 @@ export default function AdminPage() {
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [adminName, setAdminName] = useState("");
   const [adminSystemRole, setAdminSystemRole] = useState<AdminSystemRole | "">("");
@@ -287,6 +288,21 @@ export default function AdminPage() {
     } catch {
       await logoutSession();
       router.replace("/admin/login?next=/admin");
+    }
+  }
+
+  async function handleLogout() {
+    setNotice("");
+    setErrorMessage("");
+    setIsLoggingOut(true);
+    try {
+      await logoutSession();
+      router.replace("/admin/login?next=/admin");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "退出登录失败";
+      setErrorMessage(message);
+    } finally {
+      setIsLoggingOut(false);
     }
   }
 
@@ -1893,9 +1909,14 @@ export default function AdminPage() {
                 <p>{dataSource === "api" ? "当前页面读取接口结果，可直接用于后台联调。" : "接口异常时自动回退为演示数据，方便先看界面和流程。"}</p>
                 <p>{adminName ? `当前管理员：${adminName}` : "当前管理员身份已验证"}</p>
               </div>
-              <button type="button" className="secondary-button" onClick={() => void loadAdminData()}>
-                {isLoading ? "刷新中..." : "刷新后台数据"}
-              </button>
+              <div className="admin-console-actions">
+                <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
+                  {isLoading ? "刷新中..." : "刷新后台数据"}
+                </button>
+                <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
+                  {isLoggingOut ? "退出中..." : "退出登录"}
+                </button>
+              </div>
             </div>
           </section>
 
