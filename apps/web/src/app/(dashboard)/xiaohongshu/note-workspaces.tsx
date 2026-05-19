@@ -11,14 +11,12 @@ import {
   type XhsOriginalReferenceTemplateRecord,
 } from "../../../services/works";
 import { ComposeTaskStatusPanel, PublishTaskStatusPanel, WorkspaceSectionHeader } from "./note-workspace-shared-panels";
-import { buildVideoWorkspaceDetailPanelProps } from "./video-workspace-detail-props";
-import { VideoWorkspaceDetailPanel } from "./video-workspace-detail-panel";
+import { VideoWorkspaceDetailSection } from "./video-workspace-detail-section";
 import {
   buildOriginalWorkspaceModalProps,
   buildRewriteWorkspaceModalProps,
   buildVideoWorkspaceModalProps,
 } from "./note-workspace-modal-props";
-import { getVideoWorkspaceStageFlags } from "./video-workspace-stage-flags";
 import { OriginalWorkspaceModals, RewriteWorkspaceModals } from "./note-workspace-modals";
 import { VideoWorkspaceModals } from "./video-workspace-modals";
 import {
@@ -381,7 +379,6 @@ export interface VideoWorkspaceProps {
 
 export function VideoWorkspace(props: VideoWorkspaceProps) {
   const selectedItem = props.selectedWork;
-  const { canRegenerateStoryboard, canGenerateVideo, canRecoverVideo } = getVideoWorkspaceStageFlags(selectedItem);
 
   return (
     <article className="workspace-panel strategy-page-card">
@@ -429,15 +426,7 @@ export function VideoWorkspace(props: VideoWorkspaceProps) {
             deletingWorkId={props.deletingWorkId}
             formatDateTime={props.formatDateTime}
           />
-          {selectedItem ? (
-            <VideoWorkspaceDetailPanel
-              {...buildVideoWorkspaceDetailPanelProps(props, selectedItem, {
-                canRegenerateStoryboard,
-                canGenerateVideo,
-                canRecoverVideo,
-              })}
-            />
-          ) : null}
+          <VideoWorkspaceDetailSection {...props} />
         </>
       )}
 

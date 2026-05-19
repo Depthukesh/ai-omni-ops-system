@@ -113,6 +113,7 @@
 - 当前 `note-workspaces.tsx` 里原创、二创、视频三类模态的 `editModalProps/createModalProps` 参数装配已进一步抽到 `note-workspace-modal-props.ts`，面板本体不再内联维护三大段超长映射对象
 - 当前 `VideoWorkspace` 里“修改故事板 / 生成短视频 / 找回视频结果”三类按钮的可用性派生已进一步抽到 `video-workspace-stage-flags.ts`，面板本体不再内联维护三段 workflowStage 判断
 - 当前 `VideoWorkspaceDetailPanel` 的 props 装配已进一步抽到 `video-workspace-detail-props.ts`，视频工作区本体不再内联维护整段详情区参数透传
+- 当前视频详情区的判空与挂载逻辑已进一步抽到 `video-workspace-detail-section.tsx`，`VideoWorkspace` 不再直接内联维护 `selectedItem ? ... : null` 分支
 - 当前 `VideoWorkspace` 里的详情区已进一步抽到 `video-workspace-detail-panel.tsx`，把阶段状态、故事板区、视频预览和操作按钮从面板本体中继续拆出
 - 当前原创、二创、视频三类面板的编辑弹窗与创建弹窗挂载实现已进一步统一收口到 `note-workspace-modals.tsx`；`video-workspace-modals.tsx` 当前只保留兼容导出层，外部接线保持不变
 - 当前原创创建弹窗里的“封面参考图 / 配图参考图 / 模板选择器应用”局部块已进一步抽到 `original-create-reference-fields.tsx`，`note-create-modals.tsx` 不再内联维护模板应用状态与上传区细节
@@ -207,6 +208,7 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-stage-flags-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-props-split.md`
+- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-section-split.md`
 
 ### 3.3 个人中心 `/personal-center`
 
@@ -417,6 +419,8 @@
   - 当前承接视频详情区阶段按钮可用性的纯派生判断
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-props.ts`
   - 当前承接视频工作区到详情区面板的参数装配 builder
+- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-section.tsx`
+  - 当前承接视频详情区的判空、阶段派生与面板挂载层
 - `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
   - 当前收敛为视频 note 模态挂载的兼容导出层，继续对外暴露 `VideoWorkspaceModals`
 - `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modals.tsx`

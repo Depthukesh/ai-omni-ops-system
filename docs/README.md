@@ -238,6 +238,8 @@
   - 继续把 `VideoWorkspace` 中“修改故事板 / 生成短视频 / 找回视频结果”三类按钮的可用性派生抽到独立 helper，减薄 `note-workspaces.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-props-split.md`
   - 继续把 `VideoWorkspaceDetailPanel` 的 props 装配抽成独立 builder，让 `note-workspaces.tsx` 更聚焦工作区编排
+- `docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-section-split.md`
+  - 继续把视频详情区的判空与挂载逻辑抽成独立 section 组件，减薄 `note-workspaces.tsx`
 - `docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
   - 继续把原创、二创、视频共用的文本编辑弹窗壳层抽成独立组件，让 `note-edit-modals.tsx` 更聚焦差异字段映射
 - `docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`

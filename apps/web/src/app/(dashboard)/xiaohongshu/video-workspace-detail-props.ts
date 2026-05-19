@@ -2,11 +2,23 @@
 
 import { type VideoWorkspaceDetailPanelProps } from "./video-workspace-detail-panel";
 import { type VideoWorkspaceStageFlags } from "./video-workspace-stage-flags";
-import { type VideoWorkspaceProps } from "./note-workspaces";
+
+export interface VideoWorkspaceDetailBuilderProps {
+  editingStoryboardPrompt: string;
+  savingWorkId?: string;
+  onEditStoryboardPromptChange: VideoWorkspaceDetailPanelProps["onEditStoryboardPromptChange"];
+  onRegenerateStoryboard: VideoWorkspaceDetailPanelProps["onRegenerateStoryboard"];
+  onGenerateVideo: VideoWorkspaceDetailPanelProps["onGenerateVideo"];
+  onRecoverVideo: VideoWorkspaceDetailPanelProps["onRecoverVideo"];
+  onPreview: VideoWorkspaceDetailPanelProps["onPreview"];
+  getOriginalTaskStatusClass: VideoWorkspaceDetailPanelProps["getOriginalTaskStatusClass"];
+  getOriginalTaskStatusText: VideoWorkspaceDetailPanelProps["getOriginalTaskStatusText"];
+  formatDateTime: VideoWorkspaceDetailPanelProps["formatDateTime"];
+}
 
 export function buildVideoWorkspaceDetailPanelProps(
-  props: VideoWorkspaceProps,
-  selectedItem: NonNullable<VideoWorkspaceProps["selectedWork"]>,
+  props: VideoWorkspaceDetailBuilderProps,
+  selectedItem: VideoWorkspaceDetailPanelProps["selectedItem"],
   stageFlags: VideoWorkspaceStageFlags,
 ): VideoWorkspaceDetailPanelProps {
   return {
