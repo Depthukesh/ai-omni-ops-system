@@ -257,6 +257,7 @@ flowchart TD
     HX6 --> HX45
     HX4 --> HX48["noteWorkspaceModals"]
     HX5 --> HX48
+    HX4 --> HX413["originalCreateBasicFields"]
     HX4 --> HX49["originalCreateReferenceFields"]
     HX4 --> HX410["noteTextEditModal"]
     HX5 --> HX410
@@ -281,6 +282,7 @@ flowchart TD
     HX4 --> HX42["note-edit-modals.tsx"]
     HX4 --> HX43["work-card-grids.tsx"]
     HX4 --> HX44["original-reference-template-picker.tsx"]
+    HX41 --> HX413
     HX41 --> HX49
     HX41 --> HX412
     HX41 --> HX411
