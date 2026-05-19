@@ -259,6 +259,7 @@ flowchart TD
     HX5 --> HX48
     HX4 --> HX413["originalCreateBasicFields"]
     HX4 --> HX49["originalCreateReferenceFields"]
+    HX4 --> HX414["originalCreateTailFields"]
     HX4 --> HX410["noteTextEditModal"]
     HX5 --> HX410
     HX6 --> HX410
@@ -284,6 +285,7 @@ flowchart TD
     HX4 --> HX44["original-reference-template-picker.tsx"]
     HX41 --> HX413
     HX41 --> HX49
+    HX41 --> HX414
     HX41 --> HX412
     HX41 --> HX411
     HX49 --> HX44
