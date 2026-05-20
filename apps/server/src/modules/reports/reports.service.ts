@@ -370,7 +370,16 @@ type XiaohongshuMarketingPlanSectionResult = {
   modelName: string;
 };
 
-type XiaohongshuMarketingPlanPhase = "PREPARING" | "PART_ONE" | "PART_TWO" | "PART_THREE" | "MERGING" | "PERSISTING" | "DONE";
+type XiaohongshuMarketingPlanPhase =
+  | "PREPARING"
+  | "PART_ONE"
+  | "PART_TWO"
+  | "PART_THREE"
+  | "PART_FOUR"
+  | "PART_FIVE"
+  | "MERGING"
+  | "PERSISTING"
+  | "DONE";
 type XiaohongshuMarketingCalendarPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 
 export type UpdateGrowthReportPayload = {
@@ -2993,7 +3002,7 @@ export class ReportsService {
       this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_TWO", firstPart.markdown),
       settings,
       {
-        requiredHeadings: ["## 二、", "## 三、"],
+        requiredHeadings: ["## 二、"],
         onAttemptUpdate: async (detailText) => {
           await params.onPhaseUpdate?.("PART_TWO", { detailText });
         },
@@ -3005,14 +3014,53 @@ export class ReportsService {
       this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_THREE", `${firstPart.markdown}\n\n${secondPart.markdown}`),
       settings,
       {
-        requiredHeadings: ["## 四、", "## 五、"],
+        requiredHeadings: ["## 三、"],
         onAttemptUpdate: async (detailText) => {
           await params.onPhaseUpdate?.("PART_THREE", { detailText });
         },
       },
     );
+    await params.onPhaseUpdate?.("PART_FOUR");
+    const fourthPart = await this.generateXiaohongshuMarketingPlanSectionByModel(
+      this.buildXiaohongshuMarketingPlanSystemPrompt(skillPrompt, settings, "PART_FOUR"),
+      this.buildXiaohongshuMarketingPlanUserPrompt(
+        inputPayload,
+        "PART_FOUR",
+        `${firstPart.markdown}\n\n${secondPart.markdown}\n\n${thirdPart.markdown}`,
+      ),
+      settings,
+      {
+        requiredHeadings: ["## 四、"],
+        onAttemptUpdate: async (detailText) => {
+          await params.onPhaseUpdate?.("PART_FOUR", { detailText });
+        },
+      },
+    );
+    await params.onPhaseUpdate?.("PART_FIVE");
+    const fifthPart = await this.generateXiaohongshuMarketingPlanSectionByModel(
+      this.buildXiaohongshuMarketingPlanSystemPrompt(skillPrompt, settings, "PART_FIVE"),
+      this.buildXiaohongshuMarketingPlanUserPrompt(
+        inputPayload,
+        "PART_FIVE",
+        `${firstPart.markdown}\n\n${secondPart.markdown}\n\n${thirdPart.markdown}\n\n${fourthPart.markdown}`,
+      ),
+      settings,
+      {
+        requiredHeadings: ["## 五、"],
+        onAttemptUpdate: async (detailText) => {
+          await params.onPhaseUpdate?.("PART_FIVE", { detailText });
+        },
+      },
+    );
     await params.onPhaseUpdate?.("MERGING");
-    const modelResult = this.mergeXiaohongshuMarketingPlanSections(firstPart, secondPart, thirdPart, inputPayload);
+    const modelResult = this.mergeXiaohongshuMarketingPlanSections(
+      firstPart,
+      secondPart,
+      thirdPart,
+      fourthPart,
+      fifthPart,
+      inputPayload,
+    );
     return {
       ...modelResult,
       htmlContent: this.renderMarkdownToHtml(modelResult.reportMarkdown),
@@ -3553,8 +3601,10 @@ export class ReportsService {
     const basePhaseTextMap: Record<XiaohongshuMarketingPlanPhase, string> = {
       PREPARING: "正在准备输入数据",
       PART_ONE: "第 1 段生成中：基础诊断与定策略",
-      PART_TWO: "第 2 段生成中：产品节奏与内容矩阵",
-      PART_THREE: "第 3 段生成中：资源组合与风险边界",
+      PART_TWO: "第 2 段生成中：产品节奏",
+      PART_THREE: "第 3 段生成中：内容矩阵",
+      PART_FOUR: "第 4 段生成中：资源组合",
+      PART_FIVE: "第 5 段生成中：风险边界",
       MERGING: "正在拼接完整 Markdown",
       PERSISTING: "正在保存生成结果",
       DONE: "已生成完成",
@@ -3564,16 +3614,18 @@ export class ReportsService {
       PART_ONE: 2,
       PART_TWO: 3,
       PART_THREE: 4,
-      MERGING: 5,
-      PERSISTING: 6,
-      DONE: 7,
+      PART_FOUR: 5,
+      PART_FIVE: 6,
+      MERGING: 7,
+      PERSISTING: 8,
+      DONE: 9,
     };
 
     return {
       phase,
       phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
       phaseIndex: phaseIndexMap[phase],
-      phaseTotal: 7,
+      phaseTotal: 9,
       ...(extra?.modelName ? { modelName: extra.modelName } : {}),
     };
   }
@@ -3737,6 +3789,8 @@ ${normalizedMarkdown}`;
     firstPart: XiaohongshuMarketingPlanSectionResult,
     secondPart: XiaohongshuMarketingPlanSectionResult,
     thirdPart: XiaohongshuMarketingPlanSectionResult,
+    fourthPart: XiaohongshuMarketingPlanSectionResult,
+    fifthPart: XiaohongshuMarketingPlanSectionResult,
     inputPayload: Record<string, unknown>,
   ): XiaohongshuMarketingPlanModelResult {
     const archive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
@@ -3746,17 +3800,21 @@ ${normalizedMarkdown}`;
     const firstMarkdown = this.ensureXiaohongshuMarkdownTitle(firstPart.markdown, fallbackTitle);
     const secondMarkdown = this.ensureXiaohongshuMarkdownTitle(secondPart.markdown, fallbackTitle);
     const thirdMarkdown = this.ensureXiaohongshuMarkdownTitle(thirdPart.markdown, fallbackTitle);
+    const fourthMarkdown = this.ensureXiaohongshuMarkdownTitle(fourthPart.markdown, fallbackTitle);
+    const fifthMarkdown = this.ensureXiaohongshuMarkdownTitle(fifthPart.markdown, fallbackTitle);
     const title =
       this.extractMarkdownTitle(firstMarkdown) ||
       this.extractMarkdownTitle(secondMarkdown) ||
       this.extractMarkdownTitle(thirdMarkdown) ||
+      this.extractMarkdownTitle(fourthMarkdown) ||
+      this.extractMarkdownTitle(fifthMarkdown) ||
       fallbackTitle;
     const prefix = this.extractMarkdownPrefixBeforeHeading(firstMarkdown, "## 一、");
     const sectionOne = this.extractMarkdownSection(firstMarkdown, "## 一、", ["## 二、", "## 三、", "## 四、", "## 五、"]);
     const sectionTwo = this.extractMarkdownSection(secondMarkdown, "## 二、", ["## 三、", "## 四、", "## 五、"]);
-    const sectionThree = this.extractMarkdownSection(secondMarkdown, "## 三、", ["## 四、", "## 五、"]);
-    const sectionFour = this.extractMarkdownSection(thirdMarkdown, "## 四、", ["## 五、"]);
-    const sectionFive = this.extractMarkdownSection(thirdMarkdown, "## 五、", []);
+    const sectionThree = this.extractMarkdownSection(thirdMarkdown, "## 三、", ["## 四、", "## 五、"]);
+    const sectionFour = this.extractMarkdownSection(fourthMarkdown, "## 四、", ["## 五、"]);
+    const sectionFive = this.extractMarkdownSection(fifthMarkdown, "## 五、", []);
 
     const missingSections = [
       !sectionOne ? "## 一、" : "",
@@ -3791,7 +3849,15 @@ ${normalizedMarkdown}`;
       title,
       summary: this.extractMarkdownSummary(reportMarkdown) || `${fallbackBrandName}的小红书营销策划方案已生成。`,
       reportMarkdown,
-      modelName: Array.from(new Set([firstPart.modelName, secondPart.modelName, thirdPart.modelName].filter(Boolean))).join(" + "),
+      modelName: Array.from(
+        new Set([
+          firstPart.modelName,
+          secondPart.modelName,
+          thirdPart.modelName,
+          fourthPart.modelName,
+          fifthPart.modelName,
+        ].filter(Boolean)),
+      ).join(" + "),
     };
   }
 
@@ -4915,7 +4981,7 @@ ${normalizedMarkdown}`;
   private buildXiaohongshuMarketingPlanSystemPrompt(
     skillPrompt: string,
     settings: ModelGenerationSettings,
-    phase: "PART_ONE" | "PART_TWO" | "PART_THREE",
+    phase: "PART_ONE" | "PART_TWO" | "PART_THREE" | "PART_FOUR" | "PART_FIVE",
   ) {
     const businessRequirements = settings.promptContent?.trim();
     return [
@@ -4940,31 +5006,51 @@ ${normalizedMarkdown}`;
         : phase === "PART_TWO"
           ? [
               "当前是第 2 次生成，只允许输出第 2 段 Markdown 成品。",
-              "必须输出：## 二、四大象限定产品节奏、## 三、四大矩阵定内容。",
-              "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 四、## 五。",
+              "必须输出：## 二、四大象限定产品节奏。",
+              "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 三、## 四、## 五。",
               "请严格承接已给出的前文策略判断，保持口径一致。",
               "缺失数据必须明确标注，不得编造。",
             ].join("\n")
-          : [
-              "当前是第 3 次生成，只允许输出第 3 段 Markdown 成品。",
-              "必须输出：## 四、四大资源定组合、## 五、合规提醒与风险边界。",
-              "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 二、## 三。",
-              "请严格承接已给出的前半篇策略判断和产品节奏，保持口径一致。",
-              "缺失数据必须明确标注，不得编造。",
-            ].join("\n"),
+          : phase === "PART_THREE"
+            ? [
+                "当前是第 3 次生成，只允许输出第 3 段 Markdown 成品。",
+                "必须输出：## 三、四大矩阵定内容。",
+                "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 二、## 四、## 五。",
+                "请严格承接已给出的策略判断和产品节奏，保持口径一致。",
+                "缺失数据必须明确标注，不得编造。",
+              ].join("\n")
+            : phase === "PART_FOUR"
+              ? [
+                  "当前是第 4 次生成，只允许输出第 4 段 Markdown 成品。",
+                  "必须输出：## 四、四大资源定组合。",
+                  "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 二、## 三、## 五。",
+                  "请严格承接已给出的策略判断、产品节奏和内容矩阵，保持口径一致。",
+                  "缺失数据必须明确标注，不得编造。",
+                ].join("\n")
+              : [
+                  "当前是第 5 次生成，只允许输出第 5 段 Markdown 成品。",
+                  "必须输出：## 五、合规提醒与风险边界。",
+                  "严禁重复输出标题、基础说明、账号与对标诊断、## 一、## 二、## 三、## 四。",
+                  "请严格承接前文全部策略与资源组合判断，保持收尾口径一致。",
+                  "缺失数据必须明确标注，不得编造。",
+                ].join("\n"),
     ].filter(Boolean).join("\n\n");
   }
 
   private buildXiaohongshuMarketingPlanUserPrompt(
     inputPayload: Record<string, unknown>,
-    phase: "PART_ONE" | "PART_TWO" | "PART_THREE",
+    phase: "PART_ONE" | "PART_TWO" | "PART_THREE" | "PART_FOUR" | "PART_FIVE",
     previousMarkdown?: string,
   ) {
     const sectionsText = phase === "PART_ONE"
       ? "请只生成第 1 段：基础说明、账号与对标基础诊断、## 一、定策略（看+定）。"
       : phase === "PART_TWO"
-        ? "请只生成第 2 段：## 二、四大象限定产品节奏、## 三、四大矩阵定内容。"
-        : "请只生成第 3 段：## 四、四大资源定组合、## 五、合规提醒与风险边界。";
+        ? "请只生成第 2 段：## 二、四大象限定产品节奏。"
+        : phase === "PART_THREE"
+          ? "请只生成第 3 段：## 三、四大矩阵定内容。"
+          : phase === "PART_FOUR"
+            ? "请只生成第 4 段：## 四、四大资源定组合。"
+            : "请只生成第 5 段：## 五、合规提醒与风险边界。";
 
     return [
       sectionsText,
