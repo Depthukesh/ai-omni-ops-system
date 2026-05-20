@@ -201,3 +201,61 @@
   - `docs/README.md`
   - `docs/site-map.md`
   - `docs/site-map-mermaid.md`
+
+## 12. 多 Agent 协作
+
+- 如果本仓库接入第二个或更多 AI Agent，默认采用“主 Agent 统一对用户负责，并行 Agent 只处理指定子范围”的模式。
+- 当前多 Agent 实时协作统一使用飞书协作文档：
+  - `https://acn8dzidreuv.feishu.cn/wiki/DVN6wVW4HiUtekk2NoucB7ienag?from=from_copylink`
+- 后续所有用户指令默认只向主 Agent 下达，由主 Agent 统一负责需求对齐、任务拆分、优先级判断和最终收口。
+- 角色分工固定为：
+  - 主 Agent：统筹协作、网站框架持续优化、模块结构持续优化、网页页面制作、验证与 Git 收口
+  - 并行 Agent：各个模块内部内容的持续优化，在主 Agent 指定边界内执行
+- 主 Agent 与并行 Agent 每次开始执行前，必须先在这份飞书协作文档中写入：
+  - 本轮任务标题
+  - 各自计划
+  - 预计影响范围
+  - 是否涉及共享文件或潜在冲突文件
+- 主 Agent 与并行 Agent 每次结束时，必须回到这份飞书协作文档补写：
+  - 实际完成进度
+  - 已验证内容
+  - 未完成事项
+  - 下一步建议
+- 默认要求两个 Agent 都持续查看并同步这份飞书文档，作为接近实时协作的共享记录面。
+- 主 Agent 负责维护该文档结构清晰、条目不冲突；并行 Agent 不得跳过登记直接开始开发。
+- 所有新增 Agent 开始前必须先读：
+  - `AGENTS.md`
+  - `docs/ai-multi-agent-collaboration-playbook.md`
+  - `docs/ai-agent-access-and-secrets-policy.md`
+  - `docs/engineering-standards.md`
+  - `docs/README.md`
+- 当用户已把 `docs/` 文档同步给并行 Agent 时，并行 Agent 仍必须自行从 GitHub 拉取最新代码后再开始执行，不能只依赖外部转发的文档快照。
+- 并行 Agent 不允许直接自行扩大任务范围，不允许擅自提交和推送。
+- 主 Agent 负责：
+  - 定义总目标
+  - 划清子任务边界
+  - 统一验证
+  - 统一文档同步
+  - 统一 Git 收口
+- 如果两个 Agent 将要修改同一核心文件，必须先停下来重新划边界；默认不允许双写同一文件。
+
+## 13. 权限与 Secrets
+
+- 仓库文档只允许记录：
+  - 权限类型
+  - 申请路径
+  - 注入位置
+  - 使用规则
+- 不允许记录真实值：
+  - 密码
+  - Token
+  - API Key
+  - 私钥
+  - 数据库连接串
+- 第二个 Agent 默认不拥有：
+  - `git push` 权限
+  - 生产 SSH 权限
+  - GitHub Secrets 管理权限
+  - 真实第三方主密钥
+- 涉及权限与密钥接入时，必须先读：
+  - `docs/ai-agent-access-and-secrets-policy.md`
