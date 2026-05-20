@@ -5224,26 +5224,32 @@ ${normalizedMarkdown}`;
   }
 
   private async loadAnnualMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<AnnualMarketingProviderConfig[]> {
-    const thirdParty = await this.loadThirdPartyChatConfig({
-      ...settings,
-      modelName: settings.modelName,
-    });
+    const thirdPartyProvider = await this.resolveRuntimeProviderByBaseUrl(
+      "text-global",
+      settings.baseUrl,
+      settings.preferredProviderIds,
+    );
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName),
       ["gpt-5.5", "claude-sonnet-4-6"],
-    );
-    const thirdPartyModels = thirdParty.models.filter(
-      (item) => requestedModels.includes(item) && !item.toLowerCase().includes("doubao"),
     );
 
     const [deepseekProvider, doubaoProvider] = await Promise.all([
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-doubao"),
     ]);
-    const [deepseekApiKeys, doubaoApiKeys] = await Promise.all([
+    const [thirdPartyApiKeys, deepseekApiKeys, doubaoApiKeys] = await Promise.all([
+      this.resolveBrandAwareApiKeys(settings.brandId, thirdPartyProvider),
       this.resolveBrandAwareApiKeys(settings.brandId, deepseekProvider),
       this.resolveBrandAwareApiKeys(settings.brandId, doubaoProvider),
     ]);
+    const thirdPartyModels = thirdPartyProvider
+      ? this.pickProviderModels(
+          thirdPartyProvider.modelWhitelist,
+          requestedModels,
+          ["gpt-5.5", "claude-sonnet-4-6"],
+        ).filter((item) => !item.toLowerCase().includes("doubao"))
+      : [];
     const deepseekModels = deepseekProvider
       ? this.pickProviderModels(deepseekProvider.modelWhitelist, requestedModels, ["deepseek-v4-flash", "deepseek-v4-pro"])
       : [];
@@ -5252,20 +5258,30 @@ ${normalizedMarkdown}`;
       : [];
 
     const providers: AnnualMarketingProviderConfig[] = [];
-    if (thirdParty.baseUrls.length && thirdParty.apiKeys.length && thirdPartyModels.length) {
-      providers.push({
-        provider: "THIRD_PARTY",
-        baseUrls: thirdParty.baseUrls,
-        completionPath: thirdParty.completionPath,
-        apiKeys: thirdParty.apiKeys.slice(0, 4),
-        models: thirdPartyModels,
-        temperature: settings.temperature,
-        maxTokens: Math.min(settings.maxTokens || 4200, 4200),
-        requestTimeoutMs: 180000,
-        payloadExtras: {
-          response_format: { type: "json_object" },
-        },
-      });
+    if (thirdPartyProvider && thirdPartyModels.length && thirdPartyApiKeys.length) {
+      const configuredBaseUrls = this.apiProvidersService.getBaseUrls(thirdPartyProvider);
+      const prioritizedBaseUrls = settings.baseUrl
+        ? [settings.baseUrl, ...configuredBaseUrls.filter((item) => item !== settings.baseUrl)]
+        : configuredBaseUrls;
+      const usableBaseUrls = [
+        ...prioritizedBaseUrls.filter((item) => !this.isPlaceholderProxyBaseUrl(item)),
+        ...prioritizedBaseUrls.filter((item) => this.isPlaceholderProxyBaseUrl(item)),
+      ];
+      if (usableBaseUrls.length) {
+        providers.push({
+          provider: "THIRD_PARTY",
+          baseUrls: usableBaseUrls,
+          completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
+          apiKeys: thirdPartyApiKeys.slice(0, 4),
+          models: thirdPartyModels,
+          temperature: settings.temperature,
+          maxTokens: Math.min(settings.maxTokens || 4200, 4200),
+          requestTimeoutMs: 180000,
+          payloadExtras: {
+            response_format: { type: "json_object" },
+          },
+        });
+      }
     }
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
