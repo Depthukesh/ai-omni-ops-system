@@ -886,6 +886,10 @@ function DouyinBenchmarkWorksTable(props: {
             <th>作品时长</th>
             <th>视频封面</th>
             <th>视频播放地址</th>
+            <th>作品点赞数</th>
+            <th>作品评论数</th>
+            <th>作品分享数</th>
+            <th>作品收藏数</th>
             <th>作者昵称</th>
             <th>作者抖音号</th>
             <th>作者粉丝数</th>
@@ -913,6 +917,10 @@ function DouyinBenchmarkWorksTable(props: {
                   </a>
                 ) : "-"}
               </td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.commentCount)}</td>
+              <td>{props.formatCount(item.shareCount)}</td>
+              <td>{props.formatCount(item.collectCount)}</td>
               <td>{item.authorName || "-"}</td>
               <td>{item.authorUniqueId || "-"}</td>
               <td>{props.formatCount(item.authorFollowerCount)}</td>
@@ -1694,7 +1702,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div className="collection-result-head">
                     <div>
                       <h3>对标作品信息及数据</h3>
-                      <p>结果以表格呈现作品描述、时长、封面、播放地址、作者昵称、作者抖音号、作者粉丝数、作者总获赞、作者头像，以及统计接口补齐的 `play_count`。</p>
+                      <p>结果以表格呈现 `desc`、`video.duration`、`video.cover.url_list`、`video.play_addr.url_list`、`author.nickname`、`author.unique_id`、`author.follower_count`、`author.total_favorited`、`author.avatar_300x300.url_list`、`digg_count`、`comment_count`、`share_count`、`collect_count`，以及统计接口补齐的 `play_count`。</p>
                     </div>
                   </div>
                   {douyinPreviewItems.length ? (
