@@ -20,6 +20,7 @@ export const BRAND_PERMISSION_KEYS = [
   "brandGrowth.report.visualGrowthReport",
   "brandGrowth.report.halfYearMarketingPlan",
   "xiaohongshu.plan",
+  "douyin.plan",
   "xiaohongshu.assets",
   "xiaohongshu.calendar",
   "xiaohongshu.original",
@@ -86,6 +87,19 @@ export const BRAND_PERMISSION_TREE = [
           { key: "xiaohongshu.original", label: "原创笔记" },
           { key: "xiaohongshu.remix", label: "二创笔记" },
           { key: "xiaohongshu.video", label: "视频笔记" },
+        ],
+      },
+    ],
+  },
+  {
+    key: "douyin",
+    label: "抖音",
+    groups: [
+      {
+        key: "douyin.workspace",
+        label: "内容生产",
+        items: [
+          { key: "douyin.plan", label: "营销策划方案" },
         ],
       },
     ],
@@ -163,6 +177,7 @@ export function buildDefaultBrandPermissionConfig(): BrandPermissionConfig {
 
   const staff = withPermissions(empty, {
     "xiaohongshu.plan": { view: true, edit: true },
+    "douyin.plan": { view: true, edit: true },
     "xiaohongshu.assets": { view: true, edit: true },
     "xiaohongshu.calendar": { view: true, edit: true },
     "xiaohongshu.original": { view: true, edit: true },
@@ -177,6 +192,7 @@ export function buildDefaultBrandPermissionConfig(): BrandPermissionConfig {
 
   const talent = withPermissions(empty, {
     "xiaohongshu.plan": { view: true, edit: true },
+    "douyin.plan": { view: true, edit: true },
     "xiaohongshu.assets": { view: true, edit: true },
     "xiaohongshu.calendar": { view: true, edit: true },
     "xiaohongshu.original": { view: true, edit: true },

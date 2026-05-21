@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
+  type UpdateDouyinMarketingPlanPayload,
   type UpdateGrowthReportPayload,
   type UpdateVisualGrowthReportPayload,
   type UpdateXiaohongshuMarketingPlanPayload,
@@ -141,6 +142,43 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "xiaohongshu.plan", "edit", auth);
     return this.reportsService.deleteXiaohongshuMarketingPlan(brandId, reportId);
+  }
+
+  @Get("brands/:brandId/douyin-marketing-plan")
+  async getDouyinMarketingPlanWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    return this.reportsService.getDouyinMarketingPlanWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/douyin-marketing-plan/generate")
+  async generateDouyinMarketingPlan(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.generateDouyinMarketingPlan(brandId);
+  }
+
+  @Patch("brands/:brandId/douyin-marketing-plan/:reportId")
+  async updateDouyinMarketingPlan(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Body() payload: UpdateDouyinMarketingPlanPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.updateDouyinMarketingPlan(brandId, reportId, payload);
+  }
+
+  @Delete("brands/:brandId/douyin-marketing-plan/:reportId")
+  async deleteDouyinMarketingPlan(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.deleteDouyinMarketingPlan(brandId, reportId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

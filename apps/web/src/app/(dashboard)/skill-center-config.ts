@@ -192,12 +192,14 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
     sections: [
       {
         id: "douyin-planning",
-        label: "运营规划",
+        label: "营销规划",
         items: [
           {
             id: "douyin-plan-main",
-            label: "抖音品牌规划",
-            description: "预留抖音内容规划与投放策略的技能入口。",
+            label: "抖音营销策划方案-生成营销策划方案",
+            description: "对应前台抖音营销策划方案工作台，基于品牌报告、半年规划和抖音采集数据生成完整策划方案。",
+            skillSlug: "tongcheng-brand-douyin-planning",
+            promptScene: "抖音营销策划方案",
           },
         ],
       },

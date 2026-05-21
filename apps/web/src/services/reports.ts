@@ -166,6 +166,30 @@ export type XiaohongshuMarketingPlanWorkspace = {
   latestTask?: XiaohongshuMarketingPlanTaskRecord;
 };
 
+export type DouyinMarketingPlanRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  sourceReportId?: string;
+  sourceReportTitle?: string;
+  sourceAnnualPlanId?: string;
+  sourceAnnualPlanTitle?: string;
+  reportMarkdown: string;
+  htmlContent: string;
+  modelName?: string;
+};
+
+export type DouyinMarketingPlanTaskRecord = XiaohongshuMarketingPlanTaskRecord;
+
+export type DouyinMarketingPlanWorkspace = {
+  latest?: DouyinMarketingPlanRecord;
+  history: DouyinMarketingPlanRecord[];
+  latestTask?: DouyinMarketingPlanTaskRecord;
+};
+
 export type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
@@ -264,6 +288,11 @@ export const xiaohongshuMarketingPlanSeed: XiaohongshuMarketingPlanWorkspace = {
   history: [],
 };
 
+export const douyinMarketingPlanSeed: DouyinMarketingPlanWorkspace = {
+  latest: undefined,
+  history: [],
+};
+
 function resolveBrandId(brandId?: string) {
   return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
@@ -331,6 +360,32 @@ export async function updateXiaohongshuMarketingPlan(
 
 export async function deleteXiaohongshuMarketingPlan(reportId: string, brandId?: string) {
   return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/${reportId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinMarketingPlanWorkspace(brandId?: string) {
+  return request<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan`);
+}
+
+export async function generateDouyinMarketingPlan(brandId?: string) {
+  return jsonRequest<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/generate`, "POST", {});
+}
+
+export async function updateDouyinMarketingPlan(
+  reportId: string,
+  reportMarkdown: string,
+  title?: string,
+  brandId?: string,
+) {
+  return jsonRequest<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/${reportId}`, "PATCH", {
+    title,
+    reportMarkdown,
+  });
+}
+
+export async function deleteDouyinMarketingPlan(reportId: string, brandId?: string) {
+  return request<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/${reportId}`, {
     method: "DELETE",
   });
 }

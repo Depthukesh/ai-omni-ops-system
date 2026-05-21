@@ -17,6 +17,7 @@ const GROWTH_REPORT_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
+const DOUYIN_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
 const LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND = "BRAND_ANNUAL_MARKETING_PLAN";
@@ -91,6 +92,21 @@ type AnnualMarketingPlanAssetMeta = {
 
 type XiaohongshuMarketingPlanAssetMeta = {
   kind: "XHS_MARKETING_PLAN";
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  sourceReportId?: string;
+  sourceReportTitle?: string;
+  sourceAnnualPlanId?: string;
+  sourceAnnualPlanTitle?: string;
+  summary: string;
+  reportMarkdown: string;
+  htmlContent: string;
+  modelName?: string;
+};
+
+type DouyinMarketingPlanAssetMeta = {
+  kind: "DOUYIN_MARKETING_PLAN";
   generatedAt: string;
   taskId?: string;
   mediaId?: string;
@@ -203,6 +219,22 @@ export type XiaohongshuMarketingPlanRecord = {
   modelName?: string;
 };
 
+export type DouyinMarketingPlanRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  mediaId?: string;
+  sourceReportId?: string;
+  sourceReportTitle?: string;
+  sourceAnnualPlanId?: string;
+  sourceAnnualPlanTitle?: string;
+  reportMarkdown: string;
+  htmlContent: string;
+  modelName?: string;
+};
+
 export type XiaohongshuMarketingCalendarRecord = {
   id: string;
   title: string;
@@ -242,6 +274,7 @@ export type VisualGrowthReportTaskRecord = {
 export type GrowthReportTaskRecord = VisualGrowthReportTaskRecord;
 export type AnnualMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
+export type DouyinMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingCalendarTaskRecord = VisualGrowthReportTaskRecord;
 
 type ThirdPartyChatConfig = {
@@ -358,6 +391,13 @@ type XiaohongshuMarketingPlanModelResult = {
   modelName: string;
 };
 
+type DouyinMarketingPlanModelResult = {
+  title: string;
+  summary: string;
+  reportMarkdown: string;
+  modelName: string;
+};
+
 type XiaohongshuMarketingCalendarModelResult = {
   title: string;
   summary: string;
@@ -380,6 +420,7 @@ type XiaohongshuMarketingPlanPhase =
   | "MERGING"
   | "PERSISTING"
   | "DONE";
+type DouyinMarketingPlanPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 type XiaohongshuMarketingCalendarPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 
 export type UpdateGrowthReportPayload = {
@@ -393,6 +434,11 @@ export type UpdateVisualGrowthReportPayload = {
 };
 
 export type UpdateXiaohongshuMarketingPlanPayload = {
+  title?: string;
+  reportMarkdown: string;
+};
+
+export type UpdateDouyinMarketingPlanPayload = {
   title?: string;
   reportMarkdown: string;
 };
@@ -424,6 +470,12 @@ export type XiaohongshuMarketingPlanWorkspace = {
   latest?: XiaohongshuMarketingPlanRecord;
   history: XiaohongshuMarketingPlanRecord[];
   latestTask?: XiaohongshuMarketingPlanTaskRecord;
+};
+
+export type DouyinMarketingPlanWorkspace = {
+  latest?: DouyinMarketingPlanRecord;
+  history: DouyinMarketingPlanRecord[];
+  latestTask?: DouyinMarketingPlanTaskRecord;
 };
 
 export type XiaohongshuMarketingCalendarWorkspace = {
@@ -953,6 +1005,242 @@ export class ReportsService {
     return this.getXiaohongshuMarketingPlanWorkspace(brandId);
   }
 
+  async getDouyinMarketingPlanWorkspace(brandId: string): Promise<DouyinMarketingPlanWorkspace> {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const reports = assets
+        .map((item) => this.mapDouyinMarketingPlanAsset({
+          id: item.id,
+          brandId: item.brandId,
+          category: "GENERATED_REPORT",
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: "系统生成",
+          fileUrl: item.fileUrl ?? undefined,
+          metadataJson: this.asMeta(item.metadataJson),
+        }))
+        .filter((item): item is DouyinMarketingPlanRecord => Boolean(item));
+      const validReports = reports.filter((item) => this.isUsableDouyinMarketingPlanRecord(item));
+      const latestTaskRow = await this.prismaService.task.findFirst({
+        where: {
+          brandId,
+          taskType: "DOUYIN_MARKETING_PLAN",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const normalizedTask = latestTaskRow
+        ? await this.normalizeLatestDouyinMarketingPlanTask(brandId, this.mapVisualGrowthReportTask(latestTaskRow))
+        : undefined;
+      return {
+        latest: validReports[0],
+        history: validReports,
+        latestTask: normalizedTask,
+      };
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const reports = database.assets
+      .filter((item) => item.brandId === brandId && item.category === "GENERATED_REPORT")
+      .map((item) => this.mapDouyinMarketingPlanAsset(item))
+      .filter((item): item is DouyinMarketingPlanRecord => Boolean(item))
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+    const validReports = reports.filter((item) => this.isUsableDouyinMarketingPlanRecord(item));
+    const latestTask = [...database.tasks]
+      .filter((item) => item.brandId === brandId && item.taskType === "DOUYIN_MARKETING_PLAN")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const normalizedTask = latestTask
+      ? await this.normalizeLatestDouyinMarketingPlanTask(brandId, this.mapVisualGrowthReportTask(latestTask))
+      : undefined;
+    return {
+      latest: validReports[0],
+      history: validReports,
+      latestTask: normalizedTask,
+    };
+  }
+
+  async generateDouyinMarketingPlan(brandId: string) {
+    const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
+    const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+    const sourceReport = growthReportWorkspace.latest;
+    const annualPlan = annualPlanWorkspace.latest;
+    if (!sourceReport) {
+      throw new NotFoundException("请先生成品牌增长报告");
+    }
+    if (!annualPlan) {
+      throw new NotFoundException("请先生成半年营销规划");
+    }
+    const workspace = await this.getDouyinMarketingPlanWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+
+    const task = await this.createDouyinMarketingPlanTask(brandId, sourceReport, annualPlan);
+    setTimeout(() => {
+      void this.runDouyinMarketingPlanTask(brandId, task.id);
+    }, 0);
+
+    return {
+      ...workspace,
+      latestTask: task,
+    };
+  }
+
+  async updateDouyinMarketingPlan(brandId: string, reportId: string, payload: UpdateDouyinMarketingPlanPayload) {
+    const reportMarkdown = payload.reportMarkdown.trim();
+    if (!reportMarkdown) {
+      throw new ServiceUnavailableException("抖音营销策划方案内容不能为空");
+    }
+
+    const normalized = this.buildManualDouyinMarketingPlanResult(reportMarkdown, payload.title);
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("抖音营销策划方案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true, sourceUrl: true },
+          })
+        : null;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildDouyinMarketingPlanFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
+      await this.prismaService.businessAsset.update({
+        where: { id: asset.id },
+        data: {
+          title: normalized.title,
+          description: normalized.summary,
+          fileUrl: sourceUrl,
+          metadataJson: {
+            ...currentMeta,
+            kind: "DOUYIN_MARKETING_PLAN",
+            summary: normalized.summary,
+            title: normalized.title,
+            reportMarkdown: normalized.reportMarkdown,
+            htmlContent: normalized.htmlContent,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      if (media?.id) {
+        await this.prismaService.mediaAsset.update({
+          where: { id: media.id },
+          data: {
+            title: normalized.title,
+            storageKey,
+            sourceUrl,
+            mimeType: "text/html",
+          },
+        });
+      }
+    } else {
+      const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_REPORT");
+      if (!asset) {
+        throw new NotFoundException("抖音营销策划方案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(currentMeta, "taskId");
+      const mediaId = this.readMetaString(currentMeta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      const storageKey = media?.storageKey || this.buildReportAssetStorageKey(brandId, this.buildDouyinMarketingPlanFileName(taskId || reportId));
+      const sourceUrl = media?.sourceUrl || this.buildReportAssetUrl(brandId, this.extractFileNameFromStorageKey(storageKey));
+      await this.persistReportHtml(storageKey, normalized.htmlContent);
+      asset.title = normalized.title;
+      asset.description = normalized.summary;
+      asset.fileUrl = sourceUrl;
+      asset.metadataJson = {
+        ...currentMeta,
+        kind: "DOUYIN_MARKETING_PLAN",
+        summary: normalized.summary,
+        title: normalized.title,
+        reportMarkdown: normalized.reportMarkdown,
+        htmlContent: normalized.htmlContent,
+      };
+      if (media) {
+        media.title = normalized.title;
+        media.storageKey = storageKey;
+        media.sourceUrl = sourceUrl;
+        media.mimeType = "text/html";
+      }
+    }
+
+    return this.getDouyinMarketingPlanWorkspace(brandId);
+  }
+
+  async deleteDouyinMarketingPlan(brandId: string, reportId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("抖音营销策划方案不存在");
+      }
+      const meta = this.asMeta(asset.metadataJson);
+      const taskId = this.readMetaString(meta, "taskId");
+      const mediaId = this.readMetaString(meta, "mediaId");
+      const media = mediaId
+        ? await this.prismaService.mediaAsset.findFirst({
+            where: { id: mediaId, brandId },
+            select: { id: true, storageKey: true },
+          })
+        : null;
+      if (media?.storageKey) {
+        await this.ossStorageService.deleteObject(media.storageKey);
+      }
+      await this.prismaService.businessAsset.delete({ where: { id: asset.id } });
+      if (mediaId) {
+        await this.prismaService.mediaAsset.deleteMany({ where: { id: mediaId, brandId } });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({ where: { id: taskId, brandId } });
+      }
+    } else {
+      const index = database.assets.findIndex((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_REPORT");
+      if (index < 0) {
+        throw new NotFoundException("抖音营销策划方案不存在");
+      }
+      const meta = this.asMeta(database.assets[index].metadataJson);
+      const taskId = this.readMetaString(meta, "taskId");
+      const mediaId = this.readMetaString(meta, "mediaId");
+      const media = mediaId ? database.media.find((item) => item.id === mediaId && item.brandId === brandId) : undefined;
+      if (media?.storageKey) {
+        await this.ossStorageService.deleteObject(media.storageKey);
+      }
+      database.assets.splice(index, 1);
+      if (mediaId) {
+        database.media = database.media.filter((item) => item.id !== mediaId);
+      }
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    return this.getDouyinMarketingPlanWorkspace(brandId);
+  }
+
   async getXiaohongshuMarketingCalendarWorkspace(brandId: string): Promise<XiaohongshuMarketingCalendarWorkspace> {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(brandId);
@@ -1445,6 +1733,41 @@ export class ReportsService {
     };
   }
 
+  private async normalizeLatestDouyinMarketingPlanTask(
+    brandId: string,
+    task: DouyinMarketingPlanTaskRecord,
+  ): Promise<DouyinMarketingPlanTaskRecord> {
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      return task;
+    }
+
+    const referenceTime = task.updatedAt || task.startedAt || task.createdAt;
+    const referenceMs = Date.parse(referenceTime);
+    if (!Number.isFinite(referenceMs)) {
+      return task;
+    }
+    if (Date.now() - referenceMs <= DOUYIN_MARKETING_PLAN_TASK_TIMEOUT_MS) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const errorMessage = "抖音营销策划方案生成超时，任务已自动结束，请重新点击一键生成。";
+    await this.updateDouyinMarketingPlanTaskStatus(brandId, task.id, {
+      taskStatus: "FAILED",
+      startedAt: task.startedAt,
+      finishedAt,
+      errorMessage,
+    });
+
+    return {
+      ...task,
+      taskStatus: "FAILED",
+      finishedAt,
+      updatedAt: finishedAt,
+      errorMessage,
+    };
+  }
+
   private async normalizeLatestXiaohongshuMarketingCalendarTask(
     brandId: string,
     task: XiaohongshuMarketingCalendarTaskRecord,
@@ -1721,6 +2044,75 @@ export class ReportsService {
       brandId,
       taskType: "XHS_MARKETING_PLAN",
       taskTitle: `鐢熸垚灏忕孩涔﹁惀閿€绛栧垝鏂规锛${brand.brandName}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 260,
+      inputJson: {
+        sourceReportId: sourceReport.id,
+        sourceReportTitle: sourceReport.title,
+        sourceAnnualPlanId: annualPlan.id,
+        sourceAnnualPlanTitle: annualPlan.title,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapVisualGrowthReportTask(task);
+  }
+
+  private async createDouyinMarketingPlanTask(
+    brandId: string,
+    sourceReport: GrowthReportRecord,
+    annualPlan: AnnualMarketingPlanRecord,
+  ) {
+    const now = new Date().toISOString();
+    const settings = await this.loadDouyinMarketingPlanGenerationSettings(brandId);
+    const modelName =
+      (await this.loadXiaohongshuMarketingProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
+      || "deepseek-v4-pro";
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "DOUYIN_MARKETING_PLAN",
+          taskTitle: `生成抖音营销策划方案：${brand.brandName}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 260,
+          inputJson: {
+            sourceReportId: sourceReport.id,
+            sourceReportTitle: sourceReport.title,
+            sourceAnnualPlanId: annualPlan.id,
+            sourceAnnualPlanTitle: annualPlan.title,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapVisualGrowthReportTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "DOUYIN_MARKETING_PLAN",
+      taskTitle: `生成抖音营销策划方案：${brand.brandName}`,
       taskStatus: "QUEUED" as const,
       modelName,
       pointsCost: 260,
@@ -2018,6 +2410,86 @@ export class ReportsService {
       clearInterval(heartbeat);
       const message = error instanceof Error ? error.message : "灏忕孩涔﹁惀閿€绛栧垝鏂规鐢熸垚澶辫触";
       await this.updateXiaohongshuMarketingPlanTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+      });
+    }
+  }
+
+  private async runDouyinMarketingPlanTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus("PREPARING");
+    const applyRunningStatus = async () => {
+      await this.updateDouyinMarketingPlanTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentPhaseStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const archive = await this.brandsService.getArchive(brandId);
+      const collection = await this.collectorsService.getDouyinWorkspace(brandId);
+      const growthReportWorkspace = await this.getGrowthReportWorkspace(brandId);
+      const annualPlanWorkspace = await this.getAnnualMarketingPlanWorkspace(brandId);
+      const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
+      const sourceReportId = this.readMetaString(currentTaskRow, "sourceReportId");
+      const sourceAnnualPlanId = this.readMetaString(currentTaskRow, "sourceAnnualPlanId");
+      const sourceReport = growthReportWorkspace.history.find((item) => item.id === sourceReportId) || growthReportWorkspace.latest;
+      const annualPlan = annualPlanWorkspace.history.find((item) => item.id === sourceAnnualPlanId) || annualPlanWorkspace.latest;
+      if (!sourceReport) {
+        throw new NotFoundException("请先生成品牌增长报告");
+      }
+      if (!annualPlan) {
+        throw new NotFoundException("请先生成半年营销规划");
+      }
+
+      currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus("GENERATING");
+      await applyRunningStatus();
+      const report = await this.buildDouyinMarketingPlan({
+        brandId,
+        archive,
+        collection,
+        sourceReport,
+        annualPlan,
+        generatedAt: startedAt,
+        onPhaseUpdate: async (phase, extra) => {
+          currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus(phase, extra);
+          await applyRunningStatus();
+        },
+      });
+
+      currentPhaseStatus = this.buildDouyinMarketingPlanPhaseStatus("PERSISTING", {
+        modelName: report.modelName,
+      });
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      await this.persistDouyinMarketingPlanResult(brandId, taskId, sourceReport, annualPlan, report, startedAt);
+      await this.updateDouyinMarketingPlanTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          summary: report.summary,
+          reportMarkdown: report.reportMarkdown,
+          modelName: report.modelName,
+          ...this.buildDouyinMarketingPlanPhaseStatus("DONE", {
+            modelName: report.modelName,
+          }),
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "抖音营销策划方案生成失败";
+      await this.updateDouyinMarketingPlanTaskStatus(brandId, taskId, {
         taskStatus: "FAILED",
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -2385,6 +2857,122 @@ export class ReportsService {
       fileUrl: sourceUrl,
       metadataJson: {
         kind: "XHS_MARKETING_PLAN",
+        generatedAt,
+        taskId,
+        mediaId,
+        sourceReportId: sourceReport.id,
+        sourceReportTitle: sourceReport.title,
+        sourceAnnualPlanId: annualPlan.id,
+        sourceAnnualPlanTitle: annualPlan.title,
+        summary: report.summary,
+        reportMarkdown: report.reportMarkdown,
+        htmlContent: report.htmlContent,
+        modelName: report.modelName,
+      },
+    });
+  }
+
+  private async persistDouyinMarketingPlanResult(
+    brandId: string,
+    taskId: string,
+    sourceReport: GrowthReportRecord,
+    annualPlan: AnnualMarketingPlanRecord,
+    report: Awaited<ReturnType<ReportsService["buildDouyinMarketingPlan"]>>,
+    generatedAt: string,
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { ownerUserId: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const fileName = this.buildDouyinMarketingPlanFileName(taskId);
+      const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+      const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+      await this.persistReportHtml(storageKey, report.htmlContent);
+
+      const media = await this.prismaService.mediaAsset.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskId,
+          title: report.title,
+          mediaType: MediaType.HTML,
+          storageKey,
+          sourceUrl,
+          mimeType: "text/html",
+          metadataJson: {
+            kind: "DOUYIN_MARKETING_PLAN",
+            generatedAt,
+            summary: report.summary,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+          title: report.title,
+          description: report.summary,
+          fileUrl: media.sourceUrl,
+          metadataJson: {
+            kind: "DOUYIN_MARKETING_PLAN",
+            generatedAt,
+            taskId,
+            mediaId: media.id,
+            sourceReportId: sourceReport.id,
+            sourceReportTitle: sourceReport.title,
+            sourceAnnualPlanId: annualPlan.id,
+            sourceAnnualPlanTitle: annualPlan.title,
+            summary: report.summary,
+            reportMarkdown: report.reportMarkdown,
+            htmlContent: report.htmlContent,
+            modelName: report.modelName,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const mediaId = createId("med");
+    const fileName = this.buildDouyinMarketingPlanFileName(taskId);
+    const storageKey = this.buildReportAssetStorageKey(brandId, fileName);
+    const sourceUrl = this.buildReportAssetUrl(brandId, fileName);
+    await this.persistReportHtml(storageKey, report.htmlContent);
+
+    database.media.unshift({
+      id: mediaId,
+      userId: brand.ownerUserId,
+      brandId,
+      taskId,
+      title: report.title,
+      mediaType: "HTML",
+      sourceUrl,
+      storageKey,
+      mimeType: "text/html",
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    });
+
+    database.assets.unshift({
+      id: createId("ast"),
+      brandId,
+      category: "GENERATED_REPORT",
+      title: report.title,
+      description: report.summary,
+      sourceName: "系统生成",
+      fileUrl: sourceUrl,
+      metadataJson: {
+        kind: "DOUYIN_MARKETING_PLAN",
         generatedAt,
         taskId,
         mediaId,
@@ -2825,6 +3413,53 @@ export class ReportsService {
     }
   }
 
+  private async updateDouyinMarketingPlanTaskStatus(
+    brandId: string,
+    taskId: string,
+    patch: {
+      taskStatus: DouyinMarketingPlanTaskRecord["taskStatus"];
+      startedAt?: string;
+      finishedAt?: string;
+      errorMessage?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: patch.taskStatus as TaskStatus,
+          startedAt: patch.startedAt ? new Date(patch.startedAt) : undefined,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : undefined,
+          errorMessage: patch.errorMessage !== undefined ? patch.errorMessage || null : undefined,
+          outputJson: patch.outputJson ? patch.outputJson as Prisma.InputJsonValue : undefined,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId && item.brandId === brandId);
+    if (!task) {
+      return;
+    }
+
+    task.taskStatus = patch.taskStatus;
+    task.updatedAt = new Date().toISOString();
+    if (patch.startedAt !== undefined) {
+      task.startedAt = patch.startedAt;
+    }
+    if (patch.finishedAt !== undefined) {
+      task.finishedAt = patch.finishedAt;
+    }
+    if (patch.errorMessage !== undefined) {
+      task.errorMessage = patch.errorMessage || undefined;
+    }
+    if (patch.outputJson) {
+      task.outputJson = patch.outputJson;
+    }
+  }
+
   private async updateXiaohongshuMarketingCalendarTaskStatus(
     brandId: string,
     taskId: string,
@@ -3061,6 +3696,44 @@ export class ReportsService {
       fifthPart,
       inputPayload,
     );
+    return {
+      ...modelResult,
+      htmlContent: this.renderMarkdownToHtml(modelResult.reportMarkdown),
+    };
+  }
+
+  private async buildDouyinMarketingPlan(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    collection: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>;
+    sourceReport: GrowthReportRecord;
+    annualPlan: AnnualMarketingPlanRecord;
+    generatedAt: string;
+    onPhaseUpdate?: (
+      phase: DouyinMarketingPlanPhase,
+      extra?: {
+        modelName?: string;
+        detailText?: string;
+      },
+    ) => Promise<void> | void;
+  }) {
+    const settings = await this.loadDouyinMarketingPlanGenerationSettings(params.brandId);
+    const inputPayload = this.buildDouyinMarketingPlanInput(
+      params.archive,
+      params.collection,
+      params.sourceReport,
+      params.annualPlan,
+      params.generatedAt,
+    );
+    await params.onPhaseUpdate?.("GENERATING");
+    const modelResult = await this.generateDouyinMarketingPlanByModel(settings.promptContent, inputPayload, settings, {
+      onAttemptUpdate: async (detailText, modelName) => {
+        await params.onPhaseUpdate?.("GENERATING", {
+          detailText,
+          modelName,
+        });
+      },
+    });
     return {
       ...modelResult,
       htmlContent: this.renderMarkdownToHtml(modelResult.reportMarkdown),
@@ -3562,6 +4235,78 @@ export class ReportsService {
     );
   }
 
+  private async generateDouyinMarketingPlanByModel(
+    skillPrompt: string,
+    inputPayload: Record<string, unknown>,
+    settings: ModelGenerationSettings,
+    options?: {
+      onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+    },
+  ): Promise<DouyinMarketingPlanModelResult> {
+    const providers = await this.loadDouyinMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "请输出完整的《抖音营销策划方案》。",
+      "输入已包含品牌增长报告、半年营销规划、抖音采集数据（品牌账号、竞品账号、品牌作品、对标作品）。",
+      "只输出 Markdown 正文，不要输出 JSON，不要输出代码块，不要输出执行说明。",
+      "内容至少覆盖平台现状判断、账号矩阵策略、内容方向规划、作品打法拆解、投流与转化建议、组织协同与风险提醒。",
+      "如果某些数据不足，必须明确写出“待补充/待验证”，不要编造。",
+    ].join("\n");
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                provider.requestTimeoutMs ?? 240000,
+              );
+              if (!response.ok) {
+                const responseText = this.truncateText(await response.text(), 240);
+                const responseDetail = responseText ? ` ${responseText}` : "";
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                continue;
+              }
+              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+              const message = payload.choices?.[0]?.message;
+              const content = message?.content?.trim() || message?.reasoning_content?.trim();
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+              if (finishReason === "length") {
+                lastError = `${provider.provider}/${modelName} 输出被截断`;
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
+                continue;
+              }
+              return this.normalizeDouyinMarketingPlanModelResult(content, inputPayload, modelName);
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("抖音营销策划方案生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
   private buildXiaohongshuMarketingCalendarPhaseStatus(
     phase: XiaohongshuMarketingCalendarPhase,
     extra?: {
@@ -3626,6 +4371,35 @@ export class ReportsService {
       phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
       phaseIndex: phaseIndexMap[phase],
       phaseTotal: 9,
+      ...(extra?.modelName ? { modelName: extra.modelName } : {}),
+    };
+  }
+
+  private buildDouyinMarketingPlanPhaseStatus(
+    phase: DouyinMarketingPlanPhase,
+    extra?: {
+      modelName?: string;
+      detailText?: string;
+    },
+  ) {
+    const basePhaseTextMap: Record<DouyinMarketingPlanPhase, string> = {
+      PREPARING: "正在准备抖音营销策划输入数据",
+      GENERATING: "正在生成抖音营销策划方案",
+      PERSISTING: "正在保存抖音营销策划方案",
+      DONE: "抖音营销策划方案已生成完成",
+    };
+    const phaseIndexMap: Record<DouyinMarketingPlanPhase, number> = {
+      PREPARING: 1,
+      GENERATING: 2,
+      PERSISTING: 3,
+      DONE: 4,
+    };
+
+    return {
+      phase,
+      phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
+      phaseIndex: phaseIndexMap[phase],
+      phaseTotal: 4,
       ...(extra?.modelName ? { modelName: extra.modelName } : {}),
     };
   }
@@ -3760,6 +4534,42 @@ ${normalizedMarkdown}`;
     }
     const title = this.extractMarkdownTitle(reportMarkdown) || `${fallbackBrandName}小红书营销策划方案`;
     const summary = this.extractMarkdownSummary(reportMarkdown) || `${fallbackBrandName}的小红书营销策划方案已生成。`;
+
+    return {
+      title,
+      summary,
+      reportMarkdown,
+      modelName,
+    };
+  }
+
+  private normalizeDouyinMarketingPlanModelResult(
+    content: string,
+    inputPayload: Record<string, unknown>,
+    modelName: string,
+  ): DouyinMarketingPlanModelResult {
+    const archive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
+    const brandBackground = this.readNestedRecord(archive, ["background"]);
+    const fallbackBrandName = this.readRecordString(brandBackground, "brandName") || "品牌";
+    const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+
+    if (!normalizedMarkdown) {
+      throw new ServiceUnavailableException("抖音营销策划方案解析失败：模型未返回有效 Markdown");
+    }
+
+    if (this.containsXiaohongshuWorkflowArtifacts(normalizedMarkdown)) {
+      throw new ServiceUnavailableException("抖音营销策划方案解析失败：模型输出了工作流/文件操作内容，而不是最终 Markdown 正文");
+    }
+
+    const reportMarkdown = normalizedMarkdown.startsWith("# ")
+      ? normalizedMarkdown
+      : `# 抖音营销策划方案\n\n${normalizedMarkdown}`;
+
+    if (!this.isCompleteDouyinMarketingMarkdown(reportMarkdown)) {
+      throw new ServiceUnavailableException("抖音营销策划方案解析失败：正文结构不完整，疑似被截断");
+    }
+    const title = this.extractMarkdownTitle(reportMarkdown) || `${fallbackBrandName}抖音营销策划方案`;
+    const summary = this.extractMarkdownSummary(reportMarkdown) || `${fallbackBrandName}的抖音营销策划方案已生成。`;
 
     return {
       title,
@@ -4279,6 +5089,171 @@ ${normalizedMarkdown}`;
         },
       },
       outputTarget: "小红书营销策划方案",
+    };
+  }
+
+  private buildDouyinMarketingPlanInput(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    collection: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+    sourceReport: GrowthReportRecord,
+    annualPlan: AnnualMarketingPlanRecord,
+    generatedAt: string,
+  ) {
+    return {
+      task: "输出《抖音营销策划方案》",
+      generatedAt,
+      inputScope: {
+        brandArchive: {
+          background: archive.brand,
+          products: archive.products.map((item) => {
+            const record = this.asRecord(item as unknown);
+            return {
+              productName: item.productName,
+              productType: item.productType,
+              price: item.price,
+              productPositioning: item.productPositioning,
+              targetAudience: item.targetAudience,
+              painPoint: item.painPoint,
+              usageScenario: item.usageScenario,
+              differentiators: item.differentiators,
+              marketPosition: item.marketPosition,
+              detailDescription: this.truncateText(item.detailDescription, 280),
+              competitorName: this.readRecordString(record, "competitorName"),
+              competitorPrice: this.readRecordString(record, "competitorPrice"),
+              competitorPositioning: this.readRecordString(record, "competitorPositioning"),
+              competitorPainPoint: this.readRecordString(record, "competitorPainPoint"),
+              competitorScenario: this.readRecordString(record, "competitorScenario"),
+              competitorMarketPosition: this.readRecordString(record, "competitorMarketPosition"),
+              competitorDescription: this.truncateText(this.readRecordString(record, "competitorDescription"), 240),
+            };
+          }),
+          survey: archive.survey
+            .filter((item) => item.value?.trim())
+            .slice(0, 20)
+            .map((item) => ({
+              label: item.label,
+              value: this.truncateText(item.value, 360),
+            })),
+          industryFeeds: archive.industryFeeds.slice(0, 10).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 240),
+            sourceName: item.sourceName,
+          })),
+          businessAssets: archive.businessAssets.slice(0, 10).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 240),
+            sourceName: item.sourceName,
+          })),
+        },
+        douyinCollection: {
+          brandAccounts: collection.brandAccounts.map((item) => ({
+            accountName: item.accountName,
+            accountLink: item.accountLink,
+            sourceAccountLink: item.sourceAccountLink,
+            fanCount: item.fanCount,
+            postedCount: item.postedCount,
+            likedCount: item.likedCount,
+            followCount: item.followCount,
+            description: this.truncateText(item.description, 280),
+            enterpriseVerifyReason: item.enterpriseVerifyReason,
+            customVerify: item.customVerify,
+          })),
+          competitorAccounts: collection.competitorAccounts.map((item) => ({
+            accountName: item.accountName,
+            accountLink: item.accountLink,
+            sourceAccountLink: item.sourceAccountLink,
+            fanCount: item.fanCount,
+            postedCount: item.postedCount,
+            likedCount: item.likedCount,
+            followCount: item.followCount,
+            description: this.truncateText(item.description, 280),
+            enterpriseVerifyReason: item.enterpriseVerifyReason,
+            customVerify: item.customVerify,
+          })),
+          brandWorks: collection.brandWorks.slice(0, 30).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 320),
+            workUrl: item.workUrl,
+            coverUrl: item.coverUrl,
+            videoUrl: item.videoUrl,
+            authorName: item.authorName,
+            workType: item.workType,
+            publishTimeText: item.publishTimeText,
+            durationSeconds: item.durationMs ? Math.round(item.durationMs / 1000) : undefined,
+            likeCount: item.likeCount,
+            commentCount: item.commentCount,
+            shareCount: item.shareCount,
+            collectCount: item.collectCount,
+            playCount: item.playCount,
+            downloadCount: item.downloadCount,
+            recommendCount: item.recommendCount,
+            hashtags: item.hashtags,
+            musicTitle: item.musicTitle,
+            musicAuthor: item.musicAuthor,
+            isExplosive: item.isExplosive,
+          })),
+          benchmarkWorks: collection.benchmarkWorks.slice(0, 30).map((item) => ({
+            title: item.title,
+            description: this.truncateText(item.description, 320),
+            workUrl: item.workUrl,
+            coverUrl: item.coverUrl,
+            videoUrl: item.videoUrl,
+            authorName: item.authorName,
+            workType: item.workType,
+            publishTimeText: item.publishTimeText,
+            durationSeconds: item.durationMs ? Math.round(item.durationMs / 1000) : undefined,
+            likeCount: item.likeCount,
+            commentCount: item.commentCount,
+            shareCount: item.shareCount,
+            collectCount: item.collectCount,
+            playCount: item.playCount,
+            downloadCount: item.downloadCount,
+            recommendCount: item.recommendCount,
+            likeCollectRatio: item.likeCollectRatio,
+            likeCommentRatio: item.likeCommentRatio,
+            shareRatio: item.shareRatio,
+            hashtags: item.hashtags,
+            musicTitle: item.musicTitle,
+            musicAuthor: item.musicAuthor,
+            isExplosive: item.isExplosive,
+            followUpDecision: item.followUpDecision,
+          })),
+          summary: {
+            brandAccountCount: collection.brandAccounts.length,
+            competitorAccountCount: collection.competitorAccounts.length,
+            brandWorkCount: collection.brandWorks.length,
+            benchmarkWorkCount: collection.benchmarkWorks.length,
+          },
+        },
+        growthReport: {
+          id: sourceReport.id,
+          title: sourceReport.title,
+          summary: sourceReport.summary,
+          generatedAt: sourceReport.generatedAt,
+          diagnosis: sourceReport.diagnosis,
+          opportunities: sourceReport.opportunities,
+          nextActions: sourceReport.nextActions,
+          reportMarkdown: this.truncateText(sourceReport.reportMarkdown, 4200),
+        },
+        annualMarketingPlan: {
+          id: annualPlan.id,
+          title: annualPlan.title,
+          summary: annualPlan.summary,
+          planningYear: annualPlan.planningYear,
+          planningFocus: annualPlan.planningFocus,
+          items: annualPlan.items.slice(0, 30).map((item) => ({
+            month: item.month,
+            node: item.node,
+            date: item.date,
+            type: item.type,
+            marketingTheme: item.marketingTheme,
+            platforms: item.platforms,
+            strategy: this.truncateText(item.strategy, 220),
+            products: item.products,
+          })),
+        },
+      },
+      outputTarget: "抖音营销策划方案",
     };
   }
 
@@ -5281,6 +6256,34 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private async loadDouyinMarketingPlanGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("tongcheng-brand-douyin-planning");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_douyin_plan");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+      "text-domestic-kimi",
+      "text-global",
+    ], preferredSelections);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
+    return {
+      baseUrl: provider?.baseUrl || "",
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? 0.7,
+      maxTokens: prompt?.maxTokens ?? 12000,
+      promptContent: prompt?.content || "",
+      preferredModelName,
+      brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+    };
+  }
+
   private async loadXiaohongshuMarketingCalendarGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
@@ -5476,6 +6479,10 @@ ${normalizedMarkdown}`;
       throw new ServiceUnavailableException("小红书营销策划方案模型配置读取失败");
     }
     return providers;
+  }
+
+  private async loadDouyinMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
+    return this.loadXiaohongshuMarketingProviderConfigs(settings);
   }
 
   private async loadXiaohongshuMarketingCalendarProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
@@ -5725,6 +6732,10 @@ ${normalizedMarkdown}`;
     return `xiaohongshu-marketing-plan-${taskId}.html`;
   }
 
+  private buildDouyinMarketingPlanFileName(taskId: string) {
+    return `douyin-marketing-plan-${taskId}.html`;
+  }
+
   private extractFileNameFromStorageKey(storageKey: string) {
     const normalized = storageKey.split("?")[0]?.split("#")[0] ?? "";
     const parts = normalized.split("/");
@@ -5760,6 +6771,17 @@ ${normalizedMarkdown}`;
   private buildManualXiaohongshuMarketingPlanResult(reportMarkdown: string, nextTitle?: string) {
     const title = nextTitle?.trim() || this.extractMarkdownTitle(reportMarkdown) || "灏忕孩涔﹁惀閿€绛栧垝鏂规";
     const summary = this.extractMarkdownSummary(reportMarkdown) || "灏忕孩涔﹁惀閿€绛栧垝鏂规宸叉洿鏂般€";
+    return {
+      title,
+      summary,
+      reportMarkdown,
+      htmlContent: this.renderMarkdownToHtml(reportMarkdown),
+    };
+  }
+
+  private buildManualDouyinMarketingPlanResult(reportMarkdown: string, nextTitle?: string) {
+    const title = nextTitle?.trim() || this.extractMarkdownTitle(reportMarkdown) || "抖音营销策划方案";
+    const summary = this.extractMarkdownSummary(reportMarkdown) || "抖音营销策划方案已更新。";
     return {
       title,
       summary,
@@ -5906,6 +6928,42 @@ ${normalizedMarkdown}`;
       return false;
     }
     return this.isCompleteXiaohongshuMarketingMarkdown(markdown);
+  }
+
+  private isCompleteDouyinMarketingMarkdown(markdown: string) {
+    const normalized = markdown.trim();
+    if (!/^#\s+.+/m.test(normalized)) {
+      return false;
+    }
+    if ((normalized.match(/^##\s+.+/gm) || []).length < 3) {
+      return false;
+    }
+    if (/```markdown\s*$/i.test(normalized)) {
+      return false;
+    }
+    const tail = normalized.slice(-240).toLowerCase();
+    if (
+      tail.includes("to be continued")
+      || tail.includes("未完待续")
+      || tail.includes("下一部分")
+      || tail.includes("section ")
+      || tail.includes("write_file_section")
+      || tail.includes("<tool_call>")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  private isUsableDouyinMarketingPlanRecord(record: DouyinMarketingPlanRecord) {
+    const markdown = record.reportMarkdown?.trim();
+    if (!markdown) {
+      return false;
+    }
+    if (this.containsXiaohongshuWorkflowArtifacts(markdown)) {
+      return false;
+    }
+    return this.isCompleteDouyinMarketingMarkdown(markdown);
   }
 
   private renderVisualOutlineToHtml(outline: VisualReportOutlineModelResult) {
@@ -6420,6 +7478,29 @@ ${normalizedMarkdown}`;
   private mapXiaohongshuMarketingPlanAsset(asset: AssetRecord): XiaohongshuMarketingPlanRecord | undefined {
     const meta = this.asMeta(asset.metadataJson);
     if (meta.kind !== "XHS_MARKETING_PLAN") {
+      return undefined;
+    }
+
+    return {
+      id: asset.id,
+      title: asset.title,
+      summary: this.readMetaString(meta, "summary") || asset.description,
+      generatedAt: this.readMetaString(meta, "generatedAt"),
+      taskId: this.readMetaString(meta, "taskId") || undefined,
+      mediaId: this.readMetaString(meta, "mediaId") || undefined,
+      sourceReportId: this.readMetaString(meta, "sourceReportId") || undefined,
+      sourceReportTitle: this.readMetaString(meta, "sourceReportTitle") || undefined,
+      sourceAnnualPlanId: this.readMetaString(meta, "sourceAnnualPlanId") || undefined,
+      sourceAnnualPlanTitle: this.readMetaString(meta, "sourceAnnualPlanTitle") || undefined,
+      reportMarkdown: this.readMetaString(meta, "reportMarkdown"),
+      htmlContent: this.readMetaString(meta, "htmlContent"),
+      modelName: this.readMetaString(meta, "modelName") || undefined,
+    };
+  }
+
+  private mapDouyinMarketingPlanAsset(asset: AssetRecord): DouyinMarketingPlanRecord | undefined {
+    const meta = this.asMeta(asset.metadataJson);
+    if (meta.kind !== "DOUYIN_MARKETING_PLAN") {
       return undefined;
     }
 

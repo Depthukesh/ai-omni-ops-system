@@ -88,6 +88,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_xhs_plan"],
     promptScenes: ["小红书营销规划"],
   },
+  skill_douyin_plan: {
+    promptIds: ["prompt_douyin_plan"],
+    promptScenes: ["抖音营销策划方案"],
+  },
+  "tongcheng-brand-douyin-planning": {
+    promptIds: ["prompt_douyin_plan"],
+    promptScenes: ["抖音营销策划方案"],
+  },
   skill_xhs_calendar: {
     promptIds: ["prompt_xhs_calendar"],
     promptScenes: ["小红书营销日历生成"],

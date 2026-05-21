@@ -81,6 +81,10 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/xiaohongshu-brand-marketing-plan/xiaohongshu-brand-marketing-plan/SKILL.md",
     "../../../提示词/_xhs-plan-skill/xiaohongshu-brand-marketing-plan/SKILL.md",
   ],
+  prompt_douyin_plan: [
+    "../../../提示词/tongcheng-brand-douyin-planning/tongcheng-brand-douyin-planning/SKILL.md",
+    "../../../.trae/skills/tongcheng-brand-douyin-planning/SKILL.md",
+  ],
   prompt_xhs_calendar: [
     "../../../提示词/营销日历提示词.txt",
     "../提示词/营销日历提示词.txt",

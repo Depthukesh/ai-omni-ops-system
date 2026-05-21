@@ -283,6 +283,10 @@ const xiaohongshuPlanSkillContent = readPromptSourceBundle(
   "prompt_xhs_plan",
   "你是小红书品牌营销顾问，需要输出年度种草策略、内容支柱和月度排期建议。",
 ).content;
+const douyinPlanSkillContent = readPromptSourceBundle(
+  "prompt_douyin_plan",
+  "你是抖音营销策划顾问，需要基于品牌资料、半年营销规划与抖音采集数据，输出完整的抖音营销策划方案。",
+).content;
 const xiaohongshuCalendarSkillContent = readPromptSourceBundle(
   "prompt_xhs_calendar",
   "你是小红书营销日历规划助手，需要基于营销策划方案、半年营销规划、素材库、每日热点与历史营销日历，输出未来 7 天的结构化营销日历 JSON。",
@@ -913,6 +917,18 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-01T18:45:00.000Z",
     },
     {
+      id: "skill_douyin_plan",
+      name: "抖音营销策划方案",
+      slug: "tongcheng-brand-douyin-planning",
+      category: "内容营销",
+      status: "ACTIVE",
+      provider: "国内文生文 · DeepSeek",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 260,
+      description: "用于基于品牌报告、半年营销规划和抖音采集数据生成抖音营销策划方案。",
+      updatedAt: "2026-05-21T18:20:00.000Z",
+    },
+    {
       id: "skill_xhs_calendar",
       name: "小红书营销日历",
       slug: "xiaohongshu-marketing-calendar",
@@ -1045,6 +1061,18 @@ export const database: MockDatabase = {
       maxTokens: 12000,
       content: xiaohongshuPlanSkillContent,
       updatedAt: "2026-05-01T18:45:00.000Z",
+    },
+    {
+      id: "prompt_douyin_plan",
+      name: "抖音营销策划方案提示词",
+      scene: "抖音营销策划方案",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.7,
+      maxTokens: 12000,
+      content: douyinPlanSkillContent,
+      updatedAt: "2026-05-21T18:20:00.000Z",
     },
     {
       id: "prompt_xhs_calendar",

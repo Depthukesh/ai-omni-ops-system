@@ -10,7 +10,7 @@ import { brandInviteReadStateChangedEvent, buildPersonalCenterLoginPath } from "
 const primaryNavItems = [
   { href: "/brand-growth", label: "品牌增长策略", shortLabel: "策" },
   { href: "/xiaohongshu", label: "小红书", shortLabel: "红" },
-  { href: "/admin", label: "抖音", shortLabel: "抖" },
+  { href: "/douyin", label: "抖音", shortLabel: "抖" },
   { href: "/admin", label: "视频号", shortLabel: "视" },
   { href: "/admin", label: "公众号", shortLabel: "公" },
   { href: "/admin", label: "私域", shortLabel: "私" },
