@@ -12,11 +12,11 @@ import type {
 } from "./shared-types";
 import type {
   DouyinCollectedAccountRecord,
+  DouyinCollectionWorkspace,
   DouyinCollectedWorkRecord,
   XhsCollectedAccountRecord,
   XhsCollectedNoteRecord,
 } from "../../../services/collectors";
-import { douyinCollectionSeed } from "../../../services/collectors";
 import type {
   FeishuAppConfigRecord,
   FeishuAuthStatusRecord,
@@ -110,7 +110,7 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
 };
 
 export interface BrandGrowthCollectionWorkspaceProps {
-  activePage: "xiaohongshuCollection" | "dailyHotspot";
+  activePage: "feishuCollection" | "xiaohongshuCollection" | "douyinCollection" | "dailyHotspot";
   templateUrl: string;
   activeXhsCollectionCard: XiaohongshuCollectionCardKey;
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
@@ -128,14 +128,21 @@ export interface BrandGrowthCollectionWorkspaceProps {
   isSavingFeishuAppConfig: boolean;
   isSavingFeishuBinding: boolean;
   isSyncingFeishuWorkspace: boolean;
+  douyinWorkspace: DouyinCollectionWorkspace;
+  isSyncingDouyinWorkspace: boolean;
   onSaveFeishuAppConfig: AsyncAction;
   onStartFeishuAuth: AsyncAction;
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
+  onSyncDouyinWorkspace: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
   sortedBenchmarkNotes: XhsCollectedNoteRecord[];
+  sortedDouyinBrandAccounts: DouyinCollectedAccountRecord[];
+  sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
+  sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
   brandNotesPage: number;
   setBrandNotesPage: Dispatch<SetStateAction<number>>;
   brandNotesPageCount: number;
@@ -501,31 +508,37 @@ function DouyinWorkPreviewCard(props: {
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
-  if (props.activePage === "xiaohongshuCollection") {
+  if (props.activePage !== "dailyHotspot") {
     const xiaohongshuSyncedCount =
       props.sortedBrandAccounts.length +
       props.sortedCompetitorAccounts.length +
       props.sortedBrandNotes.length +
       props.sortedBenchmarkNotes.length;
+    const douyinSyncedCount =
+      props.sortedDouyinBrandAccounts.length +
+      props.sortedDouyinCompetitorAccounts.length +
+      props.sortedDouyinBrandWorks.length +
+      props.sortedDouyinBenchmarkWorks.length;
     const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
     const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
     const douyinFieldRows = douyinFieldPreviewMap[props.activeDouyinCollectionCard];
     const douyinPreviewItems =
       props.activeDouyinCollectionCard === "brandAccount"
-        ? douyinCollectionSeed.brandAccounts
+        ? props.sortedDouyinBrandAccounts
         : props.activeDouyinCollectionCard === "competitorAccount"
-          ? douyinCollectionSeed.competitorAccounts
+          ? props.sortedDouyinCompetitorAccounts
           : props.activeDouyinCollectionCard === "brandWorks"
-            ? douyinCollectionSeed.brandWorks
-            : douyinCollectionSeed.benchmarkWorks;
+            ? props.sortedDouyinBrandWorks
+            : props.sortedDouyinBenchmarkWorks;
 
     return (
       <div className="strategy-collection-stack">
-        <article className="workspace-panel strategy-page-card feishu-binding-panel">
+        {props.activePage === "feishuCollection" ? (
+          <article className="workspace-panel strategy-page-card feishu-binding-panel">
           <div className="strategy-card-toolbar">
             <div>
               <strong>飞书配置</strong>
-              <p>先配置当前账号自己的飞书应用与副本绑定，再到下方小红书板块执行同步。</p>
+              <p>当前页面只负责飞书应用配置、副本绑定和同步前置设置。</p>
             </div>
             <a href={props.templateUrl} target="_blank" rel="noreferrer" className="secondary-button">
               打开飞书模板
@@ -625,13 +638,15 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               {props.isSavingFeishuBinding ? "绑定中..." : "保存绑定"}
             </button>
           </div>
-        </article>
+          </article>
+        ) : null}
 
-        <article className="workspace-panel strategy-page-card strategy-collection-page-card">
+        {props.activePage === "xiaohongshuCollection" ? (
+          <article className="workspace-panel strategy-page-card strategy-collection-page-card">
           <div className="strategy-card-toolbar">
             <div>
               <strong>小红书</strong>
-              <p>小红书板块只保留同步入口与结果展示，飞书应用和副本绑定已移动到上方独立配置区。</p>
+              <p>小红书板块只保留同步入口与结果展示，飞书应用和副本绑定已移动到独立飞书配置板块。</p>
             </div>
             <button
               type="button"
@@ -1114,20 +1129,32 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               </div>
             </article>
           ) : null}
-        </article>
+          </article>
+        ) : null}
 
-        <article className="workspace-panel strategy-page-card strategy-collection-page-card">
+        {props.activePage === "douyinCollection" ? (
+          <article className="workspace-panel strategy-page-card strategy-collection-page-card">
           <div className="strategy-card-toolbar">
             <div>
               <strong>抖音</strong>
-              <p>抖音板块通过 Tikhub 第三方接口直连获取数据，不走飞书同步。当前已完成字段模型整理和页面承载骨架。</p>
+              <p>抖音板块通过 Tikhub 第三方接口直连获取数据，不走飞书同步。当前可直接从品牌档案里的抖音账号同步真实结果。</p>
             </div>
-            <span className="archive-pill status-ready">字段模型已整理</span>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void props.onSyncDouyinWorkspace()}
+              disabled={props.isHydrating || props.isSyncingDouyinWorkspace}
+            >
+              {props.isSyncingDouyinWorkspace ? "同步中..." : "同步抖音数据"}
+            </button>
           </div>
           <div className="strategy-chip-row">
             <span className="archive-pill status-ready">数据源：Tikhub</span>
             <span className="archive-pill status-ready">字段甄别：已完成</span>
             <span className="archive-pill status-ready">播放量：统计接口补丁</span>
+            <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
+              已同步 {douyinSyncedCount} 条
+            </span>
           </div>
           <div className="strategy-chip-row">
             {douyinCollectionCards.map((item) => (
@@ -1145,7 +1172,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <div className="collection-result-head">
               <div>
                 <h3>{douyinCollectionCards.find((item) => item.key === props.activeDouyinCollectionCard)?.label || "抖音数据模型"}</h3>
-                <p>先展示本轮整理好的标准字段清单，再用示例卡预演最终页面承载结构，后续直接替换为真实 Tikhub 数据。</p>
+                <p>先展示标准字段清单，再直接展示当前已同步的真实抖音结果；如无结果，可点击上方按钮立即同步。</p>
               </div>
               <span className="archive-pill status-ready">字段 {douyinFieldRows.length} 个</span>
             </div>
@@ -1153,63 +1180,80 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             {props.activeDouyinCollectionCard === "brandAccount" ? (
               <>
                 <div className="collection-card-list">
-                  {douyinPreviewItems.map((item) => (
-                    <DouyinAccountPreviewCard
-                      key={item.id}
-                      item={item as DouyinCollectedAccountRecord}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ))}
+                  {douyinPreviewItems.length ? (
+                    douyinPreviewItems.map((item) => (
+                      <DouyinAccountPreviewCard
+                        key={item.id}
+                        item={item as DouyinCollectedAccountRecord}
+                        formatDateTime={props.formatDateTime}
+                        formatCount={props.formatCount}
+                      />
+                    ))
+                  ) : (
+                    <div className="note-empty-state">当前还没有同步到抖音品牌账号，请先确认品牌档案里已配置抖音平台账号后执行同步。</div>
+                  )}
                 </div>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "competitorAccount" ? (
               <>
                 <div className="collection-card-list">
-                  {douyinPreviewItems.map((item) => (
-                    <DouyinAccountPreviewCard
-                      key={item.id}
-                      item={item as DouyinCollectedAccountRecord}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ))}
+                  {douyinPreviewItems.length ? (
+                    douyinPreviewItems.map((item) => (
+                      <DouyinAccountPreviewCard
+                        key={item.id}
+                        item={item as DouyinCollectedAccountRecord}
+                        formatDateTime={props.formatDateTime}
+                        formatCount={props.formatCount}
+                      />
+                    ))
+                  ) : (
+                    <div className="note-empty-state">当前还没有同步到抖音竞品账号，请先确认品牌档案里已配置抖音竞品账号后执行同步。</div>
+                  )}
                 </div>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "brandWorks" ? (
               <>
                 <div className="collection-card-list">
-                  {douyinPreviewItems.map((item) => (
-                    <DouyinWorkPreviewCard
-                      key={item.id}
-                      item={item as DouyinCollectedWorkRecord}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                      formatMetric={props.formatMetric}
-                    />
-                  ))}
+                  {douyinPreviewItems.length ? (
+                    douyinPreviewItems.map((item) => (
+                      <DouyinWorkPreviewCard
+                        key={item.id}
+                        item={item as DouyinCollectedWorkRecord}
+                        formatDateTime={props.formatDateTime}
+                        formatCount={props.formatCount}
+                        formatMetric={props.formatMetric}
+                      />
+                    ))
+                  ) : (
+                    <div className="note-empty-state">当前还没有同步到抖音品牌作品，请先同步抖音数据。</div>
+                  )}
                 </div>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "benchmarkWorks" ? (
               <>
                 <div className="collection-card-list">
-                  {douyinPreviewItems.map((item) => (
-                    <DouyinWorkPreviewCard
-                      key={item.id}
-                      item={item as DouyinCollectedWorkRecord}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                      formatMetric={props.formatMetric}
-                    />
-                  ))}
+                  {douyinPreviewItems.length ? (
+                    douyinPreviewItems.map((item) => (
+                      <DouyinWorkPreviewCard
+                        key={item.id}
+                        item={item as DouyinCollectedWorkRecord}
+                        formatDateTime={props.formatDateTime}
+                        formatCount={props.formatCount}
+                        formatMetric={props.formatMetric}
+                      />
+                    ))
+                  ) : (
+                    <div className="note-empty-state">当前还没有同步到抖音对标作品，请先同步抖音数据。</div>
+                  )}
                 </div>
               </>
             ) : null}
           </article>
-        </article>
+          </article>
+        ) : null}
       </div>
     );
   }

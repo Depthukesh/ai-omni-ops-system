@@ -32,8 +32,11 @@ import {
 } from "./task-status-helpers";
 import {
   addBenchmarkNoteToMaterialLibrary,
+  getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
+  syncDouyinCollectionWorkspace,
   syncXiaohongshuFromFeishu,
+  type DouyinCollectionWorkspace,
   type XhsCollectionWorkspace,
 } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
@@ -100,7 +103,9 @@ const stepOrder: BrandArchiveStepKey[] = [
 type StrategySectionKey = "library" | "collection" | "report";
 type StrategyPageKey =
   | BrandArchiveStepKey
+  | "feishuCollection"
   | "xiaohongshuCollection"
+  | "douyinCollection"
   | "dailyHotspot"
   | "growthReport"
   | "visualGrowthReport"
@@ -126,7 +131,9 @@ const strategySections: Array<{
     key: "collection",
     label: "收集数据",
     pages: [
-      { key: "xiaohongshuCollection", label: "平台采集", description: "统一管理飞书配置、小红书同步结果与抖音采集骨架。" },
+      { key: "feishuCollection", label: "飞书配置", description: "配置飞书应用、副本绑定与同步前置。" },
+      { key: "xiaohongshuCollection", label: "小红书", description: "查看小红书同步结果并执行数据同步。" },
+      { key: "douyinCollection", label: "抖音", description: "查看抖音采集结果并执行 Tikhub 数据同步。" },
       { key: "dailyHotspot", label: "每日热点", description: "查看热点主题、平台趋势和当天建议动作。" },
     ],
   },
@@ -150,7 +157,9 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   competitorAccounts: "brandGrowth.collection.xiaohongshuCollection",
   industryFeeds: "brandGrowth.library.industryFeeds",
   businessAssets: "brandGrowth.library.businessAssets",
+  feishuCollection: "brandGrowth.collection.xiaohongshuCollection",
   xiaohongshuCollection: "brandGrowth.collection.xiaohongshuCollection",
+  douyinCollection: "brandGrowth.collection.xiaohongshuCollection",
   dailyHotspot: "brandGrowth.collection.dailyHotspot",
   growthReport: "brandGrowth.report.growthReport",
   visualGrowthReport: "brandGrowth.report.visualGrowthReport",
@@ -201,6 +210,15 @@ function createEmptyCollectionWorkspace(): XhsCollectionWorkspace {
     brandNotes: [],
     benchmarkNotes: [],
     targetUsers: [],
+  };
+}
+
+function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
+  return {
+    brandAccounts: [],
+    competitorAccounts: [],
+    brandWorks: [],
+    benchmarkWorks: [],
   };
 }
 
@@ -322,6 +340,7 @@ function isLibraryPageKey(key?: BrandArchiveStepKey): key is BrandGrowthLibraryP
 export function BrandGrowthWorkspace() {
   const [archive, setArchive] = useState<BrandArchiveBundle>(createEmptyArchiveBundle);
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
+  const [douyinCollectionWorkspace, setDouyinCollectionWorkspace] = useState<DouyinCollectionWorkspace>(createEmptyDouyinCollectionWorkspace);
   const [dailyHotspotWorkspace, setDailyHotspotWorkspace] = useState<DailyHotspotWorkspace>(createEmptyDailyHotspotWorkspace);
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
   const [visualReportWorkspace, setVisualReportWorkspace] = useState<VisualGrowthReportWorkspace>(createEmptyVisualGrowthReportWorkspace);
@@ -350,6 +369,7 @@ export function BrandGrowthWorkspace() {
   const [isSavingFeishuAppConfig, setIsSavingFeishuAppConfig] = useState(false);
   const [isSavingFeishuBinding, setIsSavingFeishuBinding] = useState(false);
   const [isSyncingFeishuWorkspace, setIsSyncingFeishuWorkspace] = useState(false);
+  const [isSyncingDouyinWorkspace, setIsSyncingDouyinWorkspace] = useState(false);
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
@@ -408,6 +428,22 @@ export function BrandGrowthWorkspace() {
   const sortedBenchmarkNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.benchmarkNotes),
     [collectionWorkspace.benchmarkNotes],
+  );
+  const sortedDouyinBrandAccounts = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandAccounts),
+    [douyinCollectionWorkspace.brandAccounts],
+  );
+  const sortedDouyinCompetitorAccounts = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.competitorAccounts),
+    [douyinCollectionWorkspace.competitorAccounts],
+  );
+  const sortedDouyinBrandWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandWorks),
+    [douyinCollectionWorkspace.brandWorks],
+  );
+  const sortedDouyinBenchmarkWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.benchmarkWorks),
+    [douyinCollectionWorkspace.benchmarkWorks],
   );
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
@@ -583,6 +619,7 @@ export function BrandGrowthWorkspace() {
       const [
         archiveResult,
         collectionResult,
+        douyinCollectionResult,
         dailyHotspotResult,
         reportResult,
         visualReportResult,
@@ -593,6 +630,7 @@ export function BrandGrowthWorkspace() {
       ] = await Promise.allSettled([
         getBrandArchive(activeBrandId),
         getXiaohongshuCollectionWorkspace(activeBrandId),
+        getDouyinCollectionWorkspace(activeBrandId),
         getDailyHotspotWorkspace(activeBrandId),
         getGrowthReportWorkspace(activeBrandId),
         getVisualGrowthReportWorkspace(activeBrandId),
@@ -614,6 +652,12 @@ export function BrandGrowthWorkspace() {
         setCollectionWorkspace(collectionResult.value);
       } else {
         partialFailures.push("小红书收集数据");
+      }
+
+      if (douyinCollectionResult.status === "fulfilled") {
+        setDouyinCollectionWorkspace(douyinCollectionResult.value);
+      } else {
+        partialFailures.push("抖音采集数据");
       }
 
       if (dailyHotspotResult.status === "fulfilled") {
@@ -1037,6 +1081,29 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleSyncDouyinWorkspace() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(
+        `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`抖音同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
   async function handleStartFeishuAuth() {
     clearMessages();
 
@@ -1186,6 +1253,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     if (pageKey !== "xiaohongshuCollection") {
       setActiveXhsCollectionCard("brandAccount");
     }
+    if (pageKey !== "douyinCollection") {
+      setActiveDouyinCollectionCard("brandAccount");
+    }
   }
 
   async function saveActivePage() {
@@ -1315,7 +1385,15 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   function renderCollectionPage() {
     return (
       <BrandGrowthCollectionWorkspace
-        activePage={activePage === "dailyHotspot" ? "dailyHotspot" : "xiaohongshuCollection"}
+        activePage={
+          activePage === "dailyHotspot"
+            ? "dailyHotspot"
+            : activePage === "douyinCollection"
+              ? "douyinCollection"
+              : activePage === "xiaohongshuCollection"
+                ? "xiaohongshuCollection"
+                : "feishuCollection"
+        }
         templateUrl={FEISHU_XHS_TEMPLATE_URL}
         activeXhsCollectionCard={activeXhsCollectionCard}
         onXhsCollectionCardChange={setActiveXhsCollectionCard}
@@ -1333,14 +1411,21 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         isSavingFeishuAppConfig={isSavingFeishuAppConfig}
         isSavingFeishuBinding={isSavingFeishuBinding}
         isSyncingFeishuWorkspace={isSyncingFeishuWorkspace}
+        douyinWorkspace={douyinCollectionWorkspace}
+        isSyncingDouyinWorkspace={isSyncingDouyinWorkspace}
         onSaveFeishuAppConfig={handleSaveFeishuAppConfig}
         onStartFeishuAuth={handleStartFeishuAuth}
         onSaveFeishuBinding={handleSaveFeishuBinding}
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
+        onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
         sortedBenchmarkNotes={sortedBenchmarkNotes}
+        sortedDouyinBrandAccounts={sortedDouyinBrandAccounts}
+        sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
+        sortedDouyinBrandWorks={sortedDouyinBrandWorks}
+        sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
         brandNotesPage={brandNotesPage}
         setBrandNotesPage={setBrandNotesPage}
         brandNotesPageCount={brandNotesPageCount}
@@ -1421,7 +1506,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       );
     }
 
-    if (activePage === "xiaohongshuCollection") {
+    if (activePage === "feishuCollection") {
       return (
         <a href={FEISHU_XHS_TEMPLATE_URL} target="_blank" rel="noreferrer" className="primary-button">
           打开模板
