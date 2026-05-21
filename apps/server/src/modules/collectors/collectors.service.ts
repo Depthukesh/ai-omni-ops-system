@@ -27,6 +27,7 @@ type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTa
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinSyncInput = {
+  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   benchmarkAwemeIds?: string[];
@@ -365,26 +366,45 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       this.getConfiguredAccounts(brandId, "brand", "DOUYIN"),
       this.getConfiguredAccounts(brandId, "competitor", "DOUYIN"),
     ]);
-    const brandAccounts = this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand");
-    const competitorAccounts = this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor");
+    const scope = input.scope;
+    const shouldSyncBrandAccounts = !scope || scope === "brandAccount" || scope === "brandWorks";
+    const shouldSyncCompetitorAccounts = !scope || scope === "competitorAccount";
+    const shouldSyncBrandWorks = !scope || scope === "brandWorks";
+    const shouldSyncBenchmarkWorks = !scope || scope === "benchmarkWorks";
+    const brandAccounts = shouldSyncBrandAccounts || shouldSyncBrandWorks
+      ? this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand")
+      : [];
+    const competitorAccounts = shouldSyncCompetitorAccounts
+      ? this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor")
+      : [];
 
     const brandAccountRows = await Promise.all(
-      brandAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_BRAND_ACCOUNT")),
+      shouldSyncBrandAccounts
+        ? brandAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_BRAND_ACCOUNT"))
+        : [],
     );
     const competitorAccountRows = await Promise.all(
-      competitorAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_COMPETITOR_ACCOUNT")),
+      shouldSyncCompetitorAccounts
+        ? competitorAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_COMPETITOR_ACCOUNT"))
+        : [],
     );
     const brandWorkRows = await Promise.all(
-      brandAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK")),
+      shouldSyncBrandWorks
+        ? brandAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK"))
+        : [],
     );
     const benchmarkWorkRows = await Promise.all(
-      competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK")),
+      shouldSyncBenchmarkWorks
+        ? competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK"))
+        : [],
     );
     const manualBenchmarkRows = await Promise.all(
-      (input.benchmarkAwemeIds ?? [])
-        .map((item) => this.normalizeDouyinAwemeId(item))
-        .filter(Boolean)
-        .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId)),
+      shouldSyncBenchmarkWorks
+        ? (input.benchmarkAwemeIds ?? [])
+          .map((item) => this.normalizeDouyinAwemeId(item))
+          .filter(Boolean)
+          .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId))
+        : [],
     );
     const benchmarkWorkCount =
       benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)

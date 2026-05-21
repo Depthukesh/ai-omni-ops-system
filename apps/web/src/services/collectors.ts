@@ -151,6 +151,7 @@ export type DouyinCollectionWorkspace = {
 };
 
 export type DouyinSyncPayload = {
+  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   benchmarkAwemeIds?: string[];

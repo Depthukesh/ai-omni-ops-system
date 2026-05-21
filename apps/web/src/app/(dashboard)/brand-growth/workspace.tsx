@@ -1119,10 +1119,17 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     try {
       const payload: DouyinSyncPayload = {
-        brandAccountLinks: parseDouyinSyncLines(douyinSyncForm.brandAccountLinks),
-        competitorAccountLinks: parseDouyinSyncLines(douyinSyncForm.competitorAccountLinks),
-        benchmarkAwemeIds: parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds),
+        scope: activeDouyinCollectionCard,
       };
+      if (activeDouyinCollectionCard === "brandAccount" || activeDouyinCollectionCard === "brandWorks") {
+        payload.brandAccountLinks = parseDouyinSyncLines(douyinSyncForm.brandAccountLinks);
+      }
+      if (activeDouyinCollectionCard === "competitorAccount") {
+        payload.competitorAccountLinks = parseDouyinSyncLines(douyinSyncForm.competitorAccountLinks);
+      }
+      if (activeDouyinCollectionCard === "benchmarkWorks") {
+        payload.benchmarkAwemeIds = parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds);
+      }
       const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
       setNotice(

@@ -120,6 +120,7 @@ export class DouyinCollectorsController {
     @Param("brandId") brandId: string,
     @Body()
     payload: {
+      scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
       brandAccountLinks?: string[];
       competitorAccountLinks?: string[];
       benchmarkAwemeIds?: string[];

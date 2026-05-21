@@ -1044,6 +1044,10 @@ button {
   background: rgba(255, 255, 255, 0.88);
   border-color: #e1e6ef;
   box-shadow: 0 14px 30px rgba(30, 45, 71, 0.06);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .xiaohongshu-content-panel .strategy-page-card,
@@ -1082,6 +1086,9 @@ button {
 .strategy-collection-stack {
   display: grid;
   gap: 14px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .strategy-collection-card {
@@ -1914,6 +1921,9 @@ button {
   border: 1px solid #eceef5;
   border-radius: 16px;
   background: linear-gradient(180deg, #fbfbfe 0%, #f7f8fc 100%);
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .light-data-panel h3 {
@@ -2023,12 +2033,14 @@ button {
 
 .table-scroll-shell {
   width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 
 .table-scrollbar-top,
 .table-scrollbar-body {
   width: 100%;
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
 }
