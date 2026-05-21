@@ -1132,9 +1132,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       }
       const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
-      setNotice(
-        `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条。`,
-      );
+      const summary = `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条。`;
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
     } catch (error) {
       const message = error instanceof Error ? error.message : "同步失败";
       setErrorMessage(`抖音同步失败：${message}`);

@@ -339,6 +339,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       brandWorks: number;
       benchmarkWorks: number;
     };
+    warnings?: string[];
     workspace: DouyinCollectionWorkspace;
   }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,

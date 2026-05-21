@@ -398,14 +398,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         ? competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK"))
         : [],
     );
-    const manualBenchmarkRows = await Promise.all(
-      shouldSyncBenchmarkWorks
-        ? (input.benchmarkAwemeIds ?? [])
-          .map((item) => this.normalizeDouyinAwemeId(item))
-          .filter(Boolean)
-          .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId))
-        : [],
-    );
+    const manualBenchmarkResults = shouldSyncBenchmarkWorks
+      ? await Promise.allSettled(
+          (input.benchmarkAwemeIds ?? [])
+            .map((item) => this.normalizeDouyinAwemeId(item))
+            .filter(Boolean)
+            .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId)),
+        )
+      : [];
+    const manualBenchmarkRows = manualBenchmarkResults
+      .filter((item): item is PromiseFulfilledResult<DouyinCollectedWorkRecord> => item.status === "fulfilled")
+      .map((item) => item.value);
+    const benchmarkFailures = manualBenchmarkResults
+      .filter((item): item is PromiseRejectedResult => item.status === "rejected")
+      .map((item) => (item.reason instanceof Error ? item.reason.message : "对标作品采集失败"));
     const benchmarkWorkCount =
       benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)
       + manualBenchmarkRows.length;
@@ -422,6 +428,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         brandWorks: brandWorkRows.reduce((sum, items) => sum + items.length, 0),
         benchmarkWorks: benchmarkWorkCount,
       },
+      warnings: benchmarkFailures,
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -2733,9 +2740,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const detailRaw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_one_video_v3", { aweme_id: workId }, brandId);
     const detail = this.extractDouyinAwemeDetail(detailRaw);
-    const statisticsMap = this.extractDouyinStatisticsMap(
-      await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_video_statistics", { aweme_ids: workId }, brandId),
-    );
+    let statisticsMap = new Map<string, Record<string, unknown>>();
+    let statisticsPatchError = "";
+    try {
+      statisticsMap = this.extractDouyinStatisticsMap(
+        await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_video_statistics", { aweme_ids: workId }, brandId),
+      );
+    } catch (error) {
+      statisticsPatchError = error instanceof Error ? error.message : "统计接口补丁失败";
+    }
     const statistics = statisticsMap.get(workId) ?? {};
     const author = this.asMeta(detail.author);
     const detailStatistics = this.asMeta(detail.statistics);
@@ -2809,6 +2822,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         rawFields: {
           detail,
           statistics,
+          statisticsPatchError: statisticsPatchError || undefined,
         },
       },
     });
