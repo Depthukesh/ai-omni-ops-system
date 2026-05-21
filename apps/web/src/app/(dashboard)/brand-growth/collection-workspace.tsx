@@ -70,40 +70,55 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
   brandAccount: [
     { field: "sourceAccountId", label: "账号抓取主键", source: "获取指定用户的信息", path: "data.user.sec_uid", required: "必需", patch: "否" },
     { field: "externalUserId", label: "抖音内部用户 ID", source: "获取指定用户的信息", path: "data.user.uid", required: "必需", patch: "否" },
-    { field: "accountName", label: "账号名称", source: "获取指定用户的信息", path: "data.user.nickname", required: "必需", patch: "否" },
+    { field: "accountName", label: "用户昵称", source: "获取指定用户的信息", path: "data.user.nickname", required: "必需", patch: "否" },
     { field: "username", label: "抖音号", source: "获取指定用户的信息", path: "data.user.unique_id", required: "可选", patch: "否" },
-    { field: "accountLink", label: "主页链接", source: "获取指定用户的信息", path: "data.user.share_info.share_url", required: "可选", patch: "否" },
+    { field: "description", label: "个人签名/简介", source: "获取指定用户的信息", path: "data.user.signature", required: "可选", patch: "否" },
+    { field: "avatar", label: "头像 300 尺寸", source: "获取指定用户的信息", path: "data.user.avatar_300x300.url_list[0]", required: "可选", patch: "否" },
     { field: "fanCount", label: "粉丝数", source: "获取指定用户的信息", path: "data.user.follower_count", required: "必需", patch: "否" },
+    { field: "followCount", label: "关注数", source: "获取指定用户的信息", path: "data.user.following_count", required: "可选", patch: "否" },
     { field: "likedCount", label: "获赞总数", source: "获取指定用户的信息", path: "data.user.total_favorited", required: "可选", patch: "否" },
     { field: "postedCount", label: "作品数", source: "获取指定用户的信息", path: "data.user.aweme_count", required: "可选", patch: "否" },
   ],
   competitorAccount: [
     { field: "sourceAccountId", label: "账号抓取主键", source: "获取指定用户的信息", path: "data.user.sec_uid", required: "必需", patch: "否" },
     { field: "externalUserId", label: "抖音内部用户 ID", source: "获取指定用户的信息", path: "data.user.uid", required: "必需", patch: "否" },
-    { field: "accountName", label: "账号名称", source: "获取指定用户的信息", path: "data.user.nickname", required: "必需", patch: "否" },
+    { field: "accountName", label: "用户昵称", source: "获取指定用户的信息", path: "data.user.nickname", required: "必需", patch: "否" },
+    { field: "username", label: "抖音号", source: "获取指定用户的信息", path: "data.user.unique_id", required: "可选", patch: "否" },
     { field: "description", label: "账号简介", source: "获取指定用户的信息", path: "data.user.signature", required: "可选", patch: "否" },
+    { field: "avatar", label: "头像 300 尺寸", source: "获取指定用户的信息", path: "data.user.avatar_300x300.url_list[0]", required: "可选", patch: "否" },
     { field: "followCount", label: "关注数", source: "获取指定用户的信息", path: "data.user.following_count", required: "可选", patch: "否" },
     { field: "fanCount", label: "粉丝数", source: "获取指定用户的信息", path: "data.user.follower_count", required: "必需", patch: "否" },
-    { field: "ipLocation", label: "IP 属地", source: "获取指定用户的信息", path: "data.user.ip_location", required: "可选", patch: "否" },
-    { field: "enterpriseVerifyReason", label: "企业认证文案", source: "获取指定用户的信息", path: "data.user.enterprise_verify_reason", required: "可选", patch: "否" },
+    { field: "likedCount", label: "获赞总数", source: "获取指定用户的信息", path: "data.user.total_favorited", required: "可选", patch: "否" },
+    { field: "postedCount", label: "作品数", source: "获取指定用户的信息", path: "data.user.aweme_count", required: "可选", patch: "否" },
   ],
   brandWorks: [
     { field: "workId", label: "作品主键", source: "获取用户主页作品数据", path: "data.aweme_list[].aweme_id", required: "必需", patch: "否" },
-    { field: "title", label: "作品标题", source: "获取用户主页作品数据", path: "data.aweme_list[].desc", required: "必需", patch: "否" },
-    { field: "workUrl", label: "作品链接", source: "获取用户主页作品数据", path: "data.aweme_list[].share_info.share_url", required: "可选", patch: "否" },
-    { field: "publishTimeText", label: "发布时间", source: "获取用户主页作品数据", path: "data.aweme_list[].create_time", required: "可选", patch: "否" },
-    { field: "hashtags", label: "话题标签", source: "获取用户主页作品数据", path: "data.aweme_list[].cha_list[].cha_name", required: "可选", patch: "否" },
+    { field: "description", label: "作品描述/文案", source: "获取用户主页作品数据", path: "data.aweme_list[].desc", required: "必需", patch: "否" },
+    { field: "publishTimeText", label: "发布时间戳", source: "获取用户主页作品数据", path: "data.aweme_list[].create_time", required: "可选", patch: "否" },
+    { field: "mediaType", label: "媒体类型", source: "获取用户主页作品数据", path: "data.aweme_list[].media_type", required: "可选", patch: "否" },
+    { field: "durationMs", label: "视频时长(毫秒)", source: "获取用户主页作品数据", path: "data.aweme_list[].duration", required: "可选", patch: "否" },
     { field: "likeCount", label: "点赞数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.digg_count", required: "可选", patch: "否" },
     { field: "commentCount", label: "评论数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.comment_count", required: "可选", patch: "否" },
+    { field: "shareCount", label: "分享数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.share_count", required: "可选", patch: "否" },
     { field: "collectCount", label: "收藏数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.collect_count", required: "可选", patch: "否" },
+    { field: "recommendCount", label: "推荐数", source: "获取用户主页作品数据", path: "data.aweme_list[].statistics.recommend_count", required: "可选", patch: "否" },
+    { field: "imageList", label: "图文列表", source: "获取用户主页作品数据", path: "data.aweme_list[].images", required: "可选", patch: "否" },
+    { field: "awemeType", label: "作品类型", source: "获取用户主页作品数据", path: "data.aweme_list[].aweme_type", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "视频下载地址", source: "获取用户主页作品数据", path: "data.aweme_list[].video_download_addr", required: "可选", patch: "否" },
   ],
   benchmarkWorks: [
-    { field: "workId", label: "作品主键", source: "获取单个作品数据 V3", path: "data.aweme_detail.aweme_id", required: "必需", patch: "否" },
-    { field: "coverUrl", label: "作品封面", source: "获取单个作品数据 V3", path: "data.aweme_detail.video.cover.url_list[0]", required: "可选", patch: "否" },
-    { field: "musicTitle", label: "配乐标题", source: "获取单个作品数据 V3", path: "data.aweme_detail.music.title", required: "可选", patch: "否" },
+    { field: "description", label: "作品描述", source: "获取单个作品数据 V3", path: "data.aweme_detail.desc", required: "必需", patch: "否" },
+    { field: "durationMs", label: "作品时长", source: "获取单个作品数据 V3", path: "data.aweme_detail.video.duration", required: "可选", patch: "否" },
+    { field: "coverUrl", label: "视频封面", source: "获取单个作品数据 V3", path: "data.aweme_detail.video.cover.url_list[0]", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "视频播放地址", source: "获取单个作品数据 V3", path: "data.aweme_detail.video.play_addr.url_list[0]", required: "可选", patch: "否" },
+    { field: "authorName", label: "作者昵称", source: "获取单个作品数据 V3", path: "data.aweme_detail.author.nickname", required: "可选", patch: "否" },
+    { field: "authorUniqueId", label: "作者抖音号", source: "获取单个作品数据 V3", path: "data.aweme_detail.author.unique_id", required: "可选", patch: "否" },
+    { field: "authorFollowerCount", label: "作者粉丝数", source: "获取单个作品数据 V3", path: "data.aweme_detail.author.follower_count", required: "可选", patch: "否" },
+    { field: "authorLikedCount", label: "作者总获赞", source: "获取单个作品数据 V3", path: "data.aweme_detail.author.total_favorited", required: "可选", patch: "否" },
+    { field: "authorAvatar", label: "作者头像", source: "获取单个作品数据 V3", path: "data.aweme_detail.author.avatar_300x300.url_list[0]", required: "可选", patch: "否" },
     { field: "playCount", label: "播放量", source: "获取作品的统计数据", path: "data.statistics_list[].play_count", required: "必需", patch: "是" },
-    { field: "likeCount", label: "点赞数", source: "获取作品的统计数据", path: "data.statistics_list[].digg_count", required: "可选", patch: "是" },
-    { field: "shareCount", label: "分享数", source: "获取作品的统计数据", path: "data.statistics_list[].share_count", required: "可选", patch: "是" },
+    { field: "likeCount", label: "点赞数", source: "获取单个作品数据 V3 / 统计数据", path: "data.aweme_detail.statistics.digg_count / data.statistics_list[].digg_count", required: "可选", patch: "是" },
+    { field: "shareCount", label: "分享数", source: "获取单个作品数据 V3 / 统计数据", path: "data.aweme_detail.statistics.share_count / data.statistics_list[].share_count", required: "可选", patch: "是" },
     { field: "downloadCount", label: "下载数", source: "获取作品的统计数据", path: "data.statistics_list[].download_count", required: "可选", patch: "是" },
     { field: "commentCount", label: "评论数", source: "获取单个作品数据 V3", path: "data.aweme_detail.statistics.comment_count", required: "可选", patch: "否" },
   ],
@@ -130,6 +145,16 @@ export interface BrandGrowthCollectionWorkspaceProps {
   isSyncingFeishuWorkspace: boolean;
   douyinWorkspace: DouyinCollectionWorkspace;
   isSyncingDouyinWorkspace: boolean;
+  douyinSyncForm: {
+    brandAccountLinks: string;
+    competitorAccountLinks: string;
+    benchmarkAwemeIds: string;
+  };
+  setDouyinSyncForm: Dispatch<SetStateAction<{
+    brandAccountLinks: string;
+    competitorAccountLinks: string;
+    benchmarkAwemeIds: string;
+  }>>;
   onSaveFeishuAppConfig: AsyncAction;
   onStartFeishuAuth: AsyncAction;
   onSaveFeishuBinding: AsyncAction;
@@ -354,7 +379,19 @@ function DouyinAccountPreviewCard(props: {
     <article className="collection-sync-card">
       <div className="collection-sync-head">
         <div className="collection-sync-title">
-          <strong>{item.accountName || "-"}</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {item.avatar ? (
+              <img
+                src={item.avatar}
+                alt={item.accountName || "抖音头像"}
+                style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+              />
+            ) : null}
+            <div>
+              <strong>{item.accountName || "-"}</strong>
+              <div className="personal-meta">{item.username || item.shortId || "未提供抖音号"}</div>
+            </div>
+          </div>
           <span>
             {item.accountLink ? (
               <a href={item.accountLink} target="_blank" rel="noreferrer">
@@ -371,6 +408,10 @@ function DouyinAccountPreviewCard(props: {
         <div className="collection-sync-item">
           <span>sec_uid</span>
           <strong className="collection-sync-code">{item.sourceAccountId}</strong>
+        </div>
+        <div className="collection-sync-item">
+          <span>用户 ID</span>
+          <strong className="collection-sync-code">{item.externalUserId || "-"}</strong>
         </div>
         <div className="collection-sync-item">
           <span>抖音号</span>
@@ -421,7 +462,19 @@ function DouyinWorkPreviewCard(props: {
     <article className="collection-sync-card">
       <div className="collection-sync-head">
         <div className="collection-sync-title">
-          <strong>{item.title || "-"}</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {item.authorAvatar ? (
+              <img
+                src={item.authorAvatar}
+                alt={item.authorName || "作者头像"}
+                style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+              />
+            ) : null}
+            <div>
+              <strong>{item.title || "-"}</strong>
+              <div className="personal-meta">{item.authorName || "-"}</div>
+            </div>
+          </div>
           <span>
             {item.workUrl ? (
               <a href={item.workUrl} target="_blank" rel="noreferrer">
@@ -447,12 +500,24 @@ function DouyinWorkPreviewCard(props: {
           <strong>{item.workType || "-"}</strong>
         </div>
         <div className="collection-sync-item">
+          <span>媒体类型</span>
+          <strong>{item.mediaType ?? "-"}</strong>
+        </div>
+        <div className="collection-sync-item">
           <span>作者</span>
           <strong>{item.authorName || "-"}</strong>
         </div>
         <div className="collection-sync-item">
+          <span>作者抖音号</span>
+          <strong>{item.authorUniqueId || "-"}</strong>
+        </div>
+        <div className="collection-sync-item">
           <span>发布时间</span>
           <strong>{item.publishTimeText || "-"}</strong>
+        </div>
+        <div className="collection-sync-item">
+          <span>时长</span>
+          <strong>{item.durationMs ?? "-"}</strong>
         </div>
         <div className="collection-sync-item">
           <span>播放</span>
@@ -479,6 +544,10 @@ function DouyinWorkPreviewCard(props: {
           <strong>{props.formatCount(item.downloadCount)}</strong>
         </div>
         <div className="collection-sync-item">
+          <span>推荐</span>
+          <strong>{props.formatCount(item.recommendCount)}</strong>
+        </div>
+        <div className="collection-sync-item">
           <span>赞藏率</span>
           <strong>{props.formatMetric(item.likeCollectRatio)}</strong>
         </div>
@@ -489,6 +558,14 @@ function DouyinWorkPreviewCard(props: {
         <div className="collection-sync-item">
           <span>配乐</span>
           <strong>{item.musicTitle || "-"}</strong>
+        </div>
+        <div className="collection-sync-item">
+          <span>作者粉丝</span>
+          <strong>{props.formatCount(item.authorFollowerCount)}</strong>
+        </div>
+        <div className="collection-sync-item">
+          <span>作者总获赞</span>
+          <strong>{props.formatCount(item.authorLikedCount)}</strong>
         </div>
         <div className="collection-sync-item">
           <span>爆款判断</span>
@@ -502,6 +579,22 @@ function DouyinWorkPreviewCard(props: {
           <span>正文摘要</span>
           <strong>{item.description || "暂无正文内容"}</strong>
         </div>
+        {item.coverUrl ? (
+          <div className="collection-sync-item collection-sync-item--full">
+            <span>封面</span>
+            <a href={item.coverUrl} target="_blank" rel="noreferrer" className="note-data-link">
+              查看封面
+            </a>
+          </div>
+        ) : null}
+        {item.videoUrl ? (
+          <div className="collection-sync-item collection-sync-item--full">
+            <span>视频地址</span>
+            <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+              打开视频
+            </a>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -1137,7 +1230,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           <div className="strategy-card-toolbar">
             <div>
               <strong>抖音</strong>
-              <p>抖音板块通过 Tikhub 第三方接口直连获取数据，不走飞书同步。当前可直接从品牌档案里的抖音账号同步真实结果。</p>
+              <p>抖音板块通过 Tikhub 第三方接口直连获取数据，不走飞书同步。请先在个人中心填写当前品牌的 Tikhub API Key，再到后台接口供应商确认 Tikhub 平台链接与文档已配置。</p>
             </div>
             <button
               type="button"
@@ -1156,6 +1249,54 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               已同步 {douyinSyncedCount} 条
             </span>
           </div>
+          <article className="light-data-panel" style={{ marginBottom: 16 }}>
+            <div className="collection-result-head">
+              <div>
+                <h3>使用前置</h3>
+                <p>01 在个人中心配置当前品牌的 Tikhub API Key；02 在后台接口供应商确认 Tikhub 平台链接、说明文档和备注；03 输入品牌主页链接、竞品主页链接或对标作品 aweme_id 后执行同步。</p>
+              </div>
+            </div>
+            <div className="strategy-chip-row" style={{ marginBottom: 12 }}>
+              <a href="/personal-center/third-party-platforms" className="secondary-button">去个人中心配 API Key</a>
+              <a href="/admin" className="secondary-button">去后台接口供应商</a>
+              <a href="https://docs.tikhub.io/186826222e0" target="_blank" rel="noreferrer" className="secondary-button">账号信息文档</a>
+              <a href="https://docs.tikhub.io/186826223e0" target="_blank" rel="noreferrer" className="secondary-button">主页作品文档</a>
+              <a href="https://docs.tikhub.io/406098636e0" target="_blank" rel="noreferrer" className="secondary-button">单作品文档</a>
+              <a href="https://docs.tikhub.io/186826221e0" target="_blank" rel="noreferrer" className="secondary-button">统计文档</a>
+            </div>
+            <div className="form-grid two-column">
+              <label className="field">
+                <span>品牌抖音主页链接 / sec_user_id</span>
+                <textarea
+                  rows={4}
+                  value={props.douyinSyncForm.brandAccountLinks}
+                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: event.target.value }))}
+                  placeholder={"每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"}
+                />
+                <small className="personal-meta">用于调用「获取指定用户的信息」和「获取用户主页作品数据」。</small>
+              </label>
+              <label className="field">
+                <span>竞品抖音主页链接 / sec_user_id</span>
+                <textarea
+                  rows={4}
+                  value={props.douyinSyncForm.competitorAccountLinks}
+                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: event.target.value }))}
+                  placeholder={"每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"}
+                />
+                <small className="personal-meta">用于拉取竞品账号信息，以及该账号下的对标作品池。</small>
+              </label>
+              <label className="field" style={{ gridColumn: "1 / -1" }}>
+                <span>对标作品 aweme_id / 作品链接</span>
+                <textarea
+                  rows={3}
+                  value={props.douyinSyncForm.benchmarkAwemeIds}
+                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: event.target.value }))}
+                  placeholder={"每行一个，支持 aweme_id、/video/xxx、/note/xxx 链接"}
+                />
+                <small className="personal-meta">这里会组合「获取单个作品数据 V3」和「根据视频 ID 获取作品统计数据」来补齐播放量。</small>
+              </label>
+            </div>
+          </article>
           <div className="strategy-chip-row">
             {douyinCollectionCards.map((item) => (
               <button
@@ -1172,7 +1313,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <div className="collection-result-head">
               <div>
                 <h3>{douyinCollectionCards.find((item) => item.key === props.activeDouyinCollectionCard)?.label || "抖音数据模型"}</h3>
-                <p>先展示标准字段清单，再直接展示当前已同步的真实抖音结果；如无结果，可点击上方按钮立即同步。</p>
+                <p>先展示标准字段清单，再展示当前已同步的真实抖音结果；品牌账号和竞品账号都走「获取指定用户的信息」，品牌作品走「获取用户主页作品数据」，对标作品走「单作品详情 + 统计补丁」。</p>
               </div>
               <span className="archive-pill status-ready">字段 {douyinFieldRows.length} 个</span>
             </div>

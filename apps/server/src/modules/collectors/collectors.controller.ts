@@ -92,11 +92,42 @@ export class CollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     const file = await this.collectorsService.fetchFeishuMedia(brandId, sourceUrl);
     response.setHeader("Content-Type", file.contentType);
-    response.setHeader("Cache-Control", "private, max-age=1800");
+    response.setHeader("Cache-Control", "private, max-age=300");
     response.setHeader(
       "Content-Disposition",
       `${download === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
     );
     return response.status(200).send(file.buffer);
+  }
+}
+
+@Controller("collectors/douyin")
+export class DouyinCollectorsController {
+  constructor(
+    @Inject(CollectorsService) private readonly collectorsService: CollectorsService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
+
+  @Get("brands/:brandId/workspace")
+  async workspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getDouyinWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/sync")
+  async syncWorkspace(
+    @Param("brandId") brandId: string,
+    @Body()
+    payload: {
+      brandAccountLinks?: string[];
+      competitorAccountLinks?: string[];
+      benchmarkAwemeIds?: string[];
+    },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncDouyinWorkspace(brandId, payload ?? {});
   }
 }

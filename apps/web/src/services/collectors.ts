@@ -81,11 +81,12 @@ export type DouyinCollectedAccountRecord = {
   id: string;
   kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT";
   sourceAccountId: string;
+  sourceAccountLink?: string;
+  accountLink?: string;
   externalUserId?: string;
   accountName: string;
   username?: string;
   shortId?: string;
-  accountLink?: string;
   avatar?: string;
   description?: string;
   postedCount?: number;
@@ -103,6 +104,7 @@ export type DouyinCollectedWorkRecord = {
   id: string;
   kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK";
   sourceAccountId: string;
+  sourceAccountLink?: string;
   workId: string;
   title: string;
   description?: string;
@@ -117,6 +119,8 @@ export type DouyinCollectedWorkRecord = {
   hashtags?: string[];
   publishTimeText?: string;
   durationMs?: number;
+  mediaType?: number;
+  awemeType?: number;
   musicTitle?: string;
   musicAuthor?: string;
   likeCount?: number;
@@ -125,12 +129,16 @@ export type DouyinCollectedWorkRecord = {
   commentCount?: number;
   collectCount?: number;
   downloadCount?: number;
+  recommendCount?: number;
   likeCollectRatio?: number;
   likeCommentRatio?: number;
   shareRatio?: number;
   isExplosive?: string;
   followUpDecision?: string;
   statsPatched?: boolean;
+  authorFollowerCount?: number;
+  authorLikedCount?: number;
+  authorAvatar?: string;
   collectedAt: string;
   rawFields?: Record<string, unknown>;
 };
@@ -140,6 +148,12 @@ export type DouyinCollectionWorkspace = {
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
+};
+
+export type DouyinSyncPayload = {
+  brandAccountLinks?: string[];
+  competitorAccountLinks?: string[];
+  benchmarkAwemeIds?: string[];
 };
 
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
@@ -315,7 +329,7 @@ export async function getDouyinCollectionWorkspace(brandId?: string) {
   return request<DouyinCollectionWorkspace>(`/collectors/douyin/brands/${resolveBrandId(brandId)}/workspace`);
 }
 
-export async function syncDouyinCollectionWorkspace(brandId?: string) {
+export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload = {}, brandId?: string) {
   return jsonRequest<{
     syncedCount: number;
     breakdown: {
@@ -328,7 +342,7 @@ export async function syncDouyinCollectionWorkspace(brandId?: string) {
   }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,
     "POST",
-    {},
+    payload,
   );
 }
 

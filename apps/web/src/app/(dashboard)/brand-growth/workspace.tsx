@@ -35,6 +35,7 @@ import {
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
   syncDouyinCollectionWorkspace,
+  type DouyinSyncPayload,
   syncXiaohongshuFromFeishu,
   type DouyinCollectionWorkspace,
   type XhsCollectionWorkspace,
@@ -337,6 +338,31 @@ function isLibraryPageKey(key?: BrandArchiveStepKey): key is BrandGrowthLibraryP
   return key === "background" || key === "products" || key === "survey" || key === "industryFeeds" || key === "businessAssets";
 }
 
+type DouyinSyncForm = {
+  brandAccountLinks: string;
+  competitorAccountLinks: string;
+  benchmarkAwemeIds: string;
+};
+
+function createEmptyDouyinSyncForm(): DouyinSyncForm {
+  return {
+    brandAccountLinks: "",
+    competitorAccountLinks: "",
+    benchmarkAwemeIds: "",
+  };
+}
+
+function parseDouyinSyncLines(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\n,，]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 export function BrandGrowthWorkspace() {
   const [archive, setArchive] = useState<BrandArchiveBundle>(createEmptyArchiveBundle);
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
@@ -355,6 +381,7 @@ export function BrandGrowthWorkspace() {
   const [hasOwnerAccess, setHasOwnerAccess] = useState(true);
   const [feishuBindingForm, setFeishuBindingForm] = useState(createEmptyFeishuBindingForm);
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
+  const [douyinSyncForm, setDouyinSyncForm] = useState<DouyinSyncForm>(createEmptyDouyinSyncForm);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
   const [brandNotesPageSize, setBrandNotesPageSize] = useState(10);
   const [hotspotPage, setHotspotPage] = useState(1);
@@ -1091,7 +1118,12 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const response = await syncDouyinCollectionWorkspace(activeBrandId || archive.brand.id);
+      const payload: DouyinSyncPayload = {
+        brandAccountLinks: parseDouyinSyncLines(douyinSyncForm.brandAccountLinks),
+        competitorAccountLinks: parseDouyinSyncLines(douyinSyncForm.competitorAccountLinks),
+        benchmarkAwemeIds: parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds),
+      };
+      const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
       setNotice(
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条。`,
@@ -1413,6 +1445,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         isSyncingFeishuWorkspace={isSyncingFeishuWorkspace}
         douyinWorkspace={douyinCollectionWorkspace}
         isSyncingDouyinWorkspace={isSyncingDouyinWorkspace}
+        douyinSyncForm={douyinSyncForm}
+        setDouyinSyncForm={setDouyinSyncForm}
         onSaveFeishuAppConfig={handleSaveFeishuAppConfig}
         onStartFeishuAuth={handleStartFeishuAuth}
         onSaveFeishuBinding={handleSaveFeishuBinding}

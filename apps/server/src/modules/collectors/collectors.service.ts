@@ -8,15 +8,29 @@ import { createId, database, type AssetRecord, type PlatformAccountRecord } from
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
 import { PrismaService } from "../../prisma/prisma.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
+import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
 const execFileAsync = promisify(execFile);
 
-type CollectorAccountKind = "XHS_BRAND_ACCOUNT" | "XHS_COMPETITOR_ACCOUNT";
-type CollectorNoteKind = "XHS_BRAND_NOTE" | "XHS_BENCHMARK_NOTE";
+type CollectorAccountKind =
+  | "XHS_BRAND_ACCOUNT"
+  | "XHS_COMPETITOR_ACCOUNT"
+  | "DOUYIN_BRAND_ACCOUNT"
+  | "DOUYIN_COMPETITOR_ACCOUNT";
+type CollectorNoteKind =
+  | "XHS_BRAND_NOTE"
+  | "XHS_BENCHMARK_NOTE"
+  | "DOUYIN_BRAND_WORK"
+  | "DOUYIN_BENCHMARK_WORK";
 type CollectorTargetKind = "XHS_TARGET_USER";
 type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTargetKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+type DouyinSyncInput = {
+  brandAccountLinks?: string[];
+  competitorAccountLinks?: string[];
+  benchmarkAwemeIds?: string[];
+};
 
 type DailyHotspotConfig = {
   platformKey: string;
@@ -148,6 +162,77 @@ export type XhsCollectionWorkspace = {
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
+export type DouyinCollectedAccountRecord = {
+  id: string;
+  kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT";
+  sourceAccountId: string;
+  accountLink: string;
+  sourceAccountLink: string;
+  accountName: string;
+  externalUserId?: string;
+  username?: string;
+  shortId?: string;
+  avatar?: string;
+  description?: string;
+  postedCount?: number;
+  likedCount?: number;
+  fanCount?: number;
+  followCount?: number;
+  ipLocation?: string;
+  enterpriseVerifyReason?: string;
+  customVerify?: string;
+  collectedAt: string;
+};
+
+export type DouyinCollectedWorkRecord = {
+  id: string;
+  kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK";
+  sourceAccountId: string;
+  sourceAccountLink: string;
+  workId: string;
+  title: string;
+  description?: string;
+  workType?: string;
+  authorName?: string;
+  authorUniqueId?: string;
+  externalUserId?: string;
+  workUrl?: string;
+  coverUrl?: string;
+  imageList?: string[];
+  videoUrl?: string;
+  hashtags?: string[];
+  publishTimeText?: string;
+  durationMs?: number;
+  mediaType?: number;
+  awemeType?: number;
+  musicTitle?: string;
+  musicAuthor?: string;
+  likeCount?: number;
+  playCount?: number;
+  shareCount?: number;
+  commentCount?: number;
+  collectCount?: number;
+  downloadCount?: number;
+  recommendCount?: number;
+  likeCollectRatio?: number;
+  likeCommentRatio?: number;
+  shareRatio?: number;
+  isExplosive?: string;
+  followUpDecision?: string;
+  statsPatched?: boolean;
+  authorFollowerCount?: number;
+  authorLikedCount?: number;
+  authorAvatar?: string;
+  collectedAt: string;
+};
+
+export type DouyinCollectionWorkspace = {
+  brandAccounts: DouyinCollectedAccountRecord[];
+  competitorAccounts: DouyinCollectedAccountRecord[];
+  brandWorks: DouyinCollectedWorkRecord[];
+  benchmarkWorks: DouyinCollectedWorkRecord[];
+};
+
 type FeishuMatchedTableMap = {
   brandAccounts: FeishuTableRecord | null;
   competitorAccounts: FeishuTableRecord | null;
@@ -206,6 +291,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     private readonly prismaService: PrismaService,
     @Inject(SchedulerService)
     private readonly schedulerService: SchedulerService,
+    @Inject(ThirdPartyPlatformsService)
+    private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
   ) {}
 
   onModuleInit() {
@@ -229,6 +316,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.getWorkspaceFromMock(brandId);
+  }
+
+  async getDouyinWorkspace(brandId: string): Promise<DouyinCollectionWorkspace> {
+    if (await this.prismaService.canUseDatabase()) {
+      return this.buildDouyinWorkspaceFromAssets(await this.listCollectorAssets(brandId));
+    }
+
+    return this.getDouyinWorkspaceFromMock(brandId);
   }
 
   async syncBrandAccounts(brandId: string) {
@@ -262,6 +357,52 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       syncedCount: rows.reduce((sum, items) => sum + items.length, 0),
       items: rows.flat(),
       workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
+  async syncDouyinWorkspace(brandId: string, input: DouyinSyncInput = {}) {
+    const [brandAccountPreset, competitorAccountPreset] = await Promise.all([
+      this.getConfiguredAccounts(brandId, "brand", "DOUYIN"),
+      this.getConfiguredAccounts(brandId, "competitor", "DOUYIN"),
+    ]);
+    const brandAccounts = this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand");
+    const competitorAccounts = this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor");
+
+    const brandAccountRows = await Promise.all(
+      brandAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_BRAND_ACCOUNT")),
+    );
+    const competitorAccountRows = await Promise.all(
+      competitorAccounts.map((account) => this.collectAndStoreDouyinAccount(brandId, account, "DOUYIN_COMPETITOR_ACCOUNT")),
+    );
+    const brandWorkRows = await Promise.all(
+      brandAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BRAND_WORK")),
+    );
+    const benchmarkWorkRows = await Promise.all(
+      competitorAccounts.map((account) => this.collectAndStoreDouyinWorks(brandId, account, "DOUYIN_BENCHMARK_WORK")),
+    );
+    const manualBenchmarkRows = await Promise.all(
+      (input.benchmarkAwemeIds ?? [])
+        .map((item) => this.normalizeDouyinAwemeId(item))
+        .filter(Boolean)
+        .map((awemeId) => this.collectAndStoreSingleDouyinBenchmarkWork(brandId, awemeId)),
+    );
+    const benchmarkWorkCount =
+      benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)
+      + manualBenchmarkRows.length;
+
+    return {
+      syncedCount:
+        brandAccountRows.length
+        + competitorAccountRows.length
+        + brandWorkRows.reduce((sum, items) => sum + items.length, 0)
+        + benchmarkWorkCount,
+      breakdown: {
+        brandAccounts: brandAccountRows.length,
+        competitorAccounts: competitorAccountRows.length,
+        brandWorks: brandWorkRows.reduce((sum, items) => sum + items.length, 0),
+        benchmarkWorks: benchmarkWorkCount,
+      },
+      workspace: await this.getDouyinWorkspace(brandId),
     };
   }
 
@@ -521,7 +662,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async getWorkspaceFromDatabase(brandId: string): Promise<XhsCollectionWorkspace> {
+  private async listCollectorAssets(brandId: string): Promise<AssetRecord[]> {
     await this.ensureBrandExistsInDatabase(brandId);
     const assets = await this.prismaService.businessAsset.findMany({
       where: {
@@ -531,24 +672,32 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       orderBy: { updatedAt: "desc" },
     });
 
-    return this.buildWorkspaceFromAssets(
-      assets.map((item) => ({
-        id: item.id,
-        brandId: item.brandId,
-        category: "PLATFORM_EXPORT" as const,
-        title: item.title,
-        description: item.description ?? "",
-        sourceName: "小红书采集",
-        fileUrl: item.fileUrl ?? undefined,
-        metadataJson: this.asMeta(item.metadataJson),
-      })),
-    );
+    return assets.map((item) => ({
+      id: item.id,
+      brandId: item.brandId,
+      category: "PLATFORM_EXPORT" as const,
+      title: item.title,
+      description: item.description ?? "",
+      sourceName: "平台采集",
+      fileUrl: item.fileUrl ?? undefined,
+      metadataJson: this.asMeta(item.metadataJson),
+    }));
+  }
+
+  private async getWorkspaceFromDatabase(brandId: string): Promise<XhsCollectionWorkspace> {
+    return this.buildWorkspaceFromAssets(await this.listCollectorAssets(brandId));
   }
 
   private getWorkspaceFromMock(brandId: string): XhsCollectionWorkspace {
     this.ensureBrandExistsInMock(brandId);
     const assets = database.assets.filter((item) => item.brandId === brandId && item.category === "PLATFORM_EXPORT");
     return this.buildWorkspaceFromAssets(assets);
+  }
+
+  private getDouyinWorkspaceFromMock(brandId: string): DouyinCollectionWorkspace {
+    this.ensureBrandExistsInMock(brandId);
+    const assets = database.assets.filter((item) => item.brandId === brandId && item.category === "PLATFORM_EXPORT");
+    return this.buildDouyinWorkspaceFromAssets(assets);
   }
 
   private buildWorkspaceFromAssets(assets: AssetRecord[]): XhsCollectionWorkspace {
@@ -569,6 +718,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       .map((item) => this.mapCollectedTargetUser(item));
 
     return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, targetUsers };
+  }
+
+  private buildDouyinWorkspaceFromAssets(assets: AssetRecord[]): DouyinCollectionWorkspace {
+    const brandAccounts = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_ACCOUNT")
+      .map((item) => this.mapDouyinCollectedAccount(item, "DOUYIN_BRAND_ACCOUNT"));
+    const competitorAccounts = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_COMPETITOR_ACCOUNT")
+      .map((item) => this.mapDouyinCollectedAccount(item, "DOUYIN_COMPETITOR_ACCOUNT"));
+    const brandWorks = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_WORK")
+      .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BRAND_WORK"));
+    const benchmarkWorks = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_BENCHMARK_WORK")
+      .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_BENCHMARK_WORK"));
+
+    return { brandAccounts, competitorAccounts, brandWorks, benchmarkWorks };
   }
 
   private mapCollectedAccount(asset: AssetRecord, kind: CollectorAccountKind): XhsCollectedAccountRecord {
@@ -629,6 +795,83 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       sourceTableId: this.readMetaString(meta, "sourceTableId") || undefined,
       sourceRecordId: this.readMetaString(meta, "sourceRecordId") || undefined,
       rawFields: this.asMeta(meta.rawFields),
+    };
+  }
+
+  private mapDouyinCollectedAccount(
+    asset: AssetRecord,
+    kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT",
+  ): DouyinCollectedAccountRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    const accountLink = this.readMetaString(meta, "accountLink") || this.readMetaString(meta, "sourceAccountLink") || asset.fileUrl || "";
+    return {
+      id: asset.id,
+      kind,
+      sourceAccountId: this.readMetaString(meta, "sourceAccountId"),
+      accountLink,
+      sourceAccountLink: accountLink,
+      accountName: asset.title,
+      externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
+      username: this.readMetaString(meta, "username") || undefined,
+      shortId: this.readMetaString(meta, "shortId") || undefined,
+      avatar: this.readMetaString(meta, "avatar") || undefined,
+      description: this.readMetaString(meta, "description") || undefined,
+      postedCount: this.readMetaNumber(meta, "postedCount"),
+      likedCount: this.readMetaNumber(meta, "likedCount"),
+      fanCount: this.readMetaNumber(meta, "fanCount"),
+      followCount: this.readMetaNumber(meta, "followCount"),
+      ipLocation: this.readMetaString(meta, "ipLocation") || undefined,
+      enterpriseVerifyReason: this.readMetaString(meta, "enterpriseVerifyReason") || undefined,
+      customVerify: this.readMetaString(meta, "customVerify") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+    };
+  }
+
+  private mapDouyinCollectedWork(
+    asset: AssetRecord,
+    kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK",
+  ): DouyinCollectedWorkRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      kind,
+      sourceAccountId: this.readMetaString(meta, "sourceAccountId"),
+      sourceAccountLink: this.readMetaString(meta, "sourceAccountLink"),
+      workId: this.readMetaString(meta, "workId"),
+      title: asset.title,
+      description: asset.description || undefined,
+      workType: this.readMetaString(meta, "workType") || undefined,
+      authorName: this.readMetaString(meta, "authorName") || undefined,
+      authorUniqueId: this.readMetaString(meta, "authorUniqueId") || undefined,
+      externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
+      workUrl: this.readMetaString(meta, "workUrl") || asset.fileUrl,
+      coverUrl: this.readMetaString(meta, "coverUrl") || undefined,
+      imageList: this.readMetaStringArray(meta, "imageList"),
+      videoUrl: this.readMetaString(meta, "videoUrl") || undefined,
+      hashtags: this.readMetaStringArray(meta, "hashtags"),
+      publishTimeText: this.readMetaString(meta, "publishTimeText") || undefined,
+      durationMs: this.readMetaNumber(meta, "durationMs"),
+      mediaType: this.readMetaNumber(meta, "mediaType"),
+      awemeType: this.readMetaNumber(meta, "awemeType"),
+      musicTitle: this.readMetaString(meta, "musicTitle") || undefined,
+      musicAuthor: this.readMetaString(meta, "musicAuthor") || undefined,
+      likeCount: this.readMetaNumber(meta, "likeCount"),
+      playCount: this.readMetaNumber(meta, "playCount"),
+      shareCount: this.readMetaNumber(meta, "shareCount"),
+      commentCount: this.readMetaNumber(meta, "commentCount"),
+      collectCount: this.readMetaNumber(meta, "collectCount"),
+      downloadCount: this.readMetaNumber(meta, "downloadCount"),
+      recommendCount: this.readMetaNumber(meta, "recommendCount"),
+      likeCollectRatio: this.readMetaNumber(meta, "likeCollectRatio"),
+      likeCommentRatio: this.readMetaNumber(meta, "likeCommentRatio"),
+      shareRatio: this.readMetaNumber(meta, "shareRatio"),
+      isExplosive: this.readMetaString(meta, "isExplosive") || undefined,
+      followUpDecision: this.readMetaString(meta, "followUpDecision") || undefined,
+      statsPatched: this.readMetaBoolean(meta, "statsPatched"),
+      authorFollowerCount: this.readMetaNumber(meta, "authorFollowerCount"),
+      authorLikedCount: this.readMetaNumber(meta, "authorLikedCount"),
+      authorAvatar: this.readMetaString(meta, "authorAvatar") || undefined,
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
 
@@ -2285,6 +2528,274 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return rows;
   }
 
+  private async collectAndStoreDouyinAccount(
+    brandId: string,
+    account: PlatformAccountRecord,
+    kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT",
+  ): Promise<DouyinCollectedAccountRecord> {
+    const secUserId = this.extractDouyinSecUserId(account.accountLink);
+    if (!secUserId) {
+      throw new BadRequestException(`抖音账号链接缺少 sec_user_id：${account.accountLink}`);
+    }
+
+    const raw = await this.fetchTikHub("/api/v1/douyin/app/v3/handler_user_profile", {
+      sec_user_id: secUserId,
+    }, brandId);
+    const user = this.extractDouyinUser(raw);
+    const accountName = this.pickString(user, ["nickname"]) || account.accountName;
+    const collectedAt = new Date().toISOString();
+
+    const payload = {
+      kind,
+      sourceAccountId: account.id,
+      accountLink: this.normalizeDouyinShareUrl(this.extractShareUrl(user) || account.accountLink) || account.accountLink,
+      sourceAccountLink: account.accountLink,
+      externalUserId: this.pickString(user, ["uid"]) || undefined,
+      username: this.pickString(user, ["unique_id"]) || undefined,
+      shortId: this.pickString(user, ["short_id"]) || undefined,
+      avatar: this.extractFirstUrlFromObject(user, "avatar_300x300") || this.extractFirstUrlFromObject(user, "avatar_168x168") || undefined,
+      description: this.pickString(user, ["signature"]) || undefined,
+      postedCount: this.pickNumber(user, ["aweme_count"]),
+      likedCount: this.pickNumber(user, ["total_favorited"]),
+      fanCount: this.pickNumber(user, ["follower_count"]),
+      followCount: this.pickNumber(user, ["following_count"]),
+      ipLocation: this.pickString(user, ["ip_location"]) || undefined,
+      enterpriseVerifyReason: this.pickString(user, ["enterprise_verify_reason"]) || undefined,
+      customVerify: this.pickString(user, ["custom_verify"]) || undefined,
+      collectedAt,
+      rawFields: user,
+    };
+
+    const asset = await this.upsertCollectorAsset({
+      brandId,
+      kind,
+      matchValue: account.id,
+      title: accountName,
+      description: kind === "DOUYIN_BRAND_ACCOUNT" ? "抖音品牌账号采集快照" : "抖音竞品账号采集快照",
+      fileUrl: this.normalizeDouyinShareUrl(this.extractShareUrl(user) || account.accountLink) || account.accountLink,
+      metadata: payload,
+    });
+
+    return this.mapDouyinCollectedAccount(asset, kind);
+  }
+
+  private async collectAndStoreDouyinWorks(
+    brandId: string,
+    account: PlatformAccountRecord,
+    kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK",
+  ): Promise<DouyinCollectedWorkRecord[]> {
+    const secUserId = this.extractDouyinSecUserId(account.accountLink);
+    if (!secUserId) {
+      throw new BadRequestException(`抖音账号链接缺少 sec_user_id：${account.accountLink}`);
+    }
+
+    const raw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_user_post_videos", {
+      sec_user_id: secUserId,
+    }, brandId);
+    const awemeList = this.extractDouyinAwemeList(raw).slice(0, 12);
+    const awemeIds = awemeList
+      .map((item) => this.pickString(item, ["aweme_id"]))
+      .filter(Boolean);
+    const statisticsMap = awemeIds.length
+      ? this.extractDouyinStatisticsMap(
+          await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_video_statistics", {
+            aweme_ids: awemeIds.join(","),
+          }, brandId),
+        )
+      : new Map<string, Record<string, unknown>>();
+    const collectedAt = new Date().toISOString();
+    const rows: DouyinCollectedWorkRecord[] = [];
+
+    for (const aweme of awemeList) {
+      const workId = this.pickString(aweme, ["aweme_id"]);
+      if (!workId) {
+        continue;
+      }
+
+      let detail = {} as Record<string, unknown>;
+      if (kind === "DOUYIN_BENCHMARK_WORK") {
+        try {
+          const detailRaw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_one_video_v3", { aweme_id: workId }, brandId);
+          detail = this.extractDouyinAwemeDetail(detailRaw);
+        } catch {
+          detail = {};
+        }
+      }
+
+      const statistics = statisticsMap.get(workId) ?? {};
+      const detailStatistics = this.asMeta(detail.statistics);
+      const detailAuthor = this.asMeta(detail.author);
+      const detailMusic = this.asMeta(detail.music);
+      const title = this.pickString(aweme, ["desc"]) || this.pickString(detail, ["desc"]) || `抖音作品 ${workId}`;
+      const description = this.pickString(aweme, ["desc"]) || this.pickString(detail, ["desc"]) || "";
+      const likeCount = this.pickNumber(statistics, ["digg_count"]) ?? this.pickNumber(aweme, ["digg_count", "diggCount"]);
+      const playCount = this.pickNumber(statistics, ["play_count"]);
+      const shareCount = this.pickNumber(statistics, ["share_count"]) ?? this.pickNumber(aweme, ["share_count"]);
+      const commentCount = this.pickNumber(detailStatistics, ["comment_count"]) ?? this.pickNumber(aweme, ["comment_count"]);
+      const collectCount = this.pickNumber(detailStatistics, ["collect_count"]) ?? this.pickNumber(aweme, ["collect_count"]);
+      const downloadCount = this.pickNumber(statistics, ["download_count"]);
+      const recommendCount = this.pickNumber(detailStatistics, ["recommend_count"]) ?? this.pickNumber(aweme, ["recommend_count"]);
+      const workType = this.deriveDouyinWorkType(aweme, detail);
+      const workUrl =
+        this.normalizeDouyinShareUrl(this.extractShareUrl(aweme))
+        || this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
+        || this.normalizeDouyinNoteUrl(workId, workType);
+      const imageList = this.extractDouyinImageList(detail).length ? this.extractDouyinImageList(detail) : this.extractDouyinImageList(aweme);
+
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind,
+        matchValue: workId,
+        title,
+        description,
+        fileUrl: workUrl,
+        metadata: {
+          kind,
+          sourceAccountId: account.id,
+          sourceAccountLink: account.accountLink,
+          workId,
+          workUrl,
+          workType,
+          authorName: this.pickString(aweme, ["nickname"]) || this.pickString(detailAuthor, ["nickname"]) || account.accountName,
+          authorUniqueId: this.pickString(aweme, ["unique_id"]) || this.pickString(detailAuthor, ["unique_id"]) || undefined,
+          externalUserId: this.pickString(aweme, ["author_user_id", "uid"]) || this.pickString(detailAuthor, ["uid"]) || undefined,
+          coverUrl: this.extractDouyinCoverUrl(detail) || this.extractDouyinCoverUrl(aweme) || undefined,
+          imageList,
+          videoUrl:
+            this.pickString(aweme, ["video_download_addr"])
+            || this.extractDouyinVideoUrl(detail)
+            || this.extractDouyinVideoUrl(aweme)
+            || undefined,
+          hashtags: this.extractDouyinHashtags(detail).length ? this.extractDouyinHashtags(detail) : this.extractDouyinHashtags(aweme),
+          publishTimeText: this.formatUnixTimestampText(this.pickNumber(aweme, ["create_time"])),
+          durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]) ?? this.pickNumber(aweme, ["duration"]),
+          mediaType: this.pickNumber(aweme, ["media_type"]),
+          awemeType: this.pickNumber(aweme, ["aweme_type"]) ?? this.pickNumber(detail, ["aweme_type"]),
+          musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
+          musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
+          likeCount,
+          playCount,
+          shareCount,
+          commentCount,
+          collectCount,
+          downloadCount,
+          recommendCount,
+          likeCollectRatio: this.computeRatio(likeCount, collectCount),
+          likeCommentRatio: this.computeRatio(likeCount, commentCount),
+          shareRatio: this.computeRatio(shareCount, playCount),
+          statsPatched: statisticsMap.has(workId),
+          authorFollowerCount: this.pickNumber(detailAuthor, ["follower_count"]),
+          authorLikedCount: this.pickNumber(detailAuthor, ["total_favorited"]),
+          authorAvatar: this.extractFirstUrlFromObject(detailAuthor, "avatar_300x300") || undefined,
+          collectedAt,
+          rawFields: {
+            aweme,
+            detail,
+            statistics,
+          },
+        },
+      });
+
+      rows.push(this.mapDouyinCollectedWork(asset, kind));
+    }
+
+    return rows;
+  }
+
+  private async collectAndStoreSingleDouyinBenchmarkWork(
+    brandId: string,
+    awemeId: string,
+  ): Promise<DouyinCollectedWorkRecord> {
+    const workId = this.normalizeDouyinAwemeId(awemeId);
+    if (!workId) {
+      throw new BadRequestException("对标作品 aweme_id 不能为空");
+    }
+
+    const detailRaw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_one_video_v3", { aweme_id: workId }, brandId);
+    const detail = this.extractDouyinAwemeDetail(detailRaw);
+    const statisticsMap = this.extractDouyinStatisticsMap(
+      await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_video_statistics", { aweme_ids: workId }, brandId),
+    );
+    const statistics = statisticsMap.get(workId) ?? {};
+    const author = this.asMeta(detail.author);
+    const detailStatistics = this.asMeta(detail.statistics);
+    const detailMusic = this.asMeta(detail.music);
+    const accountLink =
+      this.normalizeDouyinShareUrl(this.extractShareUrl(author))
+      || this.buildDouyinUserUrl(this.pickString(author, ["sec_uid"]))
+      || "";
+    const collectedAt = new Date().toISOString();
+    const title = this.pickString(detail, ["desc"]) || `抖音作品 ${workId}`;
+    const description = this.pickString(detail, ["desc"]) || "";
+    const likeCount =
+      this.pickNumber(statistics, ["digg_count"])
+      ?? this.pickNumber(detailStatistics, ["digg_count"]);
+    const commentCount = this.pickNumber(detailStatistics, ["comment_count"]);
+    const shareCount =
+      this.pickNumber(statistics, ["share_count"])
+      ?? this.pickNumber(detailStatistics, ["share_count"]);
+    const collectCount = this.pickNumber(detailStatistics, ["collect_count"]);
+    const playCount = this.pickNumber(statistics, ["play_count"]);
+    const downloadCount = this.pickNumber(statistics, ["download_count"]);
+    const recommendCount = this.pickNumber(detailStatistics, ["recommend_count"]);
+    const workType = this.deriveDouyinWorkType({}, detail);
+    const workUrl =
+      this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
+      || this.normalizeDouyinNoteUrl(workId, workType);
+
+    const asset = await this.upsertCollectorAsset({
+      brandId,
+      kind: "DOUYIN_BENCHMARK_WORK",
+      matchValue: workId,
+      title,
+      description,
+      fileUrl: workUrl,
+      metadata: {
+        kind: "DOUYIN_BENCHMARK_WORK",
+        sourceAccountId: this.pickString(author, ["sec_uid"]) || workId,
+        accountLink,
+        sourceAccountLink: accountLink,
+        workId,
+        workUrl,
+        workType,
+        authorName: this.pickString(author, ["nickname"]) || undefined,
+        authorUniqueId: this.pickString(author, ["unique_id"]) || undefined,
+        externalUserId: this.pickString(author, ["uid"]) || undefined,
+        coverUrl: this.extractDouyinCoverUrl(detail) || undefined,
+        imageList: this.extractDouyinImageList(detail),
+        videoUrl: this.extractDouyinVideoUrl(detail) || undefined,
+        hashtags: this.extractDouyinHashtags(detail),
+        publishTimeText: this.formatUnixTimestampText(this.pickNumber(detail, ["create_time"])),
+        durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]),
+        mediaType: this.pickNumber(detail, ["media_type"]),
+        awemeType: this.pickNumber(detail, ["aweme_type"]),
+        musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
+        musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
+        likeCount,
+        playCount,
+        shareCount,
+        commentCount,
+        collectCount,
+        downloadCount,
+        recommendCount,
+        likeCollectRatio: this.computeRatio(likeCount, collectCount),
+        likeCommentRatio: this.computeRatio(likeCount, commentCount),
+        shareRatio: this.computeRatio(shareCount, playCount),
+        statsPatched: statisticsMap.has(workId),
+        authorFollowerCount: this.pickNumber(author, ["follower_count"]),
+        authorLikedCount: this.pickNumber(author, ["total_favorited"]),
+        authorAvatar: this.extractFirstUrlFromObject(author, "avatar_300x300") || undefined,
+        collectedAt,
+        rawFields: {
+          detail,
+          statistics,
+        },
+      },
+    });
+
+    return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
+  }
+
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
     const nextRetryAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
@@ -2354,7 +2865,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const snapshotDate = this.getLocalDateString();
 
     try {
-      const raw = await this.fetchTikHub(config.path);
+      const raw = await this.fetchTikHub(config.path, {}, brandId);
       const items = this.extractDailyHotspotItems(raw, config.platformKey)
         .sort((left, right) => left.rank - right.rank)
         .slice(0, 20);
@@ -2830,13 +3341,17 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return asset;
   }
 
-  private async getConfiguredAccounts(brandId: string, target: "brand" | "competitor"): Promise<PlatformAccountRecord[]> {
+  private async getConfiguredAccounts(
+    brandId: string,
+    target: "brand" | "competitor",
+    platform: "XIAOHONGSHU" | "DOUYIN" = "XIAOHONGSHU",
+  ): Promise<PlatformAccountRecord[]> {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(brandId);
 
       if (target === "brand") {
         const rows = await this.prismaService.platformAccount.findMany({
-          where: { brandId, platform: "XIAOHONGSHU" },
+          where: { brandId, platform },
         });
         return rows.map((item) => ({
           id: item.id,
@@ -2848,7 +3363,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
 
       const rows = await this.prismaService.competitorAccount.findMany({
-        where: { brandId, platform: "XIAOHONGSHU" },
+        where: { brandId, platform },
       });
       return rows.map((item) => ({
         id: item.id,
@@ -2861,7 +3376,37 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     this.ensureBrandExistsInMock(brandId);
     const source = target === "brand" ? database.platformAccounts : database.competitorAccounts;
-    return source.filter((item) => item.brandId === brandId && item.platform === "XIAOHONGSHU");
+    return source.filter((item) => item.brandId === brandId && item.platform === platform);
+  }
+
+  private mergeDouyinManualAccounts(
+    presetAccounts: PlatformAccountRecord[],
+    manualLinks: string[] | undefined,
+    target: "brand" | "competitor",
+  ) {
+    const results = [...presetAccounts];
+    const existingKeys = new Set(
+      presetAccounts
+        .map((item) => this.normalizeDouyinAccountLocator(item.accountLink))
+        .filter(Boolean),
+    );
+
+    for (const rawLink of manualLinks ?? []) {
+      const normalizedLink = this.normalizeDouyinAccountLocator(rawLink);
+      if (!normalizedLink || existingKeys.has(normalizedLink)) {
+        continue;
+      }
+      existingKeys.add(normalizedLink);
+      results.push({
+        id: `manual_douyin_${target}_${existingKeys.size}`,
+        brandId: "",
+        platform: "DOUYIN",
+        accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
+        accountLink: normalizedLink,
+      });
+    }
+
+    return results;
   }
 
   private async fetchXhs(path: string, params: Record<string, string | undefined>) {
@@ -2901,10 +3446,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return payload?.data ?? payload;
   }
 
-  private async fetchTikHub(path: string, params: Record<string, string | undefined> = {}) {
-    const token = process.env.TIKHUB_API_KEY;
+  private async fetchTikHub(path: string, params: Record<string, string | undefined> = {}, brandId?: string) {
+    const token = await this.resolveTikHubApiKey(brandId);
     if (!token) {
-      throw new ServiceUnavailableException("缺少 TIKHUB_API_KEY，无法调用每日热点接口");
+      throw new ServiceUnavailableException("未找到 Tikhub API Key，请先在个人中心填写 API Key，并在后台接口供应商中配置 Tikhub 平台基线。");
     }
 
     const url = new URL(`https://api.tikhub.io${path}`);
@@ -2933,19 +3478,32 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     if (!response.ok) {
       const hint = response.status === 403 ? "，请确认当前 API Key 是否已开通对应热点接口权限" : "";
-      throw new ServiceUnavailableException(`TikHub 热点接口请求失败: ${response.status}${hint}`);
+      throw new ServiceUnavailableException(`Tikhub 接口请求失败: ${response.status}${hint}`);
     }
 
     if (payload && typeof payload === "object" && !Array.isArray(payload)) {
       const code = this.pickNumber(payload, ["code"]);
       const message = this.pickString(payload, ["message", "msg", "message_zh"]);
       if (typeof code === "number" && code !== 200) {
-        throw new ServiceUnavailableException(message || `TikHub 热点接口业务校验失败: ${code}`);
+        throw new ServiceUnavailableException(message || `Tikhub 接口业务校验失败: ${code}`);
       }
       return payload;
     }
 
     return payload;
+  }
+
+  private async resolveTikHubApiKey(brandId?: string) {
+    const runtimeKey = String(process.env.TIKHUB_API_KEY || "").trim();
+    if (runtimeKey) {
+      return runtimeKey;
+    }
+
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, ["https://api.tikhub.io"]);
+    if (resolution.status === "resolved") {
+      return String(resolution.apiKeys[0] || "").trim();
+    }
+    return "";
   }
 
   private extractNoteItems(raw: unknown): unknown[] {
@@ -3067,6 +3625,183 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const timestamp = this.pickNumber(raw, ["time_stamp", "timestamp", "event_time", "update_timestamp"]);
     return typeof timestamp === "number" ? new Date(this.normalizeUnixTimestamp(timestamp) ?? timestamp).toISOString() : undefined;
+  }
+
+  private extractDouyinSecUserId(url: string) {
+    const match = url.match(/douyin\.com\/user\/([^/?#]+)/i);
+    if (match?.[1]) {
+      return decodeURIComponent(match[1]);
+    }
+    return /^MS4w/i.test(url) ? url.trim() : "";
+  }
+
+  private extractDouyinUser(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    return this.asMeta(data.user);
+  }
+
+  private extractDouyinAwemeList(raw: unknown): Record<string, unknown>[] {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    return Array.isArray(data.aweme_list)
+      ? data.aweme_list.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+      : [];
+  }
+
+  private extractDouyinAwemeDetail(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    return this.asMeta(data.aweme_detail);
+  }
+
+  private extractDouyinStatisticsMap(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const data = this.asMeta(payload.data);
+    const list = Array.isArray(data.statistics_list)
+      ? data.statistics_list.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+      : [];
+    const result = new Map<string, Record<string, unknown>>();
+    for (const item of list) {
+      const awemeId = this.pickString(item, ["aweme_id"]);
+      if (awemeId) {
+        result.set(awemeId, item);
+      }
+    }
+    return result;
+  }
+
+  private extractFirstUrlFromObject(raw: unknown, key: string) {
+    const payload = this.asMeta(raw);
+    const target = this.asMeta(payload[key]);
+    const list = Array.isArray(target.url_list) ? target.url_list : [];
+    const first = list.find((item): item is string => typeof item === "string" && item.trim().length > 0);
+    return first || "";
+  }
+
+  private extractShareUrl(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const shareInfo = this.asMeta(payload.share_info);
+    return this.pickString(shareInfo, ["share_url"]);
+  }
+
+  private extractDouyinImageList(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const list = Array.isArray(payload.images) ? payload.images : [];
+    return list
+      .map((item) => {
+        const record = this.asMeta(item);
+        const urlList = Array.isArray(record.url_list) ? record.url_list : [];
+        return urlList.find((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) || "";
+      })
+      .filter(Boolean);
+  }
+
+  private extractDouyinCoverUrl(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const video = this.asMeta(payload.video);
+    return this.extractFirstUrlFromObject(video, "cover");
+  }
+
+  private extractDouyinVideoUrl(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const video = this.asMeta(payload.video);
+    const playAddr = this.asMeta(video.play_addr);
+    const directList = Array.isArray(playAddr.url_list) ? playAddr.url_list : [];
+    const directUrl = directList.find((item): item is string => typeof item === "string" && item.trim().length > 0);
+    if (directUrl) {
+      return directUrl;
+    }
+    const bitRateList = Array.isArray(video.bit_rate) ? video.bit_rate : [];
+    for (const bitRate of bitRateList) {
+      const play = this.asMeta(this.asMeta(bitRate).play_addr);
+      const list = Array.isArray(play.url_list) ? play.url_list : [];
+      const matched = list.find((item): item is string => typeof item === "string" && item.trim().length > 0);
+      if (matched) {
+        return matched;
+      }
+    }
+    return "";
+  }
+
+  private extractDouyinHashtags(raw: unknown) {
+    const payload = this.asMeta(raw);
+    const chaList = Array.isArray(payload.cha_list) ? payload.cha_list : [];
+    const textExtra = Array.isArray(payload.text_extra) ? payload.text_extra : [];
+    const values = [
+      ...chaList.map((item) => this.pickString(item, ["cha_name"])),
+      ...textExtra.map((item) => this.pickString(item, ["hashtag_name"])),
+    ].filter(Boolean);
+    return Array.from(new Set(values));
+  }
+
+  private deriveDouyinWorkType(raw: unknown, detail: unknown) {
+    const imageCount = this.extractDouyinImageList(detail).length || this.extractDouyinImageList(raw).length;
+    if (imageCount > 0) {
+      return "图文";
+    }
+    const awemeType = this.pickNumber(raw, ["aweme_type"]) ?? this.pickNumber(detail, ["aweme_type"]);
+    if (awemeType === 68) {
+      return "图文";
+    }
+    return "短视频";
+  }
+
+  private normalizeDouyinShareUrl(value: string) {
+    if (!value) {
+      return "";
+    }
+    if (/^https?:\/\//i.test(value)) {
+      return value;
+    }
+    if (/^www\./i.test(value) || /^iesdouyin\.com/i.test(value)) {
+      return `https://${value}`;
+    }
+    return value;
+  }
+
+  private normalizeDouyinAccountLocator(value: string) {
+    const secUserId = this.extractDouyinSecUserId(String(value || "").trim());
+    return this.buildDouyinUserUrl(secUserId);
+  }
+
+  private buildDouyinUserUrl(secUserId: string) {
+    const normalized = String(secUserId || "").trim();
+    return normalized ? `https://www.douyin.com/user/${normalized}` : "";
+  }
+
+  private normalizeDouyinAwemeId(value: string) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const direct = text.match(/^\d{8,}$/);
+    if (direct?.[0]) {
+      return direct[0];
+    }
+    const urlMatch = text.match(/\/(?:video|note)\/(\d{8,})/i) || text.match(/aweme_id=(\d{8,})/i);
+    return urlMatch?.[1] || "";
+  }
+
+  private normalizeDouyinNoteUrl(workId: string, workType: string) {
+    if (!workId) {
+      return "";
+    }
+    return workType === "图文"
+      ? `https://www.douyin.com/note/${workId}`
+      : `https://www.douyin.com/video/${workId}`;
+  }
+
+  private computeRatio(numerator?: number, denominator?: number) {
+    if (typeof numerator !== "number" || typeof denominator !== "number" || denominator <= 0) {
+      return undefined;
+    }
+    return Number((numerator / denominator).toFixed(4));
+  }
+
+  private formatUnixTimestampText(value?: number) {
+    const normalized = this.normalizeUnixTimestamp(value);
+    return normalized ? new Date(normalized).toISOString().replace("T", " ").slice(0, 19) : undefined;
   }
 
   private pickString(raw: unknown, keys: string[]): string {
