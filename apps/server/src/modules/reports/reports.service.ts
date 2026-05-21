@@ -4551,7 +4551,7 @@ ${normalizedMarkdown}`;
     const archive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
     const brandBackground = this.readNestedRecord(archive, ["background"]);
     const fallbackBrandName = this.readRecordString(brandBackground, "brandName") || "品牌";
-    const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+    const normalizedMarkdown = this.normalizeDouyinMarketingPlanMarkdown(content);
 
     if (!normalizedMarkdown) {
       throw new ServiceUnavailableException("抖音营销策划方案解析失败：模型未返回有效 Markdown");
@@ -4577,6 +4577,24 @@ ${normalizedMarkdown}`;
       reportMarkdown,
       modelName,
     };
+  }
+
+  private normalizeDouyinMarketingPlanMarkdown(content: string) {
+    let normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+    if (!normalizedMarkdown) {
+      return normalizedMarkdown;
+    }
+
+    const firstHeadingMatch = normalizedMarkdown.match(/^#\s+.+$/m);
+    if (firstHeadingMatch?.index && firstHeadingMatch.index > 0) {
+      const prefix = normalizedMarkdown.slice(0, firstHeadingMatch.index).trim();
+      const prefixHasHeading = /^#{1,6}\s+/m.test(prefix);
+      if (!prefixHasHeading && prefix.length <= 240) {
+        normalizedMarkdown = normalizedMarkdown.slice(firstHeadingMatch.index).trim();
+      }
+    }
+
+    return normalizedMarkdown;
   }
 
   private normalizeXiaohongshuMarketingPlanSectionMarkdown(content: string, requiredHeadings: string[]) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { getBrandPermissionSettings, DEMO_BRAND_ID, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
@@ -21,6 +22,11 @@ import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 
 type LoadState = "loading" | "api" | "seed";
+type DouyinSectionKey = "plan";
+
+const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
+  { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
+];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
   if (status === "SUCCESS") {
@@ -58,6 +64,7 @@ export function DouyinWorkspaceShell() {
   const activeBrandId = useMemo(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID, []);
   const [isLoading, setIsLoading] = useState(true);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [activeSection, setActiveSection] = useState<DouyinSectionKey>("plan");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
@@ -81,6 +88,9 @@ export function DouyinWorkspaceShell() {
     && annualPlanWorkspace.latest
     && (collectionWorkspace.brandAccounts.length || collectionWorkspace.competitorAccounts.length || collectionWorkspace.brandWorks.length || collectionWorkspace.benchmarkWorks.length),
   );
+  const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
+  const heroTitle = "抖音工作台";
+  const heroDescription = "当前仅开放首个模块“营销策划方案”，输入自动组合品牌增长报告、半年营销规划与抖音采集数据。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -167,6 +177,12 @@ export function DouyinWorkspaceShell() {
     return () => window.clearInterval(timer);
   }, [isTaskActive, refreshMarketingPlanWorkspace]);
 
+  useEffect(() => {
+    if (!isTaskActive && notice.includes("任务已提交")) {
+      setNotice("");
+    }
+  }, [isTaskActive, notice]);
+
   const handleGenerate = useCallback(async () => {
     if (!canEditMarketingPlan) {
       setErrorMessage("当前账号只有查看权限，不能生成抖音营销策划方案。");
@@ -246,174 +262,180 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, canEditMarketingPlan, latestMarketingPlan]);
 
   return (
-    <section className="workspace-shell strategy-page-shell">
-      <article className="workspace-panel strategy-page-card">
-        <div className="strategy-card-toolbar">
-          <div>
-            <strong>抖音工作台</strong>
-            <p className="text-xs text-slate-500 mt-2">
-              当前仅开放首个模块“营销策划方案”，输入自动组合品牌增长报告、半年营销规划与抖音采集数据。
-            </p>
-          </div>
-          <div className="strategy-inline-actions">
-            <span className={`archive-pill ${loadState === "api" ? "status-ready" : "status-pending"}`}>
-              {loadState === "api" ? "接口数据" : loadState === "seed" ? "示例兜底" : "加载中"}
-            </span>
-            <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isGenerating || isSaving || isDeleting}>
-              刷新数据
-            </button>
-          </div>
-        </div>
-
-        {!hasWorkspaceAccess ? (
-          <div className="empty-state">当前账号没有抖音模块查看权限，请联系品牌管理员开通 `douyin.plan` 权限。</div>
-        ) : (
-          <div className="space-y-4">
-            {notice ? <div className="report-inline-tip">{notice}</div> : null}
-            {errorMessage ? <div className="report-inline-tip report-inline-tip--error">{errorMessage}</div> : null}
-
-            <article className="light-data-panel">
-              <div className="strategy-card-toolbar">
+    <main className="workspace-page workspace-page--strategy">
+      <section className="workspace-card workspace-card--bleed strategy-page-card">
+        <div className="strategy-layout xiaohongshu-layout">
+          {!hasWorkspaceAccess ? (
+            <div className="strategy-content-panel xiaohongshu-content-panel">
+              <section className="dashboard-hero xiaohongshu-hero">
                 <div>
-                  <strong>输入准备情况</strong>
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="archive-card">
-                  <div className="archive-card__header">
-                    <strong>品牌增长报告</strong>
-                    <span className={`archive-pill ${growthReportWorkspace.latest ? "status-ready" : "status-pending"}`}>
-                      {growthReportWorkspace.latest ? "已就绪" : "未生成"}
-                    </span>
+                  <h1>当前无权限进入抖音工作区</h1>
+                  <p>当前账号未获得抖音板块的查看权限，请联系管理员在团队权限设置中为对应板块勾选可见权限。</p>
+                  <div className="workspace-toolbar top-toolbar">
+                    <div className="workspace-status">
+                      <span className="archive-pill status-pending">当前板块只读</span>
+                      <span className="status-text error-text">当前账号没有抖音板块的查看权限，请联系管理员开通后再进入。</span>
+                    </div>
+                    <div className="personal-actions">
+                      <Link href="/brand-growth" className="secondary-button">
+                        前往品牌增长策略
+                      </Link>
+                      <Link href="/personal-center" className="primary-button">
+                        返回个人中心
+                      </Link>
+                    </div>
                   </div>
-                  <p className="archive-card__title">{growthReportWorkspace.latest?.title || "请先在品牌增长策略中生成品牌增长报告"}</p>
                 </div>
-                <div className="archive-card">
-                  <div className="archive-card__header">
-                    <strong>半年营销规划</strong>
-                    <span className={`archive-pill ${annualPlanWorkspace.latest ? "status-ready" : "status-pending"}`}>
-                      {annualPlanWorkspace.latest ? "已就绪" : "未生成"}
-                    </span>
-                  </div>
-                  <p className="archive-card__title">{annualPlanWorkspace.latest?.title || "请先在品牌增长策略中生成半年营销规划"}</p>
-                </div>
-                <div className="archive-card">
-                  <div className="archive-card__header">
-                    <strong>账号样本</strong>
-                    <span className={`archive-pill ${collectionWorkspace.brandAccounts.length || collectionWorkspace.competitorAccounts.length ? "status-ready" : "status-pending"}`}>
-                      {collectionWorkspace.brandAccounts.length + collectionWorkspace.competitorAccounts.length} 条
-                    </span>
-                  </div>
-                  <p className="archive-card__title">品牌账号 {collectionWorkspace.brandAccounts.length} 条，竞品账号 {collectionWorkspace.competitorAccounts.length} 条</p>
-                </div>
-                <div className="archive-card">
-                  <div className="archive-card__header">
-                    <strong>作品样本</strong>
-                    <span className={`archive-pill ${collectionWorkspace.brandWorks.length || collectionWorkspace.benchmarkWorks.length ? "status-ready" : "status-pending"}`}>
-                      {collectionWorkspace.brandWorks.length + collectionWorkspace.benchmarkWorks.length} 条
-                    </span>
-                  </div>
-                  <p className="archive-card__title">品牌作品 {collectionWorkspace.brandWorks.length} 条，对标作品 {collectionWorkspace.benchmarkWorks.length} 条</p>
-                </div>
-              </div>
-            </article>
-
-            <article className="workspace-panel strategy-page-card">
-              <div className="strategy-card-toolbar">
-                <div>
-                  <strong>营销策划方案</strong>
-                </div>
-                <div className="strategy-inline-actions">
-                  {latestMarketingPlan ? (
+              </section>
+            </div>
+          ) : (
+            <>
+              <aside className="strategy-level-panel strategy-level-panel--directory">
+                <div className="strategy-level-button-list">
+                  {douyinSections.map((item) => (
                     <button
+                      key={item.key}
                       type="button"
-                      className="secondary-button"
-                      onClick={() => void handleDelete()}
-                      disabled={!canEditMarketingPlan || isDeleting || isGenerating || isTaskActive}
+                      className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                      onClick={() => setActiveSection(item.key)}
                     >
-                      {isDeleting ? "删除中..." : "删除"}
+                      {item.label}
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => void handleGenerate()}
-                    disabled={!canEditMarketingPlan || isGenerating || !canGenerateMarketingPlan || isTaskActive}
-                  >
-                    {isGenerating ? "提交中..." : isTaskActive ? "后台生成中..." : latestMarketingPlan ? "重新生成" : "一键生成"}
-                  </button>
+                  ))}
                 </div>
-              </div>
+              </aside>
 
-              <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-                <div className="report-editor-head">
+              <div className="strategy-content-panel xiaohongshu-content-panel">
+                <section className="dashboard-hero xiaohongshu-hero">
                   <div>
-                    <strong>{latestMarketingPlan?.title || "抖音营销策划方案"}</strong>
+                    <h1>{heroTitle}</h1>
+                    <p>{heroDescription}</p>
+                    <div className="workspace-toolbar top-toolbar">
+                      <div className="workspace-status">
+                        <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
+                          {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
+                        </span>
+                        <span className={`archive-pill ${loadState === "api" ? "status-ready" : "status-in_progress"}`}>
+                          {loadState === "api" ? "接口数据" : loadState === "seed" ? "演示数据" : "加载中"}
+                        </span>
+                        {isLoading ? <span className="status-text">正在加载抖音工作台...</span> : null}
+                        {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
+                        {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
+                      </div>
+                      <div className="personal-actions">
+                        <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isGenerating || isSaving || isDeleting}>
+                          刷新数据
+                        </button>
+                        <Link href="/brand-growth" className="secondary-button">
+                          回到品牌增长策略
+                        </Link>
+                        <Link href="/personal-center" className="primary-button">
+                          查看个人中心
+                        </Link>
+                      </div>
+                    </div>
                   </div>
-                  <div className="report-editor-actions">
-                    <span className={`archive-pill ${canGenerateMarketingPlan ? "status-ready" : "status-in_progress"}`}>
-                      {canGenerateMarketingPlan ? "已满足生成条件" : "等待前置输入"}
-                    </span>
-                    {latestTask ? (
-                      <span className={`archive-pill ${getTaskStatusClass(latestTask.taskStatus)}`}>{getTaskStatusText(latestTask)}</span>
-                    ) : null}
-                    {latestMarketingPlan?.generatedAt ? (
-                      <span className="archive-pill status-ready">{formatDateTime(latestMarketingPlan.generatedAt)}</span>
-                    ) : null}
-                    {latestMarketingPlan?.modelName ? <span className="archive-pill status-pending">{latestMarketingPlan.modelName}</span> : null}
-                    <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
-                      {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
-                    </span>
-                    {latestMarketingPlan ? (
+                </section>
+
+                <article className="workspace-panel strategy-page-card">
+                  <div className="strategy-card-toolbar">
+                    <div>
+                      <strong>{currentSection.label}</strong>
+                      <p className="text-xs text-slate-500 mt-2">{currentSection.description}</p>
+                    </div>
+                    <div className="strategy-inline-actions">
+                      {latestMarketingPlan ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleDelete()}
+                          disabled={!canEditMarketingPlan || isDeleting || isGenerating || isTaskActive}
+                        >
+                          {isDeleting ? "删除中..." : "删除"}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="primary-button"
-                        onClick={() => void handleSave()}
-                        disabled={!canEditMarketingPlan || isSaving || isGenerating || isDeleting || isTaskActive}
+                        onClick={() => void handleGenerate()}
+                        disabled={!canEditMarketingPlan || isGenerating || !canGenerateMarketingPlan || isTaskActive}
                       >
-                        {isSaving ? "保存中..." : "保存报告"}
+                        {isGenerating ? "提交中..." : isTaskActive ? "后台生成中..." : latestMarketingPlan ? "重新生成" : "一键生成"}
                       </button>
+                    </div>
+                  </div>
+
+                  <article className="light-data-panel report-editor-panel report-editor-panel--compact">
+                    <div className="report-editor-head">
+                      <div>
+                        <strong>{latestMarketingPlan?.title || "抖音营销策划方案"}</strong>
+                      </div>
+                      <div className="report-editor-actions">
+                        <span className={`archive-pill ${canGenerateMarketingPlan ? "status-ready" : "status-in_progress"}`}>
+                          {canGenerateMarketingPlan ? "已满足生成条件" : "等待前置输入"}
+                        </span>
+                        {latestTask ? (
+                          <span className={`archive-pill ${getTaskStatusClass(latestTask.taskStatus)}`}>{getTaskStatusText(latestTask)}</span>
+                        ) : null}
+                        {latestMarketingPlan?.generatedAt ? (
+                          <span className="archive-pill status-ready">{formatDateTime(latestMarketingPlan.generatedAt)}</span>
+                        ) : null}
+                        {latestMarketingPlan?.modelName ? <span className="archive-pill status-pending">{latestMarketingPlan.modelName}</span> : null}
+                        <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
+                          {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
+                        </span>
+                        {latestMarketingPlan ? (
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleSave()}
+                            disabled={!canEditMarketingPlan || isSaving || isGenerating || isDeleting || isTaskActive}
+                          >
+                            {isSaving ? "保存中..." : "保存报告"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告、半年营销规划，并确保抖音采集页已有账号或作品数据。</div> : null}
+                    {isTaskActive ? (
+                      <div className="report-inline-tip">
+                        {latestTask?.taskStatus === "QUEUED"
+                          ? "正在排队生成，页面会自动刷新结果。"
+                          : latestTask?.phaseText
+                            ? `${latestTask.phaseText}${latestTask.phaseIndex && latestTask.phaseTotal ? `（${latestTask.phaseIndex}/${latestTask.phaseTotal}）` : ""}`
+                            : "正在后台生成，完成后会自动刷新到编辑区。"}
+                      </div>
                     ) : null}
-                  </div>
-                </div>
+                    {!canEditMarketingPlan ? <div className="report-inline-tip">当前账号只有查看权限，不能编辑、删除或重新生成该板块内容。</div> : null}
 
-                {!canGenerateMarketingPlan ? <div className="report-inline-tip">请先完成品牌增长报告、半年营销规划，并确保抖音采集页已有账号或作品数据。</div> : null}
-                {isTaskActive ? (
-                  <div className="report-inline-tip">
-                    {latestTask?.taskStatus === "QUEUED"
-                      ? "正在排队生成，页面会自动刷新结果。"
-                      : latestTask?.phaseText
-                        ? `${latestTask.phaseText}${latestTask.phaseIndex && latestTask.phaseTotal ? `（${latestTask.phaseIndex}/${latestTask.phaseTotal}）` : ""}`
-                        : "正在后台生成，完成后会自动刷新到编辑区。"}
-                  </div>
-                ) : null}
-                {!canEditMarketingPlan ? <div className="report-inline-tip">当前账号只有查看权限，不能编辑、删除或重新生成该板块内容。</div> : null}
-
-                {!latestMarketingPlan ? (
-                  <div className="empty-state">当前还没有抖音营销策划方案，点击右上角“一键生成”开始。</div>
-                ) : (
-                  <div className="report-editor-grid">
-                    <label className="report-editor-pane">
-                      <span>Markdown 内容</span>
-                      <textarea
-                        className="report-markdown-textarea"
-                        value={marketingPlanDraft}
-                        onChange={(event) => setMarketingPlanDraft(event.target.value)}
-                        readOnly={!canEditMarketingPlan}
-                        placeholder="这里显示并编辑抖音营销策划方案 Markdown 内容"
-                      />
-                    </label>
-                    <article className="report-editor-pane">
-                      <span>预览</span>
-                      <div className="generated-report-html" dangerouslySetInnerHTML={{ __html: marketingPlanPreviewHtml }} />
-                    </article>
-                  </div>
-                )}
-              </article>
-            </article>
-          </div>
-        )}
-      </article>
-    </section>
+                    {!latestMarketingPlan ? (
+                      <div className="empty-state">当前还没有抖音营销策划方案，点击右上角“一键生成”开始。</div>
+                    ) : (
+                      <div className="report-editor-grid">
+                        <label className="report-editor-pane">
+                          <span>Markdown 内容</span>
+                          <textarea
+                            className="report-markdown-textarea"
+                            value={marketingPlanDraft}
+                            onChange={(event) => setMarketingPlanDraft(event.target.value)}
+                            readOnly={!canEditMarketingPlan}
+                            placeholder="这里显示并编辑抖音营销策划方案 Markdown 内容"
+                          />
+                        </label>
+                        <article className="report-editor-pane">
+                          <span>预览</span>
+                          <div className="generated-report-html" dangerouslySetInnerHTML={{ __html: marketingPlanPreviewHtml }} />
+                        </article>
+                      </div>
+                    )}
+                  </article>
+                </article>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    </main>
   );
 }
