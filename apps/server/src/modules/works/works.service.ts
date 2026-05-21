@@ -656,7 +656,11 @@ export class WorksService {
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
   ) {}
 
-  private async resolveBrandAwareApiKeys(brandId: string | undefined, provider: ApiProviderRecord | undefined) {
+  private async resolveBrandAwareApiKeys(
+    brandId: string | undefined,
+    provider: ApiProviderRecord | undefined,
+    options?: { sceneLabel?: string },
+  ) {
     if (!provider) {
       return [];
     }
@@ -665,8 +669,9 @@ export class WorksService {
       this.apiProvidersService.getBaseUrls(provider),
     );
     if (resolution.status === "owner-api-key-missing") {
+      const prefix = options?.sceneLabel ? `${options.sceneLabel} Provider 已激活，但` : "";
       throw new ServiceUnavailableException(
-        `当前品牌的 Owner 尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成设置后再试。`,
+        `${prefix}当前品牌的 Owner 尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成设置后再试。`,
       );
     }
     if (resolution.status === "resolved") {
@@ -5722,21 +5727,35 @@ export class WorksService {
   private async loadImageGenerationProviders(brandId?: string, preference?: SkillModelPreference): Promise<ImageProviderConfig[]> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
-      throw new ServiceUnavailableException("未找到文生图接口配置");
+      throw new ServiceUnavailableException(
+        "未找到已激活的文生图 Provider，请先在后台接口配置中启用「Right Codes · 文生图/图生图」或其他 image-generation Provider。",
+      );
     }
     const preferredModels = preference?.configuredModels?.length
       ? preference.configuredModels
       : ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"];
     const configs: ImageProviderConfig[] = [];
+    const skippedReasons: string[] = [];
     for (const provider of providers) {
       const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-      const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+      const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" });
       const models = this.pickProviderModels(
         provider.modelWhitelist,
         [],
         preferredModels,
       );
       if (!baseUrls.length || !apiKeys.length || !models.length) {
+        const reasonParts: string[] = [];
+        if (!baseUrls.length) {
+          reasonParts.push("未配置 baseUrl");
+        }
+        if (!apiKeys.length) {
+          reasonParts.push("未配置 API Key");
+        }
+        if (!models.length) {
+          reasonParts.push("未匹配到可用模型");
+        }
+        skippedReasons.push(`${provider.name}：${reasonParts.join("，")}`);
         continue;
       }
       configs.push({
@@ -5754,7 +5773,12 @@ export class WorksService {
       });
     }
     if (!configs.length) {
-      throw new ServiceUnavailableException("未找到文生图接口配置");
+      const reasonText = skippedReasons.length
+        ? `当前排查结果：${skippedReasons.join("；")}。`
+        : "";
+      throw new ServiceUnavailableException(
+        `文生图 Provider 已激活，但当前没有可用的执行配置。请检查 Provider 的 baseUrl、API Key 和模型白名单是否完整。${reasonText}`,
+      );
     }
     if (!preference) {
       return configs;
