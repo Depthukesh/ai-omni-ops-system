@@ -3478,7 +3478,12 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     if (!response.ok) {
       const hint = response.status === 403 ? "，请确认当前 API Key 是否已开通对应热点接口权限" : "";
-      throw new ServiceUnavailableException(`Tikhub 接口请求失败: ${response.status}${hint}`);
+      const payloadMessage =
+        typeof payload === "string"
+          ? payload.trim()
+          : this.pickString(payload, ["message", "msg", "error", "detail", "message_zh"]);
+      const reason = payloadMessage ? `，原因：${payloadMessage}` : "";
+      throw new ServiceUnavailableException(`Tikhub 接口请求失败: ${response.status}${hint}${reason}`);
     }
 
     if (payload && typeof payload === "object" && !Array.isArray(payload)) {
@@ -3494,14 +3499,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveTikHubApiKey(brandId?: string) {
+    if (brandId) {
+      const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, ["https://api.tikhub.io"]);
+      if (resolution.status === "resolved") {
+        const resolvedKey = String(resolution.apiKeys[0] || "").trim();
+        if (resolvedKey) {
+          return resolvedKey;
+        }
+      }
+    }
+
     const runtimeKey = String(process.env.TIKHUB_API_KEY || "").trim();
     if (runtimeKey) {
       return runtimeKey;
-    }
-
-    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, ["https://api.tikhub.io"]);
-    if (resolution.status === "resolved") {
-      return String(resolution.apiKeys[0] || "").trim();
     }
     return "";
   }
