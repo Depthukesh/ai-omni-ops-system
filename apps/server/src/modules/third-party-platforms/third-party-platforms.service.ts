@@ -334,7 +334,8 @@ export class ThirdPartyPlatformsService {
       };
     }
 
-    const platform = await this.findPlatformByBaseUrls(baseUrls);
+    const matchedPlatforms = await this.findPlatformsByBaseUrls(baseUrls);
+    const platform = matchedPlatforms[0];
     if (!platform) {
       return {
         status: "no-platform-match",
@@ -355,7 +356,11 @@ export class ThirdPartyPlatformsService {
       };
     }
 
-    const secret = await this.findUserPlatformSecret(ownerUserId, normalizedBrandId, platform.id);
+    const secret = await this.findUserPlatformSecretByPlatforms(
+      ownerUserId,
+      normalizedBrandId,
+      matchedPlatforms.map((item) => item.id),
+    );
     const apiKey = String(secret?.apiKey || "").trim();
     if (!apiKey) {
       return {
@@ -413,6 +418,10 @@ export class ThirdPartyPlatformsService {
   }
 
   private async findPlatformByBaseUrls(baseUrls: string[]) {
+    return (await this.findPlatformsByBaseUrls(baseUrls))[0];
+  }
+
+  private async findPlatformsByBaseUrls(baseUrls: string[]) {
     const normalizedBaseUrls = Array.from(
       new Set(
         baseUrls
@@ -421,10 +430,34 @@ export class ThirdPartyPlatformsService {
       ),
     );
     if (!normalizedBaseUrls.length) {
-      return undefined;
+      return [];
     }
 
-    return (await this.listPlatforms()).find((item) => normalizedBaseUrls.includes(this.normalizeBaseUrl(item.baseUrl)));
+    const baseUrlHosts = Array.from(
+      new Set(
+        normalizedBaseUrls
+          .map((item) => this.extractHost(item))
+          .filter(Boolean),
+      ),
+    );
+    const platforms = await this.listPlatforms();
+    const exactMatches = platforms.filter((item) => normalizedBaseUrls.includes(this.normalizeBaseUrl(item.baseUrl)));
+    if (exactMatches.length) {
+      const exactIds = new Set(exactMatches.map((item) => item.id));
+      const siblingMatches = platforms.filter((item) => {
+        if (exactIds.has(item.id)) {
+          return false;
+        }
+        const host = this.extractHost(item.baseUrl);
+        return Boolean(host) && baseUrlHosts.includes(host);
+      });
+      return [...exactMatches, ...siblingMatches];
+    }
+
+    return platforms.filter((item) => {
+      const host = this.extractHost(item.baseUrl);
+      return Boolean(host) && baseUrlHosts.includes(host);
+    });
   }
 
   private async resolveBrandOwnerUserId(brandId: string) {
@@ -458,6 +491,39 @@ export class ThirdPartyPlatformsService {
     return (database.userThirdPartyPlatformSecrets || []).find(
       (item) => item.userId === userId && item.brandId === brandId && item.platformId === platformId,
     );
+  }
+
+  private async findUserPlatformSecretByPlatforms(userId: string, brandId: string, platformIds: string[]) {
+    const normalizedPlatformIds = Array.from(
+      new Set(
+        platformIds
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    if (!normalizedPlatformIds.length) {
+      return undefined;
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureTablesReady();
+      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+        SELECT *
+        FROM "UserThirdPartyPlatformSecret"
+        WHERE "userId" = ${userId}
+          AND "brandId" = ${brandId}
+          AND "platformId" = ANY (${normalizedPlatformIds}::text[])
+      `;
+      const byPlatformId = new Map(rows.map((item) => [item.platformId, item] as const));
+      return normalizedPlatformIds.map((item) => byPlatformId.get(item)).find(Boolean);
+    }
+
+    const byPlatformId = new Map(
+      (database.userThirdPartyPlatformSecrets || [])
+        .filter((item) => item.userId === userId && item.brandId === brandId)
+        .map((item) => [item.platformId, item] as const),
+    );
+    return normalizedPlatformIds.map((item) => byPlatformId.get(item)).find(Boolean);
   }
 
   private buildPlatformRecord(input: ThirdPartyPlatformRecord): ThirdPartyPlatformRecord {
@@ -521,6 +587,19 @@ export class ThirdPartyPlatformsService {
       return `${target.protocol}//${target.host}${pathname}`.toLowerCase();
     } catch {
       return normalized.replace(/\/+$/, "").toLowerCase();
+    }
+  }
+
+  private extractHost(value: string) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      return "";
+    }
+    try {
+      return new URL(normalized).host.toLowerCase();
+    } catch {
+      const matched = normalized.match(/^[a-z]+:\/\/([^/]+)/i);
+      return matched?.[1]?.toLowerCase() || "";
     }
   }
 
