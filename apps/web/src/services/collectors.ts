@@ -311,6 +311,27 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   ],
 };
 
+export async function getDouyinCollectionWorkspace(brandId?: string) {
+  return request<DouyinCollectionWorkspace>(`/collectors/douyin/brands/${resolveBrandId(brandId)}/workspace`);
+}
+
+export async function syncDouyinCollectionWorkspace(brandId?: string) {
+  return jsonRequest<{
+    syncedCount: number;
+    breakdown: {
+      brandAccounts: number;
+      competitorAccounts: number;
+      brandWorks: number;
+      benchmarkWorks: number;
+    };
+    workspace: DouyinCollectionWorkspace;
+  }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,
+    "POST",
+    {},
+  );
+}
+
 function resolveBrandId(brandId?: string) {
   return brandId || getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
