@@ -77,6 +77,71 @@ export type XhsCollectionWorkspace = {
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
+export type DouyinCollectedAccountRecord = {
+  id: string;
+  kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT";
+  sourceAccountId: string;
+  externalUserId?: string;
+  accountName: string;
+  username?: string;
+  shortId?: string;
+  accountLink?: string;
+  avatar?: string;
+  description?: string;
+  postedCount?: number;
+  likedCount?: number;
+  fanCount?: number;
+  followCount?: number;
+  ipLocation?: string;
+  enterpriseVerifyReason?: string;
+  customVerify?: string;
+  collectedAt: string;
+  rawFields?: Record<string, unknown>;
+};
+
+export type DouyinCollectedWorkRecord = {
+  id: string;
+  kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK";
+  sourceAccountId: string;
+  workId: string;
+  title: string;
+  description?: string;
+  workType?: string;
+  authorName?: string;
+  authorUniqueId?: string;
+  externalUserId?: string;
+  workUrl?: string;
+  coverUrl?: string;
+  imageList?: string[];
+  videoUrl?: string;
+  hashtags?: string[];
+  publishTimeText?: string;
+  durationMs?: number;
+  musicTitle?: string;
+  musicAuthor?: string;
+  likeCount?: number;
+  playCount?: number;
+  shareCount?: number;
+  commentCount?: number;
+  collectCount?: number;
+  downloadCount?: number;
+  likeCollectRatio?: number;
+  likeCommentRatio?: number;
+  shareRatio?: number;
+  isExplosive?: string;
+  followUpDecision?: string;
+  statsPatched?: boolean;
+  collectedAt: string;
+  rawFields?: Record<string, unknown>;
+};
+
+export type DouyinCollectionWorkspace = {
+  brandAccounts: DouyinCollectedAccountRecord[];
+  competitorAccounts: DouyinCollectedAccountRecord[];
+  brandWorks: DouyinCollectedWorkRecord[];
+  benchmarkWorks: DouyinCollectedWorkRecord[];
+};
+
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
   brandAccounts: [
     {
@@ -139,6 +204,111 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
   ],
   benchmarkNotes: [],
   targetUsers: [],
+};
+
+export const douyinCollectionSeed: DouyinCollectionWorkspace = {
+  brandAccounts: [
+    {
+      id: "ast_demo_douyin_brand_account_001",
+      kind: "DOUYIN_BRAND_ACCOUNT",
+      sourceAccountId: "MS4wLjABAAAA-brand-demo",
+      externalUserId: "92163827336",
+      accountName: "品牌抖音示例账号",
+      username: "brand_demo",
+      shortId: "BD2026",
+      accountLink: "https://www.douyin.com/user/MS4wLjABAAAA-brand-demo",
+      description: "品牌官方账号，日常发布新品、门店活动与短视频内容。",
+      postedCount: 128,
+      likedCount: 3480000,
+      fanCount: 126000,
+      followCount: 128,
+      ipLocation: "湖北",
+      enterpriseVerifyReason: "品牌官方账号",
+      customVerify: "本地生活品牌",
+      collectedAt: "2026-05-20T08:00:00.000Z",
+    },
+  ],
+  competitorAccounts: [
+    {
+      id: "ast_demo_douyin_competitor_account_001",
+      kind: "DOUYIN_COMPETITOR_ACCOUNT",
+      sourceAccountId: "MS4wLjABAAAA-competitor-demo",
+      externalUserId: "88210000123",
+      accountName: "竞品抖音示例账号",
+      username: "competitor_demo",
+      shortId: "CP2026",
+      accountLink: "https://www.douyin.com/user/MS4wLjABAAAA-competitor-demo",
+      description: "区域竞品账号，内容重心偏活动引流与门店转化。",
+      postedCount: 216,
+      likedCount: 5210000,
+      fanCount: 208000,
+      followCount: 96,
+      ipLocation: "上海",
+      enterpriseVerifyReason: "企业认证",
+      customVerify: "区域烘焙连锁",
+      collectedAt: "2026-05-20T08:02:00.000Z",
+    },
+  ],
+  brandWorks: [
+    {
+      id: "ast_demo_douyin_brand_work_001",
+      kind: "DOUYIN_BRAND_WORK",
+      sourceAccountId: "MS4wLjABAAAA-brand-demo",
+      workId: "7592116912205630761",
+      title: "新品上新图文示例",
+      description: "围绕新品口味、门店场景和转化话术展开的图文作品。",
+      workType: "图文",
+      authorName: "品牌抖音示例账号",
+      authorUniqueId: "brand_demo",
+      externalUserId: "92163827336",
+      workUrl: "https://www.douyin.com/note/7592116912205630761",
+      hashtags: ["新品上新", "门店活动", "本地生活"],
+      publishTimeText: "2026-05-20 00:31:28",
+      musicTitle: "作品原声",
+      musicAuthor: "品牌抖音示例账号",
+      likeCount: 4567,
+      playCount: 238961,
+      shareCount: 69,
+      commentCount: 128,
+      collectCount: 245,
+      downloadCount: 0,
+      statsPatched: true,
+      collectedAt: "2026-05-20T08:05:00.000Z",
+    },
+  ],
+  benchmarkWorks: [
+    {
+      id: "ast_demo_douyin_benchmark_work_001",
+      kind: "DOUYIN_BENCHMARK_WORK",
+      sourceAccountId: "MS4wLjABAAAA-competitor-demo",
+      workId: "7126745726494821640",
+      title: "竞品爆款短视频示例",
+      description: "竞品围绕节日热点制作的高播放视频，用于后续对标分析。",
+      workType: "短视频",
+      authorName: "竞品抖音示例账号",
+      authorUniqueId: "competitor_demo",
+      externalUserId: "88210000123",
+      workUrl: "https://www.douyin.com/video/7126745726494821640",
+      hashtags: ["节日营销", "门店爆款", "转化视频"],
+      publishTimeText: "2026-05-20 00:18:31",
+      durationMs: 32000,
+      musicTitle: "热门 BGM",
+      musicAuthor: "平台音乐库",
+      likeCount: 36566,
+      playCount: 1222750,
+      shareCount: 8491,
+      commentCount: 962,
+      collectCount: 2215,
+      downloadCount: 4515,
+      likeCollectRatio: 16.51,
+      likeCommentRatio: 38,
+      shareRatio: 0.69,
+      isExplosive: "是",
+      followUpDecision: "待拆解脚本",
+      statsPatched: true,
+      collectedAt: "2026-05-20T08:08:00.000Z",
+    },
+  ],
 };
 
 function resolveBrandId(brandId?: string) {

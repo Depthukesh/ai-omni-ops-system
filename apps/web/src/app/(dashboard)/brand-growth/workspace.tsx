@@ -5,6 +5,7 @@ import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { getMe, switchBrand } from "../../../services/auth";
 import {
   BrandGrowthCollectionWorkspace,
+  type DouyinCollectionCardKey,
   type XiaohongshuCollectionCardKey,
 } from "./collection-workspace";
 import {
@@ -125,7 +126,7 @@ const strategySections: Array<{
     key: "collection",
     label: "收集数据",
     pages: [
-      { key: "xiaohongshuCollection", label: "小红书平台", description: "通过飞书多维表格填写主页链接、借助插件收集并同步小红书数据。" },
+      { key: "xiaohongshuCollection", label: "平台采集", description: "统一管理飞书配置、小红书同步结果与抖音采集骨架。" },
       { key: "dailyHotspot", label: "每日热点", description: "查看热点主题、平台趋势和当天建议动作。" },
     ],
   },
@@ -342,6 +343,7 @@ export function BrandGrowthWorkspace() {
   const [activeSection, setActiveSection] = useState<StrategySectionKey>("library");
   const [activePage, setActivePage] = useState<StrategyPageKey>("background");
   const [activeXhsCollectionCard, setActiveXhsCollectionCard] = useState<XiaohongshuCollectionCardKey>("brandAccount");
+  const [activeDouyinCollectionCard, setActiveDouyinCollectionCard] = useState<DouyinCollectionCardKey>("brandAccount");
   const [selectedHotspotDate, setSelectedHotspotDate] = useState(getDefaultHotspotDate);
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -1317,6 +1319,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         templateUrl={FEISHU_XHS_TEMPLATE_URL}
         activeXhsCollectionCard={activeXhsCollectionCard}
         onXhsCollectionCardChange={setActiveXhsCollectionCard}
+        activeDouyinCollectionCard={activeDouyinCollectionCard}
+        onDouyinCollectionCardChange={setActiveDouyinCollectionCard}
         feishuBinding={feishuBinding}
         feishuAppConfig={feishuAppConfig}
         feishuAuthStatus={feishuAuthStatus}
