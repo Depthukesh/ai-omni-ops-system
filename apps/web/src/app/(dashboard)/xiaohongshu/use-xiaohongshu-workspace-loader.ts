@@ -45,6 +45,20 @@ import {
 type StateSetter<T> = Dispatch<SetStateAction<T>>;
 type WorkspaceDataSource = "api" | "seed" | "error" | "loading";
 
+function formatWorkspaceReadFailure(label: string, reason: unknown) {
+  const message = reason instanceof Error ? reason.message : "";
+  if (message.includes("当前账号没有该板块的查看权限")) {
+    return `${label}无查看权限。`;
+  }
+  if (message.includes("当前账号无权访问该品牌")) {
+    return `${label}所属品牌无访问权限。`;
+  }
+  if (message.trim()) {
+    return `${label}读取失败：${message}`;
+  }
+  return `${label}读取失败。`;
+}
+
 interface UseXiaohongshuWorkspaceLoaderOptions {
   fallbackBrandId: string;
   goal: XiaohongshuGoal;
@@ -179,13 +193,13 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
       if (growthReportResult.status === "fulfilled") {
         options.setGrowthReportWorkspace(growthReportResult.value);
       } else {
-        messages.push("品牌增长报告读取失败。");
+        messages.push(formatWorkspaceReadFailure("品牌增长报告", growthReportResult.reason));
       }
 
       if (annualPlanResult.status === "fulfilled") {
         options.setAnnualPlanWorkspace(annualPlanResult.value);
       } else {
-        messages.push("半年营销规划读取失败。");
+        messages.push(formatWorkspaceReadFailure("半年营销规划", annualPlanResult.reason));
       }
 
       if (marketingPlanResult.status === "fulfilled") {
@@ -194,7 +208,7 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
           messages.push(`小红书营销策划方案生成失败：${marketingPlanResult.value.latestTask.errorMessage}`);
         }
       } else {
-        messages.push("小红书营销策划方案读取失败。");
+        messages.push(formatWorkspaceReadFailure("小红书营销策划方案", marketingPlanResult.reason));
       }
 
       if (calendarResult.status === "fulfilled") {
@@ -203,7 +217,7 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
           messages.push(`营销日历生成失败：${calendarResult.value.latestTask.errorMessage}`);
         }
       } else {
-        messages.push("营销日历读取失败。");
+        messages.push(formatWorkspaceReadFailure("营销日历", calendarResult.reason));
       }
 
       if (originalWorksResult.status === "fulfilled") {

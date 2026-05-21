@@ -2328,7 +2328,7 @@ export class WorksService {
                   prompt: promptCandidate,
                 };
               } catch (error) {
-                lastError = error instanceof Error ? error.message : "图片生成失败";
+                lastError = this.normalizeImageGenerationFailureMessage(error instanceof Error ? error.message : "图片生成失败");
               }
             }
           }
@@ -2336,7 +2336,7 @@ export class WorksService {
       }
     }
 
-    throw new ServiceUnavailableException(`原创笔记图片生成失败：${lastError || "未获取到有效图片"}`);
+    throw new ServiceUnavailableException(`原创笔记图片生成失败：${this.normalizeImageGenerationFailureMessage(lastError || "未获取到有效图片")}`);
   }
 
   private async cacheRemoteGeneratedImage(brandId: string, fileName: string, remoteUrl: string, fallbackContentType: string) {
@@ -4858,6 +4858,20 @@ export class WorksService {
     const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
     const trailDetail = attemptTrail.length ? `；实际尝试顺序：${this.formatAttemptTrail(attemptTrail)}` : "";
     return `${taskLabel}失败：${preferredDetail}最后失败：${lastError || fallbackMessage}${trailDetail}`;
+  }
+
+  private normalizeImageGenerationFailureMessage(message: string) {
+    const normalized = String(message || "").trim();
+    if (!normalized) {
+      return "未获取到有效图片";
+    }
+    if (/\b524\b/.test(normalized) || /timeout occurred/i.test(normalized) || /cloudflare/i.test(normalized)) {
+      return `上游图片接口超时（524），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
+    }
+    if (/AbortError/i.test(normalized) || /超时/.test(normalized)) {
+      return `上游图片接口请求超时，请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
+    }
+    return normalized;
   }
 
   private async loadSkillModelPreference(
