@@ -167,6 +167,10 @@ jobs:
               run_checked "npm run build:web" npm run build:web
 
               verify_pm2_runtime_secret() {
+                if [ -z "${TIKHUB_API_KEY:-}" ]; then
+                  echo "跳过 pm2 TIKHUB_API_KEY 校验：GitHub Secret 未配置。"
+                  return 0
+                fi
                 node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
               }
 
