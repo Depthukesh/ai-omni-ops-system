@@ -759,6 +759,47 @@ function AvatarPreviewLink(props: {
   );
 }
 
+function CopyableCell(props: {
+  value?: string | number;
+  emptyText?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const text = String(props.value ?? "").trim();
+  if (!text) {
+    return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <button type="button" className="table-copyable-cell" onClick={() => void handleCopy()} title={copied ? "已复制" : "点击复制"}>
+      {text}
+    </button>
+  );
+}
+
+function formatDurationSeconds(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return `${Math.max(0, Math.round(value / 1000))} 秒`;
+}
+
+function formatOptionalCount(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return value.toLocaleString("zh-CN");
+}
+
 function DouyinAccountTable(props: {
   items: DouyinCollectedAccountRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -826,7 +867,7 @@ function DouyinBrandWorksTable(props: {
             <th>作品描述/文案</th>
             <th>发布时间</th>
             <th>媒体类型</th>
-            <th>时长(毫秒)</th>
+            <th>时长</th>
             <th>点赞</th>
             <th>评论</th>
             <th>分享</th>
@@ -841,13 +882,13 @@ function DouyinBrandWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
-              <td><code>{item.workId}</code></td>
+              <td><CopyableCell value={item.workId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>
               <td>{item.publishTimeText || "-"}</td>
               <td>{item.mediaType ?? "-"}</td>
-              <td>{item.durationMs ?? "-"}</td>
+              <td>{formatDurationSeconds(item.durationMs)}</td>
               <td>{props.formatCount(item.likeCount)}</td>
               <td>{props.formatCount(item.commentCount)}</td>
               <td>{props.formatCount(item.shareCount)}</td>
@@ -902,11 +943,11 @@ function DouyinBenchmarkWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
-              <td><code>{item.workId}</code></td>
+              <td><CopyableCell value={item.workId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>
-              <td>{item.durationMs ?? "-"}</td>
+              <td>{formatDurationSeconds(item.durationMs)}</td>
               <td>
                 <AvatarPreviewLink src={item.coverUrl} alt={`${item.title || item.workId}封面`} />
               </td>
@@ -921,14 +962,16 @@ function DouyinBenchmarkWorksTable(props: {
               <td>{props.formatCount(item.commentCount)}</td>
               <td>{props.formatCount(item.shareCount)}</td>
               <td>{props.formatCount(item.collectCount)}</td>
-              <td>{item.authorName || "-"}</td>
-              <td>{item.authorUniqueId || "-"}</td>
-              <td>{props.formatCount(item.authorFollowerCount)}</td>
-              <td>{props.formatCount(item.authorLikedCount)}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.authorName} emptyText="-" compactRows={2} />
+              </td>
+              <td><CopyableCell value={item.authorUniqueId} /></td>
+              <td>{formatOptionalCount(item.authorFollowerCount)}</td>
+              <td>{formatOptionalCount(item.authorLikedCount)}</td>
               <td>
                 <AvatarPreviewLink src={item.authorAvatar} alt={`${item.authorName || "作者"}头像`} />
               </td>
-              <td>{props.formatCount(item.playCount)}</td>
+              <td>{formatOptionalCount(item.playCount)}</td>
               <td>{props.formatDateTime(item.collectedAt)}</td>
             </tr>
           ))}
@@ -1702,7 +1745,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div className="collection-result-head">
                     <div>
                       <h3>对标作品信息及数据</h3>
-                      <p>结果以表格呈现 `desc`、`video.duration`、`video.cover.url_list`、`video.play_addr.url_list`、`author.nickname`、`author.unique_id`、`author.follower_count`、`author.total_favorited`、`author.avatar_300x300.url_list`、`digg_count`、`comment_count`、`share_count`、`collect_count`，以及统计接口补齐的 `play_count`。</p>
                     </div>
                   </div>
                   {douyinPreviewItems.length ? (

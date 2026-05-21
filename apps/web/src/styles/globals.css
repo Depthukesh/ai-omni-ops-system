@@ -2069,6 +2069,9 @@ button {
   font-size: 12px;
   line-height: 1.5;
   vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .table-cell-wide {
@@ -2129,6 +2132,20 @@ button {
   padding-right: 4px;
   white-space: pre-wrap;
   user-select: text;
+}
+
+.table-copyable-cell {
+  display: inline-block;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #2f3447;
+  text-align: left;
+  cursor: copy;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .table-avatar-link {
