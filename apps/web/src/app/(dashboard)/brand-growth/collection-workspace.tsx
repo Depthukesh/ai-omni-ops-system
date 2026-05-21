@@ -600,6 +600,224 @@ function DouyinWorkPreviewCard(props: {
   );
 }
 
+function DouyinSubmitPanel(props: {
+  title: string;
+  helperText: string;
+  value: string;
+  placeholder: string;
+  docs: Array<{ label: string; href: string }>;
+  isSubmitting: boolean;
+  onChange: ValueAction<string>;
+  onSubmit: AsyncAction;
+}) {
+  return (
+    <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="collection-result-head">
+        <div>
+          <h3>{props.title}</h3>
+          <p>{props.helperText}</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "提交"}
+        </button>
+      </div>
+      <div className="strategy-chip-row" style={{ marginBottom: 12 }}>
+        {props.docs.map((item) => (
+          <a key={item.href} href={item.href} target="_blank" rel="noreferrer" className="secondary-button">
+            {item.label}
+          </a>
+        ))}
+      </div>
+      <label className="field">
+        <span>{props.title}</span>
+        <textarea
+          rows={4}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          placeholder={props.placeholder}
+        />
+      </label>
+    </article>
+  );
+}
+
+function DouyinAccountTable(props: {
+  items: DouyinCollectedAccountRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="soft-table">
+        <thead>
+          <tr>
+            <th>昵称</th>
+            <th>抖音号</th>
+            <th>简介</th>
+            <th>头像</th>
+            <th>粉丝数</th>
+            <th>关注数</th>
+            <th>作品数</th>
+            <th>总获赞</th>
+            <th>主页链接</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.accountName || "-"}</td>
+              <td>{item.username || item.shortId || "-"}</td>
+              <td>{item.description || "-"}</td>
+              <td>
+                {item.avatar ? (
+                  <a href={item.avatar} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看头像
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatCount(item.fanCount)}</td>
+              <td>{props.formatCount(item.followCount)}</td>
+              <td>{props.formatCount(item.postedCount)}</td>
+              <td>{props.formatCount(item.likedCount)}</td>
+              <td>
+                {item.accountLink ? (
+                  <a href={item.accountLink} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DouyinBrandWorksTable(props: {
+  items: DouyinCollectedWorkRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="soft-table">
+        <thead>
+          <tr>
+            <th>作品 ID</th>
+            <th>作品描述/文案</th>
+            <th>发布时间</th>
+            <th>媒体类型</th>
+            <th>时长(毫秒)</th>
+            <th>点赞</th>
+            <th>评论</th>
+            <th>分享</th>
+            <th>收藏</th>
+            <th>推荐</th>
+            <th>图文列表</th>
+            <th>作品类型</th>
+            <th>视频下载地址</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td><code>{item.workId}</code></td>
+              <td>{item.description || item.title || "-"}</td>
+              <td>{item.publishTimeText || "-"}</td>
+              <td>{item.mediaType ?? "-"}</td>
+              <td>{item.durationMs ?? "-"}</td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.commentCount)}</td>
+              <td>{props.formatCount(item.shareCount)}</td>
+              <td>{props.formatCount(item.collectCount)}</td>
+              <td>{props.formatCount(item.recommendCount)}</td>
+              <td>{item.imageList?.length ? `${item.imageList.length} 张` : "-"}</td>
+              <td>{(item.awemeType ?? item.workType) || "-"}</td>
+              <td>
+                {item.videoUrl ? (
+                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开视频
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DouyinBenchmarkWorksTable(props: {
+  items: DouyinCollectedWorkRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="soft-table">
+        <thead>
+          <tr>
+            <th>作品 ID</th>
+            <th>作品描述</th>
+            <th>作品时长</th>
+            <th>视频封面</th>
+            <th>视频播放地址</th>
+            <th>作者昵称</th>
+            <th>作者抖音号</th>
+            <th>作者粉丝数</th>
+            <th>作者总获赞</th>
+            <th>作者头像</th>
+            <th>播放量</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td><code>{item.workId}</code></td>
+              <td>{item.description || item.title || "-"}</td>
+              <td>{item.durationMs ?? "-"}</td>
+              <td>
+                {item.coverUrl ? (
+                  <a href={item.coverUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看封面
+                  </a>
+                ) : "-"}
+              </td>
+              <td>
+                {item.videoUrl ? (
+                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开视频
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{item.authorName || "-"}</td>
+              <td>{item.authorUniqueId || "-"}</td>
+              <td>{props.formatCount(item.authorFollowerCount)}</td>
+              <td>{props.formatCount(item.authorLikedCount)}</td>
+              <td>
+                {item.authorAvatar ? (
+                  <a href={item.authorAvatar} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看头像
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatCount(item.playCount)}</td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
   if (props.activePage !== "dailyHotspot") {
     const xiaohongshuSyncedCount =
@@ -614,7 +832,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
       props.sortedDouyinBenchmarkWorks.length;
     const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
     const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
-    const douyinFieldRows = douyinFieldPreviewMap[props.activeDouyinCollectionCard];
     const douyinPreviewItems =
       props.activeDouyinCollectionCard === "brandAccount"
         ? props.sortedDouyinBrandAccounts
@@ -1227,172 +1444,159 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
 
         {props.activePage === "douyinCollection" ? (
           <article className="workspace-panel strategy-page-card strategy-collection-page-card">
-          <div className="strategy-card-toolbar">
-            <div>
-              <strong>抖音</strong>
-              <p>抖音板块通过 Tikhub 第三方接口直连获取数据，不走飞书同步。请先在个人中心填写当前品牌的 Tikhub API Key，再到后台接口供应商确认 Tikhub 平台链接与文档已配置。</p>
-            </div>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void props.onSyncDouyinWorkspace()}
-              disabled={props.isHydrating || props.isSyncingDouyinWorkspace}
-            >
-              {props.isSyncingDouyinWorkspace ? "同步中..." : "同步抖音数据"}
-            </button>
-          </div>
-          <div className="strategy-chip-row">
-            <span className="archive-pill status-ready">数据源：Tikhub</span>
-            <span className="archive-pill status-ready">字段甄别：已完成</span>
-            <span className="archive-pill status-ready">播放量：统计接口补丁</span>
-            <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
-              已同步 {douyinSyncedCount} 条
-            </span>
-          </div>
-          <article className="light-data-panel" style={{ marginBottom: 16 }}>
-            <div className="collection-result-head">
+            <div className="strategy-card-toolbar">
               <div>
-                <h3>使用前置</h3>
-                <p>01 在个人中心配置当前品牌的 Tikhub API Key；02 在后台接口供应商确认 Tikhub 平台链接、说明文档和备注；03 输入品牌主页链接、竞品主页链接或对标作品 aweme_id 后执行同步。</p>
+                <strong>抖音</strong>
+                <p>抖音板块通过 Tikhub 第三方接口直连获取数据。四个分组分别录入并提交，结果直接按表格展示。</p>
               </div>
             </div>
-            <div className="strategy-chip-row" style={{ marginBottom: 12 }}>
-              <a href="/personal-center/third-party-platforms" className="secondary-button">去个人中心配 API Key</a>
-              <a href="/admin" className="secondary-button">去后台接口供应商</a>
-              <a href="https://docs.tikhub.io/186826222e0" target="_blank" rel="noreferrer" className="secondary-button">账号信息文档</a>
-              <a href="https://docs.tikhub.io/186826223e0" target="_blank" rel="noreferrer" className="secondary-button">主页作品文档</a>
-              <a href="https://docs.tikhub.io/406098636e0" target="_blank" rel="noreferrer" className="secondary-button">单作品文档</a>
-              <a href="https://docs.tikhub.io/186826221e0" target="_blank" rel="noreferrer" className="secondary-button">统计文档</a>
+            <div className="strategy-chip-row">
+              <span className="archive-pill status-ready">数据源：Tikhub</span>
+              <span className="archive-pill status-ready">字段甄别：已完成</span>
+              <span className="archive-pill status-ready">播放量：统计接口补丁</span>
+              <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
+                已同步 {douyinSyncedCount} 条
+              </span>
             </div>
-            <div className="form-grid two-column">
-              <label className="field">
-                <span>品牌抖音主页链接 / sec_user_id</span>
-                <textarea
-                  rows={4}
-                  value={props.douyinSyncForm.brandAccountLinks}
-                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: event.target.value }))}
-                  placeholder={"每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"}
-                />
-                <small className="personal-meta">用于调用「获取指定用户的信息」和「获取用户主页作品数据」。</small>
-              </label>
-              <label className="field">
-                <span>竞品抖音主页链接 / sec_user_id</span>
-                <textarea
-                  rows={4}
-                  value={props.douyinSyncForm.competitorAccountLinks}
-                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: event.target.value }))}
-                  placeholder={"每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"}
-                />
-                <small className="personal-meta">用于拉取竞品账号信息，以及该账号下的对标作品池。</small>
-              </label>
-              <label className="field" style={{ gridColumn: "1 / -1" }}>
-                <span>对标作品 aweme_id / 作品链接</span>
-                <textarea
-                  rows={3}
-                  value={props.douyinSyncForm.benchmarkAwemeIds}
-                  onChange={(event) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: event.target.value }))}
-                  placeholder={"每行一个，支持 aweme_id、/video/xxx、/note/xxx 链接"}
-                />
-                <small className="personal-meta">这里会组合「获取单个作品数据 V3」和「根据视频 ID 获取作品统计数据」来补齐播放量。</small>
-              </label>
+            <div className="strategy-chip-row">
+              {douyinCollectionCards.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`filter-chip ${props.activeDouyinCollectionCard === item.key ? "is-active" : ""}`}
+                  onClick={() => props.onDouyinCollectionCardChange(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
-          </article>
-          <div className="strategy-chip-row">
-            {douyinCollectionCards.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`filter-chip ${props.activeDouyinCollectionCard === item.key ? "is-active" : ""}`}
-                onClick={() => props.onDouyinCollectionCardChange(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <article className="light-data-panel">
-            <div className="collection-result-head">
-              <div>
-                <h3>{douyinCollectionCards.find((item) => item.key === props.activeDouyinCollectionCard)?.label || "抖音数据模型"}</h3>
-                <p>先展示标准字段清单，再展示当前已同步的真实抖音结果；品牌账号和竞品账号都走「获取指定用户的信息」，品牌作品走「获取用户主页作品数据」，对标作品走「单作品详情 + 统计补丁」。</p>
-              </div>
-              <span className="archive-pill status-ready">字段 {douyinFieldRows.length} 个</span>
-            </div>
-            <DouyinFieldPreviewTable rows={douyinFieldRows} />
             {props.activeDouyinCollectionCard === "brandAccount" ? (
               <>
-                <div className="collection-card-list">
+                <DouyinSubmitPanel
+                  title="品牌抖音主页链接 / sec_user_id"
+                  helperText="录入品牌抖音主页链接或 sec_user_id，提交后调用【获取指定用户的信息】采集品牌账号信息。"
+                  value={props.douyinSyncForm.brandAccountLinks}
+                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
+                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
+                  docs={[{ label: "查看账号信息文档", href: "https://docs.tikhub.io/186826222e0" }]}
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onSubmit={props.onSyncDouyinWorkspace}
+                />
+                <article className="light-data-panel">
+                  <div className="collection-result-head">
+                    <div>
+                      <h3>品牌账号信息</h3>
+                      <p>结果以表格呈现 `nickname`、`unique_id`、`signature`、`avatar_300x300`、`follower_count`、`following_count`、`aweme_count`、`total_favorited`。</p>
+                    </div>
+                  </div>
                   {douyinPreviewItems.length ? (
-                    douyinPreviewItems.map((item) => (
-                      <DouyinAccountPreviewCard
-                        key={item.id}
-                        item={item as DouyinCollectedAccountRecord}
-                        formatDateTime={props.formatDateTime}
-                        formatCount={props.formatCount}
-                      />
-                    ))
+                    <DouyinAccountTable
+                      items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
+                      formatDateTime={props.formatDateTime}
+                      formatCount={props.formatCount}
+                    />
                   ) : (
-                    <div className="note-empty-state">当前还没有同步到抖音品牌账号，请先确认品牌档案里已配置抖音平台账号后执行同步。</div>
+                    <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接或 sec_user_id 并提交。</div>
                   )}
-                </div>
+                </article>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "competitorAccount" ? (
               <>
-                <div className="collection-card-list">
+                <DouyinSubmitPanel
+                  title="竞品抖音主页链接 / sec_user_id"
+                  helperText="录入竞品抖音主页链接或 sec_user_id，提交后调用【获取指定用户的信息】采集竞品账号信息。"
+                  value={props.douyinSyncForm.competitorAccountLinks}
+                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: value }))}
+                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
+                  docs={[{ label: "查看账号信息文档", href: "https://docs.tikhub.io/186826222e0" }]}
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onSubmit={props.onSyncDouyinWorkspace}
+                />
+                <article className="light-data-panel">
+                  <div className="collection-result-head">
+                    <div>
+                      <h3>竞品账号信息</h3>
+                      <p>结果以表格呈现 `nickname`、`unique_id`、`signature`、`avatar_300x300`、`follower_count`、`following_count`、`aweme_count`、`total_favorited`。</p>
+                    </div>
+                  </div>
                   {douyinPreviewItems.length ? (
-                    douyinPreviewItems.map((item) => (
-                      <DouyinAccountPreviewCard
-                        key={item.id}
-                        item={item as DouyinCollectedAccountRecord}
-                        formatDateTime={props.formatDateTime}
-                        formatCount={props.formatCount}
-                      />
-                    ))
+                    <DouyinAccountTable
+                      items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
+                      formatDateTime={props.formatDateTime}
+                      formatCount={props.formatCount}
+                    />
                   ) : (
-                    <div className="note-empty-state">当前还没有同步到抖音竞品账号，请先确认品牌档案里已配置抖音竞品账号后执行同步。</div>
+                    <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接或 sec_user_id 并提交。</div>
                   )}
-                </div>
+                </article>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "brandWorks" ? (
               <>
-                <div className="collection-card-list">
+                <DouyinSubmitPanel
+                  title="品牌抖音主页链接 / sec_user_id"
+                  helperText="录入品牌抖音主页链接或 sec_user_id，提交后调用【获取用户主页作品数据】采集品牌作品信息及数据。"
+                  value={props.douyinSyncForm.brandAccountLinks}
+                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
+                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
+                  docs={[{ label: "查看主页作品文档", href: "https://docs.tikhub.io/186826223e0" }]}
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onSubmit={props.onSyncDouyinWorkspace}
+                />
+                <article className="light-data-panel">
+                  <div className="collection-result-head">
+                    <div>
+                      <h3>品牌作品信息及数据</h3>
+                      <p>结果以表格呈现 `aweme_id`、`desc`、`create_time`、`media_type`、`duration`、`statistics`、`images`、`aweme_type`、`video_download_addr`。</p>
+                    </div>
+                  </div>
                   {douyinPreviewItems.length ? (
-                    douyinPreviewItems.map((item) => (
-                      <DouyinWorkPreviewCard
-                        key={item.id}
-                        item={item as DouyinCollectedWorkRecord}
-                        formatDateTime={props.formatDateTime}
-                        formatCount={props.formatCount}
-                        formatMetric={props.formatMetric}
-                      />
-                    ))
+                    <DouyinBrandWorksTable
+                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                      formatDateTime={props.formatDateTime}
+                      formatCount={props.formatCount}
+                    />
                   ) : (
-                    <div className="note-empty-state">当前还没有同步到抖音品牌作品，请先同步抖音数据。</div>
+                    <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接或 sec_user_id 并提交。</div>
                   )}
-                </div>
+                </article>
               </>
             ) : null}
             {props.activeDouyinCollectionCard === "benchmarkWorks" ? (
               <>
-                <div className="collection-card-list">
+                <DouyinSubmitPanel
+                  title="对标作品 aweme_id / 作品链接"
+                  helperText="录入对标作品 aweme_id 或作品链接，提交后组合【获取单个作品数据 V3】和【根据视频 ID 获取作品统计数据】补齐播放量。"
+                  value={props.douyinSyncForm.benchmarkAwemeIds}
+                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: value }))}
+                  placeholder="每行一个，支持 aweme_id、/video/xxx、/note/xxx 链接"
+                  docs={[
+                    { label: "查看单作品文档", href: "https://docs.tikhub.io/406098636e0" },
+                    { label: "查看统计文档", href: "https://docs.tikhub.io/186826221e0" },
+                  ]}
+                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                  onSubmit={props.onSyncDouyinWorkspace}
+                />
+                <article className="light-data-panel">
+                  <div className="collection-result-head">
+                    <div>
+                      <h3>对标作品信息及数据</h3>
+                      <p>结果以表格呈现作品描述、时长、封面、播放地址、作者昵称、作者抖音号、作者粉丝数、作者总获赞、作者头像，以及统计接口补齐的 `play_count`。</p>
+                    </div>
+                  </div>
                   {douyinPreviewItems.length ? (
-                    douyinPreviewItems.map((item) => (
-                      <DouyinWorkPreviewCard
-                        key={item.id}
-                        item={item as DouyinCollectedWorkRecord}
-                        formatDateTime={props.formatDateTime}
-                        formatCount={props.formatCount}
-                        formatMetric={props.formatMetric}
-                      />
-                    ))
+                    <DouyinBenchmarkWorksTable
+                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                      formatDateTime={props.formatDateTime}
+                      formatCount={props.formatCount}
+                    />
                   ) : (
-                    <div className="note-empty-state">当前还没有同步到抖音对标作品，请先同步抖音数据。</div>
+                    <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入 aweme_id 或作品链接并提交。</div>
                   )}
-                </div>
+                </article>
               </>
             ) : null}
-          </article>
           </article>
         ) : null}
       </div>

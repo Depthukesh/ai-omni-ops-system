@@ -1552,6 +1552,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       return null;
     }
 
+    if (activeSection === "collection") {
+      return null;
+    }
+
     if (activePage === "growthReport") {
       if (isGrowthReportTaskActive) {
         return (

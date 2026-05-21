@@ -26,6 +26,7 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "ark.cn-beijing.volces.com": "火山方舟平台",
   "api.moonshot.cn": "Kimi 平台",
   "open.bigmodel.cn": "GLM 平台",
+  "api.tikhub.io": "Tikhub 平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
@@ -110,6 +111,20 @@ function buildThirdPartyPlatformSeeds() {
       remark: item.remark,
       updatedAt: item.updatedAt,
     }))
+    .concat([
+      {
+        id: "platform_https_api_tikhub_io",
+        name: "Tikhub 平台",
+        providerType: "CUSTOM" as const,
+        status: "ACTIVE" as const,
+        baseUrl: "https://api.tikhub.io",
+        tutorialUrl: "https://docs.tikhub.io/186826222e0",
+        modelIds: [],
+        defaultModel: "",
+        remark: "用于抖音数据采集。用户需要在个人中心按品牌填写自己的 Tikhub API Key，后台维护平台链接与文档入口。",
+        updatedAt: "2026-05-21T00:00:00.000Z",
+      },
+    ])
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
 
