@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type {
   AsyncAction,
   FeishuAppConfigForm,
@@ -641,24 +641,102 @@ function DouyinSubmitPanel(props: {
   );
 }
 
+function ScrollableTableShell(props: {
+  children: ReactNode;
+}) {
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomScrollRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+
+  useEffect(() => {
+    const contentNode = contentRef.current;
+    if (!contentNode) {
+      return;
+    }
+
+    const syncWidth = () => {
+      setScrollWidth(contentNode.scrollWidth);
+    };
+
+    syncWidth();
+    const observer = new ResizeObserver(syncWidth);
+    observer.observe(contentNode);
+    return () => observer.disconnect();
+  }, []);
+
+  const syncScroll = (source: "top" | "bottom") => {
+    const top = topScrollRef.current;
+    const bottom = bottomScrollRef.current;
+    if (!top || !bottom) {
+      return;
+    }
+    if (source === "top") {
+      bottom.scrollLeft = top.scrollLeft;
+      return;
+    }
+    top.scrollLeft = bottom.scrollLeft;
+  };
+
+  return (
+    <div className="table-scroll-shell">
+      <div className="table-scrollbar-top" ref={topScrollRef} onScroll={() => syncScroll("top")}>
+        <div style={{ width: `${scrollWidth}px` }} />
+      </div>
+      <div className="table-scrollbar-body" ref={bottomScrollRef} onScroll={() => syncScroll("bottom")}>
+        <div ref={contentRef}>
+          {props.children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExpandableTextCell(props: {
   value?: string;
   emptyText?: string;
   compactRows?: 2 | 3;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const text = String(props.value || "").trim();
   if (!text) {
     return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
   }
 
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  if (expanded) {
+    return (
+      <div className="table-text-cell is-expanded" data-rows={props.compactRows || 2}>
+        <div className="table-text-actions">
+          <button type="button" className="table-mini-button" onClick={() => void handleCopy()}>
+            {copied ? "已复制" : "复制"}
+          </button>
+          <button type="button" className="table-mini-button" onClick={() => setExpanded(false)}>
+            收起
+          </button>
+        </div>
+        <div className="table-text-content">{text}</div>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
-      className={`table-text-cell ${expanded ? "is-expanded" : ""}`}
+      className="table-text-cell"
       data-rows={props.compactRows || 2}
-      onClick={() => setExpanded((current) => !current)}
-      title={expanded ? "点击收起" : "点击展开查看"}
+      onClick={() => setExpanded(true)}
+      title="点击展开查看"
     >
       {text}
     </button>
@@ -687,7 +765,7 @@ function DouyinAccountTable(props: {
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div className="resizable-table-shell">
+    <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
@@ -730,7 +808,7 @@ function DouyinAccountTable(props: {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollableTableShell>
   );
 }
 
@@ -740,7 +818,7 @@ function DouyinBrandWorksTable(props: {
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div className="resizable-table-shell">
+    <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
@@ -789,7 +867,7 @@ function DouyinBrandWorksTable(props: {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollableTableShell>
   );
 }
 
@@ -799,7 +877,7 @@ function DouyinBenchmarkWorksTable(props: {
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div className="resizable-table-shell">
+    <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
@@ -848,7 +926,7 @@ function DouyinBenchmarkWorksTable(props: {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollableTableShell>
   );
 }
 

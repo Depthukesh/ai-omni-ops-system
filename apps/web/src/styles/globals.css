@@ -2021,13 +2021,30 @@ button {
   border-bottom: none;
 }
 
-.resizable-table-shell {
-  width: min(100%, 100%);
-  min-width: 760px;
+.table-scroll-shell {
+  width: 100%;
   max-width: 100%;
-  overflow: auto;
-  resize: horizontal;
-  padding-bottom: 4px;
+}
+
+.table-scrollbar-top,
+.table-scrollbar-body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table-scrollbar-top {
+  height: 12px;
+  margin: 0 0 8px;
+  overflow-y: hidden;
+}
+
+.table-scrollbar-top > div {
+  height: 1px;
+}
+
+.table-scrollbar-body {
+  overflow-y: visible;
 }
 
 .douyin-data-table {
@@ -2073,9 +2090,33 @@ button {
 }
 
 .table-text-cell.is-expanded {
+  max-height: none;
+  cursor: default;
+}
+
+.table-text-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.table-mini-button {
+  border: 1px solid #dfe4f3;
+  background: #fff;
+  color: #5f6b86;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.table-text-content {
   max-height: 9.3em;
   overflow-y: auto;
   padding-right: 4px;
+  white-space: pre-wrap;
+  user-select: text;
 }
 
 .table-avatar-link {
