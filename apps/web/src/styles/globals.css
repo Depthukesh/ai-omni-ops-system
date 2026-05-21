@@ -2021,6 +2021,82 @@ button {
   border-bottom: none;
 }
 
+.resizable-table-shell {
+  width: min(100%, 100%);
+  min-width: 760px;
+  max-width: 100%;
+  overflow: auto;
+  resize: horizontal;
+  padding-bottom: 4px;
+}
+
+.douyin-data-table {
+  min-width: 1180px;
+}
+
+.douyin-data-table th,
+.douyin-data-table td {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: top;
+}
+
+.table-cell-wide {
+  min-width: 220px;
+}
+
+.table-cell-empty {
+  color: #98a1b4;
+}
+
+.table-text-cell {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: #2f3447;
+  cursor: pointer;
+  overflow: hidden;
+  word-break: break-word;
+  line-height: 1.55;
+}
+
+.table-text-cell[data-rows="2"] {
+  max-height: 3.1em;
+}
+
+.table-text-cell[data-rows="3"] {
+  max-height: 4.65em;
+}
+
+.table-text-cell.is-expanded {
+  max-height: 9.3em;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.table-avatar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #5a6fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.table-avatar-thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e7eaf6;
+  object-fit: cover;
+  background: #f5f7fc;
+  flex: 0 0 auto;
+}
+
 .collection-result-head {
   display: flex;
   align-items: flex-start;

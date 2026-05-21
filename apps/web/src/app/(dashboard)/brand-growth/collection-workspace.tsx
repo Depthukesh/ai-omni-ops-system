@@ -641,14 +641,54 @@ function DouyinSubmitPanel(props: {
   );
 }
 
+function ExpandableTextCell(props: {
+  value?: string;
+  emptyText?: string;
+  compactRows?: 2 | 3;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const text = String(props.value || "").trim();
+  if (!text) {
+    return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      className={`table-text-cell ${expanded ? "is-expanded" : ""}`}
+      data-rows={props.compactRows || 2}
+      onClick={() => setExpanded((current) => !current)}
+      title={expanded ? "点击收起" : "点击展开查看"}
+    >
+      {text}
+    </button>
+  );
+}
+
+function AvatarPreviewLink(props: {
+  src?: string;
+  alt: string;
+}) {
+  if (!props.src) {
+    return <span className="table-cell-empty">-</span>;
+  }
+
+  return (
+    <a href={props.src} target="_blank" rel="noreferrer" className="table-avatar-link" title="点击查看原图">
+      <img src={props.src} alt={props.alt} className="table-avatar-thumb" />
+      <span>预览</span>
+    </a>
+  );
+}
+
 function DouyinAccountTable(props: {
   items: DouyinCollectedAccountRecord[];
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="soft-table">
+    <div className="resizable-table-shell">
+      <table className="soft-table douyin-data-table">
         <thead>
           <tr>
             <th>昵称</th>
@@ -668,13 +708,11 @@ function DouyinAccountTable(props: {
             <tr key={item.id}>
               <td>{item.accountName || "-"}</td>
               <td>{item.username || item.shortId || "-"}</td>
-              <td>{item.description || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description} emptyText="未提供简介" compactRows={2} />
+              </td>
               <td>
-                {item.avatar ? (
-                  <a href={item.avatar} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看头像
-                  </a>
-                ) : "-"}
+                <AvatarPreviewLink src={item.avatar} alt={`${item.accountName || "抖音账号"}头像`} />
               </td>
               <td>{props.formatCount(item.fanCount)}</td>
               <td>{props.formatCount(item.followCount)}</td>
@@ -702,8 +740,8 @@ function DouyinBrandWorksTable(props: {
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="soft-table">
+    <div className="resizable-table-shell">
+      <table className="soft-table douyin-data-table">
         <thead>
           <tr>
             <th>作品 ID</th>
@@ -726,7 +764,9 @@ function DouyinBrandWorksTable(props: {
           {props.items.map((item) => (
             <tr key={item.id}>
               <td><code>{item.workId}</code></td>
-              <td>{item.description || item.title || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
+              </td>
               <td>{item.publishTimeText || "-"}</td>
               <td>{item.mediaType ?? "-"}</td>
               <td>{item.durationMs ?? "-"}</td>
@@ -759,8 +799,8 @@ function DouyinBenchmarkWorksTable(props: {
   formatCount: OptionalNumberFormatter;
 }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="soft-table">
+    <div className="resizable-table-shell">
+      <table className="soft-table douyin-data-table">
         <thead>
           <tr>
             <th>作品 ID</th>
@@ -781,14 +821,12 @@ function DouyinBenchmarkWorksTable(props: {
           {props.items.map((item) => (
             <tr key={item.id}>
               <td><code>{item.workId}</code></td>
-              <td>{item.description || item.title || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
+              </td>
               <td>{item.durationMs ?? "-"}</td>
               <td>
-                {item.coverUrl ? (
-                  <a href={item.coverUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看封面
-                  </a>
-                ) : "-"}
+                <AvatarPreviewLink src={item.coverUrl} alt={`${item.title || item.workId}封面`} />
               </td>
               <td>
                 {item.videoUrl ? (
@@ -802,11 +840,7 @@ function DouyinBenchmarkWorksTable(props: {
               <td>{props.formatCount(item.authorFollowerCount)}</td>
               <td>{props.formatCount(item.authorLikedCount)}</td>
               <td>
-                {item.authorAvatar ? (
-                  <a href={item.authorAvatar} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看头像
-                  </a>
-                ) : "-"}
+                <AvatarPreviewLink src={item.authorAvatar} alt={`${item.authorName || "作者"}头像`} />
               </td>
               <td>{props.formatCount(item.playCount)}</td>
               <td>{props.formatDateTime(item.collectedAt)}</td>
