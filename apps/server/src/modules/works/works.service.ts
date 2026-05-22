@@ -3892,6 +3892,7 @@ export class WorksService {
       padImageStrategy: this.readOptionalString(result.parsed.pad_image_strategy ?? result.parsed.padImageStrategy),
       continuityRules: this.normalizeStringArray(result.parsed.continuity_rules ?? result.parsed.continuityRules, [], 8),
       segmentPrompts: this.normalizeStringArray(result.parsed.segment_prompts ?? result.parsed.segmentPrompts, [videoPrompt], 8),
+      modelName: result.modelName,
     };
   }
 

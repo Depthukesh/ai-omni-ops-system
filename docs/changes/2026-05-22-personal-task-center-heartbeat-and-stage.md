@@ -57,3 +57,9 @@
 - 触发原创、二创、视频 3 类任务，确认运行中任务会显示阶段变化
 - 人为制造超时或失败，确认任务卡片能展示心跳偏旧、错误原因与模型接力状态
 - 触发一条存在多模型 fallback 的失败任务，确认“模型接力”显示为已触发
+
+## 补充修复
+
+- 首次上线时，`build:server` 被 `works.service.ts` 中的视频任务成功回写逻辑拦截。
+- 根因是 `generateShortVideoPromptFromStoryboard()` 返回值遗漏了 `modelName`，但任务成功态又尝试读取 `promptResult.modelName` 填充 `videoPromptModel`。
+- 已补齐该字段透传，确保后端编译通过，避免部署停留在旧版本。
