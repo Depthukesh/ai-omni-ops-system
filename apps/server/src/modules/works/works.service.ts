@@ -17,6 +17,10 @@ import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../repo
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 
+const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
+const IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 180 * 1000;
+const VIDEO_STAGE_MODEL_ATTEMPT_TIMEOUT_MS = 300 * 1000;
+
 type UploadFilePayload = {
   fileName: string;
   contentType: string;
@@ -962,12 +966,14 @@ export class WorksService {
     try {
       await this.markTaskRunning(task.id);
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, { stage: "PREPARING_REFERENCES", title: taskTitle });
 
       const referenceFiles = this.normalizeReferenceFiles(payload);
       const referenceStyles = referenceFiles.length
         ? await this.analyzeReferenceImages(referenceFiles, originalMarketingPlanMarkdown, brandId)
         : { coverReferenceStyle: undefined, galleryReferenceStyles: [], modelName: undefined };
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, { stage: "GENERATING_COPY", title: taskTitle });
 
       const copyResult = await this.generateOriginalCopy({
         brandId,
@@ -980,6 +986,11 @@ export class WorksService {
         additionalInstruction: payload.additionalInstruction?.trim(),
       });
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "GENERATING_IMAGE_PROMPTS",
+        title: copyResult.title,
+        copyModel: copyResult.modelName,
+      });
 
       const imagePromptResult = await this.generateOriginalImagePrompts({
         brandId,
@@ -996,6 +1007,12 @@ export class WorksService {
         referenceStyles,
       });
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "GENERATING_IMAGES",
+        title: copyResult.title,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+      });
 
       const originalImageGenerationConfig = await this.loadImageGenerationExecutionConfig({
         brandId,
@@ -1038,6 +1055,14 @@ export class WorksService {
         ),
       );
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "SAVING_WORK",
+        title: copyResult.title,
+        imageCount: 1 + galleryImages.length,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+        imageGenerationModel: coverImage.modelName,
+      });
 
       const now = new Date().toISOString();
       const htmlContent = this.renderGeneratedNoteHtml({
@@ -1137,8 +1162,12 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
       await this.markTaskSuccess(task.id, {
         workId: workMedia.id,
+        stage: "WORK_READY",
         title: copyResult.title,
         imageCount: 1 + galleryImages.length,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+        imageGenerationModel: coverImage.modelName,
       });
 
       return {
@@ -1221,6 +1250,7 @@ export class WorksService {
     try {
       await this.markTaskRunning(task.id);
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, { stage: "GENERATING_COPY", title: taskTitle });
 
       const copyResult = await this.generateRewriteCopy({
         brandId,
@@ -1233,6 +1263,11 @@ export class WorksService {
         topicContext: rewriteTopicContext,
       });
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "GENERATING_IMAGE_PROMPTS",
+        title: copyResult.title,
+        copyModel: copyResult.modelName,
+      });
 
       const imagePromptResult = await this.generateRewriteImagePrompts({
         brandId,
@@ -1247,6 +1282,12 @@ export class WorksService {
         topicContext: rewriteTopicContext,
       });
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "GENERATING_IMAGES",
+        title: copyResult.title,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+      });
 
       const rewriteImageGenerationConfig = await this.loadImageGenerationExecutionConfig({
         brandId,
@@ -1287,6 +1328,14 @@ export class WorksService {
         ),
       );
       await this.ensureTaskNotCancelled(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        stage: "SAVING_WORK",
+        title: copyResult.title,
+        imageCount: 1 + galleryImages.length,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+        imageGenerationModel: coverImage.modelName,
+      });
 
       const now = new Date().toISOString();
       const htmlContent = this.renderGeneratedNoteHtml({
@@ -1384,8 +1433,12 @@ export class WorksService {
       await this.ensureTaskNotCancelled(task.id);
       await this.markTaskSuccess(task.id, {
         workId: workMedia.id,
+        stage: "WORK_READY",
         title: copyResult.title,
         imageCount: 1 + galleryImages.length,
+        copyModel: copyResult.modelName,
+        imagePromptModel: imagePromptResult.modelName,
+        imageGenerationModel: coverImage.modelName,
       });
 
       return {
@@ -1925,7 +1978,7 @@ export class WorksService {
                 },
               ],
             },
-            120000,
+            this.resolveModelAttemptTimeoutMs(undefined, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
           );
           if (!response.ok) {
             lastError = `图片分析请求失败：${response.status}`;
@@ -2053,7 +2106,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -2209,7 +2262,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -2296,7 +2349,7 @@ export class WorksService {
                   provider.completionPath,
                   apiKey,
                   this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
-                  provider.requestTimeoutMs ?? 180000,
+                  this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
                 );
                 if (!response.ok) {
                   const responseSnippet = await this.readResponseSnippet(response);
@@ -3408,6 +3461,7 @@ export class WorksService {
   ) {
     try {
       await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_SCRIPT", title: context.topicLabel });
       const target = await this.getVideoWorkRowById(brandId, workId);
       let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
@@ -3430,6 +3484,12 @@ export class WorksService {
         scriptModel: scriptResult.modelName,
         workflowStage: "GENERATING_STORYBOARD",
         progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD"),
+      });
+      await this.updateTaskOutputJson(taskId, {
+        workId,
+        stage: "GENERATING_STORYBOARD",
+        title: scriptResult.title,
+        scriptModel: scriptResult.modelName,
       });
       const storyboardResult = await this.generateVideoStoryboardPrompt(brandId, context, meta);
       const imageConfig = await this.loadImageGenerationExecutionConfig({
@@ -3465,7 +3525,14 @@ export class WorksService {
         ],
         progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO"),
       });
-      await this.markTaskSuccess(taskId, { workId, stage: "STORYBOARD_READY", title: meta.title });
+      await this.markTaskSuccess(taskId, {
+        workId,
+        stage: "STORYBOARD_READY",
+        title: meta.title,
+        scriptModel: meta.scriptModel,
+        storyboardPromptModel: storyboardResult.modelName,
+        storyboardImageModel: storyboardImage.modelName,
+      });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
     }
@@ -3474,6 +3541,7 @@ export class WorksService {
   private async runRegenerateVideoStoryboardTask(brandId: string, workId: string, taskId: string, storageKey: string) {
     try {
       await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_STORYBOARD", title: "重新生成故事板" });
       const target = await this.getVideoWorkRowById(brandId, workId);
       let meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
       const imageConfig = await this.loadImageGenerationExecutionConfig({
@@ -3507,7 +3575,13 @@ export class WorksService {
         ],
         progressSteps: this.buildVideoProgressSteps("WAITING_VIDEO"),
       });
-      await this.markTaskSuccess(taskId, { workId, stage: "STORYBOARD_READY", title: meta.title });
+      await this.markTaskSuccess(taskId, {
+        workId,
+        stage: "STORYBOARD_READY",
+        title: meta.title,
+        storyboardPromptModel: meta.storyboardPromptModel,
+        storyboardImageModel: storyboardImage.modelName,
+      });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
     }
@@ -3522,6 +3596,7 @@ export class WorksService {
   ) {
     try {
       await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_VIDEO", title: "生成短视频" });
       const target = await this.getVideoWorkRowById(brandId, workId);
       let meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...this.readVideoWorkMeta(this.getMediaMetadata(target)),
@@ -3584,7 +3659,13 @@ export class WorksService {
         coverImageUrl: videoResult.coverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
         progressSteps: this.buildVideoProgressSteps("SUCCESS"),
       });
-      await this.markTaskSuccess(taskId, { workId, stage: "VIDEO_READY", title: meta.title }, { modelName: videoResult.modelName });
+      await this.markTaskSuccess(taskId, {
+        workId,
+        stage: "VIDEO_READY",
+        title: meta.title,
+        videoPromptModel: promptResult.modelName,
+        videoModel: videoResult.modelName,
+      }, { modelName: videoResult.modelName });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
     }
@@ -3637,7 +3718,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -5171,7 +5252,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -5325,7 +5406,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -5485,7 +5566,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -5675,7 +5756,7 @@ export class WorksService {
                 provider.completionPath,
                 apiKey,
                 this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, VIDEO_STAGE_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
@@ -7309,6 +7390,13 @@ export class WorksService {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private resolveModelAttemptTimeoutMs(configuredTimeoutMs: number | undefined, defaultTimeoutMs: number) {
+    if (configuredTimeoutMs && configuredTimeoutMs > 0) {
+      return Math.min(configuredTimeoutMs, defaultTimeoutMs);
+    }
+    return defaultTimeoutMs;
   }
 
   private toDataUrl(payload: UploadFilePayload) {

@@ -4,6 +4,18 @@ import { createId, database } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 
+const ACTIVE_TASK_TIMEOUT_MS_BY_TYPE: Record<string, number> = {
+  BRAND_GROWTH_REPORT: 15 * 60 * 1000,
+  BRAND_GROWTH_VISUAL_REPORT: 10 * 60 * 1000,
+  BRAND_HALF_YEAR_MARKETING_PLAN: 15 * 60 * 1000,
+  XHS_MARKETING_PLAN: 60 * 60 * 1000,
+  DOUYIN_MARKETING_PLAN: 60 * 60 * 1000,
+  XHS_MARKETING_CALENDAR: 10 * 60 * 1000,
+  XHS_ORIGINAL_NOTE: 20 * 60 * 1000,
+  XHS_REWRITE_NOTE: 20 * 60 * 1000,
+  XHS_VIDEO_NOTE: 30 * 60 * 1000,
+};
+
 export type CreateTaskPayload = {
   userId?: string;
   brandId?: string;
@@ -24,8 +36,9 @@ export class TasksService {
         where: { userId },
         orderBy: { createdAt: "desc" },
       });
+      const normalizedTasks = await Promise.all(tasks.map((task) => this.normalizeDatabaseTaskStatus(task)));
 
-      return tasks.map((task) => ({
+      return normalizedTasks.map((task) => ({
         id: task.id,
         userId: task.userId,
         brandId: task.brandId ?? undefined,
@@ -46,6 +59,7 @@ export class TasksService {
 
     return [...database.tasks]
       .filter((item) => item.userId === userId)
+      .map((item) => this.normalizeMockTaskStatus(item))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
@@ -231,6 +245,85 @@ export class TasksService {
       throw new UnauthorizedException("请先登录");
     }
     return auth.userId;
+  }
+
+  private async normalizeDatabaseTaskStatus(task: {
+    id: string;
+    taskType: string;
+    taskTitle: string | null;
+    taskStatus: TaskStatus;
+    createdAt: Date;
+    updatedAt: Date;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    errorMessage: string | null;
+    userId: string;
+    brandId: string | null;
+    modelName: string | null;
+    pointsCost: number;
+    inputJson: unknown;
+    outputJson: unknown;
+  }) {
+    const timeoutMs = ACTIVE_TASK_TIMEOUT_MS_BY_TYPE[task.taskType];
+    if (!timeoutMs || (task.taskStatus !== TaskStatus.QUEUED && task.taskStatus !== TaskStatus.RUNNING)) {
+      return task;
+    }
+
+    const referenceMs = this.resolveTaskReferenceMs(task.startedAt, task.updatedAt, task.createdAt);
+    if (!referenceMs || Date.now() - referenceMs <= timeoutMs) {
+      return task;
+    }
+
+    return this.prismaService.task.update({
+      where: { id: task.id },
+      data: {
+        taskStatus: TaskStatus.FAILED,
+        finishedAt: new Date(),
+        errorMessage: this.buildTaskTimeoutMessage(task.taskTitle || task.taskType, timeoutMs),
+      },
+    });
+  }
+
+  private normalizeMockTaskStatus(task: {
+    taskType: string;
+    taskTitle: string;
+    taskStatus: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt?: string;
+    finishedAt?: string;
+    errorMessage?: string;
+  }) {
+    const timeoutMs = ACTIVE_TASK_TIMEOUT_MS_BY_TYPE[task.taskType];
+    if (!timeoutMs || (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING")) {
+      return task;
+    }
+
+    const referenceMs = this.resolveTaskReferenceMs(task.startedAt, task.updatedAt, task.createdAt);
+    if (!referenceMs || Date.now() - referenceMs <= timeoutMs) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    task.taskStatus = "FAILED";
+    task.finishedAt = finishedAt;
+    task.updatedAt = finishedAt;
+    task.errorMessage = this.buildTaskTimeoutMessage(task.taskTitle || task.taskType, timeoutMs);
+    return task;
+  }
+
+  private resolveTaskReferenceMs(startedAt?: Date | string | null, updatedAt?: Date | string | null, createdAt?: Date | string | null) {
+    const reference = startedAt || updatedAt || createdAt;
+    if (!reference) {
+      return 0;
+    }
+    const next = new Date(reference).getTime();
+    return Number.isFinite(next) ? next : 0;
+  }
+
+  private buildTaskTimeoutMessage(taskLabel: string, timeoutMs: number) {
+    const minutes = Math.round(timeoutMs / 60000);
+    return `${taskLabel}运行超过 ${minutes} 分钟，系统已自动终止并标记失败；请重试或切换兜底模型。`;
   }
 
   private async ensureBrandExists(brandId: string) {

@@ -291,6 +291,29 @@ export default function PersonalCenterTasksPage() {
                 <strong>{formatDateTime(task.updatedAt)}</strong>
               </div>
             </div>
+            <div className="personal-grid" style={{ marginTop: 12 }}>
+              <div>
+                <span>当前阶段</span>
+                <strong>{getTaskStageLabel(task)}</strong>
+              </div>
+              <div>
+                <span>心跳状态</span>
+                <strong>{getTaskHeartbeatLabel(task)}</strong>
+              </div>
+              <div>
+                <span>模型接力</span>
+                <strong>{getTaskFallbackLabel(task)}</strong>
+              </div>
+              <div>
+                <span>实际模型</span>
+                <strong>{getTaskModelSummary(task)}</strong>
+              </div>
+            </div>
+            {task.errorMessage ? (
+              <div className="workspace-status" style={{ marginTop: 12 }}>
+                <span className="status-text error-text">{task.errorMessage}</span>
+              </div>
+            ) : null}
             <div className="personal-actions">
               <button
                 type="button"
@@ -326,3 +349,118 @@ function sortByUpdatedAtDesc(a: TaskRecord, b: TaskRecord) {
 function canCancelTask(task: TaskRecord) {
   return task.taskStatus === "QUEUED" || task.taskStatus === "RUNNING";
 }
+
+function getTaskStageLabel(task: TaskRecord) {
+  const stage = String(task.outputJson?.stage || "").trim();
+  if (stage) {
+    return taskStageLabelMap[stage] || stage;
+  }
+  if (task.taskStatus === "QUEUED") {
+    return "排队中";
+  }
+  if (task.taskStatus === "RUNNING") {
+    return "执行中";
+  }
+  if (task.taskStatus === "SUCCESS") {
+    return "已完成";
+  }
+  if (task.taskStatus === "FAILED") {
+    return "执行失败";
+  }
+  if (task.taskStatus === "CANCELLED") {
+    return "已取消";
+  }
+  return "未记录";
+}
+
+function getTaskHeartbeatLabel(task: TaskRecord) {
+  const updatedMs = new Date(task.updatedAt).getTime();
+  if (!Number.isFinite(updatedMs)) {
+    return "未记录";
+  }
+  if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+    return "任务已结束";
+  }
+  const diffMs = Date.now() - updatedMs;
+  if (diffMs < 2 * 60 * 1000) {
+    return "刚刚更新";
+  }
+  if (diffMs < 10 * 60 * 1000) {
+    return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`;
+  }
+  return `心跳偏旧（${Math.max(1, Math.floor(diffMs / 60000))} 分钟前）`;
+}
+
+function getTaskFallbackLabel(task: TaskRecord) {
+  const modelSummary = getTaskModels(task);
+  if (modelSummary.length > 1) {
+    return "已多模型接力";
+  }
+  const attemptOrder = extractAttemptOrder(task.errorMessage);
+  if (attemptOrder.length > 1) {
+    return "失败前已切兜底";
+  }
+  if (task.taskStatus === "QUEUED" || task.taskStatus === "RUNNING") {
+    return "等待判断";
+  }
+  return "未触发";
+}
+
+function getTaskModelSummary(task: TaskRecord) {
+  const models = getTaskModels(task);
+  if (models.length) {
+    return models.join(" / ");
+  }
+  return task.modelName || "未记录";
+}
+
+function getTaskModels(task: TaskRecord) {
+  const output = task.outputJson || {};
+  return Array.from(new Set([
+    task.modelName,
+    readOutputString(output, "copyModel"),
+    readOutputString(output, "imagePromptModel"),
+    readOutputString(output, "imageGenerationModel"),
+    readOutputString(output, "scriptModel"),
+    readOutputString(output, "storyboardPromptModel"),
+    readOutputString(output, "storyboardImageModel"),
+    readOutputString(output, "videoPromptModel"),
+    readOutputString(output, "videoModel"),
+    readOutputString(output, "modelName"),
+  ].filter(Boolean)));
+}
+
+function readOutputString(output: Record<string, unknown>, key: string) {
+  const value = output[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function extractAttemptOrder(message?: string) {
+  const raw = String(message || "");
+  const marker = "实际尝试顺序：";
+  const index = raw.indexOf(marker);
+  if (index < 0) {
+    return [];
+  }
+  return raw
+    .slice(index + marker.length)
+    .split(/；|;|\||,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+const taskStageLabelMap: Record<string, string> = {
+  PREPARING_REFERENCES: "准备参考资料",
+  GENERATING_COPY: "生成文案",
+  GENERATING_IMAGE_PROMPTS: "生成图片提示词",
+  GENERATING_IMAGES: "生成图片",
+  SAVING_WORK: "保存结果",
+  WORK_READY: "成品已落库",
+  GENERATING_SCRIPT: "生成脚本",
+  GENERATING_STORYBOARD: "生成故事板",
+  STORYBOARD_READY: "故事板已完成",
+  WAITING_VIDEO: "等待视频阶段",
+  GENERATING_VIDEO: "生成视频",
+  VIDEO_PROVIDER_TASK_CREATED: "视频任务已提交三方",
+  VIDEO_READY: "视频已完成",
+};

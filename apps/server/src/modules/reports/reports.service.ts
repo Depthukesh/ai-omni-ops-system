@@ -19,6 +19,7 @@ const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const DOUYIN_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
+const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
 const LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND = "BRAND_ANNUAL_MARKETING_PLAN";
 const CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE = "BRAND_HALF_YEAR_MARKETING_PLAN";
@@ -3824,7 +3825,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildGrowthReportProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 90000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
 
               if (!response.ok) {
@@ -3913,7 +3914,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildVisualProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 120000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
 
               if (!response.ok) {
@@ -3988,7 +3989,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildAnnualMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 90000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
@@ -4051,7 +4052,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
@@ -4110,7 +4111,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 180000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 lastError = `${provider.provider}/${modelName} 接口请求失败: ${response.status}`;
@@ -4198,7 +4199,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 240000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 const responseText = this.truncateText(await response.text(), 240);
@@ -4270,7 +4271,7 @@ export class ReportsService {
                 provider.completionPath,
                 apiKey,
                 this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                provider.requestTimeoutMs ?? 240000,
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
               );
               if (!response.ok) {
                 const responseText = this.truncateText(await response.text(), 240);
@@ -7175,6 +7176,13 @@ ${normalizedMarkdown}`;
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private resolveModelAttemptTimeoutMs(configuredTimeoutMs: number | undefined, defaultTimeoutMs: number) {
+    if (configuredTimeoutMs && configuredTimeoutMs > 0) {
+      return Math.min(configuredTimeoutMs, defaultTimeoutMs);
+    }
+    return defaultTimeoutMs;
   }
 
   private extractMarkdownTitle(markdown: string) {
