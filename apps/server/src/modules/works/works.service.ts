@@ -1008,6 +1008,7 @@ export class WorksService {
         brandId,
         taskId: task.id,
         title: `原创笔记封面 - ${copyResult.title}`,
+        workLabel: "原创笔记",
         role: "COVER",
         order: 0,
         providers: originalImageGenerationConfig.providers,
@@ -1024,6 +1025,7 @@ export class WorksService {
             brandId,
             taskId: task.id,
             title: `原创笔记配图${index + 1} - ${copyResult.title}`,
+            workLabel: "原创笔记",
             role: "GALLERY",
             order: index + 1,
             providers: originalImageGenerationConfig.providers,
@@ -1257,6 +1259,7 @@ export class WorksService {
         brandId,
         taskId: task.id,
         title: `二创笔记封面 - ${copyResult.title}`,
+        workLabel: "二创笔记",
         role: "COVER",
         order: 0,
         providers: rewriteImageGenerationConfig.providers,
@@ -1272,6 +1275,7 @@ export class WorksService {
             brandId,
             taskId: task.id,
             title: `二创笔记配图${index + 1} - ${copyResult.title}`,
+            workLabel: "二创笔记",
             role: "GALLERY",
             order: index + 1,
             providers: rewriteImageGenerationConfig.providers,
@@ -2264,6 +2268,7 @@ export class WorksService {
     brandId: string;
     taskId: string;
     title: string;
+    workLabel: string;
     role: "COVER" | "GALLERY";
     order: number;
     providers: ImageProviderConfig[];
@@ -2336,7 +2341,10 @@ export class WorksService {
       }
     }
 
-    throw new ServiceUnavailableException(`原创笔记图片生成失败：${this.normalizeImageGenerationFailureMessage(lastError || "未获取到有效图片")}`);
+    const referenceContext = this.buildReferenceImageFailureContext(params.referenceImageUrls, params.referenceImagePayloads);
+    throw new ServiceUnavailableException(
+      `${params.workLabel}图片生成失败：${this.normalizeImageGenerationFailureMessage(lastError || "未获取到有效图片")}${referenceContext}`,
+    );
   }
 
   private async cacheRemoteGeneratedImage(brandId: string, fileName: string, remoteUrl: string, fallbackContentType: string) {
@@ -3434,6 +3442,7 @@ export class WorksService {
         brandId,
         taskId,
         title: `视频故事板 - ${meta.title}`,
+        workLabel: "视频故事板",
         role: "COVER",
         order: 0,
         providers: imageConfig.providers,
@@ -3477,6 +3486,7 @@ export class WorksService {
         brandId,
         taskId,
         title: `视频故事板 - ${meta.title}`,
+        workLabel: "视频故事板",
         role: "COVER",
         order: 0,
         providers: imageConfig.providers,
@@ -4872,6 +4882,28 @@ export class WorksService {
       return `上游图片接口请求超时，请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
     }
     return normalized;
+  }
+
+  private buildReferenceImageFailureContext(referenceImageUrls: string[], referenceImagePayloads?: UploadFilePayload[]) {
+    const urlSummary = Array.from(
+      new Set(
+        referenceImageUrls
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    )
+      .slice(0, 3)
+      .join(" | ");
+    const uploadSummary = (referenceImagePayloads || [])
+      .map((item) => String(item.fileName || "").trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(" | ");
+    const contextParts = [
+      urlSummary ? `参考图URL：${urlSummary}` : "",
+      uploadSummary ? `上传文件：${uploadSummary}` : "",
+    ].filter(Boolean);
+    return contextParts.length ? `；${contextParts.join("；")}` : "";
   }
 
   private async loadSkillModelPreference(
