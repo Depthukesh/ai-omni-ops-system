@@ -141,6 +141,8 @@ export type DouyinCollectedWorkRecord = {
   authorAvatar?: string;
   collectedAt: string;
   rawFields?: Record<string, unknown>;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
 };
 
 export type DouyinCollectionWorkspace = {
@@ -345,6 +347,14 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,
     "POST",
     payload,
+  );
+}
+
+export async function addDouyinBenchmarkWorkToMaterialLibrary(assetId: string, brandId?: string) {
+  return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/material-library`,
+    "POST",
+    { assetId },
   );
 }
 

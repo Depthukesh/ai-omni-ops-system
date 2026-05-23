@@ -176,6 +176,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   paginatedBrandNotes: XhsCollectedNoteRecord[];
   addingMaterialAssetId: string;
   onAddBenchmarkNoteToMaterial: ValueAction<string>;
+  onAddDouyinBenchmarkWorkToMaterial: ValueAction<string>;
   onPreviewMedia: ValueAction<MediaPreviewState>;
   buildFeishuMediaProxyUrl: (sourceUrl?: string, download?: boolean) => string;
   formatDateTime: OptionalDateFormatter;
@@ -914,6 +915,8 @@ function DouyinBrandWorksTable(props: {
 
 function DouyinBenchmarkWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
+  addingMaterialAssetId: string;
+  onAddToMaterialLibrary: ValueAction<string>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 }) {
@@ -922,6 +925,7 @@ function DouyinBenchmarkWorksTable(props: {
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
+            <th>素材库</th>
             <th>作品 ID</th>
             <th>作品描述</th>
             <th>作品时长</th>
@@ -943,6 +947,20 @@ function DouyinBenchmarkWorksTable(props: {
         <tbody>
           {props.items.map((item) => (
             <tr key={item.id}>
+              <td>
+                <button
+                  type="button"
+                  className={`secondary-button ${item.isInMaterialLibrary ? "is-disabled" : ""}`}
+                  onClick={() => void props.onAddToMaterialLibrary(item.id)}
+                  disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
+                >
+                  {item.isInMaterialLibrary
+                    ? "已加入素材库"
+                    : props.addingMaterialAssetId === item.id
+                      ? "加入中..."
+                      : "加入素材库"}
+                </button>
+              </td>
               <td><CopyableCell value={item.workId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
@@ -1750,6 +1768,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   {douyinPreviewItems.length ? (
                     <DouyinBenchmarkWorksTable
                       items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                      addingMaterialAssetId={props.addingMaterialAssetId}
+                      onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                       formatDateTime={props.formatDateTime}
                       formatCount={props.formatCount}
                     />

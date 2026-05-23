@@ -18,14 +18,18 @@ import {
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
+import { MediaLightbox } from "../xiaohongshu/media-lightbox";
+import { type MediaLightboxState } from "../xiaohongshu/shared-types";
+import { DouyinAssetsWorkspace } from "./assets-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan";
+type DouyinSectionKey = "plan" | "assets";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
+  { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的对标作品，沿用卡片化素材浏览方式。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -76,6 +80,9 @@ export function DouyinWorkspaceShell() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedMaterialId, setSelectedMaterialId] = useState("");
+  const [materialPreviewIndexMap, setMaterialPreviewIndexMap] = useState<Record<string, number>>({});
+  const [materialLightbox, setMaterialLightbox] = useState<MediaLightboxState | null>(null);
 
   const latestMarketingPlan = marketingPlanWorkspace.latest;
   const latestTask = marketingPlanWorkspace.latestTask;
@@ -83,6 +90,10 @@ export function DouyinWorkspaceShell() {
   const permissionEntry = brandPermissionSettings?.currentUserPermissions?.["douyin.plan"];
   const hasWorkspaceAccess = permissionEntry?.view ?? true;
   const canEditMarketingPlan = permissionEntry?.edit ?? true;
+  const materialWorks = useMemo(
+    () => collectionWorkspace.benchmarkWorks.filter((item) => item.isInMaterialLibrary),
+    [collectionWorkspace.benchmarkWorks],
+  );
   const canGenerateMarketingPlan = Boolean(
     growthReportWorkspace.latest
     && annualPlanWorkspace.latest
@@ -90,7 +101,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前仅开放首个模块“营销策划方案”，输入自动组合品牌增长报告、半年营销规划与抖音采集数据。";
+  const heroDescription = "当前开放营销策划方案与素材库，可直接复用品牌增长策略里沉淀的抖音对标作品。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -166,6 +177,16 @@ export function DouyinWorkspaceShell() {
   useEffect(() => {
     setMarketingPlanDraft(marketingPlanWorkspace.latest?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
+
+  useEffect(() => {
+    if (!materialWorks.length) {
+      setSelectedMaterialId("");
+      return;
+    }
+    if (!materialWorks.some((item) => item.id === selectedMaterialId)) {
+      setSelectedMaterialId(materialWorks[0]?.id || "");
+    }
+  }, [materialWorks, selectedMaterialId]);
 
   useEffect(() => {
     if (!isTaskActive) {
@@ -261,6 +282,23 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditMarketingPlan, latestMarketingPlan]);
 
+  const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
+    if (!materialId || total <= 0) {
+      return;
+    }
+    setMaterialPreviewIndexMap((current) => {
+      const nextIndex = ((current[materialId] ?? 0) + delta + total) % total;
+      return {
+        ...current,
+        [materialId]: nextIndex,
+      };
+    });
+  }, []);
+
+  const openMaterialLightbox = useCallback((payload: MediaLightboxState) => {
+    setMaterialLightbox(payload);
+  }, []);
+
   return (
     <main className="workspace-page workspace-page--strategy">
       <section className="workspace-card workspace-card--bleed strategy-page-card">
@@ -337,6 +375,21 @@ export function DouyinWorkspaceShell() {
                   </div>
                 </section>
 
+                {activeSection === "assets" ? (
+                  <DouyinAssetsWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    items={materialWorks}
+                    selectedMaterialId={selectedMaterialId}
+                    previewIndexMap={materialPreviewIndexMap}
+                    onRefresh={() => loadWorkspace()}
+                    onSelectMaterial={setSelectedMaterialId}
+                    onShiftPreview={shiftMaterialPreview}
+                    onOpenLightbox={openMaterialLightbox}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : (
                 <article className="workspace-panel strategy-page-card">
                   <div className="strategy-card-toolbar">
                     <div>
@@ -431,6 +484,8 @@ export function DouyinWorkspaceShell() {
                     )}
                   </article>
                 </article>
+                )}
+                <MediaLightbox state={materialLightbox} onClose={() => setMaterialLightbox(null)} />
               </div>
             </>
           )}

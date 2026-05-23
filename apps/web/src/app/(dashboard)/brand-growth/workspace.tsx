@@ -31,6 +31,7 @@ import {
   getReportTaskStatusText,
 } from "./task-status-helpers";
 import {
+  addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
@@ -1108,6 +1109,30 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleAddDouyinBenchmarkWorkToMaterial(assetId: string) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
+      return;
+    }
+    if (!assetId) {
+      return;
+    }
+
+    setAddingMaterialAssetId(assetId);
+    clearMessages();
+
+    try {
+      const response = await addDouyinBenchmarkWorkToMaterialLibrary(assetId, activeBrandId || archive.brand.id);
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice("已加入抖音素材库。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加入素材库失败";
+      setErrorMessage(`加入抖音素材库失败：${message}`);
+    } finally {
+      setAddingMaterialAssetId("");
+    }
+  }
+
   async function handleSyncDouyinWorkspace() {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
       setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
@@ -1475,6 +1500,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         paginatedBrandNotes={paginatedBrandNotes}
         addingMaterialAssetId={addingMaterialAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
+        onAddDouyinBenchmarkWorkToMaterial={handleAddDouyinBenchmarkWorkToMaterial}
         onPreviewMedia={setMediaPreview}
         buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, activeBrandId || archive.brand.id)}
         formatDateTime={formatDateTime}

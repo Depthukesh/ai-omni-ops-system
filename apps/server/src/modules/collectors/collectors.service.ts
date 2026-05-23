@@ -225,6 +225,8 @@ export type DouyinCollectedWorkRecord = {
   authorLikedCount?: number;
   authorAvatar?: string;
   collectedAt: string;
+  isInMaterialLibrary?: boolean;
+  materialAddedAt?: string;
 };
 
 export type DouyinCollectionWorkspace = {
@@ -481,6 +483,37 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         materialAddedAt,
       },
       workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
+  async addDouyinBenchmarkWorkToMaterialLibrary(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    if (this.readMetaString(meta, "kind") !== "DOUYIN_BENCHMARK_WORK") {
+      throw new BadRequestException("仅支持将抖音对标作品加入素材库");
+    }
+
+    const materialAddedAt = this.readMetaString(meta, "materialAddedAt") || new Date().toISOString();
+    await this.updateCollectorAssetMeta(brandId, assetId, {
+      inMaterialLibrary: true,
+      materialAddedAt,
+    });
+
+    return {
+      item: {
+        ...this.mapDouyinCollectedWork({
+          ...asset,
+          metadataJson: {
+            ...meta,
+            inMaterialLibrary: true,
+            materialAddedAt,
+          },
+        }, "DOUYIN_BENCHMARK_WORK"),
+        isInMaterialLibrary: true,
+        materialAddedAt,
+      },
+      workspace: await this.getDouyinWorkspace(brandId),
     };
   }
 
@@ -899,6 +932,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       authorLikedCount: this.readMetaNumber(meta, "authorLikedCount"),
       authorAvatar: this.readMetaString(meta, "authorAvatar") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+      isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
+      materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
     };
   }
 
@@ -914,7 +949,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (!asset) {
-        throw new NotFoundException("未找到对应的小红书采集记录");
+        throw new NotFoundException("未找到对应的采集记录");
       }
 
       return {
@@ -932,7 +967,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const asset = database.assets.find((item) => item.id === assetId && item.brandId === brandId && item.category === "PLATFORM_EXPORT");
     if (!asset) {
-      throw new NotFoundException("未找到对应的小红书采集记录");
+      throw new NotFoundException("未找到对应的采集记录");
     }
     return {
       ...asset,
@@ -951,7 +986,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (!asset) {
-        throw new NotFoundException("未找到对应的小红书采集记录");
+        throw new NotFoundException("未找到对应的采集记录");
       }
 
       await this.prismaService.businessAsset.update({
@@ -968,7 +1003,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const index = database.assets.findIndex((item) => item.id === assetId && item.brandId === brandId && item.category === "PLATFORM_EXPORT");
     if (index < 0) {
-      throw new NotFoundException("未找到对应的小红书采集记录");
+      throw new NotFoundException("未找到对应的采集记录");
     }
 
     database.assets[index] = {

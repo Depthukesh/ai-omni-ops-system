@@ -131,4 +131,15 @@ export class DouyinCollectorsController {
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.syncDouyinWorkspace(brandId, payload ?? {});
   }
+
+  @Post("brands/:brandId/material-library")
+  async addBenchmarkWorkToMaterialLibrary(
+    @Param("brandId") brandId: string,
+    @Body() payload: { assetId: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.addDouyinBenchmarkWorkToMaterialLibrary(brandId, payload.assetId);
+  }
 }
