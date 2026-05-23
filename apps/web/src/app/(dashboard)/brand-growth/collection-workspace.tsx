@@ -603,10 +603,8 @@ function DouyinWorkPreviewCard(props: {
 
 function DouyinSubmitPanel(props: {
   title: string;
-  helperText: string;
   value: string;
   placeholder: string;
-  docs: Array<{ label: string; href: string }>;
   isSubmitting: boolean;
   onChange: ValueAction<string>;
   onSubmit: AsyncAction;
@@ -616,21 +614,12 @@ function DouyinSubmitPanel(props: {
       <div className="collection-result-head">
         <div>
           <h3>{props.title}</h3>
-          <p>{props.helperText}</p>
         </div>
         <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
           {props.isSubmitting ? "提交中..." : "提交"}
         </button>
       </div>
-      <div className="strategy-chip-row" style={{ marginBottom: 12 }}>
-        {props.docs.map((item) => (
-          <a key={item.href} href={item.href} target="_blank" rel="noreferrer" className="secondary-button">
-            {item.label}
-          </a>
-        ))}
-      </div>
       <label className="field">
-        <span>{props.title}</span>
         <textarea
           rows={4}
           value={props.value}
@@ -1646,7 +1635,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <div className="strategy-card-toolbar">
               <div>
                 <strong>抖音</strong>
-                <p>抖音板块通过 Tikhub 第三方接口直连获取数据。四个分组分别录入并提交，结果直接按表格展示。</p>
+                <p>四个分组分别提交，结果直接按表格展示。</p>
               </div>
             </div>
             <div className="strategy-chip-row">
@@ -1672,12 +1661,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             {props.activeDouyinCollectionCard === "brandAccount" ? (
               <>
                 <DouyinSubmitPanel
-                  title="品牌抖音主页链接 / sec_user_id"
-                  helperText="录入品牌抖音主页链接或 sec_user_id，提交后调用【获取指定用户的信息】采集品牌账号信息。"
+                  title="品牌抖音主页链接"
                   value={props.douyinSyncForm.brandAccountLinks}
                   onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
-                  docs={[{ label: "查看账号信息文档", href: "https://docs.tikhub.io/186826222e0" }]}
+                  placeholder="每行一个"
                   isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                   onSubmit={props.onSyncDouyinWorkspace}
                 />
@@ -1685,7 +1672,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div className="collection-result-head">
                     <div>
                       <h3>品牌账号信息</h3>
-                      <p>结果以表格呈现 `nickname`、`unique_id`、`signature`、`avatar_300x300`、`follower_count`、`following_count`、`aweme_count`、`total_favorited`。</p>
                     </div>
                   </div>
                   {douyinPreviewItems.length ? (
@@ -1695,7 +1681,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                       formatCount={props.formatCount}
                     />
                   ) : (
-                    <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接或 sec_user_id 并提交。</div>
+                    <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接并提交。</div>
                   )}
                 </article>
               </>
@@ -1703,12 +1689,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             {props.activeDouyinCollectionCard === "competitorAccount" ? (
               <>
                 <DouyinSubmitPanel
-                  title="竞品抖音主页链接 / sec_user_id"
-                  helperText="录入竞品抖音主页链接或 sec_user_id，提交后调用【获取指定用户的信息】采集竞品账号信息。"
+                  title="竞品抖音主页链接"
                   value={props.douyinSyncForm.competitorAccountLinks}
                   onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: value }))}
-                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
-                  docs={[{ label: "查看账号信息文档", href: "https://docs.tikhub.io/186826222e0" }]}
+                  placeholder="每行一个"
                   isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                   onSubmit={props.onSyncDouyinWorkspace}
                 />
@@ -1716,7 +1700,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div className="collection-result-head">
                     <div>
                       <h3>竞品账号信息</h3>
-                      <p>结果以表格呈现 `nickname`、`unique_id`、`signature`、`avatar_300x300`、`follower_count`、`following_count`、`aweme_count`、`total_favorited`。</p>
                     </div>
                   </div>
                   {douyinPreviewItems.length ? (
@@ -1726,7 +1709,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                       formatCount={props.formatCount}
                     />
                   ) : (
-                    <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接或 sec_user_id 并提交。</div>
+                    <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接并提交。</div>
                   )}
                 </article>
               </>
@@ -1734,12 +1717,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             {props.activeDouyinCollectionCard === "brandWorks" ? (
               <>
                 <DouyinSubmitPanel
-                  title="品牌抖音主页链接 / sec_user_id"
-                  helperText="录入品牌抖音主页链接或 sec_user_id，提交后调用【获取用户主页作品数据】采集品牌作品信息及数据。"
+                  title="品牌抖音主页链接"
                   value={props.douyinSyncForm.brandAccountLinks}
                   onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                  placeholder="每行一个，支持 https://www.douyin.com/user/... 或直接粘贴 sec_user_id"
-                  docs={[{ label: "查看主页作品文档", href: "https://docs.tikhub.io/186826223e0" }]}
+                  placeholder="每行一个"
                   isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                   onSubmit={props.onSyncDouyinWorkspace}
                 />
@@ -1747,7 +1728,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   <div className="collection-result-head">
                     <div>
                       <h3>品牌作品信息及数据</h3>
-                      <p>结果以表格呈现 `aweme_id`、`desc`、`create_time`、`media_type`、`duration`、`statistics`、`images`、`aweme_type`、`video_download_addr`。</p>
                     </div>
                   </div>
                   {douyinPreviewItems.length ? (
@@ -1757,7 +1737,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                       formatCount={props.formatCount}
                     />
                   ) : (
-                    <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接或 sec_user_id 并提交。</div>
+                    <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接并提交。</div>
                   )}
                 </article>
               </>
@@ -1765,15 +1745,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             {props.activeDouyinCollectionCard === "benchmarkWorks" ? (
               <>
                 <DouyinSubmitPanel
-                  title="对标作品 aweme_id / 作品链接"
-                  helperText="录入对标作品 aweme_id 或作品链接，提交后组合【获取单个作品数据 V3】和【根据视频 ID 获取作品统计数据】补齐播放量。"
+                  title="对标作品链接"
                   value={props.douyinSyncForm.benchmarkAwemeIds}
                   onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: value }))}
-                  placeholder="每行一个，支持 aweme_id、/video/xxx、/note/xxx 链接"
-                  docs={[
-                    { label: "查看单作品文档", href: "https://docs.tikhub.io/406098636e0" },
-                    { label: "查看统计文档", href: "https://docs.tikhub.io/186826221e0" },
-                  ]}
+                  placeholder="每行一个"
                   isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
                   onSubmit={props.onSyncDouyinWorkspace}
                 />
@@ -1792,7 +1767,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                       formatCount={props.formatCount}
                     />
                   ) : (
-                    <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入 aweme_id 或作品链接并提交。</div>
+                    <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
                   )}
                 </article>
               </>

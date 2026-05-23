@@ -20,9 +20,10 @@
 
 - `/`：统一认证入口，默认展示邀请码注册，并可切换到普通登录；已登录用户会自动回到目标前台页面
 - `/brand-growth`：品牌增长策略工作台
+- `/douyin`：抖音工作台
 - `/xiaohongshu`：小红书工作台
 - `/personal-center`：个人中心
-- `/personal-center/*`、`/brand-growth`、`/xiaohongshu`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
+- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
 - `/admin`：后台管理台，仅管理员角色账号可进入
 - `/help/xhs-draft-publisher`：小红书电脑端一键发布扩展的下载与安装帮助页
 - `/login`：兼容登录页，已接入账号密码登录，并提供回流根页注册入口
@@ -82,6 +83,13 @@
   - 当前“小红书平台”中的“打开飞书模板”入口已直接指向最新的飞书 Base 副本链接 `https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink`
   - 飞书同步排障阶段临时加入的“同步诊断”折叠面板已从正式页面移除；作品卡片默认只保留正文、指标、附件与作品链接等用户向信息
   - 当前品牌作品/对标作品中的受保护附件预览已切到 `(dashboard)` 共享 blob 缓存层；同一飞书附件在翻页、重复预览和跨卡片回看时不再总是重新鉴权拉取
+- 抖音平台
+  - 当前收口为 4 组输入：品牌账号信息、竞品账号信息、品牌作品信息及数据、对标作品信息及数据；输入区已去掉 `aweme_id / sec_user_id` 等技术说明与查看文档按钮，只保留业务标题、输入框与提交按钮
+  - 当前抖音作品采集会在后端采集完成时立即下载视频并写入 OSS 或开发态本地回退存储，页面与素材库优先读取缓存视频，不再直接依赖会过期的抖音临时视频直链
+  - 当前抖音视频缓存按 `collectors/<brandId>/douyin/videos/<workId>.<ext>` 存储，并由 scheduler 每日清理超过 7 天的缓存对象
+  - 当前抖音对标作品表首列已改为素材库勾选方框；勾选后进入抖音素材库，再次取消勾选会同步移出素材库
+  - 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
+  - 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
 - 每日热点
 
 #### 品牌增长报告
@@ -216,7 +224,18 @@
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-props-split.md`
 - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-section-split.md`
 
-### 3.3 个人中心 `/personal-center`
+### 3.3 抖音 `/douyin`
+
+- 当前页面已作为独立工作台存在，入口为 `apps/web/src/app/(dashboard)/douyin/page.tsx`，业务编排壳层为 `workspace-shell.tsx`
+- 当前板块已包含：
+  - 营销策划方案
+  - 素材库
+- 当前素材库直接消费品牌增长策略中“收集数据 -> 抖音 -> 对标作品信息及数据”被勾选入库的作品
+- 当前素材卡片中的视频预览优先读取抖音采集阶段缓存到 OSS 的视频签名地址，降低采集直链过期后素材库打不开的概率
+- 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
+- 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
+
+### 3.4 个人中心 `/personal-center`
 
 - 个人信息
 - 点数流水
@@ -286,7 +305,7 @@
 - 规划中：
   - `/personal-center/security`：登录态、密码、安全设置
 
-### 3.4 后台管理 `/admin`
+### 3.5 后台管理 `/admin`
 
 - 仪表盘
 - 订单管理

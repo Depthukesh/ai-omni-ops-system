@@ -32,6 +32,7 @@ flowchart TD
 
     B --> B1["统一认证入口 /"]
     B --> B2["品牌增长策略 /brand-growth"]
+    B --> B25["抖音工作台 /douyin"]
     B --> B3["小红书工作台 /xiaohongshu"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
@@ -105,6 +106,7 @@ flowchart LR
     Auth --> AdminLogin["/admin/login"]
 
     Dash --> BrandGrowth["/brand-growth"]
+    Dash --> Douyin["/douyin"]
     Dash --> Xiaohongshu["/xiaohongshu"]
     Dash --> Personal["/personal-center"]
     Dash --> Admin["/admin"]
@@ -143,6 +145,7 @@ flowchart TD
     S1 --> API1["/brands/*"]
     S1 --> API2["/auth/feishu/*"]
     S2 --> API3["/collectors/xiaohongshu/*"]
+    S2 --> API31["/collectors/douyin/*"]
     S3 --> API4["/collectors/daily-hotspots/*"]
     S4 --> API5["/reports/*"]
     S1 --> S10["auth-session.ts 当前品牌解析"]
@@ -153,6 +156,7 @@ flowchart TD
     API1 --> M1["BrandsModule 品牌访问校验"]
     API2 --> M2["AuthModule"]
     API3 --> M3["CollectorsModule 品牌访问校验"]
+    API31 --> M3
     API4 --> M3
     API5 --> M4["ReportsModule 品牌访问校验"]
 
@@ -189,6 +193,11 @@ flowchart LR
     A --> A31["打开飞书模板 -> 最新 Base 副本"]
     A --> A4["小红书收集结果"]
     A --> A41["正式页不再显示同步诊断"]
+    A --> A6["抖音 4 组采集输入"]
+    A6 --> A61["品牌账号 / 竞品账号 / 品牌作品 / 对标作品"]
+    A6 --> A62["技术说明与查看文档按钮已移除"]
+    A6 --> A63["对标作品首列勾选方框 -> 加入/移出素材库"]
+    A6 --> A64["采集时立刻缓存视频到 OSS，7 天后自动清理"]
     A --> A5["每日热点"]
 
     B["library-workspace.tsx"]

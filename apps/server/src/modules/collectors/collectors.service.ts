@@ -1,12 +1,14 @@
+import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, Prisma } from "@prisma/client";
 import { createId, database, type AssetRecord, type PlatformAccountRecord } from "../../common/mock-data";
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
 import { SchedulerService } from "../scheduler/scheduler.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
@@ -288,10 +290,14 @@ export type DailyHotspotWorkspace = {
 @Injectable()
 export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
+  private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
+  private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor(
     @Inject(PrismaService)
     private readonly prismaService: PrismaService,
+    @Inject(OssStorageService)
+    private readonly ossStorageService: OssStorageService,
     @Inject(SchedulerService)
     private readonly schedulerService: SchedulerService,
     @Inject(ThirdPartyPlatformsService)
@@ -307,10 +313,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       shouldRunOnStartup: () => this.shouldCatchUpDailyHotspotRun(),
       onTick: () => this.runDailyHotspotSyncJob(),
     });
+    this.schedulerService.registerDailyJob({
+      name: CollectorsService.DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME,
+      hour: 5,
+      minute: 15,
+      runOnStartupIfMissed: true,
+      onTick: () => this.cleanupExpiredDouyinVideoCaches(),
+    });
   }
 
   onModuleDestroy() {
     this.schedulerService.unregisterJob(CollectorsService.DAILY_HOTSPOT_JOB_NAME);
+    this.schedulerService.unregisterJob(CollectorsService.DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME);
   }
 
   async getXiaohongshuWorkspace(brandId: string): Promise<XhsCollectionWorkspace> {
@@ -777,6 +791,29 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
+  private async listAllCollectorAssets(): Promise<AssetRecord[]> {
+    if (await this.prismaService.canUseDatabase()) {
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return assets.map((item) => ({
+        id: item.id,
+        brandId: item.brandId,
+        category: "PLATFORM_EXPORT" as const,
+        title: item.title,
+        description: item.description ?? "",
+        sourceName: "平台采集",
+        fileUrl: item.fileUrl ?? undefined,
+        metadataJson: this.asMeta(item.metadataJson),
+      }));
+    }
+
+    return database.assets.filter((item) => item.category === "PLATFORM_EXPORT");
+  }
+
   private async getWorkspaceFromDatabase(brandId: string): Promise<XhsCollectionWorkspace> {
     return this.buildWorkspaceFromAssets(await this.listCollectorAssets(brandId));
   }
@@ -940,7 +977,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       workUrl: this.readMetaString(meta, "workUrl") || asset.fileUrl,
       coverUrl: this.readMetaString(meta, "coverUrl") || undefined,
       imageList: this.readMetaStringArray(meta, "imageList"),
-      videoUrl: this.readMetaString(meta, "videoUrl") || undefined,
+      videoUrl: this.resolveDouyinVideoPlaybackUrl(asset, meta),
       hashtags: this.readMetaStringArray(meta, "hashtags"),
       publishTimeText: this.readMetaString(meta, "publishTimeText") || undefined,
       durationMs: this.readMetaNumber(meta, "durationMs"),
@@ -968,6 +1005,101 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
       materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
     };
+  }
+
+  private resolveDouyinVideoPlaybackUrl(asset: AssetRecord, meta: Record<string, unknown>) {
+    const fallbackUrl = this.readMetaString(meta, "videoUrl");
+    const storageKey = this.readMetaString(meta, "videoStorageKey");
+    const expiresAt = this.readMetaString(meta, "videoCacheExpiresAt");
+    if (!storageKey || this.isIsoDateExpired(expiresAt)) {
+      return fallbackUrl || undefined;
+    }
+    if (!this.ossStorageService.isEnabled()) {
+      return fallbackUrl || undefined;
+    }
+    try {
+      return this.ossStorageService.getSignedReadUrl(storageKey, 3600);
+    } catch {
+      return fallbackUrl || asset.fileUrl || undefined;
+    }
+  }
+
+  private async cacheDouyinVideoForMetadata(
+    brandId: string,
+    workId: string,
+    metadata: Record<string, unknown>,
+  ) {
+    const sourceUrl = this.readMetaString(metadata, "videoUrl");
+    if (!sourceUrl) {
+      return metadata;
+    }
+    const cached = await this.cacheDouyinVideoAsset(brandId, workId, sourceUrl);
+    return {
+      ...metadata,
+      videoSourceUrl: sourceUrl,
+      videoStorageKey: cached.storageKey,
+      videoContentType: cached.contentType,
+      videoCachedAt: cached.cachedAt,
+      videoCacheExpiresAt: cached.expiresAt,
+    };
+  }
+
+  private async cacheDouyinVideoAsset(brandId: string, workId: string, sourceUrl: string) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const response = await fetch(sourceUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`抖音视频下载失败：${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") || this.guessDouyinVideoContentType(sourceUrl);
+      const storageKey = this.buildDouyinVideoStorageKey(brandId, workId, contentType, sourceUrl);
+      await this.ossStorageService.putObject(storageKey, buffer, contentType);
+      const cachedAt = new Date().toISOString();
+      return {
+        storageKey,
+        contentType,
+        cachedAt,
+        expiresAt: new Date(Date.parse(cachedAt) + CollectorsService.DOUYIN_VIDEO_CACHE_TTL_MS).toISOString(),
+      };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "未知错误";
+      throw new ServiceUnavailableException(`抖音视频缓存到 OSS 失败：${detail}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async cleanupExpiredDouyinVideoCaches() {
+    const assets = await this.listAllCollectorAssets();
+    const expiredAssets = assets.filter((asset) => {
+      const meta = this.asMeta(asset.metadataJson);
+      const kind = this.readMetaString(meta, "kind");
+      const storageKey = this.readMetaString(meta, "videoStorageKey");
+      return (
+        (kind === "DOUYIN_BRAND_WORK" || kind === "DOUYIN_BENCHMARK_WORK")
+        && Boolean(storageKey)
+        && this.isIsoDateExpired(this.readMetaString(meta, "videoCacheExpiresAt"))
+      );
+    });
+
+    for (const asset of expiredAssets) {
+      const meta = this.asMeta(asset.metadataJson);
+      const storageKey = this.readMetaString(meta, "videoStorageKey");
+      if (storageKey) {
+        await this.ossStorageService.deleteObject(storageKey).catch(() => false);
+      }
+      await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+        videoStorageKey: "",
+        videoContentType: "",
+        videoCachedAt: "",
+        videoCacheExpiresAt: "",
+      });
+    }
   }
 
   private async getCollectorAssetById(brandId: string, assetId: string): Promise<AssetRecord> {
@@ -2736,6 +2868,52 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         || this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
         || this.normalizeDouyinNoteUrl(workId, workType);
       const imageList = this.extractDouyinImageList(detail).length ? this.extractDouyinImageList(detail) : this.extractDouyinImageList(aweme);
+      const videoSourceUrl =
+        this.pickString(aweme, ["video_download_addr"])
+        || this.extractDouyinVideoUrl(detail)
+        || this.extractDouyinVideoUrl(aweme)
+        || undefined;
+      const metadata = await this.cacheDouyinVideoForMetadata(brandId, workId, {
+        kind,
+        sourceAccountId: account.id,
+        sourceAccountLink: account.accountLink,
+        workId,
+        workUrl,
+        workType,
+        authorName: this.pickString(aweme, ["nickname"]) || this.pickString(detailAuthor, ["nickname"]) || account.accountName,
+        authorUniqueId: this.pickString(aweme, ["unique_id"]) || this.pickString(detailAuthor, ["unique_id"]) || undefined,
+        externalUserId: this.pickString(aweme, ["author_user_id", "uid"]) || this.pickString(detailAuthor, ["uid"]) || undefined,
+        coverUrl: this.extractDouyinCoverUrl(detail) || this.extractDouyinCoverUrl(aweme) || undefined,
+        imageList,
+        videoUrl: videoSourceUrl,
+        hashtags: this.extractDouyinHashtags(detail).length ? this.extractDouyinHashtags(detail) : this.extractDouyinHashtags(aweme),
+        publishTimeText: this.formatUnixTimestampText(this.pickNumber(aweme, ["create_time"])),
+        durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]) ?? this.pickNumber(aweme, ["duration"]),
+        mediaType: this.pickNumber(aweme, ["media_type"]),
+        awemeType: this.pickNumber(aweme, ["aweme_type"]) ?? this.pickNumber(detail, ["aweme_type"]),
+        musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
+        musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
+        likeCount,
+        playCount,
+        shareCount,
+        commentCount,
+        collectCount,
+        downloadCount,
+        recommendCount,
+        likeCollectRatio: this.computeRatio(likeCount, collectCount),
+        likeCommentRatio: this.computeRatio(likeCount, commentCount),
+        shareRatio: this.computeRatio(shareCount, playCount),
+        statsPatched: statisticsMap.has(workId),
+        authorFollowerCount: this.pickNumber(detailAuthor, ["follower_count"]),
+        authorLikedCount: this.pickNumber(detailAuthor, ["total_favorited"]),
+        authorAvatar: this.extractFirstUrlFromObject(detailAuthor, "avatar_300x300") || undefined,
+        collectedAt,
+        rawFields: {
+          aweme,
+          detail,
+          statistics,
+        },
+      });
 
       const asset = await this.upsertCollectorAsset({
         brandId,
@@ -2744,51 +2922,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         title,
         description,
         fileUrl: workUrl,
-        metadata: {
-          kind,
-          sourceAccountId: account.id,
-          sourceAccountLink: account.accountLink,
-          workId,
-          workUrl,
-          workType,
-          authorName: this.pickString(aweme, ["nickname"]) || this.pickString(detailAuthor, ["nickname"]) || account.accountName,
-          authorUniqueId: this.pickString(aweme, ["unique_id"]) || this.pickString(detailAuthor, ["unique_id"]) || undefined,
-          externalUserId: this.pickString(aweme, ["author_user_id", "uid"]) || this.pickString(detailAuthor, ["uid"]) || undefined,
-          coverUrl: this.extractDouyinCoverUrl(detail) || this.extractDouyinCoverUrl(aweme) || undefined,
-          imageList,
-          videoUrl:
-            this.pickString(aweme, ["video_download_addr"])
-            || this.extractDouyinVideoUrl(detail)
-            || this.extractDouyinVideoUrl(aweme)
-            || undefined,
-          hashtags: this.extractDouyinHashtags(detail).length ? this.extractDouyinHashtags(detail) : this.extractDouyinHashtags(aweme),
-          publishTimeText: this.formatUnixTimestampText(this.pickNumber(aweme, ["create_time"])),
-          durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]) ?? this.pickNumber(aweme, ["duration"]),
-          mediaType: this.pickNumber(aweme, ["media_type"]),
-          awemeType: this.pickNumber(aweme, ["aweme_type"]) ?? this.pickNumber(detail, ["aweme_type"]),
-          musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
-          musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
-          likeCount,
-          playCount,
-          shareCount,
-          commentCount,
-          collectCount,
-          downloadCount,
-          recommendCount,
-          likeCollectRatio: this.computeRatio(likeCount, collectCount),
-          likeCommentRatio: this.computeRatio(likeCount, commentCount),
-          shareRatio: this.computeRatio(shareCount, playCount),
-          statsPatched: statisticsMap.has(workId),
-          authorFollowerCount: this.pickNumber(detailAuthor, ["follower_count"]),
-          authorLikedCount: this.pickNumber(detailAuthor, ["total_favorited"]),
-          authorAvatar: this.extractFirstUrlFromObject(detailAuthor, "avatar_300x300") || undefined,
-          collectedAt,
-          rawFields: {
-            aweme,
-            detail,
-            statistics,
-          },
-        },
+        metadata,
       });
 
       rows.push(this.mapDouyinCollectedWork(asset, kind));
@@ -2843,6 +2977,48 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const workUrl =
       this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
       || this.normalizeDouyinNoteUrl(workId, workType);
+    const metadata = await this.cacheDouyinVideoForMetadata(brandId, workId, {
+      kind: "DOUYIN_BENCHMARK_WORK",
+      sourceAccountId: this.pickString(author, ["sec_uid"]) || workId,
+      accountLink,
+      sourceAccountLink: accountLink,
+      workId,
+      workUrl,
+      workType,
+      authorName: this.pickString(author, ["nickname"]) || undefined,
+      authorUniqueId: this.pickString(author, ["unique_id"]) || undefined,
+      externalUserId: this.pickString(author, ["uid"]) || undefined,
+      coverUrl: this.extractDouyinCoverUrl(detail) || undefined,
+      imageList: this.extractDouyinImageList(detail),
+      videoUrl: this.extractDouyinVideoUrl(detail) || undefined,
+      hashtags: this.extractDouyinHashtags(detail),
+      publishTimeText: this.formatUnixTimestampText(this.pickNumber(detail, ["create_time"])),
+      durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]),
+      mediaType: this.pickNumber(detail, ["media_type"]),
+      awemeType: this.pickNumber(detail, ["aweme_type"]),
+      musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
+      musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
+      likeCount,
+      playCount,
+      shareCount,
+      commentCount,
+      collectCount,
+      downloadCount,
+      recommendCount,
+      likeCollectRatio: this.computeRatio(likeCount, collectCount),
+      likeCommentRatio: this.computeRatio(likeCount, commentCount),
+      shareRatio: this.computeRatio(shareCount, playCount),
+      statsPatched: statisticsMap.has(workId),
+      authorFollowerCount: this.pickNumber(author, ["follower_count"]),
+      authorLikedCount: this.pickNumber(author, ["total_favorited"]),
+      authorAvatar: this.extractFirstUrlFromObject(author, "avatar_300x300") || undefined,
+      collectedAt,
+      rawFields: {
+        detail,
+        statistics,
+        statisticsPatchError: statisticsPatchError || undefined,
+      },
+    });
 
     const asset = await this.upsertCollectorAsset({
       brandId,
@@ -2851,48 +3027,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       title,
       description,
       fileUrl: workUrl,
-      metadata: {
-        kind: "DOUYIN_BENCHMARK_WORK",
-        sourceAccountId: this.pickString(author, ["sec_uid"]) || workId,
-        accountLink,
-        sourceAccountLink: accountLink,
-        workId,
-        workUrl,
-        workType,
-        authorName: this.pickString(author, ["nickname"]) || undefined,
-        authorUniqueId: this.pickString(author, ["unique_id"]) || undefined,
-        externalUserId: this.pickString(author, ["uid"]) || undefined,
-        coverUrl: this.extractDouyinCoverUrl(detail) || undefined,
-        imageList: this.extractDouyinImageList(detail),
-        videoUrl: this.extractDouyinVideoUrl(detail) || undefined,
-        hashtags: this.extractDouyinHashtags(detail),
-        publishTimeText: this.formatUnixTimestampText(this.pickNumber(detail, ["create_time"])),
-        durationMs: this.pickNumber(this.asMeta(detail.video), ["duration"]),
-        mediaType: this.pickNumber(detail, ["media_type"]),
-        awemeType: this.pickNumber(detail, ["aweme_type"]),
-        musicTitle: this.pickString(detailMusic, ["title"]) || undefined,
-        musicAuthor: this.pickString(detailMusic, ["author"]) || undefined,
-        likeCount,
-        playCount,
-        shareCount,
-        commentCount,
-        collectCount,
-        downloadCount,
-        recommendCount,
-        likeCollectRatio: this.computeRatio(likeCount, collectCount),
-        likeCommentRatio: this.computeRatio(likeCount, commentCount),
-        shareRatio: this.computeRatio(shareCount, playCount),
-        statsPatched: statisticsMap.has(workId),
-        authorFollowerCount: this.pickNumber(author, ["follower_count"]),
-        authorLikedCount: this.pickNumber(author, ["total_favorited"]),
-        authorAvatar: this.extractFirstUrlFromObject(author, "avatar_300x300") || undefined,
-        collectedAt,
-        rawFields: {
-          detail,
-          statistics,
-          statisticsPatchError: statisticsPatchError || undefined,
-        },
-      },
+      metadata,
     });
 
     return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
@@ -3053,6 +3188,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE") {
           return meta.kind === kind && this.readMetaString(meta, "noteId") === matchValue;
         }
+        if (kind === "DOUYIN_BRAND_WORK" || kind === "DOUYIN_BENCHMARK_WORK") {
+          return meta.kind === kind && this.readMetaString(meta, "workId") === matchValue;
+        }
         if (kind === "XHS_TARGET_USER") {
           return meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
         }
@@ -3119,6 +3257,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
       if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "noteId") === matchValue;
+      }
+      if (kind === "DOUYIN_BRAND_WORK" || kind === "DOUYIN_BENCHMARK_WORK") {
+        return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "workId") === matchValue;
       }
       if (kind === "XHS_TARGET_USER") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
@@ -3991,6 +4132,54 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private extractNoteIdFromUrl(url: string) {
     const match = url.match(/(?:explore|discovery\/item)\/([^/?#]+)/i);
     return match?.[1] ?? "";
+  }
+
+  private buildDouyinVideoStorageKey(brandId: string, workId: string, contentType: string, sourceUrl: string) {
+    return `collectors/${brandId}/douyin/videos/${workId}${this.resolveDouyinVideoExtension(contentType, sourceUrl)}`;
+  }
+
+  private resolveDouyinVideoExtension(contentType: string, sourceUrl: string) {
+    const normalizedType = String(contentType || "").trim().toLowerCase();
+    if (normalizedType.includes("quicktime")) {
+      return ".mov";
+    }
+    if (normalizedType.includes("webm")) {
+      return ".webm";
+    }
+    if (normalizedType.includes("x-matroska")) {
+      return ".mkv";
+    }
+    if (normalizedType.includes("mp4") || normalizedType.includes("mpeg4") || normalizedType.includes("video/")) {
+      return ".mp4";
+    }
+    try {
+      const extension = extname(new URL(sourceUrl).pathname);
+      return extension || ".mp4";
+    } catch {
+      return ".mp4";
+    }
+  }
+
+  private guessDouyinVideoContentType(sourceUrl: string) {
+    const extension = this.resolveDouyinVideoExtension("", sourceUrl);
+    switch (extension) {
+      case ".mov":
+        return "video/quicktime";
+      case ".webm":
+        return "video/webm";
+      case ".mkv":
+        return "video/x-matroska";
+      default:
+        return "video/mp4";
+    }
+  }
+
+  private isIsoDateExpired(value: string) {
+    if (!value) {
+      return false;
+    }
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && timestamp <= Date.now();
   }
 
   private asMeta(value: unknown): Record<string, unknown> {

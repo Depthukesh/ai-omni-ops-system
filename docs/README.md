@@ -34,6 +34,12 @@
 - 文件：`docs/engineering-standards.md`
 - 作用：沉淀前端、后端、扩展、资源、文档和 Git 的统一开发规则，作为后续开发默认遵循的基线
 - 更新时机：发现新的工程共性问题、调整默认架构边界、确定新的通用约束时
+- 文件：`docs/ai-multi-agent-collaboration-playbook.md`
+- 作用：定义多个 AI Agent 同时参与开发时的角色边界、任务拆分、交接格式、验证标准与 Git 协作方式
+- 更新时机：当多 Agent 协作方式、主从分工、交接模板或冲突处理规则发生变化时
+- 文件：`docs/ai-agent-access-and-secrets-policy.md`
+- 作用：定义 AI Agent 的 GitHub 权限边界、Secrets 管理规则、最小权限接入方式，以及哪些敏感信息禁止写入仓库文档
+- 更新时机：当 Agent 权限模型、Secrets 注入方式、敏感信息管理规则或 GitHub 协作权限发生变化时
 
 ### 5. 开发交付清单
 
@@ -88,10 +94,20 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-23-douyin-material-library.md`
+  - 品牌增长策略的抖音对标作品表新增素材库勾选入口，抖音工作台同步新增素材库分区，并支持加入/取消加入素材库
+- `docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
+  - 抖音采集改为采后立即缓存视频到 OSS、7 天自动清理缓存，并收掉采集输入区的技术说明与查看文档按钮
 - `docs/changes/2026-05-10-auth-invite-registration-and-gated-frontend.md`
   - 前台统一改为“根页认证入口 + 邀请码注册 + 工作台全局登录拦截”，后台继续保持管理员专用登录入口
 - `docs/changes/2026-05-19-xiaohongshu-structure-governance-winddown.md`
   - 记录小红书结构治理当前阶段的收口位置，并补充统一创建弹窗配置与后续续接文档
+- `docs/changes/2026-05-19-multi-agent-collaboration-playbook.md`
+  - 新增多 Agent 协作开发手册，明确角色分工、任务拆分、进度对齐、验证标准和 Git 协作规则
+- `docs/changes/2026-05-19-ai-agent-access-and-secrets-policy.md`
+  - 新增 AI Agent 权限与 Secrets 管理策略，明确 GitHub 权限边界、密钥存放规则和第二个 Agent 的最小权限方案
+- `docs/changes/2026-05-19-half-year-marketing-plan-provider-fallback-fix.md`
+  - 修复半年营销规划生成链路对 `text-global` 的硬依赖；当第三方文生文未配置时，改为继续尝试 DeepSeek / 豆包等国内文本 Provider，而不是提前报“第三方文生文接口配置读取失败”
 - `docs/changes/2026-05-10-deploy-hardening-and-non-root-runtime.md`
   - GitHub Actions 部署前新增服务器工作区阻断，生产 PM2 进程统一切到普通用户并收口到 `ecosystem.config.cjs`，同时增加本机端口和健康检查
 - `docs/changes/2026-05-17-deploy-worktree-auto-backup.md`
