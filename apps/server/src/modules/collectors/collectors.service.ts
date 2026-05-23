@@ -227,6 +227,8 @@ export type DouyinCollectedWorkRecord = {
   authorLikedCount?: number;
   authorAvatar?: string;
   collectedAt: string;
+  videoCacheStatus?: "PENDING" | "READY" | "FAILED" | "EXPIRED";
+  videoCacheLastError?: string;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
 };
@@ -292,6 +294,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  private douyinVideoCacheQueue = Promise.resolve();
 
   constructor(
     @Inject(PrismaService)
@@ -320,6 +323,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       runOnStartupIfMissed: true,
       onTick: () => this.cleanupExpiredDouyinVideoCaches(),
     });
+    void this.resumePendingDouyinVideoCaches();
   }
 
   onModuleDestroy() {
@@ -1002,15 +1006,21 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       authorLikedCount: this.readMetaNumber(meta, "authorLikedCount"),
       authorAvatar: this.readMetaString(meta, "authorAvatar") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
+      videoCacheStatus: (this.readMetaString(meta, "videoCacheStatus") as DouyinCollectedWorkRecord["videoCacheStatus"]) || undefined,
+      videoCacheLastError: this.readMetaString(meta, "videoCacheLastError") || undefined,
       isInMaterialLibrary: this.readMetaBoolean(meta, "inMaterialLibrary") || undefined,
       materialAddedAt: this.readMetaString(meta, "materialAddedAt") || undefined,
     };
   }
 
   private resolveDouyinVideoPlaybackUrl(asset: AssetRecord, meta: Record<string, unknown>) {
-    const fallbackUrl = this.readMetaString(meta, "videoUrl");
+    const status = this.readMetaString(meta, "videoCacheStatus");
+    const fallbackUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
     const storageKey = this.readMetaString(meta, "videoStorageKey");
     const expiresAt = this.readMetaString(meta, "videoCacheExpiresAt");
+    if (status === "EXPIRED") {
+      return undefined;
+    }
     if (!storageKey || this.isIsoDateExpired(expiresAt)) {
       return fallbackUrl || undefined;
     }
@@ -1024,23 +1034,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async cacheDouyinVideoForMetadata(
-    brandId: string,
-    workId: string,
-    metadata: Record<string, unknown>,
-  ) {
+  private buildDouyinVideoCacheMetadata(metadata: Record<string, unknown>) {
     const sourceUrl = this.readMetaString(metadata, "videoUrl");
     if (!sourceUrl) {
       return metadata;
     }
-    const cached = await this.cacheDouyinVideoAsset(brandId, workId, sourceUrl);
     return {
       ...metadata,
       videoSourceUrl: sourceUrl,
-      videoStorageKey: cached.storageKey,
-      videoContentType: cached.contentType,
-      videoCachedAt: cached.cachedAt,
-      videoCacheExpiresAt: cached.expiresAt,
+      videoCacheStatus: "PENDING",
+      videoCacheLastError: "",
+      videoStorageKey: "",
+      videoContentType: "",
+      videoCachedAt: "",
+      videoCacheExpiresAt: "",
     };
   }
 
@@ -1074,6 +1081,60 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private enqueueDouyinVideoCache(asset: AssetRecord) {
+    const meta = this.asMeta(asset.metadataJson);
+    const sourceUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
+    const workId = this.readMetaString(meta, "workId");
+    const kind = this.readMetaString(meta, "kind");
+    if (!sourceUrl || !workId || (kind !== "DOUYIN_BRAND_WORK" && kind !== "DOUYIN_BENCHMARK_WORK")) {
+      return;
+    }
+
+    this.douyinVideoCacheQueue = this.douyinVideoCacheQueue
+      .then(async () => {
+        await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+          videoCacheStatus: "PENDING",
+          videoCacheLastError: "",
+        });
+        try {
+          const cached = await this.cacheDouyinVideoAsset(asset.brandId, workId, sourceUrl);
+          await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+            videoCacheStatus: "READY",
+            videoCacheLastError: "",
+            videoStorageKey: cached.storageKey,
+            videoContentType: cached.contentType,
+            videoCachedAt: cached.cachedAt,
+            videoCacheExpiresAt: cached.expiresAt,
+          });
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "未知错误";
+          await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+            videoCacheStatus: "FAILED",
+            videoCacheLastError: detail,
+          });
+        }
+      })
+      .catch(() => undefined);
+  }
+
+  private async resumePendingDouyinVideoCaches() {
+    const assets = await this.listAllCollectorAssets();
+    for (const asset of assets) {
+      const meta = this.asMeta(asset.metadataJson);
+      const kind = this.readMetaString(meta, "kind");
+      const status = this.readMetaString(meta, "videoCacheStatus");
+      const sourceUrl = this.readMetaString(meta, "videoSourceUrl") || this.readMetaString(meta, "videoUrl");
+      if (
+        (kind === "DOUYIN_BRAND_WORK" || kind === "DOUYIN_BENCHMARK_WORK")
+        && sourceUrl
+        && (!this.readMetaString(meta, "videoStorageKey") || status === "PENDING")
+        && status !== "EXPIRED"
+      ) {
+        this.enqueueDouyinVideoCache(asset);
+      }
+    }
+  }
+
   private async cleanupExpiredDouyinVideoCaches() {
     const assets = await this.listAllCollectorAssets();
     const expiredAssets = assets.filter((asset) => {
@@ -1094,6 +1155,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         await this.ossStorageService.deleteObject(storageKey).catch(() => false);
       }
       await this.updateCollectorAssetMeta(asset.brandId, asset.id, {
+        videoCacheStatus: "EXPIRED",
+        videoCacheLastError: "",
         videoStorageKey: "",
         videoContentType: "",
         videoCachedAt: "",
@@ -2873,7 +2936,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         || this.extractDouyinVideoUrl(detail)
         || this.extractDouyinVideoUrl(aweme)
         || undefined;
-      const metadata = await this.cacheDouyinVideoForMetadata(brandId, workId, {
+      const metadata = this.buildDouyinVideoCacheMetadata({
         kind,
         sourceAccountId: account.id,
         sourceAccountLink: account.accountLink,
@@ -2924,6 +2987,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         fileUrl: workUrl,
         metadata,
       });
+
+      this.enqueueDouyinVideoCache(asset);
 
       rows.push(this.mapDouyinCollectedWork(asset, kind));
     }
@@ -2977,7 +3042,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const workUrl =
       this.normalizeDouyinShareUrl(this.extractShareUrl(detail))
       || this.normalizeDouyinNoteUrl(workId, workType);
-    const metadata = await this.cacheDouyinVideoForMetadata(brandId, workId, {
+    const metadata = this.buildDouyinVideoCacheMetadata({
       kind: "DOUYIN_BENCHMARK_WORK",
       sourceAccountId: this.pickString(author, ["sec_uid"]) || workId,
       accountLink,
@@ -3029,6 +3094,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       fileUrl: workUrl,
       metadata,
     });
+
+    this.enqueueDouyinVideoCache(asset);
 
     return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
   }

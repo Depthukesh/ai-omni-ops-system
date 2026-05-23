@@ -140,6 +140,8 @@ export type DouyinCollectedWorkRecord = {
   authorLikedCount?: number;
   authorAvatar?: string;
   collectedAt: string;
+  videoCacheStatus?: "PENDING" | "READY" | "FAILED" | "EXPIRED";
+  videoCacheLastError?: string;
   rawFields?: Record<string, unknown>;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
