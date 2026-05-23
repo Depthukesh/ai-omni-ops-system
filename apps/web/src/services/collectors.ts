@@ -358,6 +358,14 @@ export async function addDouyinBenchmarkWorkToMaterialLibrary(assetId: string, b
   );
 }
 
+export async function removeDouyinBenchmarkWorkFromMaterialLibrary(assetId: string, brandId?: string) {
+  return jsonRequest<{ item: DouyinCollectedWorkRecord; workspace: DouyinCollectionWorkspace }>(
+    `/collectors/douyin/brands/${resolveBrandId(brandId)}/material-library/${assetId}`,
+    "DELETE",
+    {},
+  );
+}
+
 function resolveBrandId(brandId?: string) {
   return brandId || getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }

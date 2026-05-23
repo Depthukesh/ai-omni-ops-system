@@ -35,6 +35,7 @@ import {
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
+  removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
   type DouyinSyncPayload,
   syncXiaohongshuFromFeishu,
@@ -1109,25 +1110,27 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  async function handleAddDouyinBenchmarkWorkToMaterial(assetId: string) {
+  async function handleToggleDouyinBenchmarkWorkMaterial(item: DouyinCollectionWorkspace["benchmarkWorks"][number]) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
       setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
       return;
     }
-    if (!assetId) {
+    if (!item.id) {
       return;
     }
 
-    setAddingMaterialAssetId(assetId);
+    setAddingMaterialAssetId(item.id);
     clearMessages();
 
     try {
-      const response = await addDouyinBenchmarkWorkToMaterialLibrary(assetId, activeBrandId || archive.brand.id);
+      const response = item.isInMaterialLibrary
+        ? await removeDouyinBenchmarkWorkFromMaterialLibrary(item.id, activeBrandId || archive.brand.id)
+        : await addDouyinBenchmarkWorkToMaterialLibrary(item.id, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
-      setNotice("已加入抖音素材库。");
+      setNotice(item.isInMaterialLibrary ? "已取消加入抖音素材库。" : "已加入抖音素材库。");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "加入素材库失败";
-      setErrorMessage(`加入抖音素材库失败：${message}`);
+      const message = error instanceof Error ? error.message : item.isInMaterialLibrary ? "取消加入素材库失败" : "加入素材库失败";
+      setErrorMessage(item.isInMaterialLibrary ? `取消加入抖音素材库失败：${message}` : `加入抖音素材库失败：${message}`);
     } finally {
       setAddingMaterialAssetId("");
     }
@@ -1500,7 +1503,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         paginatedBrandNotes={paginatedBrandNotes}
         addingMaterialAssetId={addingMaterialAssetId}
         onAddBenchmarkNoteToMaterial={handleAddBenchmarkNoteToMaterial}
-        onAddDouyinBenchmarkWorkToMaterial={handleAddDouyinBenchmarkWorkToMaterial}
+        onAddDouyinBenchmarkWorkToMaterial={handleToggleDouyinBenchmarkWorkMaterial}
         onPreviewMedia={setMediaPreview}
         buildFeishuMediaProxyUrl={(sourceUrl, download) => buildFeishuMediaProxyUrl(sourceUrl, download, activeBrandId || archive.brand.id)}
         formatDateTime={formatDateTime}

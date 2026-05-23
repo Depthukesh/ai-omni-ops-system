@@ -517,6 +517,39 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async removeDouyinBenchmarkWorkFromMaterialLibrary(brandId: string, assetId: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const asset = await this.getCollectorAssetById(brandId, assetId);
+    const meta = this.asMeta(asset.metadataJson);
+    if (this.readMetaString(meta, "kind") !== "DOUYIN_BENCHMARK_WORK") {
+      throw new BadRequestException("仅支持将抖音对标作品移出素材库");
+    }
+
+    await this.updateCollectorAssetMeta(brandId, assetId, {
+      inMaterialLibrary: false,
+      materialAddedAt: "",
+    });
+
+    return {
+      item: {
+        ...this.mapDouyinCollectedWork(
+          {
+            ...asset,
+            metadataJson: {
+              ...meta,
+              inMaterialLibrary: false,
+              materialAddedAt: "",
+            },
+          },
+          "DOUYIN_BENCHMARK_WORK",
+        ),
+        isInMaterialLibrary: undefined,
+        materialAddedAt: undefined,
+      },
+      workspace: await this.getDouyinWorkspace(brandId),
+    };
+  }
+
   async syncFeishuWorkspace(brandId: string) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const binding = await this.getFeishuBinding(brandId);

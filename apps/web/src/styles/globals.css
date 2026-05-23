@@ -2148,6 +2148,59 @@ button {
   overflow-wrap: anywhere;
 }
 
+.material-library-checkbox {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.material-library-checkbox:disabled {
+  cursor: wait;
+}
+
+.material-library-checkbox__box {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1.5px solid #c7cfdf;
+  background: #fff;
+  box-shadow: inset 0 1px 1px rgba(31, 41, 72, 0.05);
+  transition: all 0.18s ease;
+}
+
+.material-library-checkbox:hover .material-library-checkbox__box,
+.material-library-checkbox:focus-visible .material-library-checkbox__box {
+  border-color: #6b7dff;
+  box-shadow: 0 0 0 3px rgba(107, 125, 255, 0.16);
+}
+
+.material-library-checkbox.is-checked .material-library-checkbox__box {
+  border-color: #5b83ff;
+  background: linear-gradient(180deg, #6e8dff 0%, #5b83ff 100%);
+}
+
+.material-library-checkbox__mark {
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+  opacity: 0;
+}
+
+.material-library-checkbox.is-checked .material-library-checkbox__mark {
+  opacity: 1;
+}
+
 .table-avatar-link {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { CollectorsService } from "./collectors.service";
 
@@ -141,5 +141,16 @@ export class DouyinCollectorsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
     return this.collectorsService.addDouyinBenchmarkWorkToMaterialLibrary(brandId, payload.assetId);
+  }
+
+  @Delete("brands/:brandId/material-library/:assetId")
+  async removeBenchmarkWorkFromMaterialLibrary(
+    @Param("brandId") brandId: string,
+    @Param("assetId") assetId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
   }
 }

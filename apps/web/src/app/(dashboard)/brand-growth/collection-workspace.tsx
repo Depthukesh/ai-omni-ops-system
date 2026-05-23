@@ -176,7 +176,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   paginatedBrandNotes: XhsCollectedNoteRecord[];
   addingMaterialAssetId: string;
   onAddBenchmarkNoteToMaterial: ValueAction<string>;
-  onAddDouyinBenchmarkWorkToMaterial: ValueAction<string>;
+  onAddDouyinBenchmarkWorkToMaterial: ValueAction<DouyinCollectedWorkRecord>;
   onPreviewMedia: ValueAction<MediaPreviewState>;
   buildFeishuMediaProxyUrl: (sourceUrl?: string, download?: boolean) => string;
   formatDateTime: OptionalDateFormatter;
@@ -801,6 +801,30 @@ function formatOptionalCount(value?: number) {
   return value.toLocaleString("zh-CN");
 }
 
+function MaterialLibraryCheckbox(props: {
+  checked: boolean;
+  busy: boolean;
+  title: string;
+  onToggle: AsyncAction;
+}) {
+  return (
+    <button
+      type="button"
+      className={`material-library-checkbox ${props.checked ? "is-checked" : ""}`}
+      onClick={() => void props.onToggle()}
+      disabled={props.busy}
+      role="checkbox"
+      aria-checked={props.checked}
+      aria-label={props.title}
+      title={props.busy ? "处理中..." : props.title}
+    >
+      <span className="material-library-checkbox__box" aria-hidden="true">
+        <span className="material-library-checkbox__mark" />
+      </span>
+    </button>
+  );
+}
+
 function DouyinAccountTable(props: {
   items: DouyinCollectedAccountRecord[];
   formatDateTime: OptionalDateFormatter;
@@ -916,7 +940,7 @@ function DouyinBrandWorksTable(props: {
 function DouyinBenchmarkWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
   addingMaterialAssetId: string;
-  onAddToMaterialLibrary: ValueAction<string>;
+  onAddToMaterialLibrary: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 }) {
@@ -948,18 +972,12 @@ function DouyinBenchmarkWorksTable(props: {
           {props.items.map((item) => (
             <tr key={item.id}>
               <td>
-                <button
-                  type="button"
-                  className={`secondary-button ${item.isInMaterialLibrary ? "is-disabled" : ""}`}
-                  onClick={() => void props.onAddToMaterialLibrary(item.id)}
-                  disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
-                >
-                  {item.isInMaterialLibrary
-                    ? "已加入素材库"
-                    : props.addingMaterialAssetId === item.id
-                      ? "加入中..."
-                      : "加入素材库"}
-                </button>
+                <MaterialLibraryCheckbox
+                  checked={Boolean(item.isInMaterialLibrary)}
+                  busy={props.addingMaterialAssetId === item.id}
+                  title={item.isInMaterialLibrary ? "取消加入素材库" : "加入素材库"}
+                  onToggle={() => props.onAddToMaterialLibrary(item)}
+                />
               </td>
               <td><CopyableCell value={item.workId} /></td>
               <td className="table-cell-wide">
