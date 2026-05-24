@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { AssetCategory, Prisma } from "@prisma/client";
 import { createId, database, type AssetRecord, type PlatformAccountRecord } from "../../common/mock-data";
 import { getFeishuUserAppConfig, getFeishuUserIntegration, setFeishuUserIntegration } from "../../common/user-integrations";
@@ -325,6 +325,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
 
@@ -3993,15 +3994,41 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         typeof payload === "string"
           ? payload.trim()
           : this.pickString(payload, ["message", "msg", "error", "detail", "message_zh"]);
+      const requestId = this.pickString(payload, ["request_id", "requestId"]);
+      this.logTikHubBillboardFailure({
+        path,
+        method: options.method || "GET",
+        brandId,
+        params: options.params,
+        body: options.body,
+        status: response.status,
+        requestId,
+        message: payloadMessage,
+        payload,
+      });
       const reason = payloadMessage ? `，原因：${payloadMessage}` : "";
-      throw new ServiceUnavailableException(`Tikhub 接口请求失败: ${response.status}${hint}${reason}`);
+      const requestIdHint = requestId ? `，request_id: ${requestId}` : "";
+      throw new ServiceUnavailableException(`Tikhub 接口请求失败: ${response.status}${hint}${reason}${requestIdHint}`);
     }
 
     if (payload && typeof payload === "object" && !Array.isArray(payload)) {
       const code = this.pickNumber(payload, ["code"]);
       const message = this.pickString(payload, ["message", "msg", "message_zh"]);
+      const requestId = this.pickString(payload, ["request_id", "requestId"]);
       if (typeof code === "number" && code !== 200) {
-        throw new ServiceUnavailableException(message || `Tikhub 接口业务校验失败: ${code}`);
+        this.logTikHubBillboardFailure({
+          path,
+          method: options.method || "GET",
+          brandId,
+          params: options.params,
+          body: options.body,
+          code,
+          requestId,
+          message,
+          payload,
+        });
+        const requestIdHint = requestId ? `，request_id: ${requestId}` : "";
+        throw new ServiceUnavailableException((message || `Tikhub 接口业务校验失败: ${code}`) + requestIdHint);
       }
       const nestedPayload = this.asMeta(this.asMeta(payload).data);
       const nestedCode = this.readMetaNumber(nestedPayload, "code");
@@ -4010,12 +4037,64 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         || this.readMetaString(nestedPayload, "msg")
         || this.readMetaString(nestedPayload, "message_zh");
       if (typeof nestedCode === "number" && nestedCode !== 0) {
-        throw new ServiceUnavailableException(nestedMessage || `Tikhub 接口业务校验失败: ${nestedCode}`);
+        this.logTikHubBillboardFailure({
+          path,
+          method: options.method || "GET",
+          brandId,
+          params: options.params,
+          body: options.body,
+          code,
+          nestedCode,
+          requestId,
+          message: nestedMessage || message,
+          payload,
+        });
+        const requestIdHint = requestId ? `，request_id: ${requestId}` : "";
+        throw new ServiceUnavailableException((nestedMessage || `Tikhub 接口业务校验失败: ${nestedCode}`) + requestIdHint);
       }
       return payload;
     }
 
     return payload;
+  }
+
+  private logTikHubBillboardFailure(input: {
+    path: string;
+    method: "GET" | "POST";
+    brandId?: string;
+    params?: Record<string, string | undefined>;
+    body?: Record<string, unknown>;
+    status?: number;
+    code?: number;
+    nestedCode?: number;
+    requestId?: string;
+    message?: string;
+    payload: unknown;
+  }) {
+    if (!input.path.includes("/api/v1/douyin/billboard/")) {
+      return;
+    }
+
+    const payloadPreview = this.buildCompactJsonPreview(input.payload);
+    const requestPreview = this.buildCompactJsonPreview({
+      params: input.params,
+      body: input.body,
+    });
+    this.logger.error(
+      `[TikHub Billboard] request failed | path=${input.path} | method=${input.method} | brandId=${input.brandId ?? "-"} | status=${input.status ?? "-"} | code=${input.code ?? "-"} | nestedCode=${input.nestedCode ?? "-"} | requestId=${input.requestId ?? "-"} | message=${input.message ?? "-"} | request=${requestPreview} | payload=${payloadPreview}`,
+    );
+  }
+
+  private buildCompactJsonPreview(value: unknown) {
+    try {
+      const serialized = JSON.stringify(value);
+      if (!serialized) {
+        return "";
+      }
+      return serialized.length > 1200 ? `${serialized.slice(0, 1200)}...(truncated)` : serialized;
+    } catch {
+      return String(value);
+    }
   }
 
   private async getDouyinContentTagsSafe(brandId?: string) {
