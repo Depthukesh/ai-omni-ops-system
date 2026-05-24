@@ -31,6 +31,9 @@ const RIGHT_CODES_DRAW_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/dr
 export const RUNNINGHUB_BASE_URL = "https://www.runninghub.cn";
 export const RUNNINGHUB_RESULT_QUERY_PATH = "/openapi/v2/query";
 export const RUNNINGHUB_RESULT_QUERY_DOC_URL = "https://www.runninghub.cn/runninghub-api-doc-cn/api-425767306";
+export const APIZ_API_BASE_URL = "https://api.apiz.ai";
+export const APIZ_TASK_CREATE_PATH = "/api/v3/tasks/create";
+export const APIZ_TASK_QUERY_PATH = "/api/v3/tasks/query";
 
 function createSeed(input: Omit<ApiProviderSeedRecord, "successRate" | "requestCount24h" | "totalCostYuan" | "lastCalledAt" | "updatedAt">): ApiProviderSeedRecord {
   return {
@@ -71,6 +74,33 @@ type VolcengineArkVideoSeedInput = {
   remark: string;
   recommended?: boolean;
   durationOptions?: number[];
+};
+
+type ApizTaskImageSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  displayOrder: number;
+  remark: string;
+};
+
+type ApizTaskVideoSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  backendKey: string;
+  displayLabel: string;
+  displayOrder: number;
+  requestProfile: string;
+  remark: string;
+  supportsTextToVideo: boolean;
+  supportsImageToVideo: boolean;
+  durationOptions?: number[];
+  taskModel?: string;
+  textModel?: string;
+  imageModel?: string;
 };
 
 function createRunningHubVideoSeed(input: RunningHubVideoSeedInput) {
@@ -148,6 +178,79 @@ function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
       supportsImageToVideo: true,
       durationOptions: input.durationOptions || [5, 10],
       sourceFolder: "火山方舟 Seedance 视频生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createApizTaskImageSeed(input: ApizTaskImageSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: APIZ_API_BASE_URL,
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "image-generation",
+      runtimeTags: ["image-generation", "works-runtime"],
+      baseUrls: [APIZ_API_BASE_URL],
+      requestMode: "apiz-task",
+      createPath: APIZ_TASK_CREATE_PATH,
+      queryPath: APIZ_TASK_QUERY_PATH,
+      queryMethod: "POST",
+      queryBodyMode: "task_id-json",
+      displayOrder: input.displayOrder,
+      sourceFolder: "APIZ/NEX AI 图像生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createApizTaskVideoSeed(input: ApizTaskVideoSeedInput) {
+  const taskModel = input.taskModel || input.modelId;
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: APIZ_API_BASE_URL,
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [taskModel],
+    apiKey: "",
+    defaultModel: taskModel,
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "video-generation",
+      runtimeTags: ["video-generation", "works-runtime"],
+      backendKey: input.backendKey,
+      displayLabel: input.displayLabel,
+      displayOrder: input.displayOrder,
+      baseUrls: [APIZ_API_BASE_URL],
+      createPath: APIZ_TASK_CREATE_PATH,
+      queryPath: APIZ_TASK_QUERY_PATH,
+      queryMethod: "POST",
+      queryBodyMode: "task_id-json",
+      requestProfile: input.requestProfile,
+      taskModel,
+      textModel: input.textModel || taskModel,
+      imageModel: input.imageModel || input.textModel || taskModel,
+      supportsTextToVideo: input.supportsTextToVideo,
+      supportsImageToVideo: input.supportsImageToVideo,
+      durationOptions: input.durationOptions || [],
+      sourceFolder: "APIZ/NEX AI 视频生成",
     },
     remark: input.remark,
   });
@@ -423,6 +526,164 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
+const APIZ_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createApizTaskImageSeed({
+    id: "provider_runtime_image_apiz_gpt_image_2",
+    name: "APIZ · ChatGPT Images 2.0 文生图",
+    tutorialUrl: "https://apiz.ai/#/v2/models/openai%2Fgpt-image-2",
+    modelId: "openai/gpt-image-2",
+    displayOrder: 210,
+    remark: "APIZ/NEX AI 的 ChatGPT Images 2.0 文生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+  }),
+  createApizTaskImageSeed({
+    id: "provider_runtime_image_apiz_gpt_image_2_edit",
+    name: "APIZ · ChatGPT Images 2.0 Edit 图生图",
+    tutorialUrl: "https://apiz.ai/#/v2/models/openai%2Fgpt-image-2%2Fedit",
+    modelId: "openai/gpt-image-2/edit",
+    displayOrder: 211,
+    remark: "APIZ/NEX AI 的 ChatGPT Images 2.0 Edit 图生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+  }),
+  createApizTaskImageSeed({
+    id: "provider_runtime_image_apiz_nano_banana_2",
+    name: "APIZ · Nano Banana 2",
+    tutorialUrl: "https://apiz.ai/#/v2/models/fal-ai%2Fnano-banana-2",
+    modelId: "fal-ai/nano-banana-2",
+    displayOrder: 212,
+    remark: "APIZ/NEX AI 的 Nano Banana 2 文生图/图生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+  }),
+];
+
+const APIZ_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_seedance_20",
+    name: "APIZ · Seedance 2.0 (Ark API)",
+    tutorialUrl: "https://apiz.ai/#/v2/models/ark%2Fseedance-2.0",
+    modelId: "ark/seedance-2.0",
+    backendKey: "apiz_seedance_20",
+    displayLabel: "Seedance 2.0 (APIZ)",
+    displayOrder: 70,
+    requestProfile: "apiz_seedance",
+    remark: "APIZ/NEX AI 的 Seedance 2.0 视频生成接口，支持文生视频和图生视频；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: true,
+    supportsImageToVideo: true,
+    durationOptions: [4, 5, 8, 10, 15],
+    textModel: "seedance_2.0_fast",
+    imageModel: "seedance_2.0_fast",
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_kling_v3_4k_i2v",
+    name: "APIZ · Kling V3 图生视频 [4K]",
+    tutorialUrl: "https://apiz.ai/#/v2/models/fal-ai%2Fkling-video%2Fv3%2F4k%2Fimage-to-video",
+    modelId: "fal-ai/kling-video/v3/4k/image-to-video",
+    backendKey: "apiz_kling_v3_4k_i2v",
+    displayLabel: "Kling V3 图生视频 [4K]",
+    displayOrder: 71,
+    requestProfile: "apiz_kling_i2v",
+    remark: "APIZ/NEX AI 的 Kling V3 4K 图生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: false,
+    supportsImageToVideo: true,
+    durationOptions: [3, 5, 8, 10, 15],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_kling_v3_4k_t2v",
+    name: "APIZ · Kling V3 文生视频 [4K]",
+    tutorialUrl: "https://apiz.ai/#/v2/models/fal-ai%2Fkling-video%2Fv3%2F4k%2Ftext-to-video",
+    modelId: "fal-ai/kling-video/v3/4k/text-to-video",
+    backendKey: "apiz_kling_v3_4k_t2v",
+    displayLabel: "Kling V3 文生视频 [4K]",
+    displayOrder: 72,
+    requestProfile: "apiz_kling_t2v",
+    remark: "APIZ/NEX AI 的 Kling V3 4K 文生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: true,
+    supportsImageToVideo: false,
+    durationOptions: [3, 5, 8, 10, 15],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_happyhorse_t2v",
+    name: "APIZ · Happy Horse 文生视频",
+    tutorialUrl: "https://apiz.ai/#/v2/models/alibaba%2Fhappy-horse%2Ftext-to-video",
+    modelId: "alibaba/happy-horse/text-to-video",
+    backendKey: "apiz_happyhorse_t2v",
+    displayLabel: "Happy Horse 文生视频",
+    displayOrder: 73,
+    requestProfile: "apiz_happyhorse_t2v",
+    remark: "APIZ/NEX AI 的 Happy Horse 文生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: true,
+    supportsImageToVideo: false,
+    durationOptions: [3, 5, 8, 10, 15],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_happyhorse_i2v",
+    name: "APIZ · Happy Horse 图生视频",
+    tutorialUrl: "https://apiz.ai/#/v2/models/alibaba%2Fhappy-horse%2Fimage-to-video",
+    modelId: "alibaba/happy-horse/image-to-video",
+    backendKey: "apiz_happyhorse_i2v",
+    displayLabel: "Happy Horse 图生视频",
+    displayOrder: 74,
+    requestProfile: "apiz_happyhorse_i2v",
+    remark: "APIZ/NEX AI 的 Happy Horse 图生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: false,
+    supportsImageToVideo: true,
+    durationOptions: [3, 5, 8, 10, 15],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_happyhorse_r2v",
+    name: "APIZ · Happy Horse 参考图生视频",
+    tutorialUrl: "https://apiz.ai/#/v2/models/alibaba%2Fhappy-horse%2Freference-to-video",
+    modelId: "alibaba/happy-horse/reference-to-video",
+    backendKey: "apiz_happyhorse_r2v",
+    displayLabel: "Happy Horse 参考图生视频",
+    displayOrder: 75,
+    requestProfile: "apiz_happyhorse_r2v",
+    remark: "APIZ/NEX AI 的 Happy Horse 参考图生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: false,
+    supportsImageToVideo: true,
+    durationOptions: [3, 5, 8, 10, 15],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_veo_31_t2v",
+    name: "APIZ · Veo 3.1 文生视频",
+    tutorialUrl: "https://apiz.ai/#/v2/models/fal-ai%2Fveo3.1",
+    modelId: "fal-ai/veo3.1",
+    backendKey: "apiz_veo_31_t2v",
+    displayLabel: "Veo 3.1 文生视频",
+    displayOrder: 76,
+    requestProfile: "apiz_veo_t2v",
+    remark: "APIZ/NEX AI 的 Veo 3.1 文生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: true,
+    supportsImageToVideo: false,
+    durationOptions: [4, 6, 8],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_veo_31_r2v",
+    name: "APIZ · Veo 3.1 参考图视频",
+    tutorialUrl: "https://apiz.ai/#/v2/models/fal-ai%2Fveo3.1%2Freference-to-video",
+    modelId: "fal-ai/veo3.1/reference-to-video",
+    backendKey: "apiz_veo_31_r2v",
+    displayLabel: "Veo 3.1 参考图视频",
+    displayOrder: 77,
+    requestProfile: "apiz_veo_r2v",
+    remark: "APIZ/NEX AI 的 Veo 3.1 参考图生视频接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: false,
+    supportsImageToVideo: true,
+    durationOptions: [4, 6, 8],
+  }),
+  createApizTaskVideoSeed({
+    id: "provider_runtime_video_apiz_veo_31_i2v",
+    name: "APIZ · Veo 3.1 图生视频",
+    tutorialUrl: "https://www.xskill.ai/#/v2/models/fal-ai%2Fveo3.1%2Fimage-to-video",
+    modelId: "fal-ai/veo3.1/image-to-video",
+    backendKey: "apiz_veo_31_i2v",
+    displayLabel: "Veo 3.1 图生视频",
+    displayOrder: 78,
+    requestProfile: "apiz_veo_i2v",
+    remark: "XSkill 文档页对应的 Veo 3.1 图生视频实际走 APIZ/NEX AI 任务接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToVideo: false,
+    supportsImageToVideo: true,
+    durationOptions: [4, 6, 8],
+  }),
+];
+
 export const LEGACY_API_PROVIDER_IDS = ["provider_openai", "provider_gemini", "provider_doubao"];
 export const DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS = [
   "provider_runtime_text_global",
@@ -612,6 +873,8 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "Right Codes 平台支持文生图与图生图；运行时会使用 `/v1/images/generations`，并继续遵守品牌 Owner 私钥隔离规则。",
   }),
+  ...APIZ_IMAGE_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS,
+  ...APIZ_VIDEO_PROVIDER_SEEDS,
   ...RUNNINGHUB_VIDEO_PROVIDER_SEEDS,
 ];

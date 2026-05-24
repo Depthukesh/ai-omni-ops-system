@@ -586,7 +586,11 @@ type ImageProviderConfig = ThirdPartyChatConfig & {
   providerId: string;
   providerName: string;
   models: string[];
-  requestMode: "chat-completions" | "images-generations";
+  requestMode: "chat-completions" | "images-generations" | "apiz-task";
+  createPath?: string;
+  queryPath?: string;
+  queryMethod?: "GET" | "POST";
+  queryBodyMode?: "taskId-json" | "task_id-json";
   requestTimeoutMs?: number;
 };
 
@@ -608,8 +612,9 @@ type VideoProviderConfig = {
   createPath: string;
   queryPath: string;
   queryMethod: "GET" | "POST";
-  queryBodyMode?: "taskId-json";
+  queryBodyMode?: "taskId-json" | "task_id-json";
   requestProfile?: string;
+  taskModel?: string;
   textModel: string;
   imageModel: string;
   fastModel?: string;
@@ -2344,20 +2349,43 @@ export class WorksService {
           for (const modelName of provider.models) {
             for (const promptCandidate of promptsToTry) {
               try {
-                const response = await this.requestModelCompletion(
-                  baseUrl,
-                  provider.completionPath,
-                  apiKey,
-                  this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
-                  this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
-                );
-                if (!response.ok) {
-                  const responseSnippet = await this.readResponseSnippet(response);
-                  lastError = `${modelName} 请求失败：${response.status}${responseSnippet ? `，${responseSnippet}` : ""}`;
-                  continue;
+                let asset: ReturnType<WorksService["extractGeneratedImagePayload"]>;
+                if (provider.requestMode === "apiz-task") {
+                  if (!provider.createPath || !provider.queryPath) {
+                    lastError = `${modelName} 未配置 APIZ 图像任务路径`;
+                    continue;
+                  }
+                  const createResponse = await this.requestAuthorizedJson(baseUrl, provider.createPath, apiKey, {
+                    method: "POST",
+                    body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
+                    timeoutMs: this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
+                  });
+                  const providerTaskId = this.extractVideoTaskId(createResponse);
+                  if (!providerTaskId) {
+                    lastError = this.readVideoCreateFailureReason(createResponse) || `${modelName} 未返回任务 ID`;
+                    continue;
+                  }
+                  asset = await this.pollImageGenerationResult(baseUrl, apiKey, provider.queryPath, providerTaskId, {
+                    queryMethod: provider.queryMethod,
+                    queryBodyMode: provider.queryBodyMode,
+                    requestTimeoutMs: provider.requestTimeoutMs,
+                  });
+                } else {
+                  const response = await this.requestModelCompletion(
+                    baseUrl,
+                    provider.completionPath,
+                    apiKey,
+                    this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
+                    this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
+                  );
+                  if (!response.ok) {
+                    const responseSnippet = await this.readResponseSnippet(response);
+                    lastError = `${modelName} 请求失败：${response.status}${responseSnippet ? `，${responseSnippet}` : ""}`;
+                    continue;
+                  }
+                  const payload = await response.json() as Record<string, unknown>;
+                  asset = this.extractGeneratedImagePayload(payload);
                 }
-                const payload = await response.json() as Record<string, unknown>;
-                const asset = this.extractGeneratedImagePayload(payload);
                 if (!asset) {
                   lastError = `${modelName} 未返回图片`;
                   continue;
@@ -4911,11 +4939,13 @@ export class WorksService {
       return providers;
     }
     if (!providers.some((provider) => provider.requestMode === "images-generations")) {
-      return providers;
+      if (!providers.some((provider) => provider.requestMode === "apiz-task")) {
+        return providers;
+      }
     }
     return [...providers].sort((left, right) => {
-      const leftRank = left.requestMode === "images-generations" ? 0 : 1;
-      const rightRank = right.requestMode === "images-generations" ? 0 : 1;
+      const leftRank = left.requestMode === "images-generations" || left.requestMode === "apiz-task" ? 0 : 1;
+      const rightRank = right.requestMode === "images-generations" || right.requestMode === "apiz-task" ? 0 : 1;
       return leftRank - rightRank;
     });
   }
@@ -5896,7 +5926,17 @@ export class WorksService {
         models,
         requestMode: this.apiProvidersService.getStringExtra(provider, "requestMode") === "images-generations"
           ? "images-generations"
-          : "chat-completions",
+          : this.apiProvidersService.getStringExtra(provider, "requestMode") === "apiz-task"
+            ? "apiz-task"
+            : "chat-completions",
+        createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || undefined,
+        queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || undefined,
+        queryMethod: this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST" ? "POST" : "GET",
+        queryBodyMode: this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
+          ? "task_id-json"
+          : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
+            ? "taskId-json"
+            : undefined,
         requestTimeoutMs: provider.timeoutMs || 240000,
       });
     }
@@ -5981,10 +6021,13 @@ export class WorksService {
           : "GET",
       queryBodyMode: isRunningHubProvider
         ? "taskId-json"
-        : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
-          ? "taskId-json"
-          : undefined,
+        : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
+          ? "task_id-json"
+          : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
+            ? "taskId-json"
+            : undefined,
       requestProfile: this.apiProvidersService.getStringExtra(provider, "requestProfile") || undefined,
+      taskModel: this.apiProvidersService.getStringExtra(provider, "taskModel") || undefined,
       textCreatePath: this.apiProvidersService.getStringExtra(provider, "textCreatePath") || undefined,
       imageCreatePath: this.apiProvidersService.getStringExtra(provider, "imageCreatePath") || undefined,
       textQueryPath: this.apiProvidersService.getStringExtra(provider, "textQueryPath") || undefined,
@@ -6119,6 +6162,9 @@ export class WorksService {
       runninghub_seedance_20_fast_t2v: "runninghub_seedance_20_fast_i2v",
       runninghub_seedance_20_t2v: "runninghub_seedance_20_i2v",
       runninghub_happyhorse_10_t2v: "runninghub_happyhorse_10_r2v",
+      apiz_kling_v3_4k_t2v: "apiz_kling_v3_4k_i2v",
+      apiz_happyhorse_t2v: "apiz_happyhorse_r2v",
+      apiz_veo_31_t2v: "apiz_veo_31_i2v",
     };
     return compatibleBackendMap[requestedBackend] || requestedBackend;
   }
@@ -6177,6 +6223,11 @@ export class WorksService {
       }
       return params.referenceImageUrl;
     };
+    const buildApizTaskPayload = (taskModel: string, taskParams: Record<string, unknown>) => ({
+      model: taskModel,
+      params: taskParams,
+      channel: null,
+    });
 
     switch (requestProfile) {
       case "runninghub_hailuo_i2v":
@@ -6365,6 +6416,144 @@ export class WorksService {
           renderedDurationSec: normalizedDuration,
         };
       }
+      case "apiz_seedance":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || "ark/seedance-2.0",
+            {
+              model: params.modelName,
+              prompt: params.prompt,
+              resolution: "720p",
+              duration: normalizedDuration,
+              ...(hasReferenceImage ? { image_url: requireReferenceImage(), ratio: "adaptive" } : { ratio: "9:16", generate_audio: true }),
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_kling_i2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              image_url: requireReferenceImage(),
+              duration: `${normalizedDuration}s`,
+              resolution: "4K",
+              ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_kling_t2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              duration: `${normalizedDuration}s`,
+              resolution: "4K",
+              ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_happyhorse_i2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              image_url: requireReferenceImage(),
+              duration: normalizedDuration,
+              resolution: "720p",
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_happyhorse_r2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              image_urls: [requireReferenceImage()],
+              duration: normalizedDuration,
+              resolution: "720p",
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_happyhorse_t2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              duration: normalizedDuration,
+              resolution: "720p",
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_veo_i2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              image_url: requireReferenceImage(),
+              duration: `${normalizedDuration}s`,
+              resolution: "720p",
+              generate_audio: true,
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_veo_r2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              image_urls: [requireReferenceImage()],
+              duration: `${normalizedDuration}s`,
+              resolution: "720p",
+              generate_audio: true,
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
+      case "apiz_veo_t2v":
+        return {
+          payload: buildApizTaskPayload(
+            params.config.taskModel || params.modelName,
+            {
+              prompt: params.prompt,
+              duration: `${normalizedDuration}s`,
+              resolution: "720p",
+              generate_audio: true,
+            },
+          ),
+          createPath: params.config.createPath,
+          queryPath: params.config.queryPath,
+          renderedDurationSec: normalizedDuration,
+        };
       case "legacy_hailuo":
         return {
           payload: {
@@ -6604,7 +6793,7 @@ export class WorksService {
     options: {
       fallbackDurationSec?: number;
       queryMethod?: "GET" | "POST";
-      queryBodyMode?: "taskId-json";
+      queryBodyMode?: "taskId-json" | "task_id-json";
       pollMaxAttempts?: number;
       pollIntervalMs?: number;
     },
@@ -6659,7 +6848,7 @@ export class WorksService {
     options: {
       fallbackDurationSec?: number;
       queryMethod?: "GET" | "POST";
-      queryBodyMode?: "taskId-json";
+      queryBodyMode?: "taskId-json" | "task_id-json";
     },
   ) {
     const response = await this.requestAuthorizedJson(
@@ -6689,7 +6878,10 @@ export class WorksService {
     return `${queryPath}${separator}task_id=${encodeURIComponent(taskId)}`;
   }
 
-  private buildVideoQueryBody(taskId: string, queryBodyMode?: "taskId-json") {
+  private buildVideoQueryBody(taskId: string, queryBodyMode?: "taskId-json" | "task_id-json") {
+    if (queryBodyMode === "task_id-json") {
+      return { task_id: taskId };
+    }
     if (queryBodyMode === "taskId-json") {
       return { taskId };
     }
@@ -6725,6 +6917,8 @@ export class WorksService {
 
   private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {
     const topLevelData = this.asRecord(payload.data);
+    const topLevelResultData = this.asRecord(topLevelData?.result);
+    const topLevelOutputData = this.asRecord(topLevelResultData?.output);
     const topLevelContent = this.asRecord(payload.content);
     const topLevelResults = Array.isArray(payload.results) ? payload.results.map((item) => this.asRecord(item)) : [];
     const topLevelResult = topLevelResults.find((item) => Boolean(item)) || null;
@@ -6741,18 +6935,28 @@ export class WorksService {
       || this.readOptionalString(topLevelResult?.fileUrl)
       || this.readOptionalString(topLevelData?.output)
       || this.readOptionalString(topLevelData?.video_url)
+      || this.readOptionalString(topLevelResultData?.video_url)
+      || this.readOptionalString(topLevelOutputData?.video_url)
+      || this.readOptionalString(topLevelOutputData?.url)
       || this.readOptionalString(topLevelContent?.video_url)
       || this.readOptionalString(this.asRecord(topLevelData?.task_result)?.url);
     const firstVideo = Array.isArray(this.asRecord(topLevelData?.task_result)?.videos)
       ? this.asRecord((this.asRecord(topLevelData?.task_result)?.videos as unknown[])[0])
       : null;
+    const firstOutputVideo = Array.isArray(topLevelOutputData?.videos)
+      ? this.asRecord((topLevelOutputData?.videos as unknown[])[0])
+      : null;
     const videoUrl = directVideoUrl
       || this.readOptionalString(firstVideo?.url)
+      || this.readOptionalString(firstOutputVideo?.url)
+      || this.readOptionalString(firstOutputVideo?.video_url)
       || this.readOptionalString(payload.output)
       || this.readOptionalString(payload.download_url);
     const coverImageUrl = this.readOptionalString(topLevelResult?.coverUrl)
       || this.readOptionalString(topLevelResult?.thumbnailUrl)
       || this.readOptionalString(topLevelData?.last_frame_url)
+      || this.readOptionalString(topLevelOutputData?.last_frame_url)
+      || this.readOptionalString(topLevelOutputData?.cover_url)
       || this.readOptionalString(topLevelContent?.last_frame_url)
       || this.readOptionalString(topLevelData?.cover_url)
       || this.readOptionalString(payload.cover_url);
@@ -6787,7 +6991,7 @@ export class WorksService {
     if (!normalized) {
       return "IN_PROGRESS";
     }
-    if (normalized.includes("SUCCESS") || normalized.includes("SUCCEED")) {
+    if (normalized.includes("SUCCESS") || normalized.includes("SUCCEED") || normalized.includes("COMPLETED")) {
       return "SUCCESS";
     }
     if (normalized.includes("EXPIRED") || normalized.includes("CANCEL")) {
@@ -6851,6 +7055,22 @@ export class WorksService {
     prompt: string,
     referenceImageUrls: string[],
   ) {
+    if (provider.requestMode === "apiz-task") {
+      const params: Record<string, unknown> = {
+        prompt,
+        image_size: "4:3",
+        resolution: "1K",
+        num_images: 1,
+      };
+      if (referenceImageUrls.length) {
+        params.image_urls = referenceImageUrls;
+      }
+      return {
+        model: modelName,
+        params,
+        channel: null,
+      };
+    }
     if (provider.requestMode === "images-generations") {
       return {
         model: modelName,
@@ -6883,6 +7103,92 @@ export class WorksService {
           content,
         },
       ],
+    };
+  }
+
+  private async pollImageGenerationResult(
+    baseUrl: string,
+    apiKey: string,
+    queryPath: string,
+    taskId: string,
+    options: {
+      queryMethod?: "GET" | "POST";
+      queryBodyMode?: "taskId-json" | "task_id-json";
+      requestTimeoutMs?: number;
+    },
+  ) {
+    let lastState = "";
+    let lastError = "";
+    const deadlineAt = Date.now() + 3 * 60 * 1000;
+    while (Date.now() < deadlineAt) {
+      const response = await this.requestAuthorizedJson(
+        baseUrl,
+        this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
+        apiKey,
+        {
+          method: options.queryMethod || "POST",
+          body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
+          timeoutMs: options.requestTimeoutMs || 120000,
+        },
+      );
+      const snapshot = this.readImageTaskSnapshot(response);
+      lastState = snapshot.status;
+      if (snapshot.status === "SUCCESS" && snapshot.asset) {
+        return snapshot.asset;
+      }
+      if (snapshot.status === "FAILED") {
+        throw new ServiceUnavailableException(snapshot.failReason || "第三方图片生成任务失败");
+      }
+      lastError = snapshot.failReason || "";
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs <= 0) {
+        break;
+      }
+      await wait(Math.min(4000, remainingMs));
+    }
+    throw new ServiceUnavailableException(lastError || `图片任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
+  }
+
+  private readImageTaskSnapshot(payload: Record<string, unknown>) {
+    const topLevelData = this.asRecord(payload.data);
+    const resultRecord = this.asRecord(topLevelData?.result);
+    const outputRecord = this.asRecord(resultRecord?.output);
+    const taskStatusRaw = String(
+      this.readOptionalString(topLevelData?.status)
+      || this.readOptionalString(topLevelData?.task_status)
+      || this.readOptionalString(payload.status)
+      || "",
+    ).trim();
+    const normalizedStatus = this.normalizeVideoTaskStatus(taskStatusRaw);
+    const directImages = Array.isArray(outputRecord?.images) ? outputRecord.images : [];
+    const firstImage = this.asRecord(directImages[0]);
+    const firstImageUrl = typeof directImages[0] === "string"
+      ? String(directImages[0] || "").trim()
+      : this.readOptionalString(firstImage?.url) || this.readOptionalString(firstImage?.image_url);
+    const directUrl =
+      firstImageUrl
+      || this.readOptionalString(outputRecord?.image_url)
+      || this.readOptionalString(outputRecord?.url)
+      || this.readOptionalString(topLevelData?.image_url)
+      || this.readOptionalString(payload.image_url);
+    const failReason =
+      this.readOptionalString(payload.errorMessage)
+      || this.readOptionalString(payload.message)
+      || this.readOptionalString(this.asRecord(payload.error)?.message)
+      || this.readOptionalString(topLevelData?.task_status_msg)
+      || this.readOptionalString(topLevelData?.message);
+
+    return {
+      status: normalizedStatus,
+      failReason,
+      asset: directUrl
+        ? {
+          url: directUrl,
+          base64: undefined,
+          extension: ".png",
+          contentType: "image/png",
+        }
+        : null,
     };
   }
 
