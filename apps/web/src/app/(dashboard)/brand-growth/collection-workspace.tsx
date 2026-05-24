@@ -925,7 +925,6 @@ function AvatarPreviewLink(props: {
   return (
     <a href={props.src} target="_blank" rel="noreferrer" className="table-avatar-link" title="点击查看原图">
       <img src={props.src} alt={props.alt} className="table-avatar-thumb" />
-      <span>预览</span>
     </a>
   );
 }
@@ -1080,7 +1079,7 @@ function DouyinBrandWorksTable(props: {
               <td>
                 {item.videoUrl ? (
                   <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    打开视频
+                    打开
                   </a>
                 ) : "-"}
               </td>
@@ -1154,7 +1153,7 @@ function DouyinMaterialReadyWorksTable(props: {
               <td>
                 {item.videoUrl ? (
                   <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    打开视频
+                    打开
                   </a>
                 ) : "-"}
               </td>
