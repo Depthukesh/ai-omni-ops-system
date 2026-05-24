@@ -1099,7 +1099,9 @@ function DouyinMaterialReadyWorksTable(props: {
   onAddToMaterialLibrary: ValueAction<DouyinCollectedWorkRecord>;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
+  showBillboardColumns?: boolean;
 }) {
+  const showBillboardColumns = props.showBillboardColumns ?? true;
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
@@ -1108,9 +1110,9 @@ function DouyinMaterialReadyWorksTable(props: {
             <th>素材库</th>
             <th>作品 ID</th>
             <th>作品描述</th>
-            <th>来源榜单</th>
-            <th>一级分类</th>
-            <th>二级分类</th>
+            {showBillboardColumns ? <th>来源榜单</th> : null}
+            {showBillboardColumns ? <th>一级分类</th> : null}
+            {showBillboardColumns ? <th>二级分类</th> : null}
             <th>作品时长</th>
             <th>作品封面</th>
             <th>视频地址</th>
@@ -1142,9 +1144,9 @@ function DouyinMaterialReadyWorksTable(props: {
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>
-              <td>{item.billboardLabel || "-"}</td>
-              <td>{item.primaryTagLabel || "-"}</td>
-              <td>{item.secondaryTagLabel || "-"}</td>
+              {showBillboardColumns ? <td>{item.billboardLabel || "-"}</td> : null}
+              {showBillboardColumns ? <td>{item.primaryTagLabel || "-"}</td> : null}
+              {showBillboardColumns ? <td>{item.secondaryTagLabel || "-"}</td> : null}
               <td>{formatDurationSeconds(item.durationMs)}</td>
               <td>
                 <AvatarPreviewLink src={item.coverUrl} alt={`${item.title || item.workId}封面`} />
@@ -2151,6 +2153,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    showBillboardColumns={false}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>

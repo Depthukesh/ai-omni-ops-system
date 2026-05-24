@@ -3119,7 +3119,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       {
         page: 1,
         page_size: 10,
-        date_window: 24,
+        date_window: 2,
         tags: this.buildDouyinBillboardTags(config.selection),
       },
       brandId,
