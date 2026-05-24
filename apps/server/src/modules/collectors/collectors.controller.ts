@@ -120,10 +120,21 @@ export class DouyinCollectorsController {
     @Param("brandId") brandId: string,
     @Body()
     payload: {
-      scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
+      scope?:
+        | "brandAccount"
+        | "competitorAccount"
+        | "brandWorks"
+        | "benchmarkWorks"
+        | "lowFanExplosiveWorks"
+        | "highCompletionRateWorks"
+        | "highLikeRateWorks";
       brandAccountLinks?: string[];
       competitorAccountLinks?: string[];
       benchmarkAwemeIds?: string[];
+      contentTagSelection?: {
+        primaryTagId?: number;
+        secondaryTagId?: number;
+      };
     },
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {

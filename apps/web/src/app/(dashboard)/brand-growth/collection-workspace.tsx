@@ -12,6 +12,7 @@ import type {
 } from "./shared-types";
 import type {
   DouyinCollectedAccountRecord,
+  DouyinContentTagOption,
   DouyinCollectionWorkspace,
   DouyinCollectedWorkRecord,
   XhsCollectedAccountRecord,
@@ -45,7 +46,10 @@ export type DouyinCollectionCardKey =
   | "brandAccount"
   | "competitorAccount"
   | "brandWorks"
-  | "benchmarkWorks";
+  | "benchmarkWorks"
+  | "lowFanExplosiveWorks"
+  | "highCompletionRateWorks"
+  | "highLikeRateWorks";
 
 export const douyinCollectionCards: Array<{
   key: DouyinCollectionCardKey;
@@ -55,6 +59,9 @@ export const douyinCollectionCards: Array<{
   { key: "competitorAccount", label: "竞品账号信息" },
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
+  { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
+  { key: "highCompletionRateWorks", label: "获取高完播率榜" },
+  { key: "highLikeRateWorks", label: "获取高点赞率榜" },
 ];
 
 type DouyinFieldPreviewRow = {
@@ -122,10 +129,58 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "downloadCount", label: "下载数", source: "获取作品的统计数据", path: "data.statistics_list[].download_count", required: "可选", patch: "是" },
     { field: "commentCount", label: "评论数", source: "获取单个作品数据 V3", path: "data.aweme_detail.statistics.comment_count", required: "可选", patch: "否" },
   ],
+  lowFanExplosiveWorks: [
+    { field: "workId", label: "作品 ID", source: "获取低粉爆款榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
+    { field: "description", label: "作品描述", source: "获取低粉爆款榜", path: "data.data.data[].item_title", required: "必需", patch: "否" },
+    { field: "coverUrl", label: "作品封面", source: "获取低粉爆款榜", path: "data.data.data[].item_cover_url", required: "可选", patch: "否" },
+    { field: "durationMs", label: "作品时长", source: "获取低粉爆款榜", path: "data.data.data[].item_duration", required: "可选", patch: "否" },
+    { field: "authorName", label: "作者昵称", source: "获取低粉爆款榜", path: "data.data.data[].nick_name", required: "可选", patch: "否" },
+    { field: "authorAvatar", label: "作者头像", source: "获取低粉爆款榜", path: "data.data.data[].avatar_url", required: "可选", patch: "否" },
+    { field: "authorFollowerCount", label: "作者粉丝数", source: "获取低粉爆款榜", path: "data.data.data[].fans_cnt", required: "可选", patch: "否" },
+    { field: "playCount", label: "播放量", source: "获取低粉爆款榜", path: "data.data.data[].play_cnt", required: "可选", patch: "否" },
+    { field: "publishTimeText", label: "发布时间", source: "获取低粉爆款榜", path: "data.data.data[].publish_time", required: "可选", patch: "否" },
+    { field: "score", label: "榜单分数", source: "获取低粉爆款榜", path: "data.data.data[].score", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "作品链接", source: "获取低粉爆款榜", path: "data.data.data[].item_url", required: "可选", patch: "否" },
+    { field: "likeCount", label: "点赞数", source: "获取低粉爆款榜", path: "data.data.data[].like_cnt", required: "可选", patch: "否" },
+  ],
+  highCompletionRateWorks: [
+    { field: "workId", label: "作品 ID", source: "获取高完播率榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
+    { field: "description", label: "作品描述", source: "获取高完播率榜", path: "data.data.data[].item_title", required: "必需", patch: "否" },
+    { field: "coverUrl", label: "作品封面", source: "获取高完播率榜", path: "data.data.data[].item_cover_url", required: "可选", patch: "否" },
+    { field: "durationMs", label: "作品时长", source: "获取高完播率榜", path: "data.data.data[].item_duration", required: "可选", patch: "否" },
+    { field: "authorName", label: "作者昵称", source: "获取高完播率榜", path: "data.data.data[].nick_name", required: "可选", patch: "否" },
+    { field: "authorAvatar", label: "作者头像", source: "获取高完播率榜", path: "data.data.data[].avatar_url", required: "可选", patch: "否" },
+    { field: "authorFollowerCount", label: "作者粉丝数", source: "获取高完播率榜", path: "data.data.data[].fans_cnt", required: "可选", patch: "否" },
+    { field: "playCount", label: "播放量", source: "获取高完播率榜", path: "data.data.data[].play_cnt", required: "可选", patch: "否" },
+    { field: "publishTimeText", label: "发布时间", source: "获取高完播率榜", path: "data.data.data[].publish_time", required: "可选", patch: "否" },
+    { field: "score", label: "榜单分数", source: "获取高完播率榜", path: "data.data.data[].score", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "作品链接", source: "获取高完播率榜", path: "data.data.data[].item_url", required: "可选", patch: "否" },
+    { field: "likeCount", label: "点赞数", source: "获取高完播率榜", path: "data.data.data[].like_cnt", required: "可选", patch: "否" },
+  ],
+  highLikeRateWorks: [
+    { field: "workId", label: "作品 ID", source: "获取高点赞率榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
+    { field: "description", label: "作品描述", source: "获取高点赞率榜", path: "data.data.data[].item_title", required: "必需", patch: "否" },
+    { field: "coverUrl", label: "作品封面", source: "获取高点赞率榜", path: "data.data.data[].item_cover_url", required: "可选", patch: "否" },
+    { field: "durationMs", label: "作品时长", source: "获取高点赞率榜", path: "data.data.data[].item_duration", required: "可选", patch: "否" },
+    { field: "authorName", label: "作者昵称", source: "获取高点赞率榜", path: "data.data.data[].nick_name", required: "可选", patch: "否" },
+    { field: "authorAvatar", label: "作者头像", source: "获取高点赞率榜", path: "data.data.data[].avatar_url", required: "可选", patch: "否" },
+    { field: "authorFollowerCount", label: "作者粉丝数", source: "获取高点赞率榜", path: "data.data.data[].fans_cnt", required: "可选", patch: "否" },
+    { field: "playCount", label: "播放量", source: "获取高点赞率榜", path: "data.data.data[].play_cnt", required: "可选", patch: "否" },
+    { field: "publishTimeText", label: "发布时间", source: "获取高点赞率榜", path: "data.data.data[].publish_time", required: "可选", patch: "否" },
+    { field: "score", label: "榜单分数", source: "获取高点赞率榜", path: "data.data.data[].score", required: "可选", patch: "否" },
+    { field: "videoUrl", label: "作品链接", source: "获取高点赞率榜", path: "data.data.data[].item_url", required: "可选", patch: "否" },
+    { field: "likeCount", label: "点赞数", source: "获取高点赞率榜", path: "data.data.data[].like_cnt", required: "可选", patch: "否" },
+  ],
 };
 
 export interface BrandGrowthCollectionWorkspaceProps {
   activePage: "feishuCollection" | "xiaohongshuCollection" | "douyinCollection" | "dailyHotspot";
+  pageTitle: string;
+  pageDescription: string;
+  dataSource: "api" | "error" | "loading";
+  notice: string;
+  errorMessage: string;
+  onRefreshData: AsyncAction;
   templateUrl: string;
   activeXhsCollectionCard: XiaohongshuCollectionCardKey;
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
@@ -149,11 +204,35 @@ export interface BrandGrowthCollectionWorkspaceProps {
     brandAccountLinks: string;
     competitorAccountLinks: string;
     benchmarkAwemeIds: string;
+    lowFanExplosiveWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
+    highCompletionRateWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
+    highLikeRateWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
   };
   setDouyinSyncForm: Dispatch<SetStateAction<{
     brandAccountLinks: string;
     competitorAccountLinks: string;
     benchmarkAwemeIds: string;
+    lowFanExplosiveWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
+    highCompletionRateWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
+    highLikeRateWorks: {
+      primaryTagId: string;
+      secondaryTagId: string;
+    };
   }>>;
   onSaveFeishuAppConfig: AsyncAction;
   onStartFeishuAuth: AsyncAction;
@@ -168,6 +247,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
   sortedDouyinBenchmarkWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
   brandNotesPage: number;
   setBrandNotesPage: Dispatch<SetStateAction<number>>;
   brandNotesPageCount: number;
@@ -334,6 +416,28 @@ function ProtectedVideoPanel(props: {
         ) : null}
       </div>
     </>
+  );
+}
+
+function CollectionPageStatus(props: {
+  dataSource: "api" | "error" | "loading";
+  notice: string;
+  errorMessage: string;
+  isHydrating: boolean;
+}) {
+  return (
+    <div className="workspace-status" style={{ marginBottom: 16 }}>
+      <span
+        className={`archive-pill ${
+          props.dataSource === "api" ? "status-ready" : props.dataSource === "loading" ? "status-in_progress" : "status-pending"
+        }`}
+      >
+        {props.dataSource === "api" ? "接口数据" : props.dataSource === "loading" ? "加载中" : "接口异常"}
+      </span>
+      {props.isHydrating ? <span className="status-text">正在加载当前页面数据...</span> : null}
+      {!props.isHydrating && props.notice ? <span className="status-text success-text">{props.notice}</span> : null}
+      {!props.isHydrating && props.errorMessage ? <span className="status-text error-text">{props.errorMessage}</span> : null}
+    </div>
   );
 }
 
@@ -627,6 +731,79 @@ function DouyinSubmitPanel(props: {
           placeholder={props.placeholder}
         />
       </label>
+    </article>
+  );
+}
+
+function DouyinCategorySubmitPanel(props: {
+  title: string;
+  tags: DouyinContentTagOption[];
+  value: {
+    primaryTagId: string;
+    secondaryTagId: string;
+  };
+  isSubmitting: boolean;
+  onChange: ValueAction<{
+    primaryTagId: string;
+    secondaryTagId: string;
+  }>;
+  onSubmit: AsyncAction;
+}) {
+  const selectedPrimaryTag = props.tags.find((item) => String(item.value) === props.value.primaryTagId);
+  const secondaryTags = selectedPrimaryTag?.children ?? [];
+
+  return (
+    <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="collection-result-head">
+        <div>
+          <h3>{props.title}</h3>
+          <p>先选择一级分类和二级分类，再提交当前榜单采集。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "提交"}
+        </button>
+      </div>
+      <div className="form-grid two-column">
+        <label className="field">
+          <span>一级分类</span>
+          <select
+            value={props.value.primaryTagId}
+            onChange={(event) =>
+              props.onChange({
+                primaryTagId: event.target.value,
+                secondaryTagId: "",
+              })
+            }
+          >
+            <option value="">请选择一级分类</option>
+            {props.tags.map((item) => (
+              <option key={`douyin-primary-tag-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>二级分类</span>
+          <select
+            value={props.value.secondaryTagId}
+            onChange={(event) =>
+              props.onChange({
+                primaryTagId: props.value.primaryTagId,
+                secondaryTagId: event.target.value,
+              })
+            }
+            disabled={!selectedPrimaryTag}
+          >
+            <option value="">{selectedPrimaryTag ? "请选择二级分类" : "请先选择一级分类"}</option>
+            {secondaryTags.map((item) => (
+              <option key={`douyin-secondary-tag-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </article>
   );
 }
@@ -926,7 +1103,7 @@ function DouyinBrandWorksTable(props: {
   );
 }
 
-function DouyinBenchmarkWorksTable(props: {
+function DouyinMaterialReadyWorksTable(props: {
   items: DouyinCollectedWorkRecord[];
   addingMaterialAssetId: string;
   onAddToMaterialLibrary: ValueAction<DouyinCollectedWorkRecord>;
@@ -941,9 +1118,12 @@ function DouyinBenchmarkWorksTable(props: {
             <th>素材库</th>
             <th>作品 ID</th>
             <th>作品描述</th>
+            <th>来源榜单</th>
+            <th>一级分类</th>
+            <th>二级分类</th>
             <th>作品时长</th>
-            <th>视频封面</th>
-            <th>视频播放地址</th>
+            <th>作品封面</th>
+            <th>视频地址</th>
             <th>作品点赞数</th>
             <th>作品评论数</th>
             <th>作品分享数</th>
@@ -972,6 +1152,9 @@ function DouyinBenchmarkWorksTable(props: {
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description || item.title} emptyText="暂无作品描述" compactRows={2} />
               </td>
+              <td>{item.billboardLabel || "-"}</td>
+              <td>{item.primaryTagLabel || "-"}</td>
+              <td>{item.secondaryTagLabel || "-"}</td>
               <td>{formatDurationSeconds(item.durationMs)}</td>
               <td>
                 <AvatarPreviewLink src={item.coverUrl} alt={`${item.title || item.workId}封面`} />
@@ -1007,41 +1190,233 @@ function DouyinBenchmarkWorksTable(props: {
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
-  if (props.activePage !== "dailyHotspot") {
-    const xiaohongshuSyncedCount =
-      props.sortedBrandAccounts.length +
-      props.sortedCompetitorAccounts.length +
-      props.sortedBrandNotes.length +
-      props.sortedBenchmarkNotes.length;
-    const douyinSyncedCount =
-      props.sortedDouyinBrandAccounts.length +
-      props.sortedDouyinCompetitorAccounts.length +
-      props.sortedDouyinBrandWorks.length +
-      props.sortedDouyinBenchmarkWorks.length;
-    const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
-    const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
-    const douyinPreviewItems =
-      props.activeDouyinCollectionCard === "brandAccount"
-        ? props.sortedDouyinBrandAccounts
-        : props.activeDouyinCollectionCard === "competitorAccount"
-          ? props.sortedDouyinCompetitorAccounts
-          : props.activeDouyinCollectionCard === "brandWorks"
-            ? props.sortedDouyinBrandWorks
-            : props.sortedDouyinBenchmarkWorks;
+  const xiaohongshuSyncedCount =
+    props.sortedBrandAccounts.length +
+    props.sortedCompetitorAccounts.length +
+    props.sortedBrandNotes.length +
+    props.sortedBenchmarkNotes.length;
+  const douyinSyncedCount =
+    props.sortedDouyinBrandAccounts.length +
+    props.sortedDouyinCompetitorAccounts.length +
+    props.sortedDouyinBrandWorks.length +
+    props.sortedDouyinBenchmarkWorks.length +
+    props.sortedDouyinLowFanExplosiveWorks.length +
+    props.sortedDouyinHighCompletionRateWorks.length +
+    props.sortedDouyinHighLikeRateWorks.length;
+  const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
+  const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
+  const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
+  const douyinPreviewItems =
+    props.activeDouyinCollectionCard === "brandAccount"
+      ? props.sortedDouyinBrandAccounts
+      : props.activeDouyinCollectionCard === "competitorAccount"
+        ? props.sortedDouyinCompetitorAccounts
+        : props.activeDouyinCollectionCard === "brandWorks"
+          ? props.sortedDouyinBrandWorks
+          : props.activeDouyinCollectionCard === "benchmarkWorks"
+            ? props.sortedDouyinBenchmarkWorks
+            : props.activeDouyinCollectionCard === "lowFanExplosiveWorks"
+              ? props.sortedDouyinLowFanExplosiveWorks
+              : props.activeDouyinCollectionCard === "highCompletionRateWorks"
+                ? props.sortedDouyinHighCompletionRateWorks
+                : props.sortedDouyinHighLikeRateWorks;
 
+  if (props.activePage === "dailyHotspot") {
     return (
-      <div className="strategy-collection-stack">
-        {props.activePage === "feishuCollection" ? (
-          <article className="workspace-panel strategy-page-card feishu-binding-panel">
+      <article className="workspace-panel strategy-page-card hotspot-page-card">
+        <div className="strategy-card-toolbar">
+          <div>
+            <strong>{props.pageTitle}</strong>
+            <p>{props.pageDescription}</p>
+          </div>
+          <div className="strategy-inline-actions">
+            <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
+              刷新数据
+            </button>
+          </div>
+        </div>
+        <CollectionPageStatus
+          dataSource={props.dataSource}
+          notice={props.notice}
+          errorMessage={props.errorMessage}
+          isHydrating={props.isHydrating}
+        />
+        <article className="light-data-panel hotspot-overview-panel">
+          <div className="hotspot-panel-head">
+            <div className="hotspot-panel-copy">
+              <h3>{props.activeHotspotRecord?.title || "热搜榜"}</h3>
+              <p>{props.activeHotspotRecord?.description || "这里展示每日热点搜索结果。"}</p>
+              <span className="hotspot-auto-tip">每天 4:00 自动更新当天热搜榜</span>
+            </div>
+            <div className="hotspot-panel-actions">
+              <label className="hotspot-date-picker">
+                <span>查看日期</span>
+                <select
+                  value={props.selectedHotspotDate}
+                  onChange={(event) => void props.onDailyHotspotDateChange(event.target.value)}
+                  disabled={props.isSyncingDailyHotspots || !props.hotspotAvailableDates.length}
+                >
+                  {props.hotspotAvailableDates.map((date) => (
+                    <option key={date} value={date}>
+                      {props.formatDateLabel(date)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span
+                className={`archive-pill ${
+                  props.activeHotspotRecord?.syncStatus === "SUCCESS"
+                    ? "status-ready"
+                    : props.activeHotspotRecord?.syncStatus === "FAILED"
+                      ? "status-pending"
+                      : "status-in_progress"
+                }`}
+              >
+                {props.activeHotspotRecord?.syncStatus || "IDLE"}
+              </span>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() =>
+                  void props.onSyncDailyHotspots(props.activeHotspotRecord ? [props.activeHotspotRecord.title] : undefined)
+                }
+                disabled={props.isSyncingDailyHotspots}
+              >
+                {props.isSyncingDailyHotspots ? "搜索中..." : "手动搜索"}
+              </button>
+            </div>
+          </div>
+
+          {props.activeHotspotRecord?.lastError ? (
+            <div className="hotspot-error-banner">
+              <strong>最近一次搜索失败</strong>
+              <p>{props.activeHotspotRecord.lastError}</p>
+            </div>
+          ) : null}
+        </article>
+
+        <article className="light-data-panel">
+          <div className="hotspot-list-head">
+            <h3>热点榜单</h3>
+            <div className="hotspot-list-tools">
+              <span className="archive-pill status-ready">共 {props.sortedHotspotItems.length} 条</span>
+              <label className="note-page-size-picker hotspot-page-size-picker">
+                <span>每页</span>
+                <select
+                  value={props.hotspotPageSize}
+                  onChange={(event) => props.setHotspotPageSize(Number(event.target.value))}
+                >
+                  {[10, 20].map((size) => (
+                    <option key={`hotspot-page-size-${size}`} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <span>条</span>
+              </label>
+            </div>
+          </div>
+          <div className="hotspot-ranking-list">
+            {props.sortedHotspotItems.length ? (
+              props.paginatedHotspotItems.map((item) => (
+                <article key={item.id} className="hotspot-ranking-card">
+                  <div className="hotspot-ranking-rank">#{item.rank}</div>
+                  <div className="hotspot-ranking-body">
+                    <strong>{item.title}</strong>
+                    <div className="hotspot-ranking-meta">
+                      <span>热度 {props.formatHotspotHeat(item.hot)}</span>
+                      <span>
+                        时间{" "}
+                        {props.formatDateTime(
+                          item.timestamp
+                            ? new Date(item.timestamp).toISOString()
+                            : props.activeHotspotRecord?.updateTime || props.activeHotspotRecord?.collectedAt,
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  {item.url ? (
+                    <a href={item.url} target="_blank" rel="noreferrer" className="table-link-pill">
+                      查看源链接
+                    </a>
+                  ) : (
+                    <span className="archive-pill status-pending">无直达链接</span>
+                  )}
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">
+                当前榜单还没有可展示的热点条目。若刚执行过搜索但仍为空，通常表示接口权限不足或返回结构为空。
+              </div>
+            )}
+          </div>
+          {props.sortedHotspotItems.length ? (
+            <div className="note-pagination-bar hotspot-pagination-bar">
+              <div className="note-pagination-summary">
+                <span>
+                  第 {props.hotspotPage} / {props.hotspotPageCount} 页
+                </span>
+                <span>当前显示 {props.paginatedHotspotItems.length} 条</span>
+              </div>
+              <div className="note-pagination-actions">
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() => props.setHotspotPage((current) => Math.max(1, current - 1))}
+                  disabled={props.hotspotPage === 1}
+                >
+                  上一页
+                </button>
+                {Array.from({ length: props.hotspotPageCount }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={`hotspot-page-${page}`}
+                    type="button"
+                    className={`note-page-button ${page === props.hotspotPage ? "is-active" : ""}`}
+                    onClick={() => props.setHotspotPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() => props.setHotspotPage((current) => Math.min(props.hotspotPageCount, current + 1))}
+                  disabled={props.hotspotPage === props.hotspotPageCount}
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </article>
+      </article>
+    );
+  }
+
+  return (
+    <div className="strategy-collection-stack">
+      {props.activePage === "feishuCollection" ? (
+        <article className="workspace-panel strategy-page-card feishu-binding-panel">
           <div className="strategy-card-toolbar">
             <div>
-              <strong>飞书配置</strong>
-              <p>当前页面只负责飞书应用配置、副本绑定和同步前置设置。</p>
+              <strong>{props.pageTitle}</strong>
+              <p>{props.pageDescription}</p>
             </div>
-            <a href={props.templateUrl} target="_blank" rel="noreferrer" className="secondary-button">
-              打开飞书模板
-            </a>
+            <div className="strategy-inline-actions">
+              <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
+                刷新数据
+              </button>
+              <a href={props.templateUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                打开飞书模板
+              </a>
+            </div>
           </div>
+          <CollectionPageStatus
+            dataSource={props.dataSource}
+            notice={props.notice}
+            errorMessage={props.errorMessage}
+            isHydrating={props.isHydrating}
+          />
           <div className="strategy-chip-row">
             <span className={`archive-pill ${feishuConfigReady ? "status-ready" : "status-pending"}`}>
               {feishuConfigReady ? "应用已配置" : "待配置应用"}
@@ -1136,25 +1511,36 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               {props.isSavingFeishuBinding ? "绑定中..." : "保存绑定"}
             </button>
           </div>
-          </article>
-        ) : null}
+        </article>
+      ) : null}
 
-        {props.activePage === "xiaohongshuCollection" ? (
-          <article className="workspace-panel strategy-page-card strategy-collection-page-card">
+      {props.activePage === "xiaohongshuCollection" ? (
+        <article className="workspace-panel strategy-page-card strategy-collection-page-card">
           <div className="strategy-card-toolbar">
             <div>
-              <strong>小红书</strong>
+              <strong>{props.pageTitle}</strong>
               <p>小红书板块只保留同步入口与结果展示，飞书应用和副本绑定已移动到独立飞书配置板块。</p>
             </div>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void props.onSyncFeishuWorkspace()}
-              disabled={props.isHydrating || props.isSyncingFeishuWorkspace || !props.canSyncFeishuWorkspace}
-            >
-              {props.isSyncingFeishuWorkspace ? "同步中..." : "同步数据"}
-            </button>
+            <div className="strategy-inline-actions">
+              <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
+                刷新数据
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void props.onSyncFeishuWorkspace()}
+                disabled={props.isHydrating || props.isSyncingFeishuWorkspace || !props.canSyncFeishuWorkspace}
+              >
+                {props.isSyncingFeishuWorkspace ? "同步中..." : "同步数据"}
+              </button>
+            </div>
           </div>
+          <CollectionPageStatus
+            dataSource={props.dataSource}
+            notice={props.notice}
+            errorMessage={props.errorMessage}
+            isHydrating={props.isHydrating}
+          />
           <div className="strategy-chip-row">
             <span className={`archive-pill ${xiaohongshuSyncedCount ? "status-ready" : "status-pending"}`}>
               已同步 {xiaohongshuSyncedCount} 条
@@ -1247,7 +1633,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               </div>
             </article>
           ) : null}
-
           {props.activeXhsCollectionCard === "competitorAccount" ? (
             <article className="light-data-panel">
               <div className="collection-result-head">
@@ -1320,7 +1705,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               </div>
             </article>
           ) : null}
-
           {props.activeXhsCollectionCard === "brandWorks" ? (
             <article className="light-data-panel">
               <div className="collection-result-head">
@@ -1486,7 +1870,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               ) : null}
             </article>
           ) : null}
-
           {props.activeXhsCollectionCard === "benchmarkWorks" ? (
             <article className="light-data-panel">
               <div className="collection-result-head">
@@ -1627,307 +2010,256 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               </div>
             </article>
           ) : null}
-          </article>
-        ) : null}
+        </article>
+      ) : null}
 
-        {props.activePage === "douyinCollection" ? (
-          <article className="workspace-panel strategy-page-card strategy-collection-page-card">
-            <div className="strategy-card-toolbar">
-              <div>
-                <strong>抖音</strong>
-                <p>四个分组分别提交，结果直接按表格展示。</p>
-              </div>
+      {props.activePage === "douyinCollection" ? (
+        <article className="workspace-panel strategy-page-card strategy-collection-page-card">
+          <div className="strategy-card-toolbar">
+            <div>
+              <strong>{props.pageTitle}</strong>
+              <p>对标作品保留手动输入，新增 3 个榜单使用垂类一级/二级分类下拉采集，结果统一复用素材库勾选表格。</p>
             </div>
-            <div className="strategy-chip-row">
-              <span className="archive-pill status-ready">数据源：Tikhub</span>
-              <span className="archive-pill status-ready">字段甄别：已完成</span>
-              <span className="archive-pill status-ready">播放量：统计接口补丁</span>
-              <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
-                已同步 {douyinSyncedCount} 条
-              </span>
+            <div className="strategy-inline-actions">
+              <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
+                刷新数据
+              </button>
             </div>
-            <div className="strategy-chip-row">
-              {douyinCollectionCards.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`filter-chip ${props.activeDouyinCollectionCard === item.key ? "is-active" : ""}`}
-                  onClick={() => props.onDouyinCollectionCardChange(item.key)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            {props.activeDouyinCollectionCard === "brandAccount" ? (
-              <>
-                <DouyinSubmitPanel
-                  title="品牌抖音主页链接"
-                  value={props.douyinSyncForm.brandAccountLinks}
-                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                  placeholder="每行一个"
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onSubmit={props.onSyncDouyinWorkspace}
-                />
-                <article className="light-data-panel">
-                  <div className="collection-result-head">
-                    <div>
-                      <h3>品牌账号信息</h3>
-                    </div>
-                  </div>
-                  {douyinPreviewItems.length ? (
-                    <DouyinAccountTable
-                      items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ) : (
-                    <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接并提交。</div>
-                  )}
-                </article>
-              </>
-            ) : null}
-            {props.activeDouyinCollectionCard === "competitorAccount" ? (
-              <>
-                <DouyinSubmitPanel
-                  title="竞品抖音主页链接"
-                  value={props.douyinSyncForm.competitorAccountLinks}
-                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: value }))}
-                  placeholder="每行一个"
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onSubmit={props.onSyncDouyinWorkspace}
-                />
-                <article className="light-data-panel">
-                  <div className="collection-result-head">
-                    <div>
-                      <h3>竞品账号信息</h3>
-                    </div>
-                  </div>
-                  {douyinPreviewItems.length ? (
-                    <DouyinAccountTable
-                      items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ) : (
-                    <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接并提交。</div>
-                  )}
-                </article>
-              </>
-            ) : null}
-            {props.activeDouyinCollectionCard === "brandWorks" ? (
-              <>
-                <DouyinSubmitPanel
-                  title="品牌抖音主页链接"
-                  value={props.douyinSyncForm.brandAccountLinks}
-                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                  placeholder="每行一个"
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onSubmit={props.onSyncDouyinWorkspace}
-                />
-                <article className="light-data-panel">
-                  <div className="collection-result-head">
-                    <div>
-                      <h3>品牌作品信息及数据</h3>
-                    </div>
-                  </div>
-                  {douyinPreviewItems.length ? (
-                    <DouyinBrandWorksTable
-                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ) : (
-                    <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接并提交。</div>
-                  )}
-                </article>
-              </>
-            ) : null}
-            {props.activeDouyinCollectionCard === "benchmarkWorks" ? (
-              <>
-                <DouyinSubmitPanel
-                  title="对标作品链接"
-                  value={props.douyinSyncForm.benchmarkAwemeIds}
-                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: value }))}
-                  placeholder="每行一个"
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onSubmit={props.onSyncDouyinWorkspace}
-                />
-                <article className="light-data-panel">
-                  <div className="collection-result-head">
-                    <div>
-                      <h3>对标作品信息及数据</h3>
-                    </div>
-                  </div>
-                  {douyinPreviewItems.length ? (
-                    <DouyinBenchmarkWorksTable
-                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
-                      addingMaterialAssetId={props.addingMaterialAssetId}
-                      onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                    />
-                  ) : (
-                    <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
-                  )}
-                </article>
-              </>
-            ) : null}
-          </article>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <article className="workspace-panel strategy-page-card hotspot-page-card">
-      <article className="light-data-panel hotspot-overview-panel">
-        <div className="hotspot-panel-head">
-          <div className="hotspot-panel-copy">
-            <h3>{props.activeHotspotRecord?.title || "热搜榜"}</h3>
-            <p>{props.activeHotspotRecord?.description || "这里展示每日热点搜索结果。"}</p>
-            <span className="hotspot-auto-tip">每天 4:00 自动更新当天热搜榜</span>
           </div>
-          <div className="hotspot-panel-actions">
-            <label className="hotspot-date-picker">
-              <span>查看日期</span>
-              <select
-                value={props.selectedHotspotDate}
-                onChange={(event) => void props.onDailyHotspotDateChange(event.target.value)}
-                disabled={props.isSyncingDailyHotspots || !props.hotspotAvailableDates.length}
-              >
-                {props.hotspotAvailableDates.map((date) => (
-                  <option key={date} value={date}>
-                    {props.formatDateLabel(date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span
-              className={`archive-pill ${
-                props.activeHotspotRecord?.syncStatus === "SUCCESS"
-                  ? "status-ready"
-                  : props.activeHotspotRecord?.syncStatus === "FAILED"
-                    ? "status-pending"
-                    : "status-in_progress"
-              }`}
-            >
-              {props.activeHotspotRecord?.syncStatus || "IDLE"}
+          <CollectionPageStatus
+            dataSource={props.dataSource}
+            notice={props.notice}
+            errorMessage={props.errorMessage}
+            isHydrating={props.isHydrating}
+          />
+          <div className="strategy-chip-row">
+            <span className="archive-pill status-ready">数据源：Tikhub</span>
+            <span className="archive-pill status-ready">播放量：统计接口补丁</span>
+            <span className={`archive-pill ${douyinContentTags.length ? "status-ready" : "status-pending"}`}>
+              {douyinContentTags.length ? `垂类标签 ${douyinContentTags.length} 组` : "垂类标签待加载"}
             </span>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() =>
-                void props.onSyncDailyHotspots(props.activeHotspotRecord ? [props.activeHotspotRecord.title] : undefined)
-              }
-              disabled={props.isSyncingDailyHotspots}
-            >
-              {props.isSyncingDailyHotspots ? "搜索中..." : "手动搜索"}
-            </button>
+            <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
+              已同步 {douyinSyncedCount} 条
+            </span>
           </div>
-        </div>
-
-        {props.activeHotspotRecord?.lastError ? (
-          <div className="hotspot-error-banner">
-            <strong>最近一次搜索失败</strong>
-            <p>{props.activeHotspotRecord.lastError}</p>
-          </div>
-        ) : null}
-      </article>
-
-      <article className="light-data-panel">
-        <div className="hotspot-list-head">
-          <h3>热点榜单</h3>
-          <div className="hotspot-list-tools">
-            <span className="archive-pill status-ready">共 {props.sortedHotspotItems.length} 条</span>
-            <label className="note-page-size-picker hotspot-page-size-picker">
-              <span>每页</span>
-              <select
-                value={props.hotspotPageSize}
-                onChange={(event) => props.setHotspotPageSize(Number(event.target.value))}
+          <div className="strategy-chip-row">
+            {douyinCollectionCards.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`filter-chip ${props.activeDouyinCollectionCard === item.key ? "is-active" : ""}`}
+                onClick={() => props.onDouyinCollectionCardChange(item.key)}
               >
-                {[10, 20].map((size) => (
-                  <option key={`hotspot-page-size-${size}`} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-              <span>条</span>
-            </label>
+                {item.label}
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="hotspot-ranking-list">
-          {props.sortedHotspotItems.length ? (
-            props.paginatedHotspotItems.map((item) => (
-              <article key={item.id} className="hotspot-ranking-card">
-                <div className="hotspot-ranking-rank">#{item.rank}</div>
-                <div className="hotspot-ranking-body">
-                  <strong>{item.title}</strong>
-                  <div className="hotspot-ranking-meta">
-                    <span>热度 {props.formatHotspotHeat(item.hot)}</span>
-                    <span>
-                      时间{" "}
-                      {props.formatDateTime(
-                        item.timestamp
-                          ? new Date(item.timestamp).toISOString()
-                          : props.activeHotspotRecord?.updateTime || props.activeHotspotRecord?.collectedAt,
-                      )}
-                    </span>
+          {props.activeDouyinCollectionCard === "brandAccount" ? (
+            <>
+              <DouyinSubmitPanel
+                title="品牌抖音主页链接"
+                value={props.douyinSyncForm.brandAccountLinks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
+                placeholder="每行一个"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌账号信息</h3>
                   </div>
                 </div>
-                {item.url ? (
-                  <a href={item.url} target="_blank" rel="noreferrer" className="table-link-pill">
-                    查看源链接
-                  </a>
+                {douyinPreviewItems.length ? (
+                  <DouyinAccountTable
+                    items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
                 ) : (
-                  <span className="archive-pill status-pending">无直达链接</span>
+                  <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接并提交。</div>
                 )}
               </article>
-            ))
-          ) : (
-            <div className="empty-state">
-              当前榜单还没有可展示的热点条目。若刚执行过搜索但仍为空，通常表示接口权限不足或返回结构为空。
-            </div>
-          )}
-        </div>
-        {props.sortedHotspotItems.length ? (
-          <div className="note-pagination-bar hotspot-pagination-bar">
-            <div className="note-pagination-summary">
-              <span>
-                第 {props.hotspotPage} / {props.hotspotPageCount} 页
-              </span>
-              <span>当前显示 {props.paginatedHotspotItems.length} 条</span>
-            </div>
-            <div className="note-pagination-actions">
-              <button
-                type="button"
-                className="note-inline-button"
-                onClick={() => props.setHotspotPage((current) => Math.max(1, current - 1))}
-                disabled={props.hotspotPage === 1}
-              >
-                上一页
-              </button>
-              {Array.from({ length: props.hotspotPageCount }, (_, index) => index + 1).map((page) => (
-                <button
-                  key={`hotspot-page-${page}`}
-                  type="button"
-                  className={`note-page-button ${page === props.hotspotPage ? "is-active" : ""}`}
-                  onClick={() => props.setHotspotPage(page)}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="note-inline-button"
-                onClick={() => props.setHotspotPage((current) => Math.min(props.hotspotPageCount, current + 1))}
-                disabled={props.hotspotPage === props.hotspotPageCount}
-              >
-                下一页
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </article>
-    </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "competitorAccount" ? (
+            <>
+              <DouyinSubmitPanel
+                title="竞品抖音主页链接"
+                value={props.douyinSyncForm.competitorAccountLinks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: value }))}
+                placeholder="每行一个"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>竞品账号信息</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinAccountTable
+                    items={douyinPreviewItems as DouyinCollectedAccountRecord[]}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "brandWorks" ? (
+            <>
+              <DouyinSubmitPanel
+                title="品牌抖音主页链接"
+                value={props.douyinSyncForm.brandAccountLinks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
+                placeholder="每行一个"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌作品信息及数据</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinBrandWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "benchmarkWorks" ? (
+            <>
+              <DouyinSubmitPanel
+                title="对标作品链接"
+                value={props.douyinSyncForm.benchmarkAwemeIds}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, benchmarkAwemeIds: value }))}
+                placeholder="每行一个作品链接或 aweme_id"
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>对标作品信息及数据</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到对标作品信息，请先输入作品链接并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "lowFanExplosiveWorks" ? (
+            <>
+              <DouyinCategorySubmitPanel
+                title="获取低粉爆款榜"
+                tags={douyinContentTags}
+                value={props.douyinSyncForm.lowFanExplosiveWorks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, lowFanExplosiveWorks: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>低粉爆款榜</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到低粉爆款榜结果，请先选择垂类分类并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "highCompletionRateWorks" ? (
+            <>
+              <DouyinCategorySubmitPanel
+                title="获取高完播率榜"
+                tags={douyinContentTags}
+                value={props.douyinSyncForm.highCompletionRateWorks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, highCompletionRateWorks: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>高完播率榜</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到高完播率榜结果，请先选择垂类分类并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "highLikeRateWorks" ? (
+            <>
+              <DouyinCategorySubmitPanel
+                title="获取高点赞率榜"
+                tags={douyinContentTags}
+                value={props.douyinSyncForm.highLikeRateWorks}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, highLikeRateWorks: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>高点赞率榜</h3>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到高点赞率榜结果，请先选择垂类分类并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+        </article>
+      ) : null}
+    </div>
   );
 }

@@ -193,11 +193,13 @@ flowchart LR
     A --> A31["打开飞书模板 -> 最新 Base 副本"]
     A --> A4["小红书收集结果"]
     A --> A41["正式页不再显示同步诊断"]
-    A --> A6["抖音 4 组采集输入"]
-    A6 --> A61["品牌账号 / 竞品账号 / 品牌作品 / 对标作品"]
-    A6 --> A62["技术说明与查看文档按钮已移除"]
-    A6 --> A63["对标作品首列勾选方框 -> 加入/移出素材库"]
-    A6 --> A64["采集时立刻缓存视频到 OSS，7 天后自动清理"]
+    A --> A6["抖音收集容器化布局"]
+    A6 --> A61["顶部重复头部移除，标题/刷新/提交下沉到内容容器"]
+    A6 --> A62["品牌账号 / 竞品账号 / 品牌作品 / 对标作品"]
+    A6 --> A63["新增 3 榜单：低粉爆款 / 高完播率 / 高点赞率"]
+    A6 --> A64["榜单先选一级分类 + 二级分类，再提交"]
+    A6 --> A65["对标作品 + 3 榜单首列勾选方框 -> 加入/移出素材库"]
+    A6 --> A66["采集时立刻缓存视频到 OSS，7 天后自动清理"]
     A --> A5["每日热点"]
 
     B["library-workspace.tsx"]
@@ -737,6 +739,8 @@ flowchart LR
 - 扩展帮助页：`apps/web/src/app/help/xhs-draft-publisher/page.tsx`
 - 品牌增长策略：`apps/web/src/app/(dashboard)/brand-growth/page.tsx`
 - 当前 `brand-growth/workspace.tsx` 已改为读取团队权限模板；无品牌增长策略 `view` 权限时不再继续渲染策略操作面板
+- 抖音工作台：`apps/web/src/app/(dashboard)/douyin/page.tsx`
+- 抖音工作台壳层：`apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 小红书工作台壳层：`apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
@@ -825,7 +829,7 @@ flowchart LR
 - 请求基座：`apps/web/src/services/http.ts`
 - 品牌资料与飞书配置：`apps/web/src/services/brand-growth.ts`
 - 当前 `brand-growth.ts + auth.ts` 已配合前台品牌可见范围收口，不再因后台系统角色自动暴露全品牌
-- 小红书收集工作区：`apps/web/src/services/collectors.ts`
+- 收集工作区：`apps/web/src/services/collectors.ts`（小红书 / 抖音 / 每日热点）
 - 每日热点工作区：`apps/web/src/services/daily-hotspots.ts`
 - 报告与营销方案：`apps/web/src/services/reports.ts`
 - 小红书聚合工作区：`apps/web/src/services/xiaohongshu.ts`

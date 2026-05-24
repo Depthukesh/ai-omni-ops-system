@@ -91,8 +91,18 @@ export function DouyinWorkspaceShell() {
   const hasWorkspaceAccess = permissionEntry?.view ?? true;
   const canEditMarketingPlan = permissionEntry?.edit ?? true;
   const materialWorks = useMemo(
-    () => collectionWorkspace.benchmarkWorks.filter((item) => item.isInMaterialLibrary),
-    [collectionWorkspace.benchmarkWorks],
+    () => [
+      ...collectionWorkspace.benchmarkWorks,
+      ...collectionWorkspace.lowFanExplosiveWorks,
+      ...collectionWorkspace.highCompletionRateWorks,
+      ...collectionWorkspace.highLikeRateWorks,
+    ].filter((item) => item.isInMaterialLibrary),
+    [
+      collectionWorkspace.benchmarkWorks,
+      collectionWorkspace.lowFanExplosiveWorks,
+      collectionWorkspace.highCompletionRateWorks,
+      collectionWorkspace.highLikeRateWorks,
+    ],
   );
   const canGenerateMarketingPlan = Boolean(
     growthReportWorkspace.latest

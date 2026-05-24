@@ -100,9 +100,23 @@ export type DouyinCollectedAccountRecord = {
   rawFields?: Record<string, unknown>;
 };
 
+export type DouyinContentTagOption = {
+  label: string;
+  value: number;
+  children: Array<{
+    label: string;
+    value: number;
+  }>;
+};
+
 export type DouyinCollectedWorkRecord = {
   id: string;
-  kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK";
+  kind:
+    | "DOUYIN_BRAND_WORK"
+    | "DOUYIN_BENCHMARK_WORK"
+    | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
+    | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
+    | "DOUYIN_HIGH_LIKE_RATE_WORK";
   sourceAccountId: string;
   sourceAccountLink?: string;
   workId: string;
@@ -145,6 +159,10 @@ export type DouyinCollectedWorkRecord = {
   rawFields?: Record<string, unknown>;
   isInMaterialLibrary?: boolean;
   materialAddedAt?: string;
+  billboardLabel?: string;
+  primaryTagLabel?: string;
+  secondaryTagLabel?: string;
+  score?: number;
 };
 
 export type DouyinCollectionWorkspace = {
@@ -152,13 +170,28 @@ export type DouyinCollectionWorkspace = {
   competitorAccounts: DouyinCollectedAccountRecord[];
   brandWorks: DouyinCollectedWorkRecord[];
   benchmarkWorks: DouyinCollectedWorkRecord[];
+  lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
+  highCompletionRateWorks: DouyinCollectedWorkRecord[];
+  highLikeRateWorks: DouyinCollectedWorkRecord[];
+  contentTags: DouyinContentTagOption[];
 };
 
 export type DouyinSyncPayload = {
-  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks";
+  scope?:
+    | "brandAccount"
+    | "competitorAccount"
+    | "brandWorks"
+    | "benchmarkWorks"
+    | "lowFanExplosiveWorks"
+    | "highCompletionRateWorks"
+    | "highLikeRateWorks";
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   benchmarkAwemeIds?: string[];
+  contentTagSelection?: {
+    primaryTagId?: number;
+    secondaryTagId?: number;
+  };
 };
 
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
@@ -328,6 +361,10 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
       collectedAt: "2026-05-20T08:08:00.000Z",
     },
   ],
+  lowFanExplosiveWorks: [],
+  highCompletionRateWorks: [],
+  highLikeRateWorks: [],
+  contentTags: [],
 };
 
 export async function getDouyinCollectionWorkspace(brandId?: string) {
@@ -342,6 +379,9 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       competitorAccounts: number;
       brandWorks: number;
       benchmarkWorks: number;
+      lowFanExplosiveWorks: number;
+      highCompletionRateWorks: number;
+      highLikeRateWorks: number;
     };
     warnings?: string[];
     workspace: DouyinCollectionWorkspace;

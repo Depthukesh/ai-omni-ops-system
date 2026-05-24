@@ -222,6 +222,10 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     competitorAccounts: [],
     brandWorks: [],
     benchmarkWorks: [],
+    lowFanExplosiveWorks: [],
+    highCompletionRateWorks: [],
+    highLikeRateWorks: [],
+    contentTags: [],
   };
 }
 
@@ -344,6 +348,18 @@ type DouyinSyncForm = {
   brandAccountLinks: string;
   competitorAccountLinks: string;
   benchmarkAwemeIds: string;
+  lowFanExplosiveWorks: {
+    primaryTagId: string;
+    secondaryTagId: string;
+  };
+  highCompletionRateWorks: {
+    primaryTagId: string;
+    secondaryTagId: string;
+  };
+  highLikeRateWorks: {
+    primaryTagId: string;
+    secondaryTagId: string;
+  };
 };
 
 function createEmptyDouyinSyncForm(): DouyinSyncForm {
@@ -351,6 +367,18 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     brandAccountLinks: "",
     competitorAccountLinks: "",
     benchmarkAwemeIds: "",
+    lowFanExplosiveWorks: {
+      primaryTagId: "",
+      secondaryTagId: "",
+    },
+    highCompletionRateWorks: {
+      primaryTagId: "",
+      secondaryTagId: "",
+    },
+    highLikeRateWorks: {
+      primaryTagId: "",
+      secondaryTagId: "",
+    },
   };
 }
 
@@ -363,6 +391,11 @@ function parseDouyinSyncLines(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+function parseOptionalNumericTagId(value: string) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined;
 }
 
 export function BrandGrowthWorkspace() {
@@ -473,6 +506,18 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinBenchmarkWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.benchmarkWorks),
     [douyinCollectionWorkspace.benchmarkWorks],
+  );
+  const sortedDouyinLowFanExplosiveWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.lowFanExplosiveWorks),
+    [douyinCollectionWorkspace.lowFanExplosiveWorks],
+  );
+  const sortedDouyinHighCompletionRateWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.highCompletionRateWorks),
+    [douyinCollectionWorkspace.highCompletionRateWorks],
+  );
+  const sortedDouyinHighLikeRateWorks = useMemo(
+    () => sortByCollectedAtDesc(douyinCollectionWorkspace.highLikeRateWorks),
+    [douyinCollectionWorkspace.highLikeRateWorks],
   );
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
@@ -1158,9 +1203,31 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       if (activeDouyinCollectionCard === "benchmarkWorks") {
         payload.benchmarkAwemeIds = parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds);
       }
+      if (
+        activeDouyinCollectionCard === "lowFanExplosiveWorks"
+        || activeDouyinCollectionCard === "highCompletionRateWorks"
+        || activeDouyinCollectionCard === "highLikeRateWorks"
+      ) {
+        const selection = douyinSyncForm[activeDouyinCollectionCard];
+        const primaryTagId = parseOptionalNumericTagId(selection.primaryTagId);
+        const secondaryTagId = parseOptionalNumericTagId(selection.secondaryTagId);
+        if (!primaryTagId || !secondaryTagId) {
+          setErrorMessage("请先选择一级分类和二级分类后再提交。");
+          setIsSyncingDouyinWorkspace(false);
+          return;
+        }
+        payload.contentTagSelection = {
+          primaryTagId,
+          secondaryTagId,
+        };
+      }
       const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
-      const summary = `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条。`;
+      const summary =
+        `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
+        `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，` +
+        `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
+        `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
       setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
     } catch (error) {
@@ -1461,6 +1528,12 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
                 ? "xiaohongshuCollection"
                 : "feishuCollection"
         }
+        pageTitle={currentPage.label}
+        pageDescription={currentPage.description}
+        dataSource={dataSource}
+        notice={notice}
+        errorMessage={errorMessage}
+        onRefreshData={() => void loadArchive()}
         templateUrl={FEISHU_XHS_TEMPLATE_URL}
         activeXhsCollectionCard={activeXhsCollectionCard}
         onXhsCollectionCardChange={setActiveXhsCollectionCard}
@@ -1495,6 +1568,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}
         sortedDouyinBenchmarkWorks={sortedDouyinBenchmarkWorks}
+        sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
+        sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
+        sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}
         brandNotesPage={brandNotesPage}
         setBrandNotesPage={setBrandNotesPage}
         brandNotesPageCount={brandNotesPageCount}
@@ -1715,7 +1791,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
               </div>
             </div>
           </article>
-        ) : (
+        ) : activeSection === "collection" ? null : (
           <article className="workspace-panel strategy-page-header">
             <div>
               <strong>{currentPage.label}</strong>
