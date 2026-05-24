@@ -4108,8 +4108,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     return [
       {
-        value: String(selection.primaryTagId),
-        children: [{ value: String(selection.secondaryTagId) }],
+        value: selection.primaryTagId,
+        children: [{ value: selection.secondaryTagId }],
       },
     ];
   }
