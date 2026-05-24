@@ -3120,7 +3120,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       {
         page: 1,
         page_size: 10,
-        date_window: 2,
+        date_window: 24,
         tags: this.buildDouyinBillboardTags(config.selection),
       },
       brandId,
@@ -4187,8 +4187,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     return [
       {
-        value: selection.primaryTagId,
-        children: [{ value: selection.secondaryTagId }],
+        property1: String(selection.primaryTagId),
+        property2: String(selection.secondaryTagId),
       },
     ];
   }
