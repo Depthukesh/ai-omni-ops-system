@@ -269,7 +269,7 @@ export class SkillsPromptsService {
         throw new NotFoundException("提示词模板不存在");
       }
 
-      const currentContent = this.readPromptContent(current.id, current.content);
+      const currentContent = current.content || "";
       const nextContent = normalizedSubmittedContent ?? currentContent;
       if (normalizedSubmittedContent !== undefined) {
         this.writePromptContentToFile(id, nextContent);
@@ -310,8 +310,6 @@ export class SkillsPromptsService {
       const nextContent = normalizedSubmittedContent;
       this.writePromptContentToFile(id, nextContent);
       prompt.content = nextContent;
-    } else {
-      prompt.content = this.readPromptContent(prompt.id, prompt.content);
     }
     prompt.updatedAt = new Date().toISOString();
     return { ...prompt };
@@ -358,9 +356,7 @@ export class SkillsPromptsService {
     if (!prompt) {
       return undefined;
     }
-    const clone = { ...prompt };
-    this.syncPromptContentFromFile(clone);
-    return clone;
+    return { ...prompt };
   }
 
   async getActivePromptById(id: string) {
@@ -390,9 +386,7 @@ export class SkillsPromptsService {
     if (!prompt) {
       return undefined;
     }
-    const clone = { ...prompt };
-    this.syncPromptContentFromFile(clone);
-    return clone;
+    return { ...prompt };
   }
 
   resolvePromptIdsForSkill(skill: SkillConfigRecord, prompts: PromptTemplateRecord[]) {
@@ -461,11 +455,7 @@ export class SkillsPromptsService {
       `;
       return rows.map((item) => this.normalizePromptTemplateRow(item));
     }
-    return database.promptTemplates.map((item) => {
-      const clone = { ...item };
-      this.syncPromptContentFromFile(clone);
-      return clone;
-    });
+    return database.promptTemplates.map((item) => ({ ...item }));
   }
 
   private async ensureRegistryTablesReady() {
@@ -543,8 +533,10 @@ export class SkillsPromptsService {
     }
 
     for (const prompt of database.promptTemplates) {
-      const seedPrompt = { ...prompt };
-      this.syncPromptContentFromFile(seedPrompt);
+      const seedPrompt = {
+        ...prompt,
+        content: this.readPromptContent(prompt.id, prompt.content),
+      };
       await this.prismaService.$executeRaw`
         INSERT INTO "PromptTemplate" (
           "id",
@@ -572,18 +564,6 @@ export class SkillsPromptsService {
         )
         ON CONFLICT ("id") DO NOTHING
       `;
-      if (this.resolvePromptFilePath(seedPrompt.id)) {
-        await this.prismaService.$executeRaw`
-          UPDATE "PromptTemplate"
-          SET
-            "content" = ${seedPrompt.content},
-            "updatedAt" = CASE
-              WHEN "content" IS DISTINCT FROM ${seedPrompt.content} THEN CURRENT_TIMESTAMP
-              ELSE "updatedAt"
-            END
-          WHERE "id" = ${seedPrompt.id}
-        `;
-      }
     }
 
     await this.backfillImageGenerationSkillDefaults();
@@ -660,10 +640,6 @@ export class SkillsPromptsService {
     return rows[0];
   }
 
-  private syncPromptContentFromFile(prompt: PromptTemplateRecord) {
-    prompt.content = this.readPromptContent(prompt.id, prompt.content);
-  }
-
   private writePromptContentToFile(promptId: string, content: string) {
     const filePath = this.resolvePromptFilePath(promptId);
     if (!filePath) {
@@ -719,7 +695,7 @@ export class SkillsPromptsService {
 
   private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
     const isHalfYearPlanPrompt = row.id === "prompt_annual_marketing_plan" || row.id === "prompt_annual_plan";
-    const prompt = {
+    return {
       id: row.id,
       name: isHalfYearPlanPrompt ? "半年营销规划主提示词" : row.name,
       scene: isHalfYearPlanPrompt ? "半年营销规划生成" : row.scene,
@@ -731,8 +707,6 @@ export class SkillsPromptsService {
       content: row.content || "",
       updatedAt: this.normalizeDate(row.updatedAt),
     };
-    this.syncPromptContentFromFile(prompt);
-    return prompt;
   }
 
   private normalizeDate(value: Date | string) {
