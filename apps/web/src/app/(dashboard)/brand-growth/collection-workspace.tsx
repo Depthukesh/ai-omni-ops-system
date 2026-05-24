@@ -862,51 +862,55 @@ function ScrollableTableShell(props: {
 function ExpandableTextCell(props: {
   value?: string;
   emptyText?: string;
-  compactRows?: 2 | 3;
+  compactRows?: 1 | 2 | 3;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const text = String(props.value || "").trim();
   if (!text) {
     return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
   }
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setCopied(false);
+  useEffect(() => {
+    if (!expanded) {
+      return undefined;
     }
-  }
-
-  if (expanded) {
-    return (
-      <div className="table-text-cell is-expanded" data-rows={props.compactRows || 2}>
-        <div className="table-text-actions">
-          <button type="button" className="table-mini-button" onClick={() => void handleCopy()}>
-            {copied ? "已复制" : "复制"}
-          </button>
-          <button type="button" className="table-mini-button" onClick={() => setExpanded(false)}>
-            收起
-          </button>
-        </div>
-        <div className="table-text-content">{text}</div>
-      </div>
-    );
-  }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (shellRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setExpanded(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpanded(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expanded]);
 
   return (
-    <button
-      type="button"
-      className="table-text-cell"
-      data-rows={props.compactRows || 2}
-      onClick={() => setExpanded(true)}
-      title="点击展开查看"
-    >
-      {text}
-    </button>
+    <div ref={shellRef} className={`table-text-shell ${expanded ? "is-expanded" : ""}`} data-rows={props.compactRows || 2}>
+      <button
+        type="button"
+        className="table-text-cell"
+        data-rows={props.compactRows || 2}
+        onClick={() => setExpanded((current) => !current)}
+        title={expanded ? "点击收起" : "点击展开查看"}
+      >
+        {text}
+      </button>
+      {expanded ? (
+        <div className="table-text-popover" role="dialog" aria-label="单元格完整内容">
+          {text}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -930,26 +934,12 @@ function CopyableCell(props: {
   value?: string | number;
   emptyText?: string;
 }) {
-  const [copied, setCopied] = useState(false);
   const text = String(props.value ?? "").trim();
   if (!text) {
     return <span className="table-cell-empty">{props.emptyText || "-"}</span>;
   }
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setCopied(false);
-    }
-  }
-
   return (
-    <button type="button" className="table-copyable-cell" onClick={() => void handleCopy()} title={copied ? "已复制" : "点击复制"}>
-      {text}
-    </button>
+    <ExpandableTextCell value={text} emptyText={props.emptyText} compactRows={1} />
   );
 }
 

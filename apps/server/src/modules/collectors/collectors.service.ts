@@ -496,6 +496,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           selection: contentTagSelection,
         })
       : [];
+    const billboardWarnings = [
+      shouldSyncLowFanExplosiveWorks && !lowFanExplosiveRows.length ? "低粉爆款榜当前分类暂无返回结果" : "",
+      shouldSyncHighCompletionRateWorks && !highCompletionRateRows.length ? "高完播率榜当前分类暂无返回结果" : "",
+      shouldSyncHighLikeRateWorks && !highLikeRateRows.length ? "高点赞率榜当前分类暂无返回结果" : "",
+    ].filter(Boolean);
     const benchmarkWorkCount =
       benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)
       + manualBenchmarkRows.length;
@@ -518,7 +523,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         highCompletionRateWorks: highCompletionRateRows.length,
         highLikeRateWorks: highLikeRateRows.length,
       },
-      warnings: benchmarkFailures,
+      warnings: [...benchmarkFailures, ...billboardWarnings],
       workspace: await this.getDouyinWorkspace(brandId),
     };
   }
@@ -3113,8 +3118,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       config.path,
       {
         page: 1,
-        page_size: 20,
-        date_window: 2,
+        page_size: 10,
+        date_window: 24,
         tags: this.buildDouyinBillboardTags(config.selection),
       },
       brandId,
@@ -3998,6 +4003,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       if (typeof code === "number" && code !== 200) {
         throw new ServiceUnavailableException(message || `Tikhub 接口业务校验失败: ${code}`);
       }
+      const nestedPayload = this.asMeta(this.asMeta(payload).data);
+      const nestedCode = this.readMetaNumber(nestedPayload, "code");
+      const nestedMessage =
+        this.readMetaString(nestedPayload, "message")
+        || this.readMetaString(nestedPayload, "msg")
+        || this.readMetaString(nestedPayload, "message_zh");
+      if (typeof nestedCode === "number" && nestedCode !== 0) {
+        throw new ServiceUnavailableException(nestedMessage || `Tikhub 接口业务校验失败: ${nestedCode}`);
+      }
       return payload;
     }
 
@@ -4094,8 +4108,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     return [
       {
-        value: selection.primaryTagId,
-        children: [{ value: selection.secondaryTagId }],
+        value: String(selection.primaryTagId),
+        children: [{ value: String(selection.secondaryTagId) }],
       },
     ];
   }
