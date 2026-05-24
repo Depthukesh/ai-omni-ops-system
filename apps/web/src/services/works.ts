@@ -21,6 +21,7 @@ export type VideoSegmentAssetEntry = {
 export type VideoProviderOptionRecord = {
   backendKey: string;
   label: string;
+  providerName?: string;
   defaultModel: string;
   recommended: boolean;
   supportsTextToVideo: boolean;

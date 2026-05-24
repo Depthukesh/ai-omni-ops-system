@@ -635,6 +635,7 @@ type VideoProviderConfig = {
 export type VideoProviderOptionRecord = {
   backendKey: VideoBackendKey;
   label: string;
+  providerName: string;
   defaultModel: string;
   recommended: boolean;
   supportsTextToVideo: boolean;
@@ -700,6 +701,7 @@ export class WorksService {
         return {
           backendKey,
           label: this.apiProvidersService.getStringExtra(item, "displayLabel") || item.name,
+          providerName: this.resolveVideoProviderPlatformName(item.name, item.baseUrl),
           defaultModel: item.defaultModel || item.modelWhitelist[0] || "",
           recommended: this.apiProvidersService.getBooleanExtra(item, "recommended"),
           supportsTextToVideo: item.extraParams?.supportsTextToVideo !== false,
@@ -716,6 +718,21 @@ export class WorksService {
       });
 
     return { items };
+  }
+
+  private resolveVideoProviderPlatformName(name: string, baseUrl?: string | null) {
+    const normalizedName = name.trim();
+    if (normalizedName.includes("·")) {
+      return normalizedName.split("·")[0]?.trim() || "未知平台";
+    }
+    if (baseUrl) {
+      try {
+        return new URL(baseUrl).hostname;
+      } catch {
+        return baseUrl;
+      }
+    }
+    return "未知平台";
   }
 
   async listXiaohongshuOriginalWorks(brandId: string) {

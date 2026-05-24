@@ -32,6 +32,11 @@ export interface VideoCreateConfigFieldsProps {
 }
 
 export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
+  const formatProviderLabel = (item: VideoProviderOptionRecord) => {
+    const baseLabel = item.providerName ? `${item.label}（${item.providerName}）` : item.label;
+    return item.recommended ? `${baseLabel}（推荐）` : baseLabel;
+  };
+
   return (
     <>
       <label>
@@ -81,7 +86,7 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
         <select value={props.providerValue} onChange={(event) => props.onProviderChange(event.target.value)}>
           {props.videoProviderOptions.map((item) => (
             <option key={item.backendKey} value={item.backendKey}>
-              {item.recommended ? `${item.label}（推荐）` : item.label}
+              {formatProviderLabel(item)}
             </option>
           ))}
           <option value={props.customVideoProviderOption}>自行选择</option>
@@ -94,7 +99,7 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
             <select value={props.customProviderValue} onChange={(event) => props.onCustomProviderChange(event.target.value)}>
               {props.videoProviderOptions.map((item) => (
                 <option key={item.backendKey} value={item.backendKey}>
-                  {item.label}
+                  {item.providerName ? `${item.label}（${item.providerName}）` : item.label}
                 </option>
               ))}
             </select>
