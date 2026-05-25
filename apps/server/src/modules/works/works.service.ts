@@ -6253,7 +6253,7 @@ export class WorksService {
     if (hasReferenceImage) {
       return requestedProvider;
     }
-    const providerOptions = await this.listXiaohongshuVideoProviderOptions();
+    const providerOptions = (await this.listXiaohongshuVideoProviderOptions()).items;
     const requestedOption = providerOptions.find((item) => item.backendKey === requestedProvider);
     if (!requestedOption || requestedOption.supportsTextToVideo) {
       return requestedProvider;
