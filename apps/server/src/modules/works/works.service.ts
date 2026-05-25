@@ -5987,7 +5987,14 @@ export class WorksService {
     const skippedReasons: string[] = [];
     for (const provider of providers) {
       const baseUrls = this.apiProvidersService.getBaseUrls(provider);
-      const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" });
+      let apiKeys: string[] = [];
+      try {
+        apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "当前 Provider 不可用";
+        skippedReasons.push(`${provider.name}：${message}`);
+        continue;
+      }
       const models = this.pickProviderModels(
         provider.modelWhitelist,
         [],
