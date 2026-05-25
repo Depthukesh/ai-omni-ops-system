@@ -510,6 +510,7 @@ export function XiaohongshuWorkspaceShell() {
     calendarItems: calendarAllItems,
     products: workspace.archive.products,
     materialNotes,
+    videoProviderOptions,
     noProductOption: NO_PRODUCT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
     customVideoProviderOption,
@@ -1384,4 +1385,3 @@ function normalizeEditableMarketingCalendarItem(item: XiaohongshuMarketingCalend
 function normalizeCalendarItemList(items?: string[]) {
   return (items || []).map((item) => item.trim()).filter(Boolean);
 }
-

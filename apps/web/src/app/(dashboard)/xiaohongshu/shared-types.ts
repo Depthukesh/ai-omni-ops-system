@@ -21,6 +21,7 @@ export type SelectOption = {
 export type ProductOption = {
   id?: string;
   productName?: string;
+  imageUrl?: string;
 };
 
 export type MaterialOption = {

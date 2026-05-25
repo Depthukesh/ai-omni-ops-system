@@ -3503,6 +3503,11 @@ export class WorksService {
           )
         ).url
       : undefined;
+    const requestedVideoProvider = await this.resolveVideoProviderWithoutReferenceFallback(
+      brandId,
+      this.normalizeVideoProvider(payload.videoProvider),
+      Boolean(referenceImageUrl || normalizedProduct?.imageUrl),
+    );
     return {
       accountRole: this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole),
       videoKind,
@@ -3514,7 +3519,7 @@ export class WorksService {
       referenceImageUrl,
       includeMarketingPlan,
       marketingPlanMarkdown: includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "",
-      requestedVideoProvider: this.normalizeVideoProvider(payload.videoProvider),
+      requestedVideoProvider,
       requestedDurationSec: this.normalizeRequestedVideoDuration(payload.durationSec),
       copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
       videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
@@ -6238,6 +6243,24 @@ export class WorksService {
       apiz_veo_31_t2v: "apiz_veo_31_i2v",
     };
     return compatibleBackendMap[requestedBackend] || requestedBackend;
+  }
+
+  private async resolveVideoProviderWithoutReferenceFallback(
+    brandId: string,
+    requestedProvider: VideoBackendKey,
+    hasReferenceImage: boolean,
+  ) {
+    if (hasReferenceImage) {
+      return requestedProvider;
+    }
+    const providerOptions = await this.listXiaohongshuVideoProviderOptions();
+    const requestedOption = providerOptions.find((item) => item.backendKey === requestedProvider);
+    if (!requestedOption || requestedOption.supportsTextToVideo) {
+      return requestedProvider;
+    }
+    const fallbackOption = providerOptions.find((item) => item.supportsTextToVideo && item.recommended)
+      || providerOptions.find((item) => item.supportsTextToVideo);
+    return fallbackOption?.backendKey || requestedProvider;
   }
 
   private resolveLegacyVideoRequestProfile(backend: VideoBackendKey, hasReferenceImage: boolean) {

@@ -7,6 +7,7 @@ import {
   generateXiaohongshuVideoWork,
   generateXiaohongshuOriginalWork,
   generateXiaohongshuRewriteWork,
+  type VideoProviderOptionRecord,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -70,6 +71,7 @@ export function useWorkComposerActions(options: {
   calendarItems: CalendarOption[];
   products: ProductOption[];
   materialNotes: XhsCollectedNoteRecord[];
+  videoProviderOptions: VideoProviderOptionRecord[];
   noProductOption: string;
   customTopicOption: string;
   customVideoProviderOption: string;
@@ -201,6 +203,17 @@ export function useWorkComposerActions(options: {
       : options.video.providerValue;
     const resolvedDuration = Number(options.video.durationValue);
     const selectedMaterial = options.materialNotes.find((item) => item.id === options.video.materialValue);
+    const selectedProduct = options.products.find((item) => item.id === options.video.productValue);
+    const selectedProviderOption = options.videoProviderOptions.find((item) => item.backendKey === resolvedProvider);
+    const hasReferenceImageSource = Boolean(options.video.referenceImageFile || selectedProduct?.imageUrl);
+    const fallbackProviderOption = !hasReferenceImageSource && selectedProviderOption && !selectedProviderOption.supportsTextToVideo
+      ? options.videoProviderOptions.find((item) => item.supportsTextToVideo && item.recommended)
+        || options.videoProviderOptions.find((item) => item.supportsTextToVideo)
+      : undefined;
+    const providerToSubmit = fallbackProviderOption?.backendKey || resolvedProvider;
+    const fallbackProviderNotice = fallbackProviderOption && fallbackProviderOption.backendKey !== resolvedProvider
+      ? `未检测到可用于图生视频的参考图，已自动切换到文生视频模型「${fallbackProviderOption.label}」。`
+      : "";
 
     if (!resolvedProvider) {
       options.setErrorMessage("请先选择一个视频大模型。");
@@ -241,8 +254,8 @@ export function useWorkComposerActions(options: {
         referenceImageFile: options.video.referenceImageFile,
         videoKind: options.video.videoKindValue as "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX",
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
-        videoProvider: resolvedProvider,
-        customVideoModelName: options.video.customModelName.trim() || undefined,
+        videoProvider: providerToSubmit,
+        customVideoModelName: fallbackProviderOption ? undefined : options.video.customModelName.trim() || undefined,
         durationSec: resolvedDuration,
         includeMarketingPlan: options.video.injectMarketingPlanValue === "yes",
         videoAdditionalInstruction: options.video.additionalInstruction.trim() || undefined,
@@ -252,7 +265,9 @@ export function useWorkComposerActions(options: {
       options.video.setSelectedWorkId(result.item.id);
       options.video.cancelEdit();
       await options.onRefreshWorkspace();
-      options.setNotice("视频笔记任务已提交，系统会先生成故事板，完成后你可以继续修改并生成短视频。");
+      options.setNotice(
+        `${fallbackProviderNotice}${fallbackProviderNotice ? " " : ""}视频笔记任务已提交，系统会先生成故事板，完成后你可以继续修改并生成短视频。`,
+      );
       options.video.resetComposer(options.calendarItems, options.products);
     } catch (error) {
       const message = error instanceof Error ? error.message : "视频笔记创作失败";
