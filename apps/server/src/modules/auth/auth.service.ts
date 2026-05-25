@@ -45,6 +45,11 @@ export type UpdateProfilePayload = {
   avatarUrl?: string;
 };
 
+export type ChangePasswordPayload = {
+  currentPassword: string;
+  nextPassword: string;
+};
+
 export type UploadProfileAvatarPayload = {
   fileName: string;
   contentType: string;
@@ -603,6 +608,61 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
+  async changePassword(payload: ChangePasswordPayload, auth?: RequestAuthContext) {
+    const currentUser = await this.resolveCurrentUser(undefined, auth);
+    const normalizedPayload = {
+      currentPassword: payload.currentPassword ?? "",
+      nextPassword: payload.nextPassword ?? "",
+    };
+    this.assertChangePasswordPayload(normalizedPayload);
+
+    if (await this.prismaService.canUseDatabase()) {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: currentUser.id },
+        select: {
+          id: true,
+          passwordHash: true,
+        },
+      });
+      if (!user) {
+        throw new UnauthorizedException("当前没有可用用户");
+      }
+
+      const passwordCheck = this.verifyPassword(normalizedPayload.currentPassword, user.passwordHash);
+      if (!passwordCheck.matched) {
+        throw new UnauthorizedException("当前密码错误");
+      }
+
+      await this.prismaService.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: this.hashPassword(normalizedPayload.nextPassword),
+        },
+      });
+
+      return {
+        success: true,
+        message: "密码已更新",
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    const user = database.users.find((item) => item.id === currentUser.id);
+    if (!user) {
+      throw new UnauthorizedException("当前没有可用用户");
+    }
+    if (user.password !== normalizedPayload.currentPassword) {
+      throw new UnauthorizedException("当前密码错误");
+    }
+
+    user.password = normalizedPayload.nextPassword;
+    return {
+      success: true,
+      message: "密码已更新",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   async uploadProfileAvatar(payload: UploadProfileAvatarPayload, auth?: RequestAuthContext): Promise<ProfileAvatarUploadRecord> {
     const currentUser = await this.resolveCurrentUser(undefined, auth);
     if (!payload.fileName || !payload.contentType || !payload.dataBase64) {
@@ -890,6 +950,21 @@ export class AuthService {
     }
     if (payload.avatarUrl && !/^https?:\/\/|^\//.test(payload.avatarUrl)) {
       throw new BadRequestException("头像地址需使用 http(s) 链接或站内路径");
+    }
+  }
+
+  private assertChangePasswordPayload(payload: ChangePasswordPayload) {
+    if (!payload.currentPassword) {
+      throw new BadRequestException("请输入当前密码");
+    }
+    if (!payload.nextPassword) {
+      throw new BadRequestException("请输入新密码");
+    }
+    if (payload.nextPassword.length < 6) {
+      throw new BadRequestException("新密码至少 6 位");
+    }
+    if (payload.currentPassword === payload.nextPassword) {
+      throw new BadRequestException("新密码不能与当前密码相同");
     }
   }
 

@@ -28,6 +28,17 @@ export type UpdateProfilePayload = {
   avatarUrl?: string;
 };
 
+export type ChangePasswordPayload = {
+  currentPassword: string;
+  nextPassword: string;
+};
+
+export type ChangePasswordResponse = {
+  success: boolean;
+  message: string;
+  updatedAt: string;
+};
+
 export type UploadProfileAvatarResponse = {
   fileName: string;
   avatarUrl: string;
@@ -86,6 +97,13 @@ export async function updateProfile(payload: UpdateProfilePayload) {
     user: response,
   });
   return response;
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  return request<ChangePasswordResponse>("/auth/change-password", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function uploadProfileAvatar(file: File) {

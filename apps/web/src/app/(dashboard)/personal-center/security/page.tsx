@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, uploadProfileAvatar, type MeResponse } from "../../../../services/auth";
+import { changePassword, getMe, logout as logoutSession, readAuthSession, switchBrand, updateProfile, uploadProfileAvatar, type MeResponse } from "../../../../services/auth";
 import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, formatDateTime, isAuthFailure } from "../route-helpers";
 
 type SecurityStatus = "SAFE" | "ATTENTION";
@@ -29,12 +29,16 @@ export default function PersonalCenterSecurityPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [dataSource, setDataSource] = useState<"api" | "session">("session");
   const [formNickname, setFormNickname] = useState("");
   const [formMobile, setFormMobile] = useState("");
   const [formAvatarUrl, setFormAvatarUrl] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmNextPassword, setConfirmNextPassword] = useState("");
 
   useEffect(() => {
     const session = readAuthSession();
@@ -214,6 +218,53 @@ export default function PersonalCenterSecurityPage() {
       setErrorMessage(`保存失败：${message}`);
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!currentPassword) {
+      setErrorMessage("请输入当前密码");
+      return;
+    }
+    if (!nextPassword) {
+      setErrorMessage("请输入新密码");
+      return;
+    }
+    if (nextPassword.length < 6) {
+      setErrorMessage("新密码至少 6 位");
+      return;
+    }
+    if (nextPassword !== confirmNextPassword) {
+      setErrorMessage("两次输入的新密码不一致");
+      return;
+    }
+    if (currentPassword === nextPassword) {
+      setErrorMessage("新密码不能与当前密码相同");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      await changePassword({
+        currentPassword,
+        nextPassword,
+      });
+      setCurrentPassword("");
+      setNextPassword("");
+      setConfirmNextPassword("");
+      setNotice("密码已修改，请使用新密码进行后续登录。");
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await handleSessionExpired();
+        return;
+      }
+      const message = error instanceof Error ? error.message : "修改密码失败";
+      setErrorMessage(`修改密码失败：${message}`);
+    } finally {
+      setIsChangingPassword(false);
     }
   }
 
@@ -434,16 +485,71 @@ export default function PersonalCenterSecurityPage() {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
+              <strong>密码修改</strong>
+              <p className="personal-meta">当前支持输入旧密码并设置新密码，适合作为个人中心安全设置的基础入口。</p>
+            </div>
+            <span className="archive-pill status-ready">已接入</span>
+          </div>
+          <form className="form-grid two-column" onSubmit={handleChangePassword}>
+            <label className="field">
+              <span>当前密码</span>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder="请输入当前密码"
+                autoComplete="current-password"
+              />
+            </label>
+            <label className="field">
+              <span>新密码</span>
+              <input
+                type="password"
+                value={nextPassword}
+                onChange={(event) => setNextPassword(event.target.value)}
+                placeholder="至少 6 位"
+                autoComplete="new-password"
+              />
+            </label>
+            <label className="field field-full">
+              <span>确认新密码</span>
+              <input
+                type="password"
+                value={confirmNextPassword}
+                onChange={(event) => setConfirmNextPassword(event.target.value)}
+                placeholder="请再次输入新密码"
+                autoComplete="new-password"
+              />
+            </label>
+            <div className="personal-actions personal-actions--tight field-full">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setCurrentPassword("");
+                  setNextPassword("");
+                  setConfirmNextPassword("");
+                }}
+                disabled={isChangingPassword}
+              >
+                清空输入
+              </button>
+              <button type="submit" className="primary-button" disabled={isChangingPassword}>
+                {isChangingPassword ? "修改中..." : "修改密码"}
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <article className="entity-card personal-card">
+          <div className="entity-card-head">
+            <div>
               <strong>下一阶段安全能力</strong>
-              <p className="personal-meta">这一版先把登录态和会话安全可视化，下面这些能力保留到下一轮继续实现。</p>
+              <p className="personal-meta">密码修改已补上，下面这些能力仍保留到下一轮继续实现。</p>
             </div>
             <span className="archive-pill status-paused">待扩展</span>
           </div>
           <div className="personal-grid">
-            <div>
-              <span>密码修改</span>
-              <strong>未接入</strong>
-            </div>
             <div>
               <span>多端设备管理</span>
               <strong>未接入</strong>
@@ -456,9 +562,13 @@ export default function PersonalCenterSecurityPage() {
               <span>单端下线</span>
               <strong>未接入</strong>
             </div>
+            <div>
+              <span>邮箱改绑验证</span>
+              <strong>未接入</strong>
+            </div>
             <div className="field-full">
               <span>后续建议</span>
-              <strong>优先补 `change password`、`session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
+              <strong>优先补 `session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
             </div>
             <div className="field-full">
               <span>本次已验证</span>

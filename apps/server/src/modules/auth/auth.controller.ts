@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import {
   AuthService,
+  type ChangePasswordPayload,
   type ProfileAvatarUploadRecord,
   type FeishuAppConfigPayload,
   type LoginPayload,
@@ -70,6 +71,15 @@ export class AuthController {
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     return this.authService.updateProfile(payload, auth);
+  }
+
+  @Patch("change-password")
+  async changePassword(
+    @Body() payload: ChangePasswordPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
+    return this.authService.changePassword(payload, auth);
   }
 
   @Post("profile/avatar")
