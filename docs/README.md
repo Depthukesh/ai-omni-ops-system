@@ -35,8 +35,8 @@
 - 作用：沉淀前端、后端、扩展、资源、文档和 Git 的统一开发规则，作为后续开发默认遵循的基线
 - 更新时机：发现新的工程共性问题、调整默认架构边界、确定新的通用约束时
 - 文件：`docs/ai-multi-agent-collaboration-playbook.md`
-- 作用：定义多个 AI Agent 同时参与开发时的角色边界、任务拆分、交接格式、验证标准与 Git 协作方式
-- 更新时机：当多 Agent 协作方式、主从分工、交接模板或冲突处理规则发生变化时
+- 作用：保留多 Agent 并行开发方案的历史记录与复盘资料；当前默认模式已回到单 Agent 收口
+- 更新时机：当需要复盘历史协作问题，或未来重新评估是否恢复多 Agent 模式时
 - 文件：`docs/ai-agent-access-and-secrets-policy.md`
 - 作用：定义 AI Agent 的 GitHub 权限边界、Secrets 管理规则、最小权限接入方式，以及哪些敏感信息禁止写入仓库文档
 - 更新时机：当 Agent 权限模型、Secrets 注入方式、敏感信息管理规则或 GitHub 协作权限发生变化时
@@ -94,6 +94,10 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-25-single-agent-mode-reinstated.md`
+  - 结束当前多 Agent 并行开发模式，恢复由单个主 Agent 统一开发、验证、提交和推送，并把协作文档降级为历史参考
+- `docs/changes/2026-05-24-multi-agent-worktree-and-module-boundary-clarification.md`
+  - 将多 Agent 协作从“抽象主从规则”进一步落到“同仓库、不同本地工作树、不同分支、按板块分工、共享文件升级机制和飞书登记字段”
 - `docs/changes/2026-05-23-douyin-material-library.md`
   - 品牌增长策略的抖音对标作品表新增素材库勾选入口，抖音工作台同步新增素材库分区，并支持加入/取消加入素材库
 - `docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
