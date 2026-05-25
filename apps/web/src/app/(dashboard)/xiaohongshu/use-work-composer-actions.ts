@@ -206,13 +206,13 @@ export function useWorkComposerActions(options: {
     const selectedProduct = options.products.find((item) => item.id === options.video.productValue);
     const selectedProviderOption = options.videoProviderOptions.find((item) => item.backendKey === resolvedProvider);
     const hasReferenceImageSource = Boolean(options.video.referenceImageFile || selectedProduct?.imageUrl);
-    const fallbackProviderOption = !hasReferenceImageSource && selectedProviderOption && !selectedProviderOption.supportsTextToVideo
-      ? options.videoProviderOptions.find((item) => item.supportsTextToVideo && item.recommended)
-        || options.videoProviderOptions.find((item) => item.supportsTextToVideo)
-      : undefined;
-    const providerToSubmit = fallbackProviderOption?.backendKey || resolvedProvider;
-    const fallbackProviderNotice = fallbackProviderOption && fallbackProviderOption.backendKey !== resolvedProvider
-      ? `未检测到可用于图生视频的参考图，已自动切换到文生视频模型「${fallbackProviderOption.label}」。`
+    const shouldShowFallbackNotice = Boolean(
+      selectedProviderOption
+      && ((hasReferenceImageSource && !selectedProviderOption.supportsImageToVideo)
+        || (!hasReferenceImageSource && !selectedProviderOption.supportsTextToVideo)),
+    );
+    const fallbackProviderNotice = shouldShowFallbackNotice
+      ? "当前输入条件与所选视频模型不匹配时，系统会自动切换到兼容的视频模型继续生成。"
       : "";
 
     if (!resolvedProvider) {
@@ -254,8 +254,8 @@ export function useWorkComposerActions(options: {
         referenceImageFile: options.video.referenceImageFile,
         videoKind: options.video.videoKindValue as "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX",
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
-        videoProvider: providerToSubmit,
-        customVideoModelName: fallbackProviderOption ? undefined : options.video.customModelName.trim() || undefined,
+        videoProvider: resolvedProvider,
+        customVideoModelName: options.video.customModelName.trim() || undefined,
         durationSec: resolvedDuration,
         includeMarketingPlan: options.video.injectMarketingPlanValue === "yes",
         videoAdditionalInstruction: options.video.additionalInstruction.trim() || undefined,

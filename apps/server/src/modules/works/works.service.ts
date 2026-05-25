@@ -643,6 +643,11 @@ export type VideoProviderOptionRecord = {
   displayOrder: number;
 };
 
+type VideoProviderExecutionCandidate = {
+  backend: VideoBackendKey;
+  useReferenceImage: boolean;
+};
+
 @Injectable()
 export class WorksService {
   constructor(
@@ -6218,31 +6223,77 @@ export class WorksService {
     );
   }
 
-  private buildVideoProviderFallbackOrder(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
-    if (!hasReferenceImage) {
-      return [requestedBackend];
-    }
-    const compatibleImageBackend = this.resolveReferenceImagePreferredVideoBackend(requestedBackend);
-    if (!compatibleImageBackend || compatibleImageBackend === requestedBackend) {
-      return [requestedBackend];
-    }
-    return [compatibleImageBackend, requestedBackend];
-  }
-
-  private resolveReferenceImagePreferredVideoBackend(requestedBackend: VideoBackendKey) {
-    const compatibleBackendMap: Record<string, VideoBackendKey> = {
-      runninghub_hailuo_23_t2v: "runninghub_hailuo_23_i2v",
-      runninghub_vidu_t2v_q3_pro: "runninghub_vidu_i2v_q3_pro",
-      runninghub_kling_30_pro_t2v: "runninghub_kling_30_pro_i2v",
-      runninghub_kling_30_std_t2v: "runninghub_kling_30_std_i2v",
-      runninghub_seedance_20_fast_t2v: "runninghub_seedance_20_fast_i2v",
-      runninghub_seedance_20_t2v: "runninghub_seedance_20_i2v",
-      runninghub_happyhorse_10_t2v: "runninghub_happyhorse_10_r2v",
-      apiz_kling_v3_4k_t2v: "apiz_kling_v3_4k_i2v",
-      apiz_happyhorse_t2v: "apiz_happyhorse_r2v",
-      apiz_veo_31_t2v: "apiz_veo_31_i2v",
+  private async buildVideoProviderExecutionPlan(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
+    const providerOptions = (await this.listXiaohongshuVideoProviderOptions()).items;
+    const requestedLookupKey = this.normalizeVideoBackendLookupKey(requestedBackend);
+    const executionPlan: VideoProviderExecutionCandidate[] = [];
+    const seen = new Set<string>();
+    const appendCandidate = (backend: VideoBackendKey, useReferenceImage: boolean) => {
+      const candidateKey = `${this.normalizeVideoBackendLookupKey(backend)}:${useReferenceImage ? "image" : "text"}`;
+      if (!backend || seen.has(candidateKey)) {
+        return;
+      }
+      seen.add(candidateKey);
+      executionPlan.push({ backend, useReferenceImage });
     };
-    return compatibleBackendMap[requestedBackend] || requestedBackend;
+    const appendOptions = (
+      predicate: (option: VideoProviderOptionRecord) => boolean,
+      useReferenceImage: boolean,
+    ) => {
+      providerOptions.forEach((option) => {
+        if (predicate(option)) {
+          appendCandidate(option.backendKey, useReferenceImage);
+        }
+      });
+    };
+    const requestedOption = providerOptions.find((item) =>
+      this.normalizeVideoBackendLookupKey(item.backendKey) === requestedLookupKey,
+    );
+
+    if (hasReferenceImage) {
+      if (requestedOption?.supportsImageToVideo) {
+        appendCandidate(requestedOption.backendKey, true);
+      } else if (!requestedOption) {
+        appendCandidate(requestedBackend, true);
+      }
+      appendOptions(
+        (item) =>
+          item.recommended
+          && this.normalizeVideoBackendLookupKey(item.backendKey) !== requestedLookupKey
+          && item.supportsImageToVideo,
+        true,
+      );
+      appendOptions(
+        (item) =>
+          this.normalizeVideoBackendLookupKey(item.backendKey) !== requestedLookupKey
+          && item.supportsImageToVideo,
+        true,
+      );
+    }
+
+    if (requestedOption?.supportsTextToVideo) {
+      appendCandidate(requestedOption.backendKey, false);
+    } else if (!requestedOption && !hasReferenceImage) {
+      appendCandidate(requestedBackend, false);
+    }
+    appendOptions(
+      (item) =>
+        item.recommended
+        && this.normalizeVideoBackendLookupKey(item.backendKey) !== requestedLookupKey
+        && item.supportsTextToVideo,
+      false,
+    );
+    appendOptions(
+      (item) =>
+        this.normalizeVideoBackendLookupKey(item.backendKey) !== requestedLookupKey
+        && item.supportsTextToVideo,
+      false,
+    );
+
+    if (!executionPlan.length) {
+      appendCandidate(requestedBackend, hasReferenceImage);
+    }
+    return executionPlan;
   }
 
   private async resolveVideoProviderWithoutReferenceFallback(
@@ -6253,14 +6304,8 @@ export class WorksService {
     if (hasReferenceImage) {
       return requestedProvider;
     }
-    const providerOptions = (await this.listXiaohongshuVideoProviderOptions()).items;
-    const requestedOption = providerOptions.find((item) => item.backendKey === requestedProvider);
-    if (!requestedOption || requestedOption.supportsTextToVideo) {
-      return requestedProvider;
-    }
-    const fallbackOption = providerOptions.find((item) => item.supportsTextToVideo && item.recommended)
-      || providerOptions.find((item) => item.supportsTextToVideo);
-    return fallbackOption?.backendKey || requestedProvider;
+    const executionPlan = await this.buildVideoProviderExecutionPlan(requestedProvider, false);
+    return executionPlan[0]?.backend || requestedProvider;
   }
 
   private resolveLegacyVideoRequestProfile(backend: VideoBackendKey, hasReferenceImage: boolean) {
@@ -6737,30 +6782,30 @@ export class WorksService {
     onProviderTaskCreated?: (snapshot: VideoProviderTaskSnapshot) => Promise<void> | void;
   }): Promise<GeneratedVideoResult> {
     const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
-    const providerOrder = this.buildVideoProviderFallbackOrder(requestedBackend, Boolean(params.referenceImageUrl));
+    const providerPlan = await this.buildVideoProviderExecutionPlan(requestedBackend, Boolean(params.referenceImageUrl));
     const providerErrors: string[] = [];
 
-    for (const backend of providerOrder) {
-      const config = await this.loadVideoProviderConfig(params.brandId, backend);
-      const modelName = this.resolveVideoModelName(
-        config,
-        backend,
-        backend === requestedBackend ? params.customVideoModelName : undefined,
-        Boolean(params.referenceImageUrl),
-      );
-      const requestConfig = this.buildVideoCreatePayload({
-        config,
-        modelName,
-        prompt: params.prompt,
-        negativePrompt: params.negativePrompt,
-        requestedDurationSec: params.requestedDurationSec,
-        referenceImageUrl: params.referenceImageUrl,
-      });
-
-      const baseUrl = config.baseUrls[0];
-      const apiKey = config.apiKeys[0];
+    for (const candidate of providerPlan) {
       let lastError = "";
       try {
+        const config = await this.loadVideoProviderConfig(params.brandId, candidate.backend);
+        const modelName = this.resolveVideoModelName(
+          config,
+          candidate.backend,
+          candidate.backend === requestedBackend ? params.customVideoModelName : undefined,
+          candidate.useReferenceImage,
+        );
+        const requestConfig = this.buildVideoCreatePayload({
+          config,
+          modelName,
+          prompt: params.prompt,
+          negativePrompt: params.negativePrompt,
+          requestedDurationSec: params.requestedDurationSec,
+          referenceImageUrl: candidate.useReferenceImage ? params.referenceImageUrl : undefined,
+        });
+
+        const baseUrl = config.baseUrls[0];
+        const apiKey = config.apiKeys[0];
         const createResponse = await this.requestAuthorizedJson(baseUrl, requestConfig.createPath, apiKey, {
           method: "POST",
           body: requestConfig.payload,
@@ -6819,7 +6864,7 @@ export class WorksService {
       }
 
       if (lastError) {
-        providerErrors.push(`${backend}：${lastError}`);
+        providerErrors.push(`${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}：${lastError}`);
       }
     }
 
