@@ -1253,6 +1253,7 @@ export class WorksService {
     );
     const rewriteTopicContext = this.buildRewriteTopicContext(sourceMaterial, allowProductEmbedding);
     const rewriteReferenceImageUrls = this.collectRewriteReferenceImageUrls(sourceMaterial.imageList || [], selectedProduct);
+    const rewriteReferenceSources = await this.resolveImageGenerationReferenceSources(brandId, rewriteReferenceImageUrls);
 
     const userId = await this.resolveTaskUserId(brandId, auth);
     const resolvedAccountRole = this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole);
@@ -1329,7 +1330,8 @@ export class WorksService {
         executionPrompt: rewriteImageGenerationConfig.executionPrompt,
         prompt: imagePromptResult.coverPrompt,
         textPlan: imagePromptResult.coverText,
-        referenceImageUrls: rewriteReferenceImageUrls,
+        referenceImageUrls: rewriteReferenceSources.urls,
+        referenceImagePayloads: rewriteReferenceSources.payloads,
       });
 
       const galleryImages = await Promise.all(
@@ -1345,7 +1347,8 @@ export class WorksService {
             executionPrompt: rewriteImageGenerationConfig.executionPrompt,
             prompt,
             textPlan: imagePromptResult.imageTexts[index],
-            referenceImageUrls: rewriteReferenceImageUrls,
+            referenceImageUrls: rewriteReferenceSources.urls,
+            referenceImagePayloads: rewriteReferenceSources.payloads,
           }),
         ),
       );
@@ -3129,6 +3132,57 @@ export class WorksService {
           .filter(Boolean),
       ),
     ).slice(0, 6);
+  }
+
+  private isFeishuProtectedMediaUrl(sourceUrl: string) {
+    try {
+      const targetUrl = new URL(sourceUrl);
+      const isAllowedHost = targetUrl.hostname === "open.feishu.cn"
+        || targetUrl.hostname === "open.larkoffice.com"
+        || targetUrl.hostname.endsWith(".feishu.cn")
+        || targetUrl.hostname.endsWith(".larkoffice.com")
+        || targetUrl.hostname.endsWith(".larksuite.com");
+      const isAllowedPath = /\/open-apis\/drive\/v1\/medias\/[^/]+\/download/i.test(targetUrl.pathname)
+        || /\/space\/api\/box\/stream\/download/i.test(targetUrl.pathname)
+        || /\/media\/download/i.test(targetUrl.pathname);
+      return isAllowedHost && isAllowedPath;
+    } catch {
+      return false;
+    }
+  }
+
+  private async resolveImageGenerationReferenceSources(brandId: string, referenceImageUrls: string[]) {
+    const normalizedUrls = Array.from(new Set(referenceImageUrls.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, 6);
+    const directUrls: string[] = [];
+    const uploadedPayloads: UploadFilePayload[] = [];
+
+    for (const sourceUrl of normalizedUrls) {
+      if (!this.isFeishuProtectedMediaUrl(sourceUrl)) {
+        directUrls.push(sourceUrl);
+        continue;
+      }
+
+      try {
+        const media = await this.collectorsService.fetchFeishuMedia(brandId, sourceUrl);
+        const contentType = String(media.contentType || "application/octet-stream").toLowerCase();
+        if (!contentType.startsWith("image/")) {
+          throw new ServiceUnavailableException(`参考图不是图片文件：${media.fileName || sourceUrl}`);
+        }
+        uploadedPayloads.push({
+          fileName: media.fileName || "feishu-reference-image",
+          contentType,
+          dataBase64: media.buffer.toString("base64"),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "飞书参考图读取失败";
+        throw new ServiceUnavailableException(`二创参考图读取失败：${message}`);
+      }
+    }
+
+    return {
+      urls: directUrls,
+      payloads: uploadedPayloads,
+    };
   }
 
   private buildRewritePromptSourceMaterial(
