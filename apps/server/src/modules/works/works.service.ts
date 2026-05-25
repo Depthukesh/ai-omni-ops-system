@@ -648,6 +648,8 @@ type VideoProviderExecutionCandidate = {
   useReferenceImage: boolean;
 };
 
+type VideoProviderFailureDisposition = "hard" | "retryable";
+
 @Injectable()
 export class WorksService {
   constructor(
@@ -6223,9 +6225,45 @@ export class WorksService {
     );
   }
 
+  private inferVideoProviderFamily(backend: VideoBackendKey) {
+    const normalized = this.normalizeVideoBackendLookupKey(backend);
+    if (!normalized) {
+      return "";
+    }
+    if (normalized.includes("seedance")) {
+      return "seedance";
+    }
+    if (normalized.includes("hailuo")) {
+      return "hailuo";
+    }
+    if (normalized.includes("kling")) {
+      return "kling";
+    }
+    if (normalized.includes("veo")) {
+      return "veo";
+    }
+    if (normalized.includes("happyhorse")) {
+      return "happyhorse";
+    }
+    if (normalized.includes("vidu")) {
+      return "vidu";
+    }
+    if (normalized.includes("wan")) {
+      return "wan";
+    }
+    return normalized;
+  }
+
   private async buildVideoProviderExecutionPlan(requestedBackend: VideoBackendKey, hasReferenceImage: boolean) {
     const providerOptions = (await this.listXiaohongshuVideoProviderOptions()).items;
     const requestedLookupKey = this.normalizeVideoBackendLookupKey(requestedBackend);
+    const requestedFamily = this.inferVideoProviderFamily(requestedBackend);
+    const sameFamilyOptions = providerOptions.filter((item) =>
+      this.inferVideoProviderFamily(item.backendKey) === requestedFamily,
+    );
+    const candidateOptions = sameFamilyOptions.length
+      ? sameFamilyOptions
+      : providerOptions.filter((item) => this.normalizeVideoBackendLookupKey(item.backendKey) === requestedLookupKey);
     const executionPlan: VideoProviderExecutionCandidate[] = [];
     const seen = new Set<string>();
     const appendCandidate = (backend: VideoBackendKey, useReferenceImage: boolean) => {
@@ -6240,13 +6278,13 @@ export class WorksService {
       predicate: (option: VideoProviderOptionRecord) => boolean,
       useReferenceImage: boolean,
     ) => {
-      providerOptions.forEach((option) => {
+      candidateOptions.forEach((option) => {
         if (predicate(option)) {
           appendCandidate(option.backendKey, useReferenceImage);
         }
       });
     };
-    const requestedOption = providerOptions.find((item) =>
+    const requestedOption = candidateOptions.find((item) =>
       this.normalizeVideoBackendLookupKey(item.backendKey) === requestedLookupKey,
     );
 
@@ -6306,6 +6344,58 @@ export class WorksService {
     }
     const executionPlan = await this.buildVideoProviderExecutionPlan(requestedProvider, false);
     return executionPlan[0]?.backend || requestedProvider;
+  }
+
+  private normalizeVideoProviderFailureMessage(message?: string) {
+    return String(message || "").replace(/\s+/g, " ").trim();
+  }
+
+  private classifyVideoProviderFailure(message?: string): VideoProviderFailureDisposition {
+    const normalized = this.normalizeVideoProviderFailureMessage(message).toLowerCase();
+    if (!normalized) {
+      return "retryable";
+    }
+    if (
+      /access denied/.test(normalized)
+      || /enterprise-shared api keys/.test(normalized)
+      || /unauthorized/.test(normalized)
+      || /forbidden/.test(normalized)
+      || /\b401\b/.test(normalized)
+      || /\b403\b/.test(normalized)
+      || /api key/.test(normalized)
+      || /权限/.test(normalized)
+      || /鉴权/.test(normalized)
+      || /接口配置/.test(normalized)
+      || /配置读取失败/.test(normalized)
+      || /未找到 .*视频接口配置文件/.test(normalized)
+      || /owner 尚未配置/.test(normalized)
+    ) {
+      return "hard";
+    }
+    return "retryable";
+  }
+
+  private summarizeVideoProviderFailure(message?: string, disposition: VideoProviderFailureDisposition = "retryable") {
+    const normalized = this.normalizeVideoProviderFailureMessage(message);
+    if (disposition === "hard") {
+      if (/api key|access denied|enterprise-shared api keys|unauthorized|forbidden|\b401\b|\b403\b/i.test(normalized)) {
+        return "当前品牌下该视频模型暂无可用权限，请检查个人中心中的视频 API Key 权限配置。";
+      }
+      if (/接口配置|配置读取失败|未找到 .*视频接口配置文件|owner 尚未配置/i.test(normalized)) {
+        return "当前品牌下该视频模型接口配置不可用，请检查个人中心中的第三方接口配置。";
+      }
+      return normalized || "当前视频模型不可用，请检查接口权限或配置后重试。";
+    }
+    if (/超时|timeout|aborterror|524|cloudflare/i.test(normalized)) {
+      return "当前同类视频模型服务暂时超时，请稍后重试。";
+    }
+    if (/网络请求失败|fetch failed/i.test(normalized)) {
+      return "当前同类视频模型网络请求失败，请稍后重试。";
+    }
+    if (/未返回任务 id|创建任务失败/i.test(normalized)) {
+      return "当前同类视频模型创建任务失败，请稍后重试。";
+    }
+    return normalized || "当前同类视频模型暂时不可用，请稍后重试。";
   }
 
   private resolveLegacyVideoRequestProfile(backend: VideoBackendKey, hasReferenceImage: boolean) {
@@ -6784,6 +6874,7 @@ export class WorksService {
     const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
     const providerPlan = await this.buildVideoProviderExecutionPlan(requestedBackend, Boolean(params.referenceImageUrl));
     const providerErrors: string[] = [];
+    let hardFailureSummary = "";
 
     for (const candidate of providerPlan) {
       let lastError = "";
@@ -6864,11 +6955,23 @@ export class WorksService {
       }
 
       if (lastError) {
-        providerErrors.push(`${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}：${lastError}`);
+        const disposition = this.classifyVideoProviderFailure(lastError);
+        const normalizedMessage = this.normalizeVideoProviderFailureMessage(lastError);
+        providerErrors.push(`${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}：${normalizedMessage}`);
+        if (disposition === "hard") {
+          hardFailureSummary = this.summarizeVideoProviderFailure(normalizedMessage, disposition);
+          break;
+        }
       }
     }
 
-    throw new ServiceUnavailableException(`视频生成失败：${providerErrors.join("；") || "未获取到有效视频"}`);
+    if (hardFailureSummary) {
+      throw new ServiceUnavailableException(`视频生成失败：${hardFailureSummary}`);
+    }
+    const primaryFailure = providerErrors[0]?.split("：").slice(1).join("：").trim() || "";
+    throw new ServiceUnavailableException(
+      `视频生成失败：${this.summarizeVideoProviderFailure(primaryFailure, "retryable")}`,
+    );
   }
 
   private describeFetchError(error: unknown, requestLabel: string) {
