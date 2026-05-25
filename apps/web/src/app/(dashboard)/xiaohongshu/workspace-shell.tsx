@@ -426,6 +426,7 @@ export function XiaohongshuWorkspaceShell() {
     setNotice,
     setErrorMessage,
   });
+  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
 
   function setMaterialPreviewIndex(noteId: string, nextIndex: number, total: number) {
     if (!noteId || total <= 0) {
@@ -503,7 +504,6 @@ export function XiaohongshuWorkspaceShell() {
   const originalEditingWork = originalWorks.find((item) => item.id === editingOriginalWorkId);
   const rewriteSelectedWork = rewriteWorks.find((item) => item.id === selectedRewriteWorkId) || rewriteWorks[0];
   const rewriteEditingWork = rewriteWorks.find((item) => item.id === editingRewriteWorkId);
-  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
   const videoEditingWork = videoWorks.find((item) => item.id === editingVideoWorkId);
   const originalCalendarOptions = useMemo(
     () =>
