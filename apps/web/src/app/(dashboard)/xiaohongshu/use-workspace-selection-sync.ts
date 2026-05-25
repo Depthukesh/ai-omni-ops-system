@@ -97,7 +97,13 @@ export function useWorkspaceSelectionSync(options: {
   }, [options.rewriteWorks, options.selectedRewriteWorkId, options.setSelectedRewriteWorkId]);
 
   useEffect(() => {
-    if (!options.selectedVideoWorkId && options.videoWorks[0]) {
+    if (!options.videoWorks.length) {
+      if (options.selectedVideoWorkId) {
+        options.setSelectedVideoWorkId("");
+      }
+      return;
+    }
+    if (!options.selectedVideoWorkId || !options.videoWorks.some((item) => item.id === options.selectedVideoWorkId)) {
       options.setSelectedVideoWorkId(options.videoWorks[0].id);
     }
   }, [options.selectedVideoWorkId, options.setSelectedVideoWorkId, options.videoWorks]);

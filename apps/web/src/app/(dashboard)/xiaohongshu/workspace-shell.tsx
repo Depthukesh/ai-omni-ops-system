@@ -366,8 +366,16 @@ export function XiaohongshuWorkspaceShell() {
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
 
   useEffect(() => {
+    if (editingVideoWorkId && editingVideoWorkId !== videoSelectedWork?.id) {
+      return;
+    }
     setEditingVideoStoryboardPrompt(videoSelectedWork?.storyboardPrompt || "");
-  }, [setEditingVideoStoryboardPrompt, selectedVideoWorkId]);
+  }, [
+    editingVideoWorkId,
+    setEditingVideoStoryboardPrompt,
+    videoSelectedWork?.id,
+    videoSelectedWork?.storyboardPrompt,
+  ]);
 
   const visibleSections = useMemo(() => {
     const permissionMap = brandPermissionSettings?.currentUserPermissions;
@@ -495,7 +503,7 @@ export function XiaohongshuWorkspaceShell() {
   const originalEditingWork = originalWorks.find((item) => item.id === editingOriginalWorkId);
   const rewriteSelectedWork = rewriteWorks.find((item) => item.id === selectedRewriteWorkId) || rewriteWorks[0];
   const rewriteEditingWork = rewriteWorks.find((item) => item.id === editingRewriteWorkId);
-  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId) || videoWorks[0];
+  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
   const videoEditingWork = videoWorks.find((item) => item.id === editingVideoWorkId);
   const originalCalendarOptions = useMemo(
     () =>

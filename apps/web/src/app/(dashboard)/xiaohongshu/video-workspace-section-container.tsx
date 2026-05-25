@@ -33,7 +33,7 @@ export function VideoWorkspaceSectionContainer(props: NoteWorkspaceSectionContai
     formatDateTime,
   } = props;
 
-  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId) || videoWorks[0];
+  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
   const videoEditingWork = videoWorks.find((item) => item.id === workEditors.editingVideoWorkId);
   const originalCalendarOptions = calendarAllItems.map((item) => ({
     value: item.id,
@@ -41,13 +41,10 @@ export function VideoWorkspaceSectionContainer(props: NoteWorkspaceSectionContai
   }));
 
   useEffect(() => {
-    if (!videoSelectedWork?.storyboardPrompt) {
+    if (workEditors.editingVideoWorkId && workEditors.editingVideoWorkId !== videoSelectedWork?.id) {
       return;
     }
-    if (workEditors.editingVideoWorkId && workEditors.editingVideoWorkId !== videoSelectedWork.id) {
-      return;
-    }
-    workEditors.setEditingVideoStoryboardPrompt((current) => current || videoSelectedWork.storyboardPrompt || "");
+    workEditors.setEditingVideoStoryboardPrompt(videoSelectedWork?.storyboardPrompt || "");
   }, [
     videoSelectedWork?.id,
     videoSelectedWork?.storyboardPrompt,
