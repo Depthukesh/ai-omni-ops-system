@@ -25,28 +25,31 @@ type DouyinWorkKind =
   | "DOUYIN_LOW_FAN_EXPLOSIVE_WORK"
   | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
   | "DOUYIN_HIGH_LIKE_RATE_WORK";
+type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
   | DouyinWorkKind;
 type CollectorTargetKind = "XHS_TARGET_USER";
-type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTargetKind;
+type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTargetKind | DouyinCityHotspotKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
   | "highLikeRateWorks";
+type DouyinCityHotspotScopeKey = "cityHotspots";
 type DouyinContentTagSelection = {
   primaryTagId?: number;
   secondaryTagId?: number;
 };
 type DouyinSyncInput = {
-  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks" | DouyinBillboardScopeKey;
+  scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks" | DouyinBillboardScopeKey | DouyinCityHotspotScopeKey;
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   benchmarkAwemeIds?: string[];
   contentTagSelection?: DouyinContentTagSelection;
+  cityCode?: number;
 };
 export type DouyinContentTagOption = {
   label: string;
@@ -55,6 +58,30 @@ export type DouyinContentTagOption = {
     label: string;
     value: number;
   }>;
+};
+export type DouyinCityOption = {
+  label: string;
+  value: number;
+};
+export type DouyinCityHotspotTrendRecord = {
+  datetime: string;
+  hotScore?: number;
+};
+export type DouyinCityHotspotRecord = {
+  id: string;
+  kind: DouyinCityHotspotKind;
+  cityCode: number;
+  cityLabel: string;
+  rank: number;
+  rankDiff?: number;
+  sentence: string;
+  sentenceId?: string;
+  createAtText?: string;
+  hotScore?: number;
+  videoCount?: number;
+  sentenceTag?: number;
+  trends: DouyinCityHotspotTrendRecord[];
+  collectedAt: string;
 };
 
 type DailyHotspotConfig = {
@@ -267,7 +294,9 @@ export type DouyinCollectionWorkspace = {
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
+  cityHotspots: DouyinCityHotspotRecord[];
   contentTags: DouyinContentTagOption[];
+  cityOptions: DouyinCityOption[];
 };
 
 type FeishuMatchedTableMap = {
@@ -325,9 +354,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DOUYIN_VIDEO_CACHE_CLEANUP_JOB_NAME = "collectors.douyin-video-cache.cleanup";
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly DOUYIN_CITY_OPTION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
+  private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
 
   constructor(
     @Inject(PrismaService)
@@ -373,12 +404,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getDouyinWorkspace(brandId: string): Promise<DouyinCollectionWorkspace> {
-    const contentTags = await this.getDouyinContentTagsSafe(brandId);
+    const [contentTags, cityOptions] = await Promise.all([
+      this.getDouyinContentTagsSafe(brandId),
+      this.getDouyinCityOptionsSafe(brandId),
+    ]);
     if (await this.prismaService.canUseDatabase()) {
-      return this.buildDouyinWorkspaceFromAssets(await this.listCollectorAssets(brandId), contentTags);
+      return this.buildDouyinWorkspaceFromAssets(await this.listCollectorAssets(brandId), contentTags, cityOptions);
     }
 
-    return this.getDouyinWorkspaceFromMock(brandId, contentTags);
+    return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions);
   }
 
   async syncBrandAccounts(brandId: string) {
@@ -429,6 +463,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const shouldSyncLowFanExplosiveWorks = scope === "lowFanExplosiveWorks";
     const shouldSyncHighCompletionRateWorks = scope === "highCompletionRateWorks";
     const shouldSyncHighLikeRateWorks = scope === "highLikeRateWorks";
+    const shouldSyncCityHotspots = scope === "cityHotspots";
     const brandAccounts = shouldSyncBrandAccounts || shouldSyncBrandWorks
       ? this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand")
       : [];
@@ -497,10 +532,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           selection: contentTagSelection,
         })
       : [];
+    const cityHotspotRows = shouldSyncCityHotspots
+      ? await this.collectAndStoreDouyinCityHotspots(brandId, input.cityCode)
+      : [];
     const billboardWarnings = [
       shouldSyncLowFanExplosiveWorks && !lowFanExplosiveRows.length ? "低粉爆款榜当前分类暂无返回结果" : "",
       shouldSyncHighCompletionRateWorks && !highCompletionRateRows.length ? "高完播率榜当前分类暂无返回结果" : "",
       shouldSyncHighLikeRateWorks && !highLikeRateRows.length ? "高点赞率榜当前分类暂无返回结果" : "",
+      shouldSyncCityHotspots && !cityHotspotRows.length ? "同城热点榜当前城市暂无返回结果" : "",
     ].filter(Boolean);
     const benchmarkWorkCount =
       benchmarkWorkRows.reduce((sum, items) => sum + items.length, 0)
@@ -514,7 +553,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         + benchmarkWorkCount
         + lowFanExplosiveRows.length
         + highCompletionRateRows.length
-        + highLikeRateRows.length,
+        + highLikeRateRows.length
+        + cityHotspotRows.length,
       breakdown: {
         brandAccounts: brandAccountRows.length,
         competitorAccounts: competitorAccountRows.length,
@@ -523,6 +563,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         lowFanExplosiveWorks: lowFanExplosiveRows.length,
         highCompletionRateWorks: highCompletionRateRows.length,
         highLikeRateWorks: highLikeRateRows.length,
+        cityHotspots: cityHotspotRows.length,
       },
       warnings: [...benchmarkFailures, ...billboardWarnings],
       workspace: await this.getDouyinWorkspace(brandId),
@@ -906,10 +947,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.buildWorkspaceFromAssets(assets);
   }
 
-  private getDouyinWorkspaceFromMock(brandId: string, contentTags: DouyinContentTagOption[] = []): DouyinCollectionWorkspace {
+  private getDouyinWorkspaceFromMock(
+    brandId: string,
+    contentTags: DouyinContentTagOption[] = [],
+    cityOptions: DouyinCityOption[] = [],
+  ): DouyinCollectionWorkspace {
     this.ensureBrandExistsInMock(brandId);
     const assets = database.assets.filter((item) => item.brandId === brandId && item.category === "PLATFORM_EXPORT");
-    return this.buildDouyinWorkspaceFromAssets(assets, contentTags);
+    return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions);
   }
 
   private buildWorkspaceFromAssets(assets: AssetRecord[]): XhsCollectionWorkspace {
@@ -935,6 +980,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private buildDouyinWorkspaceFromAssets(
     assets: AssetRecord[],
     contentTags: DouyinContentTagOption[] = [],
+    cityOptions: DouyinCityOption[] = [],
   ): DouyinCollectionWorkspace {
     const brandAccounts = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_BRAND_ACCOUNT")
@@ -957,6 +1003,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const highLikeRateWorks = assets
       .filter((item) => item.metadataJson?.kind === "DOUYIN_HIGH_LIKE_RATE_WORK")
       .map((item) => this.mapDouyinCollectedWork(item, "DOUYIN_HIGH_LIKE_RATE_WORK"));
+    const cityHotspots = assets
+      .filter((item) => item.metadataJson?.kind === "DOUYIN_CITY_HOTSPOT")
+      .map((item) => this.mapDouyinCityHotspot(item))
+      .sort((left, right) => left.rank - right.rank || Date.parse(right.collectedAt) - Date.parse(left.collectedAt));
 
     return {
       brandAccounts,
@@ -966,7 +1016,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       lowFanExplosiveWorks,
       highCompletionRateWorks,
       highLikeRateWorks,
+      cityHotspots,
       contentTags,
+      cityOptions,
     };
   }
 
@@ -1113,6 +1165,38 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       primaryTagLabel: this.readMetaString(meta, "primaryTagLabel") || undefined,
       secondaryTagLabel: this.readMetaString(meta, "secondaryTagLabel") || undefined,
       score: this.readMetaNumber(meta, "score"),
+    };
+  }
+
+  private mapDouyinCityHotspot(asset: AssetRecord): DouyinCityHotspotRecord {
+    const meta = this.asMeta(asset.metadataJson);
+    return {
+      id: asset.id,
+      kind: "DOUYIN_CITY_HOTSPOT",
+      cityCode: this.readMetaNumber(meta, "cityCode") ?? 0,
+      cityLabel: this.readMetaString(meta, "cityLabel") || "未知城市",
+      rank: this.readMetaNumber(meta, "rank") ?? 0,
+      rankDiff: this.readMetaNumber(meta, "rankDiff"),
+      sentence: this.readMetaString(meta, "sentence") || asset.title,
+      sentenceId: this.readMetaString(meta, "sentenceId") || undefined,
+      createAtText: this.readMetaString(meta, "createAtText") || undefined,
+      hotScore: this.readMetaNumber(meta, "hotScore"),
+      videoCount: this.readMetaNumber(meta, "videoCount"),
+      sentenceTag: this.readMetaNumber(meta, "sentenceTag"),
+      trends: this.readMetaJsonArray(meta, "trends")
+        .map((item) => {
+          const record = this.asMeta(item);
+          const datetime = this.readMetaString(record, "datetime");
+          if (!datetime) {
+            return null;
+          }
+          return {
+            datetime,
+            hotScore: this.readMetaNumber(record, "hotScore") ?? this.readMetaNumber(record, "hot_score"),
+          } as DouyinCityHotspotTrendRecord;
+        })
+        .filter((item): item is DouyinCityHotspotTrendRecord => item !== null),
+      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
 
@@ -3180,6 +3264,69 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return rows;
   }
 
+  private async collectAndStoreDouyinCityHotspots(
+    brandId: string,
+    cityCode?: number,
+  ): Promise<DouyinCityHotspotRecord[]> {
+    if (!cityCode) {
+      throw new BadRequestException("请先选择城市后再提交同城热点榜采集");
+    }
+
+    const cityOptions = await this.getDouyinCityOptionsSafe(brandId);
+    const cityLabel = cityOptions.find((item) => item.value === cityCode)?.label || String(cityCode);
+    const raw = await this.fetchTikHub(
+      "/api/v1/douyin/billboard/fetch_hot_city_list",
+      {
+        page: "1",
+        page_size: "20",
+        order: "rank",
+        city_code: String(cityCode),
+      },
+      brandId,
+    );
+    const items = this.extractDouyinCityHotspotItems(raw).slice(0, 20);
+    const collectedAt = new Date().toISOString();
+    const rows: DouyinCityHotspotRecord[] = [];
+
+    for (const [index, item] of items.entries()) {
+      const sentence = this.pickString(item, ["sentence", "title", "keyword", "word"]);
+      if (!sentence) {
+        continue;
+      }
+      const sentenceId =
+        this.pickString(item, ["sentence_id", "id", "group_id"])
+        || String(this.pickNumber(item, ["sentence_id", "id", "group_id"]) ?? "");
+      const metadata = {
+        kind: "DOUYIN_CITY_HOTSPOT" as const,
+        cityCode,
+        cityLabel,
+        rank: this.pickNumber(item, ["rank", "position"]) ?? index + 1,
+        rankDiff: this.pickNumber(item, ["rank_diff"]),
+        sentence,
+        sentenceId: sentenceId || undefined,
+        createAtText: this.formatUnixTimestampText(this.pickNumber(item, ["create_at", "create_time"])),
+        hotScore: this.pickNumber(item, ["hot_score", "hot_value"]),
+        videoCount: this.pickNumber(item, ["video_count"]),
+        sentenceTag: this.pickNumber(item, ["sentence_tag"]),
+        trends: this.extractDouyinCityHotspotTrends(item),
+        collectedAt,
+        rawFields: item,
+      };
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "DOUYIN_CITY_HOTSPOT",
+        matchValue: `${cityCode}:${sentenceId || sentence}`,
+        title: sentence,
+        description: `${cityLabel}同城热点`,
+        fileUrl: "",
+        metadata,
+      });
+      rows.push(this.mapDouyinCityHotspot(asset));
+    }
+
+    return rows;
+  }
+
   private async collectAndStoreSingleDouyinBenchmarkWork(
     brandId: string,
     awemeId: string,
@@ -4105,6 +4252,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async getDouyinCityOptionsSafe(brandId?: string) {
+    try {
+      return await this.getDouyinCityOptions(brandId);
+    } catch {
+      return this.douyinCityOptionCache?.items ?? [];
+    }
+  }
+
   private async getDouyinContentTags(brandId?: string) {
     if (this.douyinContentTagCache && this.douyinContentTagCache.expiresAt > Date.now()) {
       return this.douyinContentTagCache.items;
@@ -4118,6 +4273,23 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     this.douyinContentTagCache = {
       items,
       expiresAt: Date.now() + CollectorsService.DOUYIN_CONTENT_TAG_CACHE_TTL_MS,
+    };
+    return items;
+  }
+
+  private async getDouyinCityOptions(brandId?: string) {
+    if (this.douyinCityOptionCache && this.douyinCityOptionCache.expiresAt > Date.now()) {
+      return this.douyinCityOptionCache.items;
+    }
+
+    const raw = await this.fetchTikHub("/api/v1/douyin/billboard/fetch_city_list", {}, brandId);
+    const items = this.extractDouyinCityOptions(raw);
+    if (!items.length) {
+      throw new ServiceUnavailableException("Tikhub 城市列表返回为空");
+    }
+    this.douyinCityOptionCache = {
+      items,
+      expiresAt: Date.now() + CollectorsService.DOUYIN_CITY_OPTION_CACHE_TTL_MS,
     };
     return items;
   }
@@ -4157,6 +4329,38 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
             };
           })
           .filter((item): item is DouyinContentTagOption => Boolean(item));
+        if (normalized.length) {
+          return normalized;
+        }
+        queue.push(...current);
+        continue;
+      }
+
+      if (current && typeof current === "object") {
+        queue.push(...Object.values(current));
+      }
+    }
+
+    return [];
+  }
+
+  private extractDouyinCityOptions(raw: unknown): DouyinCityOption[] {
+    const queue: unknown[] = [raw];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (Array.isArray(current)) {
+        const normalized = current
+          .map((item) => {
+            const meta = this.asMeta(item);
+            const label = this.readMetaString(meta, "label");
+            const value = this.readMetaNumber(meta, "value");
+            if (!label || typeof value !== "number") {
+              return null;
+            }
+            return { label, value };
+          })
+          .filter((item): item is DouyinCityOption => Boolean(item));
         if (normalized.length) {
           return normalized;
         }
@@ -4212,6 +4416,45 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return [] as Record<string, unknown>[];
+  }
+
+  private extractDouyinCityHotspotItems(raw: unknown) {
+    const queue: unknown[] = [raw];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (Array.isArray(current)) {
+        if (current.some((item) => this.pickString(item, ["sentence"]) || this.pickNumber(item, ["sentence_id"]) !== undefined)) {
+          return current.map((item) => this.asMeta(item));
+        }
+        queue.push(...current);
+        continue;
+      }
+
+      if (current && typeof current === "object") {
+        queue.push(...Object.values(current));
+      }
+    }
+
+    return [] as Record<string, unknown>[];
+  }
+
+  private extractDouyinCityHotspotTrends(raw: unknown): DouyinCityHotspotTrendRecord[] {
+    const payload = this.asMeta(raw);
+    const list = Array.isArray(payload.trends) ? payload.trends : [];
+    return list
+      .map((item) => {
+        const meta = this.asMeta(item);
+        const datetime = this.readMetaString(meta, "datetime");
+        if (!datetime) {
+          return null;
+        }
+        return {
+          datetime,
+          hotScore: this.readMetaNumber(meta, "hot_score") ?? this.readMetaNumber(meta, "hotScore"),
+        } as DouyinCityHotspotTrendRecord;
+      })
+      .filter((item): item is DouyinCityHotspotTrendRecord => item !== null);
   }
 
   private isDouyinWorkKind(kind: string): kind is DouyinWorkKind {

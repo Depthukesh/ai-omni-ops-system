@@ -108,6 +108,14 @@ export type DouyinContentTagOption = {
     value: number;
   }>;
 };
+export type DouyinCityOption = {
+  label: string;
+  value: number;
+};
+export type DouyinCityHotspotTrendRecord = {
+  datetime: string;
+  hotScore?: number;
+};
 
 export type DouyinCollectedWorkRecord = {
   id: string;
@@ -164,6 +172,22 @@ export type DouyinCollectedWorkRecord = {
   secondaryTagLabel?: string;
   score?: number;
 };
+export type DouyinCityHotspotRecord = {
+  id: string;
+  kind: "DOUYIN_CITY_HOTSPOT";
+  cityCode: number;
+  cityLabel: string;
+  rank: number;
+  rankDiff?: number;
+  sentence: string;
+  sentenceId?: string;
+  createAtText?: string;
+  hotScore?: number;
+  videoCount?: number;
+  sentenceTag?: number;
+  trends: DouyinCityHotspotTrendRecord[];
+  collectedAt: string;
+};
 
 export type DouyinCollectionWorkspace = {
   brandAccounts: DouyinCollectedAccountRecord[];
@@ -173,7 +197,9 @@ export type DouyinCollectionWorkspace = {
   lowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   highCompletionRateWorks: DouyinCollectedWorkRecord[];
   highLikeRateWorks: DouyinCollectedWorkRecord[];
+  cityHotspots: DouyinCityHotspotRecord[];
   contentTags: DouyinContentTagOption[];
+  cityOptions: DouyinCityOption[];
 };
 
 export type DouyinSyncPayload = {
@@ -184,7 +210,8 @@ export type DouyinSyncPayload = {
     | "benchmarkWorks"
     | "lowFanExplosiveWorks"
     | "highCompletionRateWorks"
-    | "highLikeRateWorks";
+    | "highLikeRateWorks"
+    | "cityHotspots";
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
   benchmarkAwemeIds?: string[];
@@ -192,6 +219,7 @@ export type DouyinSyncPayload = {
     primaryTagId?: number;
     secondaryTagId?: number;
   };
+  cityCode?: number;
 };
 
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
@@ -364,7 +392,9 @@ export const douyinCollectionSeed: DouyinCollectionWorkspace = {
   lowFanExplosiveWorks: [],
   highCompletionRateWorks: [],
   highLikeRateWorks: [],
+  cityHotspots: [],
   contentTags: [],
+  cityOptions: [],
 };
 
 export async function getDouyinCollectionWorkspace(brandId?: string) {
@@ -382,6 +412,7 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
       lowFanExplosiveWorks: number;
       highCompletionRateWorks: number;
       highLikeRateWorks: number;
+      cityHotspots: number;
     };
     warnings?: string[];
     workspace: DouyinCollectionWorkspace;

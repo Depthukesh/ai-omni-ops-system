@@ -225,7 +225,9 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     lowFanExplosiveWorks: [],
     highCompletionRateWorks: [],
     highLikeRateWorks: [],
+    cityHotspots: [],
     contentTags: [],
+    cityOptions: [],
   };
 }
 
@@ -360,6 +362,9 @@ type DouyinSyncForm = {
     primaryTagId: string;
     secondaryTagId: string;
   };
+  cityHotspots: {
+    cityCode: string;
+  };
 };
 
 function createEmptyDouyinSyncForm(): DouyinSyncForm {
@@ -378,6 +383,9 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
     highLikeRateWorks: {
       primaryTagId: "",
       secondaryTagId: "",
+    },
+    cityHotspots: {
+      cityCode: "",
     },
   };
 }
@@ -518,6 +526,12 @@ export function BrandGrowthWorkspace() {
   const sortedDouyinHighLikeRateWorks = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.highLikeRateWorks),
     [douyinCollectionWorkspace.highLikeRateWorks],
+  );
+  const sortedDouyinCityHotspots = useMemo(
+    () => [...douyinCollectionWorkspace.cityHotspots].sort(
+      (left, right) => left.rank - right.rank || Date.parse(right.collectedAt) - Date.parse(left.collectedAt),
+    ),
+    [douyinCollectionWorkspace.cityHotspots],
   );
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
@@ -1221,13 +1235,22 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           secondaryTagId,
         };
       }
+      if (activeDouyinCollectionCard === "cityHotspots") {
+        const cityCode = parseOptionalNumericTagId(douyinSyncForm.cityHotspots.cityCode);
+        if (!cityCode) {
+          setErrorMessage("请先选择城市后再提交。");
+          setIsSyncingDouyinWorkspace(false);
+          return;
+        }
+        payload.cityCode = cityCode;
+      }
       const response = await syncDouyinCollectionWorkspace(payload, activeBrandId || archive.brand.id);
       setDouyinCollectionWorkspace(response.workspace);
       const summary =
         `抖音同步完成：品牌账号 ${response.breakdown.brandAccounts} 条，竞品账号 ${response.breakdown.competitorAccounts} 条，` +
         `品牌作品 ${response.breakdown.brandWorks} 条，对标作品 ${response.breakdown.benchmarkWorks} 条，` +
         `低粉爆款榜 ${response.breakdown.lowFanExplosiveWorks} 条，高完播率榜 ${response.breakdown.highCompletionRateWorks} 条，` +
-        `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条。`;
+        `高点赞率榜 ${response.breakdown.highLikeRateWorks} 条，同城热点榜 ${response.breakdown.cityHotspots} 条。`;
       const warningText = response.warnings?.filter(Boolean).join("；");
       setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
     } catch (error) {
@@ -1571,6 +1594,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinLowFanExplosiveWorks={sortedDouyinLowFanExplosiveWorks}
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
         sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}
+        sortedDouyinCityHotspots={sortedDouyinCityHotspots}
         brandNotesPage={brandNotesPage}
         setBrandNotesPage={setBrandNotesPage}
         brandNotesPageCount={brandNotesPageCount}

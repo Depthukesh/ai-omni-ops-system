@@ -127,7 +127,8 @@ export class DouyinCollectorsController {
         | "benchmarkWorks"
         | "lowFanExplosiveWorks"
         | "highCompletionRateWorks"
-        | "highLikeRateWorks";
+        | "highLikeRateWorks"
+        | "cityHotspots";
       brandAccountLinks?: string[];
       competitorAccountLinks?: string[];
       benchmarkAwemeIds?: string[];
@@ -135,6 +136,7 @@ export class DouyinCollectorsController {
         primaryTagId?: number;
         secondaryTagId?: number;
       };
+      cityCode?: number;
     },
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {

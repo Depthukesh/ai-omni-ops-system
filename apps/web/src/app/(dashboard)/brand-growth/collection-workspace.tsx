@@ -12,6 +12,8 @@ import type {
 } from "./shared-types";
 import type {
   DouyinCollectedAccountRecord,
+  DouyinCityHotspotRecord,
+  DouyinCityOption,
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
   DouyinCollectedWorkRecord,
@@ -49,7 +51,8 @@ export type DouyinCollectionCardKey =
   | "benchmarkWorks"
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
-  | "highLikeRateWorks";
+  | "highLikeRateWorks"
+  | "cityHotspots";
 
 export const douyinCollectionCards: Array<{
   key: DouyinCollectionCardKey;
@@ -62,6 +65,7 @@ export const douyinCollectionCards: Array<{
   { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
+  { key: "cityHotspots", label: "同城热点榜" },
 ];
 
 type DouyinFieldPreviewRow = {
@@ -171,6 +175,17 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "videoUrl", label: "作品链接", source: "获取高点赞率榜", path: "data.data.data[].item_url", required: "可选", patch: "否" },
     { field: "likeCount", label: "点赞数", source: "获取高点赞率榜", path: "data.data.data[].like_cnt", required: "可选", patch: "否" },
   ],
+  cityHotspots: [
+    { field: "cityLabel", label: "城市名称", source: "获取中国城市列表", path: "data.data[].label", required: "必需", patch: "否" },
+    { field: "rank", label: "当前排名", source: "获取同城热点榜", path: "data.data.objs[].rank", required: "必需", patch: "否" },
+    { field: "rankDiff", label: "排名变化", source: "获取同城热点榜", path: "data.data.objs[].rank_diff", required: "可选", patch: "否" },
+    { field: "sentence", label: "热点词", source: "获取同城热点榜", path: "data.data.objs[].sentence", required: "必需", patch: "否" },
+    { field: "createAtText", label: "日期时间", source: "获取同城热点榜", path: "data.data.objs[].create_at", required: "可选", patch: "否" },
+    { field: "hotScore", label: "热度值", source: "获取同城热点榜", path: "data.data.objs[].hot_score", required: "可选", patch: "否" },
+    { field: "videoCount", label: "相关视频数", source: "获取同城热点榜", path: "data.data.objs[].video_count", required: "可选", patch: "否" },
+    { field: "sentenceTag", label: "热点分类标签", source: "获取同城热点榜", path: "data.data.objs[].sentence_tag", required: "可选", patch: "否" },
+    { field: "trends", label: "近一小时趋势", source: "获取同城热点榜", path: "data.data.objs[].trends[]", required: "可选", patch: "否" },
+  ],
 };
 
 export interface BrandGrowthCollectionWorkspaceProps {
@@ -216,6 +231,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
       primaryTagId: string;
       secondaryTagId: string;
     };
+    cityHotspots: {
+      cityCode: string;
+    };
   };
   setDouyinSyncForm: Dispatch<SetStateAction<{
     brandAccountLinks: string;
@@ -232,6 +250,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
     highLikeRateWorks: {
       primaryTagId: string;
       secondaryTagId: string;
+    };
+    cityHotspots: {
+      cityCode: string;
     };
   }>>;
   onSaveFeishuAppConfig: AsyncAction;
@@ -250,6 +271,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinLowFanExplosiveWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
+  sortedDouyinCityHotspots: DouyinCityHotspotRecord[];
   brandNotesPage: number;
   setBrandNotesPage: Dispatch<SetStateAction<number>>;
   brandNotesPageCount: number;
@@ -808,6 +830,49 @@ function DouyinCategorySubmitPanel(props: {
   );
 }
 
+function DouyinCitySubmitPanel(props: {
+  title: string;
+  cities: DouyinCityOption[];
+  value: {
+    cityCode: string;
+  };
+  isSubmitting: boolean;
+  onChange: ValueAction<{
+    cityCode: string;
+  }>;
+  onSubmit: AsyncAction;
+}) {
+  return (
+    <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="collection-result-head">
+        <div>
+          <h3>{props.title}</h3>
+          <p>先选择城市，再提交同城热点榜采集。返回的是近一小时内的热点变化数据。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
+          {props.isSubmitting ? "提交中..." : "提交"}
+        </button>
+      </div>
+      <div className="form-grid two-column">
+        <label className="field">
+          <span>城市</span>
+          <select
+            value={props.value.cityCode}
+            onChange={(event) => props.onChange({ cityCode: event.target.value })}
+          >
+            <option value="">请选择城市</option>
+            {props.cities.map((item) => (
+              <option key={`douyin-city-option-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </article>
+  );
+}
+
 function ScrollableTableShell(props: {
   children: ReactNode;
 }) {
@@ -954,6 +1019,16 @@ function formatOptionalCount(value?: number) {
     return "-";
   }
   return value.toLocaleString("zh-CN");
+}
+
+function formatTrendSummary(trends: DouyinCityHotspotRecord["trends"]) {
+  if (!trends.length) {
+    return "-";
+  }
+  const latest = trends[trends.length - 1];
+  return latest?.datetime
+    ? `${trends.length} 个点，最新 ${latest.datetime}`
+    : `${trends.length} 个点`;
 }
 
 function MaterialLibraryCheckbox(props: {
@@ -1180,6 +1255,61 @@ function DouyinMaterialReadyWorksTable(props: {
   );
 }
 
+function DouyinCityHotspotTable(props: {
+  items: DouyinCityHotspotRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>城市</th>
+            <th>排名</th>
+            <th>排名变化</th>
+            <th>日期+时间</th>
+            <th>热点词</th>
+            <th>热度值</th>
+            <th>相关视频数</th>
+            <th>热点分类标签</th>
+            <th>热点资料</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.cityLabel || "-"}</td>
+              <td>{item.rank || "-"}</td>
+              <td>{item.rankDiff ?? "-"}</td>
+              <td>{item.createAtText || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.sentence} emptyText="暂无热点词" compactRows={2} />
+              </td>
+              <td>{props.formatCount(item.hotScore)}</td>
+              <td>{props.formatCount(item.videoCount)}</td>
+              <td>{item.sentenceTag ?? "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell
+                  value={[
+                    item.sentenceId ? `热点ID：${item.sentenceId}` : "",
+                    item.cityCode ? `城市编码：${item.cityCode}` : "",
+                    `趋势：${formatTrendSummary(item.trends)}`,
+                  ].filter(Boolean).join("；")}
+                  emptyText="-"
+                  compactRows={2}
+                />
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
   const xiaohongshuSyncedCount =
     props.sortedBrandAccounts.length +
@@ -1193,10 +1323,12 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinBenchmarkWorks.length +
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
-    props.sortedDouyinHighLikeRateWorks.length;
+    props.sortedDouyinHighLikeRateWorks.length +
+    props.sortedDouyinCityHotspots.length;
   const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
   const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
   const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
+  const douyinCityOptions = props.douyinWorkspace.cityOptions ?? [];
   const douyinPreviewItems =
     props.activeDouyinCollectionCard === "brandAccount"
       ? props.sortedDouyinBrandAccounts
@@ -2009,7 +2141,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           <div className="strategy-card-toolbar">
             <div>
               <strong>{props.pageTitle}</strong>
-              <p>对标作品保留手动输入，新增 3 个榜单使用垂类一级/二级分类下拉采集，结果统一复用素材库勾选表格。</p>
+              <p>对标作品保留手动输入，新增 3 个垂类榜单和 1 个按城市采集的同城热点榜，结果按各自结构展示。</p>
             </div>
             <div className="strategy-inline-actions">
               <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
@@ -2028,6 +2160,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <span className="archive-pill status-ready">播放量：统计接口补丁</span>
             <span className={`archive-pill ${douyinContentTags.length ? "status-ready" : "status-pending"}`}>
               {douyinContentTags.length ? `垂类标签 ${douyinContentTags.length} 组` : "垂类标签待加载"}
+            </span>
+            <span className={`archive-pill ${douyinCityOptions.length ? "status-ready" : "status-pending"}`}>
+              {douyinCityOptions.length ? `城市列表 ${douyinCityOptions.length} 个` : "城市列表待加载"}
             </span>
             <span className={`archive-pill ${douyinSyncedCount ? "status-ready" : "status-pending"}`}>
               已同步 {douyinSyncedCount} 条
@@ -2246,6 +2381,35 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有采集到高点赞率榜结果，请先选择垂类分类并提交。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeDouyinCollectionCard === "cityHotspots" ? (
+            <>
+              <DouyinCitySubmitPanel
+                title="获取同城热点榜"
+                cities={douyinCityOptions}
+                value={props.douyinSyncForm.cityHotspots}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, cityHotspots: value }))}
+                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
+                onSubmit={props.onSyncDouyinWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>同城热点榜</h3>
+                    <p>展示当前城市近一小时内的热点词、日期时间、热度与趋势资料。</p>
+                  </div>
+                </div>
+                {props.sortedDouyinCityHotspots.length ? (
+                  <DouyinCityHotspotTable
+                    items={props.sortedDouyinCityHotspots}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有采集到同城热点榜结果，请先选择城市并提交。</div>
                 )}
               </article>
             </>
