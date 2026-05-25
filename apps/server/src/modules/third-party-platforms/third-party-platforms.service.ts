@@ -582,7 +582,7 @@ export class ThirdPartyPlatformsService {
       return "";
     }
     try {
-      const target = new URL(normalized);
+      const target = new URL(this.ensureUrlProtocol(normalized));
       const pathname = target.pathname.replace(/\/+$/, "");
       return `${target.protocol}//${target.host}${pathname}`.toLowerCase();
     } catch {
@@ -596,11 +596,15 @@ export class ThirdPartyPlatformsService {
       return "";
     }
     try {
-      return new URL(normalized).host.toLowerCase();
+      return new URL(this.ensureUrlProtocol(normalized)).host.toLowerCase();
     } catch {
-      const matched = normalized.match(/^[a-z]+:\/\/([^/]+)/i);
+      const matched = normalized.match(/^(?:[a-z]+:\/\/)?([^/]+)/i);
       return matched?.[1]?.toLowerCase() || "";
     }
+  }
+
+  private ensureUrlProtocol(value: string) {
+    return /^[a-z]+:\/\//i.test(value) ? value : `https://${value}`;
   }
 
   private maskSecret(value: string) {

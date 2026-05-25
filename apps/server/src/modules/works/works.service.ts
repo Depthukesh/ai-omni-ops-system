@@ -681,9 +681,11 @@ export class WorksService {
     if (!provider) {
       return [];
     }
+    const configuredBaseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const fallbackApiKeys = this.apiProvidersService.getApiKeys(provider);
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(
       brandId,
-      this.apiProvidersService.getBaseUrls(provider),
+      configuredBaseUrls,
     );
     if (resolution.status === "owner-api-key-missing") {
       const prefix = options?.sceneLabel ? `${options.sceneLabel} Provider 已激活，但` : "";
@@ -691,10 +693,16 @@ export class WorksService {
         `${prefix}当前品牌的 Owner 尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成设置后再试。`,
       );
     }
+    if (resolution.status === "no-platform-match" && !fallbackApiKeys.length) {
+      const firstBaseUrl = configuredBaseUrls[0] || provider.baseUrl || "";
+      throw new ServiceUnavailableException(
+        `当前品牌未匹配到第三方平台配置，请检查个人中心中的平台 baseUrl 是否与运行时地址同域：${firstBaseUrl || "未配置运行时地址"}`,
+      );
+    }
     if (resolution.status === "resolved") {
       return resolution.apiKeys;
     }
-    return this.apiProvidersService.getApiKeys(provider);
+    return fallbackApiKeys;
   }
 
   async listXiaohongshuVideoProviderOptions() {
@@ -6624,7 +6632,7 @@ export class WorksService {
         if (hasReferenceImage) {
           content.push({
             type: "image_url",
-            role: "first_frame",
+            role: "reference_image",
             image_url: {
               url: requireReferenceImage(),
             },
@@ -6636,9 +6644,8 @@ export class WorksService {
             content,
             duration: normalizedDuration,
             ratio: "9:16",
-            resolution: "720p",
             generate_audio: true,
-            return_last_frame: false,
+            watermark: false,
           } as Record<string, unknown>,
           createPath: params.config.createPath,
           queryPath: params.config.queryPath,
