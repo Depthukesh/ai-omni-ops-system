@@ -355,6 +355,7 @@ export function XiaohongshuWorkspaceShell() {
     [workspace.archive.platformAccounts],
   );
   const selectedProduct = workspace.archive.products.find((item) => item.id === selectedProductId) || workspace.archive.products[0];
+  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
 
   useEffect(() => {
     void loadWorkspace();
@@ -426,8 +427,6 @@ export function XiaohongshuWorkspaceShell() {
     setNotice,
     setErrorMessage,
   });
-  const videoSelectedWork = videoWorks.find((item) => item.id === selectedVideoWorkId);
-
   function setMaterialPreviewIndex(noteId: string, nextIndex: number, total: number) {
     if (!noteId || total <= 0) {
       return;
