@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { buildVideoWorkspaceProps } from "./note-workspace-section-props";
 import { VideoWorkspace } from "./note-workspaces";
 import { type NoteWorkspaceSectionContainerSharedProps } from "./note-workspace-section-containers";
@@ -37,6 +39,21 @@ export function VideoWorkspaceSectionContainer(props: NoteWorkspaceSectionContai
     value: item.id,
     label: `${item.date}｜${item.topicName}`,
   }));
+
+  useEffect(() => {
+    if (!videoSelectedWork?.storyboardPrompt) {
+      return;
+    }
+    if (workEditors.editingVideoWorkId && workEditors.editingVideoWorkId !== videoSelectedWork.id) {
+      return;
+    }
+    workEditors.setEditingVideoStoryboardPrompt((current) => current || videoSelectedWork.storyboardPrompt || "");
+  }, [
+    videoSelectedWork?.id,
+    videoSelectedWork?.storyboardPrompt,
+    workEditors.editingVideoWorkId,
+    workEditors.setEditingVideoStoryboardPrompt,
+  ]);
 
   function handleOpenVideoModal() {
     composerForms.openVideoModal(calendarAllItems, products);
