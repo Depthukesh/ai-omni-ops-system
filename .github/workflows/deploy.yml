@@ -12,17 +12,34 @@ jobs:
 
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.ALIYUN_HOST }}
-          username: ${{ secrets.ALIYUN_USER }}
-          key: ${{ secrets.ALIYUN_SSH_KEY }}
-          port: ${{ secrets.ALIYUN_PORT }}
-          script: |
+        env:
+          ALIYUN_HOST: ${{ secrets.ALIYUN_HOST }}
+          ALIYUN_USER: ${{ secrets.ALIYUN_USER }}
+          ALIYUN_PORT: ${{ secrets.ALIYUN_PORT }}
+          ALIYUN_SSH_KEY: ${{ secrets.ALIYUN_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          TIKHUB_API_KEY: ${{ secrets.TIKHUB_API_KEY }}
+        run: |
+          set -Eeuo pipefail
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$ALIYUN_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -p "$ALIYUN_PORT" "$ALIYUN_HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          REMOTE_DEPLOY_PATH="$(printf '%q' "$DEPLOY_PATH")"
+          REMOTE_TIKHUB_API_KEY="$(printf '%q' "${TIKHUB_API_KEY:-}")"
+
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -p "$ALIYUN_PORT" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$ALIYUN_USER@$ALIYUN_HOST" \
+            "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY bash -se" <<'REMOTE_SCRIPT'
             set -Eeuo pipefail
             APP_RUNTIME_USER="aiops"
-            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
-            TIKHUB_API_KEY="${{ secrets.TIKHUB_API_KEY }}"
 
             log_step() {
               printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
@@ -212,3 +229,4 @@ jobs:
             wait_for_http http://127.0.0.1:3011/api/health
             log_step "开始探活前端健康检查"
             wait_for_http http://127.0.0.1:3001/health
+          REMOTE_SCRIPT
