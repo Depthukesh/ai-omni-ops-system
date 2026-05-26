@@ -601,6 +601,9 @@ type ImageProviderConfig = ThirdPartyChatConfig & {
   providerName: string;
   models: string[];
   requestMode: "chat-completions" | "images-generations" | "apiz-task";
+  supportsTextToImage: boolean;
+  supportsReferenceImages: boolean;
+  requiresReferenceImages: boolean;
   createPath?: string;
   queryPath?: string;
   queryMethod?: "GET" | "POST";
@@ -753,6 +756,7 @@ export class WorksService {
   async listXiaohongshuVideoStoryboardImageOptions() {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     const items = providers
+      .filter((provider) => this.supportsStoryboardTextOnlyImageGeneration(provider))
       .flatMap((provider) => {
         const displayOrder = this.apiProvidersService.getNumberExtra(provider, "displayOrder") ?? Number.MAX_SAFE_INTEGER;
         const models = this.pickProviderModels(
@@ -2439,6 +2443,13 @@ export class WorksService {
     const referenceImages = this.buildImageGenerationReferenceInputs(params.referenceImageUrls, params.referenceImagePayloads);
     const providersToTry = this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages)
       .slice(0, Math.max(1, params.maxProvidersToTry || params.providers.length));
+    if (!providersToTry.length) {
+      throw new ServiceUnavailableException(
+        referenceImages.length
+          ? "当前图片生成链路未找到支持参考图输入的可用模型，请检查所选生图模型与参考图模式是否匹配。"
+          : "当前图片生成链路未找到支持纯文生图的可用模型，请重新选择故事板生图大模型。",
+      );
+    }
 
     for (const provider of providersToTry) {
       const modelsToTry = provider.models.slice(0, Math.max(1, params.maxModelsPerProvider || provider.models.length));
@@ -3687,6 +3698,7 @@ export class WorksService {
         promptId: "prompt_xhs_video_storyboard",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
         preferredModelSelection: context.requestedStoryboardImageModel,
+        usage: "storyboard-text-only",
       });
       const storyboardImage = await this.generateImageAsset({
         brandId,
@@ -3745,6 +3757,7 @@ export class WorksService {
         promptId: "prompt_xhs_video_storyboard",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
         preferredModelSelection: meta.requestedStoryboardImageModel,
+        usage: "storyboard-text-only",
       });
       const storyboardImage = await this.generateImageAsset({
         brandId,
@@ -4985,6 +4998,50 @@ export class WorksService {
     };
   }
 
+  private supportsStoryboardTextOnlyImageGeneration(provider: ApiProviderRecord) {
+    const requestMode = this.apiProvidersService.getStringExtra(provider, "requestMode");
+    const requiresReferenceImages = this.apiProvidersService.getBooleanExtra(provider, "requiresReferenceImages")
+      || this.isEditOnlyImageProvider(provider.name, provider.modelWhitelist, provider.defaultModel);
+    const explicitlySupportsTextToImage = this.apiProvidersService.getBooleanExtra(provider, "supportsTextToImage");
+    if (requiresReferenceImages) {
+      return false;
+    }
+    if (explicitlySupportsTextToImage) {
+      return true;
+    }
+    return requestMode === "images-generations" || requestMode === "chat-completions" || requestMode === "apiz-task";
+  }
+
+  private resolveImageProviderCapabilities(provider: ApiProviderRecord) {
+    const requestMode = this.apiProvidersService.getStringExtra(provider, "requestMode");
+    const requiresReferenceImages = this.apiProvidersService.getBooleanExtra(provider, "requiresReferenceImages")
+      || this.isEditOnlyImageProvider(provider.name, provider.modelWhitelist, provider.defaultModel);
+    const supportsTextToImage = this.apiProvidersService.getBooleanExtra(provider, "supportsTextToImage")
+      || (!requiresReferenceImages && (
+        requestMode === "images-generations"
+        || requestMode === "chat-completions"
+        || requestMode === "apiz-task"
+      ));
+    const supportsReferenceImages = this.apiProvidersService.getBooleanExtra(provider, "supportsReferenceImages")
+      || requestMode === "images-generations"
+      || requestMode === "chat-completions";
+    return {
+      supportsTextToImage,
+      supportsReferenceImages,
+      requiresReferenceImages,
+    };
+  }
+
+  private isEditOnlyImageProvider(providerName: string, modelWhitelist: string[], defaultModel?: string | null) {
+    const normalizedName = String(providerName || "").toLowerCase();
+    const models = [...modelWhitelist, String(defaultModel || "")]
+      .map((item) => String(item || "").toLowerCase())
+      .filter(Boolean);
+    return normalizedName.includes("edit")
+      || normalizedName.includes("图生图")
+      || models.some((item) => item.includes("/edit"));
+  }
+
   private mergeModelPreferenceOrder(...values: string[]) {
     const merged: string[] = [];
     for (const value of values) {
@@ -5070,15 +5127,18 @@ export class WorksService {
 
   private prioritizeImageProvidersForReferenceInputs(providers: ImageProviderConfig[], referenceImages: string[]) {
     const normalizedReferenceImages = referenceImages.map((item) => String(item || "").trim()).filter(Boolean);
+    const capableProviders = normalizedReferenceImages.length
+      ? providers.filter((provider) => provider.supportsReferenceImages)
+      : providers.filter((provider) => provider.supportsTextToImage && !provider.requiresReferenceImages);
     if (!normalizedReferenceImages.length) {
-      return providers;
+      return capableProviders;
     }
-    if (!providers.some((provider) => provider.requestMode === "images-generations")) {
-      if (!providers.some((provider) => provider.requestMode === "apiz-task")) {
-        return providers;
+    if (!capableProviders.some((provider) => provider.requestMode === "images-generations")) {
+      if (!capableProviders.some((provider) => provider.requestMode === "apiz-task")) {
+        return capableProviders;
       }
     }
-    return [...providers].sort((left, right) => {
+    return [...capableProviders].sort((left, right) => {
       const leftRank = left.requestMode === "images-generations" || left.requestMode === "apiz-task" ? 0 : 1;
       const rightRank = right.requestMode === "images-generations" || right.requestMode === "apiz-task" ? 0 : 1;
       return leftRank - rightRank;
@@ -6006,6 +6066,7 @@ export class WorksService {
     promptId: string;
     fallbackModels: string[];
     preferredModelSelection?: string;
+    usage?: "general" | "storyboard-text-only";
   }): Promise<ImageGenerationRuntimeConfig> {
     const [preference, prompt] = await Promise.all([
       this.loadSkillModelPreference(params.skillSlug, params.promptId, params.fallbackModels),
@@ -6020,6 +6081,7 @@ export class WorksService {
       providers: await this.loadImageGenerationProviders(params.brandId, preference, {
         preferredModelName,
         preferredProviderIds,
+        usage: params.usage,
       }),
       executionPrompt: String(prompt?.content || "").trim(),
       preferredModelName,
@@ -6029,7 +6091,7 @@ export class WorksService {
   private async loadImageGenerationProviders(
     brandId?: string,
     preference?: SkillModelPreference,
-    overridePreference?: { preferredModelName?: string; preferredProviderIds?: string[] },
+    overridePreference?: { preferredModelName?: string; preferredProviderIds?: string[]; usage?: "general" | "storyboard-text-only" },
   ): Promise<ImageProviderConfig[]> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
@@ -6043,6 +6105,10 @@ export class WorksService {
     const configs: ImageProviderConfig[] = [];
     const skippedReasons: string[] = [];
     for (const provider of providers) {
+      if (overridePreference?.usage === "storyboard-text-only" && !this.supportsStoryboardTextOnlyImageGeneration(provider)) {
+        skippedReasons.push(`${provider.name}：当前故事板场景只允许纯文生图模型`);
+        continue;
+      }
       const baseUrls = this.apiProvidersService.getBaseUrls(provider);
       let apiKeys: string[] = [];
       try {
@@ -6071,6 +6137,7 @@ export class WorksService {
         skippedReasons.push(`${provider.name}：${reasonParts.join("，")}`);
         continue;
       }
+      const capability = this.resolveImageProviderCapabilities(provider);
       configs.push({
         provider: "IMAGE_API",
         providerId: provider.id,
@@ -6092,6 +6159,9 @@ export class WorksService {
           : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
             ? "taskId-json"
             : undefined,
+        supportsTextToImage: capability.supportsTextToImage,
+        supportsReferenceImages: capability.supportsReferenceImages,
+        requiresReferenceImages: capability.requiresReferenceImages,
         requestTimeoutMs: provider.timeoutMs || 240000,
       });
     }

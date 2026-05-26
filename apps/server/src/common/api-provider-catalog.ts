@@ -83,6 +83,9 @@ type ApizTaskImageSeedInput = {
   modelId: string;
   displayOrder: number;
   remark: string;
+  supportsTextToImage: boolean;
+  supportsReferenceImages: boolean;
+  requiresReferenceImages?: boolean;
 };
 
 type ApizTaskVideoSeedInput = {
@@ -204,6 +207,9 @@ function createApizTaskImageSeed(input: ApizTaskImageSeedInput) {
       runtimeTags: ["image-generation", "works-runtime"],
       baseUrls: [APIZ_API_BASE_URL],
       requestMode: "apiz-task",
+      supportsTextToImage: input.supportsTextToImage,
+      supportsReferenceImages: input.supportsReferenceImages,
+      requiresReferenceImages: input.requiresReferenceImages === true,
       createPath: APIZ_TASK_CREATE_PATH,
       queryPath: APIZ_TASK_QUERY_PATH,
       queryMethod: "POST",
@@ -534,6 +540,8 @@ const APIZ_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     modelId: "openai/gpt-image-2",
     displayOrder: 210,
     remark: "APIZ/NEX AI 的 ChatGPT Images 2.0 文生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToImage: true,
+    supportsReferenceImages: false,
   }),
   createApizTaskImageSeed({
     id: "provider_runtime_image_apiz_gpt_image_2_edit",
@@ -542,6 +550,9 @@ const APIZ_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     modelId: "openai/gpt-image-2/edit",
     displayOrder: 211,
     remark: "APIZ/NEX AI 的 ChatGPT Images 2.0 Edit 图生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToImage: false,
+    supportsReferenceImages: true,
+    requiresReferenceImages: true,
   }),
   createApizTaskImageSeed({
     id: "provider_runtime_image_apiz_nano_banana_2",
@@ -550,6 +561,8 @@ const APIZ_IMAGE_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     modelId: "fal-ai/nano-banana-2",
     displayOrder: 212,
     remark: "APIZ/NEX AI 的 Nano Banana 2 文生图/图生图接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    supportsTextToImage: true,
+    supportsReferenceImages: true,
   }),
 ];
 
@@ -869,6 +882,9 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
       baseUrls: [RIGHT_CODES_DRAW_BASE_URL],
       completionPath: "/v1/images/generations",
       requestMode: "images-generations",
+      supportsTextToImage: true,
+      supportsReferenceImages: true,
+      requiresReferenceImages: false,
       sourceFolder: "Right Codes 文生图/图生图",
     },
     remark: "Right Codes 平台支持文生图与图生图；运行时会使用 `/v1/images/generations`，并继续遵守品牌 Owner 私钥隔离规则。",
