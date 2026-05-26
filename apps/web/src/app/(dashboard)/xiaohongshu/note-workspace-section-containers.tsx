@@ -3,6 +3,7 @@
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import { type TaskRecord } from "../../../services/personal-center";
 import {
+  type StoryboardImageModelOptionRecord,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -52,6 +53,7 @@ export type NoteComposerFormsState = Pick<
   | "videoProviderValue"
   | "videoCustomProviderValue"
   | "videoCustomModelName"
+  | "videoStoryboardImageModelValue"
   | "videoDurationValue"
   | "videoInjectMarketingPlanValue"
   | "videoAdditionalInstruction"
@@ -81,6 +83,7 @@ export type NoteComposerFormsState = Pick<
   | "setVideoProviderValue"
   | "setVideoCustomProviderValue"
   | "setVideoCustomModelName"
+  | "setVideoStoryboardImageModelValue"
   | "setVideoDurationValue"
   | "setVideoInjectMarketingPlanValue"
   | "setVideoAdditionalInstruction"
@@ -201,6 +204,7 @@ export interface NoteWorkspaceSectionContainerSharedProps {
   isLoadingOriginalReferenceTemplates: boolean;
   originalReferenceTemplatesError: string;
   videoProviderOptions: VideoProviderOptionRecord[];
+  storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   noProductOption: string;
   autoImageCountOption: string;
   customTopicOption: string;

@@ -167,7 +167,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
       "prompt_xhs_video_skit_script",
       "prompt_xhs_video_remix_script",
       "prompt_xhs_video_storyboard",
-      "prompt_xhs_video_short_prompt",
     ],
     promptScenes: [
       "视频笔记-品牌宣传剧本",
@@ -175,7 +174,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
       "视频笔记-短剧带货剧本",
       "视频笔记-复刻视频拆解",
       "视频笔记-故事板提示词",
-      "视频笔记-短视频提示词",
     ],
   },
   "short-video-api-studio": {
@@ -185,7 +183,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
       "prompt_xhs_video_skit_script",
       "prompt_xhs_video_remix_script",
       "prompt_xhs_video_storyboard",
-      "prompt_xhs_video_short_prompt",
     ],
     promptScenes: [
       "视频笔记-品牌宣传剧本",
@@ -193,7 +190,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
       "视频笔记-短剧带货剧本",
       "视频笔记-复刻视频拆解",
       "视频笔记-故事板提示词",
-      "视频笔记-短视频提示词",
     ],
   },
 };

@@ -78,6 +78,7 @@ import {
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
+  type StoryboardImageModelOptionRecord,
   type VideoProviderOptionRecord,
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
@@ -121,6 +122,7 @@ const DEFAULT_VIDEO_PROVIDER_OPTIONS: VideoProviderOptionRecord[] = [
     displayOrder: 10,
   },
 ];
+const DEFAULT_STORYBOARD_IMAGE_MODEL_OPTIONS: StoryboardImageModelOptionRecord[] = [];
 
 export function XiaohongshuWorkspaceShell() {
   const seedWorkspace = useMemo(() => getXiaohongshuWorkspaceSeed(), []);
@@ -164,6 +166,9 @@ export function XiaohongshuWorkspaceShell() {
   const [deletingRewriteWorkId, setDeletingRewriteWorkId] = useState("");
   const [videoWorks, setVideoWorks] = useState<XiaohongshuVideoWorkRecord[]>([]);
   const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>(DEFAULT_VIDEO_PROVIDER_OPTIONS);
+  const [storyboardImageModelOptions, setStoryboardImageModelOptions] = useState<StoryboardImageModelOptionRecord[]>(
+    DEFAULT_STORYBOARD_IMAGE_MODEL_OPTIONS,
+  );
   const [originalReferenceTemplateCategories, setOriginalReferenceTemplateCategories] = useState<
     XhsOriginalReferenceTemplateCategoryRecord[]
   >([]);
@@ -208,6 +213,9 @@ export function XiaohongshuWorkspaceShell() {
     availableVideoAccountRoleValues: originalAccountRoleOptionsByBrandRole[currentBrandRole] || ["BRAND"],
     defaultVideoProviderValue: videoProviderOptions.find((item) => item.recommended)?.backendKey || videoProviderOptions[0]?.backendKey,
     availableVideoProviderValues: videoProviderOptions.map((item) => item.backendKey),
+    defaultStoryboardImageModelValue:
+      storyboardImageModelOptions.find((item) => item.recommended)?.selectionKey || storyboardImageModelOptions[0]?.selectionKey,
+    availableStoryboardImageModelValues: storyboardImageModelOptions.map((item) => item.selectionKey),
   });
 
   const {
@@ -239,6 +247,7 @@ export function XiaohongshuWorkspaceShell() {
     videoProviderValue,
     videoCustomProviderValue,
     videoCustomModelName,
+    videoStoryboardImageModelValue,
     videoDurationValue,
     videoInjectMarketingPlanValue,
     videoAdditionalInstruction,
@@ -268,6 +277,7 @@ export function XiaohongshuWorkspaceShell() {
     setVideoProviderValue,
     setVideoCustomProviderValue,
     setVideoCustomModelName,
+    setVideoStoryboardImageModelValue,
     setVideoDurationValue,
     setVideoInjectMarketingPlanValue,
     setVideoAdditionalInstruction,
@@ -338,6 +348,7 @@ export function XiaohongshuWorkspaceShell() {
     setRewriteWorks,
     setVideoWorks,
     setVideoProviderOptions,
+    setStoryboardImageModelOptions,
     setOriginalReferenceTemplateCategories,
     setOriginalReferenceTemplateItems,
     setIsLoadingOriginalReferenceTemplates,
@@ -518,6 +529,7 @@ export function XiaohongshuWorkspaceShell() {
     products: workspace.archive.products,
     materialNotes,
     videoProviderOptions,
+    storyboardImageModelOptions,
     noProductOption: NO_PRODUCT_OPTION,
     customTopicOption: CUSTOM_TOPIC_OPTION,
     customVideoProviderOption,
@@ -565,6 +577,7 @@ export function XiaohongshuWorkspaceShell() {
       providerValue: videoProviderValue,
       customProviderValue: videoCustomProviderValue,
       customModelName: videoCustomModelName,
+      storyboardImageModelValue: videoStoryboardImageModelValue,
       durationValue: videoDurationValue,
       injectMarketingPlanValue: videoInjectMarketingPlanValue,
       additionalInstruction: videoAdditionalInstruction,
@@ -1221,6 +1234,7 @@ export function XiaohongshuWorkspaceShell() {
         isLoadingOriginalReferenceTemplates={isLoadingOriginalReferenceTemplates}
         originalReferenceTemplatesError={originalReferenceTemplatesError}
         videoProviderOptions={videoProviderOptions}
+        storyboardImageModelOptions={storyboardImageModelOptions}
         noProductOption={NO_PRODUCT_OPTION}
         autoImageCountOption={AUTO_IMAGE_COUNT_OPTION}
         customTopicOption={CUSTOM_TOPIC_OPTION}

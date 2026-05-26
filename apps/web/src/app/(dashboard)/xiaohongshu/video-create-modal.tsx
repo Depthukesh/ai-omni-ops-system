@@ -7,7 +7,7 @@ import {
   type SelectOption,
   type StringChangeHandler,
 } from "./shared-types";
-import { type VideoProviderOptionRecord } from "../../../services/works";
+import { type StoryboardImageModelOptionRecord, type VideoProviderOptionRecord } from "../../../services/works";
 import { VIDEO_CREATE_MODAL_COPY } from "./note-create-modal-copy";
 import { NoteCreateModalShell } from "./note-create-modal-shell";
 import { VideoCreateBasicFields } from "./video-create-basic-fields";
@@ -21,6 +21,7 @@ export interface VideoCreateModalProps {
   noProductOption: string;
   customVideoProviderOption: string;
   videoProviderOptions: VideoProviderOptionRecord[];
+  storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   products: ProductOption[];
   materialNotes: MaterialOption[];
   calendarValue: string;
@@ -35,6 +36,7 @@ export interface VideoCreateModalProps {
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
+  storyboardImageModelValue: string;
   durationValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -51,6 +53,7 @@ export interface VideoCreateModalProps {
   onProviderChange: StringChangeHandler;
   onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
+  onStoryboardImageModelChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
@@ -84,6 +87,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
         noProductOption={props.noProductOption}
         customVideoProviderOption={props.customVideoProviderOption}
         videoProviderOptions={props.videoProviderOptions}
+        storyboardImageModelOptions={props.storyboardImageModelOptions}
         materialNotes={props.materialNotes}
         productValue={props.productValue}
         materialValue={props.materialValue}
@@ -93,6 +97,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
         providerValue={props.providerValue}
         customProviderValue={props.customProviderValue}
         customModelName={props.customModelName}
+        storyboardImageModelValue={props.storyboardImageModelValue}
         durationValue={props.durationValue}
         injectMarketingPlanValue={props.injectMarketingPlanValue}
         additionalInstruction={props.additionalInstruction}
@@ -103,6 +108,7 @@ export function VideoCreateModal(props: VideoCreateModalProps) {
         onProviderChange={props.onProviderChange}
         onCustomProviderChange={props.onCustomProviderChange}
         onCustomModelNameChange={props.onCustomModelNameChange}
+        onStoryboardImageModelChange={props.onStoryboardImageModelChange}
         onDurationChange={props.onDurationChange}
         onInjectMarketingPlanChange={props.onInjectMarketingPlanChange}
         onAdditionalInstructionChange={props.onAdditionalInstructionChange}

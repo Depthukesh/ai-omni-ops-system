@@ -79,6 +79,7 @@ export type GenerateXiaohongshuVideoNotePayload = {
   copyAdditionalInstruction?: string;
   videoProvider?: string;
   customVideoModelName?: string;
+  storyboardImageModel?: string;
   durationSec?: number;
   includeMarketingPlan?: boolean;
   videoAdditionalInstruction?: string;
@@ -244,6 +245,7 @@ type ResolvedVideoComposerContext = {
   marketingPlanMarkdown: string;
   requestedVideoProvider: string;
   requestedDurationSec: number;
+  requestedStoryboardImageModel?: string;
   copyAdditionalInstruction?: string;
   videoAdditionalInstruction?: string;
 };
@@ -286,6 +288,7 @@ type VideoWorkAssetMeta = {
   requestedVideoProvider: string;
   resolvedVideoProvider: string;
   resolvedVideoModel?: string;
+  requestedStoryboardImageModel?: string;
   requestedDurationSec: number;
   renderedDurationSec?: number;
   scriptModel?: string;
@@ -325,6 +328,15 @@ type VideoAssetMeta = {
   modelName?: string;
   durationSec?: number;
   createdAt: string;
+};
+
+type StoryboardImageModelOptionRecord = {
+  selectionKey: string;
+  label: string;
+  providerName: string;
+  modelName: string;
+  recommended: boolean;
+  displayOrder: number;
 };
 
 type VideoSegmentAssetEntry = {
@@ -735,6 +747,37 @@ export class WorksService {
         return left.label.localeCompare(right.label, "zh-CN");
       });
 
+    return { items };
+  }
+
+  async listXiaohongshuVideoStoryboardImageOptions() {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
+    const items = providers
+      .flatMap((provider) => {
+        const displayOrder = this.apiProvidersService.getNumberExtra(provider, "displayOrder") ?? Number.MAX_SAFE_INTEGER;
+        const models = this.pickProviderModels(
+          provider.modelWhitelist,
+          provider.defaultModel ? [provider.defaultModel] : [],
+          provider.modelWhitelist,
+        );
+        return models.map((modelName, index) => ({
+          selectionKey: `${provider.id}::${modelName}`,
+          label: `${provider.name} · ${modelName}`,
+          providerName: provider.name,
+          modelName,
+          recommended: index === 0,
+          displayOrder,
+        } satisfies StoryboardImageModelOptionRecord));
+      })
+      .sort((left, right) => {
+        if (left.displayOrder !== right.displayOrder) {
+          return left.displayOrder - right.displayOrder;
+        }
+        if (left.providerName !== right.providerName) {
+          return left.providerName.localeCompare(right.providerName, "zh-CN");
+        }
+        return left.modelName.localeCompare(right.modelName, "zh-CN");
+      });
     return { items };
   }
 
@@ -1548,6 +1591,7 @@ export class WorksService {
       includeMarketingPlan: context.includeMarketingPlan,
       requestedVideoProvider: context.requestedVideoProvider,
       resolvedVideoProvider: context.requestedVideoProvider,
+      requestedStoryboardImageModel: context.requestedStoryboardImageModel,
       requestedDurationSec: context.requestedDurationSec,
       progressSteps: this.buildVideoProgressSteps("QUEUED"),
       storyboardRevisions: [],
@@ -3561,6 +3605,7 @@ export class WorksService {
       marketingPlanMarkdown: includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "",
       requestedVideoProvider,
       requestedDurationSec: this.normalizeRequestedVideoDuration(payload.durationSec),
+      requestedStoryboardImageModel: payload.storyboardImageModel?.trim() || undefined,
       copyAdditionalInstruction: payload.copyAdditionalInstruction?.trim() || undefined,
       videoAdditionalInstruction: payload.videoAdditionalInstruction?.trim() || undefined,
     };
@@ -3641,6 +3686,7 @@ export class WorksService {
         skillSlug: "short-video-api-studio",
         promptId: "prompt_xhs_video_storyboard",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+        preferredModelSelection: context.requestedStoryboardImageModel,
       });
       const storyboardImage = await this.generateImageAsset({
         brandId,
@@ -3698,6 +3744,7 @@ export class WorksService {
         skillSlug: "short-video-api-studio",
         promptId: "prompt_xhs_video_storyboard",
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
+        preferredModelSelection: meta.requestedStoryboardImageModel,
       });
       const storyboardImage = await this.generateImageAsset({
         brandId,
@@ -3759,15 +3806,14 @@ export class WorksService {
         progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
       });
       const accessibleStoryboardImageUrl = await this.resolveThirdPartyAccessibleAssetUrl(meta.storyboardImageUrl, brandId);
-      const promptResult = await this.generateShortVideoPromptFromStoryboard(brandId, meta);
+      const directVideoPrompt = this.buildDirectVideoPrompt(meta);
       const videoResult = await this.generateVideoAsset({
         brandId,
         taskId,
         title: `视频笔记视频 - ${meta.title}`,
         requestedVideoProvider: meta.requestedVideoProvider,
         customVideoModelName,
-        prompt: promptResult.fullVideoPrompt || promptResult.videoPrompt,
-        negativePrompt: promptResult.negativePrompt,
+        prompt: directVideoPrompt,
         requestedDurationSec: meta.requestedDurationSec,
         referenceImageUrl: accessibleStoryboardImageUrl,
         onProviderTaskCreated: async (snapshot) => {
@@ -3798,16 +3844,16 @@ export class WorksService {
         resolvedVideoProvider: videoResult.provider,
         resolvedVideoModel: videoResult.modelName,
         renderedDurationSec: videoResult.renderedDurationSec,
-        videoPrompt: promptResult.videoPrompt,
-        fullVideoPrompt: promptResult.fullVideoPrompt,
-        videoReasoning: promptResult.videoReasoning,
-        segmentBrief: promptResult.segmentBrief,
-        referenceStrategy: promptResult.referenceStrategy,
-        padImageStrategy: promptResult.padImageStrategy,
-        continuityRules: promptResult.continuityRules,
-        segmentPrompts: promptResult.segmentPrompts,
+        videoPrompt: directVideoPrompt,
+        fullVideoPrompt: directVideoPrompt,
+        videoReasoning: undefined,
+        segmentBrief: undefined,
+        referenceStrategy: undefined,
+        padImageStrategy: undefined,
+        continuityRules: [],
+        segmentPrompts: [],
         segmentExecutionStatus: "SKIPPED",
-        segmentExecutionError: "当前仅保留主成片生成",
+        segmentExecutionError: "当前直接使用故事板图片生成主成片",
         providerTaskId: videoResult.providerTaskId,
         videoUrl: videoResult.url,
         coverImageUrl: videoResult.coverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
@@ -3817,7 +3863,6 @@ export class WorksService {
         workId,
         stage: "VIDEO_READY",
         title: meta.title,
-        videoPromptModel: promptResult.modelName,
         videoModel: videoResult.modelName,
       }, { modelName: videoResult.modelName });
     } catch (error) {
@@ -4011,42 +4056,6 @@ export class WorksService {
       modelName: result.modelName,
       businessScene: this.readOptionalString(result.parsed.business_scene ?? result.parsed.businessScene),
       videoType: this.readOptionalString(result.parsed.video_type ?? result.parsed.videoType),
-    };
-  }
-
-  private async generateShortVideoPromptFromStoryboard(brandId: string, meta: VideoWorkAssetMeta) {
-    const result = await this.requestVideoStageJson({
-      brandId,
-      promptId: "prompt_xhs_video_short_prompt",
-      fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
-      fallbackPrompt: "根据故事板提示词和故事板图片生成短视频提示词。",
-      systemInstruction: [
-        "请仅输出 JSON 对象，不要输出 Markdown。",
-        "JSON 结构固定为：",
-        '{ "video_prompt": "精简短视频提示词", "full_video_prompt": "完整短视频提示词", "negative_prompt": "不需要出现的内容", "video_reasoning": "生成说明", "segment_brief": "分镜摘要", "reference_strategy": "参考策略", "pad_image_strategy": "垫图策略", "continuity_rules": ["规则"], "segment_prompts": ["分镜提示词"] }',
-      ].join("\n"),
-      inputPayload: {
-        title: meta.title,
-        content: meta.content,
-        creativeScript: meta.creativeScript,
-        storyboardPrompt: meta.storyboardPrompt,
-        storyboardImageUrl: meta.storyboardImageUrl,
-        requestedDurationSec: meta.requestedDurationSec,
-        requestedVideoProvider: meta.requestedVideoProvider,
-      },
-    });
-    const videoPrompt = String(result.parsed.video_prompt ?? result.parsed.videoPrompt ?? "").trim();
-    return {
-      videoPrompt,
-      fullVideoPrompt: String(result.parsed.full_video_prompt ?? result.parsed.fullVideoPrompt ?? videoPrompt).trim() || videoPrompt,
-      negativePrompt: this.readOptionalString(result.parsed.negative_prompt ?? result.parsed.negativePrompt),
-      videoReasoning: this.readOptionalString(result.parsed.video_reasoning ?? result.parsed.videoReasoning),
-      segmentBrief: this.readOptionalString(result.parsed.segment_brief ?? result.parsed.segmentBrief),
-      referenceStrategy: this.readOptionalString(result.parsed.reference_strategy ?? result.parsed.referenceStrategy),
-      padImageStrategy: this.readOptionalString(result.parsed.pad_image_strategy ?? result.parsed.padImageStrategy),
-      continuityRules: this.normalizeStringArray(result.parsed.continuity_rules ?? result.parsed.continuityRules, [], 8),
-      segmentPrompts: this.normalizeStringArray(result.parsed.segment_prompts ?? result.parsed.segmentPrompts, [videoPrompt], 8),
-      modelName: result.modelName,
     };
   }
 
@@ -5996,19 +6005,32 @@ export class WorksService {
     skillSlug: string;
     promptId: string;
     fallbackModels: string[];
+    preferredModelSelection?: string;
   }): Promise<ImageGenerationRuntimeConfig> {
     const [preference, prompt] = await Promise.all([
       this.loadSkillModelPreference(params.skillSlug, params.promptId, params.fallbackModels),
       this.skillsPromptsService.getActivePromptById(params.promptId),
     ]);
+    const scopedSelection = this.parseScopedModelSelection(params.preferredModelSelection || "");
+    const preferredModelName = scopedSelection.modelName || preference.preferredModelName;
+    const preferredProviderIds = Array.from(
+      new Set([scopedSelection.providerId, ...(preference?.preferredProviderIds || [])].filter(Boolean)),
+    );
     return {
-      providers: await this.loadImageGenerationProviders(params.brandId, preference),
+      providers: await this.loadImageGenerationProviders(params.brandId, preference, {
+        preferredModelName,
+        preferredProviderIds,
+      }),
       executionPrompt: String(prompt?.content || "").trim(),
-      preferredModelName: preference.preferredModelName,
+      preferredModelName,
     };
   }
 
-  private async loadImageGenerationProviders(brandId?: string, preference?: SkillModelPreference): Promise<ImageProviderConfig[]> {
+  private async loadImageGenerationProviders(
+    brandId?: string,
+    preference?: SkillModelPreference,
+    overridePreference?: { preferredModelName?: string; preferredProviderIds?: string[] },
+  ): Promise<ImageProviderConfig[]> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
       throw new ServiceUnavailableException(
@@ -6084,7 +6106,17 @@ export class WorksService {
     if (!preference) {
       return configs;
     }
-    return this.reorderImageProvidersByPrimaryModel(configs, preference.preferredModelName, preference.preferredProviderIds);
+    return this.reorderImageProvidersByPrimaryModel(
+      configs,
+      overridePreference?.preferredModelName || preference.preferredModelName,
+      overridePreference?.preferredProviderIds || preference.preferredProviderIds,
+    );
+  }
+
+  private buildDirectVideoPrompt(meta: VideoWorkAssetMeta) {
+    const basePrompt = "按照故事板的内容生成视频";
+    const extraInstruction = meta.videoAdditionalInstruction?.trim();
+    return extraInstruction ? `${basePrompt}。补充要求：${extraInstruction}` : basePrompt;
   }
 
   private resolveVideoGenerationConfigPath(backend: VideoBackendKey) {

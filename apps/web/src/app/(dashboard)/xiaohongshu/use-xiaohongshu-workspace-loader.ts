@@ -30,10 +30,12 @@ import {
 } from "../../../services/xiaohongshu";
 import {
   getXiaohongshuVideoProviders,
+  getXiaohongshuVideoStoryboardImageProviders,
   getXiaohongshuOriginalReferenceTemplates,
   getXiaohongshuOriginalWorks,
   getXiaohongshuRewriteWorks,
   getXiaohongshuVideoWorks,
+  type StoryboardImageModelOptionRecord,
   type VideoProviderOptionRecord,
   type XhsOriginalReferenceTemplateCategoryRecord,
   type XhsOriginalReferenceTemplateRecord,
@@ -77,6 +79,7 @@ interface UseXiaohongshuWorkspaceLoaderOptions {
   setRewriteWorks: StateSetter<XiaohongshuRewriteWorkRecord[]>;
   setVideoWorks: StateSetter<XiaohongshuVideoWorkRecord[]>;
   setVideoProviderOptions: StateSetter<VideoProviderOptionRecord[]>;
+  setStoryboardImageModelOptions: StateSetter<StoryboardImageModelOptionRecord[]>;
   setOriginalReferenceTemplateCategories: StateSetter<XhsOriginalReferenceTemplateCategoryRecord[]>;
   setOriginalReferenceTemplateItems: StateSetter<XhsOriginalReferenceTemplateRecord[]>;
   setIsLoadingOriginalReferenceTemplates: StateSetter<boolean>;
@@ -144,6 +147,7 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         rewriteWorksResult,
         videoWorksResult,
         videoProvidersResult,
+        storyboardImageProvidersResult,
         referenceTemplatesResult,
       ] = await Promise.allSettled([
         getXiaohongshuWorkspace(),
@@ -157,6 +161,9 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         canViewRemix ? getXiaohongshuRewriteWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuRewriteWorkRecord[] }),
         canViewVideo ? getXiaohongshuVideoWorks(activeBrandId) : Promise.resolve({ items: [] as XiaohongshuVideoWorkRecord[] }),
         canViewVideo ? getXiaohongshuVideoProviders(activeBrandId) : Promise.resolve({ items: [] as VideoProviderOptionRecord[] }),
+        canViewVideo
+          ? getXiaohongshuVideoStoryboardImageProviders(activeBrandId)
+          : Promise.resolve({ items: [] as StoryboardImageModelOptionRecord[] }),
         canViewOriginal
           ? getXiaohongshuOriginalReferenceTemplates()
           : Promise.resolve({
@@ -242,6 +249,12 @@ export function useXiaohongshuWorkspaceLoader(options: UseXiaohongshuWorkspaceLo
         options.setVideoProviderOptions(videoProvidersResult.value.items);
       } else if (videoProvidersResult.status === "rejected") {
         messages.push("视频模型选项读取失败，已保留当前默认配置。");
+      }
+
+      if (storyboardImageProvidersResult.status === "fulfilled" && storyboardImageProvidersResult.value.items.length) {
+        options.setStoryboardImageModelOptions(storyboardImageProvidersResult.value.items);
+      } else if (storyboardImageProvidersResult.status === "rejected") {
+        messages.push("故事板生图模型选项读取失败，已保留当前默认配置。");
       }
 
       if (referenceTemplatesResult.status === "fulfilled") {

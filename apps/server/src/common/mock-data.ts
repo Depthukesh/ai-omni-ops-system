@@ -347,11 +347,6 @@ const xiaohongshuVideoStoryboardSkillContent = readPromptSourceBundle(
   "根据剧本、产品图和用户要求，生成故事板提示词。",
 ).content;
 
-const xiaohongshuVideoShortPromptSkillContent = readPromptSourceBundle(
-  "prompt_xhs_video_short_prompt",
-  "根据故事板提示词和故事板图片，生成短视频提示词。",
-).content;
-
 const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
   "prompt_xhs_video_note",
   "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
@@ -1240,18 +1235,6 @@ export const database: MockDatabase = {
       temperature: 0.4,
       maxTokens: 8000,
       content: xiaohongshuVideoStoryboardSkillContent,
-      updatedAt: "2026-05-17T10:00:00.000Z",
-    },
-    {
-      id: "prompt_xhs_video_short_prompt",
-      name: "视频笔记-短视频提示词",
-      scene: "视频笔记-短视频提示词",
-      version: "v1.0",
-      status: "ACTIVE",
-      modelName: "gpt-5.5",
-      temperature: 0.3,
-      maxTokens: 8000,
-      content: xiaohongshuVideoShortPromptSkillContent,
       updatedAt: "2026-05-17T10:00:00.000Z",
     },
     {

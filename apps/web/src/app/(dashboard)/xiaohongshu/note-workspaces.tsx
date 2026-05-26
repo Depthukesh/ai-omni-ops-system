@@ -3,6 +3,7 @@
 import { type TaskRecord } from "../../../services/personal-center";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import {
+  type StoryboardImageModelOptionRecord,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
   type XiaohongshuVideoWorkRecord,
@@ -324,6 +325,7 @@ export interface VideoWorkspaceProps {
   noProductOption: string;
   customVideoProviderOption: string;
   videoProviderOptions: VideoProviderOptionRecord[];
+  storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   products: ProductOption[];
   calendarValue: string;
   customTopic: string;
@@ -337,6 +339,7 @@ export interface VideoWorkspaceProps {
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
+  storyboardImageModelValue: string;
   durationValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -368,6 +371,7 @@ export interface VideoWorkspaceProps {
   onProviderChange: StringChangeHandler;
   onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
+  onStoryboardImageModelChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;

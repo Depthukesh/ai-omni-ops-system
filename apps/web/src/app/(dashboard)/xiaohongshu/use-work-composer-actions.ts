@@ -7,6 +7,7 @@ import {
   generateXiaohongshuVideoWork,
   generateXiaohongshuOriginalWork,
   generateXiaohongshuRewriteWork,
+  type StoryboardImageModelOptionRecord,
   type VideoProviderOptionRecord,
   type XiaohongshuOriginalWorkRecord,
   type XiaohongshuRewriteWorkRecord,
@@ -56,6 +57,7 @@ type VideoComposerState = {
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
+  storyboardImageModelValue: string;
   durationValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -72,6 +74,7 @@ export function useWorkComposerActions(options: {
   products: ProductOption[];
   materialNotes: XhsCollectedNoteRecord[];
   videoProviderOptions: VideoProviderOptionRecord[];
+  storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   noProductOption: string;
   customTopicOption: string;
   customVideoProviderOption: string;
@@ -202,6 +205,7 @@ export function useWorkComposerActions(options: {
       ? options.video.customProviderValue
       : options.video.providerValue;
     const resolvedDuration = Number(options.video.durationValue);
+    const resolvedStoryboardImageModel = options.video.storyboardImageModelValue.trim();
     const selectedMaterial = options.materialNotes.find((item) => item.id === options.video.materialValue);
     const selectedProduct = options.products.find((item) => item.id === options.video.productValue);
     const selectedProviderOption = options.videoProviderOptions.find((item) => item.backendKey === resolvedProvider);
@@ -222,6 +226,14 @@ export function useWorkComposerActions(options: {
 
     if (![10, 15].includes(resolvedDuration)) {
       options.setErrorMessage("视频时长只支持 10 秒或 15 秒。");
+      return;
+    }
+
+    if (
+      options.storyboardImageModelOptions.length
+      && !options.storyboardImageModelOptions.some((item) => item.selectionKey === resolvedStoryboardImageModel)
+    ) {
+      options.setErrorMessage("请先选择一个有效的故事板生图大模型。");
       return;
     }
 
@@ -256,6 +268,7 @@ export function useWorkComposerActions(options: {
         copyAdditionalInstruction: options.video.copyAdditionalInstruction.trim() || undefined,
         videoProvider: resolvedProvider,
         customVideoModelName: options.video.customModelName.trim() || undefined,
+        storyboardImageModel: resolvedStoryboardImageModel || undefined,
         durationSec: resolvedDuration,
         includeMarketingPlan: options.video.injectMarketingPlanValue === "yes",
         videoAdditionalInstruction: options.video.additionalInstruction.trim() || undefined,

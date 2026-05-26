@@ -60,6 +60,16 @@ export class WorksController {
     return this.worksService.listXiaohongshuVideoProviderOptions();
   }
 
+  @Get("brands/:brandId/xiaohongshu/video/storyboard-image/providers")
+  async listXiaohongshuVideoStoryboardImageProviders(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.video", "view", auth);
+    return this.worksService.listXiaohongshuVideoStoryboardImageOptions();
+  }
+
   @Get("xiaohongshu/original/reference-templates")
   listXiaohongshuOriginalReferenceTemplates() {
     return this.worksService.listXiaohongshuOriginalReferenceTemplates();

@@ -35,7 +35,7 @@
 - 作用：沉淀前端、后端、扩展、资源、文档和 Git 的统一开发规则，作为后续开发默认遵循的基线
 - 更新时机：发现新的工程共性问题、调整默认架构边界、确定新的通用约束时
 - 文件：`docs/ai-multi-agent-collaboration-playbook.md`
-- 作用：保留多 Agent 并行开发方案的历史记录与复盘资料；当前默认模式已回到单 Agent 收口
+- 作用：仅保留多 Agent 并行开发方案的历史记录与复盘资料；当前实际开发模式只有主 Agent 单线开发与收口
 - 更新时机：当需要复盘历史协作问题，或未来重新评估是否恢复多 Agent 模式时
 - 文件：`docs/ai-agent-access-and-secrets-policy.md`
 - 作用：定义 AI Agent 的 GitHub 权限边界、Secrets 管理规则、最小权限接入方式，以及哪些敏感信息禁止写入仓库文档
@@ -94,8 +94,10 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-05-26-video-note-direct-video-and-storyboard-image-model.md`
+  - 视频笔记最终视频阶段改为直接使用固定提示词加故事板图片生成，不再额外生成“短视频提示词”；同时创建弹窗新增“故事板生图大模型”选择，并继续收口为单个主 Agent 开发模式
 - `docs/changes/2026-05-25-single-agent-mode-reinstated.md`
-  - 结束当前多 Agent 并行开发模式，恢复由单个主 Agent 统一开发、验证、提交和推送，并把协作文档降级为历史参考
+  - 结束当前多 Agent 并行开发模式，恢复由单个主 Agent 统一开发、验证、提交和推送；当前不再存在其他并行开发 Agent，相关协作文档仅保留为历史参考
 - `docs/changes/2026-05-24-multi-agent-worktree-and-module-boundary-clarification.md`
   - 将多 Agent 协作从“抽象主从规则”进一步落到“同仓库、不同本地工作树、不同分支、按板块分工、共享文件升级机制和飞书登记字段”
 - `docs/changes/2026-05-23-douyin-material-library.md`
@@ -193,7 +195,7 @@
 - `docs/changes/2026-05-16-xhs-all-works-account-role.md`
   - 为二创笔记和视频笔记补齐账号角色，并把“所有作品创作默认都要设置账号角色”固化到作品元数据与工程规范
 - `docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
-  - 视频笔记改为“三阶段任务化 + 故事板确认后继续生成短视频”，并将视频提示词按业务阶段拆成 6 条独立 prompt 供前后台技能中心分类展示与修改
+  - 视频笔记改为“三阶段任务化 + 故事板确认后继续生成短视频”；该文档记录阶段化改造基线，当前实际链路已收口为 5 条有效 prompt，最终视频阶段直接使用固定提示词加故事板图片生成
 - `docs/changes/2026-05-17-video-note-runninghub-image-backend-fallback.md`
   - 修复视频笔记最后一步已携带故事板图、却仍按 RunningHub 文生视频模型调用导致失败的问题；后端现会优先自动切到同系列图生视频后端
 - `docs/changes/2026-05-17-video-note-runninghub-reference-image-url-fix.md`

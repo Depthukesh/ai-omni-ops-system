@@ -175,13 +175,6 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             skillSlug: "short-video-api-studio",
             promptScene: "视频笔记-故事板提示词",
           },
-          {
-            id: "xhs-video-short-prompt",
-            label: "视频笔记-短视频提示词",
-            description: "对应前台第 3 阶段，根据故事板提示词和故事板图片生成短视频提示词。",
-            skillSlug: "short-video-api-studio",
-            promptScene: "视频笔记-短视频提示词",
-          },
         ],
       },
     ],

@@ -29,6 +29,15 @@ export type VideoProviderOptionRecord = {
   displayOrder: number;
 };
 
+export type StoryboardImageModelOptionRecord = {
+  selectionKey: string;
+  label: string;
+  providerName: string;
+  modelName: string;
+  recommended: boolean;
+  displayOrder: number;
+};
+
 export type XhsOriginalReferenceTemplateCategoryRecord = {
   id: string;
   label: string;
@@ -234,6 +243,7 @@ export type GenerateXiaohongshuVideoNoteForm = {
   copyAdditionalInstruction?: string;
   videoProvider?: string;
   customVideoModelName?: string;
+  storyboardImageModel?: string;
   durationSec?: number;
   includeMarketingPlan?: boolean;
   videoAdditionalInstruction?: string;
@@ -326,6 +336,12 @@ export async function getXiaohongshuVideoProviders(brandId: string) {
   return request<{ items: VideoProviderOptionRecord[] }>(`/works/brands/${brandId}/xiaohongshu/video/providers`);
 }
 
+export async function getXiaohongshuVideoStoryboardImageProviders(brandId: string) {
+  return request<{ items: StoryboardImageModelOptionRecord[] }>(
+    `/works/brands/${brandId}/xiaohongshu/video/storyboard-image/providers`,
+  );
+}
+
 export async function getXiaohongshuOriginalReferenceTemplates() {
   return request<{
     generatedAt: string;
@@ -356,6 +372,7 @@ export async function generateXiaohongshuVideoWork(brandId: string, form: Genera
     copyAdditionalInstruction: form.copyAdditionalInstruction,
     videoProvider: form.videoProvider,
     customVideoModelName: form.customVideoModelName,
+    storyboardImageModel: form.storyboardImageModel,
     durationSec: form.durationSec,
     includeMarketingPlan: form.includeMarketingPlan,
     videoAdditionalInstruction: form.videoAdditionalInstruction,

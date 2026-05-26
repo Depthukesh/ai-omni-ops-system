@@ -1,12 +1,13 @@
 "use client";
 
 import type { MaterialOption, StringChangeHandler } from "./shared-types";
-import type { VideoProviderOptionRecord } from "../../../services/works";
+import type { StoryboardImageModelOptionRecord, VideoProviderOptionRecord } from "../../../services/works";
 
 export interface VideoCreateConfigFieldsProps {
   noProductOption: string;
   customVideoProviderOption: string;
   videoProviderOptions: VideoProviderOptionRecord[];
+  storyboardImageModelOptions: StoryboardImageModelOptionRecord[];
   materialNotes: MaterialOption[];
   productValue: string;
   materialValue: string;
@@ -16,6 +17,7 @@ export interface VideoCreateConfigFieldsProps {
   providerValue: string;
   customProviderValue: string;
   customModelName: string;
+  storyboardImageModelValue: string;
   durationValue: string;
   injectMarketingPlanValue: string;
   additionalInstruction: string;
@@ -26,6 +28,7 @@ export interface VideoCreateConfigFieldsProps {
   onProviderChange: StringChangeHandler;
   onCustomProviderChange: StringChangeHandler;
   onCustomModelNameChange: StringChangeHandler;
+  onStoryboardImageModelChange: StringChangeHandler;
   onDurationChange: StringChangeHandler;
   onInjectMarketingPlanChange: StringChangeHandler;
   onAdditionalInstructionChange: StringChangeHandler;
@@ -114,6 +117,20 @@ export function VideoCreateConfigFields(props: VideoCreateConfigFieldsProps) {
           </label>
         </>
       ) : null}
+      <label>
+        <span>故事板生图大模型</span>
+        <select
+          value={props.storyboardImageModelValue}
+          onChange={(event) => props.onStoryboardImageModelChange(event.target.value)}
+        >
+          {props.storyboardImageModelOptions.map((item) => (
+            <option key={item.selectionKey} value={item.selectionKey}>
+              {item.recommended ? `${item.label}（推荐）` : item.label}
+            </option>
+          ))}
+        </select>
+        <p className="panel-subtext">仅影响第 2 阶段故事板图片生成，不影响最终视频模型。</p>
+      </label>
       <label>
         <span>视频时长</span>
         <select value={props.durationValue} onChange={(event) => props.onDurationChange(event.target.value)}>

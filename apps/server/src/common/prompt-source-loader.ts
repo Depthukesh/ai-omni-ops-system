@@ -64,11 +64,6 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/视频生成提示词/生成故事板提示词.txt",
     "../提示词/视频生成提示词/生成故事板提示词.txt",
   ],
-  prompt_xhs_video_short_prompt: [
-    "提示词/视频生成提示词/短视频提示词.txt",
-    "../../../提示词/视频生成提示词/短视频提示词.txt",
-    "../提示词/视频生成提示词/短视频提示词.txt",
-  ],
   prompt_growth_report: [
     "../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
     "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",

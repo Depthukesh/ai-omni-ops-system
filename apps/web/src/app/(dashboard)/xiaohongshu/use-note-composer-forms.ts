@@ -16,9 +16,12 @@ export function useNoteComposerForms(options: {
   availableVideoAccountRoleValues?: string[];
   defaultVideoProviderValue?: string;
   availableVideoProviderValues?: string[];
+  defaultStoryboardImageModelValue?: string;
+  availableStoryboardImageModelValues?: string[];
 }) {
   const customVideoProviderOption = "__custom_video_provider__";
   const defaultVideoProviderValue = options.defaultVideoProviderValue || "volcengine_seedance_20";
+  const defaultStoryboardImageModelValue = options.defaultStoryboardImageModelValue || "";
   const [isOriginalModalOpen, setIsOriginalModalOpen] = useState(false);
   const [originalCalendarValue, setOriginalCalendarValue] = useState("");
   const [originalCustomTopic, setOriginalCustomTopic] = useState("");
@@ -76,6 +79,7 @@ export function useNoteComposerForms(options: {
   const [videoProviderValue, setVideoProviderValue] = useState(defaultVideoProviderValue);
   const [videoCustomProviderValue, setVideoCustomProviderValue] = useState(defaultVideoProviderValue);
   const [videoCustomModelName, setVideoCustomModelName] = useState("");
+  const [videoStoryboardImageModelValue, setVideoStoryboardImageModelValue] = useState(defaultStoryboardImageModelValue);
   const [videoDurationValue, setVideoDurationValue] = useState("10");
   const [videoInjectMarketingPlanValue, setVideoInjectMarketingPlanValue] = useState("yes");
   const [videoAdditionalInstruction, setVideoAdditionalInstruction] = useState("");
@@ -160,6 +164,23 @@ export function useNoteComposerForms(options: {
     videoProviderValue,
   ]);
 
+  useEffect(() => {
+    const availableValues = options.availableStoryboardImageModelValues?.filter(Boolean) || [];
+    const resolvedDefaultValue = availableValues.includes(defaultStoryboardImageModelValue)
+      ? defaultStoryboardImageModelValue
+      : availableValues[0] || defaultStoryboardImageModelValue;
+    if (!availableValues.length) {
+      return;
+    }
+    if (!availableValues.includes(videoStoryboardImageModelValue)) {
+      setVideoStoryboardImageModelValue(resolvedDefaultValue);
+    }
+  }, [
+    defaultStoryboardImageModelValue,
+    options.availableStoryboardImageModelValues,
+    videoStoryboardImageModelValue,
+  ]);
+
   function resetVideoComposer(calendarItems: CalendarOption[], products: ProductOption[]) {
     const availableValues = options.availableVideoProviderValues?.filter(Boolean) || [];
     const resolvedDefaultProvider = availableValues.includes(defaultVideoProviderValue)
@@ -176,6 +197,11 @@ export function useNoteComposerForms(options: {
     setVideoProviderValue(resolvedDefaultProvider);
     setVideoCustomProviderValue(resolvedDefaultProvider);
     setVideoCustomModelName("");
+    setVideoStoryboardImageModelValue(
+      options.availableStoryboardImageModelValues?.includes(defaultStoryboardImageModelValue)
+        ? defaultStoryboardImageModelValue
+        : options.availableStoryboardImageModelValues?.[0] || defaultStoryboardImageModelValue,
+    );
     setVideoDurationValue("10");
     setVideoInjectMarketingPlanValue("yes");
     setVideoAdditionalInstruction("");
@@ -229,6 +255,7 @@ export function useNoteComposerForms(options: {
     videoProviderValue,
     videoCustomProviderValue,
     videoCustomModelName,
+    videoStoryboardImageModelValue,
     videoDurationValue,
     videoInjectMarketingPlanValue,
     videoAdditionalInstruction,
@@ -260,6 +287,7 @@ export function useNoteComposerForms(options: {
     setVideoProviderValue,
     setVideoCustomProviderValue,
     setVideoCustomModelName,
+    setVideoStoryboardImageModelValue,
     setVideoDurationValue,
     setVideoInjectMarketingPlanValue,
     setVideoAdditionalInstruction,
