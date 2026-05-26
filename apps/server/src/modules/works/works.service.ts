@@ -645,6 +645,7 @@ export type VideoProviderOptionRecord = {
 
 type VideoProviderExecutionCandidate = {
   backend: VideoBackendKey;
+  label: string;
   useReferenceImage: boolean;
 };
 
@@ -6281,13 +6282,26 @@ export class WorksService {
       : providerOptions.filter((item) => this.normalizeVideoBackendLookupKey(item.backendKey) === requestedLookupKey);
     const executionPlan: VideoProviderExecutionCandidate[] = [];
     const seen = new Set<string>();
-    const appendCandidate = (backend: VideoBackendKey, useReferenceImage: boolean) => {
+    const resolveCandidateLabel = (backend: VideoBackendKey, fallbackLabel?: string) => {
+      const option = providerOptions.find((item) =>
+        this.normalizeVideoBackendLookupKey(item.backendKey) === this.normalizeVideoBackendLookupKey(backend)
+      );
+      if (option) {
+        return `${option.providerName} · ${option.label}`;
+      }
+      return fallbackLabel || backend;
+    };
+    const appendCandidate = (backend: VideoBackendKey, useReferenceImage: boolean, fallbackLabel?: string) => {
       const candidateKey = `${this.normalizeVideoBackendLookupKey(backend)}:${useReferenceImage ? "image" : "text"}`;
       if (!backend || seen.has(candidateKey)) {
         return;
       }
       seen.add(candidateKey);
-      executionPlan.push({ backend, useReferenceImage });
+      executionPlan.push({
+        backend,
+        label: resolveCandidateLabel(backend, fallbackLabel),
+        useReferenceImage,
+      });
     };
     const appendOptions = (
       predicate: (option: VideoProviderOptionRecord) => boolean,
@@ -6295,7 +6309,7 @@ export class WorksService {
     ) => {
       candidateOptions.forEach((option) => {
         if (predicate(option)) {
-          appendCandidate(option.backendKey, useReferenceImage);
+          appendCandidate(option.backendKey, useReferenceImage, `${option.providerName} · ${option.label}`);
         }
       });
     };
@@ -6305,7 +6319,7 @@ export class WorksService {
 
     if (hasReferenceImage) {
       if (requestedOption?.supportsImageToVideo) {
-        appendCandidate(requestedOption.backendKey, true);
+        appendCandidate(requestedOption.backendKey, true, `${requestedOption.providerName} · ${requestedOption.label}`);
       } else if (!requestedOption) {
         appendCandidate(requestedBackend, true);
       }
@@ -6325,7 +6339,7 @@ export class WorksService {
     }
 
     if (requestedOption?.supportsTextToVideo) {
-      appendCandidate(requestedOption.backendKey, false);
+      appendCandidate(requestedOption.backendKey, false, `${requestedOption.providerName} · ${requestedOption.label}`);
     } else if (!requestedOption && !hasReferenceImage) {
       appendCandidate(requestedBackend, false);
     }
@@ -6646,7 +6660,7 @@ export class WorksService {
         if (hasReferenceImage) {
           content.push({
             type: "image_url",
-            role: "reference_image",
+            role: "first_frame",
             image_url: {
               url: requireReferenceImage(),
             },
@@ -6656,8 +6670,9 @@ export class WorksService {
           payload: {
             model: params.modelName,
             content,
+            resolution: "720p",
             duration: normalizedDuration,
-            ratio: "9:16",
+            ratio: "adaptive",
             generate_audio: true,
             watermark: false,
           } as Record<string, unknown>,
@@ -6895,6 +6910,7 @@ export class WorksService {
     const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
     const providerPlan = await this.buildVideoProviderExecutionPlan(requestedBackend, Boolean(params.referenceImageUrl));
     const providerErrors: string[] = [];
+    const attemptLabels: string[] = [];
     let hardFailureSummary = "";
     let hardFailureLabel = "";
     let requestedProviderFailureLabel = "";
@@ -6981,7 +6997,8 @@ export class WorksService {
       if (lastError) {
         const disposition = this.classifyVideoProviderFailure(lastError);
         const normalizedMessage = this.normalizeVideoProviderFailureMessage(lastError);
-        const attemptLabel = `${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}`;
+        const attemptLabel = `${candidate.label}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}`;
+        attemptLabels.push(attemptLabel);
         providerErrors.push(`${attemptLabel}：${normalizedMessage}`);
         if (!requestedProviderFailureMessage && candidate.backend === requestedBackend) {
           requestedProviderFailureLabel = attemptLabel;
@@ -6995,6 +7012,7 @@ export class WorksService {
       }
     }
 
+    const attemptTrace = attemptLabels.join(" -> ");
     if (hardFailureSummary) {
       if (
         requestedProviderFailureMessage
@@ -7003,20 +7021,20 @@ export class WorksService {
         && hardFailureLabel !== requestedProviderFailureLabel
       ) {
         throw new ServiceUnavailableException(
-          `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后兜底 ${hardFailureLabel} 失败：${hardFailureSummary}`,
+          `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后兜底 ${hardFailureLabel} 失败：${hardFailureSummary}${attemptTrace ? `；尝试轨迹：${attemptTrace}` : ""}`,
         );
       }
-      throw new ServiceUnavailableException(`视频生成失败：${hardFailureSummary}`);
+      throw new ServiceUnavailableException(`视频生成失败：${hardFailureSummary}${attemptTrace ? `；尝试轨迹：${attemptTrace}` : ""}`);
     }
     if (requestedProviderFailureMessage && providerErrors.length > 1) {
       const lastFailure = providerErrors[providerErrors.length - 1]?.split("：").slice(1).join("：").trim() || "";
       throw new ServiceUnavailableException(
-        `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后同类兜底仍失败：${this.summarizeVideoProviderFailure(lastFailure, "retryable")}`,
+        `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后同类兜底仍失败：${this.summarizeVideoProviderFailure(lastFailure, "retryable")}${attemptTrace ? `；尝试轨迹：${attemptTrace}` : ""}`,
       );
     }
     const primaryFailure = requestedProviderFailureMessage || providerErrors[0]?.split("：").slice(1).join("：").trim() || "";
     throw new ServiceUnavailableException(
-      `视频生成失败：${this.summarizeVideoProviderFailure(primaryFailure, "retryable")}`,
+      `视频生成失败：${this.summarizeVideoProviderFailure(primaryFailure, "retryable")}${attemptTrace ? `；尝试轨迹：${attemptTrace}` : ""}`,
     );
   }
 
