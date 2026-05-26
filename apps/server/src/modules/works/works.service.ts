@@ -7747,24 +7747,24 @@ export class WorksService {
       firstImageUrl
       || firstResultImageUrl
       || firstTaskResultImageUrl
-      || this.readOptionalString(outputRecord?.image_url)
-      || this.readOptionalString(outputRecord?.url)
-      || this.readOptionalString(resultRecord?.image_url)
-      || this.readOptionalString(resultRecord?.url)
-      || this.readOptionalString(topLevelResult?.image_url)
-      || this.readOptionalString(topLevelResult?.url)
-      || this.readOptionalString(topLevelResult?.fileUrl)
-      || this.readOptionalString(topLevelContent?.image_url)
-      || this.readOptionalString(topLevelContent?.url)
-      || this.readOptionalString(taskResultRecord?.image_url)
-      || this.readOptionalString(taskResultRecord?.url)
-      || this.readOptionalString(topLevelData?.output)
-      || this.readOptionalString(topLevelData?.image_url)
-      || this.readOptionalString(topLevelData?.url)
-      || this.readOptionalString(payload.output)
-      || this.readOptionalString(payload.url)
-      || this.readOptionalString(payload.download_url)
-      || this.readOptionalString(payload.image_url);
+      || this.readUrlLikeValue(outputRecord?.image_url)
+      || this.readUrlLikeValue(outputRecord?.url)
+      || this.readUrlLikeValue(resultRecord?.image_url)
+      || this.readUrlLikeValue(resultRecord?.url)
+      || this.readUrlLikeValue(topLevelResult?.image_url)
+      || this.readUrlLikeValue(topLevelResult?.url)
+      || this.readUrlLikeValue(topLevelResult?.fileUrl)
+      || this.readUrlLikeValue(topLevelContent?.image_url)
+      || this.readUrlLikeValue(topLevelContent?.url)
+      || this.readUrlLikeValue(taskResultRecord?.image_url)
+      || this.readUrlLikeValue(taskResultRecord?.url)
+      || this.readUrlLikeValue(topLevelData?.output)
+      || this.readUrlLikeValue(topLevelData?.image_url)
+      || this.readUrlLikeValue(topLevelData?.url)
+      || this.readUrlLikeValue(payload.output)
+      || this.readUrlLikeValue(payload.url)
+      || this.readUrlLikeValue(payload.download_url)
+      || this.readUrlLikeValue(payload.image_url);
     const failReason =
       this.readOptionalString(payload.errorMessage)
       || this.readOptionalString(payload.message)
@@ -8281,6 +8281,35 @@ export class WorksService {
     return text || undefined;
   }
 
+  private readUrlLikeValue(value: unknown): string | undefined {
+    if (typeof value === "string") {
+      const text = value.trim();
+      return /^https?:\/\//i.test(text) ? text : undefined;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = this.readUrlLikeValue(item);
+        if (nested) {
+          return nested;
+        }
+      }
+      return undefined;
+    }
+    const record = this.asRecord(value);
+    if (!record) {
+      return undefined;
+    }
+    return this.readUrlLikeValue(record.url)
+      || this.readUrlLikeValue(record.image_url)
+      || this.readUrlLikeValue(record.download_url)
+      || this.readUrlLikeValue(record.fileUrl)
+      || this.readUrlLikeValue(record.output)
+      || this.readUrlLikeValue(record.images)
+      || this.readUrlLikeValue(record.result)
+      || this.readUrlLikeValue(record.content)
+      || this.readUrlLikeValue(record.data);
+  }
+
   private escapeHtml(value: string) {
     return value
       .replace(/&/g, "&amp;")
@@ -8478,6 +8507,9 @@ export class WorksService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), params.fetchTimeoutMs ?? 120000);
     try {
+      if (!/^https?:\/\//i.test(params.remoteUrl)) {
+        throw new ServiceUnavailableException(`${params.requestLabel}失败：未返回有效图片地址`);
+      }
       const response = await fetch(params.remoteUrl, {
         method: "GET",
         signal: controller.signal,
