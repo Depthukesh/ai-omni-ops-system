@@ -6392,6 +6392,13 @@ export class WorksService {
 
   private summarizeVideoProviderFailure(message?: string, disposition: VideoProviderFailureDisposition = "retryable") {
     const normalized = this.normalizeVideoProviderFailureMessage(message);
+    if (
+      /创建任务失败|当前品牌未匹配到第三方平台配置|owner 尚未配置第三方平台|未找到 .*视频接口配置文件|post \/.* 失败|get \/.* 失败/i.test(
+        normalized,
+      )
+    ) {
+      return normalized || "当前视频模型不可用，请检查接口权限或配置后重试。";
+    }
     if (disposition === "hard") {
       if (/api key|access denied|enterprise-shared api keys|unauthorized|forbidden|\b401\b|\b403\b/i.test(normalized)) {
         return "当前品牌下该视频模型暂无可用权限，请检查个人中心中的视频 API Key 权限配置。";
@@ -6664,10 +6671,10 @@ export class WorksService {
           payload: buildApizTaskPayload(
             params.config.taskModel || "ark/seedance-2.0",
             {
-              model: params.modelName,
               prompt: params.prompt,
               resolution: "720p",
               duration: normalizedDuration,
+              ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
               ...(hasReferenceImage ? { image_url: requireReferenceImage(), ratio: "adaptive" } : { ratio: "9:16", generate_audio: true }),
             },
           ),
