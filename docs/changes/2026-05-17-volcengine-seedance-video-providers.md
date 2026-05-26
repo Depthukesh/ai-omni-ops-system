@@ -39,7 +39,8 @@
   - `apps/server/src/modules/works/works.service.ts`
 - 新增 `volcengine_seedance` 请求构造逻辑：
   - 文生视频时提交 `model + content[text]`
-  - 图生视频时提交 `model + content[text + image_url(first_frame)]`
+  - 图生视频时提交 `model + content[text + image_url(reference_image)]`
+- 当前火山方舟 Seedance 运行时时长能力按官方文档维护为 `4~15 秒`，避免把用户选择的 `15 秒` 误压成 `10 秒`
 - 查询链路补充：
   - `resolveVideoQueryPath()` 兼容 `{id}` 占位符
   - `readVideoTaskSnapshot()` 兼容火山方舟返回的 `content.video_url / content.last_frame_url / error.message`
@@ -51,6 +52,7 @@
   - `apps/server/src/modules/third-party-platforms/third-party-platforms.service.ts`
 - 现有“火山方舟平台”如果已经在数据库中存在，不会再只做“缺失项插入”
 - 启动引导时会把新模型 ID 自动并入已有平台记录的 `modelIdsJson`
+- 系统平台同步同时会纠正历史漂移的 `name/providerType/status/baseUrl`，避免隐藏 `baseUrl` 字段后数据库旧值继续影响运行时匹配
 - 因此前端个人中心和后台接口供应商都会自动看到：
   - `doubao-seedance-2-0-260128`
   - `doubao-seedance-2-0-fast-260128`

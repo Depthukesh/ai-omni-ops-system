@@ -176,7 +176,7 @@ function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
       proModel: input.modelId,
       supportsTextToVideo: true,
       supportsImageToVideo: true,
-      durationOptions: input.durationOptions || [5, 10],
+      durationOptions: input.durationOptions || [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
       sourceFolder: "火山方舟 Seedance 视频生成",
     },
     remark: input.remark,
@@ -510,7 +510,7 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     displayOrder: 60,
     recommended: true,
     remark: "火山方舟 Seedance 2.0 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
-    durationOptions: [5, 10],
+    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   }),
   createVolcengineArkVideoSeed({
     id: "provider_runtime_video_volcengine_seedance_20_fast",
@@ -522,7 +522,7 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     displayOrder: 61,
     recommended: true,
     remark: "火山方舟 Seedance 2.0 Fast 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
-    durationOptions: [5, 10],
+    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   }),
 ];
 
