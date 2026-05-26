@@ -88,13 +88,13 @@ jobs:
             ssh-keyscan github.com > "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
             chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
             chmod 600 "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
-            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<EOF
+            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<'GITHUB_SSH_CONFIG'
             Host github.com
               HostName github.com
               User git
               IdentityFile /home/$APP_RUNTIME_USER/.ssh/github_repo_readonly
               IdentitiesOnly yes
-            EOF
+          GITHUB_SSH_CONFIG
             chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/config"
             chmod 600 "/home/$APP_RUNTIME_USER/.ssh/config"
             chown -R "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$DEPLOY_PATH"
@@ -103,7 +103,7 @@ jobs:
               echo "部署警告：GitHub Secret TIKHUB_API_KEY 为空，每日热点自动抓取会不可用。"
             fi
 
-            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'EOF'
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'RUNUSER_SCRIPT'
               set -Eeuo pipefail
 
               log_step() {
@@ -195,7 +195,7 @@ jobs:
               run_checked "verify pm2 runtime secret" verify_pm2_runtime_secret
               run_checked "pm2 save" pm2 save
               run_checked "pm2 status" pm2 status
-            EOF
+          RUNUSER_SCRIPT
 
             wait_for_http() {
               local url="$1"
