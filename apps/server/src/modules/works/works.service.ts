@@ -581,6 +581,8 @@ type SkillModelPreference = {
   preferredProviderIds: string[];
 };
 
+type ImagePromptMode = "social_graphic" | "video_storyboard";
+
 type ImageProviderConfig = ThirdPartyChatConfig & {
   provider: "IMAGE_API";
   providerId: string;
@@ -2371,18 +2373,34 @@ export class WorksService {
     textPlan?: ImageTextPlanEntry;
     referenceImageUrls: string[];
     referenceImagePayloads?: UploadFilePayload[];
+    promptMode?: ImagePromptMode;
+    includeFallbackPrompt?: boolean;
+    maxProvidersToTry?: number;
+    maxModelsPerProvider?: number;
+    attemptTimeoutMs?: number;
   }) {
     let lastError = "";
+    const promptMode = params.promptMode || "social_graphic";
     const promptsToTry = this.buildImagePromptCandidates(
-      this.buildImagePromptWithTextPlan(params.executionPrompt, params.prompt, params.textPlan, params.role, params.order),
+      this.buildImagePromptWithTextPlan(
+        params.executionPrompt,
+        params.prompt,
+        params.textPlan,
+        params.role,
+        params.order,
+        promptMode,
+      ),
+      { includeFallback: params.includeFallbackPrompt ?? true },
     );
     const referenceImages = this.buildImageGenerationReferenceInputs(params.referenceImageUrls, params.referenceImagePayloads);
-    const providersToTry = this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages);
+    const providersToTry = this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages)
+      .slice(0, Math.max(1, params.maxProvidersToTry || params.providers.length));
 
     for (const provider of providersToTry) {
+      const modelsToTry = provider.models.slice(0, Math.max(1, params.maxModelsPerProvider || provider.models.length));
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
-          for (const modelName of provider.models) {
+          for (const modelName of modelsToTry) {
             for (const promptCandidate of promptsToTry) {
               try {
                 let asset: ReturnType<WorksService["extractGeneratedImagePayload"]>;
@@ -2394,7 +2412,10 @@ export class WorksService {
                   const createResponse = await this.requestAuthorizedJson(baseUrl, provider.createPath, apiKey, {
                     method: "POST",
                     body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
-                    timeoutMs: this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
+                    timeoutMs: this.resolveModelAttemptTimeoutMs(
+                      params.attemptTimeoutMs ?? provider.requestTimeoutMs,
+                      IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+                    ),
                   });
                   const providerTaskId = this.extractVideoTaskId(createResponse);
                   if (!providerTaskId) {
@@ -2404,7 +2425,7 @@ export class WorksService {
                   asset = await this.pollImageGenerationResult(baseUrl, apiKey, provider.queryPath, providerTaskId, {
                     queryMethod: provider.queryMethod,
                     queryBodyMode: provider.queryBodyMode,
-                    requestTimeoutMs: provider.requestTimeoutMs,
+                    requestTimeoutMs: params.attemptTimeoutMs ?? provider.requestTimeoutMs,
                   });
                 } else {
                   const response = await this.requestModelCompletion(
@@ -2412,7 +2433,10 @@ export class WorksService {
                     provider.completionPath,
                     apiKey,
                     this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
-                    this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, IMAGE_MODEL_ATTEMPT_TIMEOUT_MS),
+                    this.resolveModelAttemptTimeoutMs(
+                      params.attemptTimeoutMs ?? provider.requestTimeoutMs,
+                      IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+                    ),
                   );
                   if (!response.ok) {
                     const responseSnippet = await this.readResponseSnippet(response);
@@ -3629,6 +3653,11 @@ export class WorksService {
         executionPrompt: imageConfig.executionPrompt,
         prompt: storyboardResult.prompt,
         referenceImageUrls: [context.referenceImageUrl, context.product?.imageUrl].filter((item): item is string => Boolean(item)),
+        promptMode: "video_storyboard",
+        includeFallbackPrompt: false,
+        maxProvidersToTry: 2,
+        maxModelsPerProvider: 1,
+        attemptTimeoutMs: 120000,
       });
       meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
@@ -3681,6 +3710,11 @@ export class WorksService {
         executionPrompt: imageConfig.executionPrompt,
         prompt: meta.storyboardPrompt || "",
         referenceImageUrls: [meta.referenceImageUrl].filter((item): item is string => Boolean(item)),
+        promptMode: "video_storyboard",
+        includeFallbackPrompt: false,
+        maxProvidersToTry: 2,
+        maxModelsPerProvider: 1,
+        attemptTimeoutMs: 120000,
       });
       meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
@@ -7603,7 +7637,23 @@ export class WorksService {
     textPlan: ImageTextPlanEntry | undefined,
     role: "COVER" | "GALLERY",
     order: number,
+    promptMode: ImagePromptMode = "social_graphic",
   ) {
+    if (promptMode === "video_storyboard") {
+      return [
+        executionPrompt?.trim() || "",
+        "",
+        prompt.trim(),
+        "",
+        "补充强制要求：这是一张短视频故事板单帧画面，不是小红书图文封面，不是海报，也不是信息长图。",
+        "不要额外生成中文标题、角标、标签、排版大字、贴纸、按钮或 APP 界面，除非提示词明确要求这些元素。",
+        "必须严格按提示词中的角色、场景、动作、镜头关系和情绪出图，优先保证叙事一致性，不能只保留泛化氛围。",
+        "如果输入中带有参考图，必须继承角色外观、构图、机位、光线和连续性，避免换脸、换服装、换场景。",
+        "输出应接近电影分镜或关键帧画面，突出主体、动作瞬间、景别和镜头语言，避免做成电商海报或封面排版图。",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
     const title = this.normalizeImageTextValue(textPlan?.title, 20);
     const badges = (textPlan?.badges || []).map((item) => this.normalizeImageTextValue(item, 16)).filter(Boolean);
     const imageLabel = role === "COVER" ? "封面图" : `第${order + 1}张配图`;
@@ -7625,7 +7675,7 @@ export class WorksService {
       .join("\n");
   }
 
-  private buildImagePromptCandidates(prompt: string) {
+  private buildImagePromptCandidates(prompt: string, options?: { includeFallback?: boolean }) {
     const normalized = prompt.trim();
     const compact = normalized
       .replace(/```[\s\S]*?```/g, " ")
@@ -7634,7 +7684,11 @@ export class WorksService {
       .trim();
     const concise = compact.length > 360 ? `${compact.slice(0, 360)}。` : compact;
     const fallback = `请根据以下中文描述生成一张高质量社媒图片：${concise}`;
-    return Array.from(new Set([normalized, fallback].filter(Boolean)));
+    const candidates = [normalized];
+    if (options?.includeFallback ?? true) {
+      candidates.push(fallback);
+    }
+    return Array.from(new Set(candidates.filter(Boolean)));
   }
 
   private async readResponseSnippet(response: Response) {
