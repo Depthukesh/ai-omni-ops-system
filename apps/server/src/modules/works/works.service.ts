@@ -6660,7 +6660,7 @@ export class WorksService {
         if (hasReferenceImage) {
           content.push({
             type: "image_url",
-            role: "first_frame",
+            role: "reference_image",
             image_url: {
               url: requireReferenceImage(),
             },
