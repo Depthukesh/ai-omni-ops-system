@@ -5038,7 +5038,6 @@ export class WorksService {
       .map((item) => String(item || "").toLowerCase())
       .filter(Boolean);
     return normalizedName.includes("edit")
-      || normalizedName.includes("图生图")
       || models.some((item) => item.includes("/edit"));
   }
 
