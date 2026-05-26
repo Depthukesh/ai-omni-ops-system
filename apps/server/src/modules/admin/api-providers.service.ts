@@ -560,6 +560,7 @@ export class ApiProvidersService {
       displayOrder: seedExtraParams.displayOrder ?? currentExtraParams.displayOrder,
       recommended: seedExtraParams.recommended ?? currentExtraParams.recommended,
       baseUrls: seedExtraParams.baseUrls ?? currentExtraParams.baseUrls,
+      platformBaseUrls: seedExtraParams.platformBaseUrls ?? currentExtraParams.platformBaseUrls,
       createPath: seedExtraParams.createPath ?? currentExtraParams.createPath,
       queryPath: seedExtraParams.queryPath ?? currentExtraParams.queryPath,
       queryMethod: seedExtraParams.queryMethod ?? currentExtraParams.queryMethod,

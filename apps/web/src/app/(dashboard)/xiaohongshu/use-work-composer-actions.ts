@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { type XhsCollectedNoteRecord } from "../../../services/collectors";
 import {
@@ -91,6 +91,7 @@ export function useWorkComposerActions(options: {
   const [rewriteSubmittingLabel, setRewriteSubmittingLabel] = useState("");
   const [isVideoSubmitting, setIsVideoSubmitting] = useState(false);
   const [videoSubmittingLabel, setVideoSubmittingLabel] = useState("");
+  const videoCreateInFlightRef = useRef(false);
   const resolvedBrandId = getStoredCurrentBrandId(options.brandId);
 
   async function createOriginalWork() {
@@ -183,6 +184,9 @@ export function useWorkComposerActions(options: {
   }
 
   async function createVideoWork() {
+    if (videoCreateInFlightRef.current || isPublishing || isVideoSubmitting) {
+      return;
+    }
     const isCustomTopic = options.video.calendarValue === options.customTopicOption;
     const customTopicName = options.video.customTopic.trim();
 
@@ -247,6 +251,7 @@ export function useWorkComposerActions(options: {
       return;
     }
 
+    videoCreateInFlightRef.current = true;
     setIsPublishing(true);
     setIsVideoSubmitting(true);
     setVideoSubmittingLabel(
@@ -286,6 +291,7 @@ export function useWorkComposerActions(options: {
       const message = error instanceof Error ? error.message : "视频笔记创作失败";
       options.setErrorMessage(`创作失败：${message}`);
     } finally {
+      videoCreateInFlightRef.current = false;
       setIsVideoSubmitting(false);
       setVideoSubmittingLabel("");
       setIsPublishing(false);

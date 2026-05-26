@@ -703,10 +703,16 @@ export class WorksService {
       return [];
     }
     const configuredBaseUrls = this.apiProvidersService.getBaseUrls(provider);
+    const configuredPlatformBaseUrls = Array.from(
+      new Set([
+        ...configuredBaseUrls,
+        ...this.apiProvidersService.getStringArrayExtra(provider, "platformBaseUrls"),
+      ]),
+    );
     const fallbackApiKeys = this.apiProvidersService.getApiKeys(provider);
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(
       brandId,
-      configuredBaseUrls,
+      configuredPlatformBaseUrls,
     );
     if (resolution.status === "owner-api-key-missing") {
       const prefix = options?.sceneLabel ? `${options.sceneLabel} Provider 已激活，但` : "";
@@ -715,7 +721,7 @@ export class WorksService {
       );
     }
     if (resolution.status === "no-platform-match" && !fallbackApiKeys.length) {
-      const firstBaseUrl = configuredBaseUrls[0] || provider.baseUrl || "";
+      const firstBaseUrl = configuredPlatformBaseUrls[0] || configuredBaseUrls[0] || provider.baseUrl || "";
       throw new ServiceUnavailableException(
         `当前品牌未匹配到第三方平台配置，请检查个人中心中的平台 baseUrl 是否与运行时地址同域：${firstBaseUrl || "未配置运行时地址"}`,
       );
@@ -2431,8 +2437,9 @@ export class WorksService {
     attemptTimeoutMs?: number;
   }) {
     let lastError = "";
+    const attemptTrail: string[] = [];
     const promptMode = params.promptMode || "social_graphic";
-    const promptsToTry = this.buildImagePromptCandidates(
+    const promptsToTry = this.dedupeStringList(this.buildImagePromptCandidates(
       this.buildImagePromptWithTextPlan(
         params.executionPrompt,
         params.prompt,
@@ -2442,9 +2449,9 @@ export class WorksService {
         promptMode,
       ),
       { includeFallback: params.includeFallbackPrompt ?? true },
-    );
+    ));
     const referenceImages = this.buildImageGenerationReferenceInputs(params.referenceImageUrls, params.referenceImagePayloads);
-    const providersToTry = this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages)
+    const providersToTry = this.dedupeImageProviderConfigs(this.prioritizeImageProvidersForReferenceInputs(params.providers, referenceImages))
       .slice(0, Math.max(1, params.maxProvidersToTry || params.providers.length));
     if (!providersToTry.length) {
       throw new ServiceUnavailableException(
@@ -2455,17 +2462,23 @@ export class WorksService {
     }
 
     for (const provider of providersToTry) {
-      const modelsToTry = provider.models.slice(0, Math.max(1, params.maxModelsPerProvider || provider.models.length));
-      for (const baseUrl of provider.baseUrls) {
-        for (const apiKey of provider.apiKeys) {
+      const modelsToTry = this.dedupeStringList(
+        provider.models.slice(0, Math.max(1, params.maxModelsPerProvider || provider.models.length)),
+      );
+      const baseUrlsToTry = this.dedupeStringList(provider.baseUrls);
+      const apiKeysToTry = this.dedupeStringList(provider.apiKeys);
+      for (const baseUrl of baseUrlsToTry) {
+        for (const apiKey of apiKeysToTry) {
           for (const modelName of modelsToTry) {
             for (const promptCandidate of promptsToTry) {
+              const attemptLabel = this.buildImageAttemptLabel(provider.providerName, modelName, baseUrl);
               try {
                 let asset: ReturnType<WorksService["extractGeneratedImagePayload"]>;
                 let providerTaskIdForResult: string | undefined;
                 if (provider.requestMode === "apiz-task") {
                   if (!provider.createPath || !provider.queryPath) {
                     lastError = `${modelName} 未配置 APIZ 图像任务路径`;
+                    attemptTrail.push(`${attemptLabel} -> 未配置任务路径`);
                     continue;
                   }
                   const createResponse = await this.requestAuthorizedJson(baseUrl, provider.createPath, apiKey, {
@@ -2479,6 +2492,7 @@ export class WorksService {
                   const providerTaskId = this.extractVideoTaskId(createResponse);
                   if (!providerTaskId) {
                     lastError = this.readVideoCreateFailureReason(createResponse) || `${modelName} 未返回任务 ID`;
+                    attemptTrail.push(`${attemptLabel} -> ${lastError}`);
                     continue;
                   }
                   providerTaskIdForResult = providerTaskId;
@@ -2501,6 +2515,7 @@ export class WorksService {
                   if (!response.ok) {
                     const responseSnippet = await this.readResponseSnippet(response);
                     lastError = `${modelName} 请求失败：${response.status}${responseSnippet ? `，${responseSnippet}` : ""}`;
+                    attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
                     continue;
                   }
                   const payload = await response.json() as Record<string, unknown>;
@@ -2508,6 +2523,7 @@ export class WorksService {
                 }
                 if (!asset) {
                   lastError = `${modelName} 未返回图片`;
+                  attemptTrail.push(`${attemptLabel} -> 未返回图片`);
                   continue;
                 }
 
@@ -2526,6 +2542,7 @@ export class WorksService {
                     : "");
                 if (!finalUrl) {
                   lastError = `${modelName} 未返回可保存的图片内容`;
+                  attemptTrail.push(`${attemptLabel} -> 未返回可保存的图片内容`);
                   continue;
                 }
                 return {
@@ -2538,6 +2555,7 @@ export class WorksService {
                 };
               } catch (error) {
                 lastError = this.normalizeImageGenerationFailureMessage(error instanceof Error ? error.message : "图片生成失败");
+                attemptTrail.push(`${attemptLabel} -> ${lastError}`);
               }
             }
           }
@@ -2546,8 +2564,9 @@ export class WorksService {
     }
 
     const referenceContext = this.buildReferenceImageFailureContext(params.referenceImageUrls, params.referenceImagePayloads);
+    const trailDetail = attemptTrail.length ? `；实际尝试顺序：${this.formatAttemptTrail(attemptTrail)}` : "";
     throw new ServiceUnavailableException(
-      `${params.workLabel}图片生成失败：${this.normalizeImageGenerationFailureMessage(lastError || "未获取到有效图片")}${referenceContext}`,
+      `${params.workLabel}图片生成失败：${this.normalizeImageGenerationFailureMessage(lastError || "未获取到有效图片")}${referenceContext}${trailDetail}`,
     );
   }
 
@@ -5165,6 +5184,51 @@ export class WorksService {
     });
   }
 
+  private dedupeStringList(values: string[]) {
+    return Array.from(
+      new Set(
+        values
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  private dedupeImageProviderConfigs(providers: ImageProviderConfig[]) {
+    const merged = new Map<string, ImageProviderConfig>();
+    for (const provider of providers) {
+      const key = [
+        provider.providerId,
+        provider.requestMode,
+        provider.completionPath,
+        provider.createPath,
+        provider.queryPath,
+      ].join("::");
+      const normalizedProvider: ImageProviderConfig = {
+        ...provider,
+        baseUrls: this.dedupeStringList(provider.baseUrls),
+        apiKeys: this.dedupeStringList(provider.apiKeys),
+        models: this.dedupeStringList(provider.models),
+      };
+      const current = merged.get(key);
+      if (!current) {
+        merged.set(key, normalizedProvider);
+        continue;
+      }
+      current.baseUrls = this.dedupeStringList([...current.baseUrls, ...normalizedProvider.baseUrls]);
+      current.apiKeys = this.dedupeStringList([...current.apiKeys, ...normalizedProvider.apiKeys]);
+      current.models = this.dedupeStringList([...current.models, ...normalizedProvider.models]);
+      current.supportsTextToImage = current.supportsTextToImage || normalizedProvider.supportsTextToImage;
+      current.supportsReferenceImages = current.supportsReferenceImages || normalizedProvider.supportsReferenceImages;
+      current.requiresReferenceImages = current.requiresReferenceImages || normalizedProvider.requiresReferenceImages;
+    }
+    return Array.from(merged.values());
+  }
+
+  private buildImageAttemptLabel(providerName: string, modelName: string, baseUrl: string) {
+    return `${providerName}/${modelName}@${this.describeProviderBaseUrl(baseUrl)}`;
+  }
+
   private buildTextAttemptLabel(provider: TextProviderConfig["provider"], modelName: string, baseUrl: string) {
     return `${provider}/${modelName}@${this.describeProviderBaseUrl(baseUrl)}`;
   }
@@ -6129,20 +6193,20 @@ export class WorksService {
         skippedReasons.push(`${provider.name}：当前故事板场景只允许纯文生图模型`);
         continue;
       }
-      const baseUrls = this.apiProvidersService.getBaseUrls(provider);
+      const baseUrls = this.dedupeStringList(this.apiProvidersService.getBaseUrls(provider));
       let apiKeys: string[] = [];
       try {
-        apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" });
+        apiKeys = this.dedupeStringList(await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" }));
       } catch (error) {
         const message = error instanceof Error ? error.message : "当前 Provider 不可用";
         skippedReasons.push(`${provider.name}：${message}`);
         continue;
       }
-      const models = this.pickProviderModels(
+      const models = this.dedupeStringList(this.pickProviderModels(
         provider.modelWhitelist,
         [],
         preferredModels,
-      );
+      ));
       if (!baseUrls.length || !apiKeys.length || !models.length) {
         const reasonParts: string[] = [];
         if (!baseUrls.length) {
@@ -6193,11 +6257,12 @@ export class WorksService {
         `文生图 Provider 已激活，但当前没有可用的执行配置。请检查 Provider 的 baseUrl、API Key 和模型白名单是否完整。${reasonText}`,
       );
     }
+    const normalizedConfigs = this.dedupeImageProviderConfigs(configs);
     if (!preference) {
-      return configs;
+      return normalizedConfigs;
     }
     return this.reorderImageProvidersByPrimaryModel(
-      configs,
+      normalizedConfigs,
       overridePreference?.preferredModelName || preference.preferredModelName,
       overridePreference?.preferredProviderIds || preference.preferredProviderIds,
     );
@@ -7596,18 +7661,29 @@ export class WorksService {
   ) {
     let lastState = "";
     let lastError = "";
-    const deadlineAt = Date.now() + 3 * 60 * 1000;
+    const deadlineAt = Date.now() + 8 * 60 * 1000;
     while (Date.now() < deadlineAt) {
-      const response = await this.requestAuthorizedJson(
-        baseUrl,
-        this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
-        apiKey,
-        {
-          method: options.queryMethod || "POST",
-          body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
-          timeoutMs: options.requestTimeoutMs || 120000,
-        },
-      );
+      let response: Record<string, unknown>;
+      try {
+        response = await this.requestAuthorizedJson(
+          baseUrl,
+          this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
+          apiKey,
+          {
+            method: options.queryMethod || "POST",
+            body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
+            timeoutMs: options.requestTimeoutMs || 120000,
+          },
+        );
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "图片任务查询失败";
+        const remainingMs = deadlineAt - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
+        await wait(Math.min(4000, remainingMs));
+        continue;
+      }
       const snapshot = this.readImageTaskSnapshot(response);
       lastState = snapshot.status;
       if (snapshot.status === "SUCCESS" && snapshot.asset) {
