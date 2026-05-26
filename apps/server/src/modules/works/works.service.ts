@@ -6896,6 +6896,9 @@ export class WorksService {
     const providerPlan = await this.buildVideoProviderExecutionPlan(requestedBackend, Boolean(params.referenceImageUrl));
     const providerErrors: string[] = [];
     let hardFailureSummary = "";
+    let hardFailureLabel = "";
+    let requestedProviderFailureLabel = "";
+    let requestedProviderFailureMessage = "";
 
     for (const candidate of providerPlan) {
       let lastError = "";
@@ -6978,8 +6981,14 @@ export class WorksService {
       if (lastError) {
         const disposition = this.classifyVideoProviderFailure(lastError);
         const normalizedMessage = this.normalizeVideoProviderFailureMessage(lastError);
-        providerErrors.push(`${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}：${normalizedMessage}`);
+        const attemptLabel = `${candidate.backend}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}`;
+        providerErrors.push(`${attemptLabel}：${normalizedMessage}`);
+        if (!requestedProviderFailureMessage && candidate.backend === requestedBackend) {
+          requestedProviderFailureLabel = attemptLabel;
+          requestedProviderFailureMessage = normalizedMessage;
+        }
         if (disposition === "hard") {
+          hardFailureLabel = attemptLabel;
           hardFailureSummary = this.summarizeVideoProviderFailure(normalizedMessage, disposition);
           break;
         }
@@ -6987,9 +6996,25 @@ export class WorksService {
     }
 
     if (hardFailureSummary) {
+      if (
+        requestedProviderFailureMessage
+        && hardFailureLabel
+        && requestedProviderFailureLabel
+        && hardFailureLabel !== requestedProviderFailureLabel
+      ) {
+        throw new ServiceUnavailableException(
+          `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后兜底 ${hardFailureLabel} 失败：${hardFailureSummary}`,
+        );
+      }
       throw new ServiceUnavailableException(`视频生成失败：${hardFailureSummary}`);
     }
-    const primaryFailure = providerErrors[0]?.split("：").slice(1).join("：").trim() || "";
+    if (requestedProviderFailureMessage && providerErrors.length > 1) {
+      const lastFailure = providerErrors[providerErrors.length - 1]?.split("：").slice(1).join("：").trim() || "";
+      throw new ServiceUnavailableException(
+        `视频生成失败：首选 ${requestedProviderFailureLabel} 失败：${requestedProviderFailureMessage}；随后同类兜底仍失败：${this.summarizeVideoProviderFailure(lastFailure, "retryable")}`,
+      );
+    }
+    const primaryFailure = requestedProviderFailureMessage || providerErrors[0]?.split("：").slice(1).join("：").trim() || "";
     throw new ServiceUnavailableException(
       `视频生成失败：${this.summarizeVideoProviderFailure(primaryFailure, "retryable")}`,
     );
