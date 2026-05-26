@@ -88,7 +88,7 @@ jobs:
             ssh-keyscan github.com > "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
             chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
             chmod 600 "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
-            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<'GITHUB_SSH_CONFIG'
+            cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<GITHUB_SSH_CONFIG
             Host github.com
               HostName github.com
               User git
