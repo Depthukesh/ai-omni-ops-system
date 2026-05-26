@@ -22,6 +22,7 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "www.right.codes": "Right Codes 平台",
   "www.runninghub.cn": "RunningHub 平台",
+  "api.xskill.ai": "APIZ / NEX AI 平台",
   "api.apiz.ai": "APIZ / NEX AI 平台",
   "api.deepseek.com": "DeepSeek 平台",
   "ark.cn-beijing.volces.com": "火山方舟平台",

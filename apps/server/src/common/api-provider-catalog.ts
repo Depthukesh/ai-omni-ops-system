@@ -31,7 +31,8 @@ const RIGHT_CODES_DRAW_DOC_ROOT = "https://docs.right.codes/docs/rc_extension/dr
 export const RUNNINGHUB_BASE_URL = "https://www.runninghub.cn";
 export const RUNNINGHUB_RESULT_QUERY_PATH = "/openapi/v2/query";
 export const RUNNINGHUB_RESULT_QUERY_DOC_URL = "https://www.runninghub.cn/runninghub-api-doc-cn/api-425767306";
-export const APIZ_API_BASE_URL = "https://api.apiz.ai";
+export const APIZ_API_BASE_URL = "https://api.xskill.ai";
+export const APIZ_LEGACY_API_BASE_URL = "https://api.apiz.ai";
 export const APIZ_TASK_CREATE_PATH = "/api/v3/tasks/create";
 export const APIZ_TASK_QUERY_PATH = "/api/v3/tasks/query";
 
@@ -205,7 +206,7 @@ function createApizTaskImageSeed(input: ApizTaskImageSeedInput) {
     extraParams: {
       runtimeKey: "image-generation",
       runtimeTags: ["image-generation", "works-runtime"],
-      baseUrls: [APIZ_API_BASE_URL],
+      baseUrls: [APIZ_API_BASE_URL, APIZ_LEGACY_API_BASE_URL],
       requestMode: "apiz-task",
       supportsTextToImage: input.supportsTextToImage,
       supportsReferenceImages: input.supportsReferenceImages,
@@ -244,7 +245,7 @@ function createApizTaskVideoSeed(input: ApizTaskVideoSeedInput) {
       backendKey: input.backendKey,
       displayLabel: input.displayLabel,
       displayOrder: input.displayOrder,
-      baseUrls: [APIZ_API_BASE_URL],
+      baseUrls: [APIZ_API_BASE_URL, APIZ_LEGACY_API_BASE_URL],
       createPath: APIZ_TASK_CREATE_PATH,
       queryPath: APIZ_TASK_QUERY_PATH,
       queryMethod: "POST",

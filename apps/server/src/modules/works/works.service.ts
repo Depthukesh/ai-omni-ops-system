@@ -294,6 +294,9 @@ type VideoWorkAssetMeta = {
   scriptModel?: string;
   storyboardPromptModel?: string;
   storyboardImageModel?: string;
+  storyboardImageProvider?: string;
+  storyboardImageProviderHost?: string;
+  storyboardImageProviderTaskId?: string;
   videoPrompt?: string;
   fullVideoPrompt?: string;
   storyboardPrompt?: string;
@@ -2459,6 +2462,7 @@ export class WorksService {
             for (const promptCandidate of promptsToTry) {
               try {
                 let asset: ReturnType<WorksService["extractGeneratedImagePayload"]>;
+                let providerTaskIdForResult: string | undefined;
                 if (provider.requestMode === "apiz-task") {
                   if (!provider.createPath || !provider.queryPath) {
                     lastError = `${modelName} 未配置 APIZ 图像任务路径`;
@@ -2466,7 +2470,7 @@ export class WorksService {
                   }
                   const createResponse = await this.requestAuthorizedJson(baseUrl, provider.createPath, apiKey, {
                     method: "POST",
-                    body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
+                    body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode),
                     timeoutMs: this.resolveModelAttemptTimeoutMs(
                       params.attemptTimeoutMs ?? provider.requestTimeoutMs,
                       IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
@@ -2477,6 +2481,7 @@ export class WorksService {
                     lastError = this.readVideoCreateFailureReason(createResponse) || `${modelName} 未返回任务 ID`;
                     continue;
                   }
+                  providerTaskIdForResult = providerTaskId;
                   asset = await this.pollImageGenerationResult(baseUrl, apiKey, provider.queryPath, providerTaskId, {
                     queryMethod: provider.queryMethod,
                     queryBodyMode: provider.queryBodyMode,
@@ -2487,7 +2492,7 @@ export class WorksService {
                     baseUrl,
                     provider.completionPath,
                     apiKey,
-                    this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages),
+                    this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode),
                     this.resolveModelAttemptTimeoutMs(
                       params.attemptTimeoutMs ?? provider.requestTimeoutMs,
                       IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
@@ -2526,6 +2531,9 @@ export class WorksService {
                 return {
                   url: finalUrl,
                   modelName,
+                  providerName: provider.providerName,
+                  providerBaseUrl: baseUrl,
+                  providerTaskId: providerTaskIdForResult,
                   prompt: promptCandidate,
                 };
               } catch (error) {
@@ -3726,6 +3734,9 @@ export class WorksService {
         coverImageUrl: storyboardImage.url,
         storyboardPromptModel: storyboardResult.modelName,
         storyboardImageModel: storyboardImage.modelName,
+        storyboardImageProvider: storyboardImage.providerName,
+        storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
+        storyboardImageProviderTaskId: storyboardImage.providerTaskId,
         storyboardRevisions: [
           ...(meta.storyboardRevisions || []),
           { taskId, prompt: storyboardResult.prompt, imageUrl: storyboardImage.url, createdAt: new Date().toISOString() },
@@ -3739,6 +3750,8 @@ export class WorksService {
         scriptModel: meta.scriptModel,
         storyboardPromptModel: storyboardResult.modelName,
         storyboardImageModel: storyboardImage.modelName,
+        storyboardImageProvider: storyboardImage.providerName,
+        storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
       });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
@@ -3783,6 +3796,9 @@ export class WorksService {
         storyboardImageUrl: storyboardImage.url,
         coverImageUrl: storyboardImage.url,
         storyboardImageModel: storyboardImage.modelName,
+        storyboardImageProvider: storyboardImage.providerName,
+        storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
+        storyboardImageProviderTaskId: storyboardImage.providerTaskId,
         storyboardRevisions: [
           ...(meta.storyboardRevisions || []),
           { taskId, prompt: meta.storyboardPrompt || "", imageUrl: storyboardImage.url, createdAt: new Date().toISOString() },
@@ -3795,6 +3811,8 @@ export class WorksService {
         title: meta.title,
         storyboardPromptModel: meta.storyboardPromptModel,
         storyboardImageModel: storyboardImage.modelName,
+        storyboardImageProvider: storyboardImage.providerName,
+        storyboardImageProviderHost: this.describeProviderBaseUrl(storyboardImage.providerBaseUrl),
       });
     } catch (error) {
       await this.handleVideoWorkflowFailure(brandId, workId, taskId, storageKey, error);
@@ -4544,6 +4562,9 @@ export class WorksService {
       scriptModel: this.readOptionalString(meta.scriptModel),
       storyboardPromptModel: this.readOptionalString(meta.storyboardPromptModel),
       storyboardImageModel: this.readOptionalString(meta.storyboardImageModel),
+      storyboardImageProvider: this.readOptionalString(meta.storyboardImageProvider),
+      storyboardImageProviderHost: this.readOptionalString(meta.storyboardImageProviderHost),
+      storyboardImageProviderTaskId: this.readOptionalString(meta.storyboardImageProviderTaskId),
       videoPrompt: this.readOptionalString(meta.videoPrompt),
       fullVideoPrompt: this.readOptionalString(meta.fullVideoPrompt),
       storyboardPrompt: this.readOptionalString(meta.storyboardPrompt),
@@ -7495,15 +7516,19 @@ export class WorksService {
     modelName: string,
     prompt: string,
     referenceImageUrls: string[],
+    promptMode: ImagePromptMode = "social_graphic",
   ) {
     if (provider.requestMode === "apiz-task") {
+      const normalizedModelName = String(modelName || "").toLowerCase();
+      const shouldIncludeReferenceImages = referenceImageUrls.length > 0
+        && (provider.supportsReferenceImages || normalizedModelName.includes("/edit"));
       const params: Record<string, unknown> = {
         prompt,
-        image_size: "4:3",
+        image_size: this.resolveApizImageSize(modelName, referenceImageUrls, promptMode),
         resolution: "1K",
         num_images: 1,
       };
-      if (referenceImageUrls.length) {
+      if (shouldIncludeReferenceImages) {
         params.image_urls = referenceImageUrls;
       }
       return {
@@ -7545,6 +7570,17 @@ export class WorksService {
         },
       ],
     };
+  }
+
+  private resolveApizImageSize(modelName: string, referenceImageUrls: string[], promptMode: ImagePromptMode) {
+    const normalizedModelName = String(modelName || "").toLowerCase();
+    if (normalizedModelName.includes("/edit")) {
+      return "auto";
+    }
+    if (referenceImageUrls.length) {
+      return promptMode === "video_storyboard" ? "3:4" : "4:3";
+    }
+    return promptMode === "video_storyboard" ? "3:4" : "4:3";
   }
 
   private async pollImageGenerationResult(

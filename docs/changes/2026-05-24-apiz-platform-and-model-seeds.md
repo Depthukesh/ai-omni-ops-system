@@ -21,7 +21,10 @@
   - Veo 3.1 文生视频
   - Veo 3.1 参考图视频
   - Veo 3.1 图生视频
-- 所有上述模型统一归到 `https://api.apiz.ai`，通过 `third-party-platform-catalog.ts` 自动聚合成同一个平台目录项，平台名为 `APIZ / NEX AI 平台`。
+- 当前运行时已调整为：
+  - 优先使用 `https://api.xskill.ai`
+  - 同时兼容 `https://api.apiz.ai`
+- 两个 host 仍通过 `third-party-platform-catalog.ts` 归并到同一个平台目录项，平台名统一为 `APIZ / NEX AI 平台`。
 - 运行时元数据沿用现有标准：
   - 图片模型：`runtimeKey = image-generation`
   - 视频模型：`runtimeKey = video-generation`
