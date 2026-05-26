@@ -495,18 +495,54 @@ export class ApiProvidersService {
   }
 
   private async syncSystemProviderSeed(current: ApiProviderRecord, seed: ApiProviderRecord) {
+    const nextName = seed.name || current.name;
+    const nextProviderType = seed.providerType || current.providerType;
+    const nextStatus = seed.status || current.status;
+    const nextBaseUrl = seed.baseUrl || current.baseUrl;
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
+    const nextModelWhitelist = seed.modelWhitelist.length ? seed.modelWhitelist : current.modelWhitelist;
+    const nextDefaultModel = seed.defaultModel || current.defaultModel;
+    const nextTimeoutMs = seed.timeoutMs || current.timeoutMs;
+    const nextStreamEnabled = seed.streamEnabled;
+    const nextCustomHeadersJson = JSON.stringify(this.normalizeStringMap(seed.customHeaders));
     const nextExtraParams = this.mergeSystemProviderExtraParams(current, seed);
+    const nextRemark = seed.remark || current.remark;
+    const currentModelWhitelistJson = JSON.stringify(current.modelWhitelist);
+    const nextModelWhitelistJson = JSON.stringify(nextModelWhitelist);
+    const currentCustomHeadersJson = JSON.stringify(this.normalizeStringMap(current.customHeaders));
     const currentExtraParamsJson = JSON.stringify(this.normalizeObjectMap(current.extraParams));
     const nextExtraParamsJson = JSON.stringify(nextExtraParams);
-    if (current.tutorialUrl === nextTutorialUrl && currentExtraParamsJson === nextExtraParamsJson) {
+    if (
+      current.name === nextName
+      && current.providerType === nextProviderType
+      && current.status === nextStatus
+      && current.baseUrl === nextBaseUrl
+      && current.tutorialUrl === nextTutorialUrl
+      && currentModelWhitelistJson === nextModelWhitelistJson
+      && current.defaultModel === nextDefaultModel
+      && current.timeoutMs === nextTimeoutMs
+      && current.streamEnabled === nextStreamEnabled
+      && currentCustomHeadersJson === nextCustomHeadersJson
+      && currentExtraParamsJson === nextExtraParamsJson
+      && current.remark === nextRemark
+    ) {
       return;
     }
     await this.prismaService.$executeRaw`
       UPDATE "ApiProviderConfig"
       SET
+        "name" = ${nextName},
+        "providerType" = ${nextProviderType},
+        "status" = ${nextStatus},
+        "baseUrl" = ${nextBaseUrl},
         "tutorialUrl" = ${nextTutorialUrl},
+        "modelWhitelistJson" = ${nextModelWhitelistJson}::jsonb,
+        "defaultModel" = ${nextDefaultModel},
+        "timeoutMs" = ${nextTimeoutMs},
+        "streamEnabled" = ${nextStreamEnabled},
+        "customHeadersJson" = ${nextCustomHeadersJson}::jsonb,
         "extraParamsJson" = ${nextExtraParamsJson}::jsonb,
+        "remark" = ${nextRemark},
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${current.id}
     `;
@@ -515,10 +551,7 @@ export class ApiProvidersService {
   private mergeSystemProviderExtraParams(current: ApiProviderRecord, seed: ApiProviderRecord) {
     const currentExtraParams = this.normalizeObjectMap(current.extraParams);
     const seedExtraParams = this.normalizeObjectMap(seed.extraParams);
-    if (!this.isRunningHubProvider(current, seed)) {
-      return currentExtraParams;
-    }
-    return {
+    const mergedExtraParams = {
       ...currentExtraParams,
       runtimeKey: seedExtraParams.runtimeKey ?? currentExtraParams.runtimeKey,
       runtimeTags: seedExtraParams.runtimeTags ?? currentExtraParams.runtimeTags,
@@ -537,6 +570,16 @@ export class ApiProvidersService {
       supportsImageToVideo: seedExtraParams.supportsImageToVideo ?? currentExtraParams.supportsImageToVideo,
       durationOptions: seedExtraParams.durationOptions ?? currentExtraParams.durationOptions,
       sourceFolder: seedExtraParams.sourceFolder ?? currentExtraParams.sourceFolder,
+    };
+    if (!this.isRunningHubProvider(current, seed)) {
+      return mergedExtraParams;
+    }
+    return {
+      ...mergedExtraParams,
+      queryPath: RUNNINGHUB_RESULT_QUERY_PATH,
+      queryMethod: "POST",
+      queryBodyMode: "taskId-json",
+      queryTutorialUrl: RUNNINGHUB_RESULT_QUERY_DOC_URL,
     };
   }
 
