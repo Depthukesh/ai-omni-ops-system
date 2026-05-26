@@ -20,6 +20,10 @@ import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-referenc
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 180 * 1000;
 const VIDEO_STAGE_MODEL_ATTEMPT_TIMEOUT_MS = 300 * 1000;
+const IMAGE_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
+const IMAGE_TASK_POLL_INTERVAL_MS = 15 * 1000;
+const IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
+const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
 
 type UploadFilePayload = {
   fileName: string;
@@ -2579,6 +2583,7 @@ export class WorksService {
       resolveExtension: (contentType, nextFileName) => this.resolveImageExtensionFromMimeType(contentType, nextFileName),
       requestLabel: `下载远程生成图片 ${remoteUrl}`,
       normalizeImageAspectRatio: true,
+      fetchTimeoutMs: IMAGE_RESULT_FETCH_TIMEOUT_MS,
     });
   }
 
@@ -7661,7 +7666,7 @@ export class WorksService {
   ) {
     let lastState = "";
     let lastError = "";
-    const deadlineAt = Date.now() + 8 * 60 * 1000;
+    const deadlineAt = Date.now() + IMAGE_TASK_TOTAL_TIMEOUT_MS;
     while (Date.now() < deadlineAt) {
       let response: Record<string, unknown>;
       try {
@@ -7672,7 +7677,7 @@ export class WorksService {
           {
             method: options.queryMethod || "POST",
             body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
-            timeoutMs: options.requestTimeoutMs || 120000,
+            timeoutMs: Math.min(options.requestTimeoutMs || IMAGE_TASK_QUERY_TIMEOUT_MS, IMAGE_TASK_QUERY_TIMEOUT_MS),
           },
         );
       } catch (error) {
@@ -7681,7 +7686,7 @@ export class WorksService {
         if (remainingMs <= 0) {
           break;
         }
-        await wait(Math.min(4000, remainingMs));
+        await wait(Math.min(IMAGE_TASK_POLL_INTERVAL_MS, remainingMs));
         continue;
       }
       const snapshot = this.readImageTaskSnapshot(response);
@@ -7692,12 +7697,16 @@ export class WorksService {
       if (snapshot.status === "FAILED") {
         throw new ServiceUnavailableException(snapshot.failReason || "第三方图片生成任务失败");
       }
-      lastError = snapshot.failReason || "";
+      if (snapshot.status === "SUCCESS" && !snapshot.asset) {
+        lastError = "图片任务已完成，但查询结果未返回图片地址";
+      } else {
+        lastError = snapshot.failReason || "";
+      }
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
         break;
       }
-      await wait(Math.min(4000, remainingMs));
+      await wait(Math.min(IMAGE_TASK_POLL_INTERVAL_MS, remainingMs));
     }
     throw new ServiceUnavailableException(lastError || `图片任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
   }
@@ -7706,30 +7715,64 @@ export class WorksService {
     const topLevelData = this.asRecord(payload.data);
     const resultRecord = this.asRecord(topLevelData?.result);
     const outputRecord = this.asRecord(resultRecord?.output);
+    const topLevelContent = this.asRecord(payload.content);
+    const topLevelResults = Array.isArray(payload.results) ? payload.results.map((item) => this.asRecord(item)) : [];
+    const topLevelResult = topLevelResults.find((item) => Boolean(item)) || null;
+    const taskResultRecord = this.asRecord(topLevelData?.task_result);
     const taskStatusRaw = String(
       this.readOptionalString(topLevelData?.status)
       || this.readOptionalString(topLevelData?.task_status)
+      || this.readOptionalString(topLevelResult?.status)
+      || this.readOptionalString(topLevelContent?.status)
       || this.readOptionalString(payload.status)
       || "",
     ).trim();
     const normalizedStatus = this.normalizeVideoTaskStatus(taskStatusRaw);
     const directImages = Array.isArray(outputRecord?.images) ? outputRecord.images : [];
     const firstImage = this.asRecord(directImages[0]);
+    const resultImages = Array.isArray(topLevelResult?.images) ? topLevelResult.images : [];
+    const firstResultImage = this.asRecord(resultImages[0]);
+    const taskResultImages = Array.isArray(taskResultRecord?.images) ? taskResultRecord.images : [];
+    const firstTaskResultImage = this.asRecord(taskResultImages[0]);
     const firstImageUrl = typeof directImages[0] === "string"
       ? String(directImages[0] || "").trim()
       : this.readOptionalString(firstImage?.url) || this.readOptionalString(firstImage?.image_url);
+    const firstResultImageUrl = typeof resultImages[0] === "string"
+      ? String(resultImages[0] || "").trim()
+      : this.readOptionalString(firstResultImage?.url) || this.readOptionalString(firstResultImage?.image_url);
+    const firstTaskResultImageUrl = typeof taskResultImages[0] === "string"
+      ? String(taskResultImages[0] || "").trim()
+      : this.readOptionalString(firstTaskResultImage?.url) || this.readOptionalString(firstTaskResultImage?.image_url);
     const directUrl =
       firstImageUrl
+      || firstResultImageUrl
+      || firstTaskResultImageUrl
       || this.readOptionalString(outputRecord?.image_url)
       || this.readOptionalString(outputRecord?.url)
+      || this.readOptionalString(resultRecord?.image_url)
+      || this.readOptionalString(resultRecord?.url)
+      || this.readOptionalString(topLevelResult?.image_url)
+      || this.readOptionalString(topLevelResult?.url)
+      || this.readOptionalString(topLevelResult?.fileUrl)
+      || this.readOptionalString(topLevelContent?.image_url)
+      || this.readOptionalString(topLevelContent?.url)
+      || this.readOptionalString(taskResultRecord?.image_url)
+      || this.readOptionalString(taskResultRecord?.url)
+      || this.readOptionalString(topLevelData?.output)
       || this.readOptionalString(topLevelData?.image_url)
+      || this.readOptionalString(topLevelData?.url)
+      || this.readOptionalString(payload.output)
+      || this.readOptionalString(payload.url)
+      || this.readOptionalString(payload.download_url)
       || this.readOptionalString(payload.image_url);
     const failReason =
       this.readOptionalString(payload.errorMessage)
       || this.readOptionalString(payload.message)
       || this.readOptionalString(this.asRecord(payload.error)?.message)
       || this.readOptionalString(topLevelData?.task_status_msg)
-      || this.readOptionalString(topLevelData?.message);
+      || this.readOptionalString(topLevelData?.message)
+      || this.readOptionalString(topLevelResult?.message)
+      || this.readOptionalString(topLevelContent?.message);
 
     return {
       status: normalizedStatus,
@@ -8430,9 +8473,10 @@ export class WorksService {
     resolveExtension: (contentType: string, fileName: string) => string;
     requestLabel: string;
     normalizeImageAspectRatio?: boolean;
+    fetchTimeoutMs?: number;
   }) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const timer = setTimeout(() => controller.abort(), params.fetchTimeoutMs ?? 120000);
     try {
       const response = await fetch(params.remoteUrl, {
         method: "GET",
