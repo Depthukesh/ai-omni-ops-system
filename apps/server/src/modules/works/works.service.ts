@@ -7517,13 +7517,14 @@ export class WorksService {
       queryTimeoutMs?: number;
     },
   ) {
+    const method = options.queryMethod || "GET";
     const response = await this.requestAuthorizedJson(
       baseUrl,
-      this.resolveVideoQueryPath(queryPath, taskId, options.queryMethod),
+      this.resolveVideoQueryPath(queryPath, taskId, method),
       apiKey,
       {
-        method: options.queryMethod || "GET",
-        body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
+        method,
+        body: method === "POST" ? this.buildVideoQueryBody(taskId, options.queryBodyMode) : undefined,
         timeoutMs: options.queryTimeoutMs && options.queryTimeoutMs > 0 ? options.queryTimeoutMs : VIDEO_TASK_QUERY_TIMEOUT_MS,
       },
     );
