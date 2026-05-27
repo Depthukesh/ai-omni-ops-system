@@ -723,7 +723,7 @@ export class ThirdPartyPlatformsService {
     const nextName = current.name || seed.name || "";
     const nextProviderType = current.providerType || seed.providerType;
     const nextStatus = current.status || seed.status;
-    const nextBaseUrl = current.baseUrl || seed.baseUrl || "";
+    const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
     const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
     const nextRemark = current.remark || seed.remark || "";
@@ -759,5 +759,17 @@ export class ThirdPartyPlatformsService {
 
   private isDecommissionedPlatform(platform: Pick<ThirdPartyPlatformRecord, "baseUrl">) {
     return isDecommissionedPlatformBaseUrl(platform.baseUrl);
+  }
+
+  private resolveSystemSeedBaseUrl(currentBaseUrl: string, seedBaseUrl: string) {
+    const normalizedCurrent = this.normalizeBaseUrl(currentBaseUrl);
+    const normalizedSeed = this.normalizeBaseUrl(seedBaseUrl);
+    if (!normalizedSeed) {
+      return String(currentBaseUrl || "").trim();
+    }
+    if (!normalizedCurrent) {
+      return String(seedBaseUrl || "").trim();
+    }
+    return normalizedCurrent === normalizedSeed ? String(currentBaseUrl || "").trim() : String(seedBaseUrl || "").trim();
   }
 }

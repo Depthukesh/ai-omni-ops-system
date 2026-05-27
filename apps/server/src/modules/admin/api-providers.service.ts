@@ -495,7 +495,7 @@ export class ApiProvidersService {
     const nextName = current.name || seed.name;
     const nextProviderType = current.providerType || seed.providerType;
     const nextStatus = current.status || seed.status;
-    const nextBaseUrl = current.baseUrl || seed.baseUrl;
+    const nextBaseUrl = this.resolveSystemSeedBaseUrl(current.baseUrl, seed.baseUrl);
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
     const nextModelWhitelist = current.modelWhitelist.length ? current.modelWhitelist : seed.modelWhitelist;
     const nextDefaultModel = current.defaultModel || seed.defaultModel;
@@ -560,8 +560,8 @@ export class ApiProvidersService {
       displayLabel: seedExtraParams.displayLabel ?? currentExtraParams.displayLabel,
       displayOrder: seedExtraParams.displayOrder ?? currentExtraParams.displayOrder,
       recommended: seedExtraParams.recommended ?? currentExtraParams.recommended,
-      baseUrls: currentExtraParams.baseUrls ?? seedExtraParams.baseUrls,
-      platformBaseUrls: currentExtraParams.platformBaseUrls ?? seedExtraParams.platformBaseUrls,
+      baseUrls: this.resolveSystemSeedBaseUrls(currentExtraParams.baseUrls, seedExtraParams.baseUrls),
+      platformBaseUrls: this.resolveSystemSeedBaseUrls(currentExtraParams.platformBaseUrls, seedExtraParams.platformBaseUrls),
       createPath: currentExtraParams.createPath ?? seedExtraParams.createPath,
       queryPath: currentExtraParams.queryPath ?? seedExtraParams.queryPath,
       queryMethod: currentExtraParams.queryMethod ?? seedExtraParams.queryMethod,
@@ -704,5 +704,52 @@ export class ApiProvidersService {
       return {};
     }
     return { ...(value as Record<string, unknown>) };
+  }
+
+  private resolveSystemSeedBaseUrl(currentBaseUrl: string, seedBaseUrl: string) {
+    const normalizedCurrent = this.normalizeBaseUrl(currentBaseUrl);
+    const normalizedSeed = this.normalizeBaseUrl(seedBaseUrl);
+    if (!normalizedSeed) {
+      return String(currentBaseUrl || "").trim();
+    }
+    if (!normalizedCurrent) {
+      return String(seedBaseUrl || "").trim();
+    }
+    return normalizedCurrent === normalizedSeed ? String(currentBaseUrl || "").trim() : String(seedBaseUrl || "").trim();
+  }
+
+  private resolveSystemSeedBaseUrls(currentValue: unknown, seedValue: unknown) {
+    const currentUrls = this.normalizeStringArray(currentValue);
+    const seedUrls = this.normalizeStringArray(seedValue);
+    if (!seedUrls.length) {
+      return currentUrls;
+    }
+    if (!currentUrls.length) {
+      return seedUrls;
+    }
+    return this.sameNormalizedUrlSet(currentUrls, seedUrls) ? currentUrls : seedUrls;
+  }
+
+  private normalizeStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+  }
+
+  private sameNormalizedUrlSet(left: string[], right: string[]) {
+    if (left.length !== right.length) {
+      return false;
+    }
+    const normalizedLeft = left.map((item) => this.normalizeBaseUrl(item)).sort();
+    const normalizedRight = right.map((item) => this.normalizeBaseUrl(item)).sort();
+    return normalizedLeft.every((item, index) => item === normalizedRight[index]);
+  }
+
+  private normalizeBaseUrl(value: string) {
+    const normalized = String(value || "").trim().replace(/\/+$/, "");
+    return normalized.toLowerCase();
   }
 }
