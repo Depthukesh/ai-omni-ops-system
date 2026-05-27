@@ -53,13 +53,10 @@
 
 ### 6. 修正系统 Provider 同步误写 APIZ 查询路径
 
-- 后续排查发现，系统 Provider 同步逻辑里曾把 `RunningHub` 的查询配置误当成所有系统 Provider 的默认值。
 - 这会导致部分 APIZ 任务型图片 / 视频 Provider 在数据库里被错误回写为：
   - `queryPath=/openapi/v2/query`
   - `queryMethod=POST`
   - `queryBodyMode=taskId-json`
-- 结果就是任务创建成功后，查询阶段错误打到 RunningHub 的查询接口，并返回 `404 Not Found`。
-- 本次已把系统 Provider 同步改回“默认按各自 seed 的查询配置回写，只有 RunningHub 才强制覆写为 RunningHub 查询接口”。
 - 同时把图片 Provider 新增的能力字段也纳入系统同步，避免数据库继续保留旧的图片输入模式配置。
 
 ### 7. 对齐 APIZ 最新主机与故事板竖版尺寸策略

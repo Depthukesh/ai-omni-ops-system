@@ -148,13 +148,11 @@
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`
   - JSON 字段：`modelWhitelistJson`、`customHeadersJson`、`extraParamsJson`
   - 当前约定：`extraParamsJson.runtimeKey` 作为运行时分组键；`ReportsModule` 与 `WorksModule` 按 `runtimeKey` 查询激活中的 Provider。当前已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两类 Provider，其中图像生成通过 `extraParamsJson.requestMode=images-generations` 切到 `/v1/images/generations`
-  - 当前视频生成还已补入 RunningHub 系列 Provider；通过 `extraParamsJson.backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode / durationOptions` 描述每条视频模型的真实调用方式，其中 RunningHub 查询统一兼容 `POST /openapi/v2/query` 与 `{ taskId }` 请求体
   - 当前约定：若系统级旧 Provider 已对应到下线平台域名，服务启动时允许自动删除旧 `ApiProviderConfig` 残留，避免接口供应商页继续暴露不可用模型
 - `ThirdPartyPlatformConfig`
   - 用途：后台平台级第三方接口配置基线，供后台“接口供应商”平台页与个人中心“第三方接口配置”同步读取
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`defaultModel`、`remark`
   - JSON 字段：`modelIdsJson`
-  - 当前约定：平台基线会由 `THIRD_PARTY_PLATFORM_SEEDS` 自动补齐缺失项；`RunningHub 平台` 会由同域 `https://www.runninghub.cn` 下的运行时视频 Provider 自动聚合生成
   - 当前约定：若平台 `baseUrl` 命中已下线平台域名，服务启动时允许自动清理旧 `ThirdPartyPlatformConfig` 与关联私钥记录
 - `UserThirdPartyPlatformSecret`
   - 用途：保存当前用户在当前品牌下、针对某个平台配置的私有 API Key
@@ -212,7 +210,6 @@
 - 第三方接口配置：
   - 平台基线：`ThirdPartyPlatformConfig`
   - 当前品牌下当前用户私有 Key：`UserThirdPartyPlatformSecret`
-  - 当前已包含 `RunningHub 平台`，前台只负责维护品牌 Owner 私有 Key，不直接编辑视频 Provider 明细
   - 若历史品牌下仍残留已下线平台的私有 Key，启动时会随平台基线一起清理
 
 ### 4.4 后台管理 `/admin`
@@ -225,7 +222,6 @@
   - 当前视频模型下拉、报告生成和小红书创作生成链路已开始直接读取 `ApiProviderConfig`
 - 第三方平台配置管理：当前后台“接口供应商”可见页已切到平台级配置视图；数据库可用时通过 `ThirdPartyPlatformConfig` 持久化平台基线，通过 `UserThirdPartyPlatformSecret` 持久化个人中心 Owner 私有 API Key
   - 当前这层不替代 `ApiProviderConfig` 的运行时 `runtimeKey` 分组真源，但已作为运行时 API Key 强制隔离层参与 `ReportsModule` 与 `WorksModule`：命中平台后必须使用品牌私钥，缺失时直接报错提醒
-  - 当前 `RunningHub 平台` 由后台运行时种子自动聚合进入该层；后台页只维护平台摘要字段，视频模型的真实请求结构仍以 `ApiProviderConfig.extraParamsJson` 为准
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`

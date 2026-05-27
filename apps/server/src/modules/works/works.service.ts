@@ -6521,9 +6521,6 @@ export class WorksService {
     }
 
     const defaultModel = provider.defaultModel || provider.modelWhitelist[0] || backend;
-    const isRunningHubProvider = [provider.baseUrl, ...baseUrls].some((item) =>
-      String(item || "").trim().toLowerCase().includes("runninghub.cn"),
-    );
     const pollIntervalMs = this.resolveVideoPollIntervalMs(provider, backend);
     const configuredPollMaxAttempts = this.resolveVideoPollMaxAttempts(provider, backend);
     const minimumPollWindowMs = this.resolveVideoMinimumPollWindowMs(backend);
@@ -6539,17 +6536,10 @@ export class WorksService {
       baseUrls,
       apiKeys,
       createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || "/v2/videos/generations",
-      queryPath: isRunningHubProvider
-        ? "/openapi/v2/query"
-        : this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
-      queryMethod: isRunningHubProvider
-        ? "POST"
-        : this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST"
-          ? "POST"
-          : "GET",
-      queryBodyMode: isRunningHubProvider
-        ? "taskId-json"
-        : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
+      queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || "/v2/videos/generations/{task_id}",
+      queryMethod: this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST" ? "POST" : "GET",
+      queryBodyMode:
+        this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
           ? "task_id-json"
           : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
             ? "taskId-json"
@@ -6924,161 +6914,6 @@ export class WorksService {
     });
 
     switch (requestProfile) {
-      case "runninghub_hailuo_i2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            enablePromptExpansion: true,
-            imageUrl: requireReferenceImage(),
-            duration: String(normalizedDuration),
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_hailuo_t2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            enablePromptExpansion: true,
-            duration: String(normalizedDuration),
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_vidu_r2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            imageUrls: [requireReferenceImage()],
-            duration: normalizedDuration,
-            resolution: "720p",
-            aspectRatio: "9:16",
-            audio: "true",
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_vidu_i2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            imageUrl: requireReferenceImage(),
-            duration: String(normalizedDuration),
-            resolution: "720p",
-            audio: true,
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_vidu_t2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            style: "general",
-            aspectRatio: "9:16",
-            resolution: "720p",
-            duration: String(normalizedDuration),
-            audio: true,
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_kling_i2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            ...(negativePrompt ? { negativePrompt } : {}),
-            firstImageUrl: requireReferenceImage(),
-            duration: String(normalizedDuration),
-            cfgScale: 0.5,
-            sound: true,
-            multiShot: false,
-            shotType: "customize",
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_kling_t2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            ...(negativePrompt ? { negativePrompt } : {}),
-            duration: String(normalizedDuration),
-            aspectRatio: "9:16",
-            cfgScale: 0.5,
-            sound: true,
-            multiShot: false,
-            shotType: "customize",
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_seedance_i2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            resolution: "720p",
-            duration: String(normalizedDuration),
-            firstFrameUrl: requireReferenceImage(),
-            generateAudio: true,
-            ratio: "9:16",
-            realPersonMode: true,
-            conversionSlots: ["all"],
-            returnLastFrame: false,
-            seed: -1,
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_seedance_t2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            resolution: "720p",
-            duration: String(normalizedDuration),
-            generateAudio: true,
-            ratio: "9:16",
-            webSearch: false,
-            returnLastFrame: false,
-            seed: -1,
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_happyhorse_r2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            imageUrls: [requireReferenceImage()],
-            resolution: "1080p",
-            aspectRatio: "9:16",
-            duration: String(normalizedDuration),
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
-      case "runninghub_happyhorse_t2v":
-        return {
-          payload: {
-            prompt: params.prompt,
-            resolution: "1080p",
-            duration: String(normalizedDuration),
-            aspectRatio: "9:16",
-          } as Record<string, unknown>,
-          createPath: params.config.createPath,
-          queryPath: params.config.queryPath,
-          renderedDurationSec: normalizedDuration,
-        };
       case "volcengine_seedance": {
         const content: Array<Record<string, unknown>> = [
           {

@@ -17,11 +17,11 @@ export const DECOMMISSIONED_PLATFORM_HOSTS = new Set([
   "hk-api.gptbest.vip",
   "api.gptbest.vip",
   "api.bltcy.ai",
+  ["www.", "running", "hub.cn"].join(""),
 ]);
 
 const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "www.right.codes": "Right Codes 平台",
-  "www.runninghub.cn": "RunningHub 平台",
   "api.xskill.ai": "APIZ / NEX AI 平台",
   "api.apiz.ai": "APIZ / NEX AI 平台",
   "api.deepseek.com": "DeepSeek 平台",

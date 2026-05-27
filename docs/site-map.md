@@ -286,13 +286,11 @@
   - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
   - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
   - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由 Owner 单独维护该平台私有 Key
-  - 当前平台基线已补入 `RunningHub 平台`，基础链接为 `https://www.runninghub.cn`；平台页会自动聚合同域下的海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 视频模型，并由 Owner 单独维护该平台私有 Key
   - 当前平台基线已补入火山方舟视频模型 `doubao-seedance-2-0-260128 / doubao-seedance-2-0-fast-260128`；平台页会把这两条模型并入既有 `火山方舟平台`，无需手工新增第二个平台
   - 柏拉图平台当前已正式下线；服务启动时会自动清理 `hk-api.gptbest.vip / api.gptbest.vip / api.bltcy.ai` 对应的平台基线与私有 Key 残留，前后台都不再展示该平台
   - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
   - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
-  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 - `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
@@ -356,14 +354,10 @@
   - 后台页不再填写 API Key；前台个人中心由拥有 `personalCenter.thirdPartyPlatforms.edit` 的成员在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
   - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
   - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
-  - 当前 `ApiProviderConfig` 已补入 RunningHub 视频 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会按 `https://www.runninghub.cn` 自动聚合出 `RunningHub 平台`
   - 柏拉图共享代理 Provider 已从系统基线移除；若历史数据库里仍残留其接口供应商或平台记录，`ApiProvidersService` 与 `ThirdPartyPlatformsService` 会在启动时自动清理，避免后台继续展示已失效模型
-  - 当前 RunningHub 视频 Provider 统一使用 `POST /openapi/v2/query` + `{ taskId }` 查询生成结果；`WorksService` 运行时会对命中 `runninghub.cn` 的 Provider 强制兜底这组查询配置，同时 `ApiProvidersService` 会在启动时把旧 RunningHub 系统 Provider 缺失的查询元数据自动回填到 `extraParamsJson`
   - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
   - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
-  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
-  - 参考变更：`docs/changes/2026-05-18-runninghub-shared-query-backfill.md`
 - 当前后台入口已支持角色矩阵：
   - `SUPER_ADMIN`：可见全部后台栏目
   - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
@@ -539,7 +533,6 @@
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
   - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
   - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
-  - 当前 RunningHub 视频 Provider 已补入海螺 2.3、Vidu Q3、可灵 3.0、seedance 2.0、happyhorse 1.0 多组模型；查询统一兼容 `POST /openapi/v2/query` 与 `{ taskId }` 请求体
   - 当前火山方舟视频 Provider 已补入 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128`；运行时创建接口兼容 `POST /api/v3/contents/generations/tasks`，查询接口兼容 `GET /api/v3/contents/generations/tasks/{id}`
   - 柏拉图共享代理视频 Provider 已从系统基线移除；旧视频任务元数据里若仍残留兼容值 `seedance / seedance20`，运行时会自动映射到 `volcengine_seedance_20`，避免历史默认值在创建新任务时直接落到已下线平台
   - 当前视频笔记已补入按第三方 `providerTaskId` 的手动恢复入口：`POST /api/works/brands/:brandId/xiaohongshu/video/recover`；可直接复查第三方任务状态，并在成功时把视频重新抓回站内 OSS 与作品元数据，不必再次扣费重跑
@@ -552,7 +545,6 @@
   - 原创/二创两条图片生成技能当前默认指向 `Right Codes · 文生图/图生图 / provider_runtime_image_generation_right_codes::gpt-image-2`；若数据库里仍残留旧的 `provider_runtime_image_generation::gpt-image-2` 基线，启动时会自动安全回填到新 provider，但不会覆盖后台后来手动改成的其他模型
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
-  - 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
@@ -678,10 +670,6 @@
 7. 第 2 阶段完成后，作品会停在 `WAITING_VIDEO`；前端详情区会显示进度、创意剧本、可编辑故事板提示词和故事板图片，用户可选择“修改”或“生成短视频”
 8. 第 3 阶段根据故事板提示词生成短视频提示词，再结合故事板图片调用用户选择的视频模型生成最终短视频
 9. 成品视频、中间剧本、故事板提示词、故事板图片与阶段状态都保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
-10. 当前视频 Provider 下拉已可直接读取 RunningHub 视频模型；运行时会按每条 Provider 的 `requestProfile` 组装请求体，并在查询阶段兼容 RunningHub 的 `POST /openapi/v2/query`
-11. 当第 3 阶段已经有故事板图、但用户之前选择的是 RunningHub `*_t2v` 文生视频模型时，后端会优先自动切到同系列 `*_i2v` / `*_r2v` 图生视频后端，避免最终成片阶段继续拿文生接口硬跑
-12. 当第 3 阶段图生视频需要把故事板图传给第三方时，后端不会再直接使用站内 `/api/works/brands/:brandId/assets/:fileName` 鉴权地址，而是优先转成 OSS 签名读链接，避免 RunningHub 无法读取参考图
-13. 参考变更：`docs/changes/2026-05-16-runninghub-video-platform.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`、`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`、`docs/changes/2026-05-17-video-note-runninghub-image-backend-fallback.md`、`docs/changes/2026-05-17-video-note-runninghub-reference-image-url-fix.md`
 
 ### 5.6 技能与提示词注册链路
 

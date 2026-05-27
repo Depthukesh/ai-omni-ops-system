@@ -486,7 +486,6 @@ flowchart LR
     F3 --> F31["左上角显示账号角色徽标 + 阶段状态"]
     F --> F4["视频预览"]
     F --> F5["视频模型下拉动态读取后台 Provider"]
-    F5 --> F51["当前已含 RunningHub 海螺/Vidu/可灵/seedance/happyhorse"]
 ```
 
 ## 7. 个人中心、支付和后台管理地图
@@ -502,7 +501,6 @@ flowchart TD
     PC32 --> PC321["一级/二级分类支持折叠；搜索时自动展开"]
     PC3 --> PC33["右侧按单条提示词编辑模型/温度/Tokens/内容"]
     PC --> PC31["/personal-center/third-party-platforms 平台基线 + 私有 Key + 权限控制"]
-    PC31 --> PC311["当前含 Right Codes + RunningHub + 火山方舟 平台基线"]
     PC31 --> PC312["已下线平台会在启动时自动清理旧平台基线与私有 Key"]
     PC --> PC4["/personal-center/security 头像上传到 OSS"]
     PC --> PC5["/personal-center/tasks"]
@@ -547,7 +545,6 @@ flowchart TD
     AUI8 --> AUI81["左侧：平台列表 + 搜索/状态/类型筛选"]
     AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]
     AUI8 --> AUI83["后台不填 API Key；前台 Owner 单独维护私有 Key"]
-    AUI8 --> AUI84["RunningHub 平台由 https://www.runninghub.cn 自动聚合补齐"]
     AUI8 --> AUI85["柏拉图下线后会自动清理旧平台与旧 Provider 残留"]
     AUI6 --> AUI61["左侧一级分类：点击后展开"]
     AUI61 --> AUI611["品牌增长策略 / 小红书 / 抖音"]
@@ -582,7 +579,6 @@ flowchart TD
     AS1 --> AAPI7["/admin/knowledge-bases"]
     AS1 --> AAPI8["/admin/knowledge-base-files"]
     AS1 --> AAPI9["/admin/third-party-platforms"]
-    AS1 --> AAPI91["ApiProviderConfig 含 Right Codes 与 RunningHub 视频种子"]
 ```
 
 ## 8. 前端 service 到后端 API 关系图
@@ -636,7 +632,6 @@ flowchart TD
     M5 --> M53["视频笔记当前按三阶段执行：剧本 -> 故事板 -> 用户确认后生成短视频"]
     M5 --> M54["原创/二创最终出图会继续传入参考图原图与产品图"]
     M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能，默认模型切到 Right Codes images-generations"]
-    M5 --> M56["视频生成按 requestProfile/queryMethod/queryBodyMode 动态适配 RunningHub"]
     M5 --> M57["原创/二创/视频三类作品创建都默认要求账号角色并写入主记录元数据"]
     M5 --> M58["历史 seedance 兼容值自动映射到 volcengine_seedance_20，避免落到已下线平台"]
     M6 --> M5

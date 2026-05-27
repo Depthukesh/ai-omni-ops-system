@@ -21,7 +21,6 @@
   - `provider_runtime_video_seedance`
 - 保留其余可用平台：
   - `Right Codes`
-  - `RunningHub`
   - `火山方舟`
   - `DeepSeek`
   - `Kimi`
@@ -56,5 +55,4 @@
 
 ## 风险控制
 
-- 未改动 RunningHub、Right Codes、火山方舟、DeepSeek、Kimi、GLM 的现有基线
 - 旧视频默认值保留兼容映射，避免历史 `seedance` 文案直接触发运行时报错

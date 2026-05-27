@@ -2,9 +2,6 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import {
   DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS,
   LEGACY_API_PROVIDER_IDS,
-  RUNNINGHUB_BASE_URL,
-  RUNNINGHUB_RESULT_QUERY_DOC_URL,
-  RUNNINGHUB_RESULT_QUERY_PATH,
   SYSTEM_API_PROVIDER_SEEDS,
 } from "../../common/api-provider-catalog";
 import { isDecommissionedPlatformBaseUrl } from "../../common/third-party-platform-catalog";
@@ -579,26 +576,7 @@ export class ApiProvidersService {
       durationOptions: currentExtraParams.durationOptions ?? seedExtraParams.durationOptions,
       sourceFolder: seedExtraParams.sourceFolder ?? currentExtraParams.sourceFolder,
     };
-    if (!this.isRunningHubProvider(current, seed)) {
-      return mergedExtraParams;
-    }
-    return {
-      ...mergedExtraParams,
-      queryPath: currentExtraParams.queryPath ?? RUNNINGHUB_RESULT_QUERY_PATH,
-      queryMethod: currentExtraParams.queryMethod ?? "POST",
-      queryBodyMode: currentExtraParams.queryBodyMode ?? "taskId-json",
-      queryTutorialUrl: currentExtraParams.queryTutorialUrl ?? RUNNINGHUB_RESULT_QUERY_DOC_URL,
-    };
-  }
-
-  private isRunningHubProvider(current: ApiProviderRecord, seed: ApiProviderRecord) {
-    const candidates = [
-      current.baseUrl,
-      seed.baseUrl,
-      ...this.getStringArrayExtra(current, "baseUrls"),
-      ...this.getStringArrayExtra(seed, "baseUrls"),
-    ];
-    return candidates.some((item) => String(item || "").includes(RUNNINGHUB_BASE_URL));
+    return mergedExtraParams;
   }
 
   private isDecommissionedProvider(provider: ApiProviderRecord) {
