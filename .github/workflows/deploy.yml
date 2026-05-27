@@ -165,13 +165,13 @@ jobs:
                 fi
               fi
 
-              run_checked "git pull --ff-only origin main" git pull --ff-only origin main
+              run_checked "git reset --hard origin/main" git reset --hard origin/main
               run_checked "git rev-parse HEAD" git rev-parse HEAD
 
-              POST_PULL_STATUS="$(git status --porcelain=v1 -uall)"
-              if [ -n "$POST_PULL_STATUS" ]; then
-                echo "部署终止：拉取后工作区未保持干净，请先人工排查服务器现场。"
-                printf "%s\n" "$POST_PULL_STATUS"
+              POST_SYNC_STATUS="$(git status --porcelain=v1 -uall)"
+              if [ -n "$POST_SYNC_STATUS" ]; then
+                echo "部署终止：同步远端提交后工作区未保持干净，请先人工排查服务器现场。"
+                printf "%s\n" "$POST_SYNC_STATUS"
                 exit 1
               fi
 
