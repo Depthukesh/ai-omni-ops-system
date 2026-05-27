@@ -82,6 +82,21 @@
   - `videos`
 - 这样可以避免“第三方后台明明已成功，但网站因为没接住地址而继续轮询、超时甚至触发再次尝试”的问题。
 
+### 7. 直接生成与“找回视频结果”统一补上多连接查询兜底
+
+- 视频 Provider 在品牌侧可能存在多组可用连接：
+  - 多个 `apiKey`
+  - 多个 `baseUrl`
+- 之前无论是“直接生成视频”后的轮询查询，还是页面上的“找回视频结果”，查询阶段都只使用第一组连接。
+- 这会出现一种回归场景：
+  - 视频任务其实已经在第三方成功生成
+  - 但第一组连接查询失败，系统没有继续尝试同一 Provider 的其他可用连接
+  - 最终表现为页面仍然显示运行中，或者“找回视频结果”直接报网络请求失败
+- 本次补充后：
+  - 最终生视频轮询查询会按同一 Provider 的多组 `baseUrl/apiKey` 逐个尝试
+  - “找回视频结果”接口也会按同一 Provider 的多组 `baseUrl/apiKey` 逐个尝试
+- 这样可以覆盖“第三方已成功，但首个查询连接暂时不可用”的场景，降低漏拉取成片的概率。
+
 ## 影响范围
 
 - 后端任务中心：
@@ -90,6 +105,7 @@
   - `runContinueVideoGenerationTask()`
   - `generateVideoAsset()`
   - `pollVideoGenerationResult()`
+  - `recoverXiaohongshuVideoGeneration()`
   - `readVideoTaskSnapshot()`
 - 前端类型：
   - `apps/web/src/services/works.ts`

@@ -1856,9 +1856,8 @@ export class WorksService {
       payload.requestedVideoProvider?.trim() || meta.resolvedVideoProvider || meta.requestedVideoProvider,
     );
     const config = await this.loadVideoProviderConfig(brandId, backend);
-    const snapshot = await this.queryVideoGenerationSnapshot(
-      config.baseUrls[0],
-      config.apiKeys[0],
+    const snapshot = await this.queryVideoGenerationSnapshotWithTargets(
+      this.buildVideoRequestTargets(config),
       config.backend,
       config.queryPath,
       providerTaskId,
@@ -6566,6 +6565,18 @@ export class WorksService {
     };
   }
 
+  private buildVideoRequestTargets(config: Pick<VideoProviderConfig, "baseUrls" | "apiKeys">) {
+    const baseUrls = this.dedupeStringList(config.baseUrls);
+    const apiKeys = this.dedupeStringList(config.apiKeys);
+    const targets: Array<{ baseUrl: string; apiKey: string }> = [];
+    for (const baseUrl of baseUrls) {
+      for (const apiKey of apiKeys) {
+        targets.push({ baseUrl, apiKey });
+      }
+    }
+    return targets;
+  }
+
   private resolveVideoPollMaxAttempts(provider: ApiProviderRecord, backend: VideoBackendKey) {
     const configured = this.apiProvidersService.getNumberExtra(provider, "pollMaxAttempts");
     if (typeof configured === "number" && Number.isFinite(configured) && configured > 0) {
@@ -7245,6 +7256,7 @@ export class WorksService {
           queryBodyMode: config.queryBodyMode,
           pollMaxAttempts: config.pollMaxAttempts,
           pollIntervalMs: config.pollIntervalMs,
+          queryTargets: this.buildVideoRequestTargets(config),
           onSnapshot: params.onProviderQueryStatus
             ? async (snapshot) => {
                 await params.onProviderQueryStatus?.({
@@ -7414,6 +7426,7 @@ export class WorksService {
       queryBodyMode?: "taskId-json" | "task_id-json";
       pollMaxAttempts?: number;
       pollIntervalMs?: number;
+      queryTargets?: Array<{ baseUrl: string; apiKey: string }>;
       onSnapshot?: (snapshot: ReturnType<WorksService["readVideoTaskSnapshot"]>) => Promise<void> | void;
       onQueryError?: (message: string) => Promise<void> | void;
     },
@@ -7433,10 +7446,16 @@ export class WorksService {
         break;
       }
       try {
-        snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, {
-          ...options,
-          queryTimeoutMs: Math.min(VIDEO_TASK_QUERY_TIMEOUT_MS, remainingMsBeforeQuery),
-        });
+        snapshot = await this.queryVideoGenerationSnapshotWithTargets(
+          options.queryTargets?.length ? options.queryTargets : [{ baseUrl, apiKey }],
+          backend,
+          queryPath,
+          taskId,
+          {
+            ...options,
+            queryTimeoutMs: Math.min(VIDEO_TASK_QUERY_TIMEOUT_MS, remainingMsBeforeQuery),
+          },
+        );
       } catch (error) {
         lastError = error instanceof Error ? error.message : "视频任务查询失败";
         await options.onQueryError?.(lastError);
@@ -7495,6 +7514,40 @@ export class WorksService {
       },
     );
     return this.readVideoTaskSnapshot(response, backend, options.fallbackDurationSec);
+  }
+
+  private async queryVideoGenerationSnapshotWithTargets(
+    targets: Array<{ baseUrl: string; apiKey: string }>,
+    backend: VideoBackendKey,
+    queryPath: string,
+    taskId: string,
+    options: {
+      fallbackDurationSec?: number;
+      queryMethod?: "GET" | "POST";
+      queryBodyMode?: "taskId-json" | "task_id-json";
+      queryTimeoutMs?: number;
+    },
+  ) {
+    let lastError: unknown;
+    const effectiveTargets = targets.length ? targets : [];
+    for (const target of effectiveTargets) {
+      try {
+        return await this.queryVideoGenerationSnapshot(
+          target.baseUrl,
+          target.apiKey,
+          backend,
+          queryPath,
+          taskId,
+          options,
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+    throw new ServiceUnavailableException("视频任务查询失败");
   }
 
   private resolveVideoQueryPath(queryPath: string, taskId: string, queryMethod: "GET" | "POST" = "GET") {
