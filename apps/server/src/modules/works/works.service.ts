@@ -7860,6 +7860,9 @@ export class WorksService {
         );
       } catch (error) {
         lastError = error instanceof Error ? error.message : "图片任务查询失败";
+        if (this.isTerminalImageQueryError(lastError)) {
+          throw new ServiceUnavailableException(lastError);
+        }
         const remainingMs = deadlineAt - Date.now();
         if (remainingMs <= 0) {
           break;
@@ -8132,6 +8135,11 @@ export class WorksService {
     } catch {
       return "";
     }
+  }
+
+  private isTerminalImageQueryError(message: string) {
+    const normalized = String(message || "").toLowerCase();
+    return /任务执行失败|任务失败|task execution failed|task failed|authenticationerror|unauthorized|invalid header value/i.test(normalized);
   }
 
   private normalizeFixedImagePromptCount(imagePrompts: string[], coverPrompt: string, imageCount: number) {
