@@ -495,18 +495,22 @@ export class ApiProvidersService {
   }
 
   private async syncSystemProviderSeed(current: ApiProviderRecord, seed: ApiProviderRecord) {
-    const nextName = seed.name || current.name;
-    const nextProviderType = seed.providerType || current.providerType;
-    const nextStatus = seed.status || current.status;
-    const nextBaseUrl = seed.baseUrl || current.baseUrl;
+    const nextName = current.name || seed.name;
+    const nextProviderType = current.providerType || seed.providerType;
+    const nextStatus = current.status || seed.status;
+    const nextBaseUrl = current.baseUrl || seed.baseUrl;
     const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
-    const nextModelWhitelist = seed.modelWhitelist.length ? seed.modelWhitelist : current.modelWhitelist;
-    const nextDefaultModel = seed.defaultModel || current.defaultModel;
-    const nextTimeoutMs = seed.timeoutMs || current.timeoutMs;
-    const nextStreamEnabled = seed.streamEnabled;
-    const nextCustomHeadersJson = JSON.stringify(this.normalizeStringMap(seed.customHeaders));
+    const nextModelWhitelist = current.modelWhitelist.length ? current.modelWhitelist : seed.modelWhitelist;
+    const nextDefaultModel = current.defaultModel || seed.defaultModel;
+    const nextTimeoutMs = current.timeoutMs || seed.timeoutMs;
+    const nextStreamEnabled = current.streamEnabled;
+    const nextCustomHeadersJson = JSON.stringify(
+      Object.keys(this.normalizeStringMap(current.customHeaders)).length
+        ? this.normalizeStringMap(current.customHeaders)
+        : this.normalizeStringMap(seed.customHeaders),
+    );
     const nextExtraParams = this.mergeSystemProviderExtraParams(current, seed);
-    const nextRemark = seed.remark || current.remark;
+    const nextRemark = current.remark || seed.remark;
     const currentModelWhitelistJson = JSON.stringify(current.modelWhitelist);
     const nextModelWhitelistJson = JSON.stringify(nextModelWhitelist);
     const currentCustomHeadersJson = JSON.stringify(this.normalizeStringMap(current.customHeaders));
@@ -559,20 +563,20 @@ export class ApiProvidersService {
       displayLabel: seedExtraParams.displayLabel ?? currentExtraParams.displayLabel,
       displayOrder: seedExtraParams.displayOrder ?? currentExtraParams.displayOrder,
       recommended: seedExtraParams.recommended ?? currentExtraParams.recommended,
-      baseUrls: seedExtraParams.baseUrls ?? currentExtraParams.baseUrls,
-      platformBaseUrls: seedExtraParams.platformBaseUrls ?? currentExtraParams.platformBaseUrls,
-      createPath: seedExtraParams.createPath ?? currentExtraParams.createPath,
-      queryPath: seedExtraParams.queryPath ?? currentExtraParams.queryPath,
-      queryMethod: seedExtraParams.queryMethod ?? currentExtraParams.queryMethod,
-      queryBodyMode: seedExtraParams.queryBodyMode ?? currentExtraParams.queryBodyMode,
-      queryTutorialUrl: seedExtraParams.queryTutorialUrl ?? currentExtraParams.queryTutorialUrl,
-      requestProfile: seedExtraParams.requestProfile ?? currentExtraParams.requestProfile,
-      supportsTextToVideo: seedExtraParams.supportsTextToVideo ?? currentExtraParams.supportsTextToVideo,
-      supportsImageToVideo: seedExtraParams.supportsImageToVideo ?? currentExtraParams.supportsImageToVideo,
-      supportsTextToImage: seedExtraParams.supportsTextToImage ?? currentExtraParams.supportsTextToImage,
-      supportsReferenceImages: seedExtraParams.supportsReferenceImages ?? currentExtraParams.supportsReferenceImages,
-      requiresReferenceImages: seedExtraParams.requiresReferenceImages ?? currentExtraParams.requiresReferenceImages,
-      durationOptions: seedExtraParams.durationOptions ?? currentExtraParams.durationOptions,
+      baseUrls: currentExtraParams.baseUrls ?? seedExtraParams.baseUrls,
+      platformBaseUrls: currentExtraParams.platformBaseUrls ?? seedExtraParams.platformBaseUrls,
+      createPath: currentExtraParams.createPath ?? seedExtraParams.createPath,
+      queryPath: currentExtraParams.queryPath ?? seedExtraParams.queryPath,
+      queryMethod: currentExtraParams.queryMethod ?? seedExtraParams.queryMethod,
+      queryBodyMode: currentExtraParams.queryBodyMode ?? seedExtraParams.queryBodyMode,
+      queryTutorialUrl: currentExtraParams.queryTutorialUrl ?? seedExtraParams.queryTutorialUrl,
+      requestProfile: currentExtraParams.requestProfile ?? seedExtraParams.requestProfile,
+      supportsTextToVideo: currentExtraParams.supportsTextToVideo ?? seedExtraParams.supportsTextToVideo,
+      supportsImageToVideo: currentExtraParams.supportsImageToVideo ?? seedExtraParams.supportsImageToVideo,
+      supportsTextToImage: currentExtraParams.supportsTextToImage ?? seedExtraParams.supportsTextToImage,
+      supportsReferenceImages: currentExtraParams.supportsReferenceImages ?? seedExtraParams.supportsReferenceImages,
+      requiresReferenceImages: currentExtraParams.requiresReferenceImages ?? seedExtraParams.requiresReferenceImages,
+      durationOptions: currentExtraParams.durationOptions ?? seedExtraParams.durationOptions,
       sourceFolder: seedExtraParams.sourceFolder ?? currentExtraParams.sourceFolder,
     };
     if (!this.isRunningHubProvider(current, seed)) {
@@ -580,10 +584,10 @@ export class ApiProvidersService {
     }
     return {
       ...mergedExtraParams,
-      queryPath: RUNNINGHUB_RESULT_QUERY_PATH,
-      queryMethod: "POST",
-      queryBodyMode: "taskId-json",
-      queryTutorialUrl: RUNNINGHUB_RESULT_QUERY_DOC_URL,
+      queryPath: currentExtraParams.queryPath ?? RUNNINGHUB_RESULT_QUERY_PATH,
+      queryMethod: currentExtraParams.queryMethod ?? "POST",
+      queryBodyMode: currentExtraParams.queryBodyMode ?? "taskId-json",
+      queryTutorialUrl: currentExtraParams.queryTutorialUrl ?? RUNNINGHUB_RESULT_QUERY_DOC_URL,
     };
   }
 

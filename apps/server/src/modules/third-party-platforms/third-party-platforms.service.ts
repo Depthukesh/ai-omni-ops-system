@@ -720,13 +720,13 @@ export class ThirdPartyPlatformsService {
 
   private async syncSeedPlatform(current: ThirdPartyPlatformRecord, seed: ThirdPartyPlatformRecord) {
     const nextModelIds = Array.from(new Set([...(current.modelIds || []), ...(seed.modelIds || [])]));
-    const nextName = seed.name || current.name || "";
-    const nextProviderType = seed.providerType || current.providerType;
-    const nextStatus = seed.status || current.status;
-    const nextBaseUrl = seed.baseUrl || current.baseUrl || "";
-    const nextTutorialUrl = seed.tutorialUrl || current.tutorialUrl || "";
-    const nextDefaultModel = seed.defaultModel || current.defaultModel || "";
-    const nextRemark = seed.remark || current.remark || "";
+    const nextName = current.name || seed.name || "";
+    const nextProviderType = current.providerType || seed.providerType;
+    const nextStatus = current.status || seed.status;
+    const nextBaseUrl = current.baseUrl || seed.baseUrl || "";
+    const nextTutorialUrl = current.tutorialUrl || seed.tutorialUrl || "";
+    const nextDefaultModel = current.defaultModel || seed.defaultModel || "";
+    const nextRemark = current.remark || seed.remark || "";
     const currentModelIdsJson = JSON.stringify(current.modelIds || []);
     const nextModelIdsJson = JSON.stringify(nextModelIds);
     if (
