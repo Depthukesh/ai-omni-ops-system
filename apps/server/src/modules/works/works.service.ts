@@ -7553,8 +7553,13 @@ export class WorksService {
     const topLevelResultData = this.asRecord(topLevelData?.result);
     const topLevelOutputData = this.asRecord(topLevelResultData?.output);
     const topLevelContent = this.asRecord(payload.content);
+    const resultContent = this.asRecord(topLevelResultData?.content);
+    const taskResultRecord = this.asRecord(topLevelData?.task_result);
+    const taskResultContent = this.asRecord(taskResultRecord?.content);
     const topLevelResults = Array.isArray(payload.results) ? payload.results.map((item) => this.asRecord(item)) : [];
     const topLevelResult = topLevelResults.find((item) => Boolean(item)) || null;
+    const normalizedBackend = String(backend || "").toLowerCase();
+    const supportsApizImageStyleVideoResult = normalizedBackend.includes("apiz");
     const taskStatusRaw = String(
       topLevelData?.task_status
       || payload.taskStatus
@@ -7564,27 +7569,42 @@ export class WorksService {
     ).trim();
     const normalizedStatus = this.normalizeVideoTaskStatus(taskStatusRaw);
 
-    const directVideoUrl = this.readOptionalString(topLevelResult?.url)
-      || this.readOptionalString(topLevelResult?.fileUrl)
-      || this.readOptionalString(topLevelData?.output)
-      || this.readOptionalString(topLevelData?.video_url)
-      || this.readOptionalString(topLevelResultData?.video_url)
-      || this.readOptionalString(topLevelOutputData?.video_url)
-      || this.readOptionalString(topLevelOutputData?.url)
-      || this.readOptionalString(topLevelContent?.video_url)
-      || this.readOptionalString(this.asRecord(topLevelData?.task_result)?.url);
-    const firstVideo = Array.isArray(this.asRecord(topLevelData?.task_result)?.videos)
-      ? this.asRecord((this.asRecord(topLevelData?.task_result)?.videos as unknown[])[0])
+    const directVideoUrl = this.readUrlLikeValue(topLevelResult?.url)
+      || this.readUrlLikeValue(topLevelResult?.fileUrl)
+      || this.readUrlLikeValue(topLevelData?.output)
+      || this.readUrlLikeValue(topLevelData?.video_url)
+      || this.readUrlLikeValue(topLevelResultData?.video_url)
+      || this.readUrlLikeValue(topLevelOutputData?.video_url)
+      || this.readUrlLikeValue(topLevelOutputData?.videoUrl)
+      || this.readUrlLikeValue(topLevelOutputData?.url)
+      || this.readUrlLikeValue(topLevelContent?.video_url)
+      || this.readUrlLikeValue(topLevelContent?.videoUrl)
+      || this.readUrlLikeValue(resultContent?.video_url)
+      || this.readUrlLikeValue(resultContent?.videoUrl)
+      || this.readUrlLikeValue(taskResultRecord?.url)
+      || this.readUrlLikeValue(taskResultRecord?.video_url)
+      || this.readUrlLikeValue(taskResultContent?.video_url)
+      || this.readUrlLikeValue(taskResultContent?.videoUrl)
+      || (supportsApizImageStyleVideoResult
+        ? this.readUrlLikeValue(topLevelOutputData?.images)
+          || this.readUrlLikeValue(topLevelResultData?.images)
+          || this.readUrlLikeValue(topLevelResult?.images)
+          || this.readUrlLikeValue(taskResultRecord?.images)
+        : undefined);
+    const firstVideo = Array.isArray(taskResultRecord?.videos)
+      ? this.asRecord((taskResultRecord?.videos as unknown[])[0])
       : null;
     const firstOutputVideo = Array.isArray(topLevelOutputData?.videos)
       ? this.asRecord((topLevelOutputData?.videos as unknown[])[0])
       : null;
     const videoUrl = directVideoUrl
-      || this.readOptionalString(firstVideo?.url)
-      || this.readOptionalString(firstOutputVideo?.url)
-      || this.readOptionalString(firstOutputVideo?.video_url)
-      || this.readOptionalString(payload.output)
-      || this.readOptionalString(payload.download_url);
+      || this.readUrlLikeValue(firstVideo?.url)
+      || this.readUrlLikeValue(firstVideo?.video_url)
+      || this.readUrlLikeValue(firstOutputVideo?.url)
+      || this.readUrlLikeValue(firstOutputVideo?.video_url)
+      || this.readUrlLikeValue(payload.output)
+      || this.readUrlLikeValue(payload.download_url)
+      || (supportsApizImageStyleVideoResult ? this.readUrlLikeValue(payload.images) : undefined);
     const coverImageUrl = this.readOptionalString(topLevelResult?.coverUrl)
       || this.readOptionalString(topLevelResult?.thumbnailUrl)
       || this.readOptionalString(topLevelData?.last_frame_url)
