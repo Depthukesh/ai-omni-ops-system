@@ -8,13 +8,17 @@ import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollecti
 import {
   annualMarketingPlanSeed,
   deleteDouyinMarketingPlan,
+  douyinHotTopicCandidatesSeed,
   douyinMarketingPlanSeed,
+  generateDouyinHotTopicCandidates,
   generateDouyinMarketingPlan,
   getAnnualMarketingPlanWorkspace,
+  getDouyinHotTopicCandidatesWorkspace,
   getDouyinMarketingPlanWorkspace,
   getGrowthReportWorkspace,
   growthReportSeed,
   updateDouyinMarketingPlan,
+  type DouyinHotTopicCandidatesWorkspace,
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
@@ -23,13 +27,15 @@ import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAssetsWorkspace } from "./assets-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
+import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
   { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的对标作品，沿用卡片化素材浏览方式。" },
+  { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -76,8 +82,12 @@ export function DouyinWorkspaceShell() {
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState<DouyinMarketingPlanWorkspace>(douyinMarketingPlanSeed);
+  const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
+  const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingHotTopics, setIsGeneratingHotTopics] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
@@ -87,6 +97,12 @@ export function DouyinWorkspaceShell() {
   const latestMarketingPlan = marketingPlanWorkspace.latest;
   const latestTask = marketingPlanWorkspace.latestTask;
   const isTaskActive = latestTask?.taskStatus === "RUNNING" || latestTask?.taskStatus === "QUEUED" || latestTask?.taskStatus === "PENDING";
+  const latestHotTopicResult = hotTopicWorkspace.latest;
+  const latestHotTopicTask = hotTopicWorkspace.latestTask;
+  const isHotTopicTaskActive =
+    latestHotTopicTask?.taskStatus === "RUNNING"
+    || latestHotTopicTask?.taskStatus === "QUEUED"
+    || latestHotTopicTask?.taskStatus === "PENDING";
   const permissionEntry = brandPermissionSettings?.currentUserPermissions?.["douyin.plan"];
   const hasWorkspaceAccess = permissionEntry?.view ?? true;
   const canEditMarketingPlan = permissionEntry?.edit ?? true;
@@ -111,7 +127,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案与素材库，可直接复用品牌增长策略里沉淀的抖音对标作品。";
+  const heroDescription = "当前开放营销策划方案、素材库和热点找选题，可直接复用品牌增长策略里沉淀的抖音对标作品与每日热点。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -124,17 +140,24 @@ export function DouyinWorkspaceShell() {
     return nextWorkspace;
   }, [activeBrandId]);
 
+  const refreshHotTopicWorkspace = useCallback(async (date?: string) => {
+    const nextWorkspace = await getDouyinHotTopicCandidatesWorkspace(activeBrandId, date || selectedHotTopicDate || undefined);
+    setHotTopicWorkspace(nextWorkspace);
+    return nextWorkspace;
+  }, [activeBrandId, selectedHotTopicDate]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
 
-    const [permissionResult, collectionResult, growthResult, annualResult, planResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
       getAnnualMarketingPlanWorkspace(activeBrandId),
       getDouyinMarketingPlanWorkspace(activeBrandId),
+      getDouyinHotTopicCandidatesWorkspace(activeBrandId),
     ]);
 
     let hasFallback = false;
@@ -173,6 +196,15 @@ export function DouyinWorkspaceShell() {
       setMarketingPlanWorkspace(douyinMarketingPlanSeed);
     }
 
+    if (hotTopicResult.status === "fulfilled") {
+      setHotTopicWorkspace(hotTopicResult.value);
+      setSelectedHotTopicDate(hotTopicResult.value.selectedDate || hotTopicResult.value.availableDates[0] || "");
+    } else {
+      hasFallback = true;
+      setHotTopicWorkspace(douyinHotTopicCandidatesSeed);
+      setSelectedHotTopicDate("");
+    }
+
     setLoadState(hasFallback ? "seed" : "api");
     if (hasFallback) {
       setErrorMessage("部分抖音工作台数据读取失败，当前显示本地示例/已缓存内容。");
@@ -187,6 +219,23 @@ export function DouyinWorkspaceShell() {
   useEffect(() => {
     setMarketingPlanDraft(marketingPlanWorkspace.latest?.reportMarkdown || "");
   }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.generatedAt]);
+
+  useEffect(() => {
+    if (hotTopicWorkspace.selectedDate && hotTopicWorkspace.selectedDate !== selectedHotTopicDate) {
+      setSelectedHotTopicDate(hotTopicWorkspace.selectedDate);
+    }
+    if (!selectedHotTopicDate && hotTopicWorkspace.availableDates.length) {
+      setSelectedHotTopicDate(hotTopicWorkspace.selectedDate || hotTopicWorkspace.availableDates[0] || "");
+    }
+  }, [hotTopicWorkspace.availableDates, hotTopicWorkspace.selectedDate, selectedHotTopicDate]);
+
+  useEffect(() => {
+    setSelectedTopicIds(
+      (latestHotTopicResult?.items || [])
+        .filter((item) => item.checked)
+        .map((item) => item.id),
+    );
+  }, [latestHotTopicResult?.id, latestHotTopicResult?.generatedAt, latestHotTopicResult?.items]);
 
   useEffect(() => {
     if (!materialWorks.length) {
@@ -209,10 +258,20 @@ export function DouyinWorkspaceShell() {
   }, [isTaskActive, refreshMarketingPlanWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && notice.includes("任务已提交")) {
+    if (!isHotTopicTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshHotTopicWorkspace(selectedHotTopicDate).catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isHotTopicTaskActive, refreshHotTopicWorkspace, selectedHotTopicDate]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isTaskActive, notice]);
+  }, [isHotTopicTaskActive, isTaskActive, notice]);
 
   const handleGenerate = useCallback(async () => {
     if (!canEditMarketingPlan) {
@@ -291,6 +350,51 @@ export function DouyinWorkspaceShell() {
       setIsDeleting(false);
     }
   }, [activeBrandId, canEditMarketingPlan, latestMarketingPlan]);
+
+  const handleHotTopicDateChange = useCallback(async (date: string) => {
+    setSelectedHotTopicDate(date);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await getDouyinHotTopicCandidatesWorkspace(activeBrandId, date);
+      setHotTopicWorkspace(nextWorkspace);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "热点日期切换失败。");
+    }
+  }, [activeBrandId]);
+
+  const handleGenerateHotTopics = useCallback(async () => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能生成热点找选题。");
+      return;
+    }
+    if (!selectedHotTopicDate) {
+      setErrorMessage("请先选择一个热点日期。");
+      return;
+    }
+
+    setIsGeneratingHotTopics(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await generateDouyinHotTopicCandidates(selectedHotTopicDate, activeBrandId);
+      setHotTopicWorkspace(nextWorkspace);
+      setNotice("热点找选题任务已提交，系统正在后台生成。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "热点找选题提交失败。");
+    } finally {
+      setIsGeneratingHotTopics(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan, selectedHotTopicDate]);
+
+  const handleToggleTopic = useCallback((topicId: string, checked: boolean) => {
+    setSelectedTopicIds((current) => {
+      if (checked) {
+        return current.includes(topicId) ? current : [...current, topicId];
+      }
+      return current.filter((item) => item !== topicId);
+    });
+  }, []);
 
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
@@ -371,7 +475,12 @@ export function DouyinWorkspaceShell() {
                         {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
                       </div>
                       <div className="personal-actions">
-                        <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isGenerating || isSaving || isDeleting}>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void loadWorkspace()}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSaving || isDeleting}
+                        >
                           刷新数据
                         </button>
                         <Link href="/brand-growth" className="secondary-button">
@@ -397,6 +506,25 @@ export function DouyinWorkspaceShell() {
                     onSelectMaterial={setSelectedMaterialId}
                     onShiftPreview={shiftMaterialPreview}
                     onOpenLightbox={openMaterialLightbox}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "hotTopics" ? (
+                  <DouyinHotTopicCandidatesWorkspacePanel
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading || isGeneratingHotTopics}
+                    canEdit={canEditMarketingPlan}
+                    availableDates={hotTopicWorkspace.availableDates}
+                    selectedDate={selectedHotTopicDate}
+                    latest={latestHotTopicResult}
+                    latestTask={latestHotTopicTask}
+                    selectedTopicIds={selectedTopicIds}
+                    onRefresh={async () => {
+                      await refreshHotTopicWorkspace(selectedHotTopicDate);
+                    }}
+                    onDateChange={handleHotTopicDateChange}
+                    onGenerate={handleGenerateHotTopics}
+                    onToggleTopic={handleToggleTopic}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

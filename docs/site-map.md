@@ -229,11 +229,14 @@
 - 当前板块已包含：
   - 营销策划方案
   - 素材库
+  - 热点找选题
 - 当前素材库直接消费品牌增长策略中“收集数据 -> 抖音 -> 对标作品信息及数据 / 获取低粉爆款榜 / 获取高完播率榜 / 获取高点赞率榜”被勾选入库的作品
 - 当前素材卡片中的视频预览优先读取抖音采集阶段缓存到 OSS 的视频签名地址，降低采集直链过期后素材库打不开的概率
+- 当前“热点找选题”会先提供每日热点日期下拉；选中日期后，后端把该日全部热点榜单和品牌背景资料一起送入统一技能，输出 3 条可勾选的抖音选题，供后续接入选题库
 - 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
 - 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
 - 参考变更：`docs/changes/2026-05-24-douyin-billboards-and-collection-container.md`
+- 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
 
 ### 3.4 个人中心 `/personal-center`
 
@@ -493,7 +496,7 @@
   - 当前前端品牌增长工作区与小红书素材库对飞书附件预览已共享同一套受保护媒体 blob 缓存 hook，减少相同代理地址在会话内的重复请求与重复 `createObjectURL`
   - 当前抖音采集已支持 3 个榜单接口：低粉爆款榜、高完播率榜、高点赞率榜；后端会先读取垂类标签、按一级/二级分类组装 `tags` 请求，再把结果映射为统一抖音作品资产
   - 当前 3 个抖音榜单结果会复用既有视频缓存与素材库链路，采集后自动进入 OSS 缓存队列，并可与手动对标作品一起沉淀到抖音素材库
-- `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历
+- `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历、抖音热点找选题
 - `ReportsModule`
   - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
@@ -503,6 +506,7 @@
   - 品牌增长报告现已对齐可视化报告/半年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
   - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
   - 品牌增长可视化报告、半年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
+  - 抖音“热点找选题”当前也走 `ReportsModule` 的异步任务工作区模式；工作区按热点日期读取结果，后台任务输入固定包含当天“每日热点”全部榜单与品牌背景资料
   - 半年营销规划当前以 `/reports/brands/:brandId/half-year-marketing-plan` 作为主读取与生成路径，同时保留旧 `annual-marketing-plan` 路径兼容历史前端和外部调用
   - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
   - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
@@ -674,11 +678,13 @@
 3. 若注册表为空，则把 `mock-data` 与真实 `SKILL.md + 同目录参考资料` 回填进数据库
 4. `ReportsModule` 与 `WorksModule` 当前已优先从注册表读取品牌增长、小红书原创/二创/视频相关提示词
 5. 小红书营销日历现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `xiaohongshu-marketing-calendar / prompt_xhs_calendar`
-6. 数据库已有旧内容时，后台读取链路仍会优先回源聚合文件内容；若命中的是营销日历旧占位短文案，则自动切换到内置完整 fallback，避免历史 `PromptTemplate.content` 继续挡住真实提示词
-7. 个人中心用户技能覆盖层对营销日历提示词也会做同样的占位短文案矫正，避免历史 `UserPromptOverride.content` 把平台完整提示词重新覆盖坏
-8. 数据库不可用时，后端才回退到 `mock-data + 文件/内置 fallback`
+6. 抖音热点找选题现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `douyin-hot-topic-candidates / prompt_douyin_hot_topic_candidates`
+7. 数据库已有旧内容时，后台读取链路仍会优先回源聚合文件内容；若命中的是营销日历旧占位短文案，则自动切换到内置完整 fallback，避免历史 `PromptTemplate.content` 继续挡住真实提示词
+8. 个人中心用户技能覆盖层对营销日历提示词也会做同样的占位短文案矫正，避免历史 `UserPromptOverride.content` 把平台完整提示词重新覆盖坏
+9. 数据库不可用时，后端才回退到 `mock-data + 文件/内置 fallback`
 - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
 - 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
+- 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
 
 ## 6. 当前已确认的真实能力
 

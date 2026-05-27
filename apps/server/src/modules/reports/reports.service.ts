@@ -18,6 +18,7 @@ const VISUAL_REPORT_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const ANNUAL_MARKETING_PLAN_TASK_TIMEOUT_MS = 15 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const DOUYIN_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
+const DOUYIN_HOT_TOPIC_CANDIDATES_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
@@ -119,6 +120,22 @@ type DouyinMarketingPlanAssetMeta = {
   reportMarkdown: string;
   htmlContent: string;
   modelName?: string;
+};
+
+type DouyinHotTopicCandidateItem = {
+  id: string;
+  title: string;
+  checked?: boolean;
+};
+
+type DouyinHotTopicCandidatesAssetMeta = {
+  kind: "DOUYIN_HOT_TOPIC_CANDIDATES";
+  generatedAt: string;
+  taskId?: string;
+  summary: string;
+  selectedDate: string;
+  modelName?: string;
+  items: DouyinHotTopicCandidateItem[];
 };
 
 type XiaohongshuMarketingCalendarItem = {
@@ -236,6 +253,17 @@ export type DouyinMarketingPlanRecord = {
   modelName?: string;
 };
 
+export type DouyinHotTopicCandidatesRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  selectedDate: string;
+  modelName?: string;
+  items: DouyinHotTopicCandidateItem[];
+};
+
 export type XiaohongshuMarketingCalendarRecord = {
   id: string;
   title: string;
@@ -276,6 +304,7 @@ export type GrowthReportTaskRecord = VisualGrowthReportTaskRecord;
 export type AnnualMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type DouyinMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
+export type DouyinHotTopicCandidatesTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingCalendarTaskRecord = VisualGrowthReportTaskRecord;
 
 type ThirdPartyChatConfig = {
@@ -399,6 +428,14 @@ type DouyinMarketingPlanModelResult = {
   modelName: string;
 };
 
+type DouyinHotTopicCandidatesModelResult = {
+  title: string;
+  summary: string;
+  selectedDate: string;
+  items: DouyinHotTopicCandidateItem[];
+  modelName: string;
+};
+
 type XiaohongshuMarketingCalendarModelResult = {
   title: string;
   summary: string;
@@ -422,6 +459,7 @@ type XiaohongshuMarketingPlanPhase =
   | "PERSISTING"
   | "DONE";
 type DouyinMarketingPlanPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
+type DouyinHotTopicCandidatesPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 type XiaohongshuMarketingCalendarPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 
 export type UpdateGrowthReportPayload = {
@@ -477,6 +515,14 @@ export type DouyinMarketingPlanWorkspace = {
   latest?: DouyinMarketingPlanRecord;
   history: DouyinMarketingPlanRecord[];
   latestTask?: DouyinMarketingPlanTaskRecord;
+};
+
+export type DouyinHotTopicCandidatesWorkspace = {
+  selectedDate: string;
+  availableDates: string[];
+  latest?: DouyinHotTopicCandidatesRecord;
+  history: DouyinHotTopicCandidatesRecord[];
+  latestTask?: DouyinHotTopicCandidatesTaskRecord;
 };
 
 export type XiaohongshuMarketingCalendarWorkspace = {
@@ -1242,6 +1288,107 @@ export class ReportsService {
     return this.getDouyinMarketingPlanWorkspace(brandId);
   }
 
+  async getDouyinHotTopicCandidatesWorkspace(
+    brandId: string,
+    selectedDate?: string,
+  ): Promise<DouyinHotTopicCandidatesWorkspace> {
+    const dailyHotspots = await this.collectorsService.getDailyHotspotWorkspace(brandId, selectedDate);
+    const effectiveSelectedDate = dailyHotspots.selectedDate || selectedDate || "";
+    const matchesSelectedDate = (record: DouyinHotTopicCandidatesRecord) => record.selectedDate === effectiveSelectedDate;
+    const matchesTaskDate = (task: { inputJson?: unknown }) =>
+      !effectiveSelectedDate || this.readMetaString(this.asMeta(task.inputJson), "selectedDate") === effectiveSelectedDate;
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const reports = assets
+        .map((item) => this.mapDouyinHotTopicCandidatesAsset({
+          id: item.id,
+          brandId: item.brandId,
+          category: "GENERATED_REPORT",
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: "系统生成",
+          fileUrl: item.fileUrl ?? undefined,
+          metadataJson: this.asMeta(item.metadataJson),
+        }))
+        .filter((item): item is DouyinHotTopicCandidatesRecord => Boolean(item))
+        .filter((item) => item.items.length > 0)
+        .filter(matchesSelectedDate);
+      const latestTaskRow = await this.prismaService.task.findFirst({
+        where: {
+          brandId,
+          taskType: "DOUYIN_HOT_TOPIC_CANDIDATES",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const normalizedTask = latestTaskRow && matchesTaskDate(latestTaskRow)
+        ? await this.normalizeLatestDouyinHotTopicCandidatesTask(brandId, this.mapVisualGrowthReportTask(latestTaskRow))
+        : undefined;
+      return {
+        selectedDate: effectiveSelectedDate,
+        availableDates: dailyHotspots.availableDates,
+        latest: reports[0],
+        history: reports,
+        latestTask: normalizedTask,
+      };
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const reports = database.assets
+      .filter((item) => item.brandId === brandId && item.category === "GENERATED_REPORT")
+      .map((item) => this.mapDouyinHotTopicCandidatesAsset(item))
+      .filter((item): item is DouyinHotTopicCandidatesRecord => Boolean(item))
+      .filter((item) => item.items.length > 0)
+      .filter(matchesSelectedDate)
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+    const latestTask = [...database.tasks]
+      .filter((item) => item.brandId === brandId && item.taskType === "DOUYIN_HOT_TOPIC_CANDIDATES")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .find((item) => matchesTaskDate(item));
+    const normalizedTask = latestTask
+      ? await this.normalizeLatestDouyinHotTopicCandidatesTask(brandId, this.mapVisualGrowthReportTask(latestTask))
+      : undefined;
+    return {
+      selectedDate: effectiveSelectedDate,
+      availableDates: dailyHotspots.availableDates,
+      latest: reports[0],
+      history: reports,
+      latestTask: normalizedTask,
+    };
+  }
+
+  async generateDouyinHotTopicCandidates(brandId: string, selectedDate?: string) {
+    const dailyHotspots = await this.collectorsService.getDailyHotspotWorkspace(brandId, selectedDate);
+    const effectiveSelectedDate = dailyHotspots.selectedDate || selectedDate || "";
+    if (!effectiveSelectedDate) {
+      throw new NotFoundException("请先同步每日热点");
+    }
+
+    const workspace = await this.getDouyinHotTopicCandidatesWorkspace(brandId, effectiveSelectedDate);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+
+    const task = await this.createDouyinHotTopicCandidatesTask(brandId, effectiveSelectedDate);
+    setTimeout(() => {
+      void this.runDouyinHotTopicCandidatesTask(brandId, task.id);
+    }, 0);
+
+    return {
+      ...workspace,
+      selectedDate: effectiveSelectedDate,
+      latestTask: task,
+    };
+  }
+
   async getXiaohongshuMarketingCalendarWorkspace(brandId: string): Promise<XiaohongshuMarketingCalendarWorkspace> {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(brandId);
@@ -1769,6 +1916,41 @@ export class ReportsService {
     };
   }
 
+  private async normalizeLatestDouyinHotTopicCandidatesTask(
+    brandId: string,
+    task: DouyinHotTopicCandidatesTaskRecord,
+  ): Promise<DouyinHotTopicCandidatesTaskRecord> {
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      return task;
+    }
+
+    const referenceTime = task.updatedAt || task.startedAt || task.createdAt;
+    const referenceMs = Date.parse(referenceTime);
+    if (!Number.isFinite(referenceMs)) {
+      return task;
+    }
+    if (Date.now() - referenceMs <= DOUYIN_HOT_TOPIC_CANDIDATES_TASK_TIMEOUT_MS) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const errorMessage = "抖音热点找选题生成超时，任务已自动结束，请重新点击生成。";
+    await this.updateDouyinHotTopicCandidatesTaskStatus(brandId, task.id, {
+      taskStatus: "FAILED",
+      startedAt: task.startedAt,
+      finishedAt,
+      errorMessage,
+    });
+
+    return {
+      ...task,
+      taskStatus: "FAILED",
+      finishedAt,
+      updatedAt: finishedAt,
+      errorMessage,
+    };
+  }
+
   private async normalizeLatestXiaohongshuMarketingCalendarTask(
     brandId: string,
     task: XiaohongshuMarketingCalendarTaskRecord,
@@ -2122,6 +2304,65 @@ export class ReportsService {
         sourceReportTitle: sourceReport.title,
         sourceAnnualPlanId: annualPlan.id,
         sourceAnnualPlanTitle: annualPlan.title,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapVisualGrowthReportTask(task);
+  }
+
+  private async createDouyinHotTopicCandidatesTask(brandId: string, selectedDate: string) {
+    const now = new Date().toISOString();
+    const settings = await this.loadDouyinHotTopicCandidatesGenerationSettings(brandId);
+    const modelName =
+      (await this.loadDouyinMarketingProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
+      || "deepseek-v4-pro";
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "DOUYIN_HOT_TOPIC_CANDIDATES",
+          taskTitle: `生成抖音热点找选题：${brand.brandName}（${selectedDate}）`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 120,
+          inputJson: {
+            selectedDate,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapVisualGrowthReportTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "DOUYIN_HOT_TOPIC_CANDIDATES",
+      taskTitle: `生成抖音热点找选题：${brand.brandName}（${selectedDate}）`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 120,
+      inputJson: {
+        selectedDate,
       },
       createdAt: now,
       updatedAt: now,
@@ -2491,6 +2732,77 @@ export class ReportsService {
       clearInterval(heartbeat);
       const message = error instanceof Error ? error.message : "抖音营销策划方案生成失败";
       await this.updateDouyinMarketingPlanTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+      });
+    }
+  }
+
+  private async runDouyinHotTopicCandidatesTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentPhaseStatus = this.buildDouyinHotTopicCandidatesPhaseStatus("PREPARING");
+    const applyRunningStatus = async () => {
+      await this.updateDouyinHotTopicCandidatesTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentPhaseStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
+      const selectedDate = this.readMetaString(currentTaskRow, "selectedDate");
+      const archive = await this.brandsService.getArchive(brandId);
+      const dailyHotspots = await this.collectorsService.getDailyHotspotWorkspace(brandId, selectedDate || undefined);
+      if (!dailyHotspots.selectedDate) {
+        throw new NotFoundException("请先同步每日热点");
+      }
+
+      currentPhaseStatus = this.buildDouyinHotTopicCandidatesPhaseStatus("GENERATING");
+      await applyRunningStatus();
+      const report = await this.buildDouyinHotTopicCandidates({
+        brandId,
+        archive,
+        dailyHotspots,
+        generatedAt: startedAt,
+        onPhaseUpdate: async (phase, extra) => {
+          currentPhaseStatus = this.buildDouyinHotTopicCandidatesPhaseStatus(phase, extra);
+          await applyRunningStatus();
+        },
+      });
+
+      currentPhaseStatus = this.buildDouyinHotTopicCandidatesPhaseStatus("PERSISTING", {
+        modelName: report.modelName,
+      });
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      await this.persistDouyinHotTopicCandidatesResult(brandId, taskId, report, startedAt);
+      await this.updateDouyinHotTopicCandidatesTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          summary: report.summary,
+          itemCount: report.items.length,
+          modelName: report.modelName,
+          selectedDate: report.selectedDate,
+          ...this.buildDouyinHotTopicCandidatesPhaseStatus("DONE", {
+            modelName: report.modelName,
+          }),
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "抖音热点找选题生成失败";
+      await this.updateDouyinHotTopicCandidatesTaskStatus(brandId, taskId, {
         taskStatus: "FAILED",
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -2989,6 +3301,53 @@ export class ReportsService {
     });
   }
 
+  private async persistDouyinHotTopicCandidatesResult(
+    brandId: string,
+    taskId: string,
+    report: Awaited<ReturnType<ReportsService["buildDouyinHotTopicCandidates"]>>,
+    generatedAt: string,
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_REPORT,
+          title: report.title,
+          description: report.summary,
+          metadataJson: {
+            kind: "DOUYIN_HOT_TOPIC_CANDIDATES",
+            generatedAt,
+            taskId,
+            summary: report.summary,
+            selectedDate: report.selectedDate,
+            items: report.items,
+            modelName: report.modelName,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    database.assets.unshift({
+      id: createId("ast"),
+      brandId,
+      category: "GENERATED_REPORT",
+      title: report.title,
+      description: report.summary,
+      sourceName: "系统生成",
+      fileUrl: undefined,
+      metadataJson: {
+        kind: "DOUYIN_HOT_TOPIC_CANDIDATES",
+        generatedAt,
+        taskId,
+        summary: report.summary,
+        selectedDate: report.selectedDate,
+        items: report.items,
+        modelName: report.modelName,
+      },
+    });
+  }
+
   private async persistXiaohongshuMarketingCalendarResult(
     brandId: string,
     taskId: string,
@@ -3461,6 +3820,53 @@ export class ReportsService {
     }
   }
 
+  private async updateDouyinHotTopicCandidatesTaskStatus(
+    brandId: string,
+    taskId: string,
+    patch: {
+      taskStatus: DouyinHotTopicCandidatesTaskRecord["taskStatus"];
+      startedAt?: string;
+      finishedAt?: string;
+      errorMessage?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: patch.taskStatus as TaskStatus,
+          startedAt: patch.startedAt ? new Date(patch.startedAt) : undefined,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : undefined,
+          errorMessage: patch.errorMessage !== undefined ? patch.errorMessage || null : undefined,
+          outputJson: patch.outputJson ? patch.outputJson as Prisma.InputJsonValue : undefined,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId && item.brandId === brandId);
+    if (!task) {
+      return;
+    }
+
+    task.taskStatus = patch.taskStatus;
+    task.updatedAt = new Date().toISOString();
+    if (patch.startedAt !== undefined) {
+      task.startedAt = patch.startedAt;
+    }
+    if (patch.finishedAt !== undefined) {
+      task.finishedAt = patch.finishedAt;
+    }
+    if (patch.errorMessage !== undefined) {
+      task.errorMessage = patch.errorMessage || undefined;
+    }
+    if (patch.outputJson) {
+      task.outputJson = patch.outputJson;
+    }
+  }
+
   private async updateXiaohongshuMarketingCalendarTaskStatus(
     brandId: string,
     taskId: string,
@@ -3739,6 +4145,36 @@ export class ReportsService {
       ...modelResult,
       htmlContent: this.renderMarkdownToHtml(modelResult.reportMarkdown),
     };
+  }
+
+  private async buildDouyinHotTopicCandidates(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    dailyHotspots: Awaited<ReturnType<CollectorsService["getDailyHotspotWorkspace"]>>;
+    generatedAt: string;
+    onPhaseUpdate?: (
+      phase: DouyinHotTopicCandidatesPhase,
+      extra?: {
+        modelName?: string;
+        detailText?: string;
+      },
+    ) => Promise<void> | void;
+  }) {
+    const settings = await this.loadDouyinHotTopicCandidatesGenerationSettings(params.brandId);
+    const inputPayload = this.buildDouyinHotTopicCandidatesInput(
+      params.archive,
+      params.dailyHotspots,
+      params.generatedAt,
+    );
+    await params.onPhaseUpdate?.("GENERATING");
+    return this.generateDouyinHotTopicCandidatesByModel(settings.promptContent, inputPayload, settings, {
+      onAttemptUpdate: async (detailText, modelName) => {
+        await params.onPhaseUpdate?.("GENERATING", {
+          detailText,
+          modelName,
+        });
+      },
+    });
   }
 
   private async buildXiaohongshuMarketingCalendar(params: {
@@ -4308,6 +4744,119 @@ export class ReportsService {
     );
   }
 
+  private async generateDouyinHotTopicCandidatesByModel(
+    skillPrompt: string,
+    inputPayload: Record<string, unknown>,
+    settings: ModelGenerationSettings,
+    options?: {
+      onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+    },
+  ): Promise<DouyinHotTopicCandidatesModelResult> {
+    const providers = await this.loadDouyinMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const selectedDate = this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "dailyHotspots"]), "selectedDate") || "";
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你现在负责输出《抖音热点找选题》。",
+      "输入只包含所选日期的每日热点全部榜单和品牌背景资料，请严格基于这些输入生成。",
+      "只输出一个 JSON 对象，不要输出 Markdown、代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "标题",',
+      '  "summary": "不超过80字的摘要",',
+      '  "items": [',
+      '    { "title": "选题1" },',
+      '    { "title": "选题2" },',
+      '    { "title": "选题3" }',
+      "  ]",
+      "}",
+      "items 必须正好返回 3 条，每条只保留一个可直接展示的选题标题。",
+      "选题标题要适合抖音内容策划，避免空泛口号，避免解释句和括号补充。",
+      selectedDate ? `这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "这 3 个选题都必须围绕所选日期当天热点展开。",
+    ].join("\n");
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                const responseText = this.truncateText(await response.text(), 240);
+                const responseDetail = responseText ? ` ${responseText}` : "";
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                continue;
+              }
+              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+              const message = payload.choices?.[0]?.message;
+              const content = message?.content?.trim() || message?.reasoning_content?.trim();
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+              if (finishReason === "length") {
+                lastError = `${provider.provider}/${modelName} 输出被截断`;
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
+                continue;
+              }
+              return this.normalizeDouyinHotTopicCandidatesModelResult(content, inputPayload, modelName);
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage("抖音热点找选题生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
+  private buildDouyinHotTopicCandidatesPhaseStatus(
+    phase: DouyinHotTopicCandidatesPhase,
+    extra?: {
+      modelName?: string;
+      detailText?: string;
+    },
+  ) {
+    const basePhaseTextMap: Record<DouyinHotTopicCandidatesPhase, string> = {
+      PREPARING: "正在准备热点与品牌背景输入数据",
+      GENERATING: "正在生成 3 个热点选题",
+      PERSISTING: "正在保存热点找选题结果",
+      DONE: "热点找选题已生成完成",
+    };
+    const phaseIndexMap: Record<DouyinHotTopicCandidatesPhase, number> = {
+      PREPARING: 1,
+      GENERATING: 2,
+      PERSISTING: 3,
+      DONE: 4,
+    };
+
+    return {
+      phase,
+      phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
+      phaseIndex: phaseIndexMap[phase],
+      phaseTotal: 4,
+      ...(extra?.modelName ? { modelName: extra.modelName } : {}),
+    };
+  }
+
   private buildXiaohongshuMarketingCalendarPhaseStatus(
     phase: XiaohongshuMarketingCalendarPhase,
     extra?: {
@@ -4402,6 +4951,42 @@ export class ReportsService {
       phaseIndex: phaseIndexMap[phase],
       phaseTotal: 4,
       ...(extra?.modelName ? { modelName: extra.modelName } : {}),
+    };
+  }
+
+  private normalizeDouyinHotTopicCandidatesModelResult(
+    content: string,
+    inputPayload: Record<string, unknown>,
+    modelName: string,
+  ): DouyinHotTopicCandidatesModelResult {
+    const archive = this.readNestedRecord(inputPayload, ["inputScope", "brandArchive"]);
+    const brandBackground = this.readNestedRecord(archive, ["background"]);
+    const dailyHotspots = this.readNestedRecord(inputPayload, ["inputScope", "dailyHotspots"]);
+    const fallbackBrandName = this.readRecordString(brandBackground, "brandName") || "品牌";
+    const selectedDate = this.readRecordString(dailyHotspots, "selectedDate") || "";
+
+    let parsed: Record<string, unknown> | undefined;
+    try {
+      parsed = JSON.parse(this.extractJsonObject(content)) as Record<string, unknown>;
+    } catch {
+      parsed = undefined;
+    }
+
+    const rawItems = Array.isArray(parsed?.items) ? parsed?.items : undefined;
+    const normalizedItems = rawItems?.length
+      ? this.normalizeDouyinHotTopicCandidateItems(rawItems)
+      : this.parseDouyinHotTopicCandidateItemsFromText(content);
+
+    if (normalizedItems.length < 3) {
+      throw new ServiceUnavailableException("抖音热点找选题解析失败：有效选题不足 3 条");
+    }
+
+    return {
+      title: String(parsed?.title ?? "").trim() || `${fallbackBrandName}热点找选题`,
+      summary: String(parsed?.summary ?? "").trim() || `${selectedDate || "所选日期"}已生成 3 个抖音热点选题。`,
+      selectedDate,
+      items: normalizedItems.slice(0, 3),
+      modelName,
     };
   }
 
@@ -5273,6 +5858,76 @@ ${normalizedMarkdown}`;
         },
       },
       outputTarget: "抖音营销策划方案",
+    };
+  }
+
+  private buildDouyinHotTopicCandidatesInput(
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
+    dailyHotspots: Awaited<ReturnType<CollectorsService["getDailyHotspotWorkspace"]>>,
+    generatedAt: string,
+  ) {
+    return {
+      task: "输出《抖音热点找选题》",
+      generatedAt,
+      inputScope: {
+        brandArchive: {
+          background: archive.brand,
+          products: archive.products.map((item) => ({
+            productName: item.productName,
+            productType: item.productType,
+            price: item.price,
+            productPositioning: item.productPositioning,
+            targetAudience: item.targetAudience,
+            usageScenario: item.usageScenario,
+            differentiators: item.differentiators,
+            marketPosition: item.marketPosition,
+            detailDescription: this.truncateText(item.detailDescription, 240),
+          })),
+          survey: archive.survey
+            .filter((item) => item.value?.trim())
+            .slice(0, 20)
+            .map((item) => ({
+              label: item.label,
+              value: this.truncateText(item.value, 220),
+            })),
+          platformAccounts: archive.platformAccounts.slice(0, 20).map((item) => ({
+            platform: item.platform,
+            accountName: item.accountName,
+            accountLink: item.accountLink,
+          })),
+          competitorAccounts: archive.competitorAccounts.slice(0, 20).map((item) => ({
+            platform: item.platform,
+            accountName: item.accountName,
+            accountLink: item.accountLink,
+          })),
+        },
+        dailyHotspots: {
+          selectedDate: dailyHotspots.selectedDate,
+          platforms: dailyHotspots.platforms.map((platform) => ({
+            title: platform.title,
+            platformKey: platform.platformKey,
+            boardType: platform.boardType,
+            snapshotDate: platform.snapshotDate,
+            description: platform.description,
+            sourceLink: platform.sourceLink,
+            updateTime: platform.updateTime,
+            total: platform.total,
+            items: platform.items.map((item) => ({
+              rank: item.rank,
+              title: item.title,
+              hot: item.hot,
+              url: item.url || item.mobileUrl,
+              timestamp: item.timestamp,
+            })),
+          })),
+        },
+      },
+      outputRequirement: {
+        itemCount: 3,
+        displayMode: "one-topic-per-line",
+        withCheckbox: true,
+      },
+      outputTarget: "抖音热点选题",
     };
   }
 
@@ -6303,6 +6958,34 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private async loadDouyinHotTopicCandidatesGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug("douyin-hot-topic-candidates");
+    const prompt = await this.skillsPromptsService.getActivePromptById("prompt_douyin_hot_topic_candidates");
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+      "text-domestic-kimi",
+      "text-global",
+    ], preferredSelections);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
+    return {
+      baseUrl: provider?.baseUrl || "",
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? 0.5,
+      maxTokens: prompt?.maxTokens ?? 3200,
+      promptContent: prompt?.content || this.loadDouyinHotTopicCandidatesPrompt(),
+      preferredModelName,
+      brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+    };
+  }
+
   private async loadXiaohongshuMarketingCalendarGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
@@ -7237,6 +7920,56 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private normalizeDouyinHotTopicCandidateItems(raw: unknown): DouyinHotTopicCandidateItem[] {
+    const items = Array.isArray(raw) ? raw : [];
+    return items
+      .map((item) => this.asRecord(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+      .map<DouyinHotTopicCandidateItem | undefined>((item, index) => {
+        const title = String(item.title ?? item.topicName ?? "").trim();
+        return title
+          ? {
+              id: String(item.id ?? "").trim() || `topic-${index + 1}-${this.createSlug(title)}`,
+              title,
+              checked: Boolean(item.checked),
+            }
+          : undefined;
+      })
+      .filter((item): item is DouyinHotTopicCandidateItem => Boolean(item));
+  }
+
+  private parseDouyinHotTopicCandidateItemsFromText(content: string) {
+    const normalized = this.stripMarkdownCodeFence(content)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .map((line) => line.replace(/^[-*•\d.\s\[\]xX()（）]+/, "").trim())
+      .filter(Boolean);
+    const uniqueTitles: string[] = [];
+    for (const line of normalized) {
+      if (!line || uniqueTitles.includes(line)) {
+        continue;
+      }
+      uniqueTitles.push(line);
+      if (uniqueTitles.length >= 3) {
+        break;
+      }
+    }
+    return uniqueTitles.map((title, index) => ({
+      id: `topic-${index + 1}-${this.createSlug(title)}`,
+      title,
+      checked: false,
+    }));
+  }
+
+  private createSlug(value: string) {
+    const normalized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40);
+    return normalized || createId("topic");
+  }
+
   private normalizeXiaohongshuMarketingCalendarItems(raw: unknown, startDate?: string) {
     const items = Array.isArray(raw) ? raw : [];
     const normalized = items
@@ -7309,6 +8042,19 @@ ${normalizedMarkdown}`;
       }
     }
     return XHS_MARKETING_CALENDAR_PROMPT_FALLBACK;
+  }
+
+  private loadDouyinHotTopicCandidatesPrompt() {
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), "提示词", "抖音板块", "热点找选题.txt"),
+      resolve(this.resolveOperationRoot(), "提示词", "抖音板块", "热点找选题.txt"),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return "你是抖音热点选题策划助手，需要基于所选日期的热点榜单和品牌背景资料，输出 3 个可执行的抖音选题。";
   }
 
   private extractJsonObject(content: string) {
@@ -7544,6 +8290,24 @@ ${normalizedMarkdown}`;
       reportMarkdown: this.readMetaString(meta, "reportMarkdown"),
       htmlContent: this.readMetaString(meta, "htmlContent"),
       modelName: this.readMetaString(meta, "modelName") || undefined,
+    };
+  }
+
+  private mapDouyinHotTopicCandidatesAsset(asset: AssetRecord): DouyinHotTopicCandidatesRecord | undefined {
+    const meta = this.asMeta(asset.metadataJson);
+    if (meta.kind !== "DOUYIN_HOT_TOPIC_CANDIDATES") {
+      return undefined;
+    }
+
+    return {
+      id: asset.id,
+      title: asset.title,
+      summary: this.readMetaString(meta, "summary") || asset.description,
+      generatedAt: this.readMetaString(meta, "generatedAt"),
+      taskId: this.readMetaString(meta, "taskId") || undefined,
+      selectedDate: this.readMetaString(meta, "selectedDate"),
+      modelName: this.readMetaString(meta, "modelName") || undefined,
+      items: this.normalizeDouyinHotTopicCandidateItems(meta.items),
     };
   }
 

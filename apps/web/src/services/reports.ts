@@ -190,6 +190,33 @@ export type DouyinMarketingPlanWorkspace = {
   latestTask?: DouyinMarketingPlanTaskRecord;
 };
 
+export type DouyinHotTopicCandidateItem = {
+  id: string;
+  title: string;
+  checked?: boolean;
+};
+
+export type DouyinHotTopicCandidatesRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  selectedDate: string;
+  modelName?: string;
+  items: DouyinHotTopicCandidateItem[];
+};
+
+export type DouyinHotTopicCandidatesTaskRecord = XiaohongshuMarketingPlanTaskRecord;
+
+export type DouyinHotTopicCandidatesWorkspace = {
+  selectedDate: string;
+  availableDates: string[];
+  latest?: DouyinHotTopicCandidatesRecord;
+  history: DouyinHotTopicCandidatesRecord[];
+  latestTask?: DouyinHotTopicCandidatesTaskRecord;
+};
+
 export type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
@@ -293,6 +320,13 @@ export const douyinMarketingPlanSeed: DouyinMarketingPlanWorkspace = {
   history: [],
 };
 
+export const douyinHotTopicCandidatesSeed: DouyinHotTopicCandidatesWorkspace = {
+  selectedDate: "",
+  availableDates: [],
+  latest: undefined,
+  history: [],
+};
+
 function resolveBrandId(brandId?: string) {
   return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
@@ -387,6 +421,17 @@ export async function updateDouyinMarketingPlan(
 export async function deleteDouyinMarketingPlan(reportId: string, brandId?: string) {
   return request<DouyinMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-marketing-plan/${reportId}`, {
     method: "DELETE",
+  });
+}
+
+export async function getDouyinHotTopicCandidatesWorkspace(brandId?: string, selectedDate?: string) {
+  const suffix = selectedDate ? `?date=${encodeURIComponent(selectedDate)}` : "";
+  return request<DouyinHotTopicCandidatesWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-hot-topic-candidates${suffix}`);
+}
+
+export async function generateDouyinHotTopicCandidates(selectedDate?: string, brandId?: string) {
+  return jsonRequest<DouyinHotTopicCandidatesWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-hot-topic-candidates/generate`, "POST", {
+    selectedDate,
   });
 }
 

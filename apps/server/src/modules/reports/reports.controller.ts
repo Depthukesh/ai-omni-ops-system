@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
@@ -179,6 +179,28 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
     return this.reportsService.deleteDouyinMarketingPlan(brandId, reportId);
+  }
+
+  @Get("brands/:brandId/douyin-hot-topic-candidates")
+  async getDouyinHotTopicCandidatesWorkspace(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("date") date?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    return this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId, date);
+  }
+
+  @Post("brands/:brandId/douyin-hot-topic-candidates/generate")
+  async generateDouyinHotTopicCandidates(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: { selectedDate?: string },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.generateDouyinHotTopicCandidates(brandId, payload?.selectedDate);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

@@ -194,6 +194,13 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             skillSlug: "tongcheng-brand-douyin-planning",
             promptScene: "抖音营销策划方案",
           },
+          {
+            id: "douyin-hot-topic-candidates-main",
+            label: "热点找选题-生成热点选题",
+            description: "对应前台抖音热点找选题板块，基于所选日期的每日热点榜单与品牌背景资料生成 3 个可勾选选题。",
+            skillSlug: "douyin-hot-topic-candidates",
+            promptScene: "抖音热点找选题",
+          },
         ],
       },
     ],

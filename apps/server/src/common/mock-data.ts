@@ -287,6 +287,10 @@ const douyinPlanSkillContent = readPromptSourceBundle(
   "prompt_douyin_plan",
   "你是抖音营销策划顾问，需要基于品牌资料、半年营销规划与抖音采集数据，输出完整的抖音营销策划方案。",
 ).content;
+const douyinHotTopicCandidatesSkillContent = readPromptSourceBundle(
+  "prompt_douyin_hot_topic_candidates",
+  "你是抖音热点选题策划助手，需要基于指定日期的每日热点榜单与品牌背景资料，输出 3 个可直接展示的抖音热点选题。",
+).content;
 const xiaohongshuCalendarSkillContent = readPromptSourceBundle(
   "prompt_xhs_calendar",
   "你是小红书营销日历规划助手，需要基于营销策划方案、半年营销规划、素材库、每日热点与历史营销日历，输出未来 7 天的结构化营销日历 JSON。",
@@ -924,6 +928,18 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-21T18:20:00.000Z",
     },
     {
+      id: "skill_douyin_hot_topic_candidates",
+      name: "抖音热点找选题",
+      slug: "douyin-hot-topic-candidates",
+      category: "内容营销",
+      status: "ACTIVE",
+      provider: "国内文生文 · DeepSeek",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 120,
+      description: "用于基于指定日期的每日热点榜单和品牌背景资料生成 3 个抖音热点选题。",
+      updatedAt: "2026-05-27T19:40:00.000Z",
+    },
+    {
       id: "skill_xhs_calendar",
       name: "小红书营销日历",
       slug: "xiaohongshu-marketing-calendar",
@@ -1068,6 +1084,18 @@ export const database: MockDatabase = {
       maxTokens: 12000,
       content: douyinPlanSkillContent,
       updatedAt: "2026-05-21T18:20:00.000Z",
+    },
+    {
+      id: "prompt_douyin_hot_topic_candidates",
+      name: "抖音热点找选题提示词",
+      scene: "抖音热点找选题",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.5,
+      maxTokens: 3200,
+      content: douyinHotTopicCandidatesSkillContent,
+      updatedAt: "2026-05-27T19:40:00.000Z",
     },
     {
       id: "prompt_xhs_calendar",

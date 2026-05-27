@@ -80,6 +80,10 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/tongcheng-brand-douyin-planning/tongcheng-brand-douyin-planning/SKILL.md",
     "../../../.trae/skills/tongcheng-brand-douyin-planning/SKILL.md",
   ],
+  prompt_douyin_hot_topic_candidates: [
+    "../../../提示词/抖音板块/热点找选题.txt",
+    "../提示词/抖音板块/热点找选题.txt",
+  ],
   prompt_xhs_calendar: [
     "../../../提示词/营销日历提示词.txt",
     "../提示词/营销日历提示词.txt",
