@@ -360,7 +360,7 @@ export class SkillsPromptsService {
     if (!prompt) {
       return undefined;
     }
-    return { ...prompt };
+    return this.hydratePromptTemplateRecord(prompt);
   }
 
   async getActivePromptById(id: string) {
@@ -390,7 +390,7 @@ export class SkillsPromptsService {
     if (!prompt) {
       return undefined;
     }
-    return { ...prompt };
+    return this.hydratePromptTemplateRecord(prompt);
   }
 
   resolvePromptIdsForSkill(skill: SkillConfigRecord, prompts: PromptTemplateRecord[]) {
@@ -459,7 +459,7 @@ export class SkillsPromptsService {
       `;
       return rows.map((item) => this.normalizePromptTemplateRow(item));
     }
-    return database.promptTemplates.map((item) => ({ ...item }));
+    return database.promptTemplates.map((item) => this.hydratePromptTemplateRecord(item));
   }
 
   private async ensureRegistryTablesReady() {
@@ -699,6 +699,7 @@ export class SkillsPromptsService {
 
   private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
     const isHalfYearPlanPrompt = row.id === "prompt_annual_marketing_plan" || row.id === "prompt_annual_plan";
+    const content = this.readPromptContent(row.id, row.content || "");
     return {
       id: row.id,
       name: isHalfYearPlanPrompt ? "半年营销规划主提示词" : row.name,
@@ -708,8 +709,15 @@ export class SkillsPromptsService {
       modelName: this.normalizeImageGenerationModelValue(row.modelName),
       temperature: Number(row.temperature || 0),
       maxTokens: Number(row.maxTokens || 0),
-      content: row.content || "",
+      content,
       updatedAt: this.normalizeDate(row.updatedAt),
+    };
+  }
+
+  private hydratePromptTemplateRecord(prompt: PromptTemplateRecord): PromptTemplateRecord {
+    return {
+      ...prompt,
+      content: this.readPromptContent(prompt.id, prompt.content || ""),
     };
   }
 
