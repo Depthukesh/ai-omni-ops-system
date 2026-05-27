@@ -24,6 +24,8 @@ const IMAGE_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const IMAGE_TASK_POLL_INTERVAL_MS = 15 * 1000;
 const IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
+const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
+const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
 type UploadFilePayload = {
   fileName: string;
@@ -7421,11 +7423,20 @@ export class WorksService {
     const maxAttempts = options.pollMaxAttempts && options.pollMaxAttempts > 0 ? options.pollMaxAttempts : 40;
     const pollIntervalMs = options.pollIntervalMs && options.pollIntervalMs >= 1000 ? options.pollIntervalMs : 4000;
     const minimumPollWindowMs = this.resolveVideoMinimumPollWindowMs(backend);
-    const deadlineAt = Date.now() + Math.max(maxAttempts * pollIntervalMs, minimumPollWindowMs);
+    const computedPollWindowMs = Math.max(maxAttempts * pollIntervalMs, minimumPollWindowMs);
+    const cappedPollWindowMs = Math.min(computedPollWindowMs, VIDEO_TASK_TOTAL_TIMEOUT_MS);
+    const deadlineAt = Date.now() + cappedPollWindowMs;
     while (Date.now() < deadlineAt) {
       let snapshot: Awaited<ReturnType<WorksService["queryVideoGenerationSnapshot"]>>;
+      const remainingMsBeforeQuery = deadlineAt - Date.now();
+      if (remainingMsBeforeQuery <= 0) {
+        break;
+      }
       try {
-        snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, options);
+        snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, {
+          ...options,
+          queryTimeoutMs: Math.min(VIDEO_TASK_QUERY_TIMEOUT_MS, remainingMsBeforeQuery),
+        });
       } catch (error) {
         lastError = error instanceof Error ? error.message : "视频任务查询失败";
         await options.onQueryError?.(lastError);
@@ -7456,7 +7467,8 @@ export class WorksService {
       await wait(Math.min(pollIntervalMs, remainingMs));
     }
 
-    throw new ServiceUnavailableException(lastError || `视频任务长时间未完成，当前状态：${lastState || "UNKNOWN"}`);
+    const timeoutMessage = `第三方视频生成超过20分钟仍未完成，当前状态：${lastState || "UNKNOWN"}`;
+    throw new ServiceUnavailableException(lastError ? `${timeoutMessage}；最后一次查询结果：${lastError}` : timeoutMessage);
   }
 
   private async queryVideoGenerationSnapshot(
@@ -7469,6 +7481,7 @@ export class WorksService {
       fallbackDurationSec?: number;
       queryMethod?: "GET" | "POST";
       queryBodyMode?: "taskId-json" | "task_id-json";
+      queryTimeoutMs?: number;
     },
   ) {
     const response = await this.requestAuthorizedJson(
@@ -7478,7 +7491,7 @@ export class WorksService {
       {
         method: options.queryMethod || "GET",
         body: this.buildVideoQueryBody(taskId, options.queryBodyMode),
-        timeoutMs: 120000,
+        timeoutMs: options.queryTimeoutMs && options.queryTimeoutMs > 0 ? options.queryTimeoutMs : VIDEO_TASK_QUERY_TIMEOUT_MS,
       },
     );
     return this.readVideoTaskSnapshot(response, backend, options.fallbackDurationSec);
