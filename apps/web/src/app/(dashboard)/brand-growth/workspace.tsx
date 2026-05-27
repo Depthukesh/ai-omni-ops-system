@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { getMe, switchBrand } from "../../../services/auth";
 import {
+  formatCalendarDate,
+  formatCalendarListValue,
+  formatCalendarMonthDay,
+  formatCalendarOptionalValue,
+  formatCalendarWeekday,
+  getCalendarFestivalLabel,
+} from "../xiaohongshu/calendar-helpers";
+import { CalendarWorkspace } from "../xiaohongshu/calendar-workspace";
+import {
   BrandGrowthCollectionWorkspace,
   type DouyinCollectionCardKey,
   type XiaohongshuCollectionCardKey,
@@ -82,11 +91,19 @@ import {
   generateVisualGrowthReport,
   getAnnualMarketingPlanWorkspace,
   getGrowthReportWorkspace,
+  getXiaohongshuMarketingCalendarWorkspace,
+  getXiaohongshuMarketingPlanWorkspace,
   getVisualGrowthReportWorkspace,
+  generateXiaohongshuMarketingCalendar,
   updateGrowthReport,
   type AnnualMarketingPlanWorkspace,
   type GrowthReportWorkspace,
+  type XiaohongshuMarketingCalendarItem,
+  type XiaohongshuMarketingCalendarWorkspace,
+  type XiaohongshuMarketingPlanWorkspace,
   type VisualGrowthReportWorkspace,
+  updateXiaohongshuMarketingCalendar,
+  xiaohongshuMarketingPlanSeed,
 } from "../../../services/reports";
 import {
   getDailyHotspotWorkspace,
@@ -112,7 +129,8 @@ type StrategyPageKey =
   | "dailyHotspot"
   | "growthReport"
   | "visualGrowthReport"
-  | "annualMarketingPlan";
+  | "annualMarketingPlan"
+  | "xiaohongshuMarketingCalendar";
 
 const strategySections: Array<{
   key: StrategySectionKey;
@@ -147,6 +165,7 @@ const strategySections: Array<{
       { key: "growthReport", label: "生成品牌增长报告", description: "根据品牌资料与收集数据生成分析报告。" },
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
+      { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于半年营销规划和小红书营销策划方案生成未来 7 天排期。" },
     ],
   },
 ];
@@ -167,6 +186,7 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   growthReport: "brandGrowth.report.growthReport",
   visualGrowthReport: "brandGrowth.report.visualGrowthReport",
   annualMarketingPlan: "brandGrowth.report.halfYearMarketingPlan",
+  xiaohongshuMarketingCalendar: "xiaohongshu.calendar",
 };
 
 function cloneSeed(): BrandArchiveBundle {
@@ -414,6 +434,9 @@ export function BrandGrowthWorkspace() {
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
   const [visualReportWorkspace, setVisualReportWorkspace] = useState<VisualGrowthReportWorkspace>(createEmptyVisualGrowthReportWorkspace);
   const [annualMarketingPlanWorkspace, setAnnualMarketingPlanWorkspace] = useState<AnnualMarketingPlanWorkspace>(createEmptyAnnualMarketingPlanWorkspace);
+  const [xiaohongshuMarketingPlanWorkspace, setXiaohongshuMarketingPlanWorkspace] =
+    useState<XiaohongshuMarketingPlanWorkspace>(xiaohongshuMarketingPlanSeed);
+  const [marketingCalendarWorkspace, setMarketingCalendarWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>({ history: [] });
   const [feishuBinding, setFeishuBinding] = useState<FeishuBindingRecord | null>(null);
   const [feishuAppConfig, setFeishuAppConfig] = useState<FeishuAppConfigRecord | null>(null);
   const [feishuAuthStatus, setFeishuAuthStatus] = useState<FeishuAuthStatusRecord | null>(null);
@@ -445,6 +468,12 @@ export function BrandGrowthWorkspace() {
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [isGeneratingVisualReport, setIsGeneratingVisualReport] = useState(false);
   const [isGeneratingAnnualMarketingPlan, setIsGeneratingAnnualMarketingPlan] = useState(false);
+  const [isGeneratingMarketingCalendar, setIsGeneratingMarketingCalendar] = useState(false);
+  const [selectedCalendarItemId, setSelectedCalendarItemId] = useState("");
+  const [isCalendarDetailOpen, setIsCalendarDetailOpen] = useState(false);
+  const [isEditingCalendarItem, setIsEditingCalendarItem] = useState(false);
+  const [isSavingCalendarItem, setIsSavingCalendarItem] = useState(false);
+  const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
   const [uploadingAssetKey, setUploadingAssetKey] = useState("");
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
@@ -545,13 +574,29 @@ export function BrandGrowthWorkspace() {
     && collectionWorkspace.benchmarkNotes.length > 0;
   const canGenerateVisualGrowthReport = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
   const canGenerateAnnualMarketingPlan = Boolean(reportWorkspace.latest?.reportMarkdown?.trim());
+  const latestMarketingPlan = xiaohongshuMarketingPlanWorkspace.latest;
+  const latestCalendar = marketingCalendarWorkspace.latest;
   const latestGrowthTask = reportWorkspace.latestTask;
   const latestVisualTask = visualReportWorkspace.latestTask;
   const latestAnnualMarketingTask = annualMarketingPlanWorkspace.latestTask;
+  const latestCalendarTask = marketingCalendarWorkspace.latestTask;
   const isGrowthReportTaskActive = latestGrowthTask?.taskStatus === "QUEUED" || latestGrowthTask?.taskStatus === "RUNNING";
   const isVisualReportTaskActive = latestVisualTask?.taskStatus === "QUEUED" || latestVisualTask?.taskStatus === "RUNNING";
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
+  const isMarketingCalendarTaskActive = latestCalendarTask?.taskStatus === "QUEUED" || latestCalendarTask?.taskStatus === "RUNNING";
+  const canGenerateMarketingCalendar = Boolean(reportWorkspace.latest?.reportMarkdown?.trim() && annualMarketingPlanWorkspace.latest && latestMarketingPlan);
+  const calendarTaskStatusText = getReportTaskStatusText(latestCalendarTask?.taskStatus);
+  const calendarInlineError =
+    latestCalendarTask?.taskStatus === "FAILED" && latestCalendarTask.errorMessage ? latestCalendarTask.errorMessage : "";
+  const calendarAllItems = useMemo(
+    () =>
+      latestCalendar
+        ? [latestCalendar, ...marketingCalendarWorkspace.history.filter((item) => item.id !== latestCalendar.id)].flatMap((item) => item.items)
+        : marketingCalendarWorkspace.history.flatMap((item) => item.items),
+    [latestCalendar, marketingCalendarWorkspace.history],
+  );
+  const selectedCalendarItem = calendarAllItems.find((item) => item.id === selectedCalendarItemId) || calendarAllItems[0];
   const canSyncFeishuWorkspace = Boolean(feishuBinding?.wikiUrl) && Boolean(feishuAuthStatus?.connected);
   const hasCurrentPageEditPermission = Boolean(brandPermissionSettings?.currentUserPermissions?.[strategyPagePermissionMap[currentPage.key]]?.edit);
   useEffect(() => {
@@ -679,6 +724,25 @@ export function BrandGrowthWorkspace() {
     return () => window.clearTimeout(timer);
   }, [isAnnualMarketingPlanTaskActive, latestAnnualMarketingTask?.updatedAt]);
 
+  useEffect(() => {
+    if (!isMarketingCalendarTaskActive) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshMarketingCalendarWorkspace(true);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [isMarketingCalendarTaskActive, latestCalendarTask?.updatedAt]);
+
+  useEffect(() => {
+    if (!isCalendarDetailOpen || !selectedCalendarItem || isEditingCalendarItem) {
+      return;
+    }
+    setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
+  }, [isCalendarDetailOpen, isEditingCalendarItem, selectedCalendarItem]);
+
   async function loadArchive() {
     setIsHydrating(true);
     setErrorMessage("");
@@ -712,6 +776,8 @@ export function BrandGrowthWorkspace() {
         reportResult,
         visualReportResult,
         annualMarketingPlanResult,
+        xiaohongshuMarketingPlanResult,
+        marketingCalendarResult,
         feishuBindingResult,
         feishuAppConfigResult,
         feishuAuthStatusResult,
@@ -723,6 +789,8 @@ export function BrandGrowthWorkspace() {
         getGrowthReportWorkspace(activeBrandId),
         getVisualGrowthReportWorkspace(activeBrandId),
         getAnnualMarketingPlanWorkspace(activeBrandId),
+        getXiaohongshuMarketingPlanWorkspace(activeBrandId),
+        getXiaohongshuMarketingCalendarWorkspace(activeBrandId),
         getBrandFeishuBinding(activeBrandId),
         getFeishuAppConfig(currentProfile?.id),
         getFeishuAuthStatus(currentProfile?.id),
@@ -771,6 +839,18 @@ export function BrandGrowthWorkspace() {
         setAnnualMarketingPlanWorkspace(annualMarketingPlanResult.value);
       } else {
         partialFailures.push("半年营销规划");
+      }
+
+      if (xiaohongshuMarketingPlanResult.status === "fulfilled") {
+        setXiaohongshuMarketingPlanWorkspace(xiaohongshuMarketingPlanResult.value);
+      } else {
+        partialFailures.push("小红书营销策划方案");
+      }
+
+      if (marketingCalendarResult.status === "fulfilled") {
+        setMarketingCalendarWorkspace(marketingCalendarResult.value);
+      } else {
+        partialFailures.push("营销日历");
       }
 
       if (feishuBindingResult.status === "fulfilled") {
@@ -854,6 +934,21 @@ export function BrandGrowthWorkspace() {
       if (!silent) {
         const message = error instanceof Error ? error.message : "刷新失败";
         setErrorMessage(`刷新半年营销规划失败：${message}`);
+      }
+    }
+  }
+
+  async function refreshMarketingCalendarWorkspace(silent = false) {
+    try {
+      const nextWorkspace = await getXiaohongshuMarketingCalendarWorkspace(archive.brand.id);
+      setMarketingCalendarWorkspace(nextWorkspace);
+      if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
+        setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
+      }
+    } catch (error) {
+      if (!silent) {
+        const message = error instanceof Error ? error.message : "刷新失败";
+        setErrorMessage(`刷新营销日历失败：${message}`);
       }
     }
   }
@@ -994,6 +1089,140 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`生成失败：${message}`);
     } finally {
       setIsGeneratingAnnualMarketingPlan(false);
+    }
+  }
+
+  async function handleGenerateMarketingCalendar() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
+      setErrorMessage("当前账号没有营销日历板块的编辑权限。");
+      return;
+    }
+    if (!reportWorkspace.latest) {
+      setErrorMessage("请先生成品牌增长报告。");
+      return;
+    }
+    if (!annualMarketingPlanWorkspace.latest) {
+      setErrorMessage("请先生成半年营销规划。");
+      return;
+    }
+    if (!latestMarketingPlan) {
+      setErrorMessage("请先生成小红书营销策划方案。");
+      return;
+    }
+
+    setIsGeneratingMarketingCalendar(true);
+    clearMessages();
+
+    try {
+      const nextWorkspace = await generateXiaohongshuMarketingCalendar(archive.brand.id);
+      setMarketingCalendarWorkspace(nextWorkspace);
+      setNotice("已提交后台生成任务，正在生成接下来 7 天营销日历。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成失败";
+      setErrorMessage(`生成失败：${message}`);
+    } finally {
+      setIsGeneratingMarketingCalendar(false);
+    }
+  }
+
+  function handleOpenCalendarDetail(itemId: string) {
+    setSelectedCalendarItemId(itemId);
+    const item = calendarAllItems.find((entry) => entry.id === itemId);
+    setCalendarItemDraft(item ? cloneMarketingCalendarItem(item) : null);
+    setIsEditingCalendarItem(false);
+    setIsCalendarDetailOpen(true);
+  }
+
+  function handleCloseCalendarDetail() {
+    setIsCalendarDetailOpen(false);
+    setIsEditingCalendarItem(false);
+    setCalendarItemDraft(null);
+  }
+
+  function handleStartEditCalendarItem() {
+    if (!selectedCalendarItem) {
+      return;
+    }
+    setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
+    setIsEditingCalendarItem(true);
+  }
+
+  function handleCancelEditCalendarItem() {
+    setCalendarItemDraft(selectedCalendarItem ? cloneMarketingCalendarItem(selectedCalendarItem) : null);
+    setIsEditingCalendarItem(false);
+  }
+
+  function handleCalendarItemFieldChange(
+    field:
+      | "date"
+      | "topicName"
+      | "productName"
+      | "noteType"
+      | "targetAudience"
+      | "contentGoal"
+      | "expressionFocus"
+      | "topicContent"
+      | "bodyStructure"
+      | "coverFormat"
+      | "imageBrief",
+    value: string,
+  ) {
+    setCalendarItemDraft((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function handleCalendarItemListFieldChange(field: "noteKeywords" | "titleDirections" | "coverKeywords", value: string) {
+    setCalendarItemDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        [field]: value
+          .split(/\n|,|，/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      };
+    });
+  }
+
+  async function handleSaveCalendarItem() {
+    if (!brandPermissionSettings?.currentUserPermissions["xiaohongshu.calendar"]?.edit) {
+      setErrorMessage("当前账号没有营销日历板块的编辑权限。");
+      return;
+    }
+    if (!latestCalendar || !selectedCalendarItem || !calendarItemDraft) {
+      setErrorMessage("当前还没有可保存的营销日历选题。");
+      return;
+    }
+
+    const nextItems = latestCalendar.items.map((item) =>
+      item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date
+        ? normalizeEditableMarketingCalendarItem(calendarItemDraft)
+        : item,
+    );
+    const hasMatchedItem = nextItems.some((item) => item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date);
+    if (!hasMatchedItem) {
+      setErrorMessage("当前只支持编辑最新一版营销日历中的选题。");
+      return;
+    }
+
+    setIsSavingCalendarItem(true);
+    clearMessages();
+    try {
+      const nextWorkspace = await updateXiaohongshuMarketingCalendar(latestCalendar.id, nextItems, latestCalendar.title, archive.brand.id);
+      setMarketingCalendarWorkspace(nextWorkspace);
+      const nextSelectedItem =
+        nextWorkspace.latest?.items.find((item) => item.id === selectedCalendarItem.id || item.date === selectedCalendarItem.date)
+        || normalizeEditableMarketingCalendarItem(calendarItemDraft);
+      setSelectedCalendarItemId(nextSelectedItem.id);
+      setCalendarItemDraft(cloneMarketingCalendarItem(nextSelectedItem));
+      setIsEditingCalendarItem(false);
+      setNotice("营销日历已保存。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存失败";
+      setErrorMessage(`保存失败：${message}`);
+    } finally {
+      setIsSavingCalendarItem(false);
     }
   }
 
@@ -1629,6 +1858,47 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   function renderReportPage() {
+    if (activePage === "xiaohongshuMarketingCalendar") {
+      return (
+        <CalendarWorkspace
+          sectionLabel={currentPage.label}
+          sectionDescription={currentPage.description}
+          isLoading={isHydrating}
+          isPublishing={false}
+          isGeneratingCalendar={isGeneratingMarketingCalendar}
+          canGenerateCalendar={canGenerateMarketingCalendar}
+          isCalendarTaskActive={isMarketingCalendarTaskActive}
+          latestCalendar={latestCalendar}
+          latestCalendarTask={latestCalendarTask}
+          calendarTaskStatusText={calendarTaskStatusText}
+          calendarInlineError={calendarInlineError}
+          calendarAllItems={calendarAllItems}
+          isCalendarDetailOpen={isCalendarDetailOpen}
+          selectedCalendarItem={selectedCalendarItem}
+          calendarItemDraft={calendarItemDraft}
+          isEditingCalendarItem={isEditingCalendarItem}
+          isSavingCalendarItem={isSavingCalendarItem}
+          onRefresh={() => refreshMarketingCalendarWorkspace()}
+          onGenerate={() => handleGenerateMarketingCalendar()}
+          onOpenDetail={handleOpenCalendarDetail}
+          onCloseDetail={handleCloseCalendarDetail}
+          onStartEditDetail={handleStartEditCalendarItem}
+          onCancelEditDetail={handleCancelEditCalendarItem}
+          onSaveDetail={() => handleSaveCalendarItem()}
+          onDetailFieldChange={handleCalendarItemFieldChange}
+          onDetailListFieldChange={handleCalendarItemListFieldChange}
+          getTaskStatusClass={getReportTaskStatusClass}
+          formatDateTime={formatDateTime}
+          formatCalendarMonthDay={formatCalendarMonthDay}
+          formatCalendarWeekday={formatCalendarWeekday}
+          getCalendarFestivalLabel={getCalendarFestivalLabel}
+          formatCalendarDate={formatCalendarDate}
+          formatCalendarOptionalValue={formatCalendarOptionalValue}
+          formatCalendarListValue={formatCalendarListValue}
+        />
+      );
+    }
+
     const latestReport = reportWorkspace.latest;
     const latestVisualReport = visualReportWorkspace.latest;
     const latestPlan = annualMarketingPlanWorkspace.latest;
@@ -1742,6 +2012,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           {isGeneratingVisualReport ? "提交中..." : isVisualReportTaskActive ? "生成中..." : "生成可视化报告"}
         </button>
       );
+    }
+
+    if (activePage === "xiaohongshuMarketingCalendar") {
+      return null;
     }
 
     if (!reportWorkspace.latest) {
@@ -1865,4 +2139,50 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       ) : null}
     </main>
   );
+}
+
+function cloneMarketingCalendarItem(item: XiaohongshuMarketingCalendarItem): XiaohongshuMarketingCalendarItem {
+  return {
+    ...item,
+    noteKeywords: [...(item.noteKeywords || [])],
+    titleDirections: [...(item.titleDirections || [])],
+    coverKeywords: [...(item.coverKeywords || [])],
+  };
+}
+
+function normalizeEditableMarketingCalendarItem(item: XiaohongshuMarketingCalendarItem): XiaohongshuMarketingCalendarItem {
+  return {
+    ...item,
+    date: item.date.trim(),
+    topicName: item.topicName.trim(),
+    productName: item.productName?.trim() || "",
+    noteType: item.noteType?.trim() || "",
+    targetAudience: item.targetAudience?.trim() || "",
+    contentGoal: item.contentGoal?.trim() || "",
+    expressionFocus: item.expressionFocus?.trim() || "",
+    topicContent: item.topicContent?.trim() || "",
+    bodyStructure: item.bodyStructure?.trim() || "",
+    coverFormat: item.coverFormat?.trim() || "",
+    imageBrief: item.imageBrief?.trim() || "",
+    noteKeywords: normalizeCalendarItemList(item.noteKeywords),
+    titleDirections: normalizeCalendarItemList(item.titleDirections),
+    coverKeywords: normalizeCalendarItemList(item.coverKeywords),
+  };
+}
+
+function normalizeCalendarItemList(items?: string[]) {
+  return (items || []).map((item) => item.trim()).filter(Boolean);
+}
+
+function getReportTaskStatusClass(status?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED") {
+  if (status === "SUCCESS") {
+    return "status-ready";
+  }
+  if (status === "FAILED" || status === "CANCELLED") {
+    return "status-pending";
+  }
+  if (status === "QUEUED" || status === "RUNNING" || status === "PENDING") {
+    return "status-in_progress";
+  }
+  return "status-pending";
 }

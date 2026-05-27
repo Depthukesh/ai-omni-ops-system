@@ -31,7 +31,6 @@ import { useWorkEditors } from "./use-work-editors";
 import { useWorkMutationActions } from "./use-work-mutation-actions";
 import { useWorkspaceSelectionSync } from "./use-workspace-selection-sync";
 import { AssetsWorkspace } from "./assets-workspace";
-import { CalendarWorkspace } from "./calendar-workspace";
 import { renderMarkdownToHtml } from "./markdown-render";
 import { MediaLightbox } from "./media-lightbox";
 import { PlanWorkspace } from "./plan-workspace";
@@ -85,11 +84,10 @@ import {
 } from "../../../services/works";
 import { formatCollaboratorRoleLabel } from "../personal-center/route-helpers";
 
-type XiaohongshuSectionKey = "plan" | "assets" | "calendar" | "original" | "remix" | "video";
+type XiaohongshuSectionKey = "plan" | "assets" | "original" | "remix" | "video";
 const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌、产品和目标快速生成小红书策划与选题方案。" },
   { key: "assets", label: "素材库", description: "沉淀已生成的笔记、封面、源文件与作品记录。" },
-  { key: "calendar", label: "营销日历", description: "按周查看当前内容节奏、发布时间与主题排期。" },
   { key: "original", label: "原创笔记", description: "统一管理原创图文笔记成品，支持新增、编辑、删除与查看配图结果。" },
   { key: "remix", label: "二创笔记", description: "基于已有选题和作品延展二创版本与差异化角度。" },
   { key: "video", label: "视频笔记", description: "把现有主题整理成视频脚本、镜头结构和封面文案。" },
@@ -97,7 +95,6 @@ const xiaohongshuSections: Array<{ key: XiaohongshuSectionKey; label: string; de
 const xiaohongshuSectionPermissionMap: Record<XiaohongshuSectionKey, BrandPermissionKey> = {
   plan: "xiaohongshu.plan",
   assets: "xiaohongshu.assets",
-  calendar: "xiaohongshu.calendar",
   original: "xiaohongshu.original",
   remix: "xiaohongshu.remix",
   video: "xiaohongshu.video",
@@ -646,9 +643,7 @@ export function XiaohongshuWorkspaceShell() {
   const topLevelErrorMessage =
     activeSection === "plan" && marketingPlanInlineError
       ? errorMessage.replace(`小红书营销策划方案生成失败：${marketingPlanInlineError}`, "").trim()
-      : activeSection === "calendar"
-        ? ""
-        : errorMessage;
+      : errorMessage;
   const workMutationActions = useWorkMutationActions({
     brandId: getStoredCurrentBrandId(workspace.archive.brand.id) || workspace.archive.brand.id,
     setNotice,
@@ -1166,47 +1161,6 @@ export function XiaohongshuWorkspaceShell() {
           onShiftPreview={shiftMaterialPreview}
           onOpenLightbox={openMaterialLightbox}
           formatDateTime={formatDateTime}
-        />
-      );
-    }
-
-    if (activeSection === "calendar") {
-      return (
-        <CalendarWorkspace
-          sectionLabel={currentSection.label}
-          sectionDescription={currentSection.description}
-          isLoading={isLoading}
-          isPublishing={isPublishing}
-          isGeneratingCalendar={isGeneratingCalendar}
-          canGenerateCalendar={canGenerateCalendar}
-          isCalendarTaskActive={isCalendarTaskActive}
-          latestCalendar={latestCalendar}
-          latestCalendarTask={latestCalendarTask}
-          calendarTaskStatusText={calendarTaskStatusText}
-          calendarInlineError={calendarInlineError}
-          calendarAllItems={calendarAllItems}
-          isCalendarDetailOpen={isCalendarDetailOpen}
-          selectedCalendarItem={selectedCalendarItem}
-          calendarItemDraft={calendarItemDraft}
-          isEditingCalendarItem={isEditingCalendarItem}
-          isSavingCalendarItem={isSavingCalendarItem}
-          onRefresh={() => refreshCalendarWorkspace()}
-          onGenerate={() => handleGenerateCalendar()}
-          onOpenDetail={handleOpenCalendarDetail}
-          onCloseDetail={handleCloseCalendarDetail}
-          onStartEditDetail={handleStartEditCalendarItem}
-          onCancelEditDetail={handleCancelEditCalendarItem}
-          onSaveDetail={() => handleSaveCalendarItem()}
-          onDetailFieldChange={handleCalendarItemFieldChange}
-          onDetailListFieldChange={handleCalendarItemListFieldChange}
-          getTaskStatusClass={getTaskStatusClass}
-          formatDateTime={formatDateTime}
-          formatCalendarMonthDay={formatCalendarMonthDay}
-          formatCalendarWeekday={formatCalendarWeekday}
-          getCalendarFestivalLabel={getCalendarFestivalLabel}
-          formatCalendarDate={formatCalendarDate}
-          formatCalendarOptionalValue={formatCalendarOptionalValue}
-          formatCalendarListValue={formatCalendarListValue}
         />
       );
     }

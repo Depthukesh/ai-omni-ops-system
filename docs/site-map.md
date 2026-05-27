@@ -102,12 +102,17 @@
   - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
 - 品牌增长可视化报告
 - 半年营销规划
+- 营销日历
+  - 当前“小红书营销日历”入口已从 `/xiaohongshu` 工作台左侧导航迁到 `品牌增长报告 -> 半年营销规划` 下方，生成、刷新和单日编辑入口统一在品牌增长策略工作台内完成
+  - 当前仍继续复用原有 `GET/POST/PATCH /reports/brands/:brandId/xiaohongshu-marketing-calendar` 接口与同一份工作区数据，不额外复制第二套营销日历存储
+  - 小红书 `原创笔记 / 视频笔记` 的营销日历选题下拉仍继续读取同一份营销日历结果，未改动选题来源
 - 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
 - 当前页面已接入品牌成员权限模板：管理员默认拥有全部权限；员工/达人按团队页配置的 `view/edit` 模板决定是否可进入页面以及是否可执行保存、同步和报告生成动作
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
 - 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
 - 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
+- 参考变更：`docs/changes/2026-05-27-xiaohongshu-calendar-moved-under-brand-growth.md`
 - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
 
 ### 3.2 小红书 `/xiaohongshu`
@@ -141,18 +146,9 @@
   - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
   - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
-- 营销日历
-  - 当前“生成接下来 7 天”通过后台任务异步生成；任务状态会显示 `QUEUED / RUNNING / SUCCESS / FAILED`
-  - 当前已补入前后台技能中心：技能 slug 为 `xiaohongshu-marketing-calendar`，提示词为 `prompt_xhs_calendar`，默认优先回源 `提示词/营销日历提示词.txt`
-  - 若运行环境读不到仓库外提示词文件，后端会自动回退到内置完整营销日历提示词；不会再退回一句占位式短文案
-  - 当前生成运行时会优先读取后台技能中心为营销日历配置的默认模型与提示词内容，默认以 `deepseek-v4-pro` 作为文本模型兜底
-  - 当前后台技能中心展示的营销日历提示词已改为完整原始文件内容，不再回退为一句技能说明短文案
-  - 当前日历视图已从月份矩阵改为“未来 7 天”真实日历卡片，一排展示月份、日期、星期、主题、内容目的与关键标签；点击单日卡片后在详情弹窗中查看完整内容
-  - 当前详情面板已拆为“基础信息 / 选题策略 / 关键词与标题 / 封面与配图”四块，适合作为创作执行面板直接使用
-  - 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
 - 原创笔记
   - 已支持原创图文作品列表、添加弹窗、编辑、删除
-  - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求
+  - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求；营销日历选题来源仍为同一份“小红书营销日历”工作区数据，即使页面入口已迁到 `品牌增长报告`
   - 创建弹窗新增“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
   - 原创文案与配图提示词链路会感知当前选择的账号角色，让生成结果的人设和表达更贴近发布主体
   - 原创作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
