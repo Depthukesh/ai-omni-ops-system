@@ -2569,11 +2569,22 @@ export class WorksService {
                     fileName,
                   )).toString("base64")
                   : undefined;
-                const finalUrl = asset.url
-                  ? await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType)
-                  : (base64Content
-                    ? (await this.writeGeneratedBinaryFile(params.brandId, fileName, base64Content, asset.contentType)).url
-                    : "");
+                let finalUrl = "";
+                if (asset.url) {
+                  try {
+                    finalUrl = await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType);
+                  } catch (error) {
+                    if (/^https?:\/\//i.test(asset.url)) {
+                      // If third-party generation already succeeded, fall back to the original remote URL
+                      // instead of silently retrying another model/provider and leaving the UI hanging.
+                      finalUrl = asset.url;
+                    } else {
+                      throw error;
+                    }
+                  }
+                } else if (base64Content) {
+                  finalUrl = (await this.writeGeneratedBinaryFile(params.brandId, fileName, base64Content, asset.contentType)).url;
+                }
                 if (!finalUrl) {
                   lastError = `${modelName} 未返回可保存的图片内容`;
                   attemptTrail.push(`${attemptLabel} -> 未返回可保存的图片内容`);
