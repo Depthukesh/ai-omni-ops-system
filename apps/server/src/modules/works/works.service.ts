@@ -7373,7 +7373,9 @@ export class WorksService {
     const cause = this.asRecord(topLevel?.cause);
     const detail = this.readOptionalString(cause?.code)
       || this.readOptionalString(topLevel?.code)
-      || this.readOptionalString(cause?.message);
+      || this.readOptionalString(cause?.message)
+      || (error instanceof Error ? this.readOptionalString(error.message) : undefined)
+      || this.readOptionalString(topLevel?.message);
     return new ServiceUnavailableException(
       `${requestLabel} 网络请求失败${detail && detail !== "fetch failed" ? `：${detail}` : ""}`,
     );
@@ -7391,12 +7393,13 @@ export class WorksService {
   ) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60000);
+    const normalizedApiKey = this.normalizeApiKeyForHeader(apiKey);
     try {
       const response = await fetch(`${baseUrl}${requestPath}`, {
         method: options.method,
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${normalizedApiKey}`,
           ...(options.method === "POST" ? { "Content-Type": "application/json" } : {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
@@ -8503,13 +8506,14 @@ export class WorksService {
   ) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const normalizedApiKey = this.normalizeApiKeyForHeader(apiKey);
     try {
       return await fetch(`${baseUrl}${completionPath}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${normalizedApiKey}`,
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
@@ -8524,6 +8528,10 @@ export class WorksService {
       return Math.min(configuredTimeoutMs, defaultTimeoutMs);
     }
     return defaultTimeoutMs;
+  }
+
+  private normalizeApiKeyForHeader(apiKey: string) {
+    return String(apiKey || "").replace(/\s+/g, "").trim();
   }
 
   private toDataUrl(payload: UploadFilePayload) {
