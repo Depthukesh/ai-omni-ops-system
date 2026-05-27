@@ -319,6 +319,12 @@ type VideoWorkAssetMeta = {
   segmentExecutionError?: string;
   segmentAssets?: VideoSegmentAssetEntry[];
   providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoProviderErrors?: string[];
   videoAssetId?: string;
   videoUrl?: string;
   coverImageUrl?: string;
@@ -446,6 +452,13 @@ export type XiaohongshuVideoWorkRecord = {
   id: string;
   taskId: string;
   brandId?: string;
+  providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoProviderErrors?: string[];
   accountRole: OriginalAccountRole;
   videoKind: VideoNoteKind;
   workflowStage: VideoWorkflowStage;
@@ -574,6 +587,22 @@ type VideoProviderTaskSnapshot = {
   modelName: string;
   providerTaskId: string;
   renderedDurationSec?: number;
+};
+
+type VideoProviderQuerySnapshot = VideoProviderTaskSnapshot & {
+  status: "SUCCESS" | "FAILED" | "IN_PROGRESS";
+  rawStatus?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  failReason?: string;
+  checkedAt: string;
+};
+
+type VideoProviderAttemptFailureSnapshot = VideoProviderTaskSnapshot & {
+  attemptLabel: string;
+  message: string;
+  disposition: "retryable" | "hard";
+  willFallback: boolean;
 };
 
 type ThirdPartyChatConfig = {
@@ -3860,6 +3889,66 @@ export class WorksService {
         workflowStage: "GENERATING_VIDEO",
         progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
       });
+      let lastThirdPartyStatusSignature = "";
+      const persistThirdPartyStatus = async (params: {
+        status: string;
+        detail?: string;
+        rawStatus?: string;
+        provider?: string;
+        modelName?: string;
+        providerTaskId?: string;
+        outputStage: string;
+        videoProviderErrors?: string[];
+      }) => {
+        const updatedAt = new Date().toISOString();
+        const nextProvider = params.provider || meta.resolvedVideoProvider;
+        const nextModel = params.modelName || meta.resolvedVideoModel;
+        const nextProviderTaskId = params.providerTaskId || meta.providerTaskId;
+        const nextErrors = params.videoProviderErrors || meta.videoProviderErrors || [];
+        const signature = JSON.stringify({
+          status: params.status,
+          detail: params.detail || "",
+          rawStatus: params.rawStatus || "",
+          provider: nextProvider || "",
+          modelName: nextModel || "",
+          providerTaskId: nextProviderTaskId || "",
+          videoProviderErrors: nextErrors,
+        });
+        if (signature === lastThirdPartyStatusSignature) {
+          return;
+        }
+        lastThirdPartyStatusSignature = signature;
+        meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          taskId,
+          workflowStage: "GENERATING_VIDEO",
+          resolvedVideoProvider: nextProvider,
+          resolvedVideoModel: nextModel,
+          providerTaskId: nextProviderTaskId,
+          thirdPartyStatus: params.status,
+          thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel(params.status),
+          thirdPartyStatusDetail: params.detail,
+          thirdPartyRawStatus: params.rawStatus,
+          thirdPartyStatusUpdatedAt: updatedAt,
+          videoProviderErrors: nextErrors,
+          updatedAt,
+          progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+        });
+        await this.updateTaskOutputJson(taskId, {
+          workId,
+          stage: params.outputStage,
+          title: meta.title,
+          providerTaskId: nextProviderTaskId,
+          provider: nextProvider,
+          modelName: nextModel,
+          thirdPartyStatus: params.status,
+          thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel(params.status),
+          thirdPartyStatusDetail: params.detail,
+          thirdPartyRawStatus: params.rawStatus,
+          videoProviderErrors: nextErrors,
+          updatedAt,
+        });
+      };
       const accessibleStoryboardImageUrl = await this.resolveThirdPartyAccessibleAssetUrl(meta.storyboardImageUrl, brandId);
       const directVideoPrompt = this.buildDirectVideoPrompt(meta);
       const videoResult = await this.generateVideoAsset({
@@ -3872,6 +3961,14 @@ export class WorksService {
         requestedDurationSec: meta.requestedDurationSec,
         referenceImageUrl: accessibleStoryboardImageUrl,
         onProviderTaskCreated: async (snapshot) => {
+          await persistThirdPartyStatus({
+            status: "TASK_CREATED",
+            detail: `已创建第三方视频任务，正在查询结果：${snapshot.providerTaskId}`,
+            provider: snapshot.provider,
+            modelName: snapshot.modelName,
+            providerTaskId: snapshot.providerTaskId,
+            outputStage: "VIDEO_PROVIDER_TASK_CREATED",
+          });
           meta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
             ...meta,
             taskId,
@@ -3882,13 +3979,63 @@ export class WorksService {
             providerTaskId: snapshot.providerTaskId,
             progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
           });
-          await this.updateTaskOutputJson(taskId, {
-            workId,
-            stage: "VIDEO_PROVIDER_TASK_CREATED",
-            title: meta.title,
-            providerTaskId: snapshot.providerTaskId,
+        },
+        onProviderQueryStatus: async (snapshot) => {
+          const nextStatus =
+            snapshot.status === "FAILED"
+              ? "FAILED"
+              : snapshot.status === "SUCCESS" && !snapshot.videoUrl
+                ? "SUCCESS_NO_VIDEO_URL"
+                : snapshot.status === "SUCCESS"
+                  ? "SUCCESS"
+                  : "QUERYING";
+          const detail =
+            nextStatus === "SUCCESS"
+              ? "第三方已返回最终视频地址，正在回存到本站"
+              : nextStatus === "SUCCESS_NO_VIDEO_URL"
+                ? "第三方返回成功状态，但没有返回最终视频地址"
+                : nextStatus === "FAILED"
+                  ? snapshot.failReason || "第三方任务失败"
+                  : `第三方正在处理中，当前状态：${snapshot.rawStatus || snapshot.status}`;
+          await persistThirdPartyStatus({
+            status: nextStatus,
+            detail,
+            rawStatus: snapshot.rawStatus,
             provider: snapshot.provider,
             modelName: snapshot.modelName,
+            providerTaskId: snapshot.providerTaskId,
+            outputStage:
+              nextStatus === "SUCCESS"
+                ? "VIDEO_PROVIDER_SUCCESS"
+                : nextStatus === "SUCCESS_NO_VIDEO_URL"
+                  ? "VIDEO_PROVIDER_SUCCESS_NO_VIDEO_URL"
+                  : nextStatus === "FAILED"
+                    ? "VIDEO_PROVIDER_FAILED"
+                    : "VIDEO_PROVIDER_QUERYING",
+          });
+        },
+        onProviderQueryError: async (snapshot) => {
+          await persistThirdPartyStatus({
+            status: "QUERY_ERROR",
+            detail: snapshot.message,
+            provider: snapshot.provider,
+            modelName: snapshot.modelName,
+            providerTaskId: snapshot.providerTaskId,
+            outputStage: "VIDEO_PROVIDER_QUERY_ERROR",
+          });
+        },
+        onProviderAttemptFailed: async (snapshot) => {
+          const nextErrors = this.appendVideoProviderError(meta.videoProviderErrors, `${snapshot.attemptLabel}：${snapshot.message}`);
+          await persistThirdPartyStatus({
+            status: snapshot.willFallback ? "FALLBACK_PENDING" : "FAILED",
+            detail: snapshot.willFallback
+              ? `${snapshot.attemptLabel} 失败：${snapshot.message}；准备尝试下一个候选`
+              : `${snapshot.attemptLabel} 失败：${snapshot.message}`,
+            provider: snapshot.provider,
+            modelName: snapshot.modelName,
+            providerTaskId: snapshot.providerTaskId,
+            outputStage: snapshot.willFallback ? "VIDEO_PROVIDER_FALLBACK_PENDING" : "VIDEO_PROVIDER_FAILED",
+            videoProviderErrors: nextErrors,
           });
         },
       });
@@ -3910,6 +4057,10 @@ export class WorksService {
         segmentExecutionStatus: "SKIPPED",
         segmentExecutionError: "当前直接使用故事板图片生成主成片",
         providerTaskId: videoResult.providerTaskId,
+        thirdPartyStatus: "SUCCESS",
+        thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel("SUCCESS"),
+        thirdPartyStatusDetail: "最终视频已生成并回存到本站",
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
         videoUrl: videoResult.url,
         coverImageUrl: videoResult.coverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
         progressSteps: this.buildVideoProgressSteps("SUCCESS"),
@@ -3934,15 +4085,54 @@ export class WorksService {
   ) {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    const errorMessage = error instanceof Error ? error.message : "视频笔记生成失败";
     await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
       ...meta,
       taskId,
       workflowStage: "FAILED",
+      thirdPartyStatus: "FAILED",
+      thirdPartyStatusLabel: this.buildVideoThirdPartyStatusLabel("FAILED"),
+      thirdPartyStatusDetail: errorMessage,
+      thirdPartyStatusUpdatedAt: new Date().toISOString(),
+      videoProviderErrors: this.appendVideoProviderError(meta.videoProviderErrors, errorMessage),
       progressSteps: this.buildVideoProgressSteps("FAILED"),
     });
     if (!(await this.isTaskCancelled(taskId))) {
-      await this.markTaskFailed(taskId, error instanceof Error ? error.message : "视频笔记生成失败");
+      await this.markTaskFailed(taskId, errorMessage);
     }
+  }
+
+  private buildVideoThirdPartyStatusLabel(status?: string) {
+    switch (status) {
+      case "TASK_CREATED":
+        return "第三方任务已创建";
+      case "QUERYING":
+        return "第三方查询中";
+      case "QUERY_ERROR":
+        return "第三方查询异常";
+      case "SUCCESS_NO_VIDEO_URL":
+        return "第三方已完成但无视频地址";
+      case "FALLBACK_PENDING":
+        return "准备切换兜底模型";
+      case "SUCCESS":
+        return "第三方已返回视频";
+      case "FAILED":
+        return "第三方任务失败";
+      default:
+        return undefined;
+    }
+  }
+
+  private appendVideoProviderError(existing: string[] | undefined, nextError?: string) {
+    const normalized = String(nextError || "").trim();
+    const items = [...(existing || [])];
+    if (!normalized) {
+      return items.slice(0, 8);
+    }
+    if (!items.includes(normalized)) {
+      items.unshift(normalized);
+    }
+    return items.slice(0, 8);
   }
 
   private async requestVideoStageJson(params: {
@@ -4535,6 +4725,13 @@ export class WorksService {
       segmentExecutionStatus: meta.segmentExecutionStatus,
       segmentExecutionError: meta.segmentExecutionError,
       segmentAssets: meta.segmentAssets || [],
+      providerTaskId: meta.providerTaskId,
+      thirdPartyStatus: meta.thirdPartyStatus,
+      thirdPartyStatusLabel: meta.thirdPartyStatusLabel,
+      thirdPartyStatusDetail: meta.thirdPartyStatusDetail,
+      thirdPartyRawStatus: meta.thirdPartyRawStatus,
+      thirdPartyStatusUpdatedAt: meta.thirdPartyStatusUpdatedAt,
+      videoProviderErrors: meta.videoProviderErrors || [],
       taskStatus,
       createdAt: createdAt || meta.createdAt,
       updatedAt: updatedAt || meta.updatedAt,
@@ -4607,6 +4804,12 @@ export class WorksService {
       segmentExecutionError: this.readOptionalString(meta.segmentExecutionError),
       segmentAssets: this.normalizeVideoSegmentAssets(meta.segmentAssets),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
+      thirdPartyStatus: this.readOptionalString(meta.thirdPartyStatus),
+      thirdPartyStatusLabel: this.readOptionalString(meta.thirdPartyStatusLabel),
+      thirdPartyStatusDetail: this.readOptionalString(meta.thirdPartyStatusDetail),
+      thirdPartyRawStatus: this.readOptionalString(meta.thirdPartyRawStatus),
+      thirdPartyStatusUpdatedAt: this.readOptionalString(meta.thirdPartyStatusUpdatedAt),
+      videoProviderErrors: this.normalizeStringArray(meta.videoProviderErrors, [], 12),
       videoAssetId: this.readOptionalString(meta.videoAssetId),
       videoUrl: this.readOptionalString(meta.videoUrl),
       coverImageUrl: this.readOptionalString(meta.coverImageUrl),
@@ -7132,6 +7335,15 @@ export class WorksService {
     requestedDurationSec: number;
     referenceImageUrl?: string;
     onProviderTaskCreated?: (snapshot: VideoProviderTaskSnapshot) => Promise<void> | void;
+    onProviderQueryStatus?: (snapshot: VideoProviderQuerySnapshot) => Promise<void> | void;
+    onProviderQueryError?: (snapshot: {
+      provider: string;
+      modelName: string;
+      providerTaskId: string;
+      message: string;
+      checkedAt: string;
+    }) => Promise<void> | void;
+    onProviderAttemptFailed?: (snapshot: VideoProviderAttemptFailureSnapshot) => Promise<void> | void;
   }): Promise<GeneratedVideoResult> {
     const requestedBackend = this.normalizeVideoProvider(params.requestedVideoProvider);
     const providerPlan = await this.buildVideoProviderExecutionPlan(requestedBackend, Boolean(params.referenceImageUrl));
@@ -7142,8 +7354,11 @@ export class WorksService {
     let requestedProviderFailureLabel = "";
     let requestedProviderFailureMessage = "";
 
-    for (const candidate of providerPlan) {
+    for (let index = 0; index < providerPlan.length; index += 1) {
+      const candidate = providerPlan[index];
       let lastError = "";
+      let currentModelName = "";
+      let providerTaskIdForAttempt = "";
       try {
         const config = await this.loadVideoProviderConfig(params.brandId, candidate.backend);
         const modelName = this.resolveVideoModelName(
@@ -7152,6 +7367,7 @@ export class WorksService {
           candidate.backend === requestedBackend ? params.customVideoModelName : undefined,
           candidate.useReferenceImage,
         );
+        currentModelName = modelName;
         const requestConfig = this.buildVideoCreatePayload({
           config,
           modelName,
@@ -7177,6 +7393,7 @@ export class WorksService {
               : `${config.backend} 未返回任务 ID`,
           );
         }
+        providerTaskIdForAttempt = providerTaskId;
 
         await params.onProviderTaskCreated?.({
           provider: config.backend,
@@ -7191,6 +7408,28 @@ export class WorksService {
           queryBodyMode: config.queryBodyMode,
           pollMaxAttempts: config.pollMaxAttempts,
           pollIntervalMs: config.pollIntervalMs,
+          onSnapshot: params.onProviderQueryStatus
+            ? async (snapshot) => {
+                await params.onProviderQueryStatus?.({
+                  ...snapshot,
+                  provider: config.backend,
+                  modelName,
+                  providerTaskId,
+                  checkedAt: new Date().toISOString(),
+                });
+              }
+            : undefined,
+          onQueryError: params.onProviderQueryError
+            ? async (message) => {
+                await params.onProviderQueryError?.({
+                  provider: config.backend,
+                  modelName,
+                  providerTaskId,
+                  message,
+                  checkedAt: new Date().toISOString(),
+                });
+              }
+            : undefined,
         });
         if (!result.videoUrl) {
           throw new ServiceUnavailableException("视频任务完成，但未返回视频地址");
@@ -7226,6 +7465,16 @@ export class WorksService {
         const attemptLabel = `${candidate.label}${candidate.useReferenceImage ? "（图生视频）" : "（文生视频）"}`;
         attemptLabels.push(attemptLabel);
         providerErrors.push(`${attemptLabel}：${normalizedMessage}`);
+        await params.onProviderAttemptFailed?.({
+          provider: candidate.backend,
+          modelName: currentModelName || "",
+          providerTaskId: providerTaskIdForAttempt || "",
+          renderedDurationSec: undefined,
+          attemptLabel,
+          message: normalizedMessage,
+          disposition,
+          willFallback: disposition !== "hard" && index < providerPlan.length - 1,
+        });
         if (!requestedProviderFailureMessage && candidate.backend === requestedBackend) {
           requestedProviderFailureLabel = attemptLabel;
           requestedProviderFailureMessage = normalizedMessage;
@@ -7328,6 +7577,8 @@ export class WorksService {
       queryBodyMode?: "taskId-json" | "task_id-json";
       pollMaxAttempts?: number;
       pollIntervalMs?: number;
+      onSnapshot?: (snapshot: ReturnType<WorksService["readVideoTaskSnapshot"]>) => Promise<void> | void;
+      onQueryError?: (message: string) => Promise<void> | void;
     },
   ) {
     let lastState = "";
@@ -7342,6 +7593,7 @@ export class WorksService {
         snapshot = await this.queryVideoGenerationSnapshot(baseUrl, apiKey, backend, queryPath, taskId, options);
       } catch (error) {
         lastError = error instanceof Error ? error.message : "视频任务查询失败";
+        await options.onQueryError?.(lastError);
         const remainingMs = deadlineAt - Date.now();
         if (remainingMs <= 0) {
           break;
@@ -7349,6 +7601,7 @@ export class WorksService {
         await wait(Math.min(pollIntervalMs, remainingMs));
         continue;
       }
+      await options.onSnapshot?.(snapshot);
       lastState = snapshot.status;
       if (snapshot.status === "SUCCESS" && snapshot.videoUrl) {
         return snapshot;
@@ -7510,6 +7763,7 @@ export class WorksService {
 
     return {
       status: normalizedStatus,
+      rawStatus: taskStatusRaw || undefined,
       videoUrl,
       coverImageUrl,
       failReason,
@@ -7518,7 +7772,7 @@ export class WorksService {
     };
   }
 
-  private normalizeVideoTaskStatus(rawStatus: string) {
+  private normalizeVideoTaskStatus(rawStatus: string): "SUCCESS" | "FAILED" | "IN_PROGRESS" {
     const normalized = rawStatus.toUpperCase();
     if (!normalized) {
       return "IN_PROGRESS";

@@ -163,6 +163,12 @@ export type XiaohongshuVideoWorkRecord = {
   taskId: string;
   brandId?: string;
   providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoProviderErrors?: string[];
   accountRole: XiaohongshuAccountRole;
   videoKind: VideoNoteKind;
   workflowStage: VideoWorkflowStage;

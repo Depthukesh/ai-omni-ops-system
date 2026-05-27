@@ -13,7 +13,6 @@ const ACTIVE_TASK_TIMEOUT_MS_BY_TYPE: Record<string, number> = {
   XHS_MARKETING_CALENDAR: 10 * 60 * 1000,
   XHS_ORIGINAL_NOTE: 20 * 60 * 1000,
   XHS_REWRITE_NOTE: 20 * 60 * 1000,
-  XHS_VIDEO_NOTE: 30 * 60 * 1000,
 };
 
 export type CreateTaskPayload = {
