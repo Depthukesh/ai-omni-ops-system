@@ -4755,13 +4755,17 @@ export class ReportsService {
     const providers = await this.loadDouyinMarketingProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const selectedDate = this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "dailyHotspots"]), "selectedDate") || "";
-    const systemPrompt = [
-      skillPrompt,
+    const systemPrompt = skillPrompt;
+    const userPrompt = [
+      "以下是本次输入数据，请严格基于这些数据完成分析：",
       "",
-      "你现在负责输出《抖音热点找选题》。",
-      "输入只包含所选日期的每日热点全部榜单和品牌背景资料，请严格基于这些输入生成。",
-      "只输出一个 JSON 对象，不要输出 Markdown、代码块或额外解释。",
-      "JSON 结构固定为：",
+      JSON.stringify(inputPayload, null, 2),
+      "",
+      "补充要求：",
+      "1. 请优先遵循你原本的角色设定、分析流程、输出标准和判断逻辑，不要改写成另一个简化技能。",
+      "2. 页面最终只展示 3 个抖音热点选题，所以请在完整分析中明确给出 3 个最终选题标题。",
+      "3. 这 3 个选题标题要适合直接展示和勾选，避免空泛口号，避免整段解释句。",
+      "4. 你可以按原有分析报告格式输出；如果愿意，也可以在结尾额外附上一个 JSON 对象：",
       "{",
       '  "title": "标题",',
       '  "summary": "不超过80字的摘要",',
@@ -4771,11 +4775,8 @@ export class ReportsService {
       '    { "title": "选题3" }',
       "  ]",
       "}",
-      "items 必须正好返回 3 条，每条只保留一个可直接展示的选题标题。",
-      "选题标题要适合抖音内容策划，避免空泛口号，避免解释句和括号补充。",
-      selectedDate ? `这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "这 3 个选题都必须围绕所选日期当天热点展开。",
+      selectedDate ? `5. 这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "5. 这 3 个选题都必须围绕所选日期当天热点展开。",
     ].join("\n");
-    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -7926,7 +7927,7 @@ ${normalizedMarkdown}`;
       .map((item) => this.asRecord(item))
       .filter((item): item is Record<string, unknown> => Boolean(item))
       .map<DouyinHotTopicCandidateItem | undefined>((item, index) => {
-        const title = String(item.title ?? item.topicName ?? "").trim();
+        const title = String(item.title ?? item.topicTitle ?? item.topicName ?? item.name ?? "").trim();
         return title
           ? {
               id: String(item.id ?? "").trim() || `topic-${index + 1}-${this.createSlug(title)}`,
@@ -7939,11 +7940,21 @@ ${normalizedMarkdown}`;
   }
 
   private parseDouyinHotTopicCandidateItemsFromText(content: string) {
-    const normalized = this.stripMarkdownCodeFence(content)
+    const lines = this.stripMarkdownCodeFence(content)
       .split(/\r?\n/)
-      .map((line) => line.trim())
+      .map((line) => line.trim());
+    const structuredTitles = this.extractDouyinHotTopicTitlesFromStructuredText(lines);
+    if (structuredTitles.length) {
+      return structuredTitles.map((title, index) => ({
+        id: `topic-${index + 1}-${this.createSlug(title)}`,
+        title,
+        checked: false,
+      }));
+    }
+    const normalized = lines
       .map((line) => line.replace(/^[-*•\d.\s\[\]xX()（）]+/, "").trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((line) => !/^(\[?热点借势策略分析报告\]?|一、基础信息|二、热点分析|三、行业匹配度分析|四、推荐策略|五、预期效果)$/.test(line));
     const uniqueTitles: string[] = [];
     for (const line of normalized) {
       if (!line || uniqueTitles.includes(line)) {
@@ -7959,6 +7970,53 @@ ${normalizedMarkdown}`;
       title,
       checked: false,
     }));
+  }
+
+  private extractDouyinHotTopicTitlesFromStructuredText(lines: string[]) {
+    const titles: string[] = [];
+    const headingPattern = /^热点选题([一二三四五六七八九十\d]+)\s*[:：]?\s*(.*)$/;
+    const titleFieldPattern = /^(?:[-*•]\s*)?(?:选题标题|标题|热点名称)\s*[:：]\s*(.+)$/;
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const headingMatch = line.match(headingPattern);
+      if (!headingMatch) {
+        continue;
+      }
+
+      const inlineTitle = String(headingMatch[2] || "").trim();
+      if (inlineTitle) {
+        if (!titles.includes(inlineTitle)) {
+          titles.push(inlineTitle);
+        }
+        if (titles.length >= 3) {
+          break;
+        }
+        continue;
+      }
+
+      for (let lookAhead = index + 1; lookAhead < lines.length; lookAhead += 1) {
+        const nextLine = lines[lookAhead];
+        if (headingPattern.test(nextLine)) {
+          break;
+        }
+        const titleFieldMatch = nextLine.match(titleFieldPattern);
+        if (!titleFieldMatch) {
+          continue;
+        }
+        const resolvedTitle = String(titleFieldMatch[1] || "").trim();
+        if (resolvedTitle && !titles.includes(resolvedTitle)) {
+          titles.push(resolvedTitle);
+        }
+        break;
+      }
+
+      if (titles.length >= 3) {
+        break;
+      }
+    }
+
+    return titles.slice(0, 3);
   }
 
   private createSlug(value: string) {
