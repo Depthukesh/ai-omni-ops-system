@@ -136,6 +136,7 @@ type DouyinHotTopicCandidatesAssetMeta = {
   selectedDate: string;
   modelName?: string;
   items: DouyinHotTopicCandidateItem[];
+  reportContent?: string;
 };
 
 type XiaohongshuMarketingCalendarItem = {
@@ -262,6 +263,7 @@ export type DouyinHotTopicCandidatesRecord = {
   selectedDate: string;
   modelName?: string;
   items: DouyinHotTopicCandidateItem[];
+  reportContent?: string;
 };
 
 export type XiaohongshuMarketingCalendarRecord = {
@@ -434,6 +436,7 @@ type DouyinHotTopicCandidatesModelResult = {
   selectedDate: string;
   items: DouyinHotTopicCandidateItem[];
   modelName: string;
+  reportContent?: string;
 };
 
 type XiaohongshuMarketingCalendarModelResult = {
@@ -3322,6 +3325,7 @@ export class ReportsService {
             selectedDate: report.selectedDate,
             items: report.items,
             modelName: report.modelName,
+            reportContent: report.reportContent,
           } as Prisma.InputJsonValue,
         },
       });
@@ -3344,6 +3348,7 @@ export class ReportsService {
         selectedDate: report.selectedDate,
         items: report.items,
         modelName: report.modelName,
+        reportContent: report.reportContent,
       },
     });
   }
@@ -4755,17 +4760,75 @@ export class ReportsService {
     const providers = await this.loadDouyinMarketingProviderConfigs(settings);
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const selectedDate = this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "dailyHotspots"]), "selectedDate") || "";
-    const systemPrompt = skillPrompt;
-    const userPrompt = [
+    const analysisSystemPrompt = skillPrompt;
+    const analysisUserPrompt = [
       "以下是本次输入数据，请严格基于这些数据完成分析：",
       "",
       JSON.stringify(inputPayload, null, 2),
-      "",
-      "补充要求：",
-      "1. 请优先遵循你原本的角色设定、分析流程、输出标准和判断逻辑，不要改写成另一个简化技能。",
-      "2. 页面最终只展示 3 个抖音热点选题，所以请在完整分析中明确给出 3 个最终选题标题。",
-      "3. 这 3 个选题标题要适合直接展示和勾选，避免空泛口号，避免整段解释句。",
-      "4. 你可以按原有分析报告格式输出；如果愿意，也可以在结尾额外附上一个 JSON 对象：",
+    ].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    const runPrompt = async (systemPrompt: string, userPrompt: string, stageLabel: string) => {
+      for (const provider of providers) {
+        for (const baseUrl of provider.baseUrls) {
+          for (const apiKey of provider.apiKeys.slice(0, 2)) {
+            for (const modelName of provider.models) {
+              const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+              try {
+                await options?.onAttemptUpdate?.(`${stageLabel}: ${provider.provider} / ${modelName}`, modelName);
+                const response = await this.requestModelCompletion(
+                  baseUrl,
+                  provider.completionPath,
+                  apiKey,
+                  this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                  this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+                );
+                if (!response.ok) {
+                  const responseText = this.truncateText(await response.text(), 240);
+                  const responseDetail = responseText ? ` ${responseText}` : "";
+                  lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
+                  attemptTrail.push(`${stageLabel} / ${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                  continue;
+                }
+                const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+                const message = payload.choices?.[0]?.message;
+                const content = message?.content?.trim() || message?.reasoning_content?.trim();
+                if (!content) {
+                  lastError = `${provider.provider}/${modelName} 返回为空`;
+                  attemptTrail.push(`${stageLabel} / ${attemptLabel} -> 返回为空`);
+                  continue;
+                }
+                const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+                if (finishReason === "length") {
+                  lastError = `${provider.provider}/${modelName} 输出被截断`;
+                  attemptTrail.push(`${stageLabel} / ${attemptLabel} -> 输出被截断`);
+                  continue;
+                }
+                return { content, modelName };
+              } catch (error) {
+                lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+                attemptTrail.push(`${stageLabel} / ${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+              }
+            }
+          }
+        }
+      }
+      return undefined;
+    };
+
+    const analysisResult = await runPrompt(analysisSystemPrompt, analysisUserPrompt, "分析报告生成");
+    if (!analysisResult) {
+      throw new ServiceUnavailableException(
+        this.buildReportAttemptFailureMessage("抖音热点找选题生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+      );
+    }
+
+    const extractionSystemPrompt = [
+      "你将收到一份已经生成好的热点分析报告。",
+      "你的任务不是重写报告，而是仅从报告中提取最终可展示的 3 个抖音内容选题。",
+      "请只输出一个 JSON 对象，不要输出 Markdown、代码块或额外解释。",
+      "JSON 结构固定为：",
       "{",
       '  "title": "标题",',
       '  "summary": "不超过80字的摘要",',
@@ -4775,58 +4838,30 @@ export class ReportsService {
       '    { "title": "选题3" }',
       "  ]",
       "}",
-      selectedDate ? `5. 这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "5. 这 3 个选题都必须围绕所选日期当天热点展开。",
+      "items 必须正好返回 3 条。",
+      "items[].title 必须是适合直接展示和勾选的内容选题标题，不得直接照抄热点名称、人物名、事件名，也不要只输出一个热点词。",
+      "如果报告里没有显式标题，请基于每个热点选题的分析结论提炼成最终内容选题标题。",
+      selectedDate ? `这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "这 3 个选题都必须围绕所选日期当天热点展开。",
     ].join("\n");
+    const extractionUserPrompt = [
+      "以下是原始分析报告，请从中提取页面展示用的 3 个最终选题：",
+      "",
+      analysisResult.content,
+    ].join("\n");
+    const extractionResult = await runPrompt(extractionSystemPrompt, extractionUserPrompt, "页面选题提取");
 
-    let lastError = "";
-    const attemptTrail: string[] = [];
-    for (const provider of providers) {
-      for (const baseUrl of provider.baseUrls) {
-        for (const apiKey of provider.apiKeys.slice(0, 2)) {
-          for (const modelName of provider.models) {
-            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
-            try {
-              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
-              const response = await this.requestModelCompletion(
-                baseUrl,
-                provider.completionPath,
-                apiKey,
-                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
-                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
-              );
-              if (!response.ok) {
-                const responseText = this.truncateText(await response.text(), 240);
-                const responseDetail = responseText ? ` ${responseText}` : "";
-                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseDetail}`;
-                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
-                continue;
-              }
-              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
-              const message = payload.choices?.[0]?.message;
-              const content = message?.content?.trim() || message?.reasoning_content?.trim();
-              if (!content) {
-                lastError = `${provider.provider}/${modelName} 返回为空`;
-                attemptTrail.push(`${attemptLabel} -> 返回为空`);
-                continue;
-              }
-              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
-              if (finishReason === "length") {
-                lastError = `${provider.provider}/${modelName} 输出被截断`;
-                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
-                continue;
-              }
-              return this.normalizeDouyinHotTopicCandidatesModelResult(content, inputPayload, modelName);
-            } catch (error) {
-              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
-              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
-            }
-          }
-        }
-      }
+    if (extractionResult) {
+      return {
+        ...this.normalizeDouyinHotTopicCandidatesModelResult(extractionResult.content, inputPayload, analysisResult.modelName),
+        reportContent: analysisResult.content,
+      };
     }
-    throw new ServiceUnavailableException(
-      this.buildReportAttemptFailureMessage("抖音热点找选题生成", preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
-    );
+
+    const fallbackResult = this.normalizeDouyinHotTopicCandidatesModelResult(analysisResult.content, inputPayload, analysisResult.modelName);
+    return {
+      ...fallbackResult,
+      reportContent: analysisResult.content,
+    };
   }
 
   private buildDouyinHotTopicCandidatesPhaseStatus(
@@ -8366,6 +8401,7 @@ ${normalizedMarkdown}`;
       selectedDate: this.readMetaString(meta, "selectedDate"),
       modelName: this.readMetaString(meta, "modelName") || undefined,
       items: this.normalizeDouyinHotTopicCandidateItems(meta.items),
+      reportContent: this.readMetaString(meta, "reportContent") || undefined,
     };
   }
 

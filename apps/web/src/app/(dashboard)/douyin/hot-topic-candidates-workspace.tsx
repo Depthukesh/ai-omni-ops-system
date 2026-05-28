@@ -139,7 +139,7 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
         {!props.latest?.items.length ? (
           <div className="note-empty-state">当前日期还没有生成结果，点击右上角“一键生成”开始。</div>
         ) : (
-          <div className="xhs-material-library">
+          <div className="xhs-material-library" style={{ display: "grid", gap: 16 }}>
             <div className="xhs-material-card-grid">
               {props.latest.items.map((item, index) => {
                 const checked = props.selectedTopicIds.includes(item.id);
@@ -158,6 +158,26 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
                 );
               })}
             </div>
+            {props.latest.reportContent ? (
+              <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "grid", gap: 4 }}>
+                  <strong>完整分析报告</strong>
+                  <p className="panel-subtext" style={{ margin: 0 }}>
+                    这里展示第一阶段按提示词生成的完整分析结果，便于和下方页面提取的 3 个选题一起查看。
+                  </p>
+                </div>
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.8,
+                    color: "var(--text-primary, #1f2937)",
+                    fontSize: 14,
+                  }}
+                >
+                  {props.latest.reportContent}
+                </div>
+              </section>
+            ) : null}
           </div>
         )}
       </article>

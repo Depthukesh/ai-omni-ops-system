@@ -205,6 +205,7 @@ export type DouyinHotTopicCandidatesRecord = {
   selectedDate: string;
   modelName?: string;
   items: DouyinHotTopicCandidateItem[];
+  reportContent?: string;
 };
 
 export type DouyinHotTopicCandidatesTaskRecord = XiaohongshuMarketingPlanTaskRecord;
