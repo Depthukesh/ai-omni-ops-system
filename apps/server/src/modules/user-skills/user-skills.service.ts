@@ -50,10 +50,9 @@ export type UpdateUserSkillPayload = {
   }>;
 };
 
-type UserSkillProfileRow = {
+type BrandSkillProfileRow = {
   id: string;
-  userId: string;
-  brandId?: string | null;
+  brandId: string;
   baseSkillId: string;
   displayName?: string | null;
   defaultModel?: string | null;
@@ -63,10 +62,9 @@ type UserSkillProfileRow = {
   updatedAt: Date | string;
 };
 
-type UserPromptOverrideRow = {
+type BrandPromptOverrideRow = {
   id: string;
-  userId: string;
-  brandId?: string | null;
+  brandId: string;
   baseSkillId: string;
   basePromptId: string;
   content?: string | null;
@@ -77,10 +75,9 @@ type UserPromptOverrideRow = {
   updatedAt: Date | string;
 };
 
-type UserSkillResetLogRow = {
+type BrandSkillResetLogRow = {
   id: string;
-  userId: string;
-  brandId?: string | null;
+  brandId: string;
   baseSkillId: string;
   resetType: string;
   promptIdsJson?: unknown;
@@ -92,10 +89,9 @@ const RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL = "provider_runtime_image_gener
 const LEGACY_VIDEO_NOTE_DEFAULT_MODEL = "seedance";
 const VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL = "doubao-seedance-2-0-260128";
 
-type MockUserSkillProfileRecord = {
+type MockBrandSkillProfileRecord = {
   id: string;
-  userId: string;
-  brandId?: string;
+  brandId: string;
   baseSkillId: string;
   displayName?: string;
   defaultModel?: string;
@@ -105,10 +101,9 @@ type MockUserSkillProfileRecord = {
   updatedAt: string;
 };
 
-type MockUserPromptOverrideRecord = {
+type MockBrandPromptOverrideRecord = {
   id: string;
-  userId: string;
-  brandId?: string;
+  brandId: string;
   baseSkillId: string;
   basePromptId: string;
   content?: string;
@@ -119,19 +114,18 @@ type MockUserPromptOverrideRecord = {
   updatedAt: string;
 };
 
-type MockUserSkillResetLogRecord = {
+type MockBrandSkillResetLogRecord = {
   id: string;
-  userId: string;
-  brandId?: string;
+  brandId: string;
   baseSkillId: string;
   resetType: string;
   promptIds: string[];
   createdAt: string;
 };
 
-const mockUserSkillProfiles: MockUserSkillProfileRecord[] = [];
-const mockUserPromptOverrides: MockUserPromptOverrideRecord[] = [];
-const mockUserSkillResetLogs: MockUserSkillResetLogRecord[] = [];
+const mockBrandSkillProfiles: MockBrandSkillProfileRecord[] = [];
+const mockBrandPromptOverrides: MockBrandPromptOverrideRecord[] = [];
+const mockBrandSkillResetLogs: MockBrandSkillResetLogRecord[] = [];
 
 @Injectable()
 export class UserSkillsService {
@@ -165,12 +159,12 @@ export class UserSkillsService {
   }
 
   async listUserSkills(auth: RequestAuthContext) {
-    const context = this.assertUserContext(auth);
+    const context = this.assertBrandContext(auth);
     const baseSkills = await this.skillsPromptsService.listSkills();
     const basePrompts = await this.skillsPromptsService.listPrompts();
-    const profiles = await this.listSkillProfiles(context.userId, context.brandId);
-    const promptOverrides = await this.listPromptOverrides(context.userId, context.brandId);
-    const resetLogs = await this.listResetLogs(context.userId, context.brandId);
+    const profiles = await this.listSkillProfiles(context.brandId);
+    const promptOverrides = await this.listPromptOverrides(context.brandId);
+    const resetLogs = await this.listResetLogs(context.brandId);
 
     return baseSkills
       .map((skill) => this.buildUserSkillRecord(skill, basePrompts, profiles, promptOverrides, resetLogs))
@@ -192,7 +186,7 @@ export class UserSkillsService {
   }
 
   async updateUserSkill(skillId: string, payload: UpdateUserSkillPayload, auth: RequestAuthContext) {
-    const context = this.assertUserContext(auth);
+    const context = this.assertBrandContext(auth);
     const baseSkills = await this.skillsPromptsService.listSkills();
     const basePrompts = await this.skillsPromptsService.listPrompts();
     const modelSelectionResolver = await this.createModelSelectionResolver();
@@ -210,24 +204,23 @@ export class UserSkillsService {
     });
 
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureUserSkillTablesReady();
+      await this.ensureBrandSkillTablesReady();
       const relatedBasePrompts = basePrompts.filter((item) => allowedPromptIds.has(item.id));
       try {
-        await this.persistUserSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
+        await this.persistBrandSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
       } catch (firstError) {
         await this.ensureRegistryEntriesForSkill(baseSkill, relatedBasePrompts);
         try {
-          await this.persistUserSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
+          await this.persistBrandSkillOverrides(skillId, payload, requestedPromptOverrides, context, modelSelectionResolver);
         } catch (secondError) {
-          throw new InternalServerErrorException(this.describeUserSkillSaveError(secondError));
+          throw new InternalServerErrorException(this.describeBrandSkillSaveError(secondError));
         }
       }
     } else {
       const now = new Date().toISOString();
-      const existingProfile = mockUserSkillProfiles.find(
+      const existingProfile = mockBrandSkillProfiles.find(
         (item) =>
-          item.userId === context.userId
-          && item.brandId === context.brandId
+          item.brandId === context.brandId
           && item.baseSkillId === skillId,
       );
       const hasSkillOverridePayload = hasAnyDefinedValue([
@@ -243,16 +236,15 @@ export class UserSkillsService {
         };
         const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== undefined);
         if (existingProfile && !hasEffectiveSkillOverride) {
-          mockUserSkillProfiles.splice(mockUserSkillProfiles.indexOf(existingProfile), 1);
+          mockBrandSkillProfiles.splice(mockBrandSkillProfiles.indexOf(existingProfile), 1);
         } else if (existingProfile) {
           existingProfile.displayName = normalizeOptionalText(payload.displayName) ?? undefined;
           existingProfile.defaultModel = this.normalizeModelSelectionValue(payload.defaultModel, modelSelectionResolver) ?? undefined;
           existingProfile.description = normalizeOptionalText(payload.description) ?? undefined;
           existingProfile.updatedAt = now;
         } else if (hasEffectiveSkillOverride) {
-          mockUserSkillProfiles.push({
+          mockBrandSkillProfiles.push({
             id: createId("usp"),
-            userId: context.userId,
             brandId: context.brandId,
             baseSkillId: skillId,
             displayName: normalizeOptionalText(payload.displayName) ?? undefined,
@@ -265,10 +257,9 @@ export class UserSkillsService {
       }
 
       for (const promptOverride of requestedPromptOverrides) {
-        const existingOverride = mockUserPromptOverrides.find(
+        const existingOverride = mockBrandPromptOverrides.find(
           (item) =>
-            item.userId === context.userId
-            && item.brandId === context.brandId
+            item.brandId === context.brandId
             && item.basePromptId === promptOverride.promptId,
         );
         const normalizedOverrideData = {
@@ -279,7 +270,7 @@ export class UserSkillsService {
         };
         const hasEffectivePromptOverride = Object.values(normalizedOverrideData).some((value) => value !== undefined);
         if (existingOverride && !hasEffectivePromptOverride) {
-          mockUserPromptOverrides.splice(mockUserPromptOverrides.indexOf(existingOverride), 1);
+          mockBrandPromptOverrides.splice(mockBrandPromptOverrides.indexOf(existingOverride), 1);
           continue;
         }
         if (existingOverride) {
@@ -290,9 +281,8 @@ export class UserSkillsService {
           existingOverride.maxTokens = normalizedOverrideData.maxTokens;
           existingOverride.updatedAt = now;
         } else if (hasEffectivePromptOverride) {
-          mockUserPromptOverrides.push({
+          mockBrandPromptOverrides.push({
             id: createId("upo"),
-            userId: context.userId,
             brandId: context.brandId,
             baseSkillId: skillId,
             basePromptId: promptOverride.promptId,
@@ -310,13 +300,12 @@ export class UserSkillsService {
     return this.getUserSkill(skillId, auth);
   }
 
-  private async persistUserSkillOverrides(
+  private async persistBrandSkillOverrides(
     skillId: string,
     payload: UpdateUserSkillPayload,
     requestedPromptOverrides: NonNullable<UpdateUserSkillPayload["promptOverrides"]>,
     context: {
-      userId: string;
-      brandId?: string;
+      brandId: string;
     },
     modelSelectionResolver: {
       optionValueSet: Set<string>;
@@ -338,20 +327,15 @@ export class UserSkillsService {
       const hasEffectiveSkillOverride = Object.values(normalizedProfileData).some((value) => value !== null);
 
       await this.prismaService.$executeRaw`
-        DELETE FROM "UserSkillProfile"
-        WHERE "userId" = ${context.userId}
-          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
-          AND (
-            "baseSkillId" = ${skillId}
-            OR COALESCE("baseSkillId", '') = ''
-          )
+        DELETE FROM "BrandSkillProfile"
+        WHERE "brandId" = ${context.brandId}
+          AND "baseSkillId" = ${skillId}
       `;
 
       if (hasEffectiveSkillOverride) {
         await this.prismaService.$executeRaw`
-          INSERT INTO "UserSkillProfile" (
+          INSERT INTO "BrandSkillProfile" (
             "id",
-            "userId",
             "brandId",
             "baseSkillId",
             "displayName",
@@ -362,8 +346,7 @@ export class UserSkillsService {
           )
           VALUES (
             ${createId("usp")},
-            ${context.userId},
-            ${context.brandId ?? null},
+            ${context.brandId},
             ${skillId},
             ${normalizedProfileData.displayName},
             ${normalizedProfileData.defaultModel},
@@ -387,21 +370,15 @@ export class UserSkillsService {
         .some(([key, value]) => key !== "baseSkillId" && value !== null && value !== undefined);
 
       await this.prismaService.$executeRaw`
-        DELETE FROM "UserPromptOverride"
-        WHERE "userId" = ${context.userId}
-          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+        DELETE FROM "BrandPromptOverride"
+        WHERE "brandId" = ${context.brandId}
           AND "basePromptId" = ${promptOverride.promptId}
-          AND (
-            "baseSkillId" = ${skillId}
-            OR COALESCE("baseSkillId", '') = ''
-          )
       `;
 
       if (hasEffectivePromptOverride) {
         await this.prismaService.$executeRaw`
-          INSERT INTO "UserPromptOverride" (
+          INSERT INTO "BrandPromptOverride" (
             "id",
-            "userId",
             "brandId",
             "baseSkillId",
             "basePromptId",
@@ -414,8 +391,7 @@ export class UserSkillsService {
           )
           VALUES (
             ${createId("upo")},
-            ${context.userId},
-            ${context.brandId ?? null},
+            ${context.brandId},
             ${normalizedOverrideData.baseSkillId},
             ${promptOverride.promptId},
             ${normalizedOverrideData.content},
@@ -549,23 +525,23 @@ export class UserSkillsService {
     }
   }
 
-  private describeUserSkillSaveError(error: unknown) {
+  private describeBrandSkillSaveError(error: unknown) {
     const rawMessage = error instanceof Error ? error.message : String(error || "未知错误");
     if (/violates foreign key constraint/i.test(rawMessage)) {
-      return `保存技能配置失败：用户覆盖引用的平台技能或提示词基线缺失。${rawMessage}`;
+      return `保存技能配置失败：品牌技能库引用的平台技能或提示词基线缺失。${rawMessage}`;
     }
     if (/duplicate key value violates unique constraint/i.test(rawMessage)) {
-      return `保存技能配置失败：线上存在重复的用户技能覆盖记录。${rawMessage}`;
+      return `保存技能配置失败：线上存在重复的品牌技能覆盖记录。${rawMessage}`;
     }
     if (/column .* does not exist/i.test(rawMessage)) {
-      return `保存技能配置失败：线上用户技能表结构仍未补齐。${rawMessage}`;
+      return `保存技能配置失败：线上品牌技能表结构仍未补齐。${rawMessage}`;
     }
     return `保存技能配置失败：${rawMessage}`;
   }
 
 
   async resetUserSkill(skillId: string, auth: RequestAuthContext) {
-    const context = this.assertUserContext(auth);
+    const context = this.assertBrandContext(auth);
     const skill = await this.skillsPromptsService.getSkillById(skillId);
     if (!skill) {
       throw new NotFoundException("技能不存在");
@@ -575,29 +551,23 @@ export class UserSkillsService {
     const now = new Date();
 
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureUserSkillTablesReady();
+      await this.ensureBrandSkillTablesReady();
       await this.prismaService.$executeRaw`
-        DELETE FROM "UserSkillProfile"
-        WHERE "userId" = ${context.userId}
-          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+        DELETE FROM "BrandSkillProfile"
+        WHERE "brandId" = ${context.brandId}
           AND "baseSkillId" = ${skillId}
       `;
       await this.prismaService.$executeRaw`
-        DELETE FROM "UserPromptOverride"
-        WHERE "userId" = ${context.userId}
-          AND "brandId" IS NOT DISTINCT FROM ${context.brandId ?? null}
+        DELETE FROM "BrandPromptOverride"
+        WHERE "brandId" = ${context.brandId}
           AND (
             "baseSkillId" = ${skillId}
-            OR (
-              COALESCE("baseSkillId", '') = ''
-              AND "basePromptId" = ANY (${promptIds}::text[])
-            )
+            OR "basePromptId" = ANY (${promptIds}::text[])
           )
       `;
       await this.prismaService.$executeRaw`
-        INSERT INTO "UserSkillResetLog" (
+        INSERT INTO "BrandSkillResetLog" (
           "id",
-          "userId",
           "brandId",
           "baseSkillId",
           "resetType",
@@ -606,8 +576,7 @@ export class UserSkillsService {
         )
         VALUES (
           ${createId("usrst")},
-          ${context.userId},
-          ${context.brandId ?? null},
+          ${context.brandId},
           ${skillId},
           ${"RESET_TO_PLATFORM"},
           ${JSON.stringify(promptIds)}::jsonb,
@@ -615,21 +584,20 @@ export class UserSkillsService {
         )
       `;
     } else {
-      for (let index = mockUserSkillProfiles.length - 1; index >= 0; index -= 1) {
-        const item = mockUserSkillProfiles[index];
-        if (item.userId === context.userId && item.brandId === context.brandId && item.baseSkillId === skillId) {
-          mockUserSkillProfiles.splice(index, 1);
+      for (let index = mockBrandSkillProfiles.length - 1; index >= 0; index -= 1) {
+        const item = mockBrandSkillProfiles[index];
+        if (item.brandId === context.brandId && item.baseSkillId === skillId) {
+          mockBrandSkillProfiles.splice(index, 1);
         }
       }
-      for (let index = mockUserPromptOverrides.length - 1; index >= 0; index -= 1) {
-        const item = mockUserPromptOverrides[index];
-        if (item.userId === context.userId && item.brandId === context.brandId && item.baseSkillId === skillId) {
-          mockUserPromptOverrides.splice(index, 1);
+      for (let index = mockBrandPromptOverrides.length - 1; index >= 0; index -= 1) {
+        const item = mockBrandPromptOverrides[index];
+        if (item.brandId === context.brandId && item.baseSkillId === skillId) {
+          mockBrandPromptOverrides.splice(index, 1);
         }
       }
-      mockUserSkillResetLogs.unshift({
+      mockBrandSkillResetLogs.unshift({
         id: createId("usrst"),
-        userId: context.userId,
         brandId: context.brandId,
         baseSkillId: skillId,
         resetType: "RESET_TO_PLATFORM",
@@ -641,64 +609,61 @@ export class UserSkillsService {
     return this.getUserSkill(skillId, auth);
   }
 
-  private async listSkillProfiles(userId: string, brandId?: string) {
+  private async listSkillProfiles(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureUserSkillTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserSkillProfileRow[]>`
+      await this.ensureBrandSkillTablesReady();
+      const rows = await this.prismaService.$queryRaw<BrandSkillProfileRow[]>`
         SELECT *
-        FROM "UserSkillProfile"
-        WHERE "userId" = ${userId}
-          AND "brandId" IS NOT DISTINCT FROM ${brandId ?? null}
+        FROM "BrandSkillProfile"
+        WHERE "brandId" = ${brandId}
       `;
       return rows.map((item) => this.normalizeSkillProfileRow(item));
     }
 
-    return mockUserSkillProfiles
-      .filter((item) => item.userId === userId && item.brandId === brandId)
+    return mockBrandSkillProfiles
+      .filter((item) => item.brandId === brandId)
       .map((item) => ({ ...item }));
   }
 
-  private async listPromptOverrides(userId: string, brandId?: string) {
+  private async listPromptOverrides(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureUserSkillTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserPromptOverrideRow[]>`
+      await this.ensureBrandSkillTablesReady();
+      const rows = await this.prismaService.$queryRaw<BrandPromptOverrideRow[]>`
         SELECT *
-        FROM "UserPromptOverride"
-        WHERE "userId" = ${userId}
-          AND "brandId" IS NOT DISTINCT FROM ${brandId ?? null}
+        FROM "BrandPromptOverride"
+        WHERE "brandId" = ${brandId}
       `;
       return rows.map((item) => this.normalizePromptOverrideRow(item));
     }
 
-    return mockUserPromptOverrides
-      .filter((item) => item.userId === userId && item.brandId === brandId)
+    return mockBrandPromptOverrides
+      .filter((item) => item.brandId === brandId)
       .map((item) => ({ ...item }));
   }
 
-  private async listResetLogs(userId: string, brandId?: string) {
+  private async listResetLogs(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
-      await this.ensureUserSkillTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserSkillResetLogRow[]>`
+      await this.ensureBrandSkillTablesReady();
+      const rows = await this.prismaService.$queryRaw<BrandSkillResetLogRow[]>`
         SELECT *
-        FROM "UserSkillResetLog"
-        WHERE "userId" = ${userId}
-          AND "brandId" IS NOT DISTINCT FROM ${brandId ?? null}
+        FROM "BrandSkillResetLog"
+        WHERE "brandId" = ${brandId}
         ORDER BY "createdAt" DESC
       `;
       return rows.map((item) => this.normalizeResetLogRow(item));
     }
 
-    return mockUserSkillResetLogs
-      .filter((item) => item.userId === userId && item.brandId === brandId)
+    return mockBrandSkillResetLogs
+      .filter((item) => item.brandId === brandId)
       .map((item) => ({ ...item }));
   }
 
   private buildUserSkillRecord(
     baseSkill: SkillConfigRecord,
     basePrompts: PromptTemplateRecord[],
-    profiles: UserSkillProfileRow[],
-    promptOverrides: UserPromptOverrideRow[],
-    resetLogs: UserSkillResetLogRow[],
+    profiles: BrandSkillProfileRow[],
+    promptOverrides: BrandPromptOverrideRow[],
+    resetLogs: BrandSkillResetLogRow[],
   ): UserSkillRecord {
     const profile = profiles.find((item) => item.baseSkillId === baseSkill.id);
     const latestResetLog = resetLogs.find((item) => item.baseSkillId === baseSkill.id);
@@ -751,12 +716,11 @@ export class UserSkillsService {
     };
   }
 
-  private async ensureUserSkillTablesReady() {
+  private async ensureBrandSkillTablesReady() {
     await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "UserSkillProfile" (
+      CREATE TABLE IF NOT EXISTS "BrandSkillProfile" (
         "id" TEXT PRIMARY KEY,
-        "userId" TEXT NOT NULL,
-        "brandId" TEXT NULL,
+        "brandId" TEXT NOT NULL,
         "baseSkillId" TEXT NOT NULL,
         "displayName" TEXT NULL,
         "defaultModel" TEXT NULL,
@@ -767,43 +731,39 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "brandId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "displayName" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "displayName" TEXT NULL
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "defaultModel" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "defaultModel" TEXT NULL
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "description" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "description" TEXT NULL
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "lastResetAt" TIMESTAMPTZ NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "lastResetAt" TIMESTAMPTZ NULL
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandSkillProfile" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandSkillProfile" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandSkillProfile" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillProfile" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "UserPromptOverride" (
+      CREATE TABLE IF NOT EXISTS "BrandPromptOverride" (
         "id" TEXT PRIMARY KEY,
-        "userId" TEXT NOT NULL,
-        "brandId" TEXT NULL,
+        "brandId" TEXT NOT NULL,
         "baseSkillId" TEXT NOT NULL,
         "basePromptId" TEXT NOT NULL,
         "content" TEXT NULL,
@@ -815,46 +775,42 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "brandId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "basePromptId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "basePromptId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "content" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "content" TEXT NULL
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "modelName" TEXT NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "modelName" TEXT NULL
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "temperature" DOUBLE PRECISION NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "temperature" DOUBLE PRECISION NULL
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "maxTokens" INTEGER NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "maxTokens" INTEGER NULL
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandPromptOverride" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandPromptOverride" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP
+      ALTER TABLE "BrandPromptOverride" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserPromptOverride" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP
-    `);
-    await this.prismaService.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "UserSkillResetLog" (
+      CREATE TABLE IF NOT EXISTS "BrandSkillResetLog" (
         "id" TEXT PRIMARY KEY,
-        "userId" TEXT NOT NULL,
-        "brandId" TEXT NULL,
+        "brandId" TEXT NOT NULL,
         "baseSkillId" TEXT NOT NULL,
         "resetType" TEXT NOT NULL,
         "promptIdsJson" JSONB NULL,
@@ -862,52 +818,197 @@ export class UserSkillsService {
       )
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandSkillResetLog" ADD COLUMN IF NOT EXISTS "brandId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "brandId" TEXT NULL
+      ALTER TABLE "BrandSkillResetLog" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "baseSkillId" TEXT NOT NULL DEFAULT ''
+      ALTER TABLE "BrandSkillResetLog" ADD COLUMN IF NOT EXISTS "resetType" TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM'
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "resetType" TEXT NOT NULL DEFAULT 'RESET_TO_PLATFORM'
+      ALTER TABLE "BrandSkillResetLog" ADD COLUMN IF NOT EXISTS "promptIdsJson" JSONB NULL
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "promptIdsJson" JSONB NULL
+      ALTER TABLE "BrandSkillResetLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     `);
     await this.prismaService.$executeRawUnsafe(`
-      ALTER TABLE "UserSkillResetLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      CREATE UNIQUE INDEX IF NOT EXISTS "BrandSkillProfile_brand_skill_uidx"
+      ON "BrandSkillProfile" ("brandId", "baseSkillId")
     `);
     await this.prismaService.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "UserSkillProfile_user_brand_skill_idx"
-      ON "UserSkillProfile" ("userId", "brandId", "baseSkillId")
+      CREATE INDEX IF NOT EXISTS "BrandSkillProfile_brand_skill_idx"
+      ON "BrandSkillProfile" ("brandId", "baseSkillId")
     `);
     await this.prismaService.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "UserPromptOverride_user_brand_skill_idx"
-      ON "UserPromptOverride" ("userId", "brandId", "baseSkillId")
+      CREATE UNIQUE INDEX IF NOT EXISTS "BrandPromptOverride_brand_prompt_uidx"
+      ON "BrandPromptOverride" ("brandId", "basePromptId")
     `);
     await this.prismaService.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "UserPromptOverride_user_brand_prompt_idx"
-      ON "UserPromptOverride" ("userId", "brandId", "basePromptId")
+      CREATE INDEX IF NOT EXISTS "BrandPromptOverride_brand_skill_idx"
+      ON "BrandPromptOverride" ("brandId", "baseSkillId")
     `);
     await this.prismaService.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "UserPromptOverride_user_brand_skill_prompt_idx"
-      ON "UserPromptOverride" ("userId", "brandId", "baseSkillId", "basePromptId")
+      CREATE INDEX IF NOT EXISTS "BrandPromptOverride_brand_prompt_idx"
+      ON "BrandPromptOverride" ("brandId", "basePromptId")
     `);
     await this.prismaService.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "UserSkillResetLog_user_brand_skill_idx"
-      ON "UserSkillResetLog" ("userId", "brandId", "baseSkillId", "createdAt" DESC)
+      CREATE INDEX IF NOT EXISTS "BrandSkillResetLog_brand_skill_idx"
+      ON "BrandSkillResetLog" ("brandId", "baseSkillId", "createdAt" DESC)
     `);
 
-    await this.backfillLegacyImageGenerationUserOverrides();
-    await this.backfillLegacyVideoNoteUserOverrides();
+    await this.migrateLegacyUserSkillOverridesToBrandLayer();
+    await this.backfillLegacyImageGenerationBrandOverrides();
+    await this.backfillLegacyVideoNoteBrandOverrides();
   }
 
-  private async backfillLegacyImageGenerationUserOverrides() {
+  private async migrateLegacyUserSkillOverridesToBrandLayer() {
+    await this.prismaService.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF to_regclass('"UserSkillProfile"') IS NOT NULL THEN
+          INSERT INTO "BrandSkillProfile" (
+            "id",
+            "brandId",
+            "baseSkillId",
+            "displayName",
+            "defaultModel",
+            "description",
+            "lastResetAt",
+            "createdAt",
+            "updatedAt"
+          )
+          SELECT
+            src."id",
+            src."brandId",
+            src."baseSkillId",
+            src."displayName",
+            src."defaultModel",
+            src."description",
+            src."lastResetAt",
+            src."createdAt",
+            src."updatedAt"
+          FROM (
+            SELECT DISTINCT ON ("brandId", "baseSkillId")
+              "id",
+              "brandId",
+              "baseSkillId",
+              "displayName",
+              "defaultModel",
+              "description",
+              "lastResetAt",
+              "createdAt",
+              "updatedAt"
+            FROM "UserSkillProfile"
+            WHERE COALESCE("brandId", '') <> ''
+            ORDER BY "brandId", "baseSkillId", "updatedAt" DESC, "createdAt" DESC
+          ) AS src
+          LEFT JOIN "BrandSkillProfile" AS dst
+            ON dst."brandId" = src."brandId"
+           AND dst."baseSkillId" = src."baseSkillId"
+          WHERE dst."id" IS NULL;
+        END IF;
+      END
+      $$;
+    `);
+
+    await this.prismaService.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF to_regclass('"UserPromptOverride"') IS NOT NULL THEN
+          INSERT INTO "BrandPromptOverride" (
+            "id",
+            "brandId",
+            "baseSkillId",
+            "basePromptId",
+            "content",
+            "modelName",
+            "temperature",
+            "maxTokens",
+            "createdAt",
+            "updatedAt"
+          )
+          SELECT
+            src."id",
+            src."brandId",
+            src."baseSkillId",
+            src."basePromptId",
+            src."content",
+            src."modelName",
+            src."temperature",
+            src."maxTokens",
+            src."createdAt",
+            src."updatedAt"
+          FROM (
+            SELECT DISTINCT ON ("brandId", "basePromptId")
+              "id",
+              "brandId",
+              "baseSkillId",
+              "basePromptId",
+              "content",
+              "modelName",
+              "temperature",
+              "maxTokens",
+              "createdAt",
+              "updatedAt"
+            FROM "UserPromptOverride"
+            WHERE COALESCE("brandId", '') <> ''
+            ORDER BY "brandId", "basePromptId", "updatedAt" DESC, "createdAt" DESC
+          ) AS src
+          LEFT JOIN "BrandPromptOverride" AS dst
+            ON dst."brandId" = src."brandId"
+           AND dst."basePromptId" = src."basePromptId"
+          WHERE dst."id" IS NULL;
+        END IF;
+      END
+      $$;
+    `);
+
+    await this.prismaService.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF to_regclass('"UserSkillResetLog"') IS NOT NULL THEN
+          INSERT INTO "BrandSkillResetLog" (
+            "id",
+            "brandId",
+            "baseSkillId",
+            "resetType",
+            "promptIdsJson",
+            "createdAt"
+          )
+          SELECT
+            src."id",
+            src."brandId",
+            src."baseSkillId",
+            src."resetType",
+            src."promptIdsJson",
+            src."createdAt"
+          FROM (
+            SELECT DISTINCT ON ("brandId", "baseSkillId")
+              "id",
+              "brandId",
+              "baseSkillId",
+              "resetType",
+              "promptIdsJson",
+              "createdAt"
+            FROM "UserSkillResetLog"
+            WHERE COALESCE("brandId", '') <> ''
+            ORDER BY "brandId", "baseSkillId", "createdAt" DESC
+          ) AS src
+          LEFT JOIN "BrandSkillResetLog" AS dst
+            ON dst."brandId" = src."brandId"
+           AND dst."baseSkillId" = src."baseSkillId"
+          WHERE dst."id" IS NULL;
+        END IF;
+      END
+      $$;
+    `);
+  }
+
+  private async backfillLegacyImageGenerationBrandOverrides() {
     for (const skillId of ["skill_xhs_original_image_generation", "skill_xhs_rewrite_image_generation"]) {
       await this.prismaService.$executeRaw`
-        UPDATE "UserSkillProfile"
+        UPDATE "BrandSkillProfile"
         SET "defaultModel" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
         WHERE "baseSkillId" = ${skillId}
           AND "defaultModel" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
@@ -916,7 +1017,7 @@ export class UserSkillsService {
 
     for (const promptId of ["prompt_xhs_original_image_generation", "prompt_xhs_rewrite_image_generation"]) {
       await this.prismaService.$executeRaw`
-        UPDATE "UserPromptOverride"
+        UPDATE "BrandPromptOverride"
         SET "modelName" = ${RIGHT_CODES_IMAGE_GENERATION_DEFAULT_MODEL}
         WHERE "basePromptId" = ${promptId}
           AND "modelName" = ${LEGACY_IMAGE_GENERATION_DEFAULT_MODEL}
@@ -924,36 +1025,39 @@ export class UserSkillsService {
     }
   }
 
-  private async backfillLegacyVideoNoteUserOverrides() {
+  private async backfillLegacyVideoNoteBrandOverrides() {
     await this.prismaService.$executeRaw`
-      UPDATE "UserSkillProfile"
+      UPDATE "BrandSkillProfile"
       SET "defaultModel" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
       WHERE "baseSkillId" = ${"skill_xhs_video_note"}
         AND "defaultModel" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
     `;
 
     await this.prismaService.$executeRaw`
-      UPDATE "UserPromptOverride"
+      UPDATE "BrandPromptOverride"
       SET "modelName" = ${VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL}
       WHERE "basePromptId" = ${"prompt_xhs_video_note"}
         AND "modelName" = ${LEGACY_VIDEO_NOTE_DEFAULT_MODEL}
     `;
   }
 
-  private assertUserContext(auth?: RequestAuthContext) {
+  private assertBrandContext(auth?: RequestAuthContext) {
     if (!auth?.userId) {
       throw new NotFoundException("当前登录上下文不存在");
     }
+    const brandId = String(auth.brandId || "").trim();
+    if (!brandId) {
+      throw new NotFoundException("请先选择品牌");
+    }
     return {
       userId: auth.userId,
-      brandId: auth.brandId,
+      brandId,
     };
   }
 
   private normalizeSkillProfileRow(row: {
     id: string;
-    userId: string;
-    brandId?: string | null;
+    brandId: string;
     baseSkillId: string;
     displayName?: string | null;
     defaultModel?: string | null;
@@ -961,11 +1065,10 @@ export class UserSkillsService {
     lastResetAt?: Date | string | null;
     createdAt: Date | string;
     updatedAt: Date | string;
-  }): UserSkillProfileRow {
+  }): BrandSkillProfileRow {
     return {
       id: row.id,
-      userId: row.userId,
-      brandId: row.brandId || undefined,
+      brandId: row.brandId,
       baseSkillId: row.baseSkillId,
       displayName: row.displayName || undefined,
       defaultModel: this.normalizeImageGenerationModelValue(row.defaultModel || undefined),
@@ -978,8 +1081,7 @@ export class UserSkillsService {
 
   private normalizePromptOverrideRow(row: {
     id: string;
-    userId: string;
-    brandId?: string | null;
+    brandId: string;
     baseSkillId: string;
     basePromptId: string;
     content?: string | null;
@@ -988,11 +1090,10 @@ export class UserSkillsService {
     maxTokens?: number | null;
     createdAt: Date | string;
     updatedAt: Date | string;
-  }): UserPromptOverrideRow {
+  }): BrandPromptOverrideRow {
     return {
       id: row.id,
-      userId: row.userId,
-      brandId: row.brandId || undefined,
+      brandId: row.brandId,
       baseSkillId: row.baseSkillId,
       basePromptId: row.basePromptId,
       content: row.content || undefined,
@@ -1006,17 +1107,15 @@ export class UserSkillsService {
 
   private normalizeResetLogRow(row: {
     id: string;
-    userId: string;
-    brandId?: string | null;
+    brandId: string;
     baseSkillId: string;
     resetType: string;
     promptIdsJson?: unknown;
     createdAt: Date | string;
-  }): UserSkillResetLogRow {
+  }): BrandSkillResetLogRow {
     return {
       id: row.id,
-      userId: row.userId,
-      brandId: row.brandId || undefined,
+      brandId: row.brandId,
       baseSkillId: row.baseSkillId,
       resetType: row.resetType,
       promptIdsJson: row.promptIdsJson,
@@ -1075,14 +1174,14 @@ function hasAnyDefinedValue(values: unknown[]) {
   return values.some((value) => value !== undefined);
 }
 
-function hasSkillProfileOverride(profile?: UserSkillProfileRow) {
+function hasSkillProfileOverride(profile?: BrandSkillProfileRow) {
   if (!profile) {
     return false;
   }
   return Boolean(profile.displayName || profile.defaultModel || profile.description);
 }
 
-function hasPromptOverride(override?: UserPromptOverrideRow) {
+function hasPromptOverride(override?: BrandPromptOverrideRow) {
   if (!override) {
     return false;
   }

@@ -260,23 +260,24 @@
 - `/personal-center`：概览页中的“账号与品牌”卡现已补充“编辑账号资料”直达入口，便于从首页快速进入资料维护
 - `/personal-center/orders`：订单中心第一版，已接真实 `/orders` 列表接口，按当前登录用户查看会员订单和点数充值记录，支持状态筛选、类型筛选、关键词搜索、品牌上下文切换、筛选金额汇总和订单详情跳转；当前订单仍主要按用户维度过滤，品牌级订单归属后续继续扩展
 - `/personal-center/works`：作品中心第一版，已接真实 `/media` 列表接口，按当前登录用户查看 HTML、图片、视频与文档资产，支持作品范围筛选、类型筛选、关键词搜索、品牌上下文切换、小红书作品回跳与源文件打开；当前作品仍主要按用户维度过滤，品牌内共享与更细作品分类后续继续扩展
-- `/personal-center/skills`：技能中心已升级为“平台基线 + 用户覆盖”双层结构；当前采用左侧分类树、右侧单条提示词编辑器，支持按当前登录用户和当前品牌读取真实 `/api/user-skills`
+- `/personal-center/skills`：技能中心已升级为“平台基线 + 品牌共享覆盖”双层结构；当前采用左侧分类树、右侧单条提示词编辑器，支持按当前品牌读取真实 `/api/user-skills`
   - 左侧不再按“总技能卡”展示，而是按统一分类树直接展开到“可编辑提示词叶子项”；视频笔记会明确拆成 `品牌宣传剧本 / 口播带货剧本 / 短剧带货剧本 / 复刻视频拆解 / 故事板提示词 / 短视频提示词`
   - 左侧一级分类和二级分类现都支持折叠；搜索时会自动展开全部结果分组，选中某条提示词时也会自动展开到对应位置
-  - 右侧当前聚焦所选提示词本身，展示所属分类、所属执行技能、提示词场景和提示词编辑字段；保存时继续复用原有用户覆盖层
+  - 右侧当前聚焦所选提示词本身，展示所属分类、所属执行技能、提示词场景和提示词编辑字段；保存时写入当前品牌共享覆盖层
   - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
   - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
-  - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入用户覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
-  - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `UserSkillProfile`、`UserPromptOverride`、`UserSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null`、`promptIdsJson -> jsonb` 写入，以及 `baseSkillId` 为空的历史提示词覆盖记录，避免历史库在切模型或重置平台基线时触发 500
-  - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若用户覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
-  - 视频笔记技能若数据库或用户覆盖层里仍残留旧默认值 `seedance`，当前也会在接口初始化时自动安全回填到火山方舟 `doubao-seedance-2-0-260128`，避免柏拉图下线后技能中心继续显示不可用模型
-  - 当前仍支持保存到用户自己的技能库、重置回后台平台基线、品牌上下文切换与退出登录
+  - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入品牌共享覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
+  - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `BrandSkillProfile`、`BrandPromptOverride`、`BrandSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null` 与 `promptIdsJson -> jsonb` 写入
+  - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若品牌覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
+  - 视频笔记技能若数据库或品牌覆盖层里仍残留旧默认值 `seedance`，当前也会在接口初始化时自动安全回填到火山方舟 `doubao-seedance-2-0-260128`，避免柏拉图下线后技能中心继续显示不可用模型
+  - 当前仍支持保存到当前品牌技能库、重置回后台平台基线、品牌上下文切换与退出登录；保存与重置操作仅品牌管理员可执行
   - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
   - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
   - 参考变更：`docs/changes/2026-05-14-personal-center-skill-editor-layout-and-model-options.md`
   - 参考变更：`docs/changes/2026-05-15-user-skills-table-compat-fix.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
   - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
+  - 参考变更：`docs/changes/2026-05-28-brand-skill-center-shared-overrides.md`
 - `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
   - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
   - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护自己的私有 API Key，仅有 `view` 的成员保持只读

@@ -305,6 +305,7 @@ export default function PersonalCenterSkillsPage() {
     () => brands.find((item) => item.id === currentBrandId) ?? brands[0],
     [brands, currentBrandId],
   );
+  const canManageCurrentBrandSkills = currentBrand?.role === "ADMIN";
   const hasSearchKeyword = Boolean(search.trim());
 
   return (
@@ -312,14 +313,14 @@ export default function PersonalCenterSkillsPage() {
       <div className="panel-header">
         <div>
           <h2>技能中心</h2>
-          <p className="panel-subtext">这里保存当前账号在当前品牌下的个人提示词覆盖；不改时默认跟随后台平台基线。</p>
+          <p className="panel-subtext">这里保存当前品牌共享的技能与提示词配置；品牌管理员可修改，未覆盖时默认跟随后台平台基线。</p>
         </div>
         <span>{filteredPromptLeaves.length} 条提示词</span>
       </div>
 
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <div className="workspace-status">
-          <span className="archive-pill status-ready">用户技能库</span>
+          <span className="archive-pill status-ready">品牌技能库</span>
           {isLoading ? <span className="status-text">正在加载技能中心数据...</span> : null}
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
           {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
@@ -371,6 +372,7 @@ export default function PersonalCenterSkillsPage() {
         </label>
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
+          <span className="status-text">{canManageCurrentBrandSkills ? "当前账号可管理该品牌技能库" : "当前账号仅可查看该品牌技能库"}</span>
         </div>
       </div>
 
@@ -500,7 +502,7 @@ export default function PersonalCenterSkillsPage() {
                 type="button"
                 className="primary-button"
                 onClick={() => void handleSaveSkill(selectedSkill.id)}
-                disabled={!isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+                disabled={!canManageCurrentBrandSkills || !isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
               >
                 {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
               </button>
@@ -508,14 +510,14 @@ export default function PersonalCenterSkillsPage() {
                 type="button"
                 className="secondary-button"
                 onClick={() => void handleResetSkill(selectedSkill.id)}
-                disabled={savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+                disabled={!canManageCurrentBrandSkills || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
               >
                 {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
               </button>
             </div>
 
             <p className="personal-meta" style={{ marginBottom: 16 }}>
-              当前正在编辑 1 条提示词；保存时会一并提交该执行技能下所有已修改提示词。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
+              当前正在编辑 1 条提示词；保存时会一并提交该执行技能下所有已修改提示词，并写入当前品牌共享技能库。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
             </p>
 
             <div className="personal-grid" style={{ marginBottom: 12 }}>
@@ -606,13 +608,13 @@ export default function PersonalCenterSkillsPage() {
                   placeholder={selectedPrompt.basePrompt.content}
                 />
                 <small className="personal-meta">
-                  保存后只覆盖你当前品牌下的个人版本；点击“恢复平台基线”会恢复该执行技能下的提示词配置。
+                  保存后会覆盖当前品牌共享版本；点击“恢复平台基线”会恢复该执行技能下的品牌提示词配置。
                 </small>
               </label>
             </div>
           </article>
         ) : (
-          <div className="empty-canvas-box">请选择左侧提示词查看并编辑个人版本。</div>
+          <div className="empty-canvas-box">请选择左侧提示词查看并编辑当前品牌版本。</div>
         )}
       </div>
     </section>

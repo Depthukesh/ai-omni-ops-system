@@ -15,6 +15,9 @@ export class UserSkillsController {
     if (!auth) {
       throw new UnauthorizedException("请先登录");
     }
+    if (auth.brandId) {
+      await this.authService.assertBrandAccess(auth.brandId, auth);
+    }
     return this.userSkillsService.listUserSkills(auth);
   }
 
@@ -23,6 +26,9 @@ export class UserSkillsController {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth) {
       throw new UnauthorizedException("请先登录");
+    }
+    if (auth.brandId) {
+      await this.authService.assertBrandAccess(auth.brandId, auth);
     }
     return this.userSkillsService.getEditorOptions();
   }
@@ -35,6 +41,9 @@ export class UserSkillsController {
     const auth = await this.authService.resolveRequestAuthContext(headers, { fallbackToDefaultUser: true });
     if (!auth) {
       throw new UnauthorizedException("请先登录");
+    }
+    if (auth.brandId) {
+      await this.authService.assertBrandAccess(auth.brandId, auth);
     }
     return this.userSkillsService.getUserSkill(skillId, auth);
   }
@@ -49,6 +58,10 @@ export class UserSkillsController {
     if (!auth) {
       throw new UnauthorizedException("请先登录");
     }
+    if (!auth.brandId) {
+      throw new UnauthorizedException("请先选择品牌");
+    }
+    await this.authService.assertBrandAdminAccess(auth.brandId, auth);
     return this.userSkillsService.updateUserSkill(skillId, payload, auth);
   }
 
@@ -61,6 +74,10 @@ export class UserSkillsController {
     if (!auth) {
       throw new UnauthorizedException("请先登录");
     }
+    if (!auth.brandId) {
+      throw new UnauthorizedException("请先选择品牌");
+    }
+    await this.authService.assertBrandAdminAccess(auth.brandId, auth);
     return this.userSkillsService.resetUserSkill(skillId, auth);
   }
 }

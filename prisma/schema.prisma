@@ -242,6 +242,9 @@ model Brand {
   userSkillProfiles  UserSkillProfile[]
   userPromptOverrides UserPromptOverride[]
   userSkillResetLogs UserSkillResetLog[]
+  brandSkillProfiles BrandSkillProfile[]
+  brandPromptOverrides BrandPromptOverride[]
+  brandSkillResetLogs BrandSkillResetLog[]
   thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
 
   @@index([ownerUserId, createdAt])
@@ -542,6 +545,9 @@ model SkillConfig {
   userSkillProfiles UserSkillProfile[]
   userPromptOverrides UserPromptOverride[]
   userSkillResetLogs UserSkillResetLog[]
+  brandSkillProfiles BrandSkillProfile[]
+  brandPromptOverrides BrandPromptOverride[]
+  brandSkillResetLogs BrandSkillResetLog[]
 }
 
 model PromptTemplate {
@@ -557,8 +563,63 @@ model PromptTemplate {
   updatedAt   DateTime @default(now())
 
   userPromptOverrides UserPromptOverride[]
+  brandPromptOverrides BrandPromptOverride[]
 
   @@index([scene, updatedAt(sort: Desc)])
+}
+
+model BrandSkillProfile {
+  id           String   @id @default(cuid())
+  brandId      String
+  baseSkillId  String
+  displayName  String?
+  defaultModel String?
+  description  String?
+  lastResetAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brand        Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, baseSkillId])
+  @@index([baseSkillId, updatedAt])
+}
+
+model BrandPromptOverride {
+  id           String   @id @default(cuid())
+  brandId      String
+  baseSkillId  String
+  basePromptId String
+  content      String?
+  modelName    String?
+  temperature  Float?
+  maxTokens    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brand        Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill    SkillConfig    @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+  basePrompt   PromptTemplate @relation(fields: [basePromptId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, basePromptId])
+  @@index([brandId, baseSkillId, updatedAt])
+  @@index([basePromptId, updatedAt])
+}
+
+model BrandSkillResetLog {
+  id           String   @id @default(cuid())
+  brandId      String
+  baseSkillId  String
+  resetType    String
+  promptIdsJson Json?
+  createdAt    DateTime @default(now())
+
+  brand        Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  baseSkill    SkillConfig @relation(fields: [baseSkillId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, createdAt])
+  @@index([baseSkillId, createdAt])
 }
 
 model UserSkillProfile {
