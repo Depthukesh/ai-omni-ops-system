@@ -125,6 +125,7 @@ type DouyinMarketingPlanAssetMeta = {
 type DouyinHotTopicCandidateItem = {
   id: string;
   title: string;
+  description?: string;
   checked?: boolean;
 };
 
@@ -4928,13 +4929,14 @@ export class ReportsService {
       '  "title": "标题",',
       '  "summary": "不超过80字的摘要",',
       '  "items": [',
-      '    { "title": "选题1" },',
-      '    { "title": "选题2" },',
-      '    { "title": "选题3" }',
+      '    { "title": "选题1", "description": "选题1说明" },',
+      '    { "title": "选题2", "description": "选题2说明" },',
+      '    { "title": "选题3", "description": "选题3说明" }',
       "  ]",
       "}",
       "items 必须正好返回 3 条。",
       "items[].title 必须是适合直接展示和勾选的内容选题标题，不得直接照抄热点名称、人物名、事件名，也不要只输出一个热点词。",
+      "items[].description 必须是该选题自己的说明，突出切入角度、内容亮点或适合怎么做，控制在 30-80 字，3 条说明不得写成同一句套话。",
       "如果报告里没有显式标题，请基于每个热点选题的分析结论提炼成最终内容选题标题。",
       selectedDate ? `这 3 个选题都必须围绕 ${selectedDate} 当天热点展开。` : "这 3 个选题都必须围绕所选日期当天热点展开。",
     ].join("\n");
@@ -8058,10 +8060,19 @@ ${normalizedMarkdown}`;
       .filter((item): item is Record<string, unknown> => Boolean(item))
       .map<DouyinHotTopicCandidateItem | undefined>((item, index) => {
         const title = String(item.title ?? item.topicTitle ?? item.topicName ?? item.name ?? "").trim();
+        const description = String(
+          item.description
+          ?? item.topicDescription
+          ?? item.reason
+          ?? item.summary
+          ?? item.highlight
+          ?? "",
+        ).trim();
         return title
           ? {
               id: String(item.id ?? "").trim() || `topic-${index + 1}-${this.createSlug(title)}`,
               title,
+              description: description || undefined,
               checked: Boolean(item.checked),
             }
           : undefined;
@@ -8078,6 +8089,7 @@ ${normalizedMarkdown}`;
       return structuredTitles.map((title, index) => ({
         id: `topic-${index + 1}-${this.createSlug(title)}`,
         title,
+        description: undefined,
         checked: false,
       }));
     }
@@ -8098,6 +8110,7 @@ ${normalizedMarkdown}`;
     return uniqueTitles.map((title, index) => ({
       id: `topic-${index + 1}-${this.createSlug(title)}`,
       title,
+      description: undefined,
       checked: false,
     }));
   }

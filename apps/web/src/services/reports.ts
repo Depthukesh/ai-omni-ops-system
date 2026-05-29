@@ -193,6 +193,7 @@ export type DouyinMarketingPlanWorkspace = {
 export type DouyinHotTopicCandidateItem = {
   id: string;
   title: string;
+  description?: string;
   checked?: boolean;
 };
 

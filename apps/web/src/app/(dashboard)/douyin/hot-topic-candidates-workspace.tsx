@@ -161,6 +161,9 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
                     <div style={{ display: "grid", gap: 8 }}>
                       <strong>{`选题 ${index + 1}`}</strong>
                       <div>{item.title}</div>
+                      <p className="panel-subtext" style={{ margin: 0 }}>
+                        {item.description || props.latest?.summary || "该选题说明将在生成后展示。"}
+                      </p>
                     </div>
                   </label>
                 );

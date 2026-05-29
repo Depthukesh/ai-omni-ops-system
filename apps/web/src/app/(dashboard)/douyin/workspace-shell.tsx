@@ -444,7 +444,7 @@ export function DouyinWorkspaceShell() {
       nextItems.unshift({
         id: `topic-library-${item.id}`,
         topicContent: item.title,
-        topicDescription: latestHotTopicResult.summary || `来自 ${selectedHotTopicDate} 热点找选题结果`,
+        topicDescription: item.description?.trim() || latestHotTopicResult.summary || `来自 ${selectedHotTopicDate} 热点找选题结果`,
         selectedAt: new Date().toISOString(),
         source: "GENERATED",
         sourceDate: selectedHotTopicDate || undefined,
