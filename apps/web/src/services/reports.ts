@@ -196,6 +196,15 @@ export type DouyinHotTopicCandidateItem = {
   checked?: boolean;
 };
 
+export type DouyinTopicLibraryItem = {
+  id: string;
+  topicContent: string;
+  topicDescription: string;
+  selectedAt: string;
+  source?: "GENERATED" | "MANUAL";
+  sourceDate?: string;
+};
+
 export type DouyinHotTopicCandidatesRecord = {
   id: string;
   title: string;
@@ -216,6 +225,7 @@ export type DouyinHotTopicCandidatesWorkspace = {
   latest?: DouyinHotTopicCandidatesRecord;
   history: DouyinHotTopicCandidatesRecord[];
   latestTask?: DouyinHotTopicCandidatesTaskRecord;
+  topicLibrary: DouyinTopicLibraryItem[];
 };
 
 export type XiaohongshuMarketingCalendarItem = {
@@ -326,6 +336,7 @@ export const douyinHotTopicCandidatesSeed: DouyinHotTopicCandidatesWorkspace = {
   availableDates: [],
   latest: undefined,
   history: [],
+  topicLibrary: [],
 };
 
 function resolveBrandId(brandId?: string) {
@@ -433,6 +444,12 @@ export async function getDouyinHotTopicCandidatesWorkspace(brandId?: string, sel
 export async function generateDouyinHotTopicCandidates(selectedDate?: string, brandId?: string) {
   return jsonRequest<DouyinHotTopicCandidatesWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-hot-topic-candidates/generate`, "POST", {
     selectedDate,
+  });
+}
+
+export async function updateDouyinTopicLibrary(items: DouyinTopicLibraryItem[], brandId?: string) {
+  return jsonRequest<DouyinHotTopicCandidatesWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-topic-library`, "PATCH", {
+    items,
   });
 }
 

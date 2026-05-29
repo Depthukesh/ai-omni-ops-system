@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Que
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
+  type UpdateDouyinTopicLibraryPayload,
   type UpdateDouyinMarketingPlanPayload,
   type UpdateGrowthReportPayload,
   type UpdateVisualGrowthReportPayload,
@@ -201,6 +202,17 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
     return this.reportsService.generateDouyinHotTopicCandidates(brandId, payload?.selectedDate);
+  }
+
+  @Patch("brands/:brandId/douyin-topic-library")
+  async updateDouyinTopicLibrary(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: UpdateDouyinTopicLibraryPayload,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.updateDouyinTopicLibrary(brandId, payload);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

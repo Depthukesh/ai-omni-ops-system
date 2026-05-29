@@ -17,8 +17,10 @@ import {
   getDouyinMarketingPlanWorkspace,
   getGrowthReportWorkspace,
   growthReportSeed,
+  updateDouyinTopicLibrary,
   updateDouyinMarketingPlan,
   type DouyinHotTopicCandidatesWorkspace,
+  type DouyinTopicLibraryItem,
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
@@ -28,14 +30,16 @@ import { DouyinAssetsWorkspace } from "./assets-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
+import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
   { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的对标作品，沿用卡片化素材浏览方式。" },
   { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
+  { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -88,6 +92,7 @@ export function DouyinWorkspaceShell() {
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingHotTopics, setIsGeneratingHotTopics] = useState(false);
+  const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
@@ -127,7 +132,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库和热点找选题，可直接复用品牌增长策略里沉淀的抖音对标作品与每日热点。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题和选题库，可直接复用品牌增长策略里沉淀的抖音对标作品与每日热点。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -396,6 +401,100 @@ export function DouyinWorkspaceShell() {
     });
   }, []);
 
+  const saveTopicLibrary = useCallback(async (items: DouyinTopicLibraryItem[], noticeText: string) => {
+    setIsSavingTopicLibrary(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await updateDouyinTopicLibrary(items, activeBrandId);
+      setHotTopicWorkspace(nextWorkspace);
+      setNotice(noticeText);
+      return nextWorkspace;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "选题库保存失败。");
+      return undefined;
+    } finally {
+      setIsSavingTopicLibrary(false);
+    }
+  }, [activeBrandId]);
+
+  const handleAddSelectedTopics = useCallback(async () => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能写入选题库。");
+      return;
+    }
+    if (!latestHotTopicResult?.items?.length || !selectedTopicIds.length) {
+      setErrorMessage("请先勾选至少一个热点选题。");
+      return;
+    }
+    const existing = hotTopicWorkspace.topicLibrary || [];
+    const existingKeys = new Set(existing.map((item) => item.topicContent.trim().toLowerCase()));
+    const nextItems = [...existing];
+    let addedCount = 0;
+    for (const item of latestHotTopicResult.items) {
+      if (!selectedTopicIds.includes(item.id)) {
+        continue;
+      }
+      const dedupeKey = item.title.trim().toLowerCase();
+      if (!dedupeKey || existingKeys.has(dedupeKey)) {
+        continue;
+      }
+      existingKeys.add(dedupeKey);
+      addedCount += 1;
+      nextItems.unshift({
+        id: `topic-library-${item.id}`,
+        topicContent: item.title,
+        topicDescription: latestHotTopicResult.summary || `来自 ${selectedHotTopicDate} 热点找选题结果`,
+        selectedAt: new Date().toISOString(),
+        source: "GENERATED",
+        sourceDate: selectedHotTopicDate || undefined,
+      });
+    }
+    if (!addedCount) {
+      setNotice("勾选选题已在当前品牌选题库中，无需重复加入。");
+      return;
+    }
+    const nextWorkspace = await saveTopicLibrary(nextItems, `已加入 ${addedCount} 条选题到当前品牌选题库。`);
+    if (nextWorkspace) {
+      setSelectedTopicIds([]);
+    }
+  }, [
+    canEditMarketingPlan,
+    hotTopicWorkspace.topicLibrary,
+    latestHotTopicResult,
+    saveTopicLibrary,
+    selectedHotTopicDate,
+    selectedTopicIds,
+  ]);
+
+  const handleAddManualTopic = useCallback(async (payload: { topicContent: string; topicDescription: string }) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能写入选题库。");
+      return;
+    }
+    const topicContent = payload.topicContent.trim();
+    if (!topicContent) {
+      setErrorMessage("请输入选题内容。");
+      return;
+    }
+    const existing = hotTopicWorkspace.topicLibrary || [];
+    const exists = existing.some((item) => item.topicContent.trim().toLowerCase() === topicContent.toLowerCase());
+    if (exists) {
+      setNotice("相同选题已存在于当前品牌选题库中。");
+      return;
+    }
+    await saveTopicLibrary([
+      {
+        id: `topic-library-manual-${Date.now()}`,
+        topicContent,
+        topicDescription: payload.topicDescription.trim() || "手动添加选题",
+        selectedAt: new Date().toISOString(),
+        source: "MANUAL",
+      },
+      ...existing,
+    ], "选题已添加到当前品牌选题库。");
+  }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
+
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
       return;
@@ -519,12 +618,29 @@ export function DouyinWorkspaceShell() {
                     latest={latestHotTopicResult}
                     latestTask={latestHotTopicTask}
                     selectedTopicIds={selectedTopicIds}
+                    isSavingTopicLibrary={isSavingTopicLibrary}
                     onRefresh={async () => {
                       await refreshHotTopicWorkspace(selectedHotTopicDate);
                     }}
                     onDateChange={handleHotTopicDateChange}
                     onGenerate={handleGenerateHotTopics}
                     onToggleTopic={handleToggleTopic}
+                    onAddSelectedTopics={handleAddSelectedTopics}
+                    onOpenTopicLibrary={() => setActiveSection("topicLibrary")}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "topicLibrary" ? (
+                  <DouyinTopicLibraryWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    canEdit={canEditMarketingPlan}
+                    items={hotTopicWorkspace.topicLibrary || []}
+                    isSaving={isSavingTopicLibrary}
+                    onRefresh={async () => {
+                      await refreshHotTopicWorkspace();
+                    }}
+                    onAddManualTopic={handleAddManualTopic}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

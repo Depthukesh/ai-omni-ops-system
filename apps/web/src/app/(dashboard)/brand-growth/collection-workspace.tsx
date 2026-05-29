@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type {
   AsyncAction,
   FeishuAppConfigForm,
@@ -1260,53 +1260,113 @@ function DouyinCityHotspotTable(props: {
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 }) {
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(props.items.length / PAGE_SIZE));
+  const paginatedItems = useMemo(() => {
+    const startIndex = (page - 1) * PAGE_SIZE;
+    return props.items.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [page, props.items]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [props.items.length]);
+
   return (
-    <ScrollableTableShell>
-      <table className="soft-table douyin-data-table">
-        <thead>
-          <tr>
-            <th>城市</th>
-            <th>排名</th>
-            <th>排名变化</th>
-            <th>日期+时间</th>
-            <th>热点词</th>
-            <th>热度值</th>
-            <th>相关视频数</th>
-            <th>热点分类标签</th>
-            <th>热点资料</th>
-            <th>采集时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.items.map((item) => (
-            <tr key={item.id}>
-              <td>{item.cityLabel || "-"}</td>
-              <td>{item.rank || "-"}</td>
-              <td>{item.rankDiff ?? "-"}</td>
-              <td>{item.createAtText || "-"}</td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell value={item.sentence} emptyText="暂无热点词" compactRows={2} />
-              </td>
-              <td>{props.formatCount(item.hotScore)}</td>
-              <td>{props.formatCount(item.videoCount)}</td>
-              <td>{item.sentenceTag ?? "-"}</td>
-              <td className="table-cell-wide">
-                <ExpandableTextCell
-                  value={[
-                    item.sentenceId ? `热点ID：${item.sentenceId}` : "",
-                    item.cityCode ? `城市编码：${item.cityCode}` : "",
-                    `趋势：${formatTrendSummary(item.trends)}`,
-                  ].filter(Boolean).join("；")}
-                  emptyText="-"
-                  compactRows={2}
-                />
-              </td>
-              <td>{props.formatDateTime(item.collectedAt)}</td>
+    <div style={{ display: "grid", gap: 14 }}>
+      <div className="hotspot-list-tools" style={{ justifyContent: "space-between" }}>
+        <span className="archive-pill status-ready">共 {props.items.length} 条</span>
+        <span className="archive-pill status-pending">每页 20 行</span>
+      </div>
+      <ScrollableTableShell>
+        <table className="soft-table douyin-data-table">
+          <thead>
+            <tr>
+              <th>城市</th>
+              <th>排名</th>
+              <th>排名变化</th>
+              <th>日期+时间</th>
+              <th>热点词</th>
+              <th>热度值</th>
+              <th>相关视频数</th>
+              <th>热点分类标签</th>
+              <th>热点资料</th>
+              <th>采集时间</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTableShell>
+          </thead>
+          <tbody>
+            {paginatedItems.map((item) => (
+              <tr key={item.id}>
+                <td>{item.cityLabel || "-"}</td>
+                <td>{item.rank || "-"}</td>
+                <td>{item.rankDiff ?? "-"}</td>
+                <td>{item.createAtText || "-"}</td>
+                <td className="table-cell-wide">
+                  <ExpandableTextCell value={item.sentence} emptyText="暂无热点词" compactRows={2} />
+                </td>
+                <td>{props.formatCount(item.hotScore)}</td>
+                <td>{props.formatCount(item.videoCount)}</td>
+                <td>{item.sentenceTag ?? "-"}</td>
+                <td className="table-cell-wide">
+                  <ExpandableTextCell
+                    value={[
+                      item.sentenceId ? `热点ID：${item.sentenceId}` : "",
+                      item.cityCode ? `城市编码：${item.cityCode}` : "",
+                      `趋势：${formatTrendSummary(item.trends)}`,
+                    ].filter(Boolean).join("；")}
+                    emptyText="-"
+                    compactRows={2}
+                  />
+                </td>
+                <td>{props.formatDateTime(item.collectedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollableTableShell>
+      {props.items.length > PAGE_SIZE ? (
+        <div className="note-pagination-bar hotspot-pagination-bar">
+          <div className="note-pagination-summary">
+            <span>第 {page} / {pageCount} 页</span>
+            <span>当前显示 {paginatedItems.length} 条</span>
+          </div>
+          <div className="note-pagination-actions">
+            <button
+              type="button"
+              className="note-inline-button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page === 1}
+            >
+              上一页
+            </button>
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((currentPage) => (
+              <button
+                key={`city-hotspot-page-${currentPage}`}
+                type="button"
+                className={`note-page-button ${currentPage === page ? "is-active" : ""}`}
+                onClick={() => setPage(currentPage)}
+              >
+                {currentPage}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="note-inline-button"
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              disabled={page === pageCount}
+            >
+              下一页
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

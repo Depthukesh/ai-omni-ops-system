@@ -62,7 +62,7 @@ export type SurveyAnswerRecord = {
 export type AssetRecord = {
   id: string;
   brandId: string;
-  category: "INDUSTRY_REPORT" | "BUSINESS_DATA" | "PLATFORM_EXPORT" | "GENERATED_REPORT";
+  category: "INDUSTRY_REPORT" | "BUSINESS_DATA" | "PLATFORM_EXPORT" | "GENERATED_REPORT" | "GENERATED_CONTENT";
   title: string;
   description: string;
   sourceName?: string;

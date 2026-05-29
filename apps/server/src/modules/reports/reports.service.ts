@@ -139,6 +139,22 @@ type DouyinHotTopicCandidatesAssetMeta = {
   reportContent?: string;
 };
 
+type DouyinTopicLibraryItem = {
+  id: string;
+  topicContent: string;
+  topicDescription: string;
+  selectedAt: string;
+  source?: "GENERATED" | "MANUAL";
+  sourceDate?: string;
+};
+
+type DouyinTopicLibraryAssetMeta = {
+  kind: "DOUYIN_TOPIC_LIBRARY";
+  updatedAt: string;
+  summary: string;
+  items: DouyinTopicLibraryItem[];
+};
+
 type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
@@ -490,6 +506,10 @@ export type UpdateXiaohongshuMarketingCalendarPayload = {
   items: XiaohongshuMarketingCalendarItem[];
 };
 
+export type UpdateDouyinTopicLibraryPayload = {
+  items: DouyinTopicLibraryItem[];
+};
+
 export type GrowthReportWorkspace = {
   latest?: GrowthReportRecord;
   history: GrowthReportRecord[];
@@ -526,6 +546,7 @@ export type DouyinHotTopicCandidatesWorkspace = {
   latest?: DouyinHotTopicCandidatesRecord;
   history: DouyinHotTopicCandidatesRecord[];
   latestTask?: DouyinHotTopicCandidatesTaskRecord;
+  topicLibrary: DouyinTopicLibraryItem[];
 };
 
 export type XiaohongshuMarketingCalendarWorkspace = {
@@ -1297,6 +1318,7 @@ export class ReportsService {
   ): Promise<DouyinHotTopicCandidatesWorkspace> {
     const dailyHotspots = await this.collectorsService.getDailyHotspotWorkspace(brandId, selectedDate);
     const effectiveSelectedDate = dailyHotspots.selectedDate || selectedDate || "";
+    const topicLibrary = await this.getDouyinTopicLibrary(brandId);
     const matchesSelectedDate = (record: DouyinHotTopicCandidatesRecord) => record.selectedDate === effectiveSelectedDate;
     const matchesTaskDate = (task: { inputJson?: unknown }) =>
       !effectiveSelectedDate || this.readMetaString(this.asMeta(task.inputJson), "selectedDate") === effectiveSelectedDate;
@@ -1340,6 +1362,7 @@ export class ReportsService {
         latest: reports[0],
         history: reports,
         latestTask: normalizedTask,
+        topicLibrary: topicLibrary?.items || [],
       };
     }
 
@@ -1364,6 +1387,7 @@ export class ReportsService {
       latest: reports[0],
       history: reports,
       latestTask: normalizedTask,
+      topicLibrary: topicLibrary?.items || [],
     };
   }
 
@@ -1390,6 +1414,77 @@ export class ReportsService {
       selectedDate: effectiveSelectedDate,
       latestTask: task,
     };
+  }
+
+  async updateDouyinTopicLibrary(brandId: string, payload: UpdateDouyinTopicLibraryPayload): Promise<DouyinHotTopicCandidatesWorkspace> {
+    const items = this.normalizeDouyinTopicLibraryItems(payload.items);
+    const summary = items.length ? `已收录 ${items.length} 条品牌选题。` : "当前还没有收录品牌选题。";
+    const updatedAt = new Date().toISOString();
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const current = await this.getDouyinTopicLibrary(brandId);
+      if (current) {
+        await this.prismaService.businessAsset.update({
+          where: { id: current.id },
+          data: {
+            title: "抖音选题库",
+            description: summary,
+            metadataJson: {
+              kind: "DOUYIN_TOPIC_LIBRARY",
+              updatedAt,
+              summary,
+              items,
+            } satisfies DouyinTopicLibraryAssetMeta as Prisma.InputJsonValue,
+          },
+        });
+      } else {
+        await this.prismaService.businessAsset.create({
+          data: {
+            brandId,
+            category: AssetCategory.GENERATED_CONTENT,
+            title: "抖音选题库",
+            description: summary,
+            metadataJson: {
+              kind: "DOUYIN_TOPIC_LIBRARY",
+              updatedAt,
+              summary,
+              items,
+            } satisfies DouyinTopicLibraryAssetMeta as Prisma.InputJsonValue,
+          },
+        });
+      }
+      return this.getDouyinHotTopicCandidatesWorkspace(brandId);
+    }
+
+    const existingIndex = database.assets.findIndex(
+      (item) => item.brandId === brandId && item.category === "GENERATED_CONTENT" && this.asMeta(item.metadataJson).kind === "DOUYIN_TOPIC_LIBRARY",
+    );
+    const metadataJson: DouyinTopicLibraryAssetMeta = {
+      kind: "DOUYIN_TOPIC_LIBRARY",
+      updatedAt,
+      summary,
+      items,
+    };
+    if (existingIndex >= 0) {
+      database.assets[existingIndex] = {
+        ...database.assets[existingIndex],
+        title: "抖音选题库",
+        description: summary,
+        metadataJson,
+      };
+    } else {
+      database.assets.unshift({
+        id: createId("ast"),
+        brandId,
+        category: "GENERATED_CONTENT",
+        title: "抖音选题库",
+        description: summary,
+        sourceName: "系统生成",
+        metadataJson,
+      });
+    }
+    return this.getDouyinHotTopicCandidatesWorkspace(brandId);
   }
 
   async getXiaohongshuMarketingCalendarWorkspace(brandId: string): Promise<XiaohongshuMarketingCalendarWorkspace> {
@@ -8063,6 +8158,67 @@ ${normalizedMarkdown}`;
     return normalized || createId("topic");
   }
 
+  private normalizeDouyinTopicLibraryItems(raw: unknown): DouyinTopicLibraryItem[] {
+    const items = Array.isArray(raw) ? raw : [];
+    const uniqueMap = new Map<string, DouyinTopicLibraryItem>();
+    for (const [index, rawItem] of items.entries()) {
+      const item = this.asRecord(rawItem);
+      if (!item) {
+        continue;
+      }
+      const topicContent = String(item.topicContent ?? item.title ?? "").trim();
+      if (!topicContent) {
+        continue;
+      }
+      const dedupeKey = topicContent.toLowerCase();
+      if (uniqueMap.has(dedupeKey)) {
+        continue;
+      }
+      const topicDescription = String(item.topicDescription ?? item.description ?? "").trim() || "未填写选题说明";
+      const selectedAt = String(item.selectedAt ?? item.generatedAt ?? "").trim() || new Date().toISOString();
+      uniqueMap.set(dedupeKey, {
+        id: String(item.id ?? "").trim() || `topic-library-${index + 1}-${this.createSlug(topicContent)}`,
+        topicContent,
+        topicDescription,
+        selectedAt,
+        source: String(item.source ?? "").trim() === "GENERATED" ? "GENERATED" : "MANUAL",
+        sourceDate: String(item.sourceDate ?? "").trim() || undefined,
+      });
+    }
+    return [...uniqueMap.values()];
+  }
+
+  private async getDouyinTopicLibrary(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return assets
+        .map((item) => this.mapDouyinTopicLibraryAsset({
+          id: item.id,
+          brandId: item.brandId,
+          category: "GENERATED_CONTENT",
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: "系统生成",
+          fileUrl: item.fileUrl ?? undefined,
+          metadataJson: this.asMeta(item.metadataJson),
+        }))
+        .find((item): item is { id: string; items: DouyinTopicLibraryItem[] } => Boolean(item));
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    return database.assets
+      .filter((item) => item.brandId === brandId && item.category === "GENERATED_CONTENT")
+      .map((item) => this.mapDouyinTopicLibraryAsset(item))
+      .find((item): item is { id: string; items: DouyinTopicLibraryItem[] } => Boolean(item));
+  }
+
   private normalizeXiaohongshuMarketingCalendarItems(raw: unknown, startDate?: string) {
     const items = Array.isArray(raw) ? raw : [];
     const normalized = items
@@ -8402,6 +8558,17 @@ ${normalizedMarkdown}`;
       modelName: this.readMetaString(meta, "modelName") || undefined,
       items: this.normalizeDouyinHotTopicCandidateItems(meta.items),
       reportContent: this.readMetaString(meta, "reportContent") || undefined,
+    };
+  }
+
+  private mapDouyinTopicLibraryAsset(asset: AssetRecord) {
+    const meta = this.asMeta(asset.metadataJson);
+    if (meta.kind !== "DOUYIN_TOPIC_LIBRARY") {
+      return undefined;
+    }
+    return {
+      id: asset.id,
+      items: this.normalizeDouyinTopicLibraryItems(meta.items),
     };
   }
 
