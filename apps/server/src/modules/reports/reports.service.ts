@@ -635,7 +635,7 @@ export type UpdateDouyinTopicLibraryPayload = {
 
 export type GenerateDouyinOriginalCopyPayload = {
   calendarItemId?: string;
-  topicId: string;
+  topicId?: string;
   injectMarketingPlan?: boolean;
   copyType: DouyinOriginalCopyType;
 };
@@ -1716,8 +1716,10 @@ export class ReportsService {
       return workspace;
     }
 
-    const topic = workspace.topicOptions.find((item) => item.id === payload.topicId);
-    if (!topic) {
+    const topic = payload.topicId
+      ? workspace.topicOptions.find((item) => item.id === payload.topicId)
+      : undefined;
+    if (payload.topicId && !topic) {
       throw new NotFoundException("请选择有效的选题");
     }
 
@@ -2775,7 +2777,7 @@ export class ReportsService {
     brandId: string,
     params: {
       copyType: DouyinOriginalCopyType;
-      topic: DouyinTopicLibraryItem;
+      topic?: DouyinTopicLibraryItem;
       calendarItem?: XiaohongshuMarketingCalendarItem;
       injectMarketingPlan: boolean;
       marketingPlanTitle?: string;
@@ -2791,11 +2793,13 @@ export class ReportsService {
     const taskInput = {
       copyType: params.copyType,
       copyTypeLabel,
-      topic: {
-        id: params.topic.id,
-        topicContent: params.topic.topicContent,
-        topicDescription: params.topic.topicDescription,
-      },
+      topic: params.topic
+        ? {
+            id: params.topic.id,
+            topicContent: params.topic.topicContent,
+            topicDescription: params.topic.topicDescription,
+          }
+        : undefined,
       calendarItem: params.calendarItem
         ? {
             id: params.calendarItem.id,
@@ -3333,10 +3337,6 @@ export class ReportsService {
       if (!copyType || !DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType]) {
         throw new NotFoundException("文案类型不存在");
       }
-      if (!topicContent || !topicId) {
-        throw new NotFoundException("选题不存在，无法生成原创文案");
-      }
-
       const archive = await this.brandsService.getArchive(brandId);
       const marketingPlanWorkspace = injectMarketingPlan ? await this.getDouyinMarketingPlanWorkspace(brandId) : undefined;
       const marketingPlan = injectMarketingPlan ? marketingPlanWorkspace?.latest : undefined;
@@ -3349,11 +3349,13 @@ export class ReportsService {
       const report = await this.buildDouyinOriginalCopy({
         brandId,
         archive,
-        topic: {
-          id: topicId,
-          topicContent,
-          topicDescription: this.readRecordString(topicRecord, "topicDescription") || undefined,
-        },
+        topic: topicContent || topicId
+          ? {
+              id: topicId || `topic-${this.createSlug(topicContent || "none")}`,
+              topicContent: topicContent || "不选择选题",
+              topicDescription: this.readRecordString(topicRecord, "topicDescription") || undefined,
+            }
+          : undefined,
         selectedCalendarItem: calendarRecord
           ? {
               id: this.readRecordString(calendarRecord, "id") || this.resolveCalendarItemId(calendarRecord, {
@@ -4902,7 +4904,7 @@ export class ReportsService {
   private async buildDouyinOriginalCopy(params: {
     brandId: string;
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
-    topic: {
+    topic?: {
       id: string;
       topicContent: string;
       topicDescription?: string;
@@ -5641,7 +5643,8 @@ export class ReportsService {
       "",
       `请输出 1 篇${copyTypeLabel}风格的抖音原创文案。`,
       "只输出 Markdown 正文，不要输出 JSON、代码块、执行说明或额外解释。",
-      "文案必须围绕 selectedTopic 展开；如果提供了 selectedCalendarItem，则结合日历节点；如果 injectMarketingPlan=true，则融合营销策划方案中的关键策略。",
+      "如果提供了 selectedTopic，文案优先围绕 selectedTopic 展开；如果未提供，则基于品牌资料与 selectedCalendarItem 自主确定内容切入角度。",
+      "如果提供了 selectedCalendarItem，则结合日历节点；如果 injectMarketingPlan=true，则融合营销策划方案中的关键策略。",
       "请输出可直接交给运营、拍摄或主播执行的内容，避免空话和模板化废话。",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
@@ -5898,8 +5901,12 @@ export class ReportsService {
     const calendarItem = this.readNestedRecord(inputPayload, ["inputScope", "selectedCalendarItem"]);
     const generationOptions = this.readNestedRecord(inputPayload, ["inputScope", "generationOptions"]);
     const marketingPlan = this.readNestedRecord(inputPayload, ["inputScope", "douyinMarketingPlan"]);
-    const topicContent = this.readRecordString(topic, "topicContent") || "抖音原创文案";
-    const topicId = this.readRecordString(topic, "id") || `topic-${this.createSlug(topicContent)}`;
+    const calendarDate = this.readRecordString(calendarItem, "date");
+    const calendarTopicName = this.readRecordString(calendarItem, "topicName");
+    const topicContent = this.readRecordString(topic, "topicContent") || calendarTopicName || "不选择选题";
+    const topicId = this.readRecordString(topic, "id") || (calendarDate || calendarTopicName
+      ? `calendar-${this.createSlug([calendarDate, calendarTopicName].filter(Boolean).join("-"))}`
+      : `topic-${this.createSlug(topicContent)}`);
     const copyType = this.readRecordString(generationOptions, "copyType") as DouyinOriginalCopyType;
     const copyTypeLabel = this.readRecordString(generationOptions, "copyTypeLabel") || DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType]?.label || "原创文案";
     const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
@@ -5911,7 +5918,7 @@ export class ReportsService {
       throw new ServiceUnavailableException("抖音原创文案解析失败：模型输出了工作流/文件操作内容，而不是最终文案正文");
     }
 
-    const fallbackTitle = `${topicContent}｜${copyTypeLabel}`;
+    const fallbackTitle = `${topicContent || "抖音原创文案"}｜${copyTypeLabel}`;
     const reportMarkdown = normalizedMarkdown.startsWith("# ")
       ? normalizedMarkdown
       : `# ${fallbackTitle}\n\n${normalizedMarkdown}`;
@@ -5920,9 +5927,6 @@ export class ReportsService {
       this.extractMarkdownSummary(reportMarkdown)
       || this.readRecordString(topic, "topicDescription")
       || `${copyTypeLabel}抖音原创文案已生成。`;
-    const calendarDate = this.readRecordString(calendarItem, "date");
-    const calendarTopicName = this.readRecordString(calendarItem, "topicName");
-
     return {
       title,
       summary,
@@ -6889,7 +6893,7 @@ ${normalizedMarkdown}`;
       id: string;
       topicContent: string;
       topicDescription?: string;
-    },
+    } | undefined,
     selectedCalendarItem: XiaohongshuMarketingCalendarItem | undefined,
     marketingPlan: DouyinMarketingPlanRecord | undefined,
     copyType: DouyinOriginalCopyType,
@@ -6932,11 +6936,13 @@ ${normalizedMarkdown}`;
             accountLink: item.accountLink,
           })),
         },
-        selectedTopic: {
-          id: topic.id,
-          topicContent: topic.topicContent,
-          topicDescription: topic.topicDescription || "",
-        },
+        selectedTopic: topic
+          ? {
+              id: topic.id,
+              topicContent: topic.topicContent,
+              topicDescription: topic.topicDescription || "",
+            }
+          : undefined,
         selectedCalendarItem: selectedCalendarItem
           ? {
               id: selectedCalendarItem.id,

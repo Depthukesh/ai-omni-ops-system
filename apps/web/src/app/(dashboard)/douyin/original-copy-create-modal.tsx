@@ -6,7 +6,7 @@ import { type SelectOption } from "../xiaohongshu/shared-types";
 
 const DOUYIN_ORIGINAL_COPY_MODAL_COPY: NoteCreateModalCopy = {
   title: "添加原创笔记",
-  metaText: "选择品牌营销日历、选题、策划方案植入方式和文案类型后，生成抖音原创文案。",
+  metaText: "选择品牌营销日历、选题（可不选）、策划方案植入方式和文案类型后，生成抖音原创文案。",
 };
 
 export interface DouyinOriginalCopyCreateModalProps {
@@ -31,7 +31,7 @@ export interface DouyinOriginalCopyCreateModalProps {
 }
 
 export function DouyinOriginalCopyCreateModal(props: DouyinOriginalCopyCreateModalProps) {
-  const createDisabled = !props.topicValue || !props.copyTypeValue || (props.injectMarketingPlanValue === "yes" && !props.hasMarketingPlan);
+  const createDisabled = !props.copyTypeValue || (props.injectMarketingPlanValue === "yes" && !props.hasMarketingPlan);
 
   return (
     <NoteCreateModalShell

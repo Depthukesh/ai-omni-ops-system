@@ -12,6 +12,7 @@ import { DouyinOriginalCopyCreateModal } from "./original-copy-create-modal";
 
 const ORIGINAL_COPY_PAGE_SIZE = 20;
 const EMPTY_CALENDAR_VALUE = "__none__";
+const EMPTY_TOPIC_VALUE = "__none__";
 
 const COPY_TYPE_OPTIONS: SelectOption[] = [
   { value: "VIEWPOINT", label: "聊观点" },
@@ -43,7 +44,7 @@ export interface DouyinOriginalCopyWorkspaceProps {
   onRefresh: () => void | Promise<void>;
   onCreate: (payload: {
     calendarItemId?: string;
-    topicId: string;
+    topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
   }) => Promise<boolean>;
@@ -86,7 +87,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [calendarValue, setCalendarValue] = useState(EMPTY_CALENDAR_VALUE);
-  const [topicValue, setTopicValue] = useState("");
+  const [topicValue, setTopicValue] = useState(EMPTY_TOPIC_VALUE);
   const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
   const [copyTypeValue, setCopyTypeValue] = useState<DouyinOriginalCopyType>("VIEWPOINT");
 
@@ -95,7 +96,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
     [props.calendarOptions],
   );
   const topicSelectOptions = useMemo<SelectOption[]>(
-    () => props.topicOptions.map((item) => ({ value: item.id, label: item.label })),
+    () => [{ value: EMPTY_TOPIC_VALUE, label: "不选择选题" }, ...props.topicOptions.map((item) => ({ value: item.id, label: item.label }))],
     [props.topicOptions],
   );
   const pageCount = Math.max(1, Math.ceil(props.history.length / ORIGINAL_COPY_PAGE_SIZE));
@@ -121,13 +122,9 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
   }, [topicSelectOptions, topicValue]);
 
   async function handleCreate() {
-    if (!topicValue) {
-      window.alert("请先选择一个选题。");
-      return;
-    }
     const success = await props.onCreate({
       calendarItemId: calendarValue !== EMPTY_CALENDAR_VALUE ? calendarValue : undefined,
-      topicId: topicValue,
+      topicId: topicValue !== EMPTY_TOPIC_VALUE ? topicValue : undefined,
       injectMarketingPlan: injectMarketingPlanValue === "yes",
       copyType: copyTypeValue,
     });
@@ -152,7 +149,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
               type="button"
               className="primary-button"
               onClick={() => setIsCreateOpen(true)}
-              disabled={!props.canEdit || props.isSubmitting || !props.topicOptions.length}
+              disabled={!props.canEdit || props.isSubmitting}
             >
               添加原创笔记
             </button>
@@ -179,7 +176,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
           </div>
 
           {!props.topicOptions.length ? (
-            <div className="report-inline-tip">当前品牌选题库还没有内容，请先在“选题库”中沉淀可用选题后再生成原创文案。</div>
+            <div className="report-inline-tip">当前品牌选题库还没有内容，你仍可选择“不选择选题”继续生成原创文案。</div>
           ) : null}
 
           {props.latestTask?.phaseText ? (
@@ -211,7 +208,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
                   </div>
 
                   <div className="report-inline-tip">
-                    选题：{item.topicContent}
+                    选题：{item.topicContent || "不选择选题"}
                     {item.calendarItemLabel ? ` | 营销日历：${item.calendarItemLabel}` : ""}
                     {item.marketingPlanTitle ? ` | 策划方案：${item.marketingPlanTitle}` : ""}
                     {` | 生成时间：${props.formatDateTime(item.generatedAt)}`}

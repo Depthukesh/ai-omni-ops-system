@@ -567,7 +567,7 @@ export function DouyinWorkspaceShell() {
 
   const handleCreateOriginalCopy = useCallback(async (payload: {
     calendarItemId?: string;
-    topicId: string;
+    topicId?: string;
     injectMarketingPlan: boolean;
     copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
   }) => {

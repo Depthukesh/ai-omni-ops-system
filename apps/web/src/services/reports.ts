@@ -515,7 +515,7 @@ export async function getDouyinOriginalCopyWorkspace(brandId?: string) {
 export async function generateDouyinOriginalCopy(
   payload: {
     calendarItemId?: string;
-    topicId: string;
+    topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
   },
