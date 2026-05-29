@@ -84,6 +84,34 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/抖音板块/热点找选题.txt",
     "../提示词/抖音板块/热点找选题.txt",
   ],
+  prompt_douyin_original_copy_viewpoint: [
+    "../../../提示词/抖音板块/观点型.txt",
+    "../提示词/抖音板块/观点型.txt",
+  ],
+  prompt_douyin_original_copy_story: [
+    "../../../提示词/抖音板块/讲故事.txt",
+    "../提示词/抖音板块/讲故事.txt",
+  ],
+  prompt_douyin_original_copy_process: [
+    "../../../提示词/抖音板块/晒过程.txt",
+    "../提示词/抖音板块/晒过程.txt",
+  ],
+  prompt_douyin_original_copy_knowledge: [
+    "../../../提示词/抖音板块/教知识.txt",
+    "../提示词/抖音板块/教知识.txt",
+  ],
+  prompt_douyin_original_copy_plot_sales: [
+    "../../../提示词/抖音板块/剧情带货类.txt",
+    "../提示词/抖音板块/剧情带货类.txt",
+  ],
+  prompt_douyin_original_copy_seeding: [
+    "../../../提示词/抖音板块/种草类.txt",
+    "../提示词/抖音板块/种草类.txt",
+  ],
+  prompt_douyin_original_copy_local_sales: [
+    "../../../提示词/抖音板块/同城带货类.txt",
+    "../提示词/抖音板块/同城带货类.txt",
+  ],
   prompt_xhs_calendar: [
     "../../../提示词/营销日历提示词.txt",
     "../提示词/营销日历提示词.txt",

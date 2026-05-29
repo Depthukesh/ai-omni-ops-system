@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Que
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
+  type GenerateDouyinOriginalCopyPayload,
   type UpdateDouyinTopicLibraryPayload,
   type UpdateDouyinMarketingPlanPayload,
   type UpdateGrowthReportPayload,
@@ -213,6 +214,27 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
     return this.reportsService.updateDouyinTopicLibrary(brandId, payload);
+  }
+
+  @Get("brands/:brandId/douyin-original-copy")
+  async getDouyinOriginalCopyWorkspace(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    return this.reportsService.getDouyinOriginalCopyWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/douyin-original-copy/generate")
+  async generateDouyinOriginalCopy(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: GenerateDouyinOriginalCopyPayload,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.generateDouyinOriginalCopy(brandId, payload);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

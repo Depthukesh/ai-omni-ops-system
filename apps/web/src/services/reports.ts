@@ -206,6 +206,41 @@ export type DouyinTopicLibraryItem = {
   sourceDate?: string;
 };
 
+export type DouyinOriginalCopyType =
+  | "VIEWPOINT"
+  | "STORY"
+  | "PROCESS"
+  | "KNOWLEDGE"
+  | "PLOT_SALES"
+  | "SEEDING"
+  | "LOCAL_SALES";
+
+export type DouyinOriginalCopyCalendarOption = {
+  id: string;
+  label: string;
+  date: string;
+  topicName: string;
+};
+
+export type DouyinOriginalCopyRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  modelName?: string;
+  copyType: DouyinOriginalCopyType;
+  copyTypeLabel: string;
+  content: string;
+  topicId: string;
+  topicContent: string;
+  topicDescription?: string;
+  calendarItemId?: string;
+  calendarItemLabel?: string;
+  injectMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+};
+
 export type DouyinHotTopicCandidatesRecord = {
   id: string;
   title: string;
@@ -219,6 +254,7 @@ export type DouyinHotTopicCandidatesRecord = {
 };
 
 export type DouyinHotTopicCandidatesTaskRecord = XiaohongshuMarketingPlanTaskRecord;
+export type DouyinOriginalCopyTaskRecord = XiaohongshuMarketingPlanTaskRecord;
 
 export type DouyinHotTopicCandidatesWorkspace = {
   selectedDate: string;
@@ -227,6 +263,16 @@ export type DouyinHotTopicCandidatesWorkspace = {
   history: DouyinHotTopicCandidatesRecord[];
   latestTask?: DouyinHotTopicCandidatesTaskRecord;
   topicLibrary: DouyinTopicLibraryItem[];
+};
+
+export type DouyinOriginalCopyWorkspace = {
+  latest?: DouyinOriginalCopyRecord;
+  history: DouyinOriginalCopyRecord[];
+  latestTask?: DouyinOriginalCopyTaskRecord;
+  calendarOptions: DouyinOriginalCopyCalendarOption[];
+  topicOptions: DouyinTopicLibraryItem[];
+  hasMarketingPlan: boolean;
+  marketingPlanTitle?: string;
 };
 
 export type XiaohongshuMarketingCalendarItem = {
@@ -338,6 +384,14 @@ export const douyinHotTopicCandidatesSeed: DouyinHotTopicCandidatesWorkspace = {
   latest: undefined,
   history: [],
   topicLibrary: [],
+};
+
+export const douyinOriginalCopySeed: DouyinOriginalCopyWorkspace = {
+  latest: undefined,
+  history: [],
+  calendarOptions: [],
+  topicOptions: [],
+  hasMarketingPlan: false,
 };
 
 function resolveBrandId(brandId?: string) {
@@ -452,6 +506,22 @@ export async function updateDouyinTopicLibrary(items: DouyinTopicLibraryItem[], 
   return jsonRequest<DouyinHotTopicCandidatesWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-topic-library`, "PATCH", {
     items,
   });
+}
+
+export async function getDouyinOriginalCopyWorkspace(brandId?: string) {
+  return request<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy`);
+}
+
+export async function generateDouyinOriginalCopy(
+  payload: {
+    calendarItemId?: string;
+    topicId: string;
+    injectMarketingPlan: boolean;
+    copyType: DouyinOriginalCopyType;
+  },
+  brandId?: string,
+) {
+  return jsonRequest<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy/generate`, "POST", payload);
 }
 
 export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string) {

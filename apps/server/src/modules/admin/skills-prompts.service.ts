@@ -104,6 +104,62 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_douyin_hot_topic_candidates"],
     promptScenes: ["抖音热点找选题"],
   },
+  skill_douyin_original_copy_viewpoint: {
+    promptIds: ["prompt_douyin_original_copy_viewpoint"],
+    promptScenes: ["抖音原创文案-聊观点"],
+  },
+  "douyin-original-copy-viewpoint": {
+    promptIds: ["prompt_douyin_original_copy_viewpoint"],
+    promptScenes: ["抖音原创文案-聊观点"],
+  },
+  skill_douyin_original_copy_story: {
+    promptIds: ["prompt_douyin_original_copy_story"],
+    promptScenes: ["抖音原创文案-讲故事"],
+  },
+  "douyin-original-copy-story": {
+    promptIds: ["prompt_douyin_original_copy_story"],
+    promptScenes: ["抖音原创文案-讲故事"],
+  },
+  skill_douyin_original_copy_process: {
+    promptIds: ["prompt_douyin_original_copy_process"],
+    promptScenes: ["抖音原创文案-晒过程"],
+  },
+  "douyin-original-copy-process": {
+    promptIds: ["prompt_douyin_original_copy_process"],
+    promptScenes: ["抖音原创文案-晒过程"],
+  },
+  skill_douyin_original_copy_knowledge: {
+    promptIds: ["prompt_douyin_original_copy_knowledge"],
+    promptScenes: ["抖音原创文案-教知识"],
+  },
+  "douyin-original-copy-knowledge": {
+    promptIds: ["prompt_douyin_original_copy_knowledge"],
+    promptScenes: ["抖音原创文案-教知识"],
+  },
+  skill_douyin_original_copy_plot_sales: {
+    promptIds: ["prompt_douyin_original_copy_plot_sales"],
+    promptScenes: ["抖音原创文案-剧情带货"],
+  },
+  "douyin-original-copy-plot-sales": {
+    promptIds: ["prompt_douyin_original_copy_plot_sales"],
+    promptScenes: ["抖音原创文案-剧情带货"],
+  },
+  skill_douyin_original_copy_seeding: {
+    promptIds: ["prompt_douyin_original_copy_seeding"],
+    promptScenes: ["抖音原创文案-种草类"],
+  },
+  "douyin-original-copy-seeding": {
+    promptIds: ["prompt_douyin_original_copy_seeding"],
+    promptScenes: ["抖音原创文案-种草类"],
+  },
+  skill_douyin_original_copy_local_sales: {
+    promptIds: ["prompt_douyin_original_copy_local_sales"],
+    promptScenes: ["抖音原创文案-同城带货"],
+  },
+  "douyin-original-copy-local-sales": {
+    promptIds: ["prompt_douyin_original_copy_local_sales"],
+    promptScenes: ["抖音原创文案-同城带货"],
+  },
   skill_xhs_calendar: {
     promptIds: ["prompt_xhs_calendar"],
     promptScenes: ["小红书营销日历生成"],

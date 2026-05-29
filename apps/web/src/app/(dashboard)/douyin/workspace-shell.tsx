@@ -10,16 +10,20 @@ import {
   deleteDouyinMarketingPlan,
   douyinHotTopicCandidatesSeed,
   douyinMarketingPlanSeed,
+  douyinOriginalCopySeed,
   generateDouyinHotTopicCandidates,
   generateDouyinMarketingPlan,
+  generateDouyinOriginalCopy,
   getAnnualMarketingPlanWorkspace,
   getDouyinHotTopicCandidatesWorkspace,
   getDouyinMarketingPlanWorkspace,
+  getDouyinOriginalCopyWorkspace,
   getGrowthReportWorkspace,
   growthReportSeed,
   updateDouyinTopicLibrary,
   updateDouyinMarketingPlan,
   type DouyinHotTopicCandidatesWorkspace,
+  type DouyinOriginalCopyWorkspace,
   type DouyinTopicLibraryItem,
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
@@ -30,16 +34,18 @@ import { DouyinAssetsWorkspace } from "./assets-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
+import { DouyinOriginalCopyWorkspace as DouyinOriginalCopyWorkspacePanel } from "./original-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
   { key: "assets", label: "素材库", description: "展示已经从品牌增长策略 → 收集数据 → 抖音加入素材库的对标作品，沿用卡片化素材浏览方式。" },
   { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
   { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
+  { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -87,11 +93,13 @@ export function DouyinWorkspaceShell() {
   const [annualPlanWorkspace, setAnnualPlanWorkspace] = useState(annualMarketingPlanSeed);
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState<DouyinMarketingPlanWorkspace>(douyinMarketingPlanSeed);
   const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
+  const [originalCopyWorkspace, setOriginalCopyWorkspace] = useState<DouyinOriginalCopyWorkspace>(douyinOriginalCopySeed);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingHotTopics, setIsGeneratingHotTopics] = useState(false);
+  const [isSubmittingOriginalCopy, setIsSubmittingOriginalCopy] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -108,6 +116,11 @@ export function DouyinWorkspaceShell() {
     latestHotTopicTask?.taskStatus === "RUNNING"
     || latestHotTopicTask?.taskStatus === "QUEUED"
     || latestHotTopicTask?.taskStatus === "PENDING";
+  const latestOriginalCopyTask = originalCopyWorkspace.latestTask;
+  const isOriginalCopyTaskActive =
+    latestOriginalCopyTask?.taskStatus === "RUNNING"
+    || latestOriginalCopyTask?.taskStatus === "QUEUED"
+    || latestOriginalCopyTask?.taskStatus === "PENDING";
   const permissionEntry = brandPermissionSettings?.currentUserPermissions?.["douyin.plan"];
   const hasWorkspaceAccess = permissionEntry?.view ?? true;
   const canEditMarketingPlan = permissionEntry?.edit ?? true;
@@ -132,7 +145,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题和选题库，可直接复用品牌增长策略里沉淀的抖音对标作品与每日热点。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库和原创文案，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -151,18 +164,25 @@ export function DouyinWorkspaceShell() {
     return nextWorkspace;
   }, [activeBrandId, selectedHotTopicDate]);
 
+  const refreshOriginalCopyWorkspace = useCallback(async () => {
+    const nextWorkspace = await getDouyinOriginalCopyWorkspace(activeBrandId);
+    setOriginalCopyWorkspace(nextWorkspace);
+    return nextWorkspace;
+  }, [activeBrandId]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
 
-    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
       getAnnualMarketingPlanWorkspace(activeBrandId),
       getDouyinMarketingPlanWorkspace(activeBrandId),
       getDouyinHotTopicCandidatesWorkspace(activeBrandId),
+      getDouyinOriginalCopyWorkspace(activeBrandId),
     ]);
 
     let hasFallback = false;
@@ -208,6 +228,13 @@ export function DouyinWorkspaceShell() {
       hasFallback = true;
       setHotTopicWorkspace(douyinHotTopicCandidatesSeed);
       setSelectedHotTopicDate("");
+    }
+
+    if (originalCopyResult.status === "fulfilled") {
+      setOriginalCopyWorkspace(originalCopyResult.value);
+    } else {
+      hasFallback = true;
+      setOriginalCopyWorkspace(douyinOriginalCopySeed);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -273,10 +300,35 @@ export function DouyinWorkspaceShell() {
   }, [isHotTopicTaskActive, refreshHotTopicWorkspace, selectedHotTopicDate]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && notice.includes("任务已提交")) {
+    if (!isOriginalCopyTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshOriginalCopyWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isOriginalCopyTaskActive, refreshOriginalCopyWorkspace]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isHotTopicTaskActive, isTaskActive, notice]);
+  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isTaskActive, notice]);
+
+  useEffect(() => {
+    setOriginalCopyWorkspace((current) => ({
+      ...current,
+      topicOptions: hotTopicWorkspace.topicLibrary || [],
+    }));
+  }, [hotTopicWorkspace.topicLibrary]);
+
+  useEffect(() => {
+    setOriginalCopyWorkspace((current) => ({
+      ...current,
+      hasMarketingPlan: Boolean(marketingPlanWorkspace.latest),
+      marketingPlanTitle: marketingPlanWorkspace.latest?.title,
+    }));
+  }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.title]);
 
   const handleGenerate = useCallback(async () => {
     if (!canEditMarketingPlan) {
@@ -408,6 +460,10 @@ export function DouyinWorkspaceShell() {
     try {
       const nextWorkspace = await updateDouyinTopicLibrary(items, activeBrandId);
       setHotTopicWorkspace(nextWorkspace);
+      setOriginalCopyWorkspace((current) => ({
+        ...current,
+        topicOptions: nextWorkspace.topicLibrary || [],
+      }));
       setNotice(noticeText);
       return nextWorkspace;
     } catch (error) {
@@ -509,6 +565,33 @@ export function DouyinWorkspaceShell() {
     await saveTopicLibrary(nextItems, "选题已从当前品牌选题库删除。");
   }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
 
+  const handleCreateOriginalCopy = useCallback(async (payload: {
+    calendarItemId?: string;
+    topicId: string;
+    injectMarketingPlan: boolean;
+    copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+  }) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能生成原创文案。");
+      return false;
+    }
+
+    setIsSubmittingOriginalCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await generateDouyinOriginalCopy(payload, activeBrandId);
+      setOriginalCopyWorkspace(nextWorkspace);
+      setNotice("原创文案任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "原创文案提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingOriginalCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
       return;
@@ -592,7 +675,7 @@ export function DouyinWorkspaceShell() {
                           type="button"
                           className="secondary-button"
                           onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSaving || isDeleting}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSaving || isDeleting}
                         >
                           刷新数据
                         </button>
@@ -656,6 +739,25 @@ export function DouyinWorkspaceShell() {
                     }}
                     onAddManualTopic={handleAddManualTopic}
                     onDeleteTopic={handleDeleteTopic}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "originalCopy" ? (
+                  <DouyinOriginalCopyWorkspacePanel
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingOriginalCopy}
+                    canEdit={canEditMarketingPlan}
+                    history={originalCopyWorkspace.history}
+                    latestTask={originalCopyWorkspace.latestTask}
+                    calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
+                    topicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicContent }))}
+                    hasMarketingPlan={originalCopyWorkspace.hasMarketingPlan}
+                    marketingPlanTitle={originalCopyWorkspace.marketingPlanTitle}
+                    onRefresh={async () => {
+                      await refreshOriginalCopyWorkspace();
+                    }}
+                    onCreate={handleCreateOriginalCopy}
                     formatDateTime={formatDateTime}
                   />
                 ) : (
