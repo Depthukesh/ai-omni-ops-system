@@ -495,6 +495,20 @@ export function DouyinWorkspaceShell() {
     ], "选题已添加到当前品牌选题库。");
   }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
 
+  const handleDeleteTopic = useCallback(async (topicId: string) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能修改选题库。");
+      return;
+    }
+    const existing = hotTopicWorkspace.topicLibrary || [];
+    const nextItems = existing.filter((item) => item.id !== topicId);
+    if (nextItems.length === existing.length) {
+      setNotice("目标选题不存在或已删除。");
+      return;
+    }
+    await saveTopicLibrary(nextItems, "选题已从当前品牌选题库删除。");
+  }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
+
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
       return;
@@ -641,6 +655,7 @@ export function DouyinWorkspaceShell() {
                       await refreshHotTopicWorkspace();
                     }}
                     onAddManualTopic={handleAddManualTopic}
+                    onDeleteTopic={handleDeleteTopic}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

@@ -166,33 +166,12 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
                 );
               })}
             </div>
-            {props.latest.reportContent ? (
-              <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
-                <div style={{ display: "grid", gap: 4 }}>
-                  <strong>完整分析报告</strong>
-                  <p className="panel-subtext" style={{ margin: 0 }}>
-                    这里展示第一阶段按提示词生成的完整分析结果，便于和下方页面提取的 3 个选题一起查看。
-                  </p>
-                </div>
-                <div
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.8,
-                    color: "var(--text-primary, #1f2937)",
-                    fontSize: 14,
-                  }}
-                >
-                  {props.latest.reportContent}
-                </div>
-              </section>
-            ) : null}
-
             <section className="light-data-panel" style={{ display: "grid", gap: 16 }}>
               <div className="strategy-card-toolbar" style={{ padding: 0 }}>
                 <div>
-                  <strong>选题库</strong>
+                  <strong>加入选题库</strong>
                   <p className="panel-subtext" style={{ margin: 0 }}>
-                    当前品牌独立存储的抖音选题库，可把上方勾选选题加入库中，也可手动补充。
+                    先勾选上方选题，再加入当前品牌独立存储的选题库；也可以跳转到独立选题库页面手动维护。
                   </p>
                 </div>
                 <div className="strategy-inline-actions">
@@ -213,8 +192,27 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
                   </button>
                 </div>
               </div>
-              <div className="note-empty-state">选题库已拆到独立页面。可先勾选上方生成结果加入选题库，再点击“查看选题库”统一查看和手动维护。</div>
             </section>
+            {props.latest.reportContent ? (
+              <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "grid", gap: 4 }}>
+                  <strong>完整分析报告</strong>
+                  <p className="panel-subtext" style={{ margin: 0 }}>
+                    这里展示第一阶段按提示词生成的完整分析结果，便于和下方页面提取的 3 个选题一起查看。
+                  </p>
+                </div>
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.8,
+                    color: "var(--text-primary, #1f2937)",
+                    fontSize: 14,
+                  }}
+                >
+                  {props.latest.reportContent}
+                </div>
+              </section>
+            ) : null}
           </div>
         )}
       </article>

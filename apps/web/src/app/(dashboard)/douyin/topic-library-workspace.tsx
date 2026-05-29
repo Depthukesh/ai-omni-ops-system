@@ -17,6 +17,7 @@ export interface DouyinTopicLibraryWorkspaceProps {
   isSaving: boolean;
   onRefresh: () => void | Promise<void>;
   onAddManualTopic: (payload: { topicContent: string; topicDescription: string }) => void | Promise<void>;
+  onDeleteTopic: (topicId: string) => void | Promise<void>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -62,6 +63,17 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
     setManualTopicContent("");
     setManualTopicDescription("");
     setIsAddingTopic(false);
+  }
+
+  async function handleDeleteTopic(topicId: string) {
+    if (!props.canEdit) {
+      return;
+    }
+    const confirmed = window.confirm("确定删除这条选题吗？删除后会从当前品牌选题库移除。");
+    if (!confirmed) {
+      return;
+    }
+    await props.onDeleteTopic(topicId);
   }
 
   return (
@@ -145,16 +157,18 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
               <table className="soft-table douyin-data-table douyin-topic-library-table">
                 <thead>
                   <tr>
-                    <th colSpan={3}>记录 A</th>
-                    <th colSpan={3}>记录 B</th>
+                    <th colSpan={4}>记录 A</th>
+                    <th colSpan={4}>记录 B</th>
                   </tr>
                   <tr>
                     <th>选题内容</th>
                     <th>选题说明</th>
                     <th>入选时间</th>
+                    <th>操作</th>
                     <th>选题内容</th>
                     <th>选题说明</th>
                     <th>入选时间</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,9 +177,33 @@ export function DouyinTopicLibraryWorkspace(props: DouyinTopicLibraryWorkspacePr
                       <td className="table-cell-wide">{left?.topicContent || "-"}</td>
                       <td className="table-cell-wide">{left?.topicDescription || "-"}</td>
                       <td>{left ? props.formatDateTime(left.selectedAt) : "-"}</td>
+                      <td>
+                        {left ? (
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => void handleDeleteTopic(left.id)}
+                            disabled={!props.canEdit || props.isSaving}
+                          >
+                            删除
+                          </button>
+                        ) : "-"}
+                      </td>
                       <td className="table-cell-wide">{right?.topicContent || "-"}</td>
                       <td className="table-cell-wide">{right?.topicDescription || "-"}</td>
                       <td>{right ? props.formatDateTime(right.selectedAt) : "-"}</td>
+                      <td>
+                        {right ? (
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => void handleDeleteTopic(right.id)}
+                            disabled={!props.canEdit || props.isSaving}
+                          >
+                            删除
+                          </button>
+                        ) : "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
