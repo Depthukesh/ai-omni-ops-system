@@ -121,20 +121,28 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
 const IGNORED_DIRECTORIES = new Set(["__pycache__", "outputs", "scripts"]);
 const READABLE_REFERENCE_EXTENSIONS = new Set([".md", ".txt"]);
 
+function collectAncestorRoots(startPath: string) {
+  const roots: string[] = [];
+  let current = resolve(startPath);
+  while (!roots.includes(current)) {
+    roots.push(current);
+    const parent = resolve(current, "..");
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return roots;
+}
+
 function buildPromptSearchRoots() {
-  const cwd = process.cwd();
-  const uniqueRoots = new Set([
-    cwd,
-    resolve(cwd, ".."),
-    resolve(cwd, "../.."),
-    resolve(cwd, "../../.."),
-    __dirname,
-    resolve(__dirname, ".."),
-    resolve(__dirname, "../.."),
-    resolve(__dirname, "../../.."),
-    resolve(__dirname, "../../../.."),
-    resolve(__dirname, "../../../../.."),
-  ]);
+  const uniqueRoots = new Set<string>();
+  for (const root of collectAncestorRoots(process.cwd())) {
+    uniqueRoots.add(root);
+  }
+  for (const root of collectAncestorRoots(__dirname)) {
+    uniqueRoots.add(root);
+  }
   return Array.from(uniqueRoots);
 }
 

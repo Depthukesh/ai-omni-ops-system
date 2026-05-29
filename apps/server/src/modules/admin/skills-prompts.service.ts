@@ -62,6 +62,15 @@ const RIGHT_CODES_IMAGE_PROVIDER_LABEL = "Right Codes · 文生图/图生图";
 const LEGACY_VIDEO_NOTE_DEFAULT_MODEL = "seedance";
 const VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL = "doubao-seedance-2-0-260128";
 const VOLCENGINE_VIDEO_PROVIDER_LABEL = "火山方舟 · Seedance 2.0";
+const DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
+  prompt_douyin_original_copy_viewpoint: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成聊观点类抖音原创文案。",
+  prompt_douyin_original_copy_story: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成讲故事类抖音原创文案。",
+  prompt_douyin_original_copy_process: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成晒过程类抖音原创文案。",
+  prompt_douyin_original_copy_knowledge: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成教知识类抖音原创文案。",
+  prompt_douyin_original_copy_plot_sales: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成剧情带货类抖音原创文案。",
+  prompt_douyin_original_copy_seeding: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成种草类抖音原创文案。",
+  prompt_douyin_original_copy_local_sales: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成同城带货类抖音原创文案。",
+};
 
 const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   skill_growth_analysis: {
@@ -626,8 +635,33 @@ export class SkillsPromptsService {
       `;
     }
 
+    await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
+  }
+
+  private async backfillDouyinOriginalCopyPromptContents() {
+    for (const prompt of database.promptTemplates) {
+      const legacyFallback = DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS[prompt.id];
+      if (!legacyFallback) {
+        continue;
+      }
+      const seedContent = this.readPromptContent(prompt.id, prompt.content);
+      if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
+        continue;
+      }
+      await this.prismaService.$executeRaw`
+        UPDATE "PromptTemplate"
+        SET
+          "content" = ${seedContent},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${prompt.id}
+          AND (
+            COALESCE(BTRIM("content"), '') = ''
+            OR BTRIM("content") = ${legacyFallback.trim()}
+          )
+      `;
+    }
   }
 
   private async backfillImageGenerationSkillDefaults() {
@@ -755,7 +789,6 @@ export class SkillsPromptsService {
 
   private normalizePromptTemplateRow(row: PromptTemplateRow): PromptTemplateRecord {
     const isHalfYearPlanPrompt = row.id === "prompt_annual_marketing_plan" || row.id === "prompt_annual_plan";
-    const content = this.readPromptContent(row.id, row.content || "");
     return {
       id: row.id,
       name: isHalfYearPlanPrompt ? "半年营销规划主提示词" : row.name,
@@ -765,7 +798,7 @@ export class SkillsPromptsService {
       modelName: this.normalizeImageGenerationModelValue(row.modelName),
       temperature: Number(row.temperature || 0),
       maxTokens: Number(row.maxTokens || 0),
-      content,
+      content: row.content || "",
       updatedAt: this.normalizeDate(row.updatedAt),
     };
   }
