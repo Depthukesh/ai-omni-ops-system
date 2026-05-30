@@ -202,12 +202,14 @@ export type CreateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
   isShared?: boolean;
+  category?: string;
 };
 
 export type UpdateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
   isShared?: boolean;
+  category?: string;
 };
 
 export type DouyinDigitalHumanFavoriteTemplateRecord = {
@@ -221,6 +223,7 @@ export type DouyinDigitalHumanScriptTemplateRecord = {
   name: string;
   content: string;
   isShared: boolean;
+  category: string;
   editable: boolean;
   createdAt: string;
   updatedAt: string;
@@ -244,6 +247,7 @@ type DigitalHumanScriptTemplateStoreItem = {
   name: string;
   content: string;
   isShared: boolean;
+  category: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -1408,6 +1412,7 @@ export class WorksService {
     const userId = await this.resolveTaskUserId(brandId, auth);
     const name = String(payload.name || "").trim();
     const content = String(payload.content || "").trim();
+    const category = this.normalizeDigitalHumanScriptTemplateCategory(payload.category);
     if (!content) {
       throw new BadRequestException("脚本模板内容不能为空。");
     }
@@ -1416,6 +1421,7 @@ export class WorksService {
         name: name || "我的数字人脚本模板",
         content,
         isShared: Boolean(payload.isShared),
+        category,
       }),
     };
   }
@@ -1430,11 +1436,13 @@ export class WorksService {
     const hasName = typeof payload.name !== "undefined";
     const hasContent = typeof payload.content !== "undefined";
     const hasShared = typeof payload.isShared !== "undefined";
-    if (!hasName && !hasContent && !hasShared) {
+    const hasCategory = typeof payload.category !== "undefined";
+    if (!hasName && !hasContent && !hasShared && !hasCategory) {
       throw new BadRequestException("请至少提供一个要更新的脚本模板字段。");
     }
     const normalizedName = hasName ? String(payload.name || "").trim() : undefined;
     const normalizedContent = hasContent ? String(payload.content || "").trim() : undefined;
+    const normalizedCategory = hasCategory ? this.normalizeDigitalHumanScriptTemplateCategory(payload.category) : undefined;
     if (hasName && !normalizedName) {
       throw new BadRequestException("脚本模板名称不能为空。");
     }
@@ -1446,6 +1454,7 @@ export class WorksService {
         name: normalizedName,
         content: normalizedContent,
         isShared: hasShared ? Boolean(payload.isShared) : undefined,
+        category: normalizedCategory,
       }),
     };
   }
@@ -7566,22 +7575,28 @@ export class WorksService {
   private async loadDigitalHumanScriptTemplates(userId: string, brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        const supportsSharedTemplates = await this.hasDigitalHumanScriptTemplateColumn("isShared");
+        const supportsCategory = await this.hasDigitalHumanScriptTemplateColumn("category");
         const rows = await this.prismaService.$queryRawUnsafe<Array<{
           id: string;
           userId: string;
           name: string;
           content: string;
           isShared: boolean;
+          category: string;
           createdAt: Date | string;
           updatedAt: Date | string;
         }>>(
           supportsSharedTemplates
-            ? `SELECT "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"
+            ? `SELECT "id", "userId", "name", "content", "isShared",
+                     ${supportsCategory ? `"category"` : `'general' AS "category"`},
+                     "createdAt", "updatedAt"
                FROM "digital_human_script_templates"
                WHERE "brandId" = $1 AND ("userId" = $2 OR "isShared" = TRUE)
                ORDER BY CASE WHEN "userId" = $2 THEN 0 ELSE 1 END ASC, "updatedAt" DESC`
-            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"
+            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared",
+                     ${supportsCategory ? `"category"` : `'general' AS "category"`},
+                     "createdAt", "updatedAt"
                FROM "digital_human_script_templates"
                WHERE "brandId" = $1 AND "userId" = $2
                ORDER BY "updatedAt" DESC`,
@@ -7614,13 +7629,18 @@ export class WorksService {
       name: string;
       content: string;
       isShared: boolean;
+      category: string;
     },
   ) {
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        const supportsSharedTemplates = await this.hasDigitalHumanScriptTemplateColumn("isShared");
+        const supportsCategory = await this.hasDigitalHumanScriptTemplateColumn("category");
         if (payload.isShared && !supportsSharedTemplates) {
           throw new ServiceUnavailableException("当前数据库尚未应用数字人共享模板迁移，请先执行最新 Prisma migration。");
+        }
+        if (payload.category !== "general" && !supportsCategory) {
+          throw new ServiceUnavailableException("当前数据库尚未应用数字人模板分类迁移，请先执行最新 Prisma migration。");
         }
         const rows = supportsSharedTemplates
           ? await this.prismaService.$queryRawUnsafe<Array<{
@@ -7629,18 +7649,20 @@ export class WorksService {
             name: string;
             content: string;
             isShared: boolean;
+            category: string;
             createdAt: Date | string;
             updatedAt: Date | string;
           }>>(
-            `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "isShared", "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             RETURNING "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"`,
+            `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "isShared", ${supportsCategory ? `"category", ` : ""}"createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, ${supportsCategory ? `$7, ` : ""}CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             RETURNING "id", "userId", "name", "content", "isShared", ${supportsCategory ? `"category"` : `'general' AS "category"`}, "createdAt", "updatedAt"`,
             randomUUID(),
             userId,
             brandId,
             payload.name,
             payload.content,
             payload.isShared,
+            ...(supportsCategory ? [payload.category] : []),
           )
           : await this.prismaService.$queryRawUnsafe<Array<{
             id: string;
@@ -7648,12 +7670,13 @@ export class WorksService {
             name: string;
             content: string;
             isShared: boolean;
+            category: string;
             createdAt: Date | string;
             updatedAt: Date | string;
           }>>(
             `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "createdAt", "updatedAt")
              VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"`,
+             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", ${supportsCategory ? `"category"` : `'general' AS "category"`}, "createdAt", "updatedAt"`,
             randomUUID(),
             userId,
             brandId,
@@ -7674,6 +7697,7 @@ export class WorksService {
       name: payload.name,
       content: payload.content,
       isShared: payload.isShared,
+      category: payload.category,
       createdAt: now,
       updatedAt: now,
     };
@@ -7689,17 +7713,23 @@ export class WorksService {
       name?: string;
       content?: string;
       isShared?: boolean;
+      category?: string;
     },
   ) {
     const existing = await this.getDigitalHumanScriptTemplateById(userId, brandId, templateId);
     const nextName = payload.name ?? existing.name;
     const nextContent = payload.content ?? existing.content;
     const nextIsShared = payload.isShared ?? existing.isShared;
+    const nextCategory = payload.category ?? existing.category;
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        const supportsSharedTemplates = await this.hasDigitalHumanScriptTemplateColumn("isShared");
+        const supportsCategory = await this.hasDigitalHumanScriptTemplateColumn("category");
         if (typeof payload.isShared !== "undefined" && !supportsSharedTemplates) {
           throw new ServiceUnavailableException("当前数据库尚未应用数字人共享模板迁移，请先执行最新 Prisma migration。");
+        }
+        if (typeof payload.category !== "undefined" && !supportsCategory) {
+          throw new ServiceUnavailableException("当前数据库尚未应用数字人模板分类迁移，请先执行最新 Prisma migration。");
         }
         const rows = supportsSharedTemplates
           ? await this.prismaService.$queryRawUnsafe<Array<{
@@ -7708,19 +7738,21 @@ export class WorksService {
             name: string;
             content: string;
             isShared: boolean;
+            category: string;
             createdAt: Date | string;
             updatedAt: Date | string;
           }>>(
             `UPDATE "digital_human_script_templates"
-             SET "name" = $4, "content" = $5, "isShared" = $6, "updatedAt" = CURRENT_TIMESTAMP
+             SET "name" = $4, "content" = $5, "isShared" = $6, ${supportsCategory ? `"category" = $7, ` : ""}"updatedAt" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
-             RETURNING "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"`,
+             RETURNING "id", "userId", "name", "content", "isShared", ${supportsCategory ? `"category"` : `'general' AS "category"`}, "createdAt", "updatedAt"`,
             templateId,
             userId,
             brandId,
             nextName,
             nextContent,
             nextIsShared,
+            ...(supportsCategory ? [nextCategory] : []),
           )
           : await this.prismaService.$queryRawUnsafe<Array<{
             id: string;
@@ -7728,13 +7760,14 @@ export class WorksService {
             name: string;
             content: string;
             isShared: boolean;
+            category: string;
             createdAt: Date | string;
             updatedAt: Date | string;
           }>>(
             `UPDATE "digital_human_script_templates"
              SET "name" = $4, "content" = $5, "updatedAt" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
-             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"`,
+             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", ${supportsCategory ? `"category"` : `'general' AS "category"`}, "createdAt", "updatedAt"`,
             templateId,
             userId,
             brandId,
@@ -7756,6 +7789,7 @@ export class WorksService {
     target.name = nextName;
     target.content = nextContent;
     target.isShared = nextIsShared;
+    target.category = nextCategory;
     target.updatedAt = new Date().toISOString();
     return this.mapDigitalHumanScriptTemplateRow(target, userId);
   }
@@ -7795,22 +7829,28 @@ export class WorksService {
     }
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        const supportsSharedTemplates = await this.hasDigitalHumanScriptTemplateColumn("isShared");
+        const supportsCategory = await this.hasDigitalHumanScriptTemplateColumn("category");
         const rows = await this.prismaService.$queryRawUnsafe<Array<{
           id: string;
           userId: string;
           name: string;
           content: string;
           isShared: boolean;
+          category: string;
           createdAt: Date | string;
           updatedAt: Date | string;
         }>>(
           supportsSharedTemplates
-            ? `SELECT "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"
+            ? `SELECT "id", "userId", "name", "content", "isShared",
+                     ${supportsCategory ? `"category"` : `'general' AS "category"`},
+                     "createdAt", "updatedAt"
                FROM "digital_human_script_templates"
                WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
                LIMIT 1`
-            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"
+            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared",
+                     ${supportsCategory ? `"category"` : `'general' AS "category"`},
+                     "createdAt", "updatedAt"
                FROM "digital_human_script_templates"
                WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
                LIMIT 1`,
@@ -7847,19 +7887,38 @@ export class WorksService {
     };
   }
 
-  private async hasDigitalHumanSharedTemplateColumn() {
+  private async hasDigitalHumanScriptTemplateColumn(columnName: string) {
     try {
       const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists?: boolean }>>(
         `SELECT EXISTS (
            SELECT 1
            FROM information_schema.columns
            WHERE table_name = 'digital_human_script_templates'
-             AND column_name = 'isShared'
+             AND column_name = $1
          ) AS "exists"`,
+        columnName,
       );
       return Boolean(rows[0]?.exists);
     } catch {
       return false;
+    }
+  }
+
+  private normalizeDigitalHumanScriptTemplateCategory(value?: string) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) {
+      return "general";
+    }
+    switch (normalized) {
+      case "brand_promo":
+      case "activity_promo":
+      case "knowledge":
+      case "live_warmup":
+      case "selling":
+      case "general":
+        return normalized;
+      default:
+        return "general";
     }
   }
 
@@ -7869,6 +7928,7 @@ export class WorksService {
     name?: string;
     content?: string;
     isShared?: boolean;
+    category?: string;
     createdAt?: Date | string;
     updatedAt?: Date | string;
   }, currentUserId?: string): DouyinDigitalHumanScriptTemplateRecord {
@@ -7878,6 +7938,7 @@ export class WorksService {
       name: String(item.name || "").trim() || "我的数字人脚本模板",
       content: String(item.content || ""),
       isShared: Boolean(item.isShared),
+      category: this.normalizeDigitalHumanScriptTemplateCategory(item.category),
       editable: !currentUserId || ownerUserId === currentUserId,
       createdAt: normalizeMaybeDate(item.createdAt) || new Date().toISOString(),
       updatedAt: normalizeMaybeDate(item.updatedAt) || new Date().toISOString(),
