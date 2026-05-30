@@ -149,14 +149,14 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const selectedPersonAudioText =
     props.personSource === "CUSTOM"
       ? props.selectedCustomPerson?.audioManId
-        ? `音色 ID：${props.selectedCustomPerson.audioManId}`
-        : "当前定制数字人未返回默认音色 ID"
+        ? `已返回克隆音色 ID：${props.selectedCustomPerson.audioManId}`
+        : "当前定制数字人未返回克隆音色，将按蝉镜默认语音策略提交"
       : props.selectedTemplate?.audioName
         ? `默认音色：${props.selectedTemplate.audioName}`
         : "请选择模板";
   const selectedPersonSummary =
     props.personSource === "CUSTOM"
-      ? "成功定制的数字人可直接用于视频创建；若训练详情未返回完整参数，系统会使用当前可见信息提交。"
+      ? "成功定制的数字人会自动带入推荐画布尺寸，并按当前已知训练能力收敛参数；当前先按半身形态提交。"
       : props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。";
 
   return (
@@ -253,14 +253,42 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               <input value={`${props.availableCustomPersons.length} 个成功定制数字人`} readOnly />
             </label>
             <label className="field">
+              <span>训练类型</span>
+              <input
+                value={
+                  props.selectedCustomPerson?.trainType === "both"
+                    ? "形象 + 音色"
+                    : props.selectedCustomPerson?.trainType === "figure"
+                      ? "仅形象"
+                      : "服务端未返回"
+                }
+                readOnly
+              />
+            </label>
+            <label className="field">
               <span>数字人 ID</span>
               <input value={props.selectedCustomPerson?.personId || props.selectedCustomPerson?.id || ""} readOnly placeholder="提交后会带入蝉镜数字人 ID" />
+            </label>
+            <label className="field">
+              <span>输出能力</span>
+              <input
+                value={
+                  props.selectedCustomPerson?.support4k
+                    ? `支持 4K${props.selectedCustomPerson.width4k && props.selectedCustomPerson.height4k ? ` / ${props.selectedCustomPerson.width4k} x ${props.selectedCustomPerson.height4k}` : ""}`
+                    : "默认按 1080p 提交"
+                }
+                readOnly
+              />
             </label>
           </>
         )}
         <label className="field">
           <span>形象类型</span>
-          <select value={props.selectedFigureType} onChange={(event) => props.onSelectedFigureTypeChange(event.target.value as DigitalHumanFigureType)}>
+          <select
+            value={props.personSource === "CUSTOM" ? "sit_body" : props.selectedFigureType}
+            onChange={(event) => props.onSelectedFigureTypeChange(event.target.value as DigitalHumanFigureType)}
+            disabled={props.personSource === "CUSTOM"}
+          >
             {props.personSource === "COMMON" ? (
               (props.selectedTemplate?.figures || []).map((item) => (
                 <option key={item.type} value={item.type}>
@@ -268,11 +296,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                 </option>
               ))
             ) : (
-              <>
-                <option value="sit_body">半身</option>
-                <option value="whole_body">全身</option>
-                <option value="circle_view">圆形</option>
-              </>
+              <option value="sit_body">半身</option>
             )}
           </select>
         </label>
@@ -649,7 +673,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           </p>
           <p className="panel-subtext">
             {props.personSource === "CUSTOM"
-              ? "定制数字人未返回完整训练配置时，页面会保留当前可见信息并继续允许你提交视频任务。"
+              ? "定制数字人当前会默认按半身提交；若未返回 4K 能力，后端会阻止超出 1080p 的画布尺寸。"
               : "常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。"}
           </p>
         </div>

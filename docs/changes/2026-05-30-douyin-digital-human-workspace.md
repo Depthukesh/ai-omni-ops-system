@@ -358,6 +358,59 @@
   - `apps/server/src/modules/works/works.service.ts`
 - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
 
+### 14. 定制数字人与视频创建参数映射第九轮
+
+- `apps/web/src/services/works.ts`
+  - `DouyinDigitalHumanCustomPersonRecord` 新增：
+    - `width4k`
+    - `height4k`
+  - `GenerateDouyinDigitalHumanVideoForm` 新增：
+    - `customPersonTrainType`
+    - `customPersonSupport4k`
+    - `customPersonWidth4k`
+    - `customPersonHeight4k`
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增定制数字人推荐画布计算
+  - 选中定制数字人时自动：
+    - 切到半身形态
+    - 回填推荐画布尺寸
+  - “用于数字人视频” 时同步带入推荐尺寸
+  - 提交视频时把定制数字人的训练类型、4K 能力和 4K 尺寸一起提交给后端
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 定制数字人创建区新增只读信息：
+    - 训练类型
+    - 输出能力 / 4K 尺寸
+  - 定制数字人模式下：
+    - 形象类型固定按半身展示
+    - 提示缺少克隆音色时将按默认语音策略提交
+    - 明确提示未返回 4K 能力时不能提交超出 1080p 的画布尺寸
+- `apps/server/src/modules/works/works.service.ts`
+  - 数字人视频生成 payload / 归一化结构补齐：
+    - `customPersonTrainType`
+    - `customPersonSupport4k`
+    - `customPersonWidth4k`
+    - `customPersonHeight4k`
+  - 定制数字人记录与本地 metadata 新增：
+    - `width4k`
+    - `height4k`
+  - 定制数字人列表同步逻辑新增：
+    - `width4k`
+    - `height4k`
+  - `normalizeDigitalHumanCreatePayload` 新增 CUSTOM 预校验：
+    - 定制数字人未返回 4K 能力时，阻止超出 1080p 的画布尺寸
+    - 已返回 4K 尺寸上限时，阻止超过推荐上限的画布尺寸
+    - CUSTOM 来源统一按 `sit_body` 提交，减少前端误选与实际能力不匹配
+
+## 第九轮验证
+
+- `GetDiagnostics`
+  - `apps/web/src/services/works.ts`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - `apps/server/src/modules/works/works.service.ts`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ## 第六轮验证
 
 - `GetDiagnostics`

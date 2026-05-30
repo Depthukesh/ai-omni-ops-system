@@ -283,6 +283,8 @@ export type DouyinDigitalHumanCustomPersonRecord = {
   width?: number;
   height?: number;
   support4k?: boolean;
+  width4k?: number;
+  height4k?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -440,6 +442,10 @@ export type GenerateDouyinDigitalHumanVideoForm = {
   subtitleStrokeColor?: string;
   screenWidth?: number;
   screenHeight?: number;
+  customPersonTrainType?: "figure" | "both";
+  customPersonSupport4k?: boolean;
+  customPersonWidth4k?: number;
+  customPersonHeight4k?: number;
 };
 
 export type CreateDouyinDigitalHumanCustomPersonForm = {

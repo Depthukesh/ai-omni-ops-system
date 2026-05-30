@@ -131,6 +131,21 @@ function getFigureTypeLabel(type?: DigitalHumanFigureType) {
   }
 }
 
+function getCustomPersonRecommendedCanvas(person?: DouyinDigitalHumanCustomPersonRecord) {
+  if (person?.support4k && person.resolutionRate === "4K") {
+    return {
+      width: person.width4k || 2160,
+      height: person.height4k || 3840,
+      label: "4K 推荐尺寸",
+    };
+  }
+  return {
+    width: 1080,
+    height: 1920,
+    label: "1080p 推荐尺寸",
+  };
+}
+
 function isRecoverableWork(item: DouyinDigitalHumanVideoWorkRecord) {
   if (item.videoUrl) {
     return false;
@@ -190,6 +205,10 @@ export interface DouyinDigitalHumanWorkspaceProps {
     subtitleStrokeColor?: string;
     screenWidth?: number;
     screenHeight?: number;
+    customPersonTrainType?: "figure" | "both";
+    customPersonSupport4k?: boolean;
+    customPersonWidth4k?: number;
+    customPersonHeight4k?: number;
   }) => Promise<boolean>;
   onCreateCustomPerson: (payload: {
     name?: string;
@@ -558,10 +577,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     if (selectedPersonSource !== "CUSTOM" || !selectedCustomPerson) {
       return;
     }
-    if (!title.trim()) {
-      setTitle(`${selectedCustomPerson.name} 数字人口播`);
-    }
-  }, [selectedCustomPerson, selectedPersonSource, title]);
+    setSelectedFigureType("sit_body");
+    setTitle((current) => (current.trim() ? current : `${selectedCustomPerson.name} 数字人口播`));
+    const recommendedCanvas = getCustomPersonRecommendedCanvas(selectedCustomPerson);
+    setScreenWidth(String(recommendedCanvas.width));
+    setScreenHeight(String(recommendedCanvas.height));
+  }, [selectedCustomPerson, selectedPersonSource]);
 
   useEffect(() => {
     if (!props.items.length) {
@@ -655,11 +676,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     }
     setSelectedPersonSource("CUSTOM");
     setSelectedCustomPersonId(target.id);
+    setSelectedFigureType("sit_body");
+    const recommendedCanvas = getCustomPersonRecommendedCanvas(target);
+    setScreenWidth(String(recommendedCanvas.width));
+    setScreenHeight(String(recommendedCanvas.height));
     if (!title.trim()) {
       setTitle(`${target.name} 数字人口播`);
     }
     setActiveTab("videoStudio");
-    setEditorActionMessage(`已带入定制数字人：${target.name}，可继续填写脚本并提交视频任务。`);
+    setEditorActionMessage(`已带入定制数字人：${target.name}，并按 ${recommendedCanvas.label} 自动填入画布尺寸。`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1046,6 +1071,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitleStrokeColor,
       screenWidth: Number(screenWidth || 1080),
       screenHeight: Number(screenHeight || 1920),
+      customPersonTrainType: currentCustomSource?.trainType,
+      customPersonSupport4k: currentCustomSource?.support4k,
+      customPersonWidth4k: currentCustomSource?.width4k,
+      customPersonHeight4k: currentCustomSource?.height4k,
     });
   };
 

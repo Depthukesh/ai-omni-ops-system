@@ -194,6 +194,10 @@ export type GenerateDouyinDigitalHumanVideoPayload = {
   subtitleStrokeColor?: string;
   screenWidth?: number;
   screenHeight?: number;
+  customPersonTrainType?: "figure" | "both";
+  customPersonSupport4k?: boolean;
+  customPersonWidth4k?: number;
+  customPersonHeight4k?: number;
 };
 
 export type RecoverDouyinDigitalHumanVideoPayload = {
@@ -264,6 +268,8 @@ export type DouyinDigitalHumanCustomPersonRecord = {
   width?: number;
   height?: number;
   support4k?: boolean;
+  width4k?: number;
+  height4k?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -666,6 +672,8 @@ type DigitalHumanCustomPersonWorkAssetMeta = {
   width?: number;
   height?: number;
   support4k?: boolean;
+  width4k?: number;
+  height4k?: number;
   providerStatusCode?: number;
   providerStatusText?: string;
   providerUpdatedAt?: string;
@@ -744,6 +752,10 @@ type NormalizedDigitalHumanCreatePayload = {
   subtitleStrokeColor?: string;
   screenWidth: number;
   screenHeight: number;
+  customPersonTrainType?: "figure" | "both";
+  customPersonSupport4k?: boolean;
+  customPersonWidth4k?: number;
+  customPersonHeight4k?: number;
 };
 
 type DigitalHumanVideoSnapshot = {
@@ -7113,17 +7125,39 @@ export class WorksService {
     if (!script) {
       throw new BadRequestException("请输入数字人口播脚本。");
     }
+    const personSource = this.normalizeDigitalHumanSource(payload.personSource);
     const screenWidth = this.readPositiveInteger(payload.screenWidth, 1080);
     const screenHeight = this.readPositiveInteger(payload.screenHeight, 1920);
     const figureWidth = Math.min(this.readPositiveInteger(payload.figureWidth, 720), screenWidth);
     const figureHeight = Math.min(this.readPositiveInteger(payload.figureHeight, 1280), screenHeight);
     const personName = String(payload.personName || "").trim() || personId;
+    const customPersonSupport4k = payload.customPersonSupport4k === true;
+    const customPersonWidth4k = this.readPositiveInteger(payload.customPersonWidth4k, 0) || undefined;
+    const customPersonHeight4k = this.readPositiveInteger(payload.customPersonHeight4k, 0) || undefined;
+    const customPersonTrainType =
+      payload.customPersonTrainType === "both"
+        ? "both"
+        : payload.customPersonTrainType === "figure"
+          ? "figure"
+          : undefined;
+    if (personSource === "CUSTOM" && (screenWidth > 1080 || screenHeight > 1920) && !customPersonSupport4k) {
+      throw new BadRequestException("当前定制数字人未返回 4K 能力，请先使用 1080p 画布尺寸提交视频。");
+    }
+    if (
+      personSource === "CUSTOM"
+      && customPersonSupport4k
+      && customPersonWidth4k
+      && customPersonHeight4k
+      && (screenWidth > customPersonWidth4k || screenHeight > customPersonHeight4k)
+    ) {
+      throw new BadRequestException(`当前定制数字人的 4K 推荐上限为 ${customPersonWidth4k} x ${customPersonHeight4k}，请调整画布后再提交。`);
+    }
     return {
       title: String(payload.title || "").trim() || `${personName} 数字人口播`,
       personId,
       personName,
-      personSource: this.normalizeDigitalHumanSource(payload.personSource),
-      figureType: this.normalizeDigitalHumanFigureType(payload.figureType),
+      personSource,
+      figureType: personSource === "CUSTOM" ? "sit_body" : this.normalizeDigitalHumanFigureType(payload.figureType),
       figureCoverUrl: this.readOptionalString(payload.figureCoverUrl),
       figurePreviewVideoUrl: this.readOptionalString(payload.figurePreviewVideoUrl),
       figureWidth,
@@ -7141,6 +7175,10 @@ export class WorksService {
       subtitleStrokeColor: this.readOptionalString(payload.subtitleStrokeColor) || "#000000",
       screenWidth,
       screenHeight,
+      customPersonTrainType,
+      customPersonSupport4k,
+      customPersonWidth4k,
+      customPersonHeight4k,
     };
   }
 
@@ -7374,6 +7412,8 @@ export class WorksService {
       width: record.width || meta.width,
       height: record.height || meta.height,
       support4k: typeof record.support4k === "boolean" ? record.support4k : meta.support4k,
+      width4k: record.width4k || meta.width4k,
+      height4k: record.height4k || meta.height4k,
     };
   }
 
@@ -7440,6 +7480,8 @@ export class WorksService {
       || (meta.width || 0) !== (record.width || 0)
       || (meta.height || 0) !== (record.height || 0)
       || Boolean(meta.support4k) !== Boolean(record.support4k)
+      || (meta.width4k || 0) !== (record.width4k || 0)
+      || (meta.height4k || 0) !== (record.height4k || 0)
     );
   }
 
@@ -7700,6 +7742,8 @@ export class WorksService {
       width: item.width,
       height: item.height,
       support4k: item.support4k,
+      width4k: item.width4k,
+      height4k: item.height4k,
       createdAt: localMeta?.createdAt || createdAt,
       updatedAt: new Date().toISOString(),
     };
@@ -7723,6 +7767,8 @@ export class WorksService {
       width: meta.width,
       height: meta.height,
       support4k: meta.support4k,
+      width4k: meta.width4k,
+      height4k: meta.height4k,
       createdAt: meta.createdAt,
       updatedAt: meta.updatedAt,
     };
