@@ -47,7 +47,15 @@ export interface DouyinOriginalCopyWorkspaceProps {
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
+    userRequirement?: string;
   }) => Promise<boolean>;
+  onUpdate: (payload: {
+    reportId: string;
+    title?: string;
+    content: string;
+    userRequirement?: string;
+  }) => Promise<boolean>;
+  onDelete: (reportId: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -90,6 +98,11 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
   const [topicValue, setTopicValue] = useState(EMPTY_TOPIC_VALUE);
   const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
   const [copyTypeValue, setCopyTypeValue] = useState<DouyinOriginalCopyType>("VIEWPOINT");
+  const [userRequirementValue, setUserRequirementValue] = useState("");
+  const [editingReportId, setEditingReportId] = useState<string>("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editUserRequirement, setEditUserRequirement] = useState("");
 
   const calendarSelectOptions = useMemo<SelectOption[]>(
     () => [{ value: EMPTY_CALENDAR_VALUE, label: "不选择营销日历" }, ...props.calendarOptions.map((item) => ({ value: item.id, label: item.label }))],
@@ -104,6 +117,10 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
     const startIndex = (page - 1) * ORIGINAL_COPY_PAGE_SIZE;
     return props.history.slice(startIndex, startIndex + ORIGINAL_COPY_PAGE_SIZE);
   }, [page, props.history]);
+  const editingItem = useMemo(
+    () => props.history.find((item) => item.id === editingReportId),
+    [editingReportId, props.history],
+  );
 
   useEffect(() => {
     if (page > pageCount) {
@@ -121,16 +138,54 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
     }
   }, [topicSelectOptions, topicValue]);
 
+  useEffect(() => {
+    if (editingReportId && !editingItem) {
+      setEditingReportId("");
+    }
+  }, [editingItem, editingReportId]);
+
   async function handleCreate() {
     const success = await props.onCreate({
       calendarItemId: calendarValue !== EMPTY_CALENDAR_VALUE ? calendarValue : undefined,
       topicId: topicValue !== EMPTY_TOPIC_VALUE ? topicValue : undefined,
       injectMarketingPlan: injectMarketingPlanValue === "yes",
       copyType: copyTypeValue,
+      userRequirement: userRequirementValue.trim() || undefined,
     });
     if (success) {
       setIsCreateOpen(false);
+      setUserRequirementValue("");
     }
+  }
+
+  function handleOpenEditor(item: DouyinOriginalCopyRecord) {
+    setEditingReportId(item.id);
+    setEditTitle(item.title);
+    setEditContent(item.content);
+    setEditUserRequirement(item.userRequirement || "");
+  }
+
+  async function handleUpdate() {
+    if (!editingReportId) {
+      return;
+    }
+    const success = await props.onUpdate({
+      reportId: editingReportId,
+      title: editTitle.trim() || undefined,
+      content: editContent,
+      userRequirement: editUserRequirement.trim() || undefined,
+    });
+    if (success) {
+      setEditingReportId("");
+    }
+  }
+
+  async function handleDelete(item: DouyinOriginalCopyRecord) {
+    const confirmed = window.confirm(`确认删除「${item.title}」吗？删除后无法恢复。`);
+    if (!confirmed) {
+      return;
+    }
+    await props.onDelete(item.id);
   }
 
   return (
@@ -189,14 +244,14 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
           {!props.history.length ? (
             <div className="note-empty-state">当前品牌还没有原创文案。点击右上角“添加原创笔记”后，可按不同文案类型生成并沉淀结果。</div>
           ) : (
-            <div style={{ display: "grid", gap: 16 }}>
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
               {paginatedItems.map((item) => (
-                <section key={item.id} className="light-data-panel" style={{ display: "grid", gap: 12 }}>
-                  <div className="strategy-card-toolbar" style={{ padding: 0 }}>
+                <article key={item.id} className="entity-card personal-card" style={{ display: "grid", gap: 12 }}>
+                  <div className="entity-card-head">
                     <div style={{ display: "grid", gap: 6 }}>
                       <strong>{item.title}</strong>
-                      <p className="panel-subtext" style={{ margin: 0 }}>
-                        {item.summary || item.copyTypeLabel}
+                      <p className="personal-meta" style={{ margin: 0 }}>
+                        创作时间：{props.formatDateTime(item.generatedAt)}
                       </p>
                     </div>
                     <div className="report-editor-actions">
@@ -207,18 +262,37 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
                     </div>
                   </div>
 
+                  <p className="panel-subtext" style={{ margin: 0 }}>
+                    {item.summary || `${item.copyTypeLabel}原创文案`}
+                  </p>
+
                   <div className="report-inline-tip">
                     选题：{item.topicContent || "不选择选题"}
                     {item.calendarItemLabel ? ` | 营销日历：${item.calendarItemLabel}` : ""}
                     {item.marketingPlanTitle ? ` | 策划方案：${item.marketingPlanTitle}` : ""}
-                    {` | 生成时间：${props.formatDateTime(item.generatedAt)}`}
                   </div>
 
-                  <div
-                    className="generated-markdown-preview"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(item.content) }}
-                  />
-                </section>
+                  {item.userRequirement ? <div className="report-inline-tip">用户要求：{item.userRequirement}</div> : null}
+
+                  <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => handleOpenEditor(item)}
+                      disabled={props.isSubmitting}
+                    >
+                      查看/编辑
+                    </button>
+                    <button
+                      type="button"
+                      className="note-inline-button"
+                      onClick={() => void handleDelete(item)}
+                      disabled={!props.canEdit || props.isSubmitting}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </article>
               ))}
             </div>
           )}
@@ -273,6 +347,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         topicValue={topicValue}
         injectMarketingPlanValue={injectMarketingPlanValue}
         copyTypeValue={copyTypeValue}
+        userRequirementValue={userRequirementValue}
         hasMarketingPlan={props.hasMarketingPlan}
         marketingPlanTitle={props.marketingPlanTitle}
         onClose={() => setIsCreateOpen(false)}
@@ -281,7 +356,90 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         onTopicChange={setTopicValue}
         onInjectMarketingPlanChange={setInjectMarketingPlanValue}
         onCopyTypeChange={(value) => setCopyTypeValue(value as DouyinOriginalCopyType)}
+        onUserRequirementChange={setUserRequirementValue}
       />
+
+      {editingItem ? (
+        <div className="media-preview-overlay" onClick={() => !props.isSubmitting && setEditingReportId("")}>
+          <div className="media-preview-dialog calendar-detail-dialog" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="media-preview-close"
+              onClick={() => setEditingReportId("")}
+              disabled={props.isSubmitting}
+            >
+              关闭
+            </button>
+            <article className="entity-card personal-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>查看/编辑原创文案</strong>
+                  <p className="personal-meta">可直接修改标题、文案和用户要求；点击取消返回作品区页面。</p>
+                </div>
+                <div className="report-editor-actions">
+                  <span className="archive-pill status-ready">{editingItem.copyTypeLabel}</span>
+                  <span className="archive-pill status-pending">{props.formatDateTime(editingItem.generatedAt)}</span>
+                </div>
+              </div>
+              <div className="personal-list">
+                <label className="report-editor-pane">
+                  <span>标题</span>
+                  <input
+                    className="report-title-input"
+                    value={editTitle}
+                    onChange={(event) => setEditTitle(event.target.value)}
+                    placeholder="请输入作品标题"
+                    disabled={props.isSubmitting}
+                  />
+                </label>
+                <label className="report-editor-pane">
+                  <span>用户要求</span>
+                  <textarea
+                    className="report-content-textarea"
+                    value={editUserRequirement}
+                    onChange={(event) => setEditUserRequirement(event.target.value)}
+                    placeholder="可继续补充语气、结构、卖点或禁用词要求"
+                    rows={4}
+                    disabled={props.isSubmitting}
+                  />
+                </label>
+                <div className="report-editor-grid">
+                  <label className="report-editor-pane">
+                    <span>文案内容</span>
+                    <textarea
+                      className="report-content-textarea"
+                      value={editContent}
+                      onChange={(event) => setEditContent(event.target.value)}
+                      placeholder="请输入或修改原创文案内容"
+                      disabled={props.isSubmitting}
+                    />
+                  </label>
+                  <article className="report-editor-pane">
+                    <span>预览</span>
+                    <div
+                      className="generated-markdown-preview"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent) }}
+                    />
+                  </article>
+                </div>
+                <div className="strategy-inline-actions">
+                  <button type="button" className="primary-button" onClick={() => void handleUpdate()} disabled={props.isSubmitting}>
+                    {props.isSubmitting ? "修改中..." : "修改"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setEditingReportId("")}
+                    disabled={props.isSubmitting}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

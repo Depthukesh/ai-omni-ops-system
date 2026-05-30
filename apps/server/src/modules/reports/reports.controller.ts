@@ -3,6 +3,7 @@ import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
   type GenerateDouyinOriginalCopyPayload,
+  type UpdateDouyinOriginalCopyPayload,
   type UpdateDouyinTopicLibraryPayload,
   type UpdateDouyinMarketingPlanPayload,
   type UpdateGrowthReportPayload,
@@ -235,6 +236,29 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
     return this.reportsService.generateDouyinOriginalCopy(brandId, payload);
+  }
+
+  @Patch("brands/:brandId/douyin-original-copy/:reportId")
+  async updateDouyinOriginalCopy(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: UpdateDouyinOriginalCopyPayload,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.updateDouyinOriginalCopy(brandId, reportId, payload);
+  }
+
+  @Delete("brands/:brandId/douyin-original-copy/:reportId")
+  async deleteDouyinOriginalCopy(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.deleteDouyinOriginalCopy(brandId, reportId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

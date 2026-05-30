@@ -238,6 +238,7 @@ type DouyinOriginalCopyAssetMeta = {
   calendarItemLabel?: string;
   injectMarketingPlan: boolean;
   marketingPlanTitle?: string;
+  userRequirement?: string;
   modelName?: string;
 };
 
@@ -385,6 +386,7 @@ export type DouyinOriginalCopyRecord = {
   calendarItemLabel?: string;
   injectMarketingPlan: boolean;
   marketingPlanTitle?: string;
+  userRequirement?: string;
 };
 
 export type XiaohongshuMarketingCalendarRecord = {
@@ -575,6 +577,7 @@ type DouyinOriginalCopyModelResult = {
   calendarItemLabel?: string;
   injectMarketingPlan: boolean;
   marketingPlanTitle?: string;
+  userRequirement?: string;
 };
 
 type XiaohongshuMarketingCalendarModelResult = {
@@ -638,6 +641,13 @@ export type GenerateDouyinOriginalCopyPayload = {
   topicId?: string;
   injectMarketingPlan?: boolean;
   copyType: DouyinOriginalCopyType;
+  userRequirement?: string;
+};
+
+export type UpdateDouyinOriginalCopyPayload = {
+  title?: string;
+  content: string;
+  userRequirement?: string;
 };
 
 export type GrowthReportWorkspace = {
@@ -1745,6 +1755,7 @@ export class ReportsService {
       calendarItem: selectedCalendarItem,
       injectMarketingPlan,
       marketingPlanTitle: workspace.marketingPlanTitle,
+      userRequirement: payload.userRequirement?.trim() || undefined,
     });
     setTimeout(() => {
       void this.runDouyinOriginalCopyTask(brandId, task.id);
@@ -1754,6 +1765,114 @@ export class ReportsService {
       ...workspace,
       latestTask: task,
     };
+  }
+
+  async updateDouyinOriginalCopy(brandId: string, reportId: string, payload: UpdateDouyinOriginalCopyPayload) {
+    const content = payload.content.trim();
+    if (!content) {
+      throw new ServiceUnavailableException("原创文案内容不能为空");
+    }
+
+    const workspace = await this.getDouyinOriginalCopyWorkspace(brandId);
+    const current = workspace.history.find((item) => item.id === reportId);
+    if (!current) {
+      throw new NotFoundException("原创文案不存在");
+    }
+
+    const normalized = this.buildManualDouyinOriginalCopyResult(content, payload.title, current.title);
+    const userRequirement = payload.userRequirement?.trim() || undefined;
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      if (currentMeta.kind !== "DOUYIN_ORIGINAL_COPY") {
+        throw new NotFoundException("原创文案不存在");
+      }
+      await this.prismaService.businessAsset.update({
+        where: { id: asset.id },
+        data: {
+          title: normalized.title,
+          description: normalized.summary,
+          metadataJson: {
+            ...currentMeta,
+            summary: normalized.summary,
+            content: normalized.content,
+            title: normalized.title,
+            userRequirement,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_CONTENT");
+      if (!asset) {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      if (currentMeta.kind !== "DOUYIN_ORIGINAL_COPY") {
+        throw new NotFoundException("原创文案不存在");
+      }
+      asset.title = normalized.title;
+      asset.description = normalized.summary;
+      asset.metadataJson = {
+        ...currentMeta,
+        summary: normalized.summary,
+        content: normalized.content,
+        title: normalized.title,
+        userRequirement,
+      };
+    }
+
+    return this.getDouyinOriginalCopyWorkspace(brandId);
+  }
+
+  async deleteDouyinOriginalCopy(brandId: string, reportId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const meta = this.asMeta(asset.metadataJson);
+      if (meta.kind !== "DOUYIN_ORIGINAL_COPY") {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const taskId = this.readMetaString(meta, "taskId");
+      await this.prismaService.businessAsset.delete({ where: { id: asset.id } });
+      if (taskId) {
+        await this.prismaService.task.deleteMany({ where: { id: taskId, brandId } });
+      }
+    } else {
+      const index = database.assets.findIndex((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_CONTENT");
+      if (index < 0) {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const meta = this.asMeta(database.assets[index].metadataJson);
+      if (meta.kind !== "DOUYIN_ORIGINAL_COPY") {
+        throw new NotFoundException("原创文案不存在");
+      }
+      const taskId = this.readMetaString(meta, "taskId");
+      database.assets.splice(index, 1);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    return this.getDouyinOriginalCopyWorkspace(brandId);
   }
 
   async getXiaohongshuMarketingCalendarWorkspace(brandId: string): Promise<XiaohongshuMarketingCalendarWorkspace> {
@@ -2781,6 +2900,7 @@ export class ReportsService {
       calendarItem?: XiaohongshuMarketingCalendarItem;
       injectMarketingPlan: boolean;
       marketingPlanTitle?: string;
+      userRequirement?: string;
     },
   ) {
     const now = new Date().toISOString();
@@ -2821,6 +2941,7 @@ export class ReportsService {
         : undefined,
       injectMarketingPlan: params.injectMarketingPlan,
       marketingPlanTitle: params.marketingPlanTitle || undefined,
+      userRequirement: params.userRequirement || undefined,
     };
 
     if (await this.prismaService.canUseDatabase()) {
@@ -3332,6 +3453,7 @@ export class ReportsService {
       const topicRecord = this.readNestedRecord(currentTaskRow, ["topic"]);
       const calendarRecord = this.readNestedRecord(currentTaskRow, ["calendarItem"]);
       const injectMarketingPlan = Boolean(currentTaskRow.injectMarketingPlan);
+      const userRequirement = this.readMetaString(currentTaskRow, "userRequirement") || undefined;
       const topicContent = this.readRecordString(topicRecord, "topicContent");
       const topicId = this.readRecordString(topicRecord, "id");
       if (!copyType || !DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType]) {
@@ -3382,6 +3504,7 @@ export class ReportsService {
         marketingPlan,
         copyType,
         injectMarketingPlan,
+        userRequirement,
         generatedAt: startedAt,
         onPhaseUpdate: async (phase, extra) => {
           currentPhaseStatus = this.buildDouyinOriginalCopyPhaseStatus(phase, extra);
@@ -3990,6 +4113,7 @@ export class ReportsService {
             calendarItemLabel: report.calendarItemLabel,
             injectMarketingPlan: report.injectMarketingPlan,
             marketingPlanTitle: report.marketingPlanTitle,
+            userRequirement: report.userRequirement,
             modelName: report.modelName,
           } as Prisma.InputJsonValue,
         },
@@ -4020,6 +4144,7 @@ export class ReportsService {
         calendarItemLabel: report.calendarItemLabel,
         injectMarketingPlan: report.injectMarketingPlan,
         marketingPlanTitle: report.marketingPlanTitle,
+        userRequirement: report.userRequirement,
         modelName: report.modelName,
       } satisfies DouyinOriginalCopyAssetMeta,
     });
@@ -4913,6 +5038,7 @@ export class ReportsService {
     marketingPlan?: DouyinMarketingPlanRecord;
     copyType: DouyinOriginalCopyType;
     injectMarketingPlan: boolean;
+    userRequirement?: string;
     generatedAt: string;
     onPhaseUpdate?: (
       phase: DouyinOriginalCopyPhase,
@@ -4930,6 +5056,7 @@ export class ReportsService {
       params.marketingPlan,
       params.copyType,
       params.injectMarketingPlan,
+      params.userRequirement,
       params.generatedAt,
     );
     await params.onPhaseUpdate?.("GENERATING");
@@ -5638,6 +5765,8 @@ export class ReportsService {
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const generationOptions = this.readNestedRecord(inputPayload, ["inputScope", "generationOptions"]);
     const copyTypeLabel = this.readRecordString(generationOptions, "copyTypeLabel") || "原创文案";
+    const inputScope = this.readNestedRecord(inputPayload, ["inputScope"]);
+    const userRequirement = inputScope ? this.readMetaString(inputScope, "userRequirement") || undefined : undefined;
     const systemPrompt = [
       skillPrompt,
       "",
@@ -5645,6 +5774,7 @@ export class ReportsService {
       "只输出 Markdown 正文，不要输出 JSON、代码块、执行说明或额外解释。",
       "如果提供了 selectedTopic，文案优先围绕 selectedTopic 展开；如果未提供，则基于品牌资料与 selectedCalendarItem 自主确定内容切入角度。",
       "如果提供了 selectedCalendarItem，则结合日历节点；如果 injectMarketingPlan=true，则融合营销策划方案中的关键策略。",
+      userRequirement ? `如果提供了 userRequirement，必须优先满足这条额外要求：${userRequirement}` : "如果提供了 userRequirement，必须优先满足这条额外要求。",
       "请输出可直接交给运营、拍摄或主播执行的内容，避免空话和模板化废话。",
     ].join("\n");
     const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
@@ -5901,6 +6031,7 @@ export class ReportsService {
     const calendarItem = this.readNestedRecord(inputPayload, ["inputScope", "selectedCalendarItem"]);
     const generationOptions = this.readNestedRecord(inputPayload, ["inputScope", "generationOptions"]);
     const marketingPlan = this.readNestedRecord(inputPayload, ["inputScope", "douyinMarketingPlan"]);
+    const inputScope = this.readNestedRecord(inputPayload, ["inputScope"]);
     const calendarDate = this.readRecordString(calendarItem, "date");
     const calendarTopicName = this.readRecordString(calendarItem, "topicName");
     const topicContent = this.readRecordString(topic, "topicContent") || calendarTopicName || "不选择选题";
@@ -5943,6 +6074,7 @@ export class ReportsService {
         : undefined,
       injectMarketingPlan: Boolean(generationOptions?.injectMarketingPlan),
       marketingPlanTitle: this.readRecordString(marketingPlan, "title") || undefined,
+      userRequirement: this.readRecordString(inputScope, "userRequirement") || undefined,
     };
   }
 
@@ -6898,6 +7030,7 @@ ${normalizedMarkdown}`;
     marketingPlan: DouyinMarketingPlanRecord | undefined,
     copyType: DouyinOriginalCopyType,
     injectMarketingPlan: boolean,
+    userRequirement: string | undefined,
     generatedAt: string,
   ) {
     const copyTypeConfig = DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType];
@@ -6970,6 +7103,7 @@ ${normalizedMarkdown}`;
               reportMarkdown: this.truncateText(marketingPlan.reportMarkdown, 6000),
             }
           : undefined,
+        userRequirement: userRequirement || undefined,
         generationOptions: {
           copyType,
           copyTypeLabel: copyTypeConfig.label,
@@ -6981,6 +7115,7 @@ ${normalizedMarkdown}`;
         outputType: "可直接执行的抖音原创文案",
         copyTypeLabel: copyTypeConfig.label,
         injectMarketingPlan,
+        userRequirement: userRequirement || undefined,
       },
       outputTarget: `抖音原创文案-${copyTypeConfig.label}`,
     };
@@ -8579,6 +8714,20 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private buildManualDouyinOriginalCopyResult(content: string, nextTitle?: string, fallbackTitle?: string) {
+    const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+    const title = nextTitle?.trim() || this.extractMarkdownTitle(normalizedMarkdown) || fallbackTitle || "抖音原创文案";
+    const reportMarkdown = normalizedMarkdown.startsWith("# ")
+      ? normalizedMarkdown
+      : `# ${title}\n\n${normalizedMarkdown}`;
+    const summary = this.extractMarkdownSummary(reportMarkdown) || `${title}已更新。`;
+    return {
+      title,
+      summary,
+      content: reportMarkdown,
+    };
+  }
+
   private buildManualXiaohongshuMarketingCalendarResult(items: XiaohongshuMarketingCalendarItem[], nextTitle?: string) {
     const normalizedItems = this.normalizeXiaohongshuMarketingCalendarItems(items);
     return {
@@ -9599,6 +9748,7 @@ ${normalizedMarkdown}`;
       calendarItemLabel: this.readMetaString(meta, "calendarItemLabel") || undefined,
       injectMarketingPlan: Boolean(meta.injectMarketingPlan),
       marketingPlanTitle: this.readMetaString(meta, "marketingPlanTitle") || undefined,
+      userRequirement: this.readMetaString(meta, "userRequirement") || undefined,
     };
   }
 

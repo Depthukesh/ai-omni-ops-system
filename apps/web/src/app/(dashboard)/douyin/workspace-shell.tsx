@@ -7,6 +7,7 @@ import { getBrandPermissionSettings, DEMO_BRAND_ID, type BrandPermissionSettings
 import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollectionWorkspace } from "../../../services/collectors";
 import {
   annualMarketingPlanSeed,
+  deleteDouyinOriginalCopy,
   deleteDouyinMarketingPlan,
   douyinHotTopicCandidatesSeed,
   douyinMarketingPlanSeed,
@@ -21,6 +22,7 @@ import {
   getGrowthReportWorkspace,
   growthReportSeed,
   updateDouyinTopicLibrary,
+  updateDouyinOriginalCopy,
   updateDouyinMarketingPlan,
   type DouyinHotTopicCandidatesWorkspace,
   type DouyinOriginalCopyWorkspace,
@@ -570,6 +572,7 @@ export function DouyinWorkspaceShell() {
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+    userRequirement?: string;
   }) => {
     if (!canEditMarketingPlan) {
       setErrorMessage("当前账号只有查看权限，不能生成原创文案。");
@@ -586,6 +589,59 @@ export function DouyinWorkspaceShell() {
       return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "原创文案提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingOriginalCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
+  const handleUpdateOriginalCopy = useCallback(async (payload: {
+    reportId: string;
+    title?: string;
+    content: string;
+    userRequirement?: string;
+  }) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能修改原创文案。");
+      return false;
+    }
+
+    setIsSubmittingOriginalCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await updateDouyinOriginalCopy(payload.reportId, {
+        title: payload.title,
+        content: payload.content,
+        userRequirement: payload.userRequirement,
+      }, activeBrandId);
+      setOriginalCopyWorkspace(nextWorkspace);
+      setNotice("原创文案已修改。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "原创文案修改失败。");
+      return false;
+    } finally {
+      setIsSubmittingOriginalCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
+  const handleDeleteOriginalCopy = useCallback(async (reportId: string) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能删除原创文案。");
+      return false;
+    }
+
+    setIsSubmittingOriginalCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await deleteDouyinOriginalCopy(reportId, activeBrandId);
+      setOriginalCopyWorkspace(nextWorkspace);
+      setNotice("原创文案已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "原创文案删除失败。");
       return false;
     } finally {
       setIsSubmittingOriginalCopy(false);
@@ -758,6 +814,8 @@ export function DouyinWorkspaceShell() {
                       await refreshOriginalCopyWorkspace();
                     }}
                     onCreate={handleCreateOriginalCopy}
+                    onUpdate={handleUpdateOriginalCopy}
+                    onDelete={handleDeleteOriginalCopy}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

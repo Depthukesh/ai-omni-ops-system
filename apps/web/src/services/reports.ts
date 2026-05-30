@@ -239,6 +239,7 @@ export type DouyinOriginalCopyRecord = {
   calendarItemLabel?: string;
   injectMarketingPlan: boolean;
   marketingPlanTitle?: string;
+  userRequirement?: string;
 };
 
 export type DouyinHotTopicCandidatesRecord = {
@@ -518,10 +519,29 @@ export async function generateDouyinOriginalCopy(
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
+    userRequirement?: string;
   },
   brandId?: string,
 ) {
   return jsonRequest<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy/generate`, "POST", payload);
+}
+
+export async function updateDouyinOriginalCopy(
+  reportId: string,
+  payload: {
+    title?: string;
+    content: string;
+    userRequirement?: string;
+  },
+  brandId?: string,
+) {
+  return jsonRequest<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy/${reportId}`, "PATCH", payload);
+}
+
+export async function deleteDouyinOriginalCopy(reportId: string, brandId?: string) {
+  return request<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy/${reportId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string) {
