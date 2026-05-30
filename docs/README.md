@@ -100,6 +100,8 @@
   - 抖音工作台补齐二创文案与 AI生视频（故事板）两条内容生产链路，并同步修正文档中过时的工作台能力描述与视频阶段说明
 - `docs/changes/2026-05-30-douyin-workspace-permission-split.md`
   - 抖音工作台权限拆分到营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案和 AI生视频（故事板）板块级，前后端鉴权与目录显示同步按板块独立控制
+- `docs/changes/2026-05-30-douyin-video-skill-center-registration.md`
+  - 把抖音 AI生视频（故事板）的 5 个视频叶子技能独立注册到抖音区，并让运行时改用 `prompt_douyin_video_*` 和 `douyin-video-storyboard-studio`
 - `docs/changes/2026-05-25-single-agent-mode-reinstated.md`
   - 结束当前多 Agent 并行开发模式，恢复由单个主 Agent 统一开发、验证、提交和推送；当前不再存在其他并行开发 Agent，相关协作文档仅保留为历史参考
 - `docs/changes/2026-05-23-douyin-material-library.md`

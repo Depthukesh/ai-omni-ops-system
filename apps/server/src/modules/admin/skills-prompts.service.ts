@@ -297,6 +297,38 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
       "视频笔记-故事板提示词",
     ],
   },
+  skill_douyin_video_note: {
+    promptIds: [
+      "prompt_douyin_video_brand_script",
+      "prompt_douyin_video_spoken_script",
+      "prompt_douyin_video_skit_script",
+      "prompt_douyin_video_remix_script",
+      "prompt_douyin_video_storyboard",
+    ],
+    promptScenes: [
+      "抖音AI生视频（故事板）-品牌宣传剧本",
+      "抖音AI生视频（故事板）-口播带货剧本",
+      "抖音AI生视频（故事板）-短剧带货剧本",
+      "抖音AI生视频（故事板）-复刻视频拆解",
+      "抖音AI生视频（故事板）-故事板提示词",
+    ],
+  },
+  "douyin-video-storyboard-studio": {
+    promptIds: [
+      "prompt_douyin_video_brand_script",
+      "prompt_douyin_video_spoken_script",
+      "prompt_douyin_video_skit_script",
+      "prompt_douyin_video_remix_script",
+      "prompt_douyin_video_storyboard",
+    ],
+    promptScenes: [
+      "抖音AI生视频（故事板）-品牌宣传剧本",
+      "抖音AI生视频（故事板）-口播带货剧本",
+      "抖音AI生视频（故事板）-短剧带货剧本",
+      "抖音AI生视频（故事板）-复刻视频拆解",
+      "抖音AI生视频（故事板）-故事板提示词",
+    ],
+  },
 };
 
 @Injectable()

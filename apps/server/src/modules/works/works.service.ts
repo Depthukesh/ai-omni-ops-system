@@ -249,6 +249,7 @@ type VideoProgressStepEntry = {
 };
 
 type ResolvedVideoComposerContext = {
+  workKind: VideoWorkKind;
   accountRole: OriginalAccountRole;
   videoKind: VideoNoteKind;
   selectedCalendarItem?: XiaohongshuMarketingCalendarRecord["items"][number];
@@ -4061,6 +4062,31 @@ export class WorksService {
     };
   }
 
+  private getVideoSkillProfile(kind: VideoWorkKind) {
+    if (kind === "DOUYIN_VIDEO_NOTE") {
+      return {
+        skillSlug: "douyin-video-storyboard-studio",
+        promptId: "prompt_douyin_video_note",
+        brandScriptPromptId: "prompt_douyin_video_brand_script",
+        spokenScriptPromptId: "prompt_douyin_video_spoken_script",
+        skitScriptPromptId: "prompt_douyin_video_skit_script",
+        remixScriptPromptId: "prompt_douyin_video_remix_script",
+        storyboardPromptId: "prompt_douyin_video_storyboard",
+        skillLabel: "抖音 AI 生视频（故事板）",
+      } as const;
+    }
+    return {
+      skillSlug: "short-video-api-studio",
+      promptId: "prompt_xhs_video_note",
+      brandScriptPromptId: "prompt_xhs_video_brand_script",
+      spokenScriptPromptId: "prompt_xhs_video_spoken_script",
+      skitScriptPromptId: "prompt_xhs_video_skit_script",
+      remixScriptPromptId: "prompt_xhs_video_remix_script",
+      storyboardPromptId: "prompt_xhs_video_storyboard",
+      skillLabel: "小红书视频笔记",
+    } as const;
+  }
+
   private ensureVideoWorkKind(meta: VideoWorkAssetMeta, expectedKind: VideoWorkKind) {
     if (meta.kind !== expectedKind) {
       throw new NotFoundException("视频作品不存在");
@@ -4139,6 +4165,7 @@ export class WorksService {
       Boolean(referenceImageUrl || normalizedProduct?.imageUrl),
     );
     return {
+      workKind: "XHS_VIDEO_NOTE",
       accountRole: this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole),
       videoKind,
       selectedCalendarItem,
@@ -4235,6 +4262,7 @@ export class WorksService {
     );
     const additionalInstruction = payload.additionalInstruction?.trim() || undefined;
     return {
+      workKind: "DOUYIN_VIDEO_NOTE",
       accountRole: this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole),
       videoKind,
       selectedCalendarItem,
@@ -4324,10 +4352,11 @@ export class WorksService {
         scriptModel: scriptResult.modelName,
       });
       const storyboardResult = await this.generateVideoStoryboardPrompt(brandId, context, meta);
+      const skillProfile = this.getVideoSkillProfile(context.workKind);
       const imageConfig = await this.loadImageGenerationExecutionConfig({
         brandId,
-        skillSlug: "short-video-api-studio",
-        promptId: "prompt_xhs_video_storyboard",
+        skillSlug: skillProfile.skillSlug,
+        promptId: skillProfile.storyboardPromptId,
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
         preferredModelSelection: context.requestedStoryboardImageModel,
         usage: "storyboard-text-only",
@@ -4388,10 +4417,11 @@ export class WorksService {
       await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING_STORYBOARD", title: "重新生成故事板" });
       const target = await this.getVideoWorkRowById(brandId, workId);
       let meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+      const skillProfile = this.getVideoSkillProfile(meta.kind);
       const imageConfig = await this.loadImageGenerationExecutionConfig({
         brandId,
-        skillSlug: "short-video-api-studio",
-        promptId: "prompt_xhs_video_storyboard",
+        skillSlug: skillProfile.skillSlug,
+        promptId: skillProfile.storyboardPromptId,
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
         preferredModelSelection: meta.requestedStoryboardImageModel,
         usage: "storyboard-text-only",
@@ -4708,6 +4738,7 @@ export class WorksService {
 
   private async requestVideoStageJson(params: {
     brandId: string;
+    workKind: VideoWorkKind;
     promptId: string;
     fallbackModels: string[];
     fallbackPrompt: string;
@@ -4716,7 +4747,8 @@ export class WorksService {
   }) {
     const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
-    const preference = await this.loadSkillModelPreference("short-video-api-studio", params.promptId, params.fallbackModels);
+    const skillProfile = this.getVideoSkillProfile(params.workKind);
+    const preference = await this.loadSkillModelPreference(skillProfile.skillSlug, params.promptId, params.fallbackModels);
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const systemPrompt = [skillPrompt, "", params.systemInstruction].join("\n");
     const userPrompt = ["以下是本次视频阶段输入：", "", JSON.stringify(params.inputPayload, null, 2)].join("\n");
@@ -4770,13 +4802,15 @@ export class WorksService {
     brandId: string,
     context: ResolvedVideoComposerContext,
   ): Promise<VideoScriptStageResult> {
+    const skillProfile = this.getVideoSkillProfile(context.workKind);
     const promptId = context.videoKind === "SPOKEN_SELLING"
-      ? "prompt_xhs_video_spoken_script"
+      ? skillProfile.spokenScriptPromptId
       : context.videoKind === "SKIT_SELLING"
-        ? "prompt_xhs_video_skit_script"
-        : "prompt_xhs_video_brand_script";
+        ? skillProfile.skitScriptPromptId
+        : skillProfile.brandScriptPromptId;
     const result = await this.requestVideoStageJson({
       brandId,
+      workKind: context.workKind,
       promptId,
       fallbackModels: ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
       fallbackPrompt: "根据输入内容生成创意剧本。",
@@ -4814,9 +4848,11 @@ export class WorksService {
     brandId: string,
     context: ResolvedVideoComposerContext,
   ): Promise<VideoScriptStageResult> {
+    const skillProfile = this.getVideoSkillProfile(context.workKind);
     const result = await this.requestVideoStageJson({
       brandId,
-      promptId: "prompt_xhs_video_remix_script",
+      workKind: context.workKind,
+      promptId: skillProfile.remixScriptPromptId,
       fallbackModels: ["doubao-seed-2-0-pro-260215", "deepseek-v4-pro"],
       fallbackPrompt: "根据视频链接拆解短视频剧情脚本。",
       systemInstruction: [
@@ -4847,9 +4883,11 @@ export class WorksService {
   }
 
   private async generateVideoStoryboardPrompt(brandId: string, context: ResolvedVideoComposerContext, meta: VideoWorkAssetMeta) {
+    const skillProfile = this.getVideoSkillProfile(context.workKind);
     const result = await this.requestVideoStageJson({
       brandId,
-      promptId: "prompt_xhs_video_storyboard",
+      workKind: context.workKind,
+      promptId: skillProfile.storyboardPromptId,
       fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
       fallbackPrompt: "根据剧本、产品图和要求生成故事板提示词。",
       systemInstruction: [

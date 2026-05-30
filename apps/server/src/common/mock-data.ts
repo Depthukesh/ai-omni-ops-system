@@ -400,6 +400,36 @@ const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
   "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
 ).content;
 
+const douyinVideoBrandScriptSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_brand_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成抖音品牌宣传视频创意剧本。",
+).content;
+
+const douyinVideoSpokenScriptSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_spoken_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成抖音口播带货视频创意剧本。",
+).content;
+
+const douyinVideoSkitScriptSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_skit_script",
+  "根据用户输入的选题、产品信息、营销规划和要求，生成抖音短剧带货视频创意剧本。",
+).content;
+
+const douyinVideoRemixScriptSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_remix_script",
+  "根据素材库里的视频链接和拆解要求，生成抖音复刻视频剧情脚本。",
+).content;
+
+const douyinVideoStoryboardSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_storyboard",
+  "根据剧本、产品图和用户要求，生成抖音故事板提示词。",
+).content;
+
+const douyinVideoNoteSkillContent = readPromptSourceBundle(
+  "prompt_douyin_video_note",
+  "基于商业短片方法论生成抖音 AI 生视频（故事板）文案、结构化视频提示词、分段方案和短视频调用链。",
+).content;
+
 export type MockDatabase = {
   users: UserRecord[];
   brands: BrandRecord[];
@@ -1223,6 +1253,18 @@ export const database: MockDatabase = {
       description: "用于编排视频笔记的剧本、故事板提示词、故事板图片和短视频生成全流程。",
       updatedAt: "2026-05-06T09:10:00.000Z",
     },
+    {
+      id: "skill_douyin_video_note",
+      name: "抖音AI生视频（故事板）",
+      slug: "douyin-video-storyboard-studio",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "视频生成 · Seedance",
+      defaultModel: "doubao-seedance-2-0-260128",
+      pointsCost: 240,
+      description: "用于编排抖音 AI生视频（故事板）的剧本、故事板提示词、故事板图片和短视频生成全流程。",
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
   ],
   promptTemplates: [
     {
@@ -1572,6 +1614,78 @@ export const database: MockDatabase = {
       maxTokens: 8000,
       content: xiaohongshuVideoStoryboardSkillContent,
       updatedAt: "2026-05-17T10:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_note",
+      name: "抖音AI生视频（故事板）提示词",
+      scene: "抖音AI生视频（故事板）",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "doubao-seedance-2-0-260128",
+      temperature: 0.6,
+      maxTokens: 5000,
+      content: douyinVideoNoteSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_brand_script",
+      name: "抖音AI生视频（故事板）-品牌宣传剧本提示词",
+      scene: "抖音AI生视频（故事板）-品牌宣传剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: douyinVideoBrandScriptSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_spoken_script",
+      name: "抖音AI生视频（故事板）-口播带货剧本提示词",
+      scene: "抖音AI生视频（故事板）-口播带货剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: douyinVideoSpokenScriptSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_skit_script",
+      name: "抖音AI生视频（故事板）-短剧带货剧本提示词",
+      scene: "抖音AI生视频（故事板）-短剧带货剧本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: douyinVideoSkitScriptSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_remix_script",
+      name: "抖音AI生视频（故事板）-复刻视频拆解提示词",
+      scene: "抖音AI生视频（故事板）-复刻视频拆解",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "doubao-seed-2-0-pro-260215",
+      temperature: 0.2,
+      maxTokens: 6000,
+      content: douyinVideoRemixScriptSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_video_storyboard",
+      name: "抖音AI生视频（故事板）-故事板提示词",
+      scene: "抖音AI生视频（故事板）-故事板提示词",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "gpt-5.5",
+      temperature: 0.4,
+      maxTokens: 8000,
+      content: douyinVideoStoryboardSkillContent,
+      updatedAt: "2026-05-30T22:00:00.000Z",
     },
     {
       id: "prompt_annual_marketing_plan",

@@ -286,6 +286,53 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           },
         ],
       },
+      {
+        id: "douyin-video-script",
+        label: "AI生视频（故事板）-剧本策划",
+        items: [
+          {
+            id: "douyin-video-brand-script",
+            label: "AI生视频-品牌宣传剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成品牌宣传视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-品牌宣传剧本",
+          },
+          {
+            id: "douyin-video-spoken-script",
+            label: "AI生视频-口播带货剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成口播视频/口播带货视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-口播带货剧本",
+          },
+          {
+            id: "douyin-video-skit-script",
+            label: "AI生视频-短剧带货剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成短剧带货视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-短剧带货剧本",
+          },
+          {
+            id: "douyin-video-remix-script",
+            label: "AI生视频-复刻视频拆解",
+            description: "对应前台抖音 AI生视频（故事板）板块，根据素材视频拆解复刻脚本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-复刻视频拆解",
+          },
+        ],
+      },
+      {
+        id: "douyin-video-production",
+        label: "AI生视频（故事板）-视频生成",
+        items: [
+          {
+            id: "douyin-video-storyboard",
+            label: "AI生视频-故事板提示词",
+            description: "对应前台抖音 AI生视频（故事板）板块，第 2 阶段根据剧本生成故事板提示词并驱动故事板图片生成。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-故事板提示词",
+          },
+        ],
+      },
     ],
   },
 ];
