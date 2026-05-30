@@ -755,6 +755,7 @@ model DigitalHumanScriptTemplate {
   brandId   String
   name      String
   content   String
+  note      String   @default("")
   isShared  Boolean  @default(false)
   category  String   @default("general")
   isArchived Boolean  @default(false)
