@@ -430,6 +430,11 @@ const douyinVideoNoteSkillContent = readPromptSourceBundle(
   "基于商业短片方法论生成抖音 AI 生视频（故事板）文案、结构化视频提示词、分段方案和短视频调用链。",
 ).content;
 
+const douyinDirectVideoSkillContent = readPromptSourceBundle(
+  "prompt_douyin_direct_video",
+  "根据用户输入的选题、产品、素材、参考图、营销策划和用户要求，生成可直接用于 Seedance 2.0 的抖音视频提示词。",
+).content;
+
 export type MockDatabase = {
   users: UserRecord[];
   brands: BrandRecord[];
@@ -1265,6 +1270,18 @@ export const database: MockDatabase = {
       description: "用于编排抖音 AI生视频（故事板）的剧本、故事板提示词、故事板图片和短视频生成全流程。",
       updatedAt: "2026-05-30T22:00:00.000Z",
     },
+    {
+      id: "skill_douyin_direct_video",
+      name: "抖音AI生视频",
+      slug: "douyin-direct-video-studio",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "国内文生文 · DeepSeek",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 180,
+      description: "用于根据选题、产品、素材和营销策划生成可直接用于 Seedance 2.0 的抖音视频提示词。",
+      updatedAt: "2026-05-30T23:20:00.000Z",
+    },
   ],
   promptTemplates: [
     {
@@ -1686,6 +1703,18 @@ export const database: MockDatabase = {
       maxTokens: 8000,
       content: douyinVideoStoryboardSkillContent,
       updatedAt: "2026-05-30T22:00:00.000Z",
+    },
+    {
+      id: "prompt_douyin_direct_video",
+      name: "抖音AI生视频-Seedance提示词",
+      scene: "抖音AI生视频-Seedance提示词",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: douyinDirectVideoSkillContent,
+      updatedAt: "2026-05-30T23:20:00.000Z",
     },
     {
       id: "prompt_annual_marketing_plan",

@@ -564,6 +564,18 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     description: "用于生成抖音 AI生视频（故事板）的剧本、故事板提示词并衔接第三方视频模型。",
     updatedAt: "2026-05-30T22:00:00.000Z",
   },
+  {
+    id: "skill_douyin_direct_video",
+    name: "抖音AI生视频",
+    slug: "douyin-direct-video-studio",
+    category: "内容生产",
+    status: "ACTIVE",
+    provider: "Text to Prompt",
+    defaultModel: "deepseek-v4-pro",
+    pointsCost: 180,
+    description: "用于生成可直接用于 Seedance 2.0 的抖音视频提示词，并衔接后续短视频生成。",
+    updatedAt: "2026-05-30T23:20:00.000Z",
+  },
 ];
 
 export const promptTemplateSeed: PromptTemplateRecord[] = [
@@ -758,6 +770,18 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     maxTokens: 8000,
     content: "根据剧本、产品图和用户要求，生成抖音故事板提示词。",
     updatedAt: "2026-05-30T22:00:00.000Z",
+  },
+  {
+    id: "prompt_douyin_direct_video",
+    name: "抖音AI生视频-Seedance提示词",
+    scene: "抖音AI生视频-Seedance提示词",
+    version: "v1.0",
+    status: "ACTIVE",
+    modelName: "deepseek-v4-pro",
+    temperature: 0.4,
+    maxTokens: 6000,
+    content: "根据用户输入的选题、产品、素材、参考图、营销策划和用户要求，生成可直接用于 Seedance 2.0 的抖音视频提示词。",
+    updatedAt: "2026-05-30T23:20:00.000Z",
   },
 ];
 

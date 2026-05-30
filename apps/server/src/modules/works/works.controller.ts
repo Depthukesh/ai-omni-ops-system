@@ -1,15 +1,19 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
+  type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
+  type GenerateDouyinDirectVideoPayload,
   type GenerateDouyinVideoNotePayload,
   type GenerateXiaohongshuVideoNotePayload,
+  type RecoverDouyinDirectVideoGenerationPayload,
   type RecoverDouyinVideoGenerationPayload,
   type RegenerateXiaohongshuVideoStoryboardPayload,
   type RegenerateDouyinVideoStoryboardPayload,
   type RecoverXiaohongshuVideoGenerationPayload,
   WorksService,
+  type UpdateDouyinDirectVideoPayload,
   type UpdateDouyinVideoNotePayload,
   type GenerateXiaohongshuOriginalNotePayload,
   type GenerateXiaohongshuRewriteNotePayload,
@@ -95,6 +99,26 @@ export class WorksController {
     return this.worksService.listDouyinVideoProviderOptions();
   }
 
+  @Get("brands/:brandId/douyin/direct-video")
+  async listDouyinDirectVideoWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
+    return this.worksService.listDouyinDirectVideoWorks(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/direct-video/providers")
+  async listDouyinDirectVideoProviders(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
+    return this.worksService.listDouyinDirectVideoProviderOptions();
+  }
+
   @Get("brands/:brandId/douyin/video/storyboard-image/providers")
   async listDouyinVideoStoryboardImageProviders(
     @Param("brandId") brandId: string,
@@ -178,6 +202,20 @@ export class WorksController {
       });
   }
 
+  @Post("brands/:brandId/douyin/direct-video/generate")
+  generateDouyinDirectVideo(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinDirectVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        const access = await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+        return this.worksService.generateDouyinDirectVideo(brandId, payload, auth, access.role);
+      });
+  }
+
   @Post("brands/:brandId/xiaohongshu/video/:workId/storyboard/regenerate")
   regenerateXiaohongshuVideoStoryboard(
     @Param("brandId") brandId: string,
@@ -230,6 +268,19 @@ export class WorksController {
     });
   }
 
+  @Post("brands/:brandId/douyin/direct-video/:workId/video/generate")
+  continueDouyinDirectVideoGeneration(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: ContinueDouyinDirectVideoGenerationPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+      return this.worksService.continueDouyinDirectVideoGeneration(brandId, workId, payload, auth);
+    });
+  }
+
   @Post("brands/:brandId/xiaohongshu/video/recover")
   recoverXiaohongshuVideoGeneration(
     @Param("brandId") brandId: string,
@@ -251,6 +302,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
       return this.worksService.recoverDouyinVideoGeneration(brandId, payload);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/direct-video/recover")
+  recoverDouyinDirectVideoGeneration(
+    @Param("brandId") brandId: string,
+    @Body() payload: RecoverDouyinDirectVideoGenerationPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+      return this.worksService.recoverDouyinDirectVideoGeneration(brandId, payload);
     });
   }
 
@@ -306,6 +369,19 @@ export class WorksController {
     });
   }
 
+  @Patch("brands/:brandId/douyin/direct-video/:workId")
+  updateDouyinDirectVideo(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: UpdateDouyinDirectVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+      return this.worksService.updateDouyinDirectVideo(brandId, workId, payload);
+    });
+  }
+
   @Delete("brands/:brandId/xiaohongshu/original/:workId")
   deleteXiaohongshuOriginalNote(
     @Param("brandId") brandId: string,
@@ -351,6 +427,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.video", "edit", auth);
       return this.worksService.deleteDouyinVideoNote(brandId, workId);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/direct-video/:workId")
+  deleteDouyinDirectVideo(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
+      return this.worksService.deleteDouyinDirectVideo(brandId, workId);
     });
   }
 

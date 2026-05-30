@@ -37,15 +37,23 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  continueDouyinDirectVideoGeneration,
   continueDouyinVideoGeneration,
+  deleteDouyinDirectVideoWork,
   deleteDouyinVideoWork,
+  generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinDirectVideoProviders,
+  getDouyinDirectVideoWorks,
   getDouyinVideoProviders,
   getDouyinVideoStoryboardImageProviders,
   getDouyinVideoWorks,
+  recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
+  updateDouyinDirectVideoWork,
   updateDouyinVideoWork,
+  type DouyinDirectVideoWorkRecord,
   type DouyinVideoWorkRecord,
   type StoryboardImageModelOptionRecord,
   type VideoProviderOptionRecord,
@@ -59,10 +67,11 @@ import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspaceP
 import { DouyinOriginalCopyWorkspace as DouyinOriginalCopyWorkspacePanel } from "./original-copy-workspace";
 import { DouyinRemixCopyWorkspace as DouyinRemixCopyWorkspacePanel } from "./remix-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
+import { DouyinDirectVideoWorkspace } from "./video-direct-workspace";
 import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy" | "video";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy" | "video" | "videoDirect";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
@@ -72,6 +81,7 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
   { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
   { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
+  { key: "videoDirect", label: "AI生视频", description: "基于营销日历、抖音素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
 ];
 
 const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
@@ -82,6 +92,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   originalCopy: "douyin.original",
   remixCopy: "douyin.remix",
   video: "douyin.video",
+  videoDirect: "douyin.videoDirect",
 };
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -134,6 +145,8 @@ export function DouyinWorkspaceShell() {
   const [videoWorks, setVideoWorks] = useState<DouyinVideoWorkRecord[]>([]);
   const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [storyboardImageModelOptions, setStoryboardImageModelOptions] = useState<StoryboardImageModelOptionRecord[]>([]);
+  const [directVideoWorks, setDirectVideoWorks] = useState<DouyinDirectVideoWorkRecord[]>([]);
+  const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
@@ -142,6 +155,7 @@ export function DouyinWorkspaceShell() {
   const [isSubmittingOriginalCopy, setIsSubmittingOriginalCopy] = useState(false);
   const [isSubmittingRemixCopy, setIsSubmittingRemixCopy] = useState(false);
   const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
+  const [isSubmittingDirectVideo, setIsSubmittingDirectVideo] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -169,6 +183,7 @@ export function DouyinWorkspaceShell() {
     || latestRemixCopyTask?.taskStatus === "QUEUED"
     || latestRemixCopyTask?.taskStatus === "PENDING";
   const isVideoTaskActive = videoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
+  const isDirectVideoTaskActive = directVideoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -185,6 +200,7 @@ export function DouyinWorkspaceShell() {
   const canEditOriginalCopy = brandPermissionSettings ? (permissionMap?.["douyin.original"]?.edit ?? false) : true;
   const canEditRemixCopy = brandPermissionSettings ? (permissionMap?.["douyin.remix"]?.edit ?? false) : true;
   const canEditVideo = brandPermissionSettings ? (permissionMap?.["douyin.video"]?.edit ?? false) : true;
+  const canEditDirectVideo = brandPermissionSettings ? (permissionMap?.["douyin.videoDirect"]?.edit ?? false) : true;
   const canEditCurrentSection = brandPermissionSettings
     ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
     : true;
@@ -209,7 +225,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案和 AI 生视频（故事板），可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）和 AI 生视频，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
   const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
   const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 
@@ -254,6 +270,16 @@ export function DouyinWorkspaceShell() {
     return items.items || [];
   }, [activeBrandId]);
 
+  const refreshDirectVideoWorkspace = useCallback(async () => {
+    const [items, providers] = await Promise.all([
+      getDouyinDirectVideoWorks(activeBrandId),
+      getDouyinDirectVideoProviders(activeBrandId),
+    ]);
+    setDirectVideoWorks(items.items || []);
+    setDirectVideoProviderOptions(providers.items || []);
+    return items.items || [];
+  }, [activeBrandId]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
@@ -278,7 +304,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -292,6 +318,8 @@ export function DouyinWorkspaceShell() {
       canViewSection("video") ? getDouyinVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("video") ? getDouyinVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("video") ? getDouyinVideoStoryboardImageProviders(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
     ]);
 
     if (collectionResult.status === "fulfilled") {
@@ -364,6 +392,20 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setStoryboardImageModelOptions([]);
+    }
+
+    if (directVideoResult.status === "fulfilled") {
+      setDirectVideoWorks(directVideoResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDirectVideoWorks([]);
+    }
+
+    if (directVideoProvidersResult.status === "fulfilled") {
+      setDirectVideoProviderOptions(directVideoProvidersResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDirectVideoProviderOptions([]);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -468,10 +510,20 @@ export function DouyinWorkspaceShell() {
   }, [isVideoTaskActive, refreshVideoWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && notice.includes("任务已提交")) {
+    if (!isDirectVideoTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshDirectVideoWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isDirectVideoTaskActive, refreshDirectVideoWorkspace]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
+  }, [isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
@@ -1030,7 +1082,123 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
 
-  const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord) => {
+  const handleCreateDirectVideo = useCallback(async (payload: Parameters<typeof generateDouyinDirectVideoWork>[1]) => {
+    if (!canEditDirectVideo) {
+      setErrorMessage("当前账号只有查看权限，不能生成 AI 生视频。");
+      return false;
+    }
+    setIsSubmittingDirectVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await generateDouyinDirectVideoWork(activeBrandId, payload);
+      await refreshDirectVideoWorkspace();
+      setNotice("AI 生视频任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDirectVideo(false);
+    }
+  }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
+
+  const handleUpdateDirectVideo = useCallback(async (payload: {
+    workId: string;
+    title?: string;
+    content?: string;
+  }) => {
+    if (!canEditDirectVideo) {
+      setErrorMessage("当前账号只有查看权限，不能修改 AI 生视频。");
+      return false;
+    }
+    setIsSubmittingDirectVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await updateDouyinDirectVideoWork(activeBrandId, payload.workId, payload);
+      await refreshDirectVideoWorkspace();
+      setNotice("AI 生视频提示词已更新。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频提示词更新失败。");
+      return false;
+    } finally {
+      setIsSubmittingDirectVideo(false);
+    }
+  }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
+
+  const handleDeleteDirectVideo = useCallback(async (workId: string) => {
+    if (!canEditDirectVideo) {
+      setErrorMessage("当前账号只有查看权限，不能删除 AI 生视频。");
+      return false;
+    }
+    setIsSubmittingDirectVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinDirectVideoWork(activeBrandId, workId);
+      await refreshDirectVideoWorkspace();
+      setNotice("AI 生视频已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDirectVideo(false);
+    }
+  }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
+
+  const handleGenerateDirectVideo = useCallback(async (payload: {
+    workId: string;
+    customVideoModelName?: string;
+  }) => {
+    if (!canEditDirectVideo) {
+      setErrorMessage("当前账号只有查看权限，不能生成短视频。");
+      return false;
+    }
+    setIsSubmittingDirectVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await continueDouyinDirectVideoGeneration(activeBrandId, payload.workId, { customVideoModelName: payload.customVideoModelName });
+      await refreshDirectVideoWorkspace();
+      setNotice("短视频生成任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "短视频生成失败。");
+      return false;
+    } finally {
+      setIsSubmittingDirectVideo(false);
+    }
+  }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
+
+  const handleRecoverDirectVideo = useCallback(async (payload: {
+    workId?: string;
+    providerTaskId: string;
+    requestedVideoProvider?: string;
+  }) => {
+    if (!canEditDirectVideo) {
+      setErrorMessage("当前账号只有查看权限，不能找回视频结果。");
+      return false;
+    }
+    setIsSubmittingDirectVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await recoverDouyinDirectVideoGeneration(activeBrandId, payload);
+      await refreshDirectVideoWorkspace();
+      setNotice("视频结果找回完成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "找回视频结果失败。");
+      return false;
+    } finally {
+      setIsSubmittingDirectVideo(false);
+    }
+  }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
+
+  const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord) => {
     if (item.videoUrl) {
       setMaterialLightbox({
         title: item.title,
@@ -1039,10 +1207,10 @@ export function DouyinWorkspaceShell() {
       });
       return;
     }
-    if (item.storyboardImageUrl || item.coverImageUrl) {
+    if (item.storyboardImageUrl || item.coverImageUrl || item.referenceImageUrl) {
       setMaterialLightbox({
-        title: `${item.title} 故事板`,
-        url: item.storyboardImageUrl || item.coverImageUrl || "",
+        title: item.storyboardImageUrl ? `${item.title} 故事板` : `${item.title} 参考图`,
+        url: item.storyboardImageUrl || item.coverImageUrl || item.referenceImageUrl || "",
         type: "IMAGE",
       });
     }
@@ -1131,7 +1299,7 @@ export function DouyinWorkspaceShell() {
                           type="button"
                           className="secondary-button"
                           onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSaving || isDeleting}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSaving || isDeleting}
                         >
                           刷新数据
                         </button>
@@ -1266,6 +1434,31 @@ export function DouyinWorkspaceShell() {
                     onRegenerateStoryboard={handleRegenerateVideoStoryboard}
                     onGenerateVideo={handleGenerateVideo}
                     onRecoverVideo={handleRecoverVideo}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "videoDirect" ? (
+                  <DouyinDirectVideoWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingDirectVideo}
+                    canEdit={canEditDirectVideo}
+                    items={directVideoWorks}
+                    calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
+                    productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
+                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
+                    videoProviderOptions={directVideoProviderOptions}
+                    hasMarketingPlan={hasVideoMarketingPlan}
+                    marketingPlanTitle={videoMarketingPlanTitle}
+                    onRefresh={async () => {
+                      await refreshDirectVideoWorkspace();
+                    }}
+                    onPreview={openGeneratedVideoPreview}
+                    onCreate={handleCreateDirectVideo}
+                    onUpdate={handleUpdateDirectVideo}
+                    onDelete={handleDeleteDirectVideo}
+                    onGenerateVideo={handleGenerateDirectVideo}
+                    onRecoverVideo={handleRecoverDirectVideo}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

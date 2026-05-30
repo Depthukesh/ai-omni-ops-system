@@ -333,6 +333,19 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           },
         ],
       },
+      {
+        id: "douyin-direct-video",
+        label: "AI生视频",
+        items: [
+          {
+            id: "douyin-direct-video-prompt",
+            label: "AI生视频-Seedance提示词",
+            description: "对应前台抖音 AI生视频 板块，根据选题、产品、素材和用户要求生成可直接用于 Seedance 2.0 的视频提示词。",
+            skillSlug: "douyin-direct-video-studio",
+            promptScene: "抖音AI生视频-Seedance提示词",
+          },
+        ],
+      },
     ],
   },
 ];
