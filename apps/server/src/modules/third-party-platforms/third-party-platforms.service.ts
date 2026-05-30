@@ -6,6 +6,7 @@ import {
   type ThirdPartyPlatformRecord,
 } from "../../common/third-party-platform-catalog";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ChanjingOpenApiService } from "../works/chanjing-open-api.service";
 
 export type CreateThirdPartyPlatformPayload = {
   name: string;
@@ -36,6 +37,14 @@ export type UpdateMyThirdPartyPlatformSecretPayload = {
 export type UserThirdPartyPlatformRecord = ThirdPartyPlatformRecord & {
   apiKey: string;
   effectiveApiKeyMasked: string;
+  dynamicStats?: {
+    status: "ready" | "missing_credential" | "error";
+    templateCount?: number;
+    customPersonCount?: number;
+    tagCount?: number;
+    syncedAt?: string;
+    message?: string;
+  };
 };
 
 export type BrandRuntimeApiKeyResolution =
@@ -81,7 +90,10 @@ type UserThirdPartyPlatformSecretRow = {
 export class ThirdPartyPlatformsService {
   private bootstrapPromise?: Promise<void>;
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly chanjingOpenApiService: ChanjingOpenApiService,
+  ) {}
 
   async listPlatforms() {
     if (await this.prismaService.canUseDatabase()) {
@@ -237,15 +249,17 @@ export class ThirdPartyPlatformsService {
 
   async listUserPlatforms(userId: string, brandId: string) {
     const [platforms, secrets] = await Promise.all([this.listPlatforms(), this.listUserSecrets(userId, brandId)]);
-    return platforms.map<UserThirdPartyPlatformRecord>((item) => {
+    return Promise.all(platforms.map(async (item) => {
       const secret = secrets.find((entry) => entry.platformId === item.id);
       const apiKey = secret?.apiKey || "";
+      const dynamicStats = await this.buildDynamicStats(item, apiKey);
       return {
         ...item,
         apiKey,
         effectiveApiKeyMasked: this.maskSecret(apiKey),
-      };
-    });
+        dynamicStats,
+      } satisfies UserThirdPartyPlatformRecord;
+    }));
   }
 
   async updateUserPlatformSecret(userId: string, brandId: string, platformId: string, payload: UpdateMyThirdPartyPlatformSecretPayload) {
@@ -390,7 +404,42 @@ export class ThirdPartyPlatformsService {
       ...platform,
       apiKey,
       effectiveApiKeyMasked: this.maskSecret(apiKey),
+      dynamicStats: undefined,
     };
+  }
+
+  private async buildDynamicStats(platform: ThirdPartyPlatformRecord, apiKey: string) {
+    if (!this.isChanjingPlatform(platform)) {
+      return undefined;
+    }
+    const credential = String(apiKey || "").trim();
+    if (!credential) {
+      return {
+        status: "missing_credential" as const,
+        message: "配置蝉镜凭证后才会同步真实模板和定制数字人统计。",
+      };
+    }
+    try {
+      const [tags, templates, customPersons] = await Promise.all([
+        this.chanjingOpenApiService.listTemplateTags(credential),
+        this.chanjingOpenApiService.listCommonDigitalPersons(credential, { page: 1, size: 1 }),
+        this.chanjingOpenApiService.listCustomisedPersons(credential, { page: 1, pageSize: 1 }),
+      ]);
+      return {
+        status: "ready" as const,
+        templateCount: templates.pageInfo.totalCount || templates.list.length,
+        customPersonCount: customPersons.pageInfo.totalCount || customPersons.list.length,
+        tagCount: tags.length,
+        syncedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "蝉镜统计同步失败";
+      return {
+        status: "error" as const,
+        message,
+        syncedAt: new Date().toISOString(),
+      };
+    }
   }
 
   private async listUserSecrets(userId: string, brandId: string) {
@@ -616,6 +665,11 @@ export class ThirdPartyPlatformsService {
       return `${normalized.slice(0, 2)}****`;
     }
     return `${normalized.slice(0, 4)}********${normalized.slice(-4)}`;
+  }
+
+  private isChanjingPlatform(platform: Pick<ThirdPartyPlatformRecord, "name" | "baseUrl" | "tutorialUrl" | "remark">) {
+    const searchable = [platform.name, platform.baseUrl, platform.tutorialUrl, platform.remark].join(" ").toLowerCase();
+    return searchable.includes("chanjing") || searchable.includes("蝉镜");
   }
 
   private async ensureTablesReady() {

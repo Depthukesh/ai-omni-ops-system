@@ -411,6 +411,42 @@
 - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
 - `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
 
+### 15. 蝉镜平台动态统计第十轮
+
+- `apps/server/src/modules/third-party-platforms/third-party-platforms.service.ts`
+  - `UserThirdPartyPlatformRecord` 新增 `dynamicStats`
+  - 个人中心第三方平台列表在蝉镜平台下新增动态统计：
+    - 模板数
+    - 定制数字人数
+    - 标签数
+    - 最近同步时间
+    - 缺少凭证 / 同步失败状态说明
+  - 统计来源改为真实调用蝉镜接口：
+    - `listTemplateTags`
+    - `listCommonDigitalPersons`
+    - `listCustomisedPersons`
+- `apps/server/src/modules/third-party-platforms/third-party-platforms.module.ts`
+  - 注册 `ChanjingOpenApiService`，用于在个人中心第三方平台模块内直接做蝉镜动态统计
+- `apps/web/src/services/personal-center.ts`
+  - 第三方平台前端类型新增 `dynamicStats`
+- `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
+  - 蝉镜平台卡片不再机械显示静态“模型数 / 默认模型”
+  - 对蝉镜改为展示：
+    - 模板数
+    - 定制数字人数
+    - 标签同步摘要
+    - 动态统计状态
+  - 详情区把“大模型 ID”改为蝉镜动态统计摘要，避免继续误导为模型平台
+
+## 第十轮验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/third-party-platforms/third-party-platforms.service.ts`
+  - `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
+  - `apps/web/src/services/personal-center.ts`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ## 第六轮验证
 
 - `GetDiagnostics`

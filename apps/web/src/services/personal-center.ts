@@ -125,6 +125,14 @@ export type UserThirdPartyPlatformRecord = {
   updatedAt: string;
   apiKey: string;
   effectiveApiKeyMasked: string;
+  dynamicStats?: {
+    status: "ready" | "missing_credential" | "error";
+    templateCount?: number;
+    customPersonCount?: number;
+    tagCount?: number;
+    syncedAt?: string;
+    message?: string;
+  };
 };
 
 export type GetMyThirdPartyPlatformsResponse = {

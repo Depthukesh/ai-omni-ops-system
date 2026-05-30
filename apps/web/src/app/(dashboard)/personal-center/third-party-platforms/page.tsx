@@ -23,6 +23,53 @@ function isChanjingPlatform(platform?: UserThirdPartyPlatformRecord) {
   return searchable.includes("chanjing") || searchable.includes("蝉镜");
 }
 
+function getPlatformMetricTitle(platform: UserThirdPartyPlatformRecord) {
+  return isChanjingPlatform(platform) ? "模板数" : "模型数";
+}
+
+function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
+  if (isChanjingPlatform(platform)) {
+    if (platform.dynamicStats?.status === "ready") {
+      return String(platform.dynamicStats.templateCount ?? 0);
+    }
+    return "-";
+  }
+  return String(platform.modelIds.length);
+}
+
+function getPlatformDefaultLabel(platform: UserThirdPartyPlatformRecord) {
+  return isChanjingPlatform(platform) ? "定制数字人数" : "默认模型";
+}
+
+function getPlatformDefaultValue(platform: UserThirdPartyPlatformRecord) {
+  if (isChanjingPlatform(platform)) {
+    if (platform.dynamicStats?.status === "ready") {
+      return String(platform.dynamicStats.customPersonCount ?? 0);
+    }
+    if (platform.dynamicStats?.status === "missing_credential") {
+      return "待配置凭证";
+    }
+    return platform.dynamicStats?.message || "-";
+  }
+  return platform.defaultModel || "-";
+}
+
+function getChanjingStatsSummary(platform: UserThirdPartyPlatformRecord) {
+  if (!isChanjingPlatform(platform)) {
+    return "";
+  }
+  if (platform.dynamicStats?.status === "ready") {
+    return `标签 ${platform.dynamicStats.tagCount ?? 0} 个，已同步真实模板与定制数字人统计`;
+  }
+  if (platform.dynamicStats?.status === "missing_credential") {
+    return "当前还未配置蝉镜凭证，暂时无法同步模板与形象统计。";
+  }
+  if (platform.dynamicStats?.status === "error") {
+    return platform.dynamicStats.message || "蝉镜统计同步失败";
+  }
+  return "蝉镜统计尚未同步";
+}
+
 export default function PersonalCenterThirdPartyPlatformsPage() {
   const router = useRouter();
   const [platforms, setPlatforms] = useState<UserThirdPartyPlatformRecord[]>([]);
@@ -344,12 +391,12 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </div>
               <div className="personal-grid">
                 <div>
-                  <span>模型数</span>
-                  <strong>{platform.modelIds.length}</strong>
+                  <span>{getPlatformMetricTitle(platform)}</span>
+                  <strong>{getPlatformMetricValue(platform)}</strong>
                 </div>
                 <div>
-                  <span>默认模型</span>
-                  <strong>{platform.defaultModel || "-"}</strong>
+                  <span>{getPlatformDefaultLabel(platform)}</span>
+                  <strong>{getPlatformDefaultValue(platform)}</strong>
                 </div>
                 <div>
                   <span>平台类型</span>
@@ -360,6 +407,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                   <strong>{formatDateTime(platform.updatedAt)}</strong>
                 </div>
               </div>
+              {isChanjingPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getChanjingStatsSummary(platform)}</p> : null}
             </button>
           ))}
           {!filteredPlatforms.length ? <div className="empty-canvas-box">暂无匹配平台，请调整搜索词。</div> : null}
@@ -406,8 +454,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 )}
               </div>
               <div>
-                <span>平台默认模型</span>
-                <strong>{selectedPlatform.defaultModel || "-"}</strong>
+                <span>{getPlatformDefaultLabel(selectedPlatform)}</span>
+                <strong>{getPlatformDefaultValue(selectedPlatform)}</strong>
               </div>
               <div>
                 <span>我的 API Key</span>
@@ -418,6 +466,11 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <strong>{formatDateTime(selectedPlatform.updatedAt)}</strong>
               </div>
             </div>
+            {selectedPlatformIsChanjing ? (
+              <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
+                {getChanjingStatsSummary(selectedPlatform)}
+              </div>
+            ) : null}
 
             <div className="personal-list">
               <label className="field">
@@ -444,9 +497,15 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </label>
 
               <div className="field">
-                <span>大模型 ID</span>
+                <span>{selectedPlatformIsChanjing ? "动态统计" : "大模型 ID"}</span>
                 <div className="admin-provider-chip-row" style={{ marginTop: 8 }}>
-                  {selectedPlatform.modelIds.length ? (
+                  {selectedPlatformIsChanjing ? (
+                    <>
+                      <span className="admin-provider-chip">模板 {selectedPlatform.dynamicStats?.templateCount ?? 0}</span>
+                      <span className="admin-provider-chip">定制数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? 0}</span>
+                      <span className="admin-provider-chip">标签 {selectedPlatform.dynamicStats?.tagCount ?? 0}</span>
+                    </>
+                  ) : selectedPlatform.modelIds.length ? (
                     selectedPlatform.modelIds.map((model) => (
                       <span key={model} className="admin-provider-chip">
                         {model}
