@@ -14,6 +14,7 @@ import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 const PAGE_SIZE = 18;
 const DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY = "douyin-digital-human-template-favorites";
 const DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY = "douyin-digital-human-template-recents";
+const DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY = "douyin-digital-human-script-templates";
 const DIGITAL_HUMAN_SCRIPT_PRESETS = [
   {
     key: "brand-promo",
@@ -36,6 +37,13 @@ const DIGITAL_HUMAN_SCRIPT_PRESETS = [
     content: "开头直接告诉用户直播时间和主题，中间突出直播专属福利、重点产品或亮点内容，结尾引导用户预约或蹲守直播间。",
   },
 ] as const;
+
+type PersonalDigitalHumanScriptTemplate = {
+  id: string;
+  name: string;
+  content: string;
+  updatedAt: string;
+};
 
 function getStageLabel(stage?: DouyinDigitalHumanVideoWorkRecord["stage"]) {
   switch (stage) {
@@ -151,6 +159,9 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
   const [recentTemplateIds, setRecentTemplateIds] = useState<string[]>([]);
   const [scriptActionMessage, setScriptActionMessage] = useState("");
+  const [editorActionMessage, setEditorActionMessage] = useState("");
+  const [personalScriptTemplates, setPersonalScriptTemplates] = useState<PersonalDigitalHumanScriptTemplate[]>([]);
+  const [selectedPersonalScriptTemplateId, setSelectedPersonalScriptTemplateId] = useState("");
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
@@ -254,13 +265,28 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     try {
       const favoriteText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY);
       const recentText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY);
+      const personalScriptTemplatesText = window.localStorage.getItem(DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY);
       const favoriteList = JSON.parse(favoriteText || "[]");
       const recentList = JSON.parse(recentText || "[]");
+      const personalScriptTemplateList = JSON.parse(personalScriptTemplatesText || "[]");
       setFavoriteTemplateIds(Array.isArray(favoriteList) ? favoriteList.map((item) => String(item || "").trim()).filter(Boolean) : []);
       setRecentTemplateIds(Array.isArray(recentList) ? recentList.map((item) => String(item || "").trim()).filter(Boolean) : []);
+      setPersonalScriptTemplates(
+        Array.isArray(personalScriptTemplateList)
+          ? personalScriptTemplateList
+              .map((item) => ({
+                id: String(item?.id || "").trim(),
+                name: String(item?.name || "").trim(),
+                content: String(item?.content || ""),
+                updatedAt: String(item?.updatedAt || ""),
+              }))
+              .filter((item) => item.id && item.name && item.content.trim())
+          : [],
+      );
     } catch {
       setFavoriteTemplateIds([]);
       setRecentTemplateIds([]);
+      setPersonalScriptTemplates([]);
     }
   }, []);
 
@@ -277,6 +303,13 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     }
     window.localStorage.setItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY, JSON.stringify(recentTemplateIds));
   }, [recentTemplateIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY, JSON.stringify(personalScriptTemplates));
+  }, [personalScriptTemplates]);
 
   useEffect(() => {
     if (!filteredTemplates.length) {
@@ -394,6 +427,77 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       screenWidth: selectedWork.screenWidth,
       screenHeight: selectedWork.screenHeight,
     });
+  };
+
+  const handleSaveCurrentScriptTemplate = () => {
+    const content = script.trim();
+    if (!content) {
+      setScriptActionMessage("当前没有可保存的脚本内容。");
+      return;
+    }
+    const templateName = (title.trim() || selectedTemplate?.name || "我的数字人脚本模板").slice(0, 60);
+    const nextTemplate: PersonalDigitalHumanScriptTemplate = {
+      id: `script-template-${Date.now()}`,
+      name: templateName,
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+    setPersonalScriptTemplates((current) => [nextTemplate, ...current.filter((item) => item.content.trim() !== content)].slice(0, 20));
+    setSelectedPersonalScriptTemplateId(nextTemplate.id);
+    setScriptActionMessage(`已保存个人脚本模板：${templateName}`);
+  };
+
+  const handleApplyPersonalScriptTemplate = () => {
+    const target = personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId);
+    if (!target) {
+      setScriptActionMessage("请先选择一个个人脚本模板。");
+      return;
+    }
+    setScript(target.content);
+    setScriptActionMessage(`已套用脚本模板：${target.name}`);
+  };
+
+  const handleDeletePersonalScriptTemplate = () => {
+    if (!selectedPersonalScriptTemplateId) {
+      setScriptActionMessage("请先选择要删除的个人脚本模板。");
+      return;
+    }
+    const target = personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId);
+    setPersonalScriptTemplates((current) => current.filter((item) => item.id !== selectedPersonalScriptTemplateId));
+    setSelectedPersonalScriptTemplateId("");
+    setScriptActionMessage(target ? `已删除脚本模板：${target.name}` : "已删除所选脚本模板。");
+  };
+
+  const handleBackfillSelectedWork = () => {
+    if (!selectedWork) {
+      return;
+    }
+    const matchedTemplate = props.templates.find((item) => item.id === selectedWork.personId);
+    if (matchedTemplate) {
+      setSelectedTemplateId(matchedTemplate.id);
+      if (matchedTemplate.figures.some((item) => item.type === selectedWork.figureType)) {
+        setSelectedFigureType(selectedWork.figureType);
+      } else {
+        setSelectedFigureType(matchedTemplate.figures[0]?.type || "sit_body");
+      }
+    }
+    setTitle(selectedWork.title);
+    setScript(selectedWork.content);
+    setSpeechRate(String(selectedWork.speechRate ?? 1));
+    setPitch(String(selectedWork.pitch ?? 0));
+    setVolume(String(selectedWork.volume ?? 1));
+    setBackgroundColor(selectedWork.backgroundColor || "#ffffff");
+    setSubtitleEnabled(Boolean(selectedWork.subtitleEnabled));
+    setSubtitleTextColor(selectedWork.subtitleTextColor || "#FFFFFF");
+    setSubtitleStrokeColor(selectedWork.subtitleStrokeColor || "#000000");
+    setScreenWidth(String(selectedWork.screenWidth || 1080));
+    setScreenHeight(String(selectedWork.screenHeight || 1920));
+    setEditorActionMessage(
+      matchedTemplate
+        ? "已将当前作品参数回填到创建区，可直接继续修改后重新提交。"
+        : "已回填脚本与主要参数；当前模板未命中本地模板列表，请检查模板选择后再提交。",
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -547,9 +651,37 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <button type="button" className="secondary-button" onClick={handleExportScript}>
                 导出脚本
               </button>
+              <button type="button" className="secondary-button" onClick={handleSaveCurrentScriptTemplate}>
+                保存为个人模板
+              </button>
             </div>
             <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节。</small>
             {scriptActionMessage ? <small className="personal-meta">{scriptActionMessage}</small> : null}
+            {editorActionMessage ? <small className="personal-meta">{editorActionMessage}</small> : null}
+          </div>
+          <div className="field field-full">
+            <span>个人脚本模板</span>
+            <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+              <select
+                value={selectedPersonalScriptTemplateId}
+                onChange={(event) => setSelectedPersonalScriptTemplateId(event.target.value)}
+                style={{ minWidth: 240 }}
+              >
+                <option value="">选择已保存模板</option>
+                {personalScriptTemplates.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="secondary-button" onClick={handleApplyPersonalScriptTemplate}>
+                套用模板
+              </button>
+              <button type="button" className="secondary-button" onClick={handleDeletePersonalScriptTemplate}>
+                删除模板
+              </button>
+            </div>
+            <small className="personal-meta">当前先保存在本机浏览器，适合个人高频复用常用数字人口播脚本。</small>
           </div>
           <label className="field">
             <span>语速</span>
@@ -838,6 +970,14 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                 </div>
 
                 <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleBackfillSelectedWork}
+                    disabled={props.isSubmitting}
+                  >
+                    回填到创建区
+                  </button>
                   <button
                     type="button"
                     className="secondary-button"
