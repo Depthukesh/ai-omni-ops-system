@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Que
 import { AuthService } from "../auth/auth.service";
 import {
   type CreateDouyinDigitalHumanCustomPersonPayload,
+  type CreateDouyinLipSyncPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
@@ -11,6 +12,7 @@ import {
   type GenerateDouyinVideoNotePayload,
   type GenerateXiaohongshuVideoNotePayload,
   type RecoverDouyinDigitalHumanVideoPayload,
+  type RecoverDouyinLipSyncPayload,
   type RecoverDouyinDirectVideoGenerationPayload,
   type RecoverDouyinVideoGenerationPayload,
   type RegenerateXiaohongshuVideoStoryboardPayload,
@@ -197,6 +199,52 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
       return this.worksService.deleteDouyinDigitalHumanCustomPerson(brandId, customPersonId, auth);
+    });
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/lip-sync")
+  async listDouyinLipSyncWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinLipSyncWorks(brandId);
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/lip-sync/generate")
+  generateDouyinLipSync(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinLipSyncPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.generateDouyinLipSync(brandId, payload, auth);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/lip-sync/recover")
+  recoverDouyinLipSync(
+    @Param("brandId") brandId: string,
+    @Body() payload: RecoverDouyinLipSyncPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.recoverDouyinLipSync(brandId, payload);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/lip-sync/:workId")
+  deleteDouyinLipSync(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinLipSync(brandId, workId, auth);
     });
   }
 

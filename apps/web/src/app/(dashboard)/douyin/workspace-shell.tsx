@@ -40,6 +40,7 @@ import {
   createDouyinDigitalHumanCustomPerson,
   createDouyinDigitalHumanScriptTemplate,
   deleteDouyinDigitalHumanCustomPerson,
+  deleteDouyinLipSyncWork,
   deleteDouyinDigitalHumanVideoWork,
   deleteDouyinDigitalHumanFavoriteTemplate,
   deleteDouyinDigitalHumanScriptTemplate,
@@ -48,6 +49,7 @@ import {
   deleteDouyinDirectVideoWork,
   deleteDouyinVideoWork,
   generateDouyinDigitalHumanVideoWork,
+  generateDouyinLipSyncWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
   getDouyinDigitalHumanCustomPersons,
@@ -56,12 +58,14 @@ import {
   getDouyinDigitalHumanTemplates,
   getDouyinDigitalHumanTemplateTags,
   getDouyinDigitalHumanVideoWorks,
+  getDouyinLipSyncWorks,
   getDouyinDirectVideoProviders,
   getDouyinDirectVideoWorks,
   getDouyinVideoProviders,
   getDouyinVideoStoryboardImageProviders,
   getDouyinVideoWorks,
   recoverDouyinDigitalHumanVideo,
+  recoverDouyinLipSyncGeneration,
   recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
@@ -69,6 +73,7 @@ import {
   updateDouyinDigitalHumanScriptTemplate,
   type DouyinDigitalHumanFavoriteTemplateRecord,
   type DouyinDigitalHumanCustomPersonRecord,
+  type DouyinLipSyncWorkRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
@@ -184,6 +189,7 @@ export function DouyinWorkspaceShell() {
   const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
   const [digitalHumanCustomPersons, setDigitalHumanCustomPersons] = useState<DouyinDigitalHumanCustomPersonRecord[]>([]);
+  const [digitalHumanLipSyncWorks, setDigitalHumanLipSyncWorks] = useState<DouyinLipSyncWorkRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
   const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
   const [digitalHumanFavoriteTemplates, setDigitalHumanFavoriteTemplates] = useState<DouyinDigitalHumanFavoriteTemplateRecord[]>([]);
@@ -231,7 +237,8 @@ export function DouyinWorkspaceShell() {
   const isDirectVideoTaskActive = directVideoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const isDigitalHumanTaskActive =
     digitalHumanWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING")
-    || digitalHumanCustomPersons.some((item) => item.status === "PENDING" || item.status === "RUNNING");
+    || digitalHumanCustomPersons.some((item) => item.status === "PENDING" || item.status === "RUNNING")
+    || digitalHumanLipSyncWorks.some((item) => item.status === "PENDING" || item.status === "RUNNING");
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -364,15 +371,17 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, customPersons, tagGroups, favorites, scriptTemplates] = await Promise.all([
+    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates] = await Promise.all([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanCustomPersons(activeBrandId),
+      getDouyinLipSyncWorks(activeBrandId),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
       getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
       getDouyinDigitalHumanScriptTemplates(activeBrandId),
     ]);
     setDigitalHumanWorks(items.items || []);
     setDigitalHumanCustomPersons(customPersons.items || []);
+    setDigitalHumanLipSyncWorks(lipSyncWorks.items || []);
     setDigitalHumanTemplateTags(tagGroups.list || []);
     setDigitalHumanFavoriteTemplates(favorites.items || []);
     setDigitalHumanScriptTemplates(scriptTemplates.items || []);
@@ -408,7 +417,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -426,6 +435,7 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinLipSyncWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman")
         ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hot_desc", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
         : Promise.resolve({ list: [], pageInfo: undefined }),
@@ -532,6 +542,13 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setDigitalHumanCustomPersons([]);
+    }
+
+    if (digitalHumanLipSyncResult.status === "fulfilled") {
+      setDigitalHumanLipSyncWorks(digitalHumanLipSyncResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanLipSyncWorks([]);
     }
 
     if (digitalHumanTemplatesResult.status === "fulfilled") {
@@ -1479,6 +1496,83 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
 
+  const handleCreateLipSync = useCallback(async (payload: {
+    title?: string;
+    sourceVideoFile?: File | null;
+    audioType?: "TEXT" | "AUDIO";
+    script?: string;
+    audioFile?: File | null;
+    audioManId?: string;
+    speechRate?: number;
+    pitch?: number;
+    screenWidth?: number;
+    screenHeight?: number;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能提交口型驱动任务。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await generateDouyinLipSyncWork(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("口型驱动任务已提交。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "口型驱动提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const handleRecoverLipSync = useCallback(async (payload: {
+    workId?: string;
+    providerTaskId?: string;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能找回口型驱动结果。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await recoverDouyinLipSyncGeneration(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("口型驱动结果找回完成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "找回口型驱动结果失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const handleDeleteLipSync = useCallback(async (workId: string) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能删除口型驱动记录。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinLipSyncWork(activeBrandId, workId);
+      await refreshDigitalHumanWorkspace();
+      setNotice("口型驱动记录已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "口型驱动记录删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
   const handleDigitalHumanTemplateTagChange = useCallback(async (tagId: string) => {
     setErrorMessage("");
     setNotice("");
@@ -1881,6 +1975,7 @@ export function DouyinWorkspaceShell() {
                     canEdit={canEditDigitalHuman}
                     items={digitalHumanWorks}
                     customPersons={digitalHumanCustomPersons}
+                    lipSyncItems={digitalHumanLipSyncWorks}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
@@ -1900,9 +1995,12 @@ export function DouyinWorkspaceShell() {
                     onPreview={openGeneratedVideoPreview}
                     onCreate={handleCreateDigitalHuman}
                     onCreateCustomPerson={handleCreateDigitalHumanCustomPerson}
+                    onCreateLipSync={handleCreateLipSync}
                     onRecoverVideo={handleRecoverDigitalHuman}
+                    onRecoverLipSync={handleRecoverLipSync}
                     onDeleteCustomPerson={handleDeleteDigitalHumanCustomPerson}
                     onDelete={handleDeleteDigitalHuman}
+                    onDeleteLipSync={handleDeleteLipSync}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

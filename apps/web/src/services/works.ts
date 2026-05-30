@@ -289,6 +289,26 @@ export type DouyinDigitalHumanCustomPersonRecord = {
   updatedAt: string;
 };
 
+export type DouyinLipSyncWorkRecord = {
+  id: string;
+  title: string;
+  audioType: "TEXT" | "AUDIO";
+  script?: string;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth: number;
+  screenHeight: number;
+  providerTaskId?: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinDigitalHumanFavoriteTemplateRecord = {
   templateId: string;
   createdAt: string;
@@ -455,6 +475,19 @@ export type CreateDouyinDigitalHumanCustomPersonForm = {
   language?: string;
   resolutionRate?: "1080p" | "4K";
   errorSkip?: boolean;
+};
+
+export type CreateDouyinLipSyncForm = {
+  title?: string;
+  sourceVideoFile?: File | null;
+  audioType?: "TEXT" | "AUDIO";
+  script?: string;
+  audioFile?: File | null;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth?: number;
+  screenHeight?: number;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -971,6 +1004,56 @@ export async function createDouyinDigitalHumanCustomPerson(
 export async function deleteDouyinDigitalHumanCustomPerson(brandId: string, customPersonId: string) {
   return request<{ success: boolean }>(
     `/works/brands/${brandId}/douyin/digital-human/custom-person/${customPersonId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function getDouyinLipSyncWorks(brandId: string) {
+  return request<{ items: DouyinLipSyncWorkRecord[] }>(
+    `/works/brands/${brandId}/douyin/digital-human/lip-sync`,
+  );
+}
+
+export async function generateDouyinLipSyncWork(brandId: string, form: CreateDouyinLipSyncForm) {
+  const sourceVideo = form.sourceVideoFile ? await toUploadPayload(form.sourceVideoFile) : undefined;
+  const audioFile = form.audioFile ? await toUploadPayload(form.audioFile) : undefined;
+  return jsonRequest<{ item: DouyinLipSyncWorkRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/lip-sync/generate`,
+    "POST",
+    {
+      title: form.title,
+      sourceVideo,
+      audioType: form.audioType,
+      script: form.script,
+      audioFile,
+      audioManId: form.audioManId,
+      speechRate: form.speechRate,
+      pitch: form.pitch,
+      screenWidth: form.screenWidth,
+      screenHeight: form.screenHeight,
+    },
+  );
+}
+
+export async function recoverDouyinLipSyncGeneration(
+  brandId: string,
+  payload: {
+    workId?: string;
+    providerTaskId?: string;
+  },
+) {
+  return jsonRequest<{
+    recovered: boolean;
+    providerTaskId: string;
+    item: DouyinLipSyncWorkRecord;
+  }>(`/works/brands/${brandId}/douyin/digital-human/lip-sync/recover`, "POST", payload);
+}
+
+export async function deleteDouyinLipSyncWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(
+    `/works/brands/${brandId}/douyin/digital-human/lip-sync/${workId}`,
     {
       method: "DELETE",
     },

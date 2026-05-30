@@ -447,6 +447,80 @@
 - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
 - `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
 
+### 16. 口型驱动工作台壳子与前后端契约第十一轮
+
+- `apps/web/src/services/works.ts`
+  - 新增口型驱动记录类型：
+    - `DouyinLipSyncWorkRecord`
+    - `CreateDouyinLipSyncForm`
+  - 新增口型驱动服务方法：
+    - `getDouyinLipSyncWorks`
+    - `generateDouyinLipSyncWork`
+    - `recoverDouyinLipSyncGeneration`
+    - `deleteDouyinLipSyncWork`
+- `apps/server/src/modules/works/works.controller.ts`
+  - 新增口型驱动路由：
+    - `GET /works/brands/:brandId/douyin/digital-human/lip-sync`
+    - `POST /works/brands/:brandId/douyin/digital-human/lip-sync/generate`
+    - `POST /works/brands/:brandId/douyin/digital-human/lip-sync/recover`
+    - `DELETE /works/brands/:brandId/douyin/digital-human/lip-sync/:workId`
+  - 权限继续沿用：
+    - 列表 `douyin.digitalHuman.view`
+    - 创建 / 找回 / 删除 `douyin.digitalHuman.edit`
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增口型驱动 payload / record 类型：
+    - `CreateDouyinLipSyncPayload`
+    - `RecoverDouyinLipSyncPayload`
+    - `DouyinLipSyncWorkRecord`
+  - 新增服务壳子方法：
+    - `listDouyinLipSyncWorks`
+    - `generateDouyinLipSync`
+    - `recoverDouyinLipSync`
+    - `deleteDouyinLipSync`
+  - 当前阶段先补齐真实参数校验和明确报错：
+    - 未上传驱动视频时阻止提交
+    - 音频驱动未上传音频时阻止提交
+    - 文本驱动未填写文案时阻止提交
+    - 找回结果未填写任务 ID 时阻止找回
+  - 当真实蝉镜接口尚未接入时，返回明确的“接口接入中”语义，避免前端出现 404 或静默失败
+- `apps/web/src/app/(dashboard)/douyin/digital-human-lip-sync-workspace.tsx`
+  - 新增口型驱动独立工作台组件
+  - 提供：
+    - 左侧任务列表
+    - 右侧创建表单
+    - 文本驱动 / 音频驱动切换
+    - 驱动视频上传
+    - 手动输入任务 ID 找回结果
+    - 删除记录
+  - 当前明确提示：
+    - 本轮是“真实工作台壳子 + 前后端契约”
+    - 下一轮继续接蝉镜真实 `video_lip_sync` 任务链路
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 口型驱动 tab 从占位文案升级为真实子组件接入
+  - 新增口型驱动 props：
+    - `lipSyncItems`
+    - `onCreateLipSync`
+    - `onRecoverLipSync`
+    - `onDeleteLipSync`
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 新增口型驱动状态：
+    - `digitalHumanLipSyncWorks`
+  - 数字人工作台刷新时会一起加载口型驱动列表
+  - 新增口型驱动创建 / 找回 / 删除回调
+  - 活跃任务轮询判断新增口型驱动状态，避免列表刷新漏掉该栏目
+
+## 第十一轮验证
+
+- `GetDiagnostics`
+  - `apps/web/src/services/works.ts`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-lip-sync-workspace.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - `apps/server/src/modules/works/works.controller.ts`
+  - `apps/server/src/modules/works/works.service.ts`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ## 第六轮验证
 
 - `GetDiagnostics`

@@ -214,6 +214,24 @@ export type CreateDouyinDigitalHumanCustomPersonPayload = {
   errorSkip?: boolean;
 };
 
+export type CreateDouyinLipSyncPayload = {
+  title?: string;
+  sourceVideo?: UploadFilePayload;
+  audioType?: "TEXT" | "AUDIO";
+  script?: string;
+  audioFile?: UploadFilePayload;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth?: number;
+  screenHeight?: number;
+};
+
+export type RecoverDouyinLipSyncPayload = {
+  workId?: string;
+  providerTaskId?: string;
+};
+
 export type CreateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
@@ -270,6 +288,26 @@ export type DouyinDigitalHumanCustomPersonRecord = {
   support4k?: boolean;
   width4k?: number;
   height4k?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinLipSyncWorkRecord = {
+  id: string;
+  title: string;
+  audioType: "TEXT" | "AUDIO";
+  script?: string;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth: number;
+  screenHeight: number;
+  providerTaskId?: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -1693,6 +1731,45 @@ export class WorksService {
     const credential = await this.resolveChanjingCredential(brandId);
     await this.chanjingOpenApiService.deleteCustomisedPerson(credential, customPersonId);
     await this.deleteDigitalHumanCustomPersonLocalWork(brandId, customPersonId);
+    return { success: true };
+  }
+
+  async listDouyinLipSyncWorks(_brandId: string) {
+    return {
+      items: [] as DouyinLipSyncWorkRecord[],
+    };
+  }
+
+  async generateDouyinLipSync(
+    _brandId: string,
+    payload: CreateDouyinLipSyncPayload,
+    _auth?: RequestAuthContext,
+  ) {
+    if (!payload.sourceVideo) {
+      throw new BadRequestException("请先上传用于口型驱动的视频，再提交任务。");
+    }
+    if ((payload.audioType || "TEXT") === "AUDIO") {
+      if (!payload.audioFile) {
+        throw new BadRequestException("音频驱动模式下，请先上传驱动音频。");
+      }
+    } else if (!String(payload.script || "").trim()) {
+      throw new BadRequestException("文本驱动模式下，请先输入驱动文案。");
+    }
+    throw new ServiceUnavailableException(
+      "口型驱动的蝉镜上传与任务接口正在接入中，当前已开放栏目、表单和路由壳子，暂不支持真实提交任务。",
+    );
+  }
+
+  async recoverDouyinLipSync(_brandId: string, payload: RecoverDouyinLipSyncPayload) {
+    if (!String(payload.providerTaskId || "").trim()) {
+      throw new BadRequestException("请先填写口型驱动任务 ID，再尝试找回结果。");
+    }
+    throw new ServiceUnavailableException(
+      "口型驱动结果找回接口正在接入中，当前已开放栏目和手动找回入口，下一轮继续补真实蝉镜查询。",
+    );
+  }
+
+  async deleteDouyinLipSync(_brandId: string, _workId: string, _auth?: RequestAuthContext) {
     return { success: true };
   }
 

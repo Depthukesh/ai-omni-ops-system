@@ -7,10 +7,12 @@ import {
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
   type DouyinDigitalHumanCustomPersonRecord,
+  type DouyinLipSyncWorkRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
 } from "../../../services/works";
 import { DigitalHumanCustomPersonWorkspace } from "./digital-human-custom-person-workspace";
+import { DigitalHumanLipSyncWorkspace } from "./digital-human-lip-sync-workspace";
 import { DigitalHumanPlaceholderPanel } from "./digital-human-placeholder-panel";
 import { DigitalHumanTemplateLibrary } from "./digital-human-template-library";
 import { DigitalHumanVideoPanel } from "./digital-human-video-panel";
@@ -164,6 +166,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   canEdit: boolean;
   items: DouyinDigitalHumanVideoWorkRecord[];
   customPersons: DouyinDigitalHumanCustomPersonRecord[];
+  lipSyncItems: DouyinLipSyncWorkRecord[];
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
   favoriteTemplateIds: string[];
@@ -218,9 +221,23 @@ export interface DouyinDigitalHumanWorkspaceProps {
     resolutionRate?: "1080p" | "4K";
     errorSkip?: boolean;
   }) => Promise<boolean>;
+  onCreateLipSync: (payload: {
+    title?: string;
+    sourceVideoFile?: File | null;
+    audioType?: "TEXT" | "AUDIO";
+    script?: string;
+    audioFile?: File | null;
+    audioManId?: string;
+    speechRate?: number;
+    pitch?: number;
+    screenWidth?: number;
+    screenHeight?: number;
+  }) => Promise<boolean>;
   onRecoverVideo: (payload: { workId?: string; providerTaskId?: string }) => Promise<boolean>;
+  onRecoverLipSync: (payload: { workId?: string; providerTaskId?: string }) => Promise<boolean>;
   onDeleteCustomPerson: (customPersonId: string) => Promise<boolean>;
   onDelete: (workId: string) => Promise<boolean>;
+  onDeleteLipSync: (workId: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -1331,12 +1348,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       ) : null}
 
       {activeTab === "lipSync" ? (
-        <DigitalHumanPlaceholderPanel
-          title="口型驱动"
-          description="这一栏位已按方案补为独立栏目，后续将接入“上传视频 + 文本/音频驱动”的口型生成流程。"
-          statusText="V2 规划中"
-          statusDescription="待接入视频上传、驱动参数、任务详情与结果找回接口。"
-          planDescription="适合对现有真人或形象视频做文本配音、音频驱动和口型同步。"
+        <DigitalHumanLipSyncWorkspace
+          items={props.lipSyncItems}
+          isSubmitting={props.isSubmitting}
+          canEdit={props.canEdit}
+          onRefresh={props.onRefresh}
+          onCreate={props.onCreateLipSync}
+          onRecover={props.onRecoverLipSync}
+          onDelete={props.onDeleteLipSync}
+          formatDateTime={props.formatDateTime}
         />
       ) : null}
     </section>
