@@ -12,6 +12,30 @@ import { WorkspaceSectionHeader } from "../xiaohongshu/note-workspace-shared-pan
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
 const PAGE_SIZE = 18;
+const DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY = "douyin-digital-human-template-favorites";
+const DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY = "douyin-digital-human-template-recents";
+const DIGITAL_HUMAN_SCRIPT_PRESETS = [
+  {
+    key: "brand-promo",
+    label: "品牌宣传",
+    content: "开头先抛出一个品牌价值钩子，再用 2 到 3 句讲清核心卖点、适用人群和使用场景，结尾补一句行动引导。",
+  },
+  {
+    key: "activity-promo",
+    label: "活动促销",
+    content: "第一句直接说活动力度或限时福利，第二句强调人群和购买理由，第三句补充时间节点和下单引导，整体节奏要快。",
+  },
+  {
+    key: "knowledge-share",
+    label: "知识分享",
+    content: "先点出一个常见误区或痛点，再给出 2 到 3 条实用建议，最后补一句总结和关注引导，语气自然像真人口播。",
+  },
+  {
+    key: "live-warmup",
+    label: "直播预热",
+    content: "开头直接告诉用户直播时间和主题，中间突出直播专属福利、重点产品或亮点内容，结尾引导用户预约或蹲守直播间。",
+  },
+] as const;
 
 function getStageLabel(stage?: DouyinDigitalHumanVideoWorkRecord["stage"]) {
   switch (stage) {
@@ -96,6 +120,10 @@ export interface DouyinDigitalHumanWorkspaceProps {
 export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspaceProps) {
   const [page, setPage] = useState(1);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateScopeFilter, setTemplateScopeFilter] = useState<"ALL" | "FAVORITES" | "RECENT">("ALL");
+  const [workSearch, setWorkSearch] = useState("");
+  const [workStageFilter, setWorkStageFilter] = useState<string>("ALL");
   const [selectedFigureType, setSelectedFigureType] = useState<DigitalHumanFigureType>("sit_body");
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
@@ -110,10 +138,53 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [screenHeight, setScreenHeight] = useState("1920");
   const [selectedWorkId, setSelectedWorkId] = useState("");
   const [manualRecoverTaskId, setManualRecoverTaskId] = useState("");
+  const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
+  const [recentTemplateIds, setRecentTemplateIds] = useState<string[]>([]);
 
   const filteredTemplates = useMemo(() => {
-    return props.templates;
-  }, [props.templates]);
+    const keyword = templateSearch.trim().toLowerCase();
+    const favoriteIdSet = new Set(favoriteTemplateIds);
+    const recentIdSet = new Set(recentTemplateIds);
+    const recentOrderMap = new Map(recentTemplateIds.map((id, index) => [id, index]));
+    const favorites = props.templates.filter((item) => favoriteIdSet.has(item.id));
+    const recents = props.templates
+      .filter((item) => recentIdSet.has(item.id))
+      .sort((left, right) => (recentOrderMap.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (recentOrderMap.get(right.id) ?? Number.MAX_SAFE_INTEGER));
+
+    const source =
+      templateScopeFilter === "FAVORITES"
+        ? favorites
+        : templateScopeFilter === "RECENT"
+          ? recents
+          : props.templates;
+
+    const filtered = keyword
+      ? source.filter((item) =>
+          [item.name, item.audioName, item.gender, item.tagNames.join(" ")]
+            .join(" ")
+            .toLowerCase()
+            .includes(keyword),
+        )
+      : source;
+
+    if (templateScopeFilter !== "ALL") {
+      return filtered;
+    }
+
+    return [...filtered].sort((left, right) => {
+      const leftFavorite = favoriteIdSet.has(left.id) ? 1 : 0;
+      const rightFavorite = favoriteIdSet.has(right.id) ? 1 : 0;
+      if (leftFavorite !== rightFavorite) {
+        return rightFavorite - leftFavorite;
+      }
+      const leftRecent = recentOrderMap.get(left.id);
+      const rightRecent = recentOrderMap.get(right.id);
+      if (leftRecent !== undefined || rightRecent !== undefined) {
+        return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
+      }
+      return left.name.localeCompare(right.name, "zh-CN");
+    });
+  }, [favoriteTemplateIds, props.templates, recentTemplateIds, templateScopeFilter, templateSearch]);
 
   const selectedTemplate = useMemo(
     () => filteredTemplates.find((item) => item.id === selectedTemplateId) || filteredTemplates[0],
@@ -125,16 +196,72 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     [selectedFigureType, selectedTemplate],
   );
 
+  const filteredWorks = useMemo(() => {
+    const keyword = workSearch.trim().toLowerCase();
+    return props.items.filter((item) => {
+      if (workStageFilter !== "ALL" && item.stage !== workStageFilter) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      return [item.title, item.personName, item.audioName, item.thirdPartyStatusLabel, item.content]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [props.items, workSearch, workStageFilter]);
+
   const pagedItems = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return props.items.slice(start, start + PAGE_SIZE);
-  }, [page, props.items]);
+    return filteredWorks.slice(start, start + PAGE_SIZE);
+  }, [filteredWorks, page]);
 
-  const pageCount = Math.max(1, Math.ceil(props.items.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filteredWorks.length / PAGE_SIZE));
   const selectedWork = useMemo(
-    () => props.items.find((item) => item.id === selectedWorkId) || props.items[0],
-    [props.items, selectedWorkId],
+    () => filteredWorks.find((item) => item.id === selectedWorkId) || filteredWorks[0] || props.items[0],
+    [filteredWorks, props.items, selectedWorkId],
   );
+  const recentTemplates = useMemo(
+    () =>
+      recentTemplateIds
+        .map((id) => props.templates.find((item) => item.id === id))
+        .filter((item): item is DigitalHumanTemplateRecord => Boolean(item))
+        .slice(0, 6),
+    [props.templates, recentTemplateIds],
+  );
+  const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && favoriteTemplateIds.includes(selectedTemplate.id));
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const favoriteText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY);
+      const recentText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY);
+      const favoriteList = JSON.parse(favoriteText || "[]");
+      const recentList = JSON.parse(recentText || "[]");
+      setFavoriteTemplateIds(Array.isArray(favoriteList) ? favoriteList.map((item) => String(item || "").trim()).filter(Boolean) : []);
+      setRecentTemplateIds(Array.isArray(recentList) ? recentList.map((item) => String(item || "").trim()).filter(Boolean) : []);
+    } catch {
+      setFavoriteTemplateIds([]);
+      setRecentTemplateIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY, JSON.stringify(favoriteTemplateIds));
+  }, [favoriteTemplateIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY, JSON.stringify(recentTemplateIds));
+  }, [recentTemplateIds]);
 
   useEffect(() => {
     if (!filteredTemplates.length) {
@@ -156,6 +283,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     if (!title.trim()) {
       setTitle(`${selectedTemplate.name} 数字人口播`);
     }
+    setRecentTemplateIds((current) => {
+      const next = [selectedTemplate.id, ...current.filter((item) => item !== selectedTemplate.id)];
+      return next.slice(0, 12);
+    });
   }, [selectedFigureType, selectedTemplate, title]);
 
   useEffect(() => {
@@ -167,6 +298,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       setSelectedWorkId(props.items[0]?.id || "");
     }
   }, [props.items, selectedWorkId]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [templateScopeFilter, workSearch, workStageFilter]);
 
   useEffect(() => {
     setManualRecoverTaskId(selectedWork?.providerTaskId || "");
@@ -233,7 +368,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                   : "暂无模板"}
             </span>
             <span className={`archive-pill ${props.items.length ? "status-ready" : "status-in_progress"}`}>
-              {props.items.length ? `${props.items.length} 条作品` : "暂无作品"}
+              {filteredWorks.length ? `${filteredWorks.length} 条作品` : "暂无作品"}
             </span>
           </div>
         </div>
@@ -256,6 +391,22 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                   </option>
                 ))
               )}
+            </select>
+          </label>
+          <label className="field">
+            <span>模板搜索</span>
+            <input
+              value={templateSearch}
+              onChange={(event) => setTemplateSearch(event.target.value)}
+              placeholder="搜索模板名、音色或标签"
+            />
+          </label>
+          <label className="field">
+            <span>模板范围</span>
+            <select value={templateScopeFilter} onChange={(event) => setTemplateScopeFilter(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
+              <option value="ALL">全部模板</option>
+              <option value="FAVORITES">仅看收藏</option>
+              <option value="RECENT">最近使用</option>
             </select>
           </label>
           <label className="field">
@@ -291,6 +442,25 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               placeholder="请输入适合 15-60 秒数字人口播的视频脚本。"
             />
           </label>
+          <div className="field field-full">
+            <span>脚本快捷模板</span>
+            <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+              {DIGITAL_HUMAN_SCRIPT_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setScript((current) => current.trim() ? `${current.trim()}\n\n${preset.content}` : preset.content)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button type="button" className="secondary-button" onClick={() => setScript("")}>
+                清空脚本
+              </button>
+            </div>
+            <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节。</small>
+          </div>
           <label className="field">
             <span>语速</span>
             <input value={speechRate} onChange={(event) => setSpeechRate(event.target.value)} />
@@ -339,6 +509,28 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               {selectedTemplate?.audioName ? `默认音色：${selectedTemplate.audioName}` : "请选择模板"}
             </p>
             <p className="panel-subtext">{selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。"}</p>
+            {selectedTemplate?.audioPreview ? (
+              <audio controls preload="none" src={selectedTemplate.audioPreview} style={{ width: "100%", marginTop: 12 }} />
+            ) : (
+              <p className="panel-subtext" style={{ marginTop: 12 }}>当前模板暂无音色试听链接。</p>
+            )}
+            {selectedTemplate?.id ? (
+              <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    setFavoriteTemplateIds((current) =>
+                      current.includes(selectedTemplate.id)
+                        ? current.filter((item) => item !== selectedTemplate.id)
+                        : [selectedTemplate.id, ...current].slice(0, 30),
+                    )
+                  }
+                >
+                  {isSelectedTemplateFavorite ? "取消收藏" : "收藏模板"}
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="entity-card personal-card">
             <strong>{selectedFigure ? getFigureTypeLabel(selectedFigure.type) : "形象预览"}</strong>
@@ -350,13 +542,34 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
             ) : (
               <p className="panel-subtext">当前模板暂无封面图。</p>
             )}
+            {selectedFigure?.previewVideoUrl ? (
+              <video controls preload="metadata" src={selectedFigure.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
+            ) : null}
           </div>
           <div className="entity-card personal-card">
             <strong>配置提醒</strong>
             <p className="panel-subtext">请先在个人中心的第三方平台里配置蝉镜凭证，格式为 `appId::secretKey`。</p>
             <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
+            <p className="panel-subtext">如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。</p>
+            <p className="panel-subtext">常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。</p>
           </div>
         </div>
+
+        {recentTemplates.length ? (
+          <div className="strategy-inline-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
+            <span className="panel-subtext">最近使用：</span>
+            {recentTemplates.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="secondary-button"
+                onClick={() => setSelectedTemplateId(item.id)}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
           <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
@@ -383,8 +596,31 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           </div>
         </div>
 
+        <div className="personal-grid" style={{ marginBottom: 16 }}>
+          <label className="field">
+            <span>作品搜索</span>
+            <input
+              value={workSearch}
+              onChange={(event) => setWorkSearch(event.target.value)}
+              placeholder="搜索标题、数字人、音色或脚本内容"
+            />
+          </label>
+          <label className="field">
+            <span>状态筛选</span>
+            <select value={workStageFilter} onChange={(event) => setWorkStageFilter(event.target.value)}>
+              <option value="ALL">全部状态</option>
+              <option value="QUEUED">排队中</option>
+              <option value="GENERATING">生成中</option>
+              <option value="SUCCESS">已完成</option>
+              <option value="FAILED">失败</option>
+            </select>
+          </label>
+        </div>
+
         {!props.items.length ? (
           <div className="empty-state">当前还没有数字人作品，先从上方选择模板并提交一条视频任务。</div>
+        ) : !filteredWorks.length ? (
+          <div className="empty-state">当前筛选条件下没有匹配作品，试试清空关键词或切换状态。</div>
         ) : (
           <>
             <div className="xhs-material-library">
