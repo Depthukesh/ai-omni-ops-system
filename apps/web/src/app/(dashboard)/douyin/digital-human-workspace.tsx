@@ -72,6 +72,16 @@ function getFigureTypeLabel(type?: DigitalHumanFigureType) {
   }
 }
 
+function isRecoverableWork(item: DouyinDigitalHumanVideoWorkRecord) {
+  if (item.videoUrl) {
+    return false;
+  }
+  if (item.stage === "FAILED") {
+    return false;
+  }
+  return Boolean(item.providerTaskId || item.thirdPartyStatus || item.taskStatus);
+}
+
 export interface DouyinDigitalHumanWorkspaceProps {
   sectionLabel: string;
   sectionDescription: string;
@@ -140,6 +150,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [manualRecoverTaskId, setManualRecoverTaskId] = useState("");
   const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
   const [recentTemplateIds, setRecentTemplateIds] = useState<string[]>([]);
+  const [scriptActionMessage, setScriptActionMessage] = useState("");
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
@@ -199,7 +210,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const filteredWorks = useMemo(() => {
     const keyword = workSearch.trim().toLowerCase();
     return props.items.filter((item) => {
-      if (workStageFilter !== "ALL" && item.stage !== workStageFilter) {
+      if (workStageFilter === "RECOVERABLE") {
+        if (!isRecoverableWork(item)) {
+          return false;
+        }
+      } else if (workStageFilter !== "ALL" && item.stage !== workStageFilter) {
         return false;
       }
       if (!keyword) {
@@ -312,6 +327,74 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   }, [pageCount]);
 
   const createDisabled = !props.canEdit || !selectedTemplate || !selectedFigure || !script.trim();
+  const selectedWorkIsRecoverable = Boolean(selectedWork && isRecoverableWork(selectedWork));
+
+  const handleCopyScript = async () => {
+    const text = script.trim();
+    if (!text) {
+      setScriptActionMessage("当前没有可复制的脚本内容。");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setScriptActionMessage("脚本已复制到剪贴板。");
+    } catch {
+      setScriptActionMessage("复制失败，请手动复制脚本内容。");
+    }
+  };
+
+  const handleExportScript = () => {
+    const text = script.trim();
+    if (!text) {
+      setScriptActionMessage("当前没有可导出的脚本内容。");
+      return;
+    }
+    try {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fileName = `${(title.trim() || selectedTemplate?.name || "数字人口播脚本").replace(/[\\/:*?\"<>|]/g, "_")}.txt`;
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      setScriptActionMessage("脚本已导出为 txt 文件。");
+    } catch {
+      setScriptActionMessage("导出失败，请稍后重试。");
+    }
+  };
+
+  const handleRetrySelectedWork = async () => {
+    if (!selectedWork || !props.canEdit || props.isSubmitting || selectedWork.stage !== "FAILED") {
+      return;
+    }
+    await props.onCreate({
+      title: `${selectedWork.title} 重试`,
+      personId: selectedWork.personId,
+      personName: selectedWork.personName,
+      personSource: selectedWork.personSource,
+      figureType: selectedWork.figureType,
+      figureCoverUrl: selectedWork.figureCoverUrl,
+      figurePreviewVideoUrl: selectedWork.figurePreviewVideoUrl,
+      figureWidth: selectedWork.figureWidth,
+      figureHeight: selectedWork.figureHeight,
+      audioManId: selectedWork.audioManId,
+      audioName: selectedWork.audioName,
+      script: selectedWork.content,
+      speechRate: selectedWork.speechRate,
+      pitch: selectedWork.pitch,
+      volume: selectedWork.volume,
+      language: selectedWork.language,
+      backgroundColor: selectedWork.backgroundColor,
+      subtitleEnabled: selectedWork.subtitleEnabled,
+      subtitleTextColor: selectedWork.subtitleTextColor,
+      subtitleStrokeColor: selectedWork.subtitleStrokeColor,
+      screenWidth: selectedWork.screenWidth,
+      screenHeight: selectedWork.screenHeight,
+    });
+  };
 
   return (
     <section className="workspace-panel strategy-page-card">
@@ -458,8 +541,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <button type="button" className="secondary-button" onClick={() => setScript("")}>
                 清空脚本
               </button>
+              <button type="button" className="secondary-button" onClick={() => void handleCopyScript()}>
+                复制脚本
+              </button>
+              <button type="button" className="secondary-button" onClick={handleExportScript}>
+                导出脚本
+              </button>
             </div>
             <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节。</small>
+            {scriptActionMessage ? <small className="personal-meta">{scriptActionMessage}</small> : null}
           </div>
           <label className="field">
             <span>语速</span>
@@ -609,12 +699,34 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
             <span>状态筛选</span>
             <select value={workStageFilter} onChange={(event) => setWorkStageFilter(event.target.value)}>
               <option value="ALL">全部状态</option>
+              <option value="RECOVERABLE">待找回</option>
               <option value="QUEUED">排队中</option>
               <option value="GENERATING">生成中</option>
               <option value="SUCCESS">已完成</option>
               <option value="FAILED">失败</option>
             </select>
           </label>
+        </div>
+
+        <div className="strategy-inline-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("ALL")}>
+            查看全部
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("FAILED")}>
+            只看失败
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("RECOVERABLE")}>
+            只看待找回
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("SUCCESS")}>
+            只看已完成
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("GENERATING")}>
+            只看生成中
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setWorkSearch("")}>
+            清空搜索
+          </button>
         </div>
 
         {!props.items.length ? (
@@ -677,6 +789,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                   </div>
                   <div className="report-editor-actions">
                     <span className={`archive-pill ${getStageClass(selectedWork.stage)}`}>{getStageLabel(selectedWork.stage)}</span>
+                    {selectedWorkIsRecoverable ? <span className="archive-pill status-in_progress">待找回</span> : null}
                     {selectedWork.thirdPartyStatusLabel ? (
                       <span className="archive-pill status-pending">{selectedWork.thirdPartyStatusLabel}</span>
                     ) : null}
@@ -740,6 +853,14 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                     disabled={!props.canEdit || props.isSubmitting || !manualRecoverTaskId.trim()}
                   >
                     按任务 ID 找回
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleRetrySelectedWork()}
+                    disabled={!props.canEdit || props.isSubmitting || selectedWork.stage !== "FAILED"}
+                  >
+                    失败重试
                   </button>
                   <button
                     type="button"
