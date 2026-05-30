@@ -5,6 +5,7 @@ import {
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
+  type DouyinDigitalHumanCustomPersonRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
 } from "../../../services/works";
@@ -26,14 +27,18 @@ type DigitalHumanEditorDiffEntry = {
 export interface DigitalHumanVideoPanelProps {
   templateCountLabel: string;
   workCountLabel: string;
+  personSource: "COMMON" | "CUSTOM";
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   activeTagId?: string;
   isTemplateLoading?: boolean;
   templateSearch: string;
   templateScopeFilter: "ALL" | "FAVORITES" | "RECENT";
   filteredTemplates: DigitalHumanTemplateRecord[];
+  availableCustomPersons: DouyinDigitalHumanCustomPersonRecord[];
   selectedTemplateId: string;
   selectedTemplate?: DigitalHumanTemplateRecord;
+  selectedCustomPersonId: string;
+  selectedCustomPerson?: DouyinDigitalHumanCustomPersonRecord;
   selectedFigureType: DigitalHumanFigureType;
   selectedFigure?: DigitalHumanTemplateRecord["figures"][number];
   title: string;
@@ -86,10 +91,12 @@ export interface DigitalHumanVideoPanelProps {
   scriptTemplateCategories: Array<{ value: ScriptTemplateCategory; label: string }>;
   templatePageInfo?: DigitalHumanTemplatePageInfo;
   formatDateTime: OptionalDateFormatter;
+  onPersonSourceChange: (value: "COMMON" | "CUSTOM") => void;
   onTemplateTagChange: (tagId: string) => Promise<void>;
   onTemplateSearchChange: (value: string) => void;
   onTemplateScopeFilterChange: (value: "ALL" | "FAVORITES" | "RECENT") => void;
   onSelectedTemplateChange: (templateId: string) => void;
+  onSelectedCustomPersonChange: (customPersonId: string) => void;
   onSelectedFigureTypeChange: (figureType: DigitalHumanFigureType) => void;
   onTitleChange: (value: string) => void;
   onScriptChange: (value: string | ((current: string) => string)) => void;
@@ -135,6 +142,23 @@ export interface DigitalHumanVideoPanelProps {
 }
 
 export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
+  const selectedPersonName =
+    props.personSource === "CUSTOM"
+      ? props.selectedCustomPerson?.name || "未选择定制数字人"
+      : props.selectedTemplate?.name || "未选择模板";
+  const selectedPersonAudioText =
+    props.personSource === "CUSTOM"
+      ? props.selectedCustomPerson?.audioManId
+        ? `音色 ID：${props.selectedCustomPerson.audioManId}`
+        : "当前定制数字人未返回默认音色 ID"
+      : props.selectedTemplate?.audioName
+        ? `默认音色：${props.selectedTemplate.audioName}`
+        : "请选择模板";
+  const selectedPersonSummary =
+    props.personSource === "CUSTOM"
+      ? "成功定制的数字人可直接用于视频创建；若训练详情未返回完整参数，系统会使用当前可见信息提交。"
+      : props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。";
+
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
       <div className="report-editor-head">
@@ -150,58 +174,106 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
       <div className="personal-grid">
         <label className="field">
-          <span>模板标签</span>
-          <select
-            value={props.activeTagId || ""}
-            onChange={(event) => {
-              void props.onTemplateTagChange(event.target.value);
-            }}
-            disabled={props.isTemplateLoading}
-          >
-            <option value="">全部标签</option>
-            {props.templateTagGroups.flatMap((group) =>
-              group.tagList.map((tag) => (
-                <option key={tag.id} value={String(tag.id)}>
-                  {group.name} / {tag.name}
-                </option>
-              )),
-            )}
+          <span>数字人来源</span>
+          <select value={props.personSource} onChange={(event) => props.onPersonSourceChange(event.target.value as "COMMON" | "CUSTOM")}>
+            <option value="COMMON">公共模板</option>
+            <option value="CUSTOM">我的定制数字人</option>
           </select>
         </label>
-        <label className="field">
-          <span>模板搜索</span>
-          <input
-            value={props.templateSearch}
-            onChange={(event) => props.onTemplateSearchChange(event.target.value)}
-            placeholder="搜索模板名、音色或标签"
-          />
-        </label>
-        <label className="field">
-          <span>模板范围</span>
-          <select value={props.templateScopeFilter} onChange={(event) => props.onTemplateScopeFilterChange(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
-            <option value="ALL">全部模板</option>
-            <option value="FAVORITES">仅看收藏</option>
-            <option value="RECENT">最近使用</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>数字人模板</span>
-          <select value={props.selectedTemplateId} onChange={(event) => props.onSelectedTemplateChange(event.target.value)}>
-            {props.filteredTemplates.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {props.personSource === "COMMON" ? (
+          <>
+            <label className="field">
+              <span>模板标签</span>
+              <select
+                value={props.activeTagId || ""}
+                onChange={(event) => {
+                  void props.onTemplateTagChange(event.target.value);
+                }}
+                disabled={props.isTemplateLoading}
+              >
+                <option value="">全部标签</option>
+                {props.templateTagGroups.flatMap((group) =>
+                  group.tagList.map((tag) => (
+                    <option key={tag.id} value={String(tag.id)}>
+                      {group.name} / {tag.name}
+                    </option>
+                  )),
+                )}
+              </select>
+            </label>
+            <label className="field">
+              <span>模板搜索</span>
+              <input
+                value={props.templateSearch}
+                onChange={(event) => props.onTemplateSearchChange(event.target.value)}
+                placeholder="搜索模板名、音色或标签"
+              />
+            </label>
+            <label className="field">
+              <span>模板范围</span>
+              <select value={props.templateScopeFilter} onChange={(event) => props.onTemplateScopeFilterChange(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
+                <option value="ALL">全部模板</option>
+                <option value="FAVORITES">仅看收藏</option>
+                <option value="RECENT">最近使用</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>数字人模板</span>
+              <select value={props.selectedTemplateId} onChange={(event) => props.onSelectedTemplateChange(event.target.value)}>
+                {props.filteredTemplates.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="field">
+              <span>定制数字人</span>
+              <select value={props.selectedCustomPersonId} onChange={(event) => props.onSelectedCustomPersonChange(event.target.value)}>
+                {props.availableCustomPersons.length ? null : <option value="">暂无可用于视频创建的定制数字人</option>}
+                {props.availableCustomPersons.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>训练状态</span>
+              <input
+                value={props.selectedCustomPerson ? `${props.selectedCustomPerson.progress}% / ${props.selectedCustomPerson.status}` : "暂无可选定制数字人"}
+                readOnly
+              />
+            </label>
+            <label className="field">
+              <span>可用数量</span>
+              <input value={`${props.availableCustomPersons.length} 个成功定制数字人`} readOnly />
+            </label>
+            <label className="field">
+              <span>数字人 ID</span>
+              <input value={props.selectedCustomPerson?.personId || props.selectedCustomPerson?.id || ""} readOnly placeholder="提交后会带入蝉镜数字人 ID" />
+            </label>
+          </>
+        )}
         <label className="field">
           <span>形象类型</span>
           <select value={props.selectedFigureType} onChange={(event) => props.onSelectedFigureTypeChange(event.target.value as DigitalHumanFigureType)}>
-            {(props.selectedTemplate?.figures || []).map((item) => (
-              <option key={item.type} value={item.type}>
-                {props.getFigureTypeLabel(item.type)}
-              </option>
-            ))}
+            {props.personSource === "COMMON" ? (
+              (props.selectedTemplate?.figures || []).map((item) => (
+                <option key={item.type} value={item.type}>
+                  {props.getFigureTypeLabel(item.type)}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="sit_body">半身</option>
+                <option value="whole_body">全身</option>
+                <option value="circle_view">圆形</option>
+              </>
+            )}
           </select>
         </label>
         <label className="field">
@@ -512,17 +584,22 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
       <div className="personal-grid" style={{ marginTop: 16 }}>
         <div className="entity-card personal-card">
-          <strong>{props.selectedTemplate?.name || "未选择模板"}</strong>
+          <strong>{selectedPersonName}</strong>
           <p className="personal-meta">
-            {props.selectedTemplate?.audioName ? `默认音色：${props.selectedTemplate.audioName}` : "请选择模板"}
+            {selectedPersonAudioText}
           </p>
-          <p className="panel-subtext">{props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。"}</p>
-          {props.selectedTemplate?.audioPreview ? (
+          <p className="panel-subtext">{selectedPersonSummary}</p>
+          {props.personSource === "COMMON" && props.selectedTemplate?.audioPreview ? (
             <audio controls preload="none" src={props.selectedTemplate.audioPreview} style={{ width: "100%", marginTop: 12 }} />
+          ) : null}
+          {props.personSource === "CUSTOM" && props.selectedCustomPerson?.previewVideoUrl ? (
+            <video controls preload="metadata" src={props.selectedCustomPerson.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
           ) : (
-            <p className="panel-subtext" style={{ marginTop: 12 }}>当前模板暂无音色试听链接。</p>
+            <p className="panel-subtext" style={{ marginTop: 12 }}>
+              {props.personSource === "CUSTOM" ? "当前定制数字人暂无预览视频。" : "当前模板暂无音色试听链接。"}
+            </p>
           )}
-          {props.selectedTemplate?.id ? (
+          {props.personSource === "COMMON" && props.selectedTemplate?.id ? (
             <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
               <button
                 type="button"
@@ -535,25 +612,46 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           ) : null}
         </div>
         <div className="entity-card personal-card">
-          <strong>{props.selectedFigure ? props.getFigureTypeLabel(props.selectedFigure.type) : "形象预览"}</strong>
+          <strong>{props.personSource === "CUSTOM" ? props.getFigureTypeLabel(props.selectedFigureType) : props.selectedFigure ? props.getFigureTypeLabel(props.selectedFigure.type) : "形象预览"}</strong>
           <p className="personal-meta">
-            {props.selectedFigure ? `${props.selectedFigure.width} x ${props.selectedFigure.height}` : "待选择"}
+            {props.personSource === "CUSTOM"
+              ? `${props.selectedCustomPerson?.width || 720} x ${props.selectedCustomPerson?.height || 1280}`
+              : props.selectedFigure
+                ? `${props.selectedFigure.width} x ${props.selectedFigure.height}`
+                : "待选择"}
           </p>
-          {props.selectedFigure?.cover ? (
-            <img src={props.selectedFigure.cover} alt={props.selectedTemplate?.name || "数字人模板"} style={{ width: "100%", borderRadius: 16, marginTop: 12 }} />
+          {(props.personSource === "CUSTOM" ? props.selectedCustomPerson?.coverImageUrl : props.selectedFigure?.cover) ? (
+            <img
+              src={props.personSource === "CUSTOM" ? props.selectedCustomPerson?.coverImageUrl : props.selectedFigure?.cover}
+              alt={selectedPersonName}
+              style={{ width: "100%", borderRadius: 16, marginTop: 12 }}
+            />
           ) : (
-            <p className="panel-subtext">当前模板暂无封面图。</p>
+            <p className="panel-subtext">{props.personSource === "CUSTOM" ? "当前定制数字人暂无封面图。" : "当前模板暂无封面图。"}</p>
           )}
-          {props.selectedFigure?.previewVideoUrl ? (
-            <video controls preload="metadata" src={props.selectedFigure.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
+          {(props.personSource === "CUSTOM" ? props.selectedCustomPerson?.previewVideoUrl : props.selectedFigure?.previewVideoUrl) ? (
+            <video
+              controls
+              preload="metadata"
+              src={props.personSource === "CUSTOM" ? props.selectedCustomPerson?.previewVideoUrl : props.selectedFigure?.previewVideoUrl}
+              style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }}
+            />
           ) : null}
         </div>
         <div className="entity-card personal-card">
           <strong>配置提醒</strong>
           <p className="panel-subtext">请先在个人中心的第三方平台里配置蝉镜凭证，格式为 `appId::secretKey`。</p>
           <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
-          <p className="panel-subtext">如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。</p>
-          <p className="panel-subtext">常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。</p>
+          <p className="panel-subtext">
+            {props.personSource === "CUSTOM"
+              ? "这里只展示训练成功的定制数字人；若刚完成训练但列表未刷新，可回到“定制数字人”点刷新。"
+              : "如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。"}
+          </p>
+          <p className="panel-subtext">
+            {props.personSource === "CUSTOM"
+              ? "定制数字人未返回完整训练配置时，页面会保留当前可见信息并继续允许你提交视频任务。"
+              : "常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。"}
+          </p>
         </div>
       </div>
 

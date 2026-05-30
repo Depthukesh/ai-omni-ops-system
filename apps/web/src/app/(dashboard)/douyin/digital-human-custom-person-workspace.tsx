@@ -18,6 +18,7 @@ export interface DigitalHumanCustomPersonWorkspaceProps {
     errorSkip?: boolean;
   }) => Promise<boolean>;
   onDelete: (customPersonId: string) => Promise<boolean>;
+  onUseInVideo: (customPersonId?: string) => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -125,7 +126,7 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
         </div>
         <div className="entity-card personal-card">
           <strong>下一步能力</strong>
-          <p className="panel-subtext">下一轮继续补“成功定制数字人一键带入数字人视频”、更细的训练详情字段和本地配置回填。</p>
+          <p className="panel-subtext">当前已支持把训练成功的定制数字人一键带入“数字人视频”；下一轮继续补更细的训练详情字段和本地配置回填。</p>
         </div>
       </div>
 
@@ -158,6 +159,13 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
                     <strong>{item.name}</strong>
                     <p>{item.trainType === "both" ? "形象+声音" : item.trainType === "figure" ? "仅形象" : "训练配置待同步"}</p>
                     <p>{props.formatDateTime(item.updatedAt)}</p>
+                    {item.status === "SUCCESS" ? (
+                      <div className="strategy-inline-actions" style={{ marginTop: 8 }}>
+                        <button type="button" className="secondary-button" onClick={() => props.onUseInVideo(item.id)}>
+                          用于数字人视频
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -268,6 +276,13 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
               <p className="panel-subtext">训练类型：{selectedTrainTypeLabel}</p>
               <p className="panel-subtext">语言：{selectedLanguageLabel}</p>
               <p className="panel-subtext">分辨率：{selectedResolutionLabel}</p>
+              {selectedItem.status === "SUCCESS" ? (
+                <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+                  <button type="button" className="secondary-button" onClick={() => props.onUseInVideo(selectedItem.id)}>
+                    用于数字人视频
+                  </button>
+                </div>
+              ) : null}
             </div>
             <div className="entity-card personal-card">
               <strong>时间信息</strong>

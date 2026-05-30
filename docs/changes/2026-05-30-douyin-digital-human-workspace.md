@@ -263,6 +263,38 @@
   - 页面文案从“接口壳子 / 下一轮再接”改为“真实训练链路已接入”
   - 训练配置展示改为真实值优先，缺失时明确显示“服务端未返回 / 训练配置待同步”
 
+### 10. 定制数字人与数字人视频联动第六轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增数字人视频创建区来源状态：
+    - `COMMON`
+    - `CUSTOM`
+  - 只把训练成功的定制数字人作为“可用于视频创建”的候选
+  - 新增“定制数字人 -> 数字人视频”的编排动作：
+    - 从定制数字人页一键带入
+    - 从作品中心按 `personSource` 回填公共模板或定制数字人
+  - 提交视频时改为按当前来源动态组装 payload，不再只支持公共模板
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 数字人视频创建区新增“数字人来源”切换
+  - 当来源为公共模板时，继续显示模板标签 / 搜索 / 收藏 / 最近使用
+  - 当来源为定制数字人时，显示：
+    - 成功定制数字人下拉选择
+    - 训练状态
+    - 可用数量
+    - 数字人 ID
+  - 预览卡与提醒区改为同时兼容公共模板和定制数字人
+- `apps/web/src/app/(dashboard)/douyin/digital-human-custom-person-workspace.tsx`
+  - 在列表卡片和详情面板中新增“用于数字人视频”按钮
+  - 仅对 `SUCCESS` 的定制数字人开放一键带入
+
+## 第六轮验证
+
+- `GetDiagnostics`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-custom-person-workspace.tsx`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ## 本轮补充验证
 
 - `GetDiagnostics`
