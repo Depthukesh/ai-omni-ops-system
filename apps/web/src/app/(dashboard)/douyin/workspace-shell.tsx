@@ -36,6 +36,20 @@ import {
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
+import {
+  continueDouyinVideoGeneration,
+  deleteDouyinVideoWork,
+  generateDouyinVideoWork,
+  getDouyinVideoProviders,
+  getDouyinVideoStoryboardImageProviders,
+  getDouyinVideoWorks,
+  recoverDouyinVideoGeneration,
+  regenerateDouyinVideoStoryboard,
+  updateDouyinVideoWork,
+  type DouyinVideoWorkRecord,
+  type StoryboardImageModelOptionRecord,
+  type VideoProviderOptionRecord,
+} from "../../../services/works";
 import { MediaLightbox } from "../xiaohongshu/media-lightbox";
 import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAssetsWorkspace } from "./assets-workspace";
@@ -45,9 +59,10 @@ import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspaceP
 import { DouyinOriginalCopyWorkspace as DouyinOriginalCopyWorkspacePanel } from "./original-copy-workspace";
 import { DouyinRemixCopyWorkspace as DouyinRemixCopyWorkspacePanel } from "./remix-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
+import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy" | "video";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
@@ -56,6 +71,7 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
   { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
+  { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -105,6 +121,9 @@ export function DouyinWorkspaceShell() {
   const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [originalCopyWorkspace, setOriginalCopyWorkspace] = useState<DouyinOriginalCopyWorkspace>(douyinOriginalCopySeed);
   const [remixCopyWorkspace, setRemixCopyWorkspace] = useState<DouyinRemixCopyWorkspace>(douyinRemixCopySeed);
+  const [videoWorks, setVideoWorks] = useState<DouyinVideoWorkRecord[]>([]);
+  const [videoProviderOptions, setVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
+  const [storyboardImageModelOptions, setStoryboardImageModelOptions] = useState<StoryboardImageModelOptionRecord[]>([]);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
@@ -112,6 +131,7 @@ export function DouyinWorkspaceShell() {
   const [isGeneratingHotTopics, setIsGeneratingHotTopics] = useState(false);
   const [isSubmittingOriginalCopy, setIsSubmittingOriginalCopy] = useState(false);
   const [isSubmittingRemixCopy, setIsSubmittingRemixCopy] = useState(false);
+  const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -138,9 +158,12 @@ export function DouyinWorkspaceShell() {
     latestRemixCopyTask?.taskStatus === "RUNNING"
     || latestRemixCopyTask?.taskStatus === "QUEUED"
     || latestRemixCopyTask?.taskStatus === "PENDING";
-  const permissionEntry = brandPermissionSettings?.currentUserPermissions?.["douyin.plan"];
-  const hasWorkspaceAccess = permissionEntry?.view ?? true;
-  const canEditMarketingPlan = permissionEntry?.edit ?? true;
+  const isVideoTaskActive = videoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
+  const permissionMap = brandPermissionSettings?.currentUserPermissions;
+  const hasWorkspaceAccess = Boolean(permissionMap?.["douyin.plan"]?.view || permissionMap?.["douyin.video"]?.view || !permissionMap);
+  const canEditMarketingPlan = permissionMap?.["douyin.plan"]?.edit ?? true;
+  const canEditVideo = permissionMap?.["douyin.video"]?.edit ?? true;
+  const canEditCurrentSection = activeSection === "video" ? canEditVideo : canEditMarketingPlan;
   const materialWorks = useMemo(
     () => [
       ...collectionWorkspace.benchmarkWorks,
@@ -162,7 +185,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案和二创文案，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案和 AI 生视频（故事板），可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -193,12 +216,24 @@ export function DouyinWorkspaceShell() {
     return nextWorkspace;
   }, [activeBrandId]);
 
+  const refreshVideoWorkspace = useCallback(async () => {
+    const [items, providers, storyboardModels] = await Promise.all([
+      getDouyinVideoWorks(activeBrandId),
+      getDouyinVideoProviders(activeBrandId),
+      getDouyinVideoStoryboardImageProviders(activeBrandId),
+    ]);
+    setVideoWorks(items.items || []);
+    setVideoProviderOptions(providers.items || []);
+    setStoryboardImageModelOptions(storyboardModels.items || []);
+    return items.items || [];
+  }, [activeBrandId]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
 
-    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
@@ -207,6 +242,9 @@ export function DouyinWorkspaceShell() {
       getDouyinHotTopicCandidatesWorkspace(activeBrandId),
       getDouyinOriginalCopyWorkspace(activeBrandId),
       getDouyinRemixCopyWorkspace(activeBrandId),
+      getDouyinVideoWorks(activeBrandId),
+      getDouyinVideoProviders(activeBrandId),
+      getDouyinVideoStoryboardImageProviders(activeBrandId),
     ]);
 
     let hasFallback = false;
@@ -266,6 +304,27 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setRemixCopyWorkspace(douyinRemixCopySeed);
+    }
+
+    if (videoResult.status === "fulfilled") {
+      setVideoWorks(videoResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setVideoWorks([]);
+    }
+
+    if (videoProvidersResult.status === "fulfilled") {
+      setVideoProviderOptions(videoProvidersResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setVideoProviderOptions([]);
+    }
+
+    if (storyboardModelsResult.status === "fulfilled") {
+      setStoryboardImageModelOptions(storyboardModelsResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setStoryboardImageModelOptions([]);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -351,10 +410,20 @@ export function DouyinWorkspaceShell() {
   }, [isRemixCopyTaskActive, refreshRemixCopyWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && notice.includes("任务已提交")) {
+    if (!isVideoTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshVideoWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isVideoTaskActive, refreshVideoWorkspace]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, notice]);
+  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
@@ -772,6 +841,165 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditMarketingPlan]);
 
+  const handleCreateVideo = useCallback(async (payload: Parameters<typeof generateDouyinVideoWork>[1]) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能生成 AI 生视频（故事板）。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await generateDouyinVideoWork(activeBrandId, payload);
+      await refreshVideoWorkspace();
+      setNotice("AI 生视频（故事板）任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频（故事板）提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const handleUpdateVideo = useCallback(async (payload: {
+    workId: string;
+    title?: string;
+    content?: string;
+    storyboardPrompt?: string;
+  }) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能修改 AI 生视频（故事板）。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await updateDouyinVideoWork(activeBrandId, payload.workId, payload);
+      await refreshVideoWorkspace();
+      setNotice("AI 生视频（故事板）已更新。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频（故事板）更新失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const handleDeleteVideo = useCallback(async (workId: string) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能删除 AI 生视频（故事板）。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinVideoWork(activeBrandId, workId);
+      await refreshVideoWorkspace();
+      setNotice("AI 生视频（故事板）已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "AI 生视频（故事板）删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const handleRegenerateVideoStoryboard = useCallback(async (payload: {
+    workId: string;
+    storyboardPrompt?: string;
+  }) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能修改故事板。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await regenerateDouyinVideoStoryboard(activeBrandId, payload.workId, { storyboardPrompt: payload.storyboardPrompt });
+      await refreshVideoWorkspace();
+      setNotice("故事板重生成任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "故事板重生成失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const handleGenerateVideo = useCallback(async (payload: {
+    workId: string;
+    customVideoModelName?: string;
+  }) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能生成短视频。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await continueDouyinVideoGeneration(activeBrandId, payload.workId, { customVideoModelName: payload.customVideoModelName });
+      await refreshVideoWorkspace();
+      setNotice("短视频生成任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "短视频生成失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const handleRecoverVideo = useCallback(async (payload: {
+    workId?: string;
+    providerTaskId: string;
+    requestedVideoProvider?: string;
+  }) => {
+    if (!canEditVideo) {
+      setErrorMessage("当前账号只有查看权限，不能找回视频结果。");
+      return false;
+    }
+    setIsSubmittingVideo(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await recoverDouyinVideoGeneration(activeBrandId, payload);
+      await refreshVideoWorkspace();
+      setNotice("视频结果找回完成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "找回视频结果失败。");
+      return false;
+    } finally {
+      setIsSubmittingVideo(false);
+    }
+  }, [activeBrandId, canEditVideo, refreshVideoWorkspace]);
+
+  const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord) => {
+    if (item.videoUrl) {
+      setMaterialLightbox({
+        title: item.title,
+        url: item.videoUrl,
+        type: "VIDEO",
+      });
+      return;
+    }
+    if (item.storyboardImageUrl || item.coverImageUrl) {
+      setMaterialLightbox({
+        title: `${item.title} 故事板`,
+        url: item.storyboardImageUrl || item.coverImageUrl || "",
+        type: "IMAGE",
+      });
+    }
+  }, []);
+
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
       return;
@@ -841,7 +1069,7 @@ export function DouyinWorkspaceShell() {
                     <div className="workspace-toolbar top-toolbar">
                       <div className="workspace-status">
                         <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
-                          {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
+                          {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
                         </span>
                         <span className={`archive-pill ${loadState === "api" ? "status-ready" : "status-in_progress"}`}>
                           {loadState === "api" ? "接口数据" : loadState === "seed" ? "演示数据" : "加载中"}
@@ -855,7 +1083,7 @@ export function DouyinWorkspaceShell() {
                           type="button"
                           className="secondary-button"
                           onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSaving || isDeleting}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSaving || isDeleting}
                         >
                           刷新数据
                         </button>
@@ -963,6 +1191,33 @@ export function DouyinWorkspaceShell() {
                     onDelete={handleDeleteRemixCopy}
                     formatDateTime={formatDateTime}
                   />
+                ) : activeSection === "video" ? (
+                  <DouyinVideoStoryboardWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingVideo}
+                    canEdit={canEditVideo}
+                    items={videoWorks}
+                    calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
+                    productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
+                    materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
+                    videoProviderOptions={videoProviderOptions}
+                    storyboardImageModelOptions={storyboardImageModelOptions}
+                    hasMarketingPlan={Boolean(marketingPlanWorkspace.latest)}
+                    marketingPlanTitle={marketingPlanWorkspace.latest?.title}
+                    onRefresh={async () => {
+                      await refreshVideoWorkspace();
+                    }}
+                    onPreview={openGeneratedVideoPreview}
+                    onCreate={handleCreateVideo}
+                    onUpdate={handleUpdateVideo}
+                    onDelete={handleDeleteVideo}
+                    onRegenerateStoryboard={handleRegenerateVideoStoryboard}
+                    onGenerateVideo={handleGenerateVideo}
+                    onRecoverVideo={handleRecoverVideo}
+                    formatDateTime={formatDateTime}
+                  />
                 ) : (
                 <article className="workspace-panel strategy-page-card">
                   <div className="strategy-card-toolbar">
@@ -1009,7 +1264,7 @@ export function DouyinWorkspaceShell() {
                         ) : null}
                         {latestMarketingPlan?.modelName ? <span className="archive-pill status-pending">{latestMarketingPlan.modelName}</span> : null}
                         <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
-                          {canEditMarketingPlan ? "当前板块可编辑" : "当前板块只读"}
+                          {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
                         </span>
                         {latestMarketingPlan ? (
                           <button

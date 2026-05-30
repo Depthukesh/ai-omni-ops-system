@@ -35,6 +35,7 @@ type UploadFilePayload = {
 
 type OriginalAccountRole = "BRAND" | "STAFF" | "TALENT";
 export type VideoNoteKind = "BRAND_PROMO" | "SPOKEN_SELLING" | "SKIT_SELLING" | "REMIX";
+type VideoWorkKind = "XHS_VIDEO_NOTE" | "DOUYIN_VIDEO_NOTE";
 type VideoWorkflowStage =
   | "QUEUED"
   | "GENERATING_SCRIPT"
@@ -91,25 +92,49 @@ export type GenerateXiaohongshuVideoNotePayload = {
   videoAdditionalInstruction?: string;
 };
 
+export type GenerateDouyinVideoNotePayload = {
+  calendarItemId?: string;
+  customTopicName?: string;
+  productId?: string;
+  materialId?: string;
+  accountRole?: OriginalAccountRole;
+  referenceImage?: UploadFilePayload;
+  videoKind?: VideoNoteKind;
+  additionalInstruction?: string;
+  videoProvider?: string;
+  customVideoModelName?: string;
+  storyboardImageModel?: string;
+  durationSec?: number;
+  includeMarketingPlan?: boolean;
+};
+
 export type UpdateXiaohongshuVideoNotePayload = {
   title?: string;
   content?: string;
   storyboardPrompt?: string;
 };
 
+export type UpdateDouyinVideoNotePayload = UpdateXiaohongshuVideoNotePayload;
+
 export type RegenerateXiaohongshuVideoStoryboardPayload = {
   storyboardPrompt?: string;
 };
 
+export type RegenerateDouyinVideoStoryboardPayload = RegenerateXiaohongshuVideoStoryboardPayload;
+
 export type ContinueXiaohongshuVideoGenerationPayload = {
   customVideoModelName?: string;
 };
+
+export type ContinueDouyinVideoGenerationPayload = ContinueXiaohongshuVideoGenerationPayload;
 
 export type RecoverXiaohongshuVideoGenerationPayload = {
   workId?: string;
   providerTaskId?: string;
   requestedVideoProvider?: string;
 };
+
+export type RecoverDouyinVideoGenerationPayload = RecoverXiaohongshuVideoGenerationPayload;
 
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
@@ -267,7 +292,7 @@ type VideoScriptStageResult = {
 };
 
 type VideoWorkAssetMeta = {
-  kind: "XHS_VIDEO_NOTE";
+  kind: VideoWorkKind;
   taskId: string;
   noteCategory: "原创";
   noteType: "视频";
@@ -829,6 +854,14 @@ export class WorksService {
     return { items };
   }
 
+  async listDouyinVideoProviderOptions() {
+    return this.listXiaohongshuVideoProviderOptions();
+  }
+
+  async listDouyinVideoStoryboardImageOptions() {
+    return this.listXiaohongshuVideoStoryboardImageOptions();
+  }
+
   private resolveVideoProviderPlatformName(name: string, baseUrl?: string | null) {
     const normalizedName = name.trim();
     if (normalizedName.includes("·")) {
@@ -954,7 +987,7 @@ export class WorksService {
 
       const items = await Promise.all(
         workRows
-          .filter((item) => this.isVideoWorkMeta(item.metadataJson))
+          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "XHS_VIDEO_NOTE"))
           .map(async (item) => this.mapVideoWorkFromDatabase(item)),
       );
 
@@ -965,7 +998,38 @@ export class WorksService {
 
     const items = database.media
       .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
-      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson, "XHS_VIDEO_NOTE"))
+      .map((item) => this.mapVideoWorkFromMock(item))
+      .filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return { items };
+  }
+
+  async listDouyinVideoWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const items = await Promise.all(
+        workRows
+          .filter((item) => this.isVideoWorkMeta(item.metadataJson, "DOUYIN_VIDEO_NOTE"))
+          .map(async (item) => this.mapVideoWorkFromDatabase(item)),
+      );
+
+      return {
+        items: items.filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson, "DOUYIN_VIDEO_NOTE"))
       .map((item) => this.mapVideoWorkFromMock(item))
       .filter((item): item is XiaohongshuVideoWorkRecord => Boolean(item))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1597,6 +1661,7 @@ export class WorksService {
     const task = await this.createVideoTask({
       userId,
       brandId,
+      taskType: "XHS_VIDEO_NOTE",
       taskTitle: `生成视频笔记故事板：${context.topicLabel}`,
       requestedVideoProvider: context.requestedVideoProvider,
       modelName: "deepseek-v4-pro",
@@ -1652,6 +1717,85 @@ export class WorksService {
       brandId,
       taskId: task.id,
       title: `小红书视频笔记 - ${context.topicLabel}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata,
+    });
+    setTimeout(() => {
+      void this.runInitialVideoWorkflowTask(brandId, workMedia.id, task.id, context, htmlFile.storageKey);
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
+    };
+  }
+
+  async generateDouyinVideoNote(
+    brandId: string,
+    payload: GenerateDouyinVideoNotePayload,
+    auth?: RequestAuthContext,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT" = "ADMIN",
+  ) {
+    const context = await this.resolveDouyinVideoComposerContext(brandId, payload, collaboratorRole);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_VIDEO_NOTE",
+      taskTitle: `生成 AI 生视频（故事板）：${context.topicLabel}`,
+      requestedVideoProvider: context.requestedVideoProvider,
+      modelName: "deepseek-v4-pro",
+    });
+    const now = new Date().toISOString();
+    const htmlContent = this.renderGeneratedVideoNoteHtml({
+      title: context.topicLabel,
+      content: "",
+      hashtags: [],
+      coverImageUrl: context.referenceImageUrl || context.product?.imageUrl,
+      noteLabel: "AI 生视频（故事板）生成中",
+      videoKindLabel: this.getVideoKindLabel(context.videoKind),
+      workflowStage: "QUEUED",
+      progressSteps: this.buildVideoProgressSteps("QUEUED"),
+    });
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-video-note.html`, htmlContent);
+    const metadata: VideoWorkAssetMeta = {
+      kind: "DOUYIN_VIDEO_NOTE",
+      taskId: task.id,
+      noteCategory: "原创",
+      noteType: "视频",
+      accountRole: context.accountRole,
+      videoKind: context.videoKind,
+      workflowStage: "QUEUED",
+      title: context.topicLabel,
+      content: "",
+      htmlContent,
+      hashtags: [],
+      calendarItemId: context.selectedCalendarItem?.id,
+      calendarLabel: context.selectedCalendarItem ? `${context.selectedCalendarItem.date}｜${context.selectedCalendarItem.topicName}` : undefined,
+      customTopicName: context.selectedCalendarItem ? undefined : context.customTopicName,
+      productId: context.product?.id,
+      productName: context.product?.productName,
+      materialId: context.material?.id,
+      materialTitle: context.material?.title,
+      materialVideoUrl: context.material?.videoUrl,
+      referenceImageUrl: context.referenceImageUrl,
+      copyAdditionalInstruction: context.copyAdditionalInstruction,
+      videoAdditionalInstruction: context.videoAdditionalInstruction,
+      includeMarketingPlan: context.includeMarketingPlan,
+      requestedVideoProvider: context.requestedVideoProvider,
+      resolvedVideoProvider: context.requestedVideoProvider,
+      requestedStoryboardImageModel: context.requestedStoryboardImageModel,
+      requestedDurationSec: context.requestedDurationSec,
+      progressSteps: this.buildVideoProgressSteps("QUEUED"),
+      storyboardRevisions: [],
+      segmentPrompts: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音 AI 生视频（故事板） - ${context.topicLabel}`,
       storageKey: htmlFile.storageKey,
       sourceUrl: htmlFile.url,
       metadata,
@@ -1721,9 +1865,11 @@ export class WorksService {
   async updateXiaohongshuVideoNote(brandId: string, workId: string, payload: UpdateXiaohongshuVideoNotePayload) {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "XHS_VIDEO_NOTE");
     const nextTitle = payload.title?.trim() || meta.title;
     const nextContent = payload.content?.trim() || meta.content;
     const nextStoryboardPrompt = payload.storyboardPrompt?.trim() || meta.storyboardPrompt;
+    const copy = this.getVideoWorkKindCopy(meta.kind);
     const nextHtmlContent = this.renderGeneratedVideoNoteHtml({
       title: nextTitle,
       content: nextContent,
@@ -1732,7 +1878,7 @@ export class WorksService {
       storyboardImageUrl: meta.storyboardImageUrl,
       videoUrl: meta.videoUrl,
       videoPrompt: meta.fullVideoPrompt || meta.videoPrompt,
-      noteLabel: "原创视频笔记",
+      noteLabel: copy.noteLabel,
       videoKindLabel: this.getVideoKindLabel(meta.videoKind),
       workflowStage: meta.workflowStage,
       storyboardPrompt: nextStoryboardPrompt,
@@ -1748,7 +1894,45 @@ export class WorksService {
       updatedAt: new Date().toISOString(),
     };
     await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
-    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextTitle}`);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `${copy.htmlTitlePrefix} - ${nextTitle}`);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
+    };
+  }
+
+  async updateDouyinVideoNote(brandId: string, workId: string, payload: UpdateDouyinVideoNotePayload) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_VIDEO_NOTE");
+    const nextTitle = payload.title?.trim() || meta.title;
+    const nextContent = payload.content?.trim() || meta.content;
+    const nextStoryboardPrompt = payload.storyboardPrompt?.trim() || meta.storyboardPrompt;
+    const copy = this.getVideoWorkKindCopy(meta.kind);
+    const nextHtmlContent = this.renderGeneratedVideoNoteHtml({
+      title: nextTitle,
+      content: nextContent,
+      hashtags: meta.hashtags,
+      coverImageUrl: meta.coverImageUrl,
+      storyboardImageUrl: meta.storyboardImageUrl,
+      videoUrl: meta.videoUrl,
+      videoPrompt: meta.fullVideoPrompt || meta.videoPrompt,
+      noteLabel: copy.noteLabel,
+      videoKindLabel: this.getVideoKindLabel(meta.videoKind),
+      workflowStage: meta.workflowStage,
+      storyboardPrompt: nextStoryboardPrompt,
+      creativeScript: meta.creativeScript,
+      progressSteps: meta.progressSteps,
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      title: nextTitle,
+      content: nextContent,
+      htmlContent: nextHtmlContent,
+      storyboardPrompt: nextStoryboardPrompt,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(target.storageKey || `${target.id}.html`), nextHtmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `${copy.htmlTitlePrefix} - ${nextTitle}`);
     return {
       item: this.mapVideoWorkRecord(workId, brandId, nextMeta.taskId, nextMeta, targetTaskStatus(target)),
     };
@@ -1762,6 +1946,7 @@ export class WorksService {
   ) {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "XHS_VIDEO_NOTE");
     if (!meta.storyboardPrompt && !payload.storyboardPrompt?.trim()) {
       throw new BadRequestException("当前还没有可修改的故事板提示词，请先完成前两阶段生成。");
     }
@@ -1769,6 +1954,45 @@ export class WorksService {
     const task = await this.createVideoTask({
       userId,
       brandId,
+      taskType: "XHS_VIDEO_NOTE",
+      taskTitle: `重新生成故事板：${meta.title}`,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      modelName: meta.storyboardPromptModel || "gpt-5.5",
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      taskId: task.id,
+      workflowStage: "GENERATING_STORYBOARD",
+      storyboardPrompt: payload.storyboardPrompt?.trim() || meta.storyboardPrompt,
+      progressSteps: this.buildVideoProgressSteps("GENERATING_STORYBOARD"),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
+    setTimeout(() => {
+      void this.runRegenerateVideoStoryboardTask(brandId, workId, task.id, target.storageKey || `${workId}.html`);
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
+    };
+  }
+
+  async regenerateDouyinVideoStoryboard(
+    brandId: string,
+    workId: string,
+    payload: RegenerateDouyinVideoStoryboardPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_VIDEO_NOTE");
+    if (!meta.storyboardPrompt && !payload.storyboardPrompt?.trim()) {
+      throw new BadRequestException("当前还没有可修改的故事板提示词，请先完成前两阶段生成。");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_VIDEO_NOTE",
       taskTitle: `重新生成故事板：${meta.title}`,
       requestedVideoProvider: meta.requestedVideoProvider,
       modelName: meta.storyboardPromptModel || "gpt-5.5",
@@ -1798,6 +2022,7 @@ export class WorksService {
   ) {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "XHS_VIDEO_NOTE");
     if (!meta.storyboardPrompt || !meta.storyboardImageUrl) {
       throw new BadRequestException("请先完成故事板生成，再继续生成短视频。");
     }
@@ -1805,6 +2030,51 @@ export class WorksService {
     const task = await this.createVideoTask({
       userId,
       brandId,
+      taskType: "XHS_VIDEO_NOTE",
+      taskTitle: `生成短视频：${meta.title}`,
+      requestedVideoProvider: meta.requestedVideoProvider,
+      modelName: payload.customVideoModelName?.trim() || meta.resolvedVideoModel || meta.requestedVideoProvider,
+    });
+    const nextMeta: VideoWorkAssetMeta = {
+      ...meta,
+      taskId: task.id,
+      workflowStage: "GENERATING_VIDEO",
+      progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+      resolvedVideoModel: payload.customVideoModelName?.trim() || meta.resolvedVideoModel,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveVideoWorkMetadataSnapshot(brandId, workId, target.storageKey || `${workId}.html`, nextMeta);
+    setTimeout(() => {
+      void this.runContinueVideoGenerationTask(
+        brandId,
+        workId,
+        task.id,
+        target.storageKey || `${workId}.html`,
+        payload.customVideoModelName?.trim(),
+      );
+    }, 0);
+    return {
+      item: this.mapVideoWorkRecord(workId, brandId, task.id, nextMeta, "QUEUED"),
+    };
+  }
+
+  async continueDouyinVideoGeneration(
+    brandId: string,
+    workId: string,
+    payload: ContinueDouyinVideoGenerationPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_VIDEO_NOTE");
+    if (!meta.storyboardPrompt || !meta.storyboardImageUrl) {
+      throw new BadRequestException("请先完成故事板生成，再继续生成短视频。");
+    }
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_VIDEO_NOTE",
       taskTitle: `生成短视频：${meta.title}`,
       requestedVideoProvider: meta.requestedVideoProvider,
       modelName: payload.customVideoModelName?.trim() || meta.resolvedVideoModel || meta.requestedVideoProvider,
@@ -1843,10 +2113,12 @@ export class WorksService {
 
     const target = payload.workId?.trim()
       ? await this.getVideoWorkRowById(brandId, payload.workId.trim())
-      : await this.findRecoverableVideoWorkRow(brandId, providerTaskId, payload.requestedVideoProvider?.trim());
+      : await this.findRecoverableVideoWorkRow(brandId, providerTaskId, payload.requestedVideoProvider?.trim(), "XHS_VIDEO_NOTE");
     const workId = String(target.id || "").trim();
     const storageKey = target.storageKey || `${workId}.html`;
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "XHS_VIDEO_NOTE");
+    const copy = this.getVideoWorkKindCopy(meta.kind);
     const taskId = meta.taskId || String(target.taskId || "").trim();
     if (!taskId) {
       throw new BadRequestException("当前视频笔记缺少站内任务记录，暂无法恢复。");
@@ -1919,7 +2191,129 @@ export class WorksService {
       brandId,
       taskId,
       workId,
-      title: `视频笔记视频 - ${meta.title}`,
+      title: `${copy.videoAssetTitlePrefix} - ${meta.title}`,
+      sourceUrl: cachedVideoUrl,
+      provider: config.backend,
+      modelName: meta.resolvedVideoModel,
+      providerTaskId,
+      durationSec: snapshot.renderedDurationSec || meta.renderedDurationSec,
+      videoAssetId: meta.videoAssetId,
+    });
+    const nextMeta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      taskId,
+      workflowStage: "SUCCESS",
+      providerTaskId,
+      resolvedVideoProvider: config.backend,
+      renderedDurationSec: snapshot.renderedDurationSec || meta.renderedDurationSec,
+      videoAssetId: videoMedia.id,
+      videoUrl: cachedVideoUrl,
+      coverImageUrl: cachedCoverImageUrl || meta.storyboardImageUrl || meta.coverImageUrl,
+      progressSteps: this.buildVideoProgressSteps("SUCCESS"),
+    });
+    await this.markTaskSuccess(
+      taskId,
+      { workId, stage: "VIDEO_RECOVERED", title: nextMeta.title, providerTaskId },
+      { modelName: nextMeta.resolvedVideoModel },
+    );
+    return {
+      recovered: true,
+      providerTaskId,
+      thirdPartyStatus: snapshot.status,
+      item: this.mapVideoWorkRecord(workId, brandId, taskId, nextMeta, "SUCCESS"),
+    };
+  }
+
+  async recoverDouyinVideoGeneration(
+    brandId: string,
+    payload: RecoverDouyinVideoGenerationPayload,
+  ) {
+    const providerTaskId = payload.providerTaskId?.trim();
+    if (!providerTaskId) {
+      throw new BadRequestException("请提供第三方视频任务 ID。");
+    }
+
+    const target = payload.workId?.trim()
+      ? await this.getVideoWorkRowById(brandId, payload.workId.trim())
+      : await this.findRecoverableVideoWorkRow(brandId, providerTaskId, payload.requestedVideoProvider?.trim(), "DOUYIN_VIDEO_NOTE");
+    const workId = String(target.id || "").trim();
+    const storageKey = target.storageKey || `${workId}.html`;
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_VIDEO_NOTE");
+    const copy = this.getVideoWorkKindCopy(meta.kind);
+    const taskId = meta.taskId || String(target.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("当前视频作品缺少站内任务记录，暂无法恢复。");
+    }
+
+    const backend = this.normalizeVideoProvider(
+      payload.requestedVideoProvider?.trim() || meta.resolvedVideoProvider || meta.requestedVideoProvider,
+    );
+    const config = await this.loadVideoProviderConfig(brandId, backend);
+    const snapshot = await this.queryVideoGenerationSnapshotWithTargets(
+      this.buildVideoRequestTargets(config),
+      config.backend,
+      config.queryPath,
+      providerTaskId,
+      {
+        fallbackDurationSec: meta.requestedDurationSec,
+        queryMethod: config.queryMethod,
+        queryBodyMode: config.queryBodyMode,
+      },
+    );
+
+    if (snapshot.status === "FAILED") {
+      await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "FAILED",
+        providerTaskId,
+        progressSteps: this.buildVideoProgressSteps("FAILED"),
+      });
+      await this.markTaskFailed(taskId, snapshot.failReason || "第三方视频生成任务失败");
+      throw new ServiceUnavailableException(snapshot.failReason || "第三方视频生成任务失败");
+    }
+
+    if (snapshot.status !== "SUCCESS" || !snapshot.videoUrl) {
+      const nextMeta = await this.saveVideoWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        workflowStage: "GENERATING_VIDEO",
+        providerTaskId,
+        progressSteps: this.buildVideoProgressSteps("GENERATING_VIDEO"),
+      });
+      await this.markTaskRunning(taskId);
+      return {
+        recovered: false,
+        providerTaskId,
+        thirdPartyStatus: snapshot.status,
+        item: this.mapVideoWorkRecord(workId, brandId, taskId, nextMeta, "RUNNING"),
+      };
+    }
+
+    const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+      brandId,
+      `${taskId}-video-recovered-${config.backend}.mp4`,
+      snapshot.videoUrl,
+    );
+    const cachedCoverImageUrl = snapshot.coverImageUrl
+      ? await this.cacheRemoteGeneratedImage(
+        brandId,
+        `${taskId}-video-cover-recovered-${config.backend}.png`,
+        snapshot.coverImageUrl,
+        "image/png",
+      )
+      : undefined;
+    const userId = String((target as { userId?: string | null }).userId || "").trim() || await this.getBrandOwnerUserId(brandId);
+    if (!userId) {
+      throw new ServiceUnavailableException("恢复视频成功，但未找到作品归属用户，暂无法回填站内记录。");
+    }
+    const videoMedia = await this.upsertRecoveredVideoMedia({
+      userId,
+      brandId,
+      taskId,
+      workId,
+      title: `${copy.videoAssetTitlePrefix} - ${meta.title}`,
       sourceUrl: cachedVideoUrl,
       provider: config.backend,
       modelName: meta.resolvedVideoModel,
@@ -2026,6 +2420,48 @@ export class WorksService {
   async deleteXiaohongshuVideoNote(brandId: string, workId: string) {
     const target = await this.getVideoWorkRowById(brandId, workId);
     const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "XHS_VIDEO_NOTE");
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
+    const localReferenceFileName = meta.referenceImageUrl ? this.extractLocalAssetFileName(meta.referenceImageUrl, brandId) : "";
+    const localStoryboardFileName = meta.storyboardImageUrl ? this.extractLocalAssetFileName(meta.storyboardImageUrl, brandId) : "";
+    await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localStoryboardFileName);
+    return { success: true };
+  }
+
+  async deleteDouyinVideoNote(brandId: string, workId: string) {
+    const target = await this.getVideoWorkRowById(brandId, workId);
+    const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+    this.ensureVideoWorkKind(meta, "DOUYIN_VIDEO_NOTE");
     const taskId = meta.taskId || target.taskId || undefined;
 
     if (await this.prismaService.canUseDatabase()) {
@@ -2697,6 +3133,7 @@ export class WorksService {
   private async createVideoTask(params: {
     userId: string;
     brandId: string;
+    taskType?: string;
     taskTitle: string;
     requestedVideoProvider: string;
     modelName?: string;
@@ -2709,7 +3146,7 @@ export class WorksService {
         data: {
           userId: params.userId,
           brandId: params.brandId,
-          taskType: "XHS_VIDEO_NOTE",
+          taskType: params.taskType || "XHS_VIDEO_NOTE",
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
           modelName,
@@ -2723,7 +3160,7 @@ export class WorksService {
       id: createId("tsk"),
       userId: params.userId,
       brandId: params.brandId,
-      taskType: "XHS_VIDEO_NOTE",
+      taskType: params.taskType || "XHS_VIDEO_NOTE",
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
       modelName,
@@ -3605,6 +4042,31 @@ export class WorksService {
     ];
   }
 
+  private getVideoWorkKindCopy(kind: VideoWorkKind) {
+    if (kind === "DOUYIN_VIDEO_NOTE") {
+      return {
+        taskLabel: "AI 生视频（故事板）",
+        generatingLabel: "AI 生视频（故事板）生成中",
+        noteLabel: "抖音 AI 生视频（故事板）",
+        htmlTitlePrefix: "抖音 AI 生视频（故事板）",
+        videoAssetTitlePrefix: "AI 生视频（故事板）视频",
+      };
+    }
+    return {
+      taskLabel: "视频笔记",
+      generatingLabel: "视频笔记生成中",
+      noteLabel: "原创视频笔记",
+      htmlTitlePrefix: "小红书视频笔记",
+      videoAssetTitlePrefix: "视频笔记视频",
+    };
+  }
+
+  private ensureVideoWorkKind(meta: VideoWorkAssetMeta, expectedKind: VideoWorkKind) {
+    if (meta.kind !== expectedKind) {
+      throw new NotFoundException("视频作品不存在");
+    }
+  }
+
   private async resolveVideoComposerContext(
     brandId: string,
     payload: GenerateXiaohongshuVideoNotePayload,
@@ -3695,12 +4157,109 @@ export class WorksService {
     };
   }
 
+  private async resolveDouyinVideoComposerContext(
+    brandId: string,
+    payload: GenerateDouyinVideoNotePayload,
+    collaboratorRole: "ADMIN" | "STAFF" | "TALENT",
+  ): Promise<ResolvedVideoComposerContext> {
+    const archive = await this.brandsService.getArchive(brandId);
+    const includeMarketingPlan = payload.includeMarketingPlan !== false;
+    const marketingPlanWorkspace = await this.reportsService.getDouyinMarketingPlanWorkspace(brandId);
+    const latestMarketingPlan = marketingPlanWorkspace.latest;
+    if (includeMarketingPlan && !latestMarketingPlan) {
+      throw new BadRequestException("请先生成抖音营销策划方案，再创作 AI 生视频（故事板）。");
+    }
+    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const selectedCalendarItem = this.findSelectedCalendarItem(calendarWorkspace.history, payload.calendarItemId);
+    const customTopicName = payload.customTopicName?.trim() || undefined;
+    if (!selectedCalendarItem && !customTopicName) {
+      throw new BadRequestException("请选择营销日历选题，或填写自定义选题。");
+    }
+    if (payload.productId && payload.referenceImage?.dataBase64) {
+      throw new BadRequestException("上传产品图/参考图时不能同时选择产品，请二选一。");
+    }
+    const videoKind = (payload.videoKind || "BRAND_PROMO") as VideoNoteKind;
+    const product = payload.productId
+      ? archive.products.find((item) => item.id === payload.productId)
+      : undefined;
+    const normalizedProduct = product
+      ? {
+        id: product.id,
+        productName: product.productName,
+        detailDescription: product.detailDescription || "",
+        usageScenario: product.usageScenario || "",
+        targetAudience: product.targetAudience || "",
+        differentiators: product.differentiators || "",
+        imageUrl: product.imageUrl || undefined,
+      }
+      : undefined;
+    let material: ResolvedVideoComposerContext["material"];
+    if (payload.materialId?.trim()) {
+      const workspace = await this.collectorsService.getDouyinWorkspace(brandId);
+      const target = [
+        ...workspace.benchmarkWorks,
+        ...workspace.lowFanExplosiveWorks,
+        ...workspace.highCompletionRateWorks,
+        ...workspace.highLikeRateWorks,
+      ].find((item) => item.id === payload.materialId?.trim() && item.isInMaterialLibrary);
+      if (!target) {
+        throw new BadRequestException("未找到你选择的抖音素材，请确认该作品已加入抖音素材库。");
+      }
+      if (videoKind === "REMIX" && !target.videoUrl) {
+        throw new BadRequestException("复刻视频必须选择视频类型素材，请重新选择抖音素材库中的视频素材。");
+      }
+      material = {
+        id: target.id,
+        title: target.title,
+        description: target.description || undefined,
+        noteUrl: target.workUrl || undefined,
+        sourceUrl: target.videoUrl || target.workUrl || undefined,
+        videoUrl: target.videoUrl || "",
+      };
+    } else if (videoKind === "REMIX") {
+      throw new BadRequestException("复刻视频必须先选择一个视频素材。");
+    }
+    const referenceImageUrl = payload.referenceImage?.dataBase64
+      ? (
+        await this.persistUploadFile(
+          brandId,
+          `${randomUUID()}-douyin-video-reference${this.resolveExtensionFromFileName(payload.referenceImage.fileName, ".png")}`,
+          payload.referenceImage,
+        )
+      ).url
+      : undefined;
+    const requestedVideoProvider = await this.resolveVideoProviderWithoutReferenceFallback(
+      brandId,
+      this.normalizeVideoProvider(payload.videoProvider),
+      Boolean(referenceImageUrl || normalizedProduct?.imageUrl),
+    );
+    const additionalInstruction = payload.additionalInstruction?.trim() || undefined;
+    return {
+      accountRole: this.resolveOriginalAccountRole(payload.accountRole, collaboratorRole),
+      videoKind,
+      selectedCalendarItem,
+      customTopicName,
+      topicLabel: selectedCalendarItem?.topicName || customTopicName || "自定义选题",
+      product: normalizedProduct,
+      material,
+      referenceImageUrl,
+      includeMarketingPlan,
+      marketingPlanMarkdown: includeMarketingPlan ? latestMarketingPlan?.reportMarkdown || "" : "",
+      requestedVideoProvider,
+      requestedDurationSec: this.normalizeRequestedVideoDuration(payload.durationSec),
+      requestedStoryboardImageModel: payload.storyboardImageModel?.trim() || undefined,
+      copyAdditionalInstruction: additionalInstruction,
+      videoAdditionalInstruction: additionalInstruction,
+    };
+  }
+
   private async saveVideoWorkMetadataSnapshot(
     brandId: string,
     workId: string,
     storageKey: string,
     meta: VideoWorkAssetMeta,
   ) {
+    const copy = this.getVideoWorkKindCopy(meta.kind);
     const nextMeta: VideoWorkAssetMeta = {
       ...meta,
       htmlContent: this.renderGeneratedVideoNoteHtml({
@@ -3711,7 +4270,7 @@ export class WorksService {
         storyboardImageUrl: meta.storyboardImageUrl,
         videoUrl: meta.videoUrl,
         videoPrompt: meta.fullVideoPrompt || meta.videoPrompt,
-        noteLabel: "原创视频笔记",
+        noteLabel: copy.noteLabel,
         videoKindLabel: this.getVideoKindLabel(meta.videoKind),
         workflowStage: meta.workflowStage,
         storyboardPrompt: meta.storyboardPrompt,
@@ -3721,7 +4280,7 @@ export class WorksService {
       updatedAt: new Date().toISOString(),
     };
     await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
-    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `小红书视频笔记 - ${nextMeta.title}`);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `${copy.htmlTitlePrefix} - ${nextMeta.title}`);
     return nextMeta;
   }
 
@@ -4750,18 +5309,23 @@ export class WorksService {
     };
   }
 
-  private isVideoWorkMeta(metadataJson: unknown) {
+  private isVideoWorkMeta(metadataJson: unknown, expectedKind?: VideoWorkKind) {
     const meta = this.asRecord(metadataJson);
-    return meta?.kind === "XHS_VIDEO_NOTE";
+    const kind = meta?.kind;
+    if (kind !== "XHS_VIDEO_NOTE" && kind !== "DOUYIN_VIDEO_NOTE") {
+      return false;
+    }
+    return expectedKind ? kind === expectedKind : true;
   }
 
   private readVideoWorkMeta(metadataJson: unknown): VideoWorkAssetMeta {
     const meta = this.asRecord(metadataJson);
-    if (!meta || meta.kind !== "XHS_VIDEO_NOTE") {
+    if (!meta || (meta.kind !== "XHS_VIDEO_NOTE" && meta.kind !== "DOUYIN_VIDEO_NOTE")) {
       throw new NotFoundException("视频笔记不存在");
     }
+    const kind = meta.kind as VideoWorkKind;
     return {
-      kind: "XHS_VIDEO_NOTE",
+      kind,
       taskId: String(meta.taskId ?? ""),
       noteCategory: "原创",
       noteType: "视频",
@@ -4918,7 +5482,12 @@ export class WorksService {
     return row;
   }
 
-  private async findRecoverableVideoWorkRow(brandId: string, providerTaskId: string, requestedVideoProvider?: string) {
+  private async findRecoverableVideoWorkRow(
+    brandId: string,
+    providerTaskId: string,
+    requestedVideoProvider?: string,
+    expectedKind?: VideoWorkKind,
+  ) {
     const normalizedProvider = requestedVideoProvider
       ? this.normalizeVideoBackendLookupKey(requestedVideoProvider)
       : "";
@@ -4936,7 +5505,7 @@ export class WorksService {
         take: 20,
       });
       const candidates = rows
-        .filter((item) => this.isVideoWorkMeta(item.metadataJson))
+        .filter((item) => this.isVideoWorkMeta(item.metadataJson, expectedKind))
         .map((item) => ({ row: item, meta: this.readVideoWorkMeta(item.metadataJson) }));
       const exact = candidates.find((item) => item.meta.providerTaskId === providerTaskId);
       if (exact) {
@@ -4962,7 +5531,7 @@ export class WorksService {
 
     const candidates = database.media
       .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
-      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .filter((item) => this.isVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson, expectedKind))
       .map((item) => ({ row: item, meta: this.readVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson) }))
       .sort((a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime());
     const exact = candidates.find((item) => item.meta.providerTaskId === providerTaskId);

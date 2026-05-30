@@ -218,6 +218,8 @@ export type XiaohongshuVideoWorkRecord = {
   updatedAt: string;
 };
 
+export type DouyinVideoWorkRecord = XiaohongshuVideoWorkRecord;
+
 export type GenerateXiaohongshuOriginalNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -253,6 +255,22 @@ export type GenerateXiaohongshuVideoNoteForm = {
   durationSec?: number;
   includeMarketingPlan?: boolean;
   videoAdditionalInstruction?: string;
+};
+
+export type GenerateDouyinVideoNoteForm = {
+  calendarItemId?: string;
+  customTopicName?: string;
+  productId?: string;
+  materialId?: string;
+  accountRole?: XiaohongshuAccountRole;
+  referenceImageFile?: File | null;
+  videoKind?: VideoNoteKind;
+  additionalInstruction?: string;
+  videoProvider?: string;
+  customVideoModelName?: string;
+  storyboardImageModel?: string;
+  durationSec?: number;
+  includeMarketingPlan?: boolean;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -447,6 +465,106 @@ export async function updateXiaohongshuVideoWork(
 
 export async function deleteXiaohongshuVideoWork(brandId: string, workId: string) {
   return request<{ success: boolean }>(`/works/brands/${brandId}/xiaohongshu/video/${workId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinVideoWorks(brandId: string) {
+  return request<{ items: DouyinVideoWorkRecord[] }>(`/works/brands/${brandId}/douyin/video`);
+}
+
+export async function getDouyinVideoProviders(brandId: string) {
+  return request<{ items: VideoProviderOptionRecord[] }>(`/works/brands/${brandId}/douyin/video/providers`);
+}
+
+export async function getDouyinVideoStoryboardImageProviders(brandId: string) {
+  return request<{ items: StoryboardImageModelOptionRecord[] }>(
+    `/works/brands/${brandId}/douyin/video/storyboard-image/providers`,
+  );
+}
+
+export async function generateDouyinVideoWork(brandId: string, form: GenerateDouyinVideoNoteForm) {
+  const referenceImage = form.referenceImageFile ? await toUploadPayload(form.referenceImageFile) : undefined;
+
+  return jsonRequest<{ item: DouyinVideoWorkRecord }>(`/works/brands/${brandId}/douyin/video/generate`, "POST", {
+    calendarItemId: form.calendarItemId,
+    customTopicName: form.customTopicName,
+    productId: form.productId,
+    materialId: form.materialId,
+    accountRole: form.accountRole,
+    referenceImage,
+    videoKind: form.videoKind,
+    additionalInstruction: form.additionalInstruction,
+    videoProvider: form.videoProvider,
+    customVideoModelName: form.customVideoModelName,
+    storyboardImageModel: form.storyboardImageModel,
+    durationSec: form.durationSec,
+    includeMarketingPlan: form.includeMarketingPlan,
+  });
+}
+
+export async function regenerateDouyinVideoStoryboard(
+  brandId: string,
+  workId: string,
+  payload: {
+    storyboardPrompt?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/video/${workId}/storyboard/regenerate`,
+    "POST",
+    payload,
+  );
+}
+
+export async function continueDouyinVideoGeneration(
+  brandId: string,
+  workId: string,
+  payload?: {
+    customVideoModelName?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/video/${workId}/video/generate`,
+    "POST",
+    payload || {},
+  );
+}
+
+export async function recoverDouyinVideoGeneration(
+  brandId: string,
+  payload: {
+    workId?: string;
+    providerTaskId: string;
+    requestedVideoProvider?: string;
+  },
+) {
+  return jsonRequest<{
+    recovered: boolean;
+    providerTaskId: string;
+    thirdPartyStatus: string;
+    item: DouyinVideoWorkRecord;
+  }>(`/works/brands/${brandId}/douyin/video/recover`, "POST", payload);
+}
+
+export async function updateDouyinVideoWork(
+  brandId: string,
+  workId: string,
+  payload: {
+    title?: string;
+    content?: string;
+    storyboardPrompt?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/video/${workId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteDouyinVideoWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/video/${workId}`, {
     method: "DELETE",
   });
 }

@@ -26,6 +26,7 @@ export type BrandPermissionKey =
   | "xiaohongshu.original"
   | "xiaohongshu.remix"
   | "xiaohongshu.video"
+  | "douyin.video"
   | "personalCenter.skills"
   | "personalCenter.thirdPartyPlatforms"
   | "personalCenter.tasks"
