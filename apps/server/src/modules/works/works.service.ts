@@ -18,8 +18,10 @@ import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 import {
   ChanjingOpenApiService,
+  type ChanjingCreateLipSyncPayload,
   type ChanjingCustomisedPersonRecord,
   type ChanjingFileRecord,
+  type ChanjingLipSyncDetail,
   type ChanjingTemplateRecord,
   type ChanjingTemplateTagGroup,
   type ChanjingUploadUrlRecord,
@@ -688,6 +690,37 @@ type DigitalHumanVideoWorkAssetMeta = {
   updatedAt: string;
 };
 
+type DouyinLipSyncWorkAssetMeta = {
+  kind: "DOUYIN_LIP_SYNC_VIDEO";
+  taskId: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  title: string;
+  htmlContent: string;
+  audioType: "TEXT" | "AUDIO";
+  script?: string;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth: number;
+  screenHeight: number;
+  sourceVideoFileName?: string;
+  sourceVideoFileId?: string;
+  audioFileName?: string;
+  audioFileId?: string;
+  providerTaskId?: string;
+  progress: number;
+  videoAssetId?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
+  providerStatusCode?: number;
+  providerStatusText?: string;
+  providerUpdatedAt?: string;
+  renderedDurationSec?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type DigitalHumanCustomPersonWorkAssetMeta = {
   kind: "DOUYIN_DIGITAL_HUMAN_CUSTOM";
   taskId: string;
@@ -807,6 +840,30 @@ type DigitalHumanVideoSnapshot = {
   previewUrl?: string;
   durationSec?: number;
   audioUrls: string[];
+};
+
+type DouyinLipSyncSnapshot = {
+  id: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  detail?: string;
+  videoUrl?: string;
+  previewUrl?: string;
+  durationSec?: number;
+  providerStatusCode?: number;
+};
+
+type NormalizedDouyinLipSyncPayload = {
+  title: string;
+  audioType: "TEXT" | "AUDIO";
+  script?: string;
+  audioManId?: string;
+  speechRate?: number;
+  pitch?: number;
+  screenWidth: number;
+  screenHeight: number;
+  sourceVideo: UploadFilePayload;
+  audioFile?: UploadFilePayload;
 };
 
 export type XiaohongshuOriginalWorkRecord = {
@@ -1734,42 +1791,183 @@ export class WorksService {
     return { success: true };
   }
 
-  async listDouyinLipSyncWorks(_brandId: string) {
+  async listDouyinLipSyncWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const activeRows = workRows
+        .filter((item) => this.isDouyinLipSyncWorkMeta(item.metadataJson))
+        .slice(0, 10);
+      if (activeRows.length) {
+        await Promise.allSettled(activeRows.map((item) => this.refreshDouyinLipSyncWorkSnapshot(brandId, item.id)));
+      }
+      const refreshedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return {
+        items: refreshedRows
+          .filter((item) => this.isDouyinLipSyncWorkMeta(item.metadataJson))
+          .map((item) => this.mapDouyinLipSyncWorkFromDatabase(item))
+          .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDouyinLipSyncWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => this.mapDouyinLipSyncWorkFromMock(item))
+      .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    await Promise.allSettled(items.slice(0, 10).map((item) => this.refreshDouyinLipSyncWorkSnapshot(brandId, item.id)));
     return {
-      items: [] as DouyinLipSyncWorkRecord[],
+      items: database.media
+        .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+        .filter((item) => this.isDouyinLipSyncWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+        .map((item) => this.mapDouyinLipSyncWorkFromMock(item))
+        .filter((item): item is DouyinLipSyncWorkRecord => Boolean(item))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     };
   }
 
   async generateDouyinLipSync(
-    _brandId: string,
+    brandId: string,
     payload: CreateDouyinLipSyncPayload,
-    _auth?: RequestAuthContext,
+    auth?: RequestAuthContext,
   ) {
-    if (!payload.sourceVideo) {
-      throw new BadRequestException("请先上传用于口型驱动的视频，再提交任务。");
+    const normalized = this.normalizeDouyinLipSyncPayload(payload);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_LIP_SYNC_VIDEO",
+      taskTitle: `创建口型驱动：${normalized.title}`,
+      requestedVideoProvider: "chanjing_lip_sync",
+      modelName: "chanjing-lip-sync",
+    });
+    const now = new Date().toISOString();
+    const meta: DouyinLipSyncWorkAssetMeta = {
+      kind: "DOUYIN_LIP_SYNC_VIDEO",
+      taskId: task.id,
+      status: "PENDING",
+      title: normalized.title,
+      htmlContent: this.renderDouyinLipSyncHtml({
+        title: normalized.title,
+        status: "PENDING",
+        progress: 0,
+        audioType: normalized.audioType,
+        script: normalized.script,
+        audioManId: normalized.audioManId,
+        speechRate: normalized.speechRate,
+        pitch: normalized.pitch,
+        screenWidth: normalized.screenWidth,
+        screenHeight: normalized.screenHeight,
+      }),
+      audioType: normalized.audioType,
+      script: normalized.script,
+      audioManId: normalized.audioManId,
+      speechRate: normalized.speechRate,
+      pitch: normalized.pitch,
+      screenWidth: normalized.screenWidth,
+      screenHeight: normalized.screenHeight,
+      sourceVideoFileName: normalized.sourceVideo.fileName,
+      audioFileName: normalized.audioFile?.fileName,
+      progress: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-lip-sync.html`, meta.htmlContent);
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音口型驱动 - ${normalized.title}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata: meta,
+    });
+    setTimeout(() => {
+      void this.runGenerateDouyinLipSyncTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized);
+    }, 0);
+    return {
+      item: this.mapDouyinLipSyncWorkRecord(workMedia.id, brandId, task.id, meta, "QUEUED"),
+    };
+  }
+
+  async recoverDouyinLipSync(brandId: string, payload: RecoverDouyinLipSyncPayload) {
+    const providerTaskId = String(payload.providerTaskId || "").trim();
+    if (!providerTaskId && !String(payload.workId || "").trim()) {
+      throw new BadRequestException("请先填写站内口型驱动记录 ID 或蝉镜任务 ID。");
     }
-    if ((payload.audioType || "TEXT") === "AUDIO") {
-      if (!payload.audioFile) {
-        throw new BadRequestException("音频驱动模式下，请先上传驱动音频。");
+    const target = payload.workId?.trim()
+      ? await this.getDouyinLipSyncWorkRowById(brandId, payload.workId.trim())
+      : await this.findRecoverableDouyinLipSyncWorkRow(brandId, providerTaskId);
+    const workId = String(target.id || "").trim();
+    const storageKey = target.storageKey || `${workId}.html`;
+    const meta = this.readDouyinLipSyncWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || String(target.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("当前口型驱动记录缺少站内任务，暂无法恢复。");
+    }
+    const snapshot = await this.queryDouyinLipSyncSnapshot(brandId, providerTaskId || meta.providerTaskId || "");
+    const nextMeta = await this.persistDouyinLipSyncSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
+    return {
+      recovered: snapshot.status === "SUCCESS" && Boolean(snapshot.videoUrl),
+      providerTaskId: snapshot.id,
+      thirdPartyStatus: snapshot.status,
+      item: this.mapDouyinLipSyncWorkRecord(
+        workId,
+        brandId,
+        taskId,
+        nextMeta,
+        snapshot.status === "SUCCESS" && snapshot.videoUrl ? "SUCCESS" : snapshot.status === "FAILED" ? "FAILED" : "RUNNING",
+      ),
+    };
+  }
+
+  async deleteDouyinLipSync(brandId: string, workId: string, _auth?: RequestAuthContext) {
+    const target = await this.getDouyinLipSyncWorkRowById(brandId, workId);
+    const meta = this.readDouyinLipSyncWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
       }
-    } else if (!String(payload.script || "").trim()) {
-      throw new BadRequestException("文本驱动模式下，请先输入驱动文案。");
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
     }
-    throw new ServiceUnavailableException(
-      "口型驱动的蝉镜上传与任务接口正在接入中，当前已开放栏目、表单和路由壳子，暂不支持真实提交任务。",
-    );
-  }
 
-  async recoverDouyinLipSync(_brandId: string, payload: RecoverDouyinLipSyncPayload) {
-    if (!String(payload.providerTaskId || "").trim()) {
-      throw new BadRequestException("请先填写口型驱动任务 ID，再尝试找回结果。");
-    }
-    throw new ServiceUnavailableException(
-      "口型驱动结果找回接口正在接入中，当前已开放栏目和手动找回入口，下一轮继续补真实蝉镜查询。",
-    );
-  }
-
-  async deleteDouyinLipSync(_brandId: string, _workId: string, _auth?: RequestAuthContext) {
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
+    const localCoverFileName = meta.coverImageUrl ? this.extractLocalAssetFileName(meta.coverImageUrl, brandId) : "";
+    await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localCoverFileName);
     return { success: true };
   }
 
@@ -4530,7 +4728,7 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta;
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta | DouyinLipSyncWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -4879,7 +5077,7 @@ export class WorksService {
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta,
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta | DouyinLipSyncWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -7105,6 +7303,635 @@ export class WorksService {
       throw new NotFoundException(`未找到可用于恢复第三方任务 ${providerTaskId} 的视频笔记。`);
     }
     throw new BadRequestException("当前品牌下存在多条待恢复的视频笔记，请补充 workId 后重试。");
+  }
+
+  private isDouyinLipSyncWorkMeta(metadataJson: unknown) {
+    return this.asRecord(metadataJson)?.kind === "DOUYIN_LIP_SYNC_VIDEO";
+  }
+
+  private readDouyinLipSyncWorkMeta(metadataJson: unknown): DouyinLipSyncWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    if (!meta || meta.kind !== "DOUYIN_LIP_SYNC_VIDEO") {
+      throw new NotFoundException("口型驱动记录不存在");
+    }
+    return {
+      kind: "DOUYIN_LIP_SYNC_VIDEO",
+      taskId: String(meta.taskId ?? "").trim(),
+      status: this.normalizeDouyinLipSyncStatus(this.readOptionalString(meta.status)),
+      title: String(meta.title ?? "").trim(),
+      htmlContent: String(meta.htmlContent ?? "").trim(),
+      audioType: this.normalizeDouyinLipSyncAudioType(this.readOptionalString(meta.audioType)),
+      script: this.readOptionalString(meta.script),
+      audioManId: this.readOptionalString(meta.audioManId),
+      speechRate: typeof meta.speechRate === "number" ? meta.speechRate : undefined,
+      pitch: typeof meta.pitch === "number" ? meta.pitch : undefined,
+      screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
+      screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
+      sourceVideoFileName: this.readOptionalString(meta.sourceVideoFileName),
+      sourceVideoFileId: this.readOptionalString(meta.sourceVideoFileId),
+      audioFileName: this.readOptionalString(meta.audioFileName),
+      audioFileId: this.readOptionalString(meta.audioFileId),
+      providerTaskId: this.readOptionalString(meta.providerTaskId),
+      progress: Math.max(0, Math.min(100, Number(meta.progress || 0))),
+      videoAssetId: this.readOptionalString(meta.videoAssetId),
+      videoUrl: this.readOptionalString(meta.videoUrl),
+      coverImageUrl: this.readOptionalString(meta.coverImageUrl),
+      errorReason: this.readOptionalString(meta.errorReason),
+      providerStatusCode: typeof meta.providerStatusCode === "number" ? meta.providerStatusCode : undefined,
+      providerStatusText: this.readOptionalString(meta.providerStatusText),
+      providerUpdatedAt: this.readOptionalString(meta.providerUpdatedAt),
+      renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
+      createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
+      updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private normalizeDouyinLipSyncStatus(value?: string): DouyinLipSyncWorkAssetMeta["status"] {
+    switch (value) {
+      case "RUNNING":
+      case "SUCCESS":
+      case "FAILED":
+        return value;
+      default:
+        return "PENDING";
+    }
+  }
+
+  private normalizeDouyinLipSyncAudioType(value?: string): DouyinLipSyncWorkAssetMeta["audioType"] {
+    return value === "AUDIO" ? "AUDIO" : "TEXT";
+  }
+
+  private normalizeDouyinLipSyncPayload(payload: CreateDouyinLipSyncPayload): NormalizedDouyinLipSyncPayload {
+    if (!payload.sourceVideo) {
+      throw new BadRequestException("请先上传用于口型驱动的视频，再提交任务。");
+    }
+    this.validateLipSyncSourceVideo(payload.sourceVideo);
+    const audioType = this.normalizeDouyinLipSyncAudioType(payload.audioType);
+    if (audioType === "AUDIO") {
+      if (!payload.audioFile) {
+        throw new BadRequestException("音频驱动模式下，请先上传驱动音频。");
+      }
+      this.validateLipSyncAudioFile(payload.audioFile);
+    } else if (!String(payload.script || "").trim()) {
+      throw new BadRequestException("文本驱动模式下，请先输入驱动文案。");
+    }
+    const fallbackTitle = String(payload.sourceVideo.fileName || "").replace(/\.[^.]+$/, "").trim() || `口型驱动-${Date.now()}`;
+    return {
+      title: String(payload.title || "").trim() || `${fallbackTitle} 口型驱动`,
+      audioType,
+      script: audioType === "TEXT" ? String(payload.script || "").trim() : undefined,
+      audioManId: audioType === "TEXT" ? this.readOptionalString(payload.audioManId) : undefined,
+      speechRate: audioType === "TEXT"
+        ? Math.max(0.5, Math.min(2, this.readNumberWithFallback(payload.speechRate, 1)))
+        : undefined,
+      pitch: audioType === "TEXT" && typeof payload.pitch === "number"
+        ? Math.max(-12, Math.min(12, payload.pitch))
+        : undefined,
+      screenWidth: this.readPositiveInteger(payload.screenWidth, 1080),
+      screenHeight: this.readPositiveInteger(payload.screenHeight, 1920),
+      sourceVideo: payload.sourceVideo,
+      audioFile: audioType === "AUDIO" ? payload.audioFile : undefined,
+    };
+  }
+
+  private validateLipSyncSourceVideo(payload: UploadFilePayload) {
+    if (!String(payload.dataBase64 || "").trim()) {
+      throw new BadRequestException("口型驱动视频内容为空，请重新上传。");
+    }
+    const extension = this.resolveVideoExtensionFromMimeType(payload.contentType, payload.fileName);
+    if (![".mp4", ".webm", ".mov"].includes(extension)) {
+      throw new BadRequestException("口型驱动视频只支持 mp4、webm、mov 格式。");
+    }
+  }
+
+  private validateLipSyncAudioFile(payload: UploadFilePayload) {
+    if (!String(payload.dataBase64 || "").trim()) {
+      throw new BadRequestException("驱动音频内容为空，请重新上传。");
+    }
+    const extension = this.resolveAudioExtensionFromMimeType(payload.contentType, payload.fileName);
+    if (![".mp3", ".m4a", ".wav"].includes(extension)) {
+      throw new BadRequestException("驱动音频只支持 mp3、m4a、wav 格式。");
+    }
+  }
+
+  private renderDouyinLipSyncHtml(params: {
+    title: string;
+    status: DouyinLipSyncWorkAssetMeta["status"];
+    progress: number;
+    audioType: DouyinLipSyncWorkAssetMeta["audioType"];
+    script?: string;
+    audioManId?: string;
+    speechRate?: number;
+    pitch?: number;
+    screenWidth: number;
+    screenHeight: number;
+    providerTaskId?: string;
+    videoUrl?: string;
+    coverImageUrl?: string;
+    errorReason?: string;
+  }) {
+    const scriptBlocks = params.script
+      ? params.script
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => `<p style="margin:0 0 12px;color:#24314a;font-size:16px;line-height:1.9;">${this.escapeHtml(item)}</p>`)
+        .join("")
+      : '<p style="margin:0;color:#63708a;">当前为音频驱动模式，站内不保存音频文本内容。</p>';
+    const preview = params.coverImageUrl
+      ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
+      : "";
+    const finalVideo = params.videoUrl
+      ? `<video controls preload="metadata" src="${this.escapeHtml(params.videoUrl)}" style="width:100%;margin-top:18px;border-radius:24px;background:#0f1525;box-shadow:0 18px 40px rgba(24,36,68,0.16);"></video>`
+      : `<div style="margin-top:18px;padding:24px;border-radius:24px;background:#f7f9ff;border:1px solid #dfe5f2;color:#63708a;">口型驱动完成后，这里会显示最终生成视频。</div>`;
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>',
+      this.escapeHtml(params.title),
+      '</title></head><body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:\'PingFang SC\',\'Microsoft YaHei\',sans-serif;">',
+      '<main style="max-width:880px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      preview,
+      `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="display:flex;flex-wrap:wrap;gap:10px;color:#63708a;font-size:13px;margin-bottom:18px;"><span>抖音口型驱动</span><span>${this.escapeHtml(this.getDouyinLipSyncStatusLabel(params.status))}</span><span>进度 ${Math.max(0, Math.min(100, Math.round(params.progress)))}%</span><span>${params.audioType === "AUDIO" ? "音频驱动" : "文本驱动"}</span><span>${params.screenWidth} x ${params.screenHeight}</span>${params.providerTaskId ? `<span>任务ID ${this.escapeHtml(params.providerTaskId)}</span>` : ""}</div>`,
+      params.errorReason
+        ? `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#fff4f4;border:1px solid #ffd5d5;color:#b42318;"><strong>失败原因</strong><div style="margin-top:6px;font-size:14px;">${this.escapeHtml(params.errorReason)}</div></div>`
+        : "",
+      `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#f7f9ff;border:1px solid #dfe5f2;color:#24314a;"><strong>驱动参数</strong><div style="margin-top:6px;color:#63708a;font-size:14px;">音色 ID：${this.escapeHtml(params.audioManId || "未填写")} / 语速：${params.speechRate ?? 1} / 音调：${params.pitch ?? 0}</div></div>`,
+      scriptBlocks,
+      finalVideo,
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private getDouyinLipSyncStatusLabel(status: DouyinLipSyncWorkAssetMeta["status"]) {
+    switch (status) {
+      case "SUCCESS":
+        return "已完成";
+      case "FAILED":
+        return "失败";
+      case "RUNNING":
+        return "处理中";
+      default:
+        return "排队中";
+    }
+  }
+
+  private async saveDouyinLipSyncMetadataSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    meta: DouyinLipSyncWorkAssetMeta,
+  ) {
+    const nextMeta: DouyinLipSyncWorkAssetMeta = {
+      ...meta,
+      htmlContent: this.renderDouyinLipSyncHtml({
+        title: meta.title,
+        status: meta.status,
+        progress: meta.progress,
+        audioType: meta.audioType,
+        script: meta.script,
+        audioManId: meta.audioManId,
+        speechRate: meta.speechRate,
+        pitch: meta.pitch,
+        screenWidth: meta.screenWidth,
+        screenHeight: meta.screenHeight,
+        providerTaskId: meta.providerTaskId,
+        videoUrl: meta.videoUrl,
+        coverImageUrl: meta.coverImageUrl,
+        errorReason: meta.errorReason,
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `抖音口型驱动 - ${nextMeta.title}`);
+    return nextMeta;
+  }
+
+  private mapDouyinLipSyncWorkFromDatabase(item: {
+    id: string;
+    brandId: string | null;
+    taskId: string | null;
+    metadataJson: Prisma.JsonValue | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    const meta = this.readDouyinLipSyncWorkMeta(item.metadataJson);
+    return this.mapDouyinLipSyncWorkRecord(
+      item.id,
+      item.brandId ?? undefined,
+      item.taskId ?? meta.taskId,
+      meta,
+      targetTaskStatus(item),
+      item.createdAt.toISOString(),
+      item.updatedAt.toISOString(),
+    );
+  }
+
+  private mapDouyinLipSyncWorkFromMock(
+    item: { id: string; brandId?: string; taskId?: string; metadataJson?: unknown; createdAt: string; updatedAt?: string },
+  ) {
+    const meta = this.readDouyinLipSyncWorkMeta(item.metadataJson);
+    const task = database.tasks.find((entry) => entry.id === (item.taskId || meta.taskId));
+    return this.mapDouyinLipSyncWorkRecord(
+      item.id,
+      item.brandId,
+      item.taskId || meta.taskId,
+      meta,
+      task?.taskStatus,
+      item.createdAt,
+      item.updatedAt || item.createdAt,
+    );
+  }
+
+  private mapDouyinLipSyncWorkRecord(
+    id: string,
+    _brandId: string | undefined,
+    _taskId: string | undefined,
+    meta: DouyinLipSyncWorkAssetMeta,
+    _taskStatus?: WorkTaskStatus,
+    createdAt?: string,
+    updatedAt?: string,
+  ): DouyinLipSyncWorkRecord {
+    return {
+      id,
+      title: meta.title,
+      audioType: meta.audioType,
+      script: meta.script,
+      audioManId: meta.audioManId,
+      speechRate: meta.speechRate,
+      pitch: meta.pitch,
+      screenWidth: meta.screenWidth,
+      screenHeight: meta.screenHeight,
+      providerTaskId: meta.providerTaskId,
+      status: meta.status,
+      progress: meta.progress,
+      videoUrl: meta.videoUrl,
+      coverImageUrl: meta.coverImageUrl,
+      errorReason: meta.errorReason,
+      createdAt: createdAt || meta.createdAt,
+      updatedAt: updatedAt || meta.updatedAt,
+    };
+  }
+
+  private async getDouyinLipSyncWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isDouyinLipSyncWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("口型驱动记录不存在");
+      }
+      return row;
+    }
+
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isDouyinLipSyncWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("口型驱动记录不存在");
+    }
+    return row;
+  }
+
+  private async findRecoverableDouyinLipSyncWorkRow(brandId: string, providerTaskId: string) {
+    const normalizedTaskId = String(providerTaskId || "").trim();
+    const isRecoverableStatus = (status?: DouyinLipSyncWorkAssetMeta["status"]) =>
+      status === "PENDING" || status === "RUNNING" || status === "FAILED";
+
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const candidates = rows
+        .filter((item) => this.isDouyinLipSyncWorkMeta(item.metadataJson))
+        .map((item) => ({ row: item, meta: this.readDouyinLipSyncWorkMeta(item.metadataJson) }));
+      const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
+      if (exact) {
+        return exact.row;
+      }
+      const recoverable = candidates.filter((item) => !item.meta.videoUrl && isRecoverableStatus(item.meta.status));
+      if (recoverable.length === 1) {
+        return recoverable[0].row;
+      }
+      if (!recoverable.length) {
+        throw new NotFoundException(`未找到可用于恢复蝉镜任务 ${normalizedTaskId} 的口型驱动记录。`);
+      }
+      throw new BadRequestException("当前品牌下存在多条待恢复的口型驱动记录，请补充 workId 后重试。");
+    }
+
+    const candidates = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDouyinLipSyncWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => ({
+        row: item,
+        meta: this.readDouyinLipSyncWorkMeta((item as { metadataJson?: unknown }).metadataJson),
+      }))
+      .sort((a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime());
+    const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
+    if (exact) {
+      return exact.row;
+    }
+    const recoverable = candidates.filter((item) => !item.meta.videoUrl && isRecoverableStatus(item.meta.status));
+    if (recoverable.length === 1) {
+      return recoverable[0].row;
+    }
+    if (!recoverable.length) {
+      throw new NotFoundException(`未找到可用于恢复蝉镜任务 ${normalizedTaskId} 的口型驱动记录。`);
+    }
+    throw new BadRequestException("当前品牌下存在多条待恢复的口型驱动记录，请补充 workId 后重试。");
+  }
+
+  private async refreshDouyinLipSyncWorkSnapshot(brandId: string, workId: string) {
+    try {
+      const target = await this.getDouyinLipSyncWorkRowById(brandId, workId);
+      const meta = this.readDouyinLipSyncWorkMeta(this.getMediaMetadata(target));
+      if (!meta.providerTaskId || (meta.status === "SUCCESS" && meta.videoUrl)) {
+        return;
+      }
+      const taskId = meta.taskId || String(target.taskId || "").trim();
+      if (!taskId) {
+        return;
+      }
+      await this.persistDouyinLipSyncSnapshot(
+        brandId,
+        workId,
+        target.storageKey || `${workId}.html`,
+        taskId,
+        meta,
+        await this.queryDouyinLipSyncSnapshot(brandId, meta.providerTaskId),
+      );
+    } catch {
+      // Ignore list auto-refresh failures to avoid blocking the workspace.
+    }
+  }
+
+  private async uploadChanjingLipSyncVideo(credential: string, payload: UploadFilePayload) {
+    const upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
+      service: "lip_sync_video",
+      name: payload.fileName || `lip-sync-video${this.resolveVideoExtensionFromMimeType(payload.contentType, ".mp4")}`,
+    });
+    await this.chanjingOpenApiService.uploadSignedFile(
+      upload.signUrl,
+      payload,
+      upload.mimeType || payload.contentType || "application/octet-stream",
+    );
+    const fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    return {
+      ...upload,
+      fileDetail,
+    };
+  }
+
+  private async uploadChanjingLipSyncAudio(credential: string, payload: UploadFilePayload) {
+    const upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
+      service: "lip_sync_audio",
+      name: payload.fileName || `lip-sync-audio${this.resolveAudioExtensionFromMimeType(payload.contentType, ".mp3")}`,
+    });
+    await this.chanjingOpenApiService.uploadSignedFile(
+      upload.signUrl,
+      payload,
+      upload.mimeType || payload.contentType || "application/octet-stream",
+    );
+    const fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    return {
+      ...upload,
+      fileDetail,
+    };
+  }
+
+  private buildChanjingLipSyncCreatePayload(meta: DouyinLipSyncWorkAssetMeta): ChanjingCreateLipSyncPayload {
+    return {
+      video_file_id: meta.sourceVideoFileId || "",
+      screen_width: meta.screenWidth,
+      screen_height: meta.screenHeight,
+      model: 0,
+      audio_type: meta.audioType === "AUDIO" ? "audio" : "tts",
+      ...(meta.audioType === "AUDIO"
+        ? {
+            audio_file_id: meta.audioFileId,
+          }
+        : {
+            tts_config: {
+              text: meta.script || "",
+              audio_man_id: meta.audioManId,
+              speed: meta.speechRate,
+              ...(typeof meta.pitch === "number" ? { pitch: meta.pitch } : {}),
+            },
+          }),
+    };
+  }
+
+  private async runGenerateDouyinLipSyncTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    payload: NormalizedDouyinLipSyncPayload,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING", title: payload.title });
+      let meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readDouyinLipSyncWorkMeta((await this.getDouyinLipSyncWorkRowById(brandId, workId)).metadataJson),
+        status: "RUNNING",
+        progress: 0,
+        errorReason: undefined,
+        providerStatusText: "正在上传驱动视频",
+        providerUpdatedAt: new Date().toISOString(),
+      });
+      const credential = await this.resolveChanjingCredential(brandId);
+      const sourceVideo = await this.uploadChanjingLipSyncVideo(credential, payload.sourceVideo);
+      meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        sourceVideoFileId: sourceVideo.fileId,
+        providerStatusText: payload.audioType === "AUDIO" ? "驱动视频已上传，准备上传驱动音频" : "驱动视频已上传，准备提交蝉镜任务",
+        providerUpdatedAt: new Date().toISOString(),
+      });
+      if (payload.audioType === "AUDIO" && payload.audioFile) {
+        const audioFile = await this.uploadChanjingLipSyncAudio(credential, payload.audioFile);
+        meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          audioFileId: audioFile.fileId,
+          providerStatusText: "驱动音频已上传，准备提交蝉镜任务",
+          providerUpdatedAt: new Date().toISOString(),
+        });
+      }
+      const providerTaskId = await this.chanjingOpenApiService.createLipSyncVideo(
+        credential,
+        this.buildChanjingLipSyncCreatePayload(meta),
+      );
+      meta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        providerTaskId,
+        providerStatusCode: 10,
+        providerStatusText: "蝉镜任务已创建",
+        providerUpdatedAt: new Date().toISOString(),
+      });
+      await this.updateTaskOutputJson(taskId, {
+        workId,
+        stage: "PROVIDER_TASK_CREATED",
+        title: meta.title,
+        providerTaskId,
+      });
+      await this.persistDouyinLipSyncSnapshot(
+        brandId,
+        workId,
+        storageKey,
+        taskId,
+        meta,
+        await this.queryDouyinLipSyncSnapshot(brandId, providerTaskId),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "口型驱动生成失败";
+      try {
+        const target = await this.getDouyinLipSyncWorkRowById(brandId, workId);
+        await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+          ...this.readDouyinLipSyncWorkMeta(this.getMediaMetadata(target)),
+          status: "FAILED",
+          errorReason: errorMessage,
+          providerStatusText: "口型驱动失败",
+          providerUpdatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Ignore snapshot persistence failures when the primary task already failed.
+      }
+      await this.markTaskFailed(taskId, errorMessage);
+    }
+  }
+
+  private resolveDouyinLipSyncStatus(detail: ChanjingLipSyncDetail): DouyinLipSyncSnapshot["status"] {
+    if (detail.videoUrl || detail.status === 20) {
+      return "SUCCESS";
+    }
+    if (detail.status === 30) {
+      return "FAILED";
+    }
+    if (detail.status === 10) {
+      return "RUNNING";
+    }
+    return "PENDING";
+  }
+
+  private normalizeLipSyncDurationSec(duration?: number) {
+    if (!duration || !Number.isFinite(duration)) {
+      return undefined;
+    }
+    return duration > 10_000 ? duration / 1000 : duration;
+  }
+
+  private async queryDouyinLipSyncSnapshot(brandId: string, providerTaskId: string): Promise<DouyinLipSyncSnapshot> {
+    const normalizedTaskId = String(providerTaskId || "").trim();
+    if (!normalizedTaskId) {
+      throw new BadRequestException("缺少蝉镜口型驱动任务 ID。");
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    const detail = await this.chanjingOpenApiService.getLipSyncVideoDetail(credential, normalizedTaskId);
+    const status = this.resolveDouyinLipSyncStatus(detail);
+    return {
+      id: detail.id || normalizedTaskId,
+      status,
+      progress: Math.max(0, Math.min(100, Number(detail.progress || 0))),
+      detail: detail.msg,
+      videoUrl: detail.videoUrl,
+      previewUrl: detail.previewUrl,
+      durationSec: this.normalizeLipSyncDurationSec(detail.duration),
+      providerStatusCode: detail.status,
+    };
+  }
+
+  private async persistDouyinLipSyncSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    taskId: string,
+    meta: DouyinLipSyncWorkAssetMeta,
+    snapshot: DouyinLipSyncSnapshot,
+  ) {
+    let cachedVideoUrl = meta.videoUrl;
+    let coverImageUrl = meta.coverImageUrl;
+    let videoAssetId = meta.videoAssetId;
+
+    if (snapshot.status === "SUCCESS" && snapshot.videoUrl) {
+      cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+        brandId,
+        `${taskId}-douyin-lip-sync.mp4`,
+        snapshot.videoUrl,
+      );
+      const cachedCoverImageUrl = snapshot.previewUrl
+        ? await this.cacheRemoteGeneratedImage(
+            brandId,
+            `${taskId}-douyin-lip-sync-cover.png`,
+            snapshot.previewUrl,
+            "image/png",
+          )
+        : undefined;
+      const target = await this.getDouyinLipSyncWorkRowById(brandId, workId);
+      const userId = String((target as { userId?: string | null }).userId || "").trim() || await this.getBrandOwnerUserId(brandId);
+      const videoMedia = await this.upsertRecoveredVideoMedia({
+        userId,
+        brandId,
+        taskId,
+        workId,
+        title: `口型驱动视频 - ${meta.title}`,
+        sourceUrl: cachedVideoUrl,
+        provider: "chanjing_lip_sync",
+        modelName: meta.audioType === "AUDIO" ? "chanjing-lip-sync-audio" : "chanjing-lip-sync-tts",
+        providerTaskId: snapshot.id,
+        durationSec: snapshot.durationSec || meta.renderedDurationSec,
+        videoAssetId,
+      });
+      videoAssetId = videoMedia.id;
+      coverImageUrl = cachedCoverImageUrl || coverImageUrl;
+    }
+
+    const nextMeta = await this.saveDouyinLipSyncMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      status: snapshot.status,
+      progress: snapshot.progress,
+      providerTaskId: snapshot.id || meta.providerTaskId,
+      providerStatusCode: snapshot.providerStatusCode,
+      providerStatusText: this.getDouyinLipSyncStatusLabel(snapshot.status),
+      providerUpdatedAt: new Date().toISOString(),
+      errorReason: snapshot.status === "FAILED" ? snapshot.detail || meta.errorReason : undefined,
+      renderedDurationSec: snapshot.durationSec || meta.renderedDurationSec,
+      videoAssetId,
+      videoUrl: cachedVideoUrl,
+      coverImageUrl,
+    });
+
+    if (snapshot.status === "SUCCESS" && nextMeta.videoUrl) {
+      await this.markTaskSuccess(
+        taskId,
+        {
+          workId,
+          stage: "SUCCESS",
+          title: nextMeta.title,
+          providerTaskId: nextMeta.providerTaskId,
+          videoUrl: nextMeta.videoUrl,
+        },
+        { modelName: nextMeta.audioType === "AUDIO" ? "chanjing-lip-sync-audio" : "chanjing-lip-sync-tts" },
+      );
+      return nextMeta;
+    }
+
+    if (snapshot.status === "FAILED") {
+      await this.markTaskFailed(taskId, snapshot.detail || "蝉镜口型驱动生成失败");
+      return nextMeta;
+    }
+
+    await this.markTaskRunning(taskId);
+    await this.updateTaskOutputJson(taskId, {
+      workId,
+      stage: snapshot.status,
+      title: nextMeta.title,
+      providerTaskId: nextMeta.providerTaskId,
+      progress: nextMeta.progress,
+    });
+    return nextMeta;
   }
 
   private isDigitalHumanVideoWorkMeta(metadataJson: unknown) {
@@ -12506,6 +13333,20 @@ export class WorksService {
       return ".mp4";
     }
     return this.resolveExtensionFromFileName(fallbackFileName, ".mp4");
+  }
+
+  private resolveAudioExtensionFromMimeType(mimeType: string, fallbackFileName = "") {
+    const normalized = String(mimeType || "").toLowerCase();
+    if (normalized.includes("wav")) {
+      return ".wav";
+    }
+    if (normalized.includes("m4a") || normalized.includes("mp4")) {
+      return ".m4a";
+    }
+    if (normalized.includes("mpeg") || normalized.includes("mp3")) {
+      return ".mp3";
+    }
+    return this.resolveExtensionFromFileName(fallbackFileName, ".mp3");
   }
 
   private async cacheRemoteGeneratedVideo(brandId: string, fileName: string, remoteUrl: string) {

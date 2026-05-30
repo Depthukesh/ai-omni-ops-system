@@ -352,7 +352,7 @@ export function DouyinWorkspaceShell() {
       const templates = await getDouyinDigitalHumanTemplates(activeBrandId, {
         page: nextPage,
         size: nextSize,
-        sort: "hot_desc",
+        sort: "hottest",
         tagIds: nextTagId ? [Number(nextTagId)] : [],
       });
       setDigitalHumanTemplateTagId(nextTagId);
@@ -437,7 +437,7 @@ export function DouyinWorkspaceShell() {
       canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinLipSyncWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman")
-        ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hot_desc", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
+        ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hottest", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
         : Promise.resolve({ list: [], pageInfo: undefined }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId) : Promise.resolve({ items: [] }),

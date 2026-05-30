@@ -106,7 +106,7 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
       <div className="report-editor-head">
         <div>
           <strong>口型驱动</strong>
-          <p>这一栏位已升级为真实工作台壳子，当前支持独立表单、手动找回入口和后端路由，下一轮继续接蝉镜真实 `video_lip_sync` 任务链路。</p>
+          <p>这一栏位已升级为真实口型驱动工作台，当前支持提交蝉镜任务、手动找回结果和站内记录回写，后续继续补更多高级参数与结果联动。</p>
         </div>
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.items.length ? "status-ready" : "status-in_progress"}`}>
@@ -121,12 +121,12 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
       <div className="strategy-grid">
         <div className="entity-card personal-card">
           <strong>当前状态</strong>
-          <p className="personal-meta">栏目、表单、路由已补齐</p>
-          <p className="panel-subtext">这一轮先补工作台结构、参数表单和手动找回入口，避免继续只有文案占位但没有真实可扩展的交互骨架。</p>
+          <p className="personal-meta">真实提交、找回、删除已接通</p>
+          <p className="panel-subtext">当前会先上传驱动视频和驱动音频，再调用蝉镜口型驱动接口；生成成功后会把结果视频回写到站内记录。</p>
         </div>
         <div className="entity-card personal-card">
           <strong>下一步能力</strong>
-          <p className="panel-subtext">下一轮继续接蝉镜文件上传、`video_lip_sync/create`、任务详情查询和结果找回，完成真实视频转口型闭环。</p>
+          <p className="panel-subtext">下一轮继续补更多模型参数、远端列表兜底和结果资产联动，让口型驱动和数字人作品中心进一步打通。</p>
         </div>
       </div>
 
@@ -135,7 +135,7 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
           <span>任务列表</span>
           {!props.items.length ? (
             <div className="empty-state" style={{ marginTop: 12 }}>
-              当前还没有口型驱动任务记录。你现在可以直接填写右侧表单；本轮后端会明确返回“接口接入中”，但工作台结构和调用链已经补齐。
+              当前还没有口型驱动任务记录。你现在可以直接填写右侧表单并提交真实任务；生成后会在这里显示进度、封面和结果视频。
             </div>
           ) : (
             <div className="xhs-material-card-grid" style={{ marginTop: 12 }}>

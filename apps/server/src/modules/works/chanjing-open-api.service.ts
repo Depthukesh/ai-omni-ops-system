@@ -87,6 +87,36 @@ export type ChanjingVideoDetail = {
   audioUrls: string[];
 };
 
+export type ChanjingCreateLipSyncPayload = {
+  video_file_id: string;
+  screen_width?: number;
+  screen_height?: number;
+  backway?: 1 | 2;
+  drive_mode?: "" | "random";
+  callback?: string;
+  model?: 0 | 1;
+  audio_type?: "tts" | "audio";
+  tts_config?: {
+    text: string;
+    audio_man_id?: string;
+    speed?: number;
+    pitch?: number;
+  };
+  audio_file_id?: string;
+  volume?: number;
+};
+
+export type ChanjingLipSyncDetail = {
+  id: string;
+  status: number;
+  progress: number;
+  msg?: string;
+  videoUrl?: string;
+  previewUrl?: string;
+  duration?: number;
+  createTime?: number;
+};
+
 export type ChanjingUploadService =
   | "customised_person"
   | "prompt_audio"
@@ -169,8 +199,9 @@ export class ChanjingOpenApiService {
     const searchParams = new URLSearchParams();
     searchParams.set("page", String(Math.max(1, options?.page || 1)));
     searchParams.set("size", String(Math.min(50, Math.max(1, options?.size || 50))));
-    if (options?.sort) {
-      searchParams.set("sort", options.sort);
+    const normalizedSort = this.normalizeCommonDigitalPersonSort(options?.sort);
+    if (normalizedSort) {
+      searchParams.set("sort", normalizedSort);
     }
     if (options?.tagIds?.length) {
       searchParams.set("tag_ids", options.tagIds.join(","));
@@ -186,6 +217,21 @@ export class ChanjingOpenApiService {
       list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeTemplate(item)),
       pageInfo: this.normalizePageInfo(response.page_info),
     };
+  }
+
+  private normalizeCommonDigitalPersonSort(sort?: string) {
+    switch (String(sort || "").trim().toLowerCase()) {
+      case "":
+        return undefined;
+      case "latest":
+      case "latest_desc":
+        return "latest";
+      case "hottest":
+      case "hot_desc":
+        return "hottest";
+      default:
+        return undefined;
+    }
   }
 
   async createVideo(credential: string, payload: ChanjingCreateVideoPayload) {
@@ -338,6 +384,54 @@ export class ChanjingOpenApiService {
       },
     });
     return { success: true };
+  }
+
+  async createLipSyncVideo(credential: string, payload: ChanjingCreateLipSyncPayload) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<string>("/open/v1/video_lip_sync/create", {
+      method: "POST",
+      accessToken,
+      body: payload,
+    });
+    const taskId = String(response || "").trim();
+    if (!taskId) {
+      throw new ServiceUnavailableException("蝉镜创建口型驱动任务失败：未返回任务 ID");
+    }
+    return taskId;
+  }
+
+  async listLipSyncVideos(
+    credential: string,
+    options?: {
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<{ list?: unknown[]; page_info?: unknown }>("/open/v1/video_lip_sync/list", {
+      method: "POST",
+      accessToken,
+      body: {
+        page: Math.max(1, options?.page || 1),
+        page_size: Math.min(50, Math.max(1, options?.pageSize || 20)),
+      },
+    });
+    return {
+      list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeLipSyncDetail(item)),
+      pageInfo: this.normalizePageInfo(response.page_info),
+    };
+  }
+
+  async getLipSyncVideoDetail(credential: string, id: string) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<unknown>(
+      `/open/v1/video_lip_sync/detail?id=${encodeURIComponent(String(id || "").trim())}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    );
+    return this.normalizeLipSyncDetail(response);
   }
 
   private async getAccessToken(credential: string) {
@@ -540,6 +634,20 @@ export class ChanjingOpenApiService {
       support4k: typeof record?.support_4k === "boolean" ? record.support_4k : undefined,
       height4k: Number(record?.height_4k || 0) || undefined,
       width4k: Number(record?.width_4k || 0) || undefined,
+    };
+  }
+
+  private normalizeLipSyncDetail(input: unknown): ChanjingLipSyncDetail {
+    const record = this.asRecord(input);
+    return {
+      id: String(record?.id || "").trim(),
+      status: Number(record?.status || 0),
+      progress: Number(record?.progress || 0),
+      msg: String(record?.msg || "").trim() || undefined,
+      videoUrl: String(record?.video_url || "").trim() || undefined,
+      previewUrl: String(record?.preview_url || "").trim() || undefined,
+      duration: Number(record?.duration || 0) || undefined,
+      createTime: Number(record?.create_time || 0) || undefined,
     };
   }
 

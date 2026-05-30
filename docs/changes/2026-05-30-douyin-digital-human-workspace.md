@@ -521,6 +521,86 @@
 - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
 - `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
 
+### 17. 口型驱动真实蝉镜任务链路第十二轮
+
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 新增蝉镜口型驱动能力：
+    - `createLipSyncVideo`
+    - `listLipSyncVideos`
+    - `getLipSyncVideoDetail`
+  - 新增：
+    - `ChanjingCreateLipSyncPayload`
+    - `ChanjingLipSyncDetail`
+  - 按蝉镜真实文档对齐：
+    - `POST /open/v1/video_lip_sync/create`
+    - `POST /open/v1/video_lip_sync/list`
+    - `GET /open/v1/video_lip_sync/detail`
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增本地 metadata 类型：
+    - `DouyinLipSyncWorkAssetMeta`
+    - `DouyinLipSyncSnapshot`
+    - `NormalizedDouyinLipSyncPayload`
+  - `generateDouyinLipSync` 改为真实执行：
+    - 校验驱动视频 / 驱动音频 / 文本文案
+    - 创建本地 Task
+    - 创建本地 HTML work 壳
+    - 上传驱动视频到蝉镜文件管理
+    - 音频驱动模式下上传驱动音频
+    - 调用真实 `video_lip_sync/create`
+    - 保存 `providerTaskId`
+    - 立即查询一次详情并回写站内状态
+  - `listDouyinLipSyncWorks` 改为真实读取本地口型驱动作品，并对最近任务自动刷新蝉镜快照
+  - `recoverDouyinLipSync` 改为真实调用蝉镜详情接口并执行结果回写
+  - `deleteDouyinLipSync` 改为真实删除本地 HTML work、Task 和已转存视频 / 封面文件
+  - 新增：
+    - `uploadChanjingLipSyncVideo`
+    - `uploadChanjingLipSyncAudio`
+    - `runGenerateDouyinLipSyncTask`
+    - `queryDouyinLipSyncSnapshot`
+    - `persistDouyinLipSyncSnapshot`
+    - `getDouyinLipSyncWorkRowById`
+    - `findRecoverableDouyinLipSyncWorkRow`
+    - `refreshDouyinLipSyncWorkSnapshot`
+  - 口型驱动成功后会：
+    - 下载并转存最终视频
+    - 下载并转存封面
+    - 回写本地 `MediaAsset.metadataJson`
+    - 复用站内 `upsertRecoveredVideoMedia` 持久化视频资源
+- `apps/web/src/app/(dashboard)/douyin/digital-human-lip-sync-workspace.tsx`
+  - 页面文案从“接口接入中”改为真实能力说明
+  - 明确提示：
+    - 当前支持真实提交蝉镜口型驱动任务
+    - 生成成功后会把结果视频回写到站内记录
+
+## 第十二轮验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - `apps/server/src/modules/works/works.service.ts`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-lip-sync-workspace.tsx`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
+### 18. 数字人模板排序兼容修复第十三轮
+
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 数字人模板默认排序参数从 `hot_desc` 改为蝉镜文档实际支持的 `hottest`
+  - 首次加载和“继续加载模板”两条链路统一改为 `hottest`
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 新增 `normalizeCommonDigitalPersonSort`
+  - 兼容以下旧值并归一到蝉镜真实参数：
+    - `hot_desc` -> `hottest`
+    - `latest_desc` -> `latest`
+  - 非法排序值不再透传给蝉镜，避免公共数字人模板列表被参数错误直接打空
+
+## 第十三轮验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ## 第六轮验证
 
 - `GetDiagnostics`
