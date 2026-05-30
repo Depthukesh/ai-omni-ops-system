@@ -572,7 +572,6 @@ export function DouyinWorkspaceShell() {
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
-    userRequirement?: string;
   }) => {
     if (!canEditMarketingPlan) {
       setErrorMessage("当前账号只有查看权限，不能生成原创文案。");
@@ -599,7 +598,6 @@ export function DouyinWorkspaceShell() {
     reportId: string;
     title?: string;
     content: string;
-    userRequirement?: string;
   }) => {
     if (!canEditMarketingPlan) {
       setErrorMessage("当前账号只有查看权限，不能修改原创文案。");
@@ -613,7 +611,6 @@ export function DouyinWorkspaceShell() {
       const nextWorkspace = await updateDouyinOriginalCopy(payload.reportId, {
         title: payload.title,
         content: payload.content,
-        userRequirement: payload.userRequirement,
       }, activeBrandId);
       setOriginalCopyWorkspace(nextWorkspace);
       setNotice("原创文案已修改。");

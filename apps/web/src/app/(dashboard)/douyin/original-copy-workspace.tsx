@@ -6,7 +6,6 @@ import {
   type DouyinOriginalCopyRecord,
   type DouyinOriginalCopyTaskRecord,
 } from "../../../services/reports";
-import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { type OptionalDateFormatter, type SelectOption } from "../xiaohongshu/shared-types";
 import { DouyinOriginalCopyCreateModal } from "./original-copy-create-modal";
 
@@ -47,13 +46,11 @@ export interface DouyinOriginalCopyWorkspaceProps {
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
-    userRequirement?: string;
   }) => Promise<boolean>;
   onUpdate: (payload: {
     reportId: string;
     title?: string;
     content: string;
-    userRequirement?: string;
   }) => Promise<boolean>;
   onDelete: (reportId: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
@@ -98,11 +95,9 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
   const [topicValue, setTopicValue] = useState(EMPTY_TOPIC_VALUE);
   const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
   const [copyTypeValue, setCopyTypeValue] = useState<DouyinOriginalCopyType>("VIEWPOINT");
-  const [userRequirementValue, setUserRequirementValue] = useState("");
   const [editingReportId, setEditingReportId] = useState<string>("");
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [editUserRequirement, setEditUserRequirement] = useState("");
 
   const calendarSelectOptions = useMemo<SelectOption[]>(
     () => [{ value: EMPTY_CALENDAR_VALUE, label: "不选择营销日历" }, ...props.calendarOptions.map((item) => ({ value: item.id, label: item.label }))],
@@ -150,11 +145,9 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
       topicId: topicValue !== EMPTY_TOPIC_VALUE ? topicValue : undefined,
       injectMarketingPlan: injectMarketingPlanValue === "yes",
       copyType: copyTypeValue,
-      userRequirement: userRequirementValue.trim() || undefined,
     });
     if (success) {
       setIsCreateOpen(false);
-      setUserRequirementValue("");
     }
   }
 
@@ -162,7 +155,6 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
     setEditingReportId(item.id);
     setEditTitle(item.title);
     setEditContent(item.content);
-    setEditUserRequirement(item.userRequirement || "");
   }
 
   async function handleUpdate() {
@@ -173,7 +165,6 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
       reportId: editingReportId,
       title: editTitle.trim() || undefined,
       content: editContent,
-      userRequirement: editUserRequirement.trim() || undefined,
     });
     if (success) {
       setEditingReportId("");
@@ -271,9 +262,6 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
                     {item.calendarItemLabel ? ` | 营销日历：${item.calendarItemLabel}` : ""}
                     {item.marketingPlanTitle ? ` | 策划方案：${item.marketingPlanTitle}` : ""}
                   </div>
-
-                  {item.userRequirement ? <div className="report-inline-tip">用户要求：{item.userRequirement}</div> : null}
-
                   <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
                     <button
                       type="button"
@@ -347,7 +335,6 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         topicValue={topicValue}
         injectMarketingPlanValue={injectMarketingPlanValue}
         copyTypeValue={copyTypeValue}
-        userRequirementValue={userRequirementValue}
         hasMarketingPlan={props.hasMarketingPlan}
         marketingPlanTitle={props.marketingPlanTitle}
         onClose={() => setIsCreateOpen(false)}
@@ -356,7 +343,6 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         onTopicChange={setTopicValue}
         onInjectMarketingPlanChange={setInjectMarketingPlanValue}
         onCopyTypeChange={(value) => setCopyTypeValue(value as DouyinOriginalCopyType)}
-        onUserRequirementChange={setUserRequirementValue}
       />
 
       {editingItem ? (
@@ -374,7 +360,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
               <div className="entity-card-head">
                 <div>
                   <strong>查看/编辑原创文案</strong>
-                  <p className="personal-meta">可直接修改标题、文案和用户要求；点击取消返回作品区页面。</p>
+                  <p className="personal-meta">可直接修改标题和文案；点击取消返回作品区页面。</p>
                 </div>
                 <div className="report-editor-actions">
                   <span className="archive-pill status-ready">{editingItem.copyTypeLabel}</span>
@@ -393,35 +379,15 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
                   />
                 </label>
                 <label className="report-editor-pane">
-                  <span>用户要求</span>
+                  <span>文案内容</span>
                   <textarea
                     className="report-content-textarea"
-                    value={editUserRequirement}
-                    onChange={(event) => setEditUserRequirement(event.target.value)}
-                    placeholder="可继续补充语气、结构、卖点或禁用词要求"
-                    rows={4}
+                    value={editContent}
+                    onChange={(event) => setEditContent(event.target.value)}
+                    placeholder="请输入或修改原创文案内容"
                     disabled={props.isSubmitting}
                   />
                 </label>
-                <div className="report-editor-grid">
-                  <label className="report-editor-pane">
-                    <span>文案内容</span>
-                    <textarea
-                      className="report-content-textarea"
-                      value={editContent}
-                      onChange={(event) => setEditContent(event.target.value)}
-                      placeholder="请输入或修改原创文案内容"
-                      disabled={props.isSubmitting}
-                    />
-                  </label>
-                  <article className="report-editor-pane">
-                    <span>预览</span>
-                    <div
-                      className="generated-markdown-preview"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent) }}
-                    />
-                  </article>
-                </div>
                 <div className="strategy-inline-actions">
                   <button type="button" className="primary-button" onClick={() => void handleUpdate()} disabled={props.isSubmitting}>
                     {props.isSubmitting ? "修改中..." : "修改"}
