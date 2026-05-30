@@ -18,8 +18,11 @@ import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 import {
   ChanjingOpenApiService,
+  type ChanjingCustomisedPersonRecord,
+  type ChanjingFileRecord,
   type ChanjingTemplateRecord,
   type ChanjingTemplateTagGroup,
+  type ChanjingUploadUrlRecord,
   type ChanjingVideoDetail,
 } from "./chanjing-open-api.service";
 
@@ -248,15 +251,19 @@ export type DouyinDigitalHumanCustomPersonRecord = {
   id: string;
   name: string;
   personId?: string;
-  trainType: "figure" | "both";
-  language: string;
-  resolutionRate: "1080p" | "4K";
-  errorSkip: boolean;
+  trainType?: "figure" | "both";
+  language?: string;
+  resolutionRate?: "1080p" | "4K";
+  errorSkip?: boolean;
   status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
   progress: number;
   previewVideoUrl?: string;
   coverImageUrl?: string;
   errorReason?: string;
+  audioManId?: string;
+  width?: number;
+  height?: number;
+  support4k?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -1507,26 +1514,54 @@ export class WorksService {
     return { success: true };
   }
 
-  async listDouyinDigitalHumanCustomPersons(_brandId: string) {
+  async listDouyinDigitalHumanCustomPersons(brandId: string) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    const response = await this.chanjingOpenApiService.listCustomisedPersons(credential, {
+      page: 1,
+      pageSize: 50,
+    });
     return {
-      items: [] as DouyinDigitalHumanCustomPersonRecord[],
+      items: response.list
+        .map((item) => this.mapChanjingCustomPersonRecord(item))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     };
   }
 
   async createDouyinDigitalHumanCustomPerson(
-    _brandId: string,
+    brandId: string,
     payload: CreateDouyinDigitalHumanCustomPersonPayload,
     _auth?: RequestAuthContext,
   ) {
     if (!payload.trainingVideo) {
       throw new BadRequestException("请先上传训练视频，再提交定制数字人任务。");
     }
-    throw new ServiceUnavailableException(
-      "定制数字人的文件上传与训练接口正在接入中，当前已开放栏目与表单壳子，暂不支持真实提交训练任务。",
-    );
+    this.validateCustomPersonTrainingVideo(payload.trainingVideo);
+    const credential = await this.resolveChanjingCredential(brandId);
+    const normalizedName = this.normalizeCustomPersonName(payload.name, payload.trainingVideo.fileName);
+    const upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
+    const personId = await this.chanjingOpenApiService.createCustomisedPerson(credential, {
+      name: normalizedName,
+      trainType: payload.trainType || "figure",
+      language: payload.language || "cn",
+      fileId: upload.fileId,
+      errorSkip: Boolean(payload.errorSkip),
+      resolutionRate: payload.resolutionRate === "4K" ? 1 : 0,
+    });
+    const detail = await this.waitForChanjingCustomPersonReady(credential, personId, {
+      name: normalizedName,
+      trainType: payload.trainType || "figure",
+      language: payload.language || "cn",
+      resolutionRate: payload.resolutionRate || "1080p",
+      errorSkip: Boolean(payload.errorSkip),
+    });
+    return {
+      item: detail,
+    };
   }
 
-  async deleteDouyinDigitalHumanCustomPerson(_brandId: string, _customPersonId: string, _auth?: RequestAuthContext) {
+  async deleteDouyinDigitalHumanCustomPerson(brandId: string, customPersonId: string, _auth?: RequestAuthContext) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    await this.chanjingOpenApiService.deleteCustomisedPerson(credential, customPersonId);
     return { success: true };
   }
 
@@ -7111,6 +7146,151 @@ export class WorksService {
     throw new ServiceUnavailableException(
       "当前品牌尚未配置蝉镜 OpenAPI 凭证，请先在个人中心第三方平台中按 `appId::secretKey` 格式填写蝉镜凭证。",
     );
+  }
+
+  private validateCustomPersonTrainingVideo(payload: UploadFilePayload) {
+    if (!String(payload.dataBase64 || "").trim()) {
+      throw new BadRequestException("训练视频内容为空，请重新上传。");
+    }
+    const extension = this.resolveVideoExtensionFromMimeType(payload.contentType, payload.fileName);
+    if (![".mp4", ".webm", ".mov"].includes(extension)) {
+      throw new BadRequestException("训练视频只支持 mp4、webm、mov 格式。");
+    }
+  }
+
+  private normalizeCustomPersonName(name: string | undefined, fileName: string) {
+    const normalized = String(name || "").trim();
+    if (normalized) {
+      return normalized.slice(0, 60);
+    }
+    const fallback = String(fileName || "")
+      .replace(/\.[^.]+$/, "")
+      .trim();
+    return (fallback || `定制数字人-${Date.now()}`).slice(0, 60);
+  }
+
+  private async uploadChanjingCustomPersonTrainingVideo(credential: string, payload: UploadFilePayload) {
+    const upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
+      service: "customised_person",
+      name: payload.fileName || `custom-person${this.resolveVideoExtensionFromMimeType(payload.contentType, ".mp4")}`,
+    });
+    await this.chanjingOpenApiService.uploadSignedFile(
+      upload.signUrl,
+      payload,
+      upload.mimeType || payload.contentType || "application/octet-stream",
+    );
+    const fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    return {
+      ...upload,
+      fileDetail,
+    };
+  }
+
+  private async waitForChanjingFileReady(credential: string, fileId: string) {
+    let latest: ChanjingFileRecord | undefined;
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      latest = await this.chanjingOpenApiService.getFileDetail(credential, fileId);
+      if (latest.status === 1) {
+        return latest;
+      }
+      if ([98, 99, 100].includes(latest.status)) {
+        throw new ServiceUnavailableException(
+          `蝉镜训练视频不可用：${latest.msg || `文件状态 ${latest.status}`}`,
+        );
+      }
+      if (attempt < 6) {
+        await wait(10_000);
+      }
+    }
+    throw new ServiceUnavailableException(
+      `蝉镜训练视频上传后仍在同步中，请稍后刷新重试。${latest?.msg ? ` ${latest.msg}` : ""}`.trim(),
+    );
+  }
+
+  private async waitForChanjingCustomPersonReady(
+    credential: string,
+    personId: string,
+    fallback: {
+      name: string;
+      trainType?: "figure" | "both";
+      language?: string;
+      resolutionRate?: "1080p" | "4K";
+      errorSkip?: boolean;
+    },
+  ) {
+    let latestError = "";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const detail = await this.chanjingOpenApiService.getCustomisedPersonDetail(credential, personId);
+        return this.mapChanjingCustomPersonRecord(detail, fallback);
+      } catch (error) {
+        latestError = error instanceof Error ? error.message : "蝉镜定制数字人详情查询失败";
+        if (attempt < 4) {
+          await wait(2_000);
+        }
+      }
+    }
+    const now = new Date().toISOString();
+    return {
+      id: personId,
+      name: fallback.name,
+      personId,
+      trainType: fallback.trainType,
+      language: fallback.language,
+      resolutionRate: fallback.resolutionRate,
+      errorSkip: fallback.errorSkip,
+      status: "PENDING" as const,
+      progress: 0,
+      errorReason: latestError || undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private mapChanjingCustomPersonRecord(
+    item: ChanjingCustomisedPersonRecord,
+    overrides?: {
+      name?: string;
+      trainType?: "figure" | "both";
+      language?: string;
+      resolutionRate?: "1080p" | "4K";
+      errorSkip?: boolean;
+    },
+  ): DouyinDigitalHumanCustomPersonRecord {
+    const createdAt = item.createTime ? new Date(item.createTime * 1000).toISOString() : new Date().toISOString();
+    return {
+      id: item.id,
+      name: item.name || overrides?.name || item.id,
+      personId: item.id || undefined,
+      trainType: overrides?.trainType,
+      language: overrides?.language,
+      resolutionRate: overrides?.resolutionRate,
+      errorSkip: overrides?.errorSkip,
+      status: this.resolveCustomPersonTaskStatus(item.status),
+      progress: Math.max(0, Math.min(100, Number(item.progress || 0))),
+      previewVideoUrl: item.previewUrl,
+      coverImageUrl: item.picUrl,
+      errorReason: item.errReason || item.reason,
+      audioManId: item.audioManId,
+      width: item.width,
+      height: item.height,
+      support4k: item.support4k,
+      createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  private resolveCustomPersonTaskStatus(status: number): DouyinDigitalHumanCustomPersonRecord["status"] {
+    if (status === 2) {
+      return "SUCCESS";
+    }
+    if (status === 4 || status === 5) {
+      return "FAILED";
+    }
+    if (status === 1) {
+      return "RUNNING";
+    }
+    return "PENDING";
   }
 
   private async runGenerateDigitalHumanVideoTask(brandId: string, workId: string, taskId: string, storageKey: string) {

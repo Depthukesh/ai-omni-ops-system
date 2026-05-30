@@ -233,6 +233,46 @@
 - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
   - 定制数字人 tab 从纯说明占位升级为真实子组件接入
 
+### 9. 定制数字人真实上传链路第五轮
+
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 新增蝉镜文件管理能力：
+    - `createUploadUrl`
+    - `uploadSignedFile`
+    - `getFileDetail`
+  - 新增蝉镜定制数字人能力：
+    - `createCustomisedPerson`
+    - `listCustomisedPersons`
+    - `getCustomisedPersonDetail`
+    - `deleteCustomisedPerson`
+  - 补充文件记录、定制数字人记录的归一化映射
+- `apps/server/src/modules/works/works.service.ts`
+  - `listDouyinDigitalHumanCustomPersons` 改为真实读取蝉镜定制数字人列表
+  - `createDouyinDigitalHumanCustomPerson` 改为真实执行：
+    - 训练视频格式校验
+    - 获取 `create_upload_url`
+    - 对 `sign_url` 发起 `PUT` 上传
+    - 轮询 `file_detail` 等待文件可用
+    - 调用 `create_customised_person`
+    - 回查定制数字人详情并映射到工作台记录
+  - `deleteDouyinDigitalHumanCustomPerson` 改为真实调用蝉镜删除接口
+  - 定制数字人记录改成“按真实返回字段展示，缺失字段不再伪造”
+- `apps/web/src/services/works.ts`
+  - 同步放宽定制数字人记录字段为可选，兼容蝉镜列表不回传本地表单配置的情况
+- `apps/web/src/app/(dashboard)/douyin/digital-human-custom-person-workspace.tsx`
+  - 页面文案从“接口壳子 / 下一轮再接”改为“真实训练链路已接入”
+  - 训练配置展示改为真实值优先，缺失时明确显示“服务端未返回 / 训练配置待同步”
+
+## 本轮补充验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - `apps/server/src/modules/works/works.service.ts`
+  - `apps/web/src/services/works.ts`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-custom-person-workspace.tsx`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+
 ### 7. 数字人组件拆分第三轮
 
 - `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`

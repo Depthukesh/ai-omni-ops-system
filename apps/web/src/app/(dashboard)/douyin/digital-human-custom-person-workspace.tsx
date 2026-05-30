@@ -84,12 +84,28 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
     }
   };
 
+  const selectedTrainTypeLabel = selectedItem?.trainType === "both"
+    ? "形象+声音"
+    : selectedItem?.trainType === "figure"
+      ? "仅形象"
+      : "服务端未返回";
+
+  const selectedLanguageLabel = selectedItem?.language
+    ? selectedItem.language === "cn"
+      ? "中文"
+      : selectedItem.language === "en"
+        ? "英文"
+        : selectedItem.language
+    : "服务端未返回";
+
+  const selectedResolutionLabel = selectedItem?.resolutionRate || (selectedItem?.support4k ? "支持 4K" : "服务端未返回");
+
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
       <div className="report-editor-head">
         <div>
           <strong>定制数字人</strong>
-          <p>本轮已从纯占位升级为接口壳子栏目，先开放列表、表单和后端占位路由，下一轮继续接文件上传与训练任务。</p>
+          <p>上传训练视频后，系统会调用蝉镜文件管理和定制数字人接口，创建并刷新真实训练进度。</p>
         </div>
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.items.length ? "status-ready" : "status-in_progress"}`}>
@@ -104,12 +120,12 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
       <div className="strategy-grid">
         <div className="entity-card personal-card">
           <strong>当前状态</strong>
-          <p className="personal-meta">V2 接口壳子已接入</p>
-          <p className="panel-subtext">前端已具备表单和列表结构，后端已提供列表/创建/删除路由占位，训练视频上传与真实训练流程下一轮继续打通。</p>
+          <p className="personal-meta">真实训练链路已接入</p>
+          <p className="panel-subtext">当前支持训练视频上传、定制任务创建、蝉镜列表读取和删除；若部分配置未返回，页面会明确显示为服务端未返回。</p>
         </div>
         <div className="entity-card personal-card">
           <strong>下一步能力</strong>
-          <p className="panel-subtext">后续将接入文件上传、创建训练任务、查询训练详情、删除定制数字人，以及成功后带入数字人视频创建。</p>
+          <p className="panel-subtext">下一轮继续补“成功定制数字人一键带入数字人视频”、更细的训练详情字段和本地配置回填。</p>
         </div>
       </div>
 
@@ -118,7 +134,7 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
           <span>定制列表</span>
           {!props.items.length ? (
             <div className="empty-state" style={{ marginTop: 12 }}>
-              当前还没有定制数字人记录。现在可以先填写训练表单；若点击提交，会收到明确的后端建设中提示，而不是接口缺失或 404。
+              当前还没有定制数字人记录。填写训练表单后，会直接提交到蝉镜并在这里显示真实训练状态。
             </div>
           ) : (
             <div className="xhs-material-card-grid" style={{ marginTop: 12 }}>
@@ -140,7 +156,7 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
                   </button>
                   <div className="xhs-material-card-body">
                     <strong>{item.name}</strong>
-                    <p>{item.trainType === "both" ? "形象+声音" : "形象训练"}</p>
+                    <p>{item.trainType === "both" ? "形象+声音" : item.trainType === "figure" ? "仅形象" : "训练配置待同步"}</p>
                     <p>{props.formatDateTime(item.updatedAt)}</p>
                   </div>
                 </article>
@@ -186,7 +202,7 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
                 disabled={!props.canEdit || props.isSubmitting}
               />
               <small className="personal-meta">
-                {trainingVideoFile ? `已选择：${trainingVideoFile.name}` : "下一轮会继续打通蝉镜文件上传，当前先接表单与后端占位路由。"}
+                {trainingVideoFile ? `已选择：${trainingVideoFile.name}` : "支持上传 mp4、webm、mov 训练视频，提交后会先上传到蝉镜文件管理。"}
               </small>
             </label>
             <label className="field">
@@ -249,9 +265,9 @@ export function DigitalHumanCustomPersonWorkspace(props: DigitalHumanCustomPerso
           <div className="strategy-grid">
             <div className="entity-card personal-card">
               <strong>训练配置</strong>
-              <p className="panel-subtext">训练类型：{selectedItem.trainType === "both" ? "形象+声音" : "仅形象"}</p>
-              <p className="panel-subtext">语言：{selectedItem.language}</p>
-              <p className="panel-subtext">分辨率：{selectedItem.resolutionRate}</p>
+              <p className="panel-subtext">训练类型：{selectedTrainTypeLabel}</p>
+              <p className="panel-subtext">语言：{selectedLanguageLabel}</p>
+              <p className="panel-subtext">分辨率：{selectedResolutionLabel}</p>
             </div>
             <div className="entity-card personal-card">
               <strong>时间信息</strong>

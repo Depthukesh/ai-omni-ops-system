@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 
 const CHANJING_BASE_URL = "https://open-api.chanjing.cc";
@@ -86,6 +87,53 @@ export type ChanjingVideoDetail = {
   audioUrls: string[];
 };
 
+export type ChanjingUploadService =
+  | "customised_person"
+  | "prompt_audio"
+  | "make_video_audio"
+  | "make_video_background"
+  | "lip_sync_video"
+  | "lip_sync_audio"
+  | "ai_creation";
+
+export type ChanjingUploadUrlRecord = {
+  signUrl: string;
+  fullPath?: string;
+  key?: string;
+  mimeType: string;
+  fileId: string;
+};
+
+export type ChanjingFileRecord = {
+  id: string;
+  service?: string;
+  bytes?: number;
+  createTime?: number;
+  filePath?: string;
+  status: number;
+  msg?: string;
+};
+
+export type ChanjingCustomisedPersonRecord = {
+  id: string;
+  name: string;
+  type?: string;
+  picUrl?: string;
+  previewUrl?: string;
+  width?: number;
+  height?: number;
+  audioManId?: string;
+  status: number;
+  errReason?: string;
+  isOpen?: boolean;
+  reason?: string;
+  progress: number;
+  createTime?: number;
+  support4k?: boolean;
+  height4k?: number;
+  width4k?: number;
+};
+
 type ChanjingResponse<T> = {
   code?: number;
   msg?: string;
@@ -161,6 +209,135 @@ export class ChanjingOpenApiService {
       accessToken,
     });
     return this.normalizeVideoDetail(response);
+  }
+
+  async createUploadUrl(
+    credential: string,
+    options: {
+      service: ChanjingUploadService;
+      name: string;
+    },
+  ) {
+    const accessToken = await this.getAccessToken(credential);
+    const searchParams = new URLSearchParams();
+    searchParams.set("service", String(options.service || "").trim());
+    searchParams.set("name", String(options.name || "").trim());
+    const response = await this.requestJson<unknown>(
+      `/open/v1/common/create_upload_url?${searchParams.toString()}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    );
+    return this.normalizeUploadUrlRecord(response);
+  }
+
+  async uploadSignedFile(signUrl: string, payload: { dataBase64: string }, contentType: string) {
+    const normalizedUrl = String(signUrl || "").trim();
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+      throw new ServiceUnavailableException("蝉镜上传文件失败：未返回有效的签名上传地址。");
+    }
+    const response = await fetch(normalizedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType || "application/octet-stream",
+      },
+      body: Buffer.from(String(payload?.dataBase64 || ""), "base64"),
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`蝉镜上传文件失败：${response.status}`);
+    }
+  }
+
+  async getFileDetail(credential: string, id: string) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<unknown>(
+      `/open/v1/common/file_detail?id=${encodeURIComponent(String(id || "").trim())}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    );
+    return this.normalizeFileRecord(response);
+  }
+
+  async createCustomisedPerson(
+    credential: string,
+    payload: {
+      name?: string;
+      callback?: string;
+      trainType?: "figure" | "voice" | "both";
+      language?: string;
+      fileId: string;
+      errorSkip?: boolean;
+      resolutionRate?: 0 | 1;
+    },
+  ) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<string>("/open/v1/create_customised_person", {
+      method: "POST",
+      accessToken,
+      body: {
+        name: payload.name,
+        callback: payload.callback,
+        train_type: payload.trainType,
+        language: payload.language,
+        file_id: payload.fileId,
+        error_skip: payload.errorSkip,
+        resolution_rate: payload.resolutionRate,
+      },
+    });
+    const personId = String(response || "").trim();
+    if (!personId) {
+      throw new ServiceUnavailableException("蝉镜创建定制数字人失败：未返回数字人 ID");
+    }
+    return personId;
+  }
+
+  async listCustomisedPersons(
+    credential: string,
+    options?: {
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<{ list?: unknown[]; page_info?: unknown }>("/open/v1/list_customised_person", {
+      method: "POST",
+      accessToken,
+      body: {
+        page: Math.max(1, options?.page || 1),
+        page_size: Math.min(50, Math.max(1, options?.pageSize || 20)),
+      },
+    });
+    return {
+      list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeCustomisedPerson(item)),
+      pageInfo: this.normalizePageInfo(response.page_info),
+    };
+  }
+
+  async getCustomisedPersonDetail(credential: string, id: string) {
+    const accessToken = await this.getAccessToken(credential);
+    const response = await this.requestJson<unknown>(
+      `/open/v1/customised_person?id=${encodeURIComponent(String(id || "").trim())}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    );
+    return this.normalizeCustomisedPerson(response);
+  }
+
+  async deleteCustomisedPerson(credential: string, id: string) {
+    const accessToken = await this.getAccessToken(credential);
+    await this.requestJson<string>("/open/v1/delete_customised_person", {
+      method: "POST",
+      accessToken,
+      body: {
+        id: String(id || "").trim(),
+      },
+    });
+    return { success: true };
   }
 
   private async getAccessToken(credential: string) {
@@ -311,6 +488,58 @@ export class ChanjingOpenApiService {
       queueStatus: String(record?.queue_status || "").trim() || undefined,
       queueDesc: String(record?.queue_desc || "").trim() || undefined,
       audioUrls: Array.isArray(record?.audio_urls) ? record.audio_urls.map((item) => String(item || "").trim()).filter(Boolean) : [],
+    };
+  }
+
+  private normalizeUploadUrlRecord(input: unknown): ChanjingUploadUrlRecord {
+    const record = this.asRecord(input);
+    const signUrl = String(record?.sign_url || "").trim();
+    const fileId = String(record?.file_id || "").trim();
+    if (!signUrl || !fileId) {
+      throw new ServiceUnavailableException("蝉镜上传文件失败：未返回完整的上传地址或文件 ID。");
+    }
+    return {
+      signUrl,
+      fullPath: String(record?.full_path || "").trim() || undefined,
+      key: String(record?.key || "").trim() || undefined,
+      mimeType: String(record?.mime_type || "").trim() || "application/octet-stream",
+      fileId,
+    };
+  }
+
+  private normalizeFileRecord(input: unknown): ChanjingFileRecord {
+    const record = this.asRecord(input);
+    return {
+      id: String(record?.id || "").trim(),
+      service: String(record?.service || "").trim() || undefined,
+      bytes: Number(record?.bytes || 0) || undefined,
+      createTime: Number(record?.create_time || 0) || undefined,
+      filePath: String(record?.file_path || "").trim() || undefined,
+      status: Number(record?.status || 0),
+      msg: String(record?.msg || "").trim() || undefined,
+    };
+  }
+
+  private normalizeCustomisedPerson(input: unknown): ChanjingCustomisedPersonRecord {
+    const record = this.asRecord(input);
+    return {
+      id: String(record?.id || "").trim(),
+      name: String(record?.name || "").trim(),
+      type: String(record?.type || "").trim() || undefined,
+      picUrl: String(record?.pic_url || "").trim() || undefined,
+      previewUrl: String(record?.preview_url || "").trim() || undefined,
+      width: Number(record?.width || 0) || undefined,
+      height: Number(record?.height || 0) || undefined,
+      audioManId: String(record?.audio_man_id || "").trim() || undefined,
+      status: Number(record?.status || 0),
+      errReason: String(record?.err_reason || "").trim() || undefined,
+      isOpen: typeof record?.is_open === "number" ? record.is_open === 1 : undefined,
+      reason: String(record?.reason || "").trim() || undefined,
+      progress: Number(record?.progress || 0),
+      createTime: Number(record?.create_time || 0) || undefined,
+      support4k: typeof record?.support_4k === "boolean" ? record.support_4k : undefined,
+      height4k: Number(record?.height_4k || 0) || undefined,
+      width4k: Number(record?.width_4k || 0) || undefined,
     };
   }
 
