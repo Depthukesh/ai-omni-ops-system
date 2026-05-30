@@ -287,6 +287,56 @@
   - 在列表卡片和详情面板中新增“用于数字人视频”按钮
   - 仅对 `SUCCESS` 的定制数字人开放一键带入
 
+### 11. 定制数字人本地配置回填第七轮
+
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增 `DOUYIN_DIGITAL_HUMAN_CUSTOM` 本地 HTML work metadata 类型
+  - `createDouyinDigitalHumanCustomPerson` 在真实调用蝉镜训练链路的同时：
+    - 创建本地 Task
+    - 创建本地 HTML work 壳
+    - 把训练名称、训练类型、语言、分辨率、错误跳过等表单配置写入 metadata
+    - 失败时把错误信息回写到本地 metadata 与 Task
+  - `listDouyinDigitalHumanCustomPersons` 改为“蝉镜列表 + 本地 metadata”合并：
+    - 优先用本地配置回填训练类型、语言、分辨率等字段
+    - 当蝉镜列表暂未回传刚创建的数字人时，本地记录也能继续展示
+  - `deleteDouyinDigitalHumanCustomPerson` 删除蝉镜记录后，同步清理本地 HTML work 与 Task
+  - 新增：
+    - `DigitalHumanCustomPersonWorkAssetMeta`
+    - `loadDigitalHumanCustomPersonLocalConfigMap`
+    - `saveDigitalHumanCustomPersonMetadataSnapshot`
+    - `deleteDigitalHumanCustomPersonLocalWork`
+    - `mapLocalCustomPersonMeta`
+- 本轮效果
+  - 定制数字人不再只是依赖蝉镜返回的瞬时字段
+  - 本地可以稳定保存训练表单配置，后续刷新、列表显示、回填和继续联动都有可信来源
+
+## 第七轮验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/works.service.ts`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+
+### 12. 蝉镜配置保存运行时依赖修复
+
+- 问题现象
+  - 在个人中心配置蝉镜 `appid` / `secretKey` 保存时，后端报错：
+    - `Cannot find module './encodings'`
+  - 调用栈位于：
+    - `body-parser`
+    - `raw-body`
+    - `iconv-lite`
+- 根因判断
+  - 不是 `appid` 参数格式错误
+  - 是服务端运行环境中的 `iconv-lite` 安装产物不完整，导致请求体解析阶段加载 `./encodings` 失败
+- 修复方式
+  - `apps/server/package.json`
+    - 显式新增 `iconv-lite`
+  - `package-lock.json`
+    - 锁定并记录 `iconv-lite@0.4.24`
+- 结果
+  - 避免服务端继续仅依赖 `@nestjs/platform-express -> body-parser -> raw-body` 的间接依赖链
+  - 降低远端部署时因裁剪/安装异常导致的保存接口崩溃风险
+
 ## 第六轮验证
 
 - `GetDiagnostics`

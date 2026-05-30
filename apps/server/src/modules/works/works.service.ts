@@ -644,6 +644,35 @@ type DigitalHumanVideoWorkAssetMeta = {
   updatedAt: string;
 };
 
+type DigitalHumanCustomPersonWorkAssetMeta = {
+  kind: "DOUYIN_DIGITAL_HUMAN_CUSTOM";
+  taskId: string;
+  htmlContent: string;
+  name: string;
+  personId?: string;
+  trainType?: "figure" | "both";
+  language?: string;
+  resolutionRate?: "1080p" | "4K";
+  errorSkip?: boolean;
+  trainingVideoFileName?: string;
+  trainingVideoFileId?: string;
+  trainingVideoBytes?: number;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  previewVideoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
+  audioManId?: string;
+  width?: number;
+  height?: number;
+  support4k?: boolean;
+  providerStatusCode?: number;
+  providerStatusText?: string;
+  providerUpdatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinDigitalHumanVideoWorkRecord = {
   id: string;
   taskId: string;
@@ -1520,9 +1549,17 @@ export class WorksService {
       page: 1,
       pageSize: 50,
     });
+    const localConfigMap = await this.loadDigitalHumanCustomPersonLocalConfigMap(brandId);
+    const remoteIds = new Set(response.list.map((item) => item.id).filter(Boolean));
+    const merged = response.list.map((item) => this.mapChanjingCustomPersonRecord(item, localConfigMap.get(item.id)));
+    for (const [personId, meta] of localConfigMap.entries()) {
+      if (!personId || remoteIds.has(personId) || meta.personId !== personId) {
+        continue;
+      }
+      merged.push(this.mapLocalCustomPersonMeta(meta, personId));
+    }
     return {
-      items: response.list
-        .map((item) => this.mapChanjingCustomPersonRecord(item))
+      items: merged
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     };
   }
@@ -1530,38 +1567,103 @@ export class WorksService {
   async createDouyinDigitalHumanCustomPerson(
     brandId: string,
     payload: CreateDouyinDigitalHumanCustomPersonPayload,
-    _auth?: RequestAuthContext,
+    auth?: RequestAuthContext,
   ) {
     if (!payload.trainingVideo) {
       throw new BadRequestException("请先上传训练视频，再提交定制数字人任务。");
     }
     this.validateCustomPersonTrainingVideo(payload.trainingVideo);
     const credential = await this.resolveChanjingCredential(brandId);
+    const userId = await this.resolveTaskUserId(brandId, auth);
     const normalizedName = this.normalizeCustomPersonName(payload.name, payload.trainingVideo.fileName);
-    const upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
-    const personId = await this.chanjingOpenApiService.createCustomisedPerson(credential, {
-      name: normalizedName,
-      trainType: payload.trainType || "figure",
-      language: payload.language || "cn",
-      fileId: upload.fileId,
-      errorSkip: Boolean(payload.errorSkip),
-      resolutionRate: payload.resolutionRate === "4K" ? 1 : 0,
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_DIGITAL_HUMAN_CUSTOM",
+      taskTitle: `创建定制数字人：${normalizedName}`,
+      requestedVideoProvider: "chanjing_custom_person",
+      modelName: "chanjing-custom-person",
     });
-    const detail = await this.waitForChanjingCustomPersonReady(credential, personId, {
+    const now = new Date().toISOString();
+    const localMetaBase = this.buildDigitalHumanCustomPersonMeta({
+      taskId: task.id,
       name: normalizedName,
       trainType: payload.trainType || "figure",
       language: payload.language || "cn",
       resolutionRate: payload.resolutionRate || "1080p",
       errorSkip: Boolean(payload.errorSkip),
+      status: "PENDING",
+      progress: 0,
+      trainingVideoFileName: payload.trainingVideo.fileName,
+      createdAt: now,
+      updatedAt: now,
     });
-    return {
-      item: detail,
-    };
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-digital-human-custom.html`, localMetaBase.htmlContent);
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音定制数字人 - ${normalizedName}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata: localMetaBase,
+    });
+    try {
+      const upload = await this.uploadChanjingCustomPersonTrainingVideo(credential, payload.trainingVideo);
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+        ...localMetaBase,
+        trainingVideoFileId: upload.fileId,
+        updatedAt: new Date().toISOString(),
+      });
+      const personId = await this.chanjingOpenApiService.createCustomisedPerson(credential, {
+        name: normalizedName,
+        trainType: payload.trainType || "figure",
+        language: payload.language || "cn",
+        fileId: upload.fileId,
+        errorSkip: Boolean(payload.errorSkip),
+        resolutionRate: payload.resolutionRate === "4K" ? 1 : 0,
+      });
+      const detail = await this.waitForChanjingCustomPersonReady(credential, personId, {
+        name: normalizedName,
+        trainType: payload.trainType || "figure",
+        language: payload.language || "cn",
+        resolutionRate: payload.resolutionRate || "1080p",
+        errorSkip: Boolean(payload.errorSkip),
+      });
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+        ...localMetaBase,
+        personId,
+        trainingVideoFileId: upload.fileId,
+        ...this.mergeCustomPersonMetaWithRecord(localMetaBase, detail),
+        updatedAt: new Date().toISOString(),
+      });
+      await this.markTaskSuccess(task.id, {
+        workId: workMedia.id,
+        personId,
+        status: detail.status,
+        progress: detail.progress,
+        stage: "CUSTOM_PERSON_READY",
+      });
+      return {
+        item: detail,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "定制数字人创建失败";
+      await this.saveDigitalHumanCustomPersonMetadataSnapshot(brandId, workMedia.id, workMedia.storageKey || `${workMedia.id}.html`, {
+        ...localMetaBase,
+        status: "FAILED",
+        errorReason: message,
+        updatedAt: new Date().toISOString(),
+      });
+      await this.markTaskFailed(task.id, message);
+      throw error;
+    }
   }
 
   async deleteDouyinDigitalHumanCustomPerson(brandId: string, customPersonId: string, _auth?: RequestAuthContext) {
     const credential = await this.resolveChanjingCredential(brandId);
     await this.chanjingOpenApiService.deleteCustomisedPerson(credential, customPersonId);
+    await this.deleteDigitalHumanCustomPersonLocalWork(brandId, customPersonId);
     return { success: true };
   }
 
@@ -4322,7 +4424,7 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta;
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -4671,7 +4773,7 @@ export class WorksService {
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta,
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta | DigitalHumanCustomPersonWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -7133,6 +7235,274 @@ export class WorksService {
     return nextMeta;
   }
 
+  private async loadDigitalHumanCustomPersonLocalConfigMap(brandId: string) {
+    const rows = await this.listDigitalHumanCustomPersonWorkRows(brandId);
+    const result = new Map<string, DigitalHumanCustomPersonWorkAssetMeta>();
+    for (const row of rows) {
+      const meta = this.readDigitalHumanCustomPersonWorkMeta(this.getMediaMetadata(row));
+      if (meta.personId) {
+        result.set(meta.personId, meta);
+      }
+      const rowId = String(row.id || "").trim();
+      if (rowId) {
+        result.set(rowId, meta);
+      }
+    }
+    return result;
+  }
+
+  private async listDigitalHumanCustomPersonWorkRows(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return rows.filter((item) => this.isDigitalHumanCustomPersonWorkMeta(item.metadataJson));
+    }
+    return database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDigitalHumanCustomPersonWorkMeta((item as { metadataJson?: unknown }).metadataJson));
+  }
+
+  private buildDigitalHumanCustomPersonMeta(params: {
+    taskId: string;
+    name: string;
+    personId?: string;
+    trainType?: "figure" | "both";
+    language?: string;
+    resolutionRate?: "1080p" | "4K";
+    errorSkip?: boolean;
+    status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+    progress: number;
+    trainingVideoFileName?: string;
+    trainingVideoFileId?: string;
+    trainingVideoBytes?: number;
+    previewVideoUrl?: string;
+    coverImageUrl?: string;
+    errorReason?: string;
+    audioManId?: string;
+    width?: number;
+    height?: number;
+    support4k?: boolean;
+    providerStatusCode?: number;
+    providerStatusText?: string;
+    providerUpdatedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  }): DigitalHumanCustomPersonWorkAssetMeta {
+    return {
+      kind: "DOUYIN_DIGITAL_HUMAN_CUSTOM",
+      taskId: params.taskId,
+      htmlContent: this.renderDigitalHumanCustomPersonHtml({
+        name: params.name,
+        status: params.status,
+        progress: params.progress,
+        trainType: params.trainType,
+        language: params.language,
+        resolutionRate: params.resolutionRate,
+        previewVideoUrl: params.previewVideoUrl,
+        coverImageUrl: params.coverImageUrl,
+        errorReason: params.errorReason,
+      }),
+      name: params.name,
+      personId: params.personId,
+      trainType: params.trainType,
+      language: params.language,
+      resolutionRate: params.resolutionRate,
+      errorSkip: params.errorSkip,
+      trainingVideoFileName: params.trainingVideoFileName,
+      trainingVideoFileId: params.trainingVideoFileId,
+      trainingVideoBytes: params.trainingVideoBytes,
+      status: params.status,
+      progress: params.progress,
+      previewVideoUrl: params.previewVideoUrl,
+      coverImageUrl: params.coverImageUrl,
+      errorReason: params.errorReason,
+      audioManId: params.audioManId,
+      width: params.width,
+      height: params.height,
+      support4k: params.support4k,
+      providerStatusCode: params.providerStatusCode,
+      providerStatusText: params.providerStatusText,
+      providerUpdatedAt: params.providerUpdatedAt,
+      createdAt: params.createdAt,
+      updatedAt: params.updatedAt,
+    };
+  }
+
+  private mergeCustomPersonMetaWithRecord(
+    meta: DigitalHumanCustomPersonWorkAssetMeta,
+    record: DouyinDigitalHumanCustomPersonRecord,
+  ): Partial<DigitalHumanCustomPersonWorkAssetMeta> {
+    return {
+      name: record.name || meta.name,
+      personId: record.personId || meta.personId,
+      trainType: record.trainType || meta.trainType,
+      language: record.language || meta.language,
+      resolutionRate: record.resolutionRate || meta.resolutionRate,
+      errorSkip: typeof record.errorSkip === "boolean" ? record.errorSkip : meta.errorSkip,
+      status: record.status,
+      progress: record.progress,
+      previewVideoUrl: record.previewVideoUrl || meta.previewVideoUrl,
+      coverImageUrl: record.coverImageUrl || meta.coverImageUrl,
+      errorReason: record.errorReason || meta.errorReason,
+      audioManId: record.audioManId || meta.audioManId,
+      width: record.width || meta.width,
+      height: record.height || meta.height,
+      support4k: typeof record.support4k === "boolean" ? record.support4k : meta.support4k,
+    };
+  }
+
+  private async saveDigitalHumanCustomPersonMetadataSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    meta: DigitalHumanCustomPersonWorkAssetMeta,
+  ) {
+    const nextMeta: DigitalHumanCustomPersonWorkAssetMeta = {
+      ...meta,
+      htmlContent: this.renderDigitalHumanCustomPersonHtml({
+        name: meta.name,
+        status: meta.status,
+        progress: meta.progress,
+        trainType: meta.trainType,
+        language: meta.language,
+        resolutionRate: meta.resolutionRate,
+        previewVideoUrl: meta.previewVideoUrl,
+        coverImageUrl: meta.coverImageUrl,
+        errorReason: meta.errorReason,
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `抖音定制数字人 - ${nextMeta.name}`);
+    return nextMeta;
+  }
+
+  private renderDigitalHumanCustomPersonHtml(params: {
+    name: string;
+    status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+    progress: number;
+    trainType?: "figure" | "both";
+    language?: string;
+    resolutionRate?: "1080p" | "4K";
+    previewVideoUrl?: string;
+    coverImageUrl?: string;
+    errorReason?: string;
+  }) {
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${this.escapeHtml(params.name)}</title>
+  </head>
+  <body>
+    <h1>${this.escapeHtml(params.name)}</h1>
+    <p>状态：${this.escapeHtml(params.status)}</p>
+    <p>进度：${Math.max(0, Math.min(100, Number(params.progress || 0)))}%</p>
+    <p>训练类型：${this.escapeHtml(params.trainType || "未返回")}</p>
+    <p>语言：${this.escapeHtml(params.language || "未返回")}</p>
+    <p>分辨率：${this.escapeHtml(params.resolutionRate || "未返回")}</p>
+    ${params.errorReason ? `<p>失败原因：${this.escapeHtml(params.errorReason)}</p>` : ""}
+    ${params.coverImageUrl ? `<img src="${this.escapeHtml(params.coverImageUrl)}" alt="${this.escapeHtml(params.name)}" style="max-width:320px;" />` : ""}
+    ${params.previewVideoUrl ? `<video controls preload="metadata" src="${this.escapeHtml(params.previewVideoUrl)}" style="max-width:320px;"></video>` : ""}
+  </body>
+</html>`;
+  }
+
+  private isDigitalHumanCustomPersonWorkMeta(metadataJson: unknown) {
+    return this.asRecord(metadataJson)?.kind === "DOUYIN_DIGITAL_HUMAN_CUSTOM";
+  }
+
+  private readDigitalHumanCustomPersonWorkMeta(metadataJson: unknown): DigitalHumanCustomPersonWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    if (!meta || meta.kind !== "DOUYIN_DIGITAL_HUMAN_CUSTOM") {
+      throw new NotFoundException("定制数字人记录不存在");
+    }
+    return {
+      kind: "DOUYIN_DIGITAL_HUMAN_CUSTOM",
+      taskId: String(meta.taskId ?? "").trim(),
+      htmlContent: String(meta.htmlContent ?? "").trim(),
+      name: String(meta.name ?? "").trim(),
+      personId: this.readOptionalString(meta.personId),
+      trainType: this.readOptionalString(meta.trainType) as "figure" | "both" | undefined,
+      language: this.readOptionalString(meta.language),
+      resolutionRate: this.readOptionalString(meta.resolutionRate) as "1080p" | "4K" | undefined,
+      errorSkip: typeof meta.errorSkip === "boolean" ? meta.errorSkip : undefined,
+      trainingVideoFileName: this.readOptionalString(meta.trainingVideoFileName),
+      trainingVideoFileId: this.readOptionalString(meta.trainingVideoFileId),
+      trainingVideoBytes: typeof meta.trainingVideoBytes === "number" ? meta.trainingVideoBytes : undefined,
+      status: this.normalizeCustomPersonRecordStatus(this.readOptionalString(meta.status)),
+      progress: this.readNumberWithFallback(meta.progress, 0),
+      previewVideoUrl: this.readOptionalString(meta.previewVideoUrl),
+      coverImageUrl: this.readOptionalString(meta.coverImageUrl),
+      errorReason: this.readOptionalString(meta.errorReason),
+      audioManId: this.readOptionalString(meta.audioManId),
+      width: typeof meta.width === "number" ? meta.width : undefined,
+      height: typeof meta.height === "number" ? meta.height : undefined,
+      support4k: typeof meta.support4k === "boolean" ? meta.support4k : undefined,
+      providerStatusCode: typeof meta.providerStatusCode === "number" ? meta.providerStatusCode : undefined,
+      providerStatusText: this.readOptionalString(meta.providerStatusText),
+      providerUpdatedAt: this.readOptionalString(meta.providerUpdatedAt),
+      createdAt: normalizeMaybeDate(this.readOptionalString(meta.createdAt)) || new Date().toISOString(),
+      updatedAt: normalizeMaybeDate(this.readOptionalString(meta.updatedAt)) || new Date().toISOString(),
+    };
+  }
+
+  private normalizeCustomPersonRecordStatus(value: string | undefined): DouyinDigitalHumanCustomPersonRecord["status"] {
+    if (value === "SUCCESS" || value === "FAILED" || value === "RUNNING" || value === "PENDING") {
+      return value;
+    }
+    return "PENDING";
+  }
+
+  private async deleteDigitalHumanCustomPersonLocalWork(brandId: string, customPersonId: string) {
+    const rows = await this.listDigitalHumanCustomPersonWorkRows(brandId);
+    const matched = rows.find((item) => {
+      const meta = this.readDigitalHumanCustomPersonWorkMeta(this.getMediaMetadata(item));
+      return meta.personId === customPersonId || String(item.id || "").trim() === customPersonId;
+    });
+    if (!matched) {
+      return;
+    }
+    const taskId = String(matched.taskId || "").trim() || this.readDigitalHumanCustomPersonWorkMeta(this.getMediaMetadata(matched)).taskId;
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.mediaAsset.deleteMany({
+        where: {
+          OR: [{ id: matched.id }, ...(taskId ? [{ taskId }] : [])],
+          brandId,
+        },
+      });
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: {
+            id: taskId,
+            brandId,
+          },
+        });
+      }
+      return;
+    }
+    for (let index = database.media.length - 1; index >= 0; index -= 1) {
+      const item = database.media[index];
+      if (item.brandId === brandId && (item.id === matched.id || (taskId && item.taskId === taskId))) {
+        database.media.splice(index, 1);
+      }
+    }
+    if (taskId) {
+      for (let index = database.tasks.length - 1; index >= 0; index -= 1) {
+        const item = database.tasks[index];
+        if (item.brandId === brandId && item.id === taskId) {
+          database.tasks.splice(index, 1);
+        }
+      }
+    }
+  }
+
   private async resolveChanjingCredential(brandId: string) {
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
       "https://open-api.chanjing.cc",
@@ -7249,23 +7619,17 @@ export class WorksService {
 
   private mapChanjingCustomPersonRecord(
     item: ChanjingCustomisedPersonRecord,
-    overrides?: {
-      name?: string;
-      trainType?: "figure" | "both";
-      language?: string;
-      resolutionRate?: "1080p" | "4K";
-      errorSkip?: boolean;
-    },
+    localMeta?: Partial<Pick<DigitalHumanCustomPersonWorkAssetMeta, "name" | "trainType" | "language" | "resolutionRate" | "errorSkip" | "createdAt">>,
   ): DouyinDigitalHumanCustomPersonRecord {
     const createdAt = item.createTime ? new Date(item.createTime * 1000).toISOString() : new Date().toISOString();
     return {
       id: item.id,
-      name: item.name || overrides?.name || item.id,
+      name: item.name || localMeta?.name || item.id,
       personId: item.id || undefined,
-      trainType: overrides?.trainType,
-      language: overrides?.language,
-      resolutionRate: overrides?.resolutionRate,
-      errorSkip: overrides?.errorSkip,
+      trainType: localMeta?.trainType,
+      language: localMeta?.language,
+      resolutionRate: localMeta?.resolutionRate,
+      errorSkip: localMeta?.errorSkip,
       status: this.resolveCustomPersonTaskStatus(item.status),
       progress: Math.max(0, Math.min(100, Number(item.progress || 0))),
       previewVideoUrl: item.previewUrl,
@@ -7275,8 +7639,31 @@ export class WorksService {
       width: item.width,
       height: item.height,
       support4k: item.support4k,
-      createdAt,
+      createdAt: localMeta?.createdAt || createdAt,
       updatedAt: new Date().toISOString(),
+    };
+  }
+
+  private mapLocalCustomPersonMeta(meta: DigitalHumanCustomPersonWorkAssetMeta, fallbackId: string): DouyinDigitalHumanCustomPersonRecord {
+    return {
+      id: meta.personId || fallbackId,
+      name: meta.name || fallbackId,
+      personId: meta.personId || fallbackId,
+      trainType: meta.trainType,
+      language: meta.language,
+      resolutionRate: meta.resolutionRate,
+      errorSkip: meta.errorSkip,
+      status: meta.status,
+      progress: Math.max(0, Math.min(100, Number(meta.progress || 0))),
+      previewVideoUrl: meta.previewVideoUrl,
+      coverImageUrl: meta.coverImageUrl,
+      errorReason: meta.errorReason,
+      audioManId: meta.audioManId,
+      width: meta.width,
+      height: meta.height,
+      support4k: meta.support4k,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
     };
   }
 
