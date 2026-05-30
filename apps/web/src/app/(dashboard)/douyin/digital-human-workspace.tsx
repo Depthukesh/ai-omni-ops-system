@@ -45,6 +45,13 @@ type PersonalDigitalHumanScriptTemplate = {
   updatedAt: string;
 };
 
+type DigitalHumanEditorDiffEntry = {
+  key: string;
+  label: string;
+  currentValue: string;
+  selectedValue: string;
+};
+
 function getStageLabel(stage?: DouyinDigitalHumanVideoWorkRecord["stage"]) {
   switch (stage) {
     case "SUCCESS":
@@ -257,6 +264,48 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     [props.templates, recentTemplateIds],
   );
   const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && favoriteTemplateIds.includes(selectedTemplate.id));
+  const editorDiffs = useMemo<DigitalHumanEditorDiffEntry[]>(() => {
+    if (!selectedWork) {
+      return [];
+    }
+    const diffEntries: DigitalHumanEditorDiffEntry[] = [];
+    const pushDiff = (key: string, label: string, currentValue: string, selectedValue: string) => {
+      if (currentValue.trim() !== selectedValue.trim()) {
+        diffEntries.push({ key, label, currentValue, selectedValue });
+      }
+    };
+
+    pushDiff("title", "作品标题", title || "", selectedWork.title || "");
+    pushDiff("script", "口播脚本", script || "", selectedWork.content || "");
+    pushDiff("template", "数字人模板", selectedTemplate?.name || "", selectedWork.personName || "");
+    pushDiff("figureType", "形象类型", getFigureTypeLabel(selectedFigureType), getFigureTypeLabel(selectedWork.figureType));
+    pushDiff("speechRate", "语速", String(speechRate || ""), String(selectedWork.speechRate ?? ""));
+    pushDiff("pitch", "音调", String(pitch || ""), String(selectedWork.pitch ?? ""));
+    pushDiff("volume", "音量", String(volume || ""), String(selectedWork.volume ?? ""));
+    pushDiff("backgroundColor", "背景色", backgroundColor || "", selectedWork.backgroundColor || "");
+    pushDiff("subtitleEnabled", "字幕开关", subtitleEnabled ? "开启" : "关闭", selectedWork.subtitleEnabled ? "开启" : "关闭");
+    pushDiff("subtitleTextColor", "字幕颜色", subtitleTextColor || "", selectedWork.subtitleTextColor || "");
+    pushDiff("subtitleStrokeColor", "描边颜色", subtitleStrokeColor || "", selectedWork.subtitleStrokeColor || "");
+    pushDiff("screenWidth", "画布宽度", String(screenWidth || ""), String(selectedWork.screenWidth ?? ""));
+    pushDiff("screenHeight", "画布高度", String(screenHeight || ""), String(selectedWork.screenHeight ?? ""));
+
+    return diffEntries;
+  }, [
+    backgroundColor,
+    pitch,
+    screenHeight,
+    screenWidth,
+    script,
+    selectedFigureType,
+    selectedTemplate?.name,
+    selectedWork,
+    speechRate,
+    subtitleEnabled,
+    subtitleStrokeColor,
+    subtitleTextColor,
+    title,
+    volume,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -777,6 +826,20 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           </div>
         </div>
 
+        {selectedWork ? (
+          <div className="report-inline-tip" style={{ marginTop: 16 }}>
+            {editorDiffs.length ? (
+              <>
+                <strong>与当前选中作品相比，已修改参数：</strong>
+                {" "}
+                {editorDiffs.map((item) => item.label).join("、")}
+              </>
+            ) : (
+              <>当前创建区参数与选中作品一致，可直接提交重做或继续修改。</>
+            )}
+          </div>
+        ) : null}
+
         {recentTemplates.length ? (
           <div className="strategy-inline-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
             <span className="panel-subtext">最近使用：</span>
@@ -904,6 +967,26 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                 <button type="button" className="secondary-button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
                   下一页
                 </button>
+              </div>
+            ) : null}
+
+            {selectedWork && editorDiffs.length ? (
+              <div className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
+                <div className="report-editor-head">
+                  <div>
+                    <strong>参数差异提示</strong>
+                    <p>对比当前创建区与已选作品，方便确认是否已经完成必要修改。</p>
+                  </div>
+                </div>
+                <div className="xhs-material-card-grid">
+                  {editorDiffs.map((item) => (
+                    <article key={item.key} className="entity-card personal-card">
+                      <strong>{item.label}</strong>
+                      <p className="panel-subtext">当前：{item.currentValue || "未填写"}</p>
+                      <p className="panel-subtext">原作品：{item.selectedValue || "未填写"}</p>
+                    </article>
+                  ))}
+                </div>
               </div>
             ) : null}
 
