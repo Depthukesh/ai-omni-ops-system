@@ -1472,7 +1472,7 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman]);
 
-  const handleSaveDigitalHumanScriptTemplate = useCallback(async (payload: { name?: string; content?: string }) => {
+  const handleSaveDigitalHumanScriptTemplate = useCallback(async (payload: { name?: string; content?: string; isShared?: boolean }) => {
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能保存个人脚本模板。");
       return null;
@@ -1484,7 +1484,7 @@ export function DouyinWorkspaceShell() {
       const response = await createDouyinDigitalHumanScriptTemplate(activeBrandId, payload);
       const templates = await getDouyinDigitalHumanScriptTemplates(activeBrandId);
       setDigitalHumanScriptTemplates(templates.items || []);
-      setNotice(`已保存个人脚本模板：${response.item.name}`);
+      setNotice(response.item.isShared ? `已保存团队共享模板：${response.item.name}` : `已保存个人脚本模板：${response.item.name}`);
       return response.item;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "个人脚本模板保存失败。");
@@ -1496,7 +1496,7 @@ export function DouyinWorkspaceShell() {
 
   const handleUpdateDigitalHumanScriptTemplate = useCallback(async (
     templateId: string,
-    payload: { name?: string; content?: string },
+    payload: { name?: string; content?: string; isShared?: boolean },
   ) => {
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能编辑个人脚本模板。");
@@ -1509,7 +1509,7 @@ export function DouyinWorkspaceShell() {
       const response = await updateDouyinDigitalHumanScriptTemplate(activeBrandId, templateId, payload);
       const templates = await getDouyinDigitalHumanScriptTemplates(activeBrandId);
       setDigitalHumanScriptTemplates(templates.items || []);
-      setNotice(`个人脚本模板已更新：${response.item.name}`);
+      setNotice(response.item.isShared ? `团队共享模板已更新：${response.item.name}` : `个人脚本模板已更新：${response.item.name}`);
       return response.item;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "个人脚本模板更新失败。");

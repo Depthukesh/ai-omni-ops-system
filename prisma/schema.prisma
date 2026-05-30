@@ -755,10 +755,12 @@ model DigitalHumanScriptTemplate {
   brandId   String
   name      String
   content   String
+  isShared  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, brandId, updatedAt])
+  @@index([brandId, isShared, updatedAt])
   @@index([brandId, updatedAt])
   @@map("digital_human_script_templates")
 }

@@ -45,6 +45,7 @@ type DigitalHumanEditorDiffEntry = {
 };
 
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
+type PersonalScriptTemplateFilter = "ALL" | "SELF" | "SHARED";
 
 function getStageLabel(stage?: DouyinDigitalHumanVideoWorkRecord["stage"]) {
   switch (stage) {
@@ -109,10 +110,10 @@ export interface DouyinDigitalHumanWorkspaceProps {
   onTemplateTagChange: (tagId: string) => Promise<void>;
   onLoadMoreTemplates?: () => Promise<void>;
   onToggleFavoriteTemplate: (templateId: string, nextFavorite: boolean) => Promise<boolean>;
-  onSaveScriptTemplate: (payload: { name?: string; content?: string }) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
+  onSaveScriptTemplate: (payload: { name?: string; content?: string; isShared?: boolean }) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
   onUpdateScriptTemplate: (
     templateId: string,
-    payload: { name?: string; content?: string },
+    payload: { name?: string; content?: string; isShared?: boolean },
   ) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
   onDeleteScriptTemplate: (templateId: string) => Promise<boolean>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
@@ -173,6 +174,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [personalScriptTemplateName, setPersonalScriptTemplateName] = useState("");
   const [personalScriptTemplateSearch, setPersonalScriptTemplateSearch] = useState("");
   const [personalScriptTemplateSort, setPersonalScriptTemplateSort] = useState<PersonalScriptTemplateSort>("UPDATED_DESC");
+  const [personalScriptTemplateFilter, setPersonalScriptTemplateFilter] = useState<PersonalScriptTemplateFilter>("ALL");
+  const [scriptTemplateVisibility, setScriptTemplateVisibility] = useState<"SELF" | "SHARED">("SELF");
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
@@ -273,14 +276,23 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   );
   const filteredPersonalScriptTemplates = useMemo(() => {
     const keyword = personalScriptTemplateSearch.trim().toLowerCase();
+    const visibilityFiltered = props.personalScriptTemplates.filter((item) => {
+      if (personalScriptTemplateFilter === "SELF") {
+        return !item.isShared;
+      }
+      if (personalScriptTemplateFilter === "SHARED") {
+        return item.isShared;
+      }
+      return true;
+    });
     const filtered = keyword
-      ? props.personalScriptTemplates.filter((item) =>
+      ? visibilityFiltered.filter((item) =>
           [item.name, item.content]
             .join(" ")
             .toLowerCase()
             .includes(keyword),
         )
-      : props.personalScriptTemplates;
+      : visibilityFiltered;
 
     return [...filtered].sort((left, right) => {
       switch (personalScriptTemplateSort) {
@@ -295,8 +307,9 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
       }
     });
-  }, [personalScriptTemplateSearch, personalScriptTemplateSort, props.personalScriptTemplates]);
+  }, [personalScriptTemplateFilter, personalScriptTemplateSearch, personalScriptTemplateSort, props.personalScriptTemplates]);
   const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && props.favoriteTemplateIds.includes(selectedTemplate.id));
+  const selectedPersonalScriptTemplateEditable = selectedPersonalScriptTemplate?.editable ?? false;
   const editorDiffs = useMemo<DigitalHumanEditorDiffEntry[]>(() => {
     if (!selectedWork) {
       return [];
@@ -420,6 +433,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       return;
     }
     setPersonalScriptTemplateName(target.name);
+    setScriptTemplateVisibility(target.isShared ? "SHARED" : "SELF");
   }, [props.personalScriptTemplates, selectedPersonalScriptTemplateId]);
 
   useEffect(() => {
@@ -517,13 +531,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     const created = await props.onSaveScriptTemplate({
       name: templateName,
       content,
+      isShared: scriptTemplateVisibility === "SHARED",
     });
     if (!created) {
-      setScriptActionMessage("个人脚本模板保存失败，请稍后重试。");
+      setScriptActionMessage("脚本模板保存失败，请稍后重试。");
       return;
     }
     setSelectedPersonalScriptTemplateId(created.id);
-    setScriptActionMessage(`已保存个人脚本模板：${created.name}`);
+    setScriptTemplateVisibility(created.isShared ? "SHARED" : "SELF");
+    setScriptActionMessage(created.isShared ? `已保存团队共享模板：${created.name}` : `已保存个人脚本模板：${created.name}`);
   };
 
   const handleApplyPersonalScriptTemplate = () => {
@@ -538,7 +554,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
 
   const handleDeletePersonalScriptTemplate = async () => {
     if (!selectedPersonalScriptTemplateId) {
-      setScriptActionMessage("请先选择要删除的个人脚本模板。");
+      setScriptActionMessage("请先选择要删除的脚本模板。");
+      return;
+    }
+    if (!selectedPersonalScriptTemplateEditable) {
+      setScriptActionMessage("当前选中的是团队共享模板，不能直接删除，请先另存为自己的副本。");
       return;
     }
     const target = selectedPersonalScriptTemplate;
@@ -566,6 +586,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     const created = await props.onSaveScriptTemplate({
       name: `${baseName} 副本`.slice(0, 60),
       content,
+      isShared: scriptTemplateVisibility === "SHARED",
     });
     if (!created) {
       setScriptActionMessage("脚本模板副本保存失败，请稍后重试。");
@@ -573,12 +594,17 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     }
     setSelectedPersonalScriptTemplateId(created.id);
     setPersonalScriptTemplateName(created.name);
-    setScriptActionMessage(`已另存脚本模板副本：${created.name}`);
+    setScriptTemplateVisibility(created.isShared ? "SHARED" : "SELF");
+    setScriptActionMessage(created.isShared ? `已另存团队共享模板副本：${created.name}` : `已另存个人脚本模板副本：${created.name}`);
   };
 
   const handleRenamePersonalScriptTemplate = async () => {
     if (!selectedPersonalScriptTemplateId) {
-      setScriptActionMessage("请先选择一个个人脚本模板。");
+      setScriptActionMessage("请先选择一个脚本模板。");
+      return;
+    }
+    if (!selectedPersonalScriptTemplateEditable) {
+      setScriptActionMessage("当前选中的是团队共享模板，不能直接重命名，请先另存为自己的副本。");
       return;
     }
     const nextName = personalScriptTemplateName.trim();
@@ -594,12 +620,17 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       return;
     }
     setPersonalScriptTemplateName(updated.name);
+    setScriptTemplateVisibility(updated.isShared ? "SHARED" : "SELF");
     setScriptActionMessage(`已重命名脚本模板：${updated.name}`);
   };
 
   const handleOverwritePersonalScriptTemplate = async () => {
     if (!selectedPersonalScriptTemplateId) {
-      setScriptActionMessage("请先选择一个个人脚本模板。");
+      setScriptActionMessage("请先选择一个脚本模板。");
+      return;
+    }
+    if (!selectedPersonalScriptTemplateEditable) {
+      setScriptActionMessage("当前选中的是团队共享模板，不能直接覆盖，请先另存为自己的副本。");
       return;
     }
     const content = script.trim();
@@ -610,13 +641,36 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     const updated = await props.onUpdateScriptTemplate(selectedPersonalScriptTemplateId, {
       name: personalScriptTemplateName.trim() || undefined,
       content,
+      isShared: scriptTemplateVisibility === "SHARED",
     });
     if (!updated) {
       setScriptActionMessage("脚本模板更新失败，请稍后重试。");
       return;
     }
     setPersonalScriptTemplateName(updated.name);
+    setScriptTemplateVisibility(updated.isShared ? "SHARED" : "SELF");
     setScriptActionMessage(`已用当前脚本更新模板：${updated.name}`);
+  };
+
+  const handleToggleSharedPersonalScriptTemplate = async () => {
+    if (!selectedPersonalScriptTemplateId) {
+      setScriptActionMessage("请先选择一个脚本模板。");
+      return;
+    }
+    if (!selectedPersonalScriptTemplateEditable) {
+      setScriptActionMessage("当前选中的是他人共享模板，不能直接修改共享状态，请先另存为自己的副本。");
+      return;
+    }
+    const nextShared = scriptTemplateVisibility !== "SHARED";
+    const updated = await props.onUpdateScriptTemplate(selectedPersonalScriptTemplateId, {
+      isShared: nextShared,
+    });
+    if (!updated) {
+      setScriptActionMessage("脚本模板共享状态更新失败，请稍后重试。");
+      return;
+    }
+    setScriptTemplateVisibility(updated.isShared ? "SHARED" : "SELF");
+    setScriptActionMessage(updated.isShared ? `已设为团队共享模板：${updated.name}` : `已切回个人模板：${updated.name}`);
   };
 
   const handleBackfillSelectedWork = () => {
@@ -802,16 +856,24 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <button type="button" className="secondary-button" onClick={handleExportScript}>
                 导出脚本
               </button>
+              <select
+                value={scriptTemplateVisibility}
+                onChange={(event) => setScriptTemplateVisibility(event.target.value as "SELF" | "SHARED")}
+                style={{ minWidth: 180 }}
+              >
+                <option value="SELF">保存到个人模板</option>
+                <option value="SHARED">保存到团队共享模板</option>
+              </select>
               <button type="button" className="secondary-button" onClick={() => void handleSaveCurrentScriptTemplate()}>
-                保存为个人模板
+                保存脚本模板
               </button>
             </div>
-            <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节。</small>
+            <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节，并选择保存到个人或团队共享模板。</small>
             {scriptActionMessage ? <small className="personal-meta">{scriptActionMessage}</small> : null}
             {editorActionMessage ? <small className="personal-meta">{editorActionMessage}</small> : null}
           </div>
           <div className="field field-full">
-            <span>个人脚本模板</span>
+            <span>脚本模板资产</span>
             <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
               <input
                 value={personalScriptTemplateSearch}
@@ -819,6 +881,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                 placeholder="搜索模板名称或脚本内容"
                 style={{ minWidth: 240 }}
               />
+              <select
+                value={personalScriptTemplateFilter}
+                onChange={(event) => setPersonalScriptTemplateFilter(event.target.value as PersonalScriptTemplateFilter)}
+                style={{ minWidth: 180 }}
+              >
+                <option value="ALL">全部模板</option>
+                <option value="SELF">仅看个人模板</option>
+                <option value="SHARED">仅看团队共享</option>
+              </select>
               <select
                 value={personalScriptTemplateSort}
                 onChange={(event) => setPersonalScriptTemplateSort(event.target.value as PersonalScriptTemplateSort)}
@@ -834,10 +905,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                 onChange={(event) => setSelectedPersonalScriptTemplateId(event.target.value)}
                 style={{ minWidth: 240 }}
               >
-                <option value="">选择已保存模板</option>
+                <option value="">选择脚本模板</option>
                 {filteredPersonalScriptTemplates.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name}
+                    {item.isShared ? `[共享] ${item.name}` : `[个人] ${item.name}`}
                   </option>
                 ))}
               </select>
@@ -850,21 +921,24 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <button type="button" className="secondary-button" onClick={handleApplyPersonalScriptTemplate}>
                 套用模板
               </button>
-              <button type="button" className="secondary-button" onClick={() => void handleRenamePersonalScriptTemplate()}>
+              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleRenamePersonalScriptTemplate()}>
                 重命名模板
               </button>
-              <button type="button" className="secondary-button" onClick={() => void handleOverwritePersonalScriptTemplate()}>
+              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleOverwritePersonalScriptTemplate()}>
                 用当前脚本覆盖
+              </button>
+              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleToggleSharedPersonalScriptTemplate()}>
+                {selectedPersonalScriptTemplate?.isShared ? "取消团队共享" : "设为团队共享"}
               </button>
               <button type="button" className="secondary-button" onClick={() => void handleDuplicatePersonalScriptTemplate()}>
                 另存为副本
               </button>
-              <button type="button" className="secondary-button" onClick={() => void handleDeletePersonalScriptTemplate()}>
+              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleDeletePersonalScriptTemplate()}>
                 删除模板
               </button>
             </div>
             <small className="personal-meta">
-              当前已切到服务端持久化，支持跨设备复用，并可直接搜索、排序、重命名、另存副本或用当前脚本覆盖更新模板。
+              当前已切到服务端持久化，支持个人模板与团队共享模板两种资产形态，并可直接搜索、排序、切换共享状态、另存副本或用当前脚本覆盖更新模板。
             </small>
             <small className="personal-meta">
               当前筛选结果 {filteredPersonalScriptTemplates.length} / {props.personalScriptTemplates.length} 条。
@@ -873,6 +947,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <div className="entity-card personal-card" style={{ marginTop: 12 }}>
                 <strong>{selectedPersonalScriptTemplate.name}</strong>
                 <p className="personal-meta">
+                  {selectedPersonalScriptTemplate.isShared ? "团队共享模板" : "个人模板"}
+                  {" · "}
+                  {selectedPersonalScriptTemplateEditable ? "可编辑" : "只读"}
+                  {" · "}
                   最近更新：{props.formatDateTime(selectedPersonalScriptTemplate.updatedAt)} · 脚本字数：
                   {selectedPersonalScriptTemplate.content.trim().length}
                 </p>

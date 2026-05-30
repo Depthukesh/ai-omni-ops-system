@@ -276,6 +276,8 @@ export type DouyinDigitalHumanScriptTemplateRecord = {
   id: string;
   name: string;
   content: string;
+  isShared: boolean;
+  editable: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -857,6 +859,7 @@ export async function createDouyinDigitalHumanScriptTemplate(
   payload: {
     name?: string;
     content?: string;
+    isShared?: boolean;
   },
 ) {
   return jsonRequest<{ item: DouyinDigitalHumanScriptTemplateRecord }>(
@@ -872,6 +875,7 @@ export async function updateDouyinDigitalHumanScriptTemplate(
   payload: {
     name?: string;
     content?: string;
+    isShared?: boolean;
   },
 ) {
   return jsonRequest<{ item: DouyinDigitalHumanScriptTemplateRecord }>(

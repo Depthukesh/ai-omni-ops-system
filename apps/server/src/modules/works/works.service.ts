@@ -201,11 +201,13 @@ export type RecoverDouyinDigitalHumanVideoPayload = {
 export type CreateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
+  isShared?: boolean;
 };
 
 export type UpdateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
+  isShared?: boolean;
 };
 
 export type DouyinDigitalHumanFavoriteTemplateRecord = {
@@ -218,6 +220,8 @@ export type DouyinDigitalHumanScriptTemplateRecord = {
   id: string;
   name: string;
   content: string;
+  isShared: boolean;
+  editable: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -239,6 +243,7 @@ type DigitalHumanScriptTemplateStoreItem = {
   brandId: string;
   name: string;
   content: string;
+  isShared: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -1410,6 +1415,7 @@ export class WorksService {
       item: await this.createDigitalHumanScriptTemplate(userId, brandId, {
         name: name || "我的数字人脚本模板",
         content,
+        isShared: Boolean(payload.isShared),
       }),
     };
   }
@@ -1423,7 +1429,8 @@ export class WorksService {
     const userId = await this.resolveTaskUserId(brandId, auth);
     const hasName = typeof payload.name !== "undefined";
     const hasContent = typeof payload.content !== "undefined";
-    if (!hasName && !hasContent) {
+    const hasShared = typeof payload.isShared !== "undefined";
+    if (!hasName && !hasContent && !hasShared) {
       throw new BadRequestException("请至少提供一个要更新的脚本模板字段。");
     }
     const normalizedName = hasName ? String(payload.name || "").trim() : undefined;
@@ -1438,6 +1445,7 @@ export class WorksService {
       item: await this.updateDigitalHumanScriptTemplate(userId, brandId, templateId, {
         name: normalizedName,
         content: normalizedContent,
+        isShared: hasShared ? Boolean(payload.isShared) : undefined,
       }),
     };
   }
@@ -7558,30 +7566,45 @@ export class WorksService {
   private async loadDigitalHumanScriptTemplates(userId: string, brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
       try {
+        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
         const rows = await this.prismaService.$queryRawUnsafe<Array<{
           id: string;
+          userId: string;
           name: string;
           content: string;
+          isShared: boolean;
           createdAt: Date | string;
           updatedAt: Date | string;
         }>>(
-          `SELECT "id", "name", "content", "createdAt", "updatedAt"
-           FROM "digital_human_script_templates"
-           WHERE "userId" = $1 AND "brandId" = $2
-           ORDER BY "updatedAt" DESC`,
-          userId,
+          supportsSharedTemplates
+            ? `SELECT "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"
+               FROM "digital_human_script_templates"
+               WHERE "brandId" = $1 AND ("userId" = $2 OR "isShared" = TRUE)
+               ORDER BY CASE WHEN "userId" = $2 THEN 0 ELSE 1 END ASC, "updatedAt" DESC`
+            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"
+               FROM "digital_human_script_templates"
+               WHERE "brandId" = $1 AND "userId" = $2
+               ORDER BY "updatedAt" DESC`,
           brandId,
+          userId,
         );
-        return rows.map((item) => this.mapDigitalHumanScriptTemplateRow(item));
+        return rows.map((item) => this.mapDigitalHumanScriptTemplateRow(item, userId));
       } catch {
         // Fall back to in-memory store when migration has not been applied yet.
       }
     }
 
     return digitalHumanScriptTemplateMockStore
-      .filter((item) => item.userId === userId && item.brandId === brandId)
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-      .map((item) => this.mapDigitalHumanScriptTemplateRow(item));
+      .filter((item) => item.brandId === brandId && (item.userId === userId || item.isShared))
+      .sort((left, right) => {
+        const leftOrder = left.userId === userId ? 0 : 1;
+        const rightOrder = right.userId === userId ? 0 : 1;
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      })
+      .map((item) => this.mapDigitalHumanScriptTemplateRow(item, userId));
   }
 
   private async createDigitalHumanScriptTemplate(
@@ -7590,27 +7613,54 @@ export class WorksService {
     payload: {
       name: string;
       content: string;
+      isShared: boolean;
     },
   ) {
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const rows = await this.prismaService.$queryRawUnsafe<Array<{
-          id: string;
-          name: string;
-          content: string;
-          createdAt: Date | string;
-          updatedAt: Date | string;
-        }>>(
-          `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-           RETURNING "id", "name", "content", "createdAt", "updatedAt"`,
-          randomUUID(),
-          userId,
-          brandId,
-          payload.name,
-          payload.content,
-        );
-        return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        if (payload.isShared && !supportsSharedTemplates) {
+          throw new ServiceUnavailableException("当前数据库尚未应用数字人共享模板迁移，请先执行最新 Prisma migration。");
+        }
+        const rows = supportsSharedTemplates
+          ? await this.prismaService.$queryRawUnsafe<Array<{
+            id: string;
+            userId: string;
+            name: string;
+            content: string;
+            isShared: boolean;
+            createdAt: Date | string;
+            updatedAt: Date | string;
+          }>>(
+            `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "isShared", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             RETURNING "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"`,
+            randomUUID(),
+            userId,
+            brandId,
+            payload.name,
+            payload.content,
+            payload.isShared,
+          )
+          : await this.prismaService.$queryRawUnsafe<Array<{
+            id: string;
+            userId: string;
+            name: string;
+            content: string;
+            isShared: boolean;
+            createdAt: Date | string;
+            updatedAt: Date | string;
+          }>>(
+            `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"`,
+            randomUUID(),
+            userId,
+            brandId,
+            payload.name,
+            payload.content,
+          );
+        return this.mapDigitalHumanScriptTemplateRow(rows[0], userId);
       } catch {
         // Fall back to in-memory store when migration has not been applied yet.
       }
@@ -7623,11 +7673,12 @@ export class WorksService {
       brandId,
       name: payload.name,
       content: payload.content,
+      isShared: payload.isShared,
       createdAt: now,
       updatedAt: now,
     };
     digitalHumanScriptTemplateMockStore.unshift(created);
-    return this.mapDigitalHumanScriptTemplateRow(created);
+    return this.mapDigitalHumanScriptTemplateRow(created, userId);
   }
 
   private async updateDigitalHumanScriptTemplate(
@@ -7637,31 +7688,60 @@ export class WorksService {
     payload: {
       name?: string;
       content?: string;
+      isShared?: boolean;
     },
   ) {
     const existing = await this.getDigitalHumanScriptTemplateById(userId, brandId, templateId);
     const nextName = payload.name ?? existing.name;
     const nextContent = payload.content ?? existing.content;
+    const nextIsShared = payload.isShared ?? existing.isShared;
     if (await this.prismaService.canUseDatabase()) {
       try {
-        const rows = await this.prismaService.$queryRawUnsafe<Array<{
-          id: string;
-          name: string;
-          content: string;
-          createdAt: Date | string;
-          updatedAt: Date | string;
-        }>>(
-          `UPDATE "digital_human_script_templates"
-           SET "name" = $4, "content" = $5, "updatedAt" = CURRENT_TIMESTAMP
-           WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
-           RETURNING "id", "name", "content", "createdAt", "updatedAt"`,
-          templateId,
-          userId,
-          brandId,
-          nextName,
-          nextContent,
-        );
-        return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
+        if (typeof payload.isShared !== "undefined" && !supportsSharedTemplates) {
+          throw new ServiceUnavailableException("当前数据库尚未应用数字人共享模板迁移，请先执行最新 Prisma migration。");
+        }
+        const rows = supportsSharedTemplates
+          ? await this.prismaService.$queryRawUnsafe<Array<{
+            id: string;
+            userId: string;
+            name: string;
+            content: string;
+            isShared: boolean;
+            createdAt: Date | string;
+            updatedAt: Date | string;
+          }>>(
+            `UPDATE "digital_human_script_templates"
+             SET "name" = $4, "content" = $5, "isShared" = $6, "updatedAt" = CURRENT_TIMESTAMP
+             WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+             RETURNING "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"`,
+            templateId,
+            userId,
+            brandId,
+            nextName,
+            nextContent,
+            nextIsShared,
+          )
+          : await this.prismaService.$queryRawUnsafe<Array<{
+            id: string;
+            userId: string;
+            name: string;
+            content: string;
+            isShared: boolean;
+            createdAt: Date | string;
+            updatedAt: Date | string;
+          }>>(
+            `UPDATE "digital_human_script_templates"
+             SET "name" = $4, "content" = $5, "updatedAt" = CURRENT_TIMESTAMP
+             WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+             RETURNING "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"`,
+            templateId,
+            userId,
+            brandId,
+            nextName,
+            nextContent,
+          );
+        return this.mapDigitalHumanScriptTemplateRow(rows[0], userId);
       } catch {
         // Fall back to in-memory store when migration has not been applied yet.
       }
@@ -7675,8 +7755,9 @@ export class WorksService {
     }
     target.name = nextName;
     target.content = nextContent;
+    target.isShared = nextIsShared;
     target.updatedAt = new Date().toISOString();
-    return this.mapDigitalHumanScriptTemplateRow(target);
+    return this.mapDigitalHumanScriptTemplateRow(target, userId);
   }
 
   private async removeDigitalHumanScriptTemplate(userId: string, brandId: string, templateId: string) {
@@ -7714,23 +7795,31 @@ export class WorksService {
     }
     if (await this.prismaService.canUseDatabase()) {
       try {
+        const supportsSharedTemplates = await this.hasDigitalHumanSharedTemplateColumn();
         const rows = await this.prismaService.$queryRawUnsafe<Array<{
           id: string;
+          userId: string;
           name: string;
           content: string;
+          isShared: boolean;
           createdAt: Date | string;
           updatedAt: Date | string;
         }>>(
-          `SELECT "id", "name", "content", "createdAt", "updatedAt"
-           FROM "digital_human_script_templates"
-           WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
-           LIMIT 1`,
+          supportsSharedTemplates
+            ? `SELECT "id", "userId", "name", "content", "isShared", "createdAt", "updatedAt"
+               FROM "digital_human_script_templates"
+               WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+               LIMIT 1`
+            : `SELECT "id", "userId", "name", "content", FALSE AS "isShared", "createdAt", "updatedAt"
+               FROM "digital_human_script_templates"
+               WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+               LIMIT 1`,
           normalizedTemplateId,
           userId,
           brandId,
         );
         if (rows[0]) {
-          return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+          return this.mapDigitalHumanScriptTemplateRow(rows[0], userId);
         }
       } catch {
         // Fall back to in-memory store when migration has not been applied yet.
@@ -7743,7 +7832,7 @@ export class WorksService {
     if (!target) {
       throw new NotFoundException("个人脚本模板不存在。");
     }
-    return this.mapDigitalHumanScriptTemplateRow(target);
+    return this.mapDigitalHumanScriptTemplateRow(target, userId);
   }
 
   private mapDigitalHumanFavoriteTemplateRow(item: {
@@ -7758,17 +7847,38 @@ export class WorksService {
     };
   }
 
+  private async hasDigitalHumanSharedTemplateColumn() {
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<{ exists?: boolean }>>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_name = 'digital_human_script_templates'
+             AND column_name = 'isShared'
+         ) AS "exists"`,
+      );
+      return Boolean(rows[0]?.exists);
+    } catch {
+      return false;
+    }
+  }
+
   private mapDigitalHumanScriptTemplateRow(item: {
     id?: string;
+    userId?: string;
     name?: string;
     content?: string;
+    isShared?: boolean;
     createdAt?: Date | string;
     updatedAt?: Date | string;
-  }): DouyinDigitalHumanScriptTemplateRecord {
+  }, currentUserId?: string): DouyinDigitalHumanScriptTemplateRecord {
+    const ownerUserId = String(item.userId || "").trim();
     return {
       id: String(item.id || "").trim(),
       name: String(item.name || "").trim() || "我的数字人脚本模板",
       content: String(item.content || ""),
+      isShared: Boolean(item.isShared),
+      editable: !currentUserId || ownerUserId === currentUserId,
       createdAt: normalizeMaybeDate(item.createdAt) || new Date().toISOString(),
       updatedAt: normalizeMaybeDate(item.updatedAt) || new Date().toISOString(),
     };
