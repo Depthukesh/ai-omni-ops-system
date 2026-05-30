@@ -109,6 +109,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [screenWidth, setScreenWidth] = useState("1080");
   const [screenHeight, setScreenHeight] = useState("1920");
   const [selectedWorkId, setSelectedWorkId] = useState("");
+  const [manualRecoverTaskId, setManualRecoverTaskId] = useState("");
 
   const filteredTemplates = useMemo(() => {
     return props.templates;
@@ -166,6 +167,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       setSelectedWorkId(props.items[0]?.id || "");
     }
   }, [props.items, selectedWorkId]);
+
+  useEffect(() => {
+    setManualRecoverTaskId(selectedWork?.providerTaskId || "");
+  }, [selectedWork?.id, selectedWork?.providerTaskId]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, pageCount));
@@ -470,14 +475,35 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                   <div className="report-inline-tip" style={{ marginTop: 16 }}>{selectedWork.thirdPartyStatusDetail}</div>
                 ) : null}
 
+                <div className="personal-grid" style={{ marginTop: 16 }}>
+                  <label className="field field-full">
+                    <span>手动找回蝉镜任务 ID</span>
+                    <input
+                      value={manualRecoverTaskId}
+                      onChange={(event) => setManualRecoverTaskId(event.target.value)}
+                      placeholder="可手动输入蝉镜任务 ID，用于补找回最终视频结果"
+                      disabled={!props.canEdit || props.isSubmitting}
+                    />
+                    <small className="personal-meta">适用于已知蝉镜任务 ID，但当前作品未回填最终视频的场景。</small>
+                  </label>
+                </div>
+
                 <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
                   <button
                     type="button"
                     className="secondary-button"
                     onClick={() => void props.onRecoverVideo({ workId: selectedWork.id, providerTaskId: selectedWork.providerTaskId })}
-                    disabled={!props.canEdit || props.isSubmitting}
+                    disabled={!props.canEdit || props.isSubmitting || !selectedWork.providerTaskId}
                   >
                     找回视频结果
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void props.onRecoverVideo({ workId: selectedWork.id, providerTaskId: manualRecoverTaskId.trim() || undefined })}
+                    disabled={!props.canEdit || props.isSubmitting || !manualRecoverTaskId.trim()}
+                  >
+                    按任务 ID 找回
                   </button>
                   <button
                     type="button"
