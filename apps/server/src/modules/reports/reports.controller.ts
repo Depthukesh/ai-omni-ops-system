@@ -3,7 +3,9 @@ import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
   type GenerateDouyinOriginalCopyPayload,
+  type GenerateDouyinRemixCopyPayload,
   type UpdateDouyinOriginalCopyPayload,
+  type UpdateDouyinRemixCopyPayload,
   type UpdateDouyinTopicLibraryPayload,
   type UpdateDouyinMarketingPlanPayload,
   type UpdateGrowthReportPayload,
@@ -259,6 +261,50 @@ export class ReportsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
     return this.reportsService.deleteDouyinOriginalCopy(brandId, reportId);
+  }
+
+  @Get("brands/:brandId/douyin-remix-copy")
+  async getDouyinRemixCopyWorkspace(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    return this.reportsService.getDouyinRemixCopyWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/douyin-remix-copy/generate")
+  async generateDouyinRemixCopy(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: GenerateDouyinRemixCopyPayload,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.generateDouyinRemixCopy(brandId, payload);
+  }
+
+  @Patch("brands/:brandId/douyin-remix-copy/:reportId")
+  async updateDouyinRemixCopy(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: UpdateDouyinRemixCopyPayload,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.updateDouyinRemixCopy(brandId, reportId, payload);
+  }
+
+  @Delete("brands/:brandId/douyin-remix-copy/:reportId")
+  async deleteDouyinRemixCopy(
+    @Param("brandId") brandId: string,
+    @Param("reportId") reportId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    return this.reportsService.deleteDouyinRemixCopy(brandId, reportId);
   }
 
   @Get("brands/:brandId/xiaohongshu-marketing-calendar")

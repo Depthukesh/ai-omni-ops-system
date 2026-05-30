@@ -112,6 +112,22 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/抖音板块/同城带货类.txt",
     "../提示词/抖音板块/同城带货类.txt",
   ],
+  prompt_douyin_remix_copy_intro: [
+    "../../../提示词/抖音板块/拆解开头.txt",
+    "../提示词/抖音板块/拆解开头.txt",
+  ],
+  prompt_douyin_remix_copy_body: [
+    "../../../提示词/抖音板块/拆解正文.txt",
+    "../提示词/抖音板块/拆解正文.txt",
+  ],
+  prompt_douyin_remix_copy_outro: [
+    "../../../提示词/抖音板块/拆解结尾.txt",
+    "../提示词/抖音板块/拆解结尾.txt",
+  ],
+  prompt_douyin_remix_copy_final: [
+    "../../../提示词/抖音板块/二创.txt",
+    "../提示词/抖音板块/二创.txt",
+  ],
   prompt_xhs_calendar: [
     "../../../提示词/营销日历提示词.txt",
     "../提示词/营销日历提示词.txt",

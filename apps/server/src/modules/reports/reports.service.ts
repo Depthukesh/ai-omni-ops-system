@@ -20,6 +20,7 @@ const XIAOHONGSHU_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const DOUYIN_MARKETING_PLAN_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const DOUYIN_HOT_TOPIC_CANDIDATES_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const DOUYIN_ORIGINAL_COPY_TASK_TIMEOUT_MS = 10 * 60 * 1000;
+const DOUYIN_REMIX_COPY_TASK_TIMEOUT_MS = 12 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
@@ -91,6 +92,50 @@ const DOUYIN_ORIGINAL_COPY_TYPE_CONFIG: Record<DouyinOriginalCopyType, {
     skillSlug: "douyin-original-copy-local-sales",
     promptId: "prompt_douyin_original_copy_local_sales",
     fallbackPrompt: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成同城带货类抖音原创文案。",
+  },
+};
+
+type DouyinRemixCopyPromptStage = "INTRO" | "BODY" | "OUTRO" | "FINAL";
+
+const DOUYIN_REMIX_COPY_PROMPT_CONFIG: Record<DouyinRemixCopyPromptStage, {
+  label: string;
+  skillSlug: string;
+  promptId: string;
+  fallbackPrompt: string;
+  temperature: number;
+  maxTokens: number;
+}> = {
+  INTRO: {
+    label: "拆解开头",
+    skillSlug: "douyin-remix-copy-intro",
+    promptId: "prompt_douyin_remix_copy_intro",
+    fallbackPrompt: "根据提取出来的视频文案，拆解出适合复用的开头结构、钩子和表达方式。",
+    temperature: 0.3,
+    maxTokens: 2400,
+  },
+  BODY: {
+    label: "拆解正文",
+    skillSlug: "douyin-remix-copy-body",
+    promptId: "prompt_douyin_remix_copy_body",
+    fallbackPrompt: "根据提取出来的视频文案，拆解出适合复用的正文结构、论证顺序和关键卖点。",
+    temperature: 0.3,
+    maxTokens: 3200,
+  },
+  OUTRO: {
+    label: "拆解结尾",
+    skillSlug: "douyin-remix-copy-outro",
+    promptId: "prompt_douyin_remix_copy_outro",
+    fallbackPrompt: "根据提取出来的视频文案，拆解出适合复用的结尾结构、行动引导和收束方式。",
+    temperature: 0.3,
+    maxTokens: 2400,
+  },
+  FINAL: {
+    label: "生成二创文案",
+    skillSlug: "douyin-remix-copy-final",
+    promptId: "prompt_douyin_remix_copy_final",
+    fallbackPrompt: "根据拆解后的开头、正文、结尾内容，以及品牌资料、产品资料、营销策划资料和用户要求，生成抖音二创文案。",
+    temperature: 0.4,
+    maxTokens: 4200,
   },
 };
 
@@ -242,6 +287,43 @@ type DouyinOriginalCopyAssetMeta = {
   modelName?: string;
 };
 
+type DouyinRemixCopyMaterialOption = {
+  id: string;
+  title: string;
+  videoUrl: string;
+  authorName?: string;
+  workUrl?: string;
+};
+
+type DouyinRemixCopyProductOption = {
+  id: string;
+  productName: string;
+};
+
+type DouyinRemixCopyAssetMeta = {
+  kind: "DOUYIN_REMIX_COPY";
+  generatedAt: string;
+  taskId?: string;
+  summary: string;
+  content: string;
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceVideoUrl: string;
+  sourceAuthorName?: string;
+  sourceWorkUrl?: string;
+  injectBrandProfile: boolean;
+  injectMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+  productId?: string;
+  productName?: string;
+  userRequirement?: string;
+  extractedCopy?: string;
+  introBreakdown?: string;
+  bodyBreakdown?: string;
+  outroBreakdown?: string;
+  modelName?: string;
+};
+
 type XiaohongshuMarketingCalendarItem = {
   id: string;
   date: string;
@@ -389,6 +471,31 @@ export type DouyinOriginalCopyRecord = {
   userRequirement?: string;
 };
 
+export type DouyinRemixCopyRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  modelName?: string;
+  content: string;
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceVideoUrl: string;
+  sourceAuthorName?: string;
+  sourceWorkUrl?: string;
+  injectBrandProfile: boolean;
+  injectMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+  productId?: string;
+  productName?: string;
+  userRequirement?: string;
+  extractedCopy?: string;
+  introBreakdown?: string;
+  bodyBreakdown?: string;
+  outroBreakdown?: string;
+};
+
 export type XiaohongshuMarketingCalendarRecord = {
   id: string;
   title: string;
@@ -431,6 +538,7 @@ export type XiaohongshuMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type DouyinMarketingPlanTaskRecord = VisualGrowthReportTaskRecord;
 export type DouyinHotTopicCandidatesTaskRecord = VisualGrowthReportTaskRecord;
 export type DouyinOriginalCopyTaskRecord = VisualGrowthReportTaskRecord;
+export type DouyinRemixCopyTaskRecord = VisualGrowthReportTaskRecord;
 export type XiaohongshuMarketingCalendarTaskRecord = VisualGrowthReportTaskRecord;
 
 type ThirdPartyChatConfig = {
@@ -580,6 +688,28 @@ type DouyinOriginalCopyModelResult = {
   userRequirement?: string;
 };
 
+type DouyinRemixCopyModelResult = {
+  title: string;
+  summary: string;
+  content: string;
+  modelName: string;
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceVideoUrl: string;
+  sourceAuthorName?: string;
+  sourceWorkUrl?: string;
+  injectBrandProfile: boolean;
+  injectMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+  productId?: string;
+  productName?: string;
+  userRequirement?: string;
+  extractedCopy?: string;
+  introBreakdown?: string;
+  bodyBreakdown?: string;
+  outroBreakdown?: string;
+};
+
 type XiaohongshuMarketingCalendarModelResult = {
   title: string;
   summary: string;
@@ -605,6 +735,7 @@ type XiaohongshuMarketingPlanPhase =
 type DouyinMarketingPlanPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 type DouyinHotTopicCandidatesPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 type DouyinOriginalCopyPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
+type DouyinRemixCopyPhase = "PREPARING" | "EXTRACTING" | "ANALYZING" | "GENERATING" | "PERSISTING" | "DONE";
 type XiaohongshuMarketingCalendarPhase = "PREPARING" | "GENERATING" | "PERSISTING" | "DONE";
 
 export type UpdateGrowthReportPayload = {
@@ -648,6 +779,19 @@ export type UpdateDouyinOriginalCopyPayload = {
   title?: string;
   content: string;
   userRequirement?: string;
+};
+
+export type GenerateDouyinRemixCopyPayload = {
+  materialId: string;
+  injectBrandProfile?: boolean;
+  productId?: string;
+  injectMarketingPlan?: boolean;
+  userRequirement?: string;
+};
+
+export type UpdateDouyinRemixCopyPayload = {
+  title?: string;
+  content: string;
 };
 
 export type GrowthReportWorkspace = {
@@ -695,6 +839,16 @@ export type DouyinOriginalCopyWorkspace = {
   latestTask?: DouyinOriginalCopyTaskRecord;
   calendarOptions: DouyinOriginalCopyCalendarOption[];
   topicOptions: DouyinTopicLibraryItem[];
+  hasMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+};
+
+export type DouyinRemixCopyWorkspace = {
+  latest?: DouyinRemixCopyRecord;
+  history: DouyinRemixCopyRecord[];
+  latestTask?: DouyinRemixCopyTaskRecord;
+  materialOptions: DouyinRemixCopyMaterialOption[];
+  productOptions: DouyinRemixCopyProductOption[];
   hasMarketingPlan: boolean;
   marketingPlanTitle?: string;
 };
@@ -1875,6 +2029,236 @@ export class ReportsService {
     return this.getDouyinOriginalCopyWorkspace(brandId);
   }
 
+  async getDouyinRemixCopyWorkspace(brandId: string): Promise<DouyinRemixCopyWorkspace> {
+    const [marketingPlanWorkspace, collectionWorkspace, archive] = await Promise.all([
+      this.getDouyinMarketingPlanWorkspace(brandId),
+      this.collectorsService.getDouyinWorkspace(brandId),
+      this.brandsService.getArchive(brandId),
+    ]);
+    const materialOptions = this.buildDouyinRemixMaterialOptions(collectionWorkspace);
+    const productOptions = this.buildDouyinRemixProductOptions(archive.products);
+    const hasMarketingPlan = Boolean(marketingPlanWorkspace.latest);
+    const marketingPlanTitle = marketingPlanWorkspace.latest?.title;
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const reports = assets
+        .map((item) => this.mapDouyinRemixCopyAsset({
+          id: item.id,
+          brandId: item.brandId,
+          category: "GENERATED_CONTENT",
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: "系统生成",
+          fileUrl: item.fileUrl ?? undefined,
+          metadataJson: this.asMeta(item.metadataJson),
+        }))
+        .filter((item): item is DouyinRemixCopyRecord => Boolean(item));
+      const latestTaskRow = await this.prismaService.task.findFirst({
+        where: {
+          brandId,
+          taskType: "DOUYIN_REMIX_COPY",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const normalizedTask = latestTaskRow
+        ? await this.normalizeLatestDouyinRemixCopyTask(brandId, this.mapVisualGrowthReportTask(latestTaskRow))
+        : undefined;
+      return {
+        latest: reports[0],
+        history: reports,
+        latestTask: normalizedTask,
+        materialOptions,
+        productOptions,
+        hasMarketingPlan,
+        marketingPlanTitle,
+      };
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const reports = database.assets
+      .filter((item) => item.brandId === brandId && item.category === "GENERATED_CONTENT")
+      .map((item) => this.mapDouyinRemixCopyAsset(item))
+      .filter((item): item is DouyinRemixCopyRecord => Boolean(item))
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+    const latestTask = [...database.tasks]
+      .filter((item) => item.brandId === brandId && item.taskType === "DOUYIN_REMIX_COPY")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const normalizedTask = latestTask
+      ? await this.normalizeLatestDouyinRemixCopyTask(brandId, this.mapVisualGrowthReportTask(latestTask))
+      : undefined;
+    return {
+      latest: reports[0],
+      history: reports,
+      latestTask: normalizedTask,
+      materialOptions,
+      productOptions,
+      hasMarketingPlan,
+      marketingPlanTitle,
+    };
+  }
+
+  async generateDouyinRemixCopy(brandId: string, payload: GenerateDouyinRemixCopyPayload) {
+    const materialId = String(payload.materialId ?? "").trim();
+    if (!materialId) {
+      throw new NotFoundException("请选择素材");
+    }
+
+    const workspace = await this.getDouyinRemixCopyWorkspace(brandId);
+    const runningTask = workspace.latestTask;
+    if (runningTask && (runningTask.taskStatus === "QUEUED" || runningTask.taskStatus === "RUNNING")) {
+      return workspace;
+    }
+
+    const material = workspace.materialOptions.find((item) => item.id === materialId);
+    if (!material) {
+      throw new NotFoundException("请选择有效的素材");
+    }
+    if (!material.videoUrl) {
+      throw new NotFoundException("当前素材缺少可用视频链接，暂时无法生成二创文案");
+    }
+
+    const injectMarketingPlan = Boolean(payload.injectMarketingPlan);
+    if (injectMarketingPlan && !workspace.hasMarketingPlan) {
+      throw new NotFoundException("当前品牌还没有抖音营销策划方案，暂时不能植入");
+    }
+
+    const productId = String(payload.productId ?? "").trim() || undefined;
+    const product = productId ? workspace.productOptions.find((item) => item.id === productId) : undefined;
+    if (productId && !product) {
+      throw new NotFoundException("请选择有效的产品");
+    }
+
+    const task = await this.createDouyinRemixCopyTask(brandId, {
+      material,
+      injectBrandProfile: Boolean(payload.injectBrandProfile),
+      product,
+      injectMarketingPlan,
+      marketingPlanTitle: workspace.marketingPlanTitle,
+      userRequirement: payload.userRequirement?.trim() || undefined,
+    });
+    setTimeout(() => {
+      void this.runDouyinRemixCopyTask(brandId, task.id);
+    }, 0);
+
+    return {
+      ...workspace,
+      latestTask: task,
+    };
+  }
+
+  async updateDouyinRemixCopy(brandId: string, reportId: string, payload: UpdateDouyinRemixCopyPayload) {
+    const content = payload.content.trim();
+    if (!content) {
+      throw new ServiceUnavailableException("二创文案内容不能为空");
+    }
+
+    const workspace = await this.getDouyinRemixCopyWorkspace(brandId);
+    const current = workspace.history.find((item) => item.id === reportId);
+    if (!current) {
+      throw new NotFoundException("二创文案不存在");
+    }
+
+    const normalized = this.buildManualDouyinRemixCopyResult(content, payload.title, current.title);
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      if (currentMeta.kind !== "DOUYIN_REMIX_COPY") {
+        throw new NotFoundException("二创文案不存在");
+      }
+      await this.prismaService.businessAsset.update({
+        where: { id: asset.id },
+        data: {
+          title: normalized.title,
+          description: normalized.summary,
+          metadataJson: {
+            ...currentMeta,
+            summary: normalized.summary,
+            content: normalized.content,
+            title: normalized.title,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      const asset = database.assets.find((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_CONTENT");
+      if (!asset) {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const currentMeta = this.asMeta(asset.metadataJson);
+      if (currentMeta.kind !== "DOUYIN_REMIX_COPY") {
+        throw new NotFoundException("二创文案不存在");
+      }
+      asset.title = normalized.title;
+      asset.description = normalized.summary;
+      asset.metadataJson = {
+        ...currentMeta,
+        summary: normalized.summary,
+        content: normalized.content,
+        title: normalized.title,
+      };
+    }
+
+    return this.getDouyinRemixCopyWorkspace(brandId);
+  }
+
+  async deleteDouyinRemixCopy(brandId: string, reportId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          id: reportId,
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const meta = this.asMeta(asset.metadataJson);
+      if (meta.kind !== "DOUYIN_REMIX_COPY") {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const taskId = this.readMetaString(meta, "taskId");
+      await this.prismaService.businessAsset.delete({ where: { id: asset.id } });
+      if (taskId) {
+        await this.prismaService.task.deleteMany({ where: { id: taskId, brandId } });
+      }
+    } else {
+      const index = database.assets.findIndex((item) => item.id === reportId && item.brandId === brandId && item.category === "GENERATED_CONTENT");
+      if (index < 0) {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const meta = this.asMeta(database.assets[index].metadataJson);
+      if (meta.kind !== "DOUYIN_REMIX_COPY") {
+        throw new NotFoundException("二创文案不存在");
+      }
+      const taskId = this.readMetaString(meta, "taskId");
+      database.assets.splice(index, 1);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    return this.getDouyinRemixCopyWorkspace(brandId);
+  }
+
   async getXiaohongshuMarketingCalendarWorkspace(brandId: string): Promise<XiaohongshuMarketingCalendarWorkspace> {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureBrandExistsInDatabase(brandId);
@@ -2472,6 +2856,41 @@ export class ReportsService {
     };
   }
 
+  private async normalizeLatestDouyinRemixCopyTask(
+    brandId: string,
+    task: DouyinRemixCopyTaskRecord,
+  ): Promise<DouyinRemixCopyTaskRecord> {
+    if (task.taskStatus !== "QUEUED" && task.taskStatus !== "RUNNING") {
+      return task;
+    }
+
+    const referenceTime = task.updatedAt || task.startedAt || task.createdAt;
+    const referenceMs = Date.parse(referenceTime);
+    if (!Number.isFinite(referenceMs)) {
+      return task;
+    }
+    if (Date.now() - referenceMs <= DOUYIN_REMIX_COPY_TASK_TIMEOUT_MS) {
+      return task;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const errorMessage = "抖音二创文案生成超时，任务已自动结束，请重新点击生成。";
+    await this.updateDouyinRemixCopyTaskStatus(brandId, task.id, {
+      taskStatus: "FAILED",
+      startedAt: task.startedAt,
+      finishedAt,
+      errorMessage,
+    });
+
+    return {
+      ...task,
+      taskStatus: "FAILED",
+      finishedAt,
+      updatedAt: finishedAt,
+      errorMessage,
+    };
+  }
+
   private async normalizeLatestXiaohongshuMarketingCalendarTask(
     brandId: string,
     task: XiaohongshuMarketingCalendarTaskRecord,
@@ -2983,6 +3402,79 @@ export class ReportsService {
       taskStatus: "QUEUED" as const,
       modelName,
       pointsCost: 140,
+      inputJson: taskInput,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return this.mapVisualGrowthReportTask(task);
+  }
+
+  private async createDouyinRemixCopyTask(
+    brandId: string,
+    params: {
+      material: DouyinRemixCopyMaterialOption;
+      injectBrandProfile: boolean;
+      product?: DouyinRemixCopyProductOption;
+      injectMarketingPlan: boolean;
+      marketingPlanTitle?: string;
+      userRequirement?: string;
+    },
+  ) {
+    const now = new Date().toISOString();
+    const settings = await this.loadDouyinRemixStageGenerationSettings(brandId, "FINAL");
+    const modelName =
+      (await this.loadDouyinMarketingProviderConfigs(settings))[0]?.models[0]
+      || settings.preferredModelName
+      || "deepseek-v4-pro";
+    const taskInput = {
+      material: params.material,
+      injectBrandProfile: params.injectBrandProfile,
+      product: params.product,
+      injectMarketingPlan: params.injectMarketingPlan,
+      marketingPlanTitle: params.marketingPlanTitle || undefined,
+      userRequirement: params.userRequirement || undefined,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      const brand = await this.prismaService.brand.findUnique({
+        where: { id: brandId },
+        select: { id: true, ownerUserId: true, brandName: true },
+      });
+      if (!brand) {
+        throw new NotFoundException("品牌不存在");
+      }
+
+      const task = await this.prismaService.task.create({
+        data: {
+          userId: brand.ownerUserId,
+          brandId,
+          taskType: "DOUYIN_REMIX_COPY",
+          taskTitle: `生成抖音二创文案：${brand.brandName}｜${params.material.title}`,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 180,
+          inputJson: taskInput as Prisma.InputJsonValue,
+        },
+      });
+
+      return this.mapVisualGrowthReportTask(task);
+    }
+
+    const brand = database.brands.find((item) => item.id === brandId);
+    if (!brand) {
+      throw new NotFoundException("品牌不存在");
+    }
+
+    const task = {
+      id: createId("tsk"),
+      userId: brand.ownerUserId,
+      brandId,
+      taskType: "DOUYIN_REMIX_COPY",
+      taskTitle: `生成抖音二创文案：${brand.brandName}｜${params.material.title}`,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 180,
       inputJson: taskInput,
       createdAt: now,
       updatedAt: now,
@@ -3538,6 +4030,100 @@ export class ReportsService {
       clearInterval(heartbeat);
       const message = error instanceof Error ? error.message : "抖音原创文案生成失败";
       await this.updateDouyinOriginalCopyTaskStatus(brandId, taskId, {
+        taskStatus: "FAILED",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: message,
+      });
+    }
+  }
+
+  private async runDouyinRemixCopyTask(brandId: string, taskId: string) {
+    const startedAt = new Date().toISOString();
+    let currentPhaseStatus = this.buildDouyinRemixCopyPhaseStatus("PREPARING");
+    const applyRunningStatus = async () => {
+      await this.updateDouyinRemixCopyTaskStatus(brandId, taskId, {
+        taskStatus: "RUNNING",
+        startedAt,
+        errorMessage: "",
+        outputJson: { ...currentPhaseStatus },
+      });
+    };
+    await applyRunningStatus();
+    const heartbeat = setInterval(() => {
+      void applyRunningStatus();
+    }, 20000);
+
+    try {
+      const currentTaskRow = await this.findTaskInputMeta(brandId, taskId);
+      const materialRecord = this.readNestedRecord(currentTaskRow, ["material"]);
+      const materialId = this.readRecordString(materialRecord, "id");
+      const materialTitle = this.readRecordString(materialRecord, "title");
+      const materialVideoUrl = this.readRecordString(materialRecord, "videoUrl");
+      if (!materialId || !materialVideoUrl) {
+        throw new NotFoundException("当前任务缺少有效素材视频链接");
+      }
+
+      const archive = await this.brandsService.getArchive(brandId);
+      const productRecord = this.readNestedRecord(currentTaskRow, ["product"]);
+      const productId = this.readRecordString(productRecord, "id") || undefined;
+      const product = productId ? archive.products.find((item) => item.id === productId) : undefined;
+      const injectMarketingPlan = Boolean(currentTaskRow.injectMarketingPlan);
+      const marketingPlanWorkspace = injectMarketingPlan ? await this.getDouyinMarketingPlanWorkspace(brandId) : undefined;
+      const marketingPlan = injectMarketingPlan ? marketingPlanWorkspace?.latest : undefined;
+      if (injectMarketingPlan && !marketingPlan) {
+        throw new NotFoundException("当前品牌还没有抖音营销策划方案，无法植入");
+      }
+
+      currentPhaseStatus = this.buildDouyinRemixCopyPhaseStatus("EXTRACTING");
+      await applyRunningStatus();
+      const report = await this.buildDouyinRemixCopy({
+        brandId,
+        archive,
+        material: {
+          id: materialId,
+          title: materialTitle || "素材视频",
+          videoUrl: materialVideoUrl,
+          authorName: this.readRecordString(materialRecord, "authorName") || undefined,
+          workUrl: this.readRecordString(materialRecord, "workUrl") || undefined,
+        },
+        injectBrandProfile: Boolean(currentTaskRow.injectBrandProfile),
+        product,
+        marketingPlan,
+        injectMarketingPlan,
+        userRequirement: this.readMetaString(currentTaskRow, "userRequirement") || undefined,
+        generatedAt: startedAt,
+        onPhaseUpdate: async (phase, extra) => {
+          currentPhaseStatus = this.buildDouyinRemixCopyPhaseStatus(phase, extra);
+          await applyRunningStatus();
+        },
+      });
+
+      currentPhaseStatus = this.buildDouyinRemixCopyPhaseStatus("PERSISTING", {
+        modelName: report.modelName,
+      });
+      await applyRunningStatus();
+      clearInterval(heartbeat);
+      await this.persistDouyinRemixCopyResult(brandId, taskId, report, startedAt);
+      await this.updateDouyinRemixCopyTaskStatus(brandId, taskId, {
+        taskStatus: "SUCCESS",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorMessage: "",
+        outputJson: {
+          title: report.title,
+          summary: report.summary,
+          modelName: report.modelName,
+          sourceMaterialId: report.sourceMaterialId,
+          ...this.buildDouyinRemixCopyPhaseStatus("DONE", {
+            modelName: report.modelName,
+          }),
+        },
+      });
+    } catch (error) {
+      clearInterval(heartbeat);
+      const message = error instanceof Error ? error.message : "抖音二创文案生成失败";
+      await this.updateDouyinRemixCopyTaskStatus(brandId, taskId, {
         taskStatus: "FAILED",
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -4150,6 +4736,81 @@ export class ReportsService {
     });
   }
 
+  private async persistDouyinRemixCopyResult(
+    brandId: string,
+    taskId: string,
+    report: Awaited<ReturnType<ReportsService["buildDouyinRemixCopy"]>>,
+    generatedAt: string,
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.GENERATED_CONTENT,
+          title: report.title,
+          description: report.summary,
+          metadataJson: {
+            kind: "DOUYIN_REMIX_COPY",
+            generatedAt,
+            taskId,
+            summary: report.summary,
+            content: report.content,
+            sourceMaterialId: report.sourceMaterialId,
+            sourceMaterialTitle: report.sourceMaterialTitle,
+            sourceVideoUrl: report.sourceVideoUrl,
+            sourceAuthorName: report.sourceAuthorName,
+            sourceWorkUrl: report.sourceWorkUrl,
+            injectBrandProfile: report.injectBrandProfile,
+            injectMarketingPlan: report.injectMarketingPlan,
+            marketingPlanTitle: report.marketingPlanTitle,
+            productId: report.productId,
+            productName: report.productName,
+            userRequirement: report.userRequirement,
+            extractedCopy: report.extractedCopy,
+            introBreakdown: report.introBreakdown,
+            bodyBreakdown: report.bodyBreakdown,
+            outroBreakdown: report.outroBreakdown,
+            modelName: report.modelName,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    database.assets.unshift({
+      id: createId("ast"),
+      brandId,
+      category: "GENERATED_CONTENT",
+      title: report.title,
+      description: report.summary,
+      sourceName: "系统生成",
+      fileUrl: undefined,
+      metadataJson: {
+        kind: "DOUYIN_REMIX_COPY",
+        generatedAt,
+        taskId,
+        summary: report.summary,
+        content: report.content,
+        sourceMaterialId: report.sourceMaterialId,
+        sourceMaterialTitle: report.sourceMaterialTitle,
+        sourceVideoUrl: report.sourceVideoUrl,
+        sourceAuthorName: report.sourceAuthorName,
+        sourceWorkUrl: report.sourceWorkUrl,
+        injectBrandProfile: report.injectBrandProfile,
+        injectMarketingPlan: report.injectMarketingPlan,
+        marketingPlanTitle: report.marketingPlanTitle,
+        productId: report.productId,
+        productName: report.productName,
+        userRequirement: report.userRequirement,
+        extractedCopy: report.extractedCopy,
+        introBreakdown: report.introBreakdown,
+        bodyBreakdown: report.bodyBreakdown,
+        outroBreakdown: report.outroBreakdown,
+        modelName: report.modelName,
+      } satisfies DouyinRemixCopyAssetMeta,
+    });
+  }
+
   private async persistXiaohongshuMarketingCalendarResult(
     brandId: string,
     taskId: string,
@@ -4716,6 +5377,53 @@ export class ReportsService {
     }
   }
 
+  private async updateDouyinRemixCopyTaskStatus(
+    brandId: string,
+    taskId: string,
+    patch: {
+      taskStatus: DouyinRemixCopyTaskRecord["taskStatus"];
+      startedAt?: string;
+      finishedAt?: string;
+      errorMessage?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: patch.taskStatus as TaskStatus,
+          startedAt: patch.startedAt ? new Date(patch.startedAt) : undefined,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : undefined,
+          errorMessage: patch.errorMessage !== undefined ? patch.errorMessage || null : undefined,
+          outputJson: patch.outputJson ? patch.outputJson as Prisma.InputJsonValue : undefined,
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId && item.brandId === brandId);
+    if (!task) {
+      return;
+    }
+
+    task.taskStatus = patch.taskStatus;
+    task.updatedAt = new Date().toISOString();
+    if (patch.startedAt !== undefined) {
+      task.startedAt = patch.startedAt;
+    }
+    if (patch.finishedAt !== undefined) {
+      task.finishedAt = patch.finishedAt;
+    }
+    if (patch.errorMessage !== undefined) {
+      task.errorMessage = patch.errorMessage || undefined;
+    }
+    if (patch.outputJson) {
+      task.outputJson = patch.outputJson;
+    }
+  }
+
   private async updateXiaohongshuMarketingCalendarTaskStatus(
     brandId: string,
     taskId: string,
@@ -5068,6 +5776,126 @@ export class ReportsService {
         });
       },
     });
+  }
+
+  private async buildDouyinRemixCopy(params: {
+    brandId: string;
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    material: DouyinRemixCopyMaterialOption;
+    injectBrandProfile: boolean;
+    product?: Awaited<ReturnType<BrandsService["getArchive"]>>["products"][number];
+    marketingPlan?: DouyinMarketingPlanRecord;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+    generatedAt: string;
+    onPhaseUpdate?: (
+      phase: DouyinRemixCopyPhase,
+      extra?: {
+        modelName?: string;
+        detailText?: string;
+      },
+    ) => Promise<void> | void;
+  }) {
+    await params.onPhaseUpdate?.("EXTRACTING");
+    const extractedCopy = await this.extractDouyinMaterialCopyByMathMind(
+      params.brandId,
+      params.material.videoUrl,
+      async (detailText) => {
+        await params.onPhaseUpdate?.("EXTRACTING", { detailText });
+      },
+    );
+
+    await params.onPhaseUpdate?.("ANALYZING");
+    const breakdownSourcePayload = this.buildDouyinRemixBreakdownInput(params.material, extractedCopy, params.generatedAt);
+    const introSettings = await this.loadDouyinRemixStageGenerationSettings(params.brandId, "INTRO");
+    const introBreakdownResult = await this.generateDouyinRemixStageTextByModel(
+      introSettings.promptContent,
+      breakdownSourcePayload,
+      introSettings,
+      "抖音二创文案拆解开头",
+      {
+        stageLabel: "拆解开头",
+        onAttemptUpdate: async (detailText, modelName) => {
+          await params.onPhaseUpdate?.("ANALYZING", { detailText, modelName });
+        },
+      },
+    );
+    const bodySettings = await this.loadDouyinRemixStageGenerationSettings(params.brandId, "BODY");
+    const bodyBreakdownResult = await this.generateDouyinRemixStageTextByModel(
+      bodySettings.promptContent,
+      breakdownSourcePayload,
+      bodySettings,
+      "抖音二创文案拆解正文",
+      {
+        stageLabel: "拆解正文",
+        onAttemptUpdate: async (detailText, modelName) => {
+          await params.onPhaseUpdate?.("ANALYZING", { detailText, modelName });
+        },
+      },
+    );
+    const outroSettings = await this.loadDouyinRemixStageGenerationSettings(params.brandId, "OUTRO");
+    const outroBreakdownResult = await this.generateDouyinRemixStageTextByModel(
+      outroSettings.promptContent,
+      breakdownSourcePayload,
+      outroSettings,
+      "抖音二创文案拆解结尾",
+      {
+        stageLabel: "拆解结尾",
+        onAttemptUpdate: async (detailText, modelName) => {
+          await params.onPhaseUpdate?.("ANALYZING", { detailText, modelName });
+        },
+      },
+    );
+
+    const finalSettings = await this.loadDouyinRemixStageGenerationSettings(params.brandId, "FINAL");
+    const finalInputPayload = this.buildDouyinRemixCopyInput({
+      archive: params.archive,
+      material: params.material,
+      extractResult: extractedCopy,
+      introBreakdown: introBreakdownResult.content,
+      bodyBreakdown: bodyBreakdownResult.content,
+      outroBreakdown: outroBreakdownResult.content,
+      injectBrandProfile: params.injectBrandProfile,
+      product: params.product,
+      marketingPlan: params.marketingPlan,
+      injectMarketingPlan: params.injectMarketingPlan,
+      userRequirement: params.userRequirement,
+      generatedAt: params.generatedAt,
+    });
+    await params.onPhaseUpdate?.("GENERATING");
+    const finalResult = await this.generateDouyinRemixStageTextByModel(
+      finalSettings.promptContent,
+      finalInputPayload,
+      finalSettings,
+      "抖音二创文案生成",
+      {
+        stageLabel: "生成二创文案",
+        onAttemptUpdate: async (detailText, modelName) => {
+          await params.onPhaseUpdate?.("GENERATING", { detailText, modelName });
+        },
+      },
+    );
+
+    const normalized = this.buildManualDouyinRemixCopyResult(finalResult.content, undefined, "抖音二创文案");
+    return {
+      ...normalized,
+      modelName: finalResult.modelName,
+      sourceMaterialId: params.material.id,
+      sourceMaterialTitle: params.material.title,
+      sourceVideoUrl: params.material.videoUrl,
+      sourceAuthorName: params.material.authorName,
+      sourceWorkUrl: params.material.workUrl,
+      injectBrandProfile: params.injectBrandProfile,
+      injectMarketingPlan: params.injectMarketingPlan,
+      marketingPlanTitle: params.marketingPlan?.title,
+      productId: params.product?.id,
+      productName: params.product?.productName,
+      userRequirement: params.userRequirement,
+      extractedCopy,
+      introBreakdown: introBreakdownResult.content,
+      bodyBreakdown: bodyBreakdownResult.content,
+      outroBreakdown: outroBreakdownResult.content,
+    } satisfies DouyinRemixCopyModelResult;
   }
 
   private async buildXiaohongshuMarketingCalendar(params: {
@@ -5831,6 +6659,81 @@ export class ReportsService {
     );
   }
 
+  private async generateDouyinRemixStageTextByModel(
+    skillPrompt: string,
+    inputPayload: Record<string, unknown>,
+    settings: ModelGenerationSettings,
+    taskLabel: string,
+    options?: {
+      stageLabel?: string;
+      onAttemptUpdate?: (detailText: string, modelName: string) => Promise<void> | void;
+    },
+  ): Promise<{ content: string; modelName: string }> {
+    const providers = await this.loadDouyinMarketingProviderConfigs(settings);
+    const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      options?.stageLabel ? `当前阶段：${options.stageLabel}。` : "",
+      "只输出 Markdown 正文，不要输出 JSON、代码块、执行说明或额外解释。",
+      "如果输入里存在空字段或未提供字段，直接忽略，不要编造事实。",
+    ].filter(Boolean).join("\n");
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys.slice(0, 2)) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildReportAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              await options?.onAttemptUpdate?.(`${provider.provider} / ${modelName}`, modelName);
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildXiaohongshuMarketingProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                const responseText = this.truncateText(await response.text(), 240);
+                lastError = `${provider.provider}/${modelName} 请求失败: ${response.status}${responseText ? ` ${responseText}` : ""}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}${responseText ? ` ${responseText}` : ""}`);
+                continue;
+              }
+              const payload = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; reasoning_content?: string } }>; };
+              const message = payload.choices?.[0]?.message;
+              const content = message?.content?.trim() || message?.reasoning_content?.trim();
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const finishReason = String(payload.choices?.[0]?.finish_reason ?? "").trim().toLowerCase();
+              if (finishReason === "length") {
+                lastError = `${provider.provider}/${modelName} 输出被截断`;
+                attemptTrail.push(`${attemptLabel} -> 输出被截断`);
+                continue;
+              }
+              return {
+                content: this.stripMarkdownCodeFence(content).trim(),
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? `${provider.provider}/${modelName} 调用失败: ${error.message}` : `${provider.provider}/${modelName} 调用失败`;
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildReportAttemptFailureMessage(taskLabel, preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
+  }
+
   private buildDouyinHotTopicCandidatesPhaseStatus(
     phase: DouyinHotTopicCandidatesPhase,
     extra?: {
@@ -5914,6 +6817,39 @@ export class ReportsService {
       phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
       phaseIndex: phaseIndexMap[phase],
       phaseTotal: 4,
+      ...(extra?.modelName ? { modelName: extra.modelName } : {}),
+    };
+  }
+
+  private buildDouyinRemixCopyPhaseStatus(
+    phase: DouyinRemixCopyPhase,
+    extra?: {
+      modelName?: string;
+      detailText?: string;
+    },
+  ) {
+    const basePhaseTextMap: Record<DouyinRemixCopyPhase, string> = {
+      PREPARING: "正在准备二创文案输入数据",
+      EXTRACTING: "正在通过 MathMind 提取素材视频文案",
+      ANALYZING: "正在拆解素材视频的开头、正文和结尾",
+      GENERATING: "正在生成抖音二创文案",
+      PERSISTING: "正在保存二创文案结果",
+      DONE: "抖音二创文案已生成完成",
+    };
+    const phaseIndexMap: Record<DouyinRemixCopyPhase, number> = {
+      PREPARING: 1,
+      EXTRACTING: 2,
+      ANALYZING: 3,
+      GENERATING: 4,
+      PERSISTING: 5,
+      DONE: 6,
+    };
+
+    return {
+      phase,
+      phaseText: extra?.detailText ? `${basePhaseTextMap[phase]}（当前尝试：${extra.detailText}）` : basePhaseTextMap[phase],
+      phaseIndex: phaseIndexMap[phase],
+      phaseTotal: 6,
       ...(extra?.modelName ? { modelName: extra.modelName } : {}),
     };
   }
@@ -7121,6 +8057,172 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private buildDouyinRemixBreakdownInput(
+    material: DouyinRemixCopyMaterialOption,
+    extractedCopy: string,
+    generatedAt: string,
+  ) {
+    return {
+      task: "拆解抖音素材视频文案",
+      generatedAt,
+      inputScope: {
+        sourceMaterial: {
+          id: material.id,
+          title: material.title,
+          videoUrl: material.videoUrl,
+          authorName: material.authorName,
+          workUrl: material.workUrl,
+        },
+        extractedCopy,
+      },
+      outputRequirement: {
+        format: "markdown",
+        outputType: "拆解结果",
+      },
+    };
+  }
+
+  private buildDouyinRemixCopyInput(params: {
+    archive: Awaited<ReturnType<BrandsService["getArchive"]>>;
+    material: DouyinRemixCopyMaterialOption;
+    extractResult: string;
+    introBreakdown: string;
+    bodyBreakdown: string;
+    outroBreakdown: string;
+    injectBrandProfile: boolean;
+    product?: Awaited<ReturnType<BrandsService["getArchive"]>>["products"][number];
+    marketingPlan?: DouyinMarketingPlanRecord;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+    generatedAt: string;
+  }) {
+    return {
+      task: "输出《抖音二创文案》",
+      generatedAt: params.generatedAt,
+      inputScope: {
+        sourceMaterial: {
+          id: params.material.id,
+          title: params.material.title,
+          videoUrl: params.material.videoUrl,
+          authorName: params.material.authorName,
+          workUrl: params.material.workUrl,
+        },
+        extractedCopy: params.extractResult,
+        breakdown: {
+          intro: params.introBreakdown,
+          body: params.bodyBreakdown,
+          outro: params.outroBreakdown,
+        },
+        brandArchive: params.injectBrandProfile
+          ? {
+              background: params.archive.brand,
+              survey: params.archive.survey
+                .filter((item) => item.value?.trim())
+                .slice(0, 20)
+                .map((item) => ({
+                  label: item.label,
+                  value: this.truncateText(item.value, 220),
+                })),
+              platformAccounts: params.archive.platformAccounts.slice(0, 20).map((item) => ({
+                platform: item.platform,
+                accountName: item.accountName,
+                accountLink: item.accountLink,
+              })),
+              competitorAccounts: params.archive.competitorAccounts.slice(0, 20).map((item) => ({
+                platform: item.platform,
+                accountName: item.accountName,
+                accountLink: item.accountLink,
+              })),
+            }
+          : undefined,
+        selectedProduct: params.product
+          ? {
+              id: params.product.id,
+              productName: params.product.productName,
+              productType: params.product.productType,
+              price: params.product.price,
+              productPositioning: params.product.productPositioning,
+              targetAudience: params.product.targetAudience,
+              painPoint: params.product.painPoint,
+              usageScenario: params.product.usageScenario,
+              differentiators: params.product.differentiators,
+              marketPosition: params.product.marketPosition,
+              detailDescription: this.truncateText(params.product.detailDescription, 240),
+            }
+          : undefined,
+        douyinMarketingPlan: params.marketingPlan && params.injectMarketingPlan
+          ? {
+              id: params.marketingPlan.id,
+              title: params.marketingPlan.title,
+              summary: params.marketingPlan.summary,
+              reportMarkdown: this.truncateText(params.marketingPlan.reportMarkdown, 6000),
+            }
+          : undefined,
+        userRequirement: params.userRequirement || undefined,
+        generationOptions: {
+          injectBrandProfile: params.injectBrandProfile,
+          injectMarketingPlan: params.injectMarketingPlan,
+          hasProduct: Boolean(params.product),
+        },
+      },
+      outputRequirement: {
+        format: "markdown",
+        outputType: "可直接执行的抖音二创文案",
+        injectBrandProfile: params.injectBrandProfile,
+        injectMarketingPlan: params.injectMarketingPlan,
+        hasProduct: Boolean(params.product),
+        userRequirement: params.userRequirement || undefined,
+      },
+      outputTarget: "抖音二创文案",
+    };
+  }
+
+  private buildDouyinRemixMaterialOptions(
+    collectionWorkspace: Awaited<ReturnType<CollectorsService["getDouyinWorkspace"]>>,
+  ): DouyinRemixCopyMaterialOption[] {
+    const sourceItems = [
+      ...collectionWorkspace.benchmarkWorks,
+      ...collectionWorkspace.lowFanExplosiveWorks,
+      ...collectionWorkspace.highCompletionRateWorks,
+      ...collectionWorkspace.highLikeRateWorks,
+      ...collectionWorkspace.brandWorks,
+    ];
+    const deduped = new Map<string, { option: DouyinRemixCopyMaterialOption; sortAt: string }>();
+    for (const item of sourceItems) {
+      if (!item?.isInMaterialLibrary || !item.videoUrl) {
+        continue;
+      }
+      const id = String(item.id || "").trim();
+      if (!id) {
+        continue;
+      }
+      deduped.set(id, {
+        option: {
+          id,
+          title: item.title?.trim() || item.description?.trim() || item.workId?.trim() || "素材视频",
+          videoUrl: item.videoUrl,
+          authorName: item.authorName?.trim() || undefined,
+          workUrl: item.workUrl?.trim() || undefined,
+        },
+        sortAt: item.materialAddedAt || item.collectedAt || "",
+      });
+    }
+    return [...deduped.values()]
+      .sort((a, b) => b.sortAt.localeCompare(a.sortAt))
+      .map((item) => item.option);
+  }
+
+  private buildDouyinRemixProductOptions(
+    products: Awaited<ReturnType<BrandsService["getArchive"]>>["products"],
+  ): DouyinRemixCopyProductOption[] {
+    return products
+      .map((item) => ({
+        id: item.id,
+        productName: item.productName?.trim() || "未命名产品",
+      }))
+      .filter((item) => item.id && item.productName);
+  }
+
   private buildXiaohongshuMarketingCalendarInput(
     archive: Awaited<ReturnType<BrandsService["getArchive"]>>,
     collection: Awaited<ReturnType<CollectorsService["getXiaohongshuWorkspace"]>>,
@@ -7258,6 +8360,149 @@ ${normalizedMarkdown}`;
       : [];
     const target = values.length ? values : fallback;
     return target.slice(0, limit);
+  }
+
+  private async extractDouyinMaterialCopyByMathMind(
+    brandId: string,
+    videoUrl: string,
+    onProgress?: (detailText: string) => Promise<void> | void,
+  ) {
+    const provider = await this.resolveRuntimeProviderByBaseUrl(
+      "mathmind-video-tools",
+      undefined,
+      [],
+      "MathMind 视频工具平台未配置，暂时无法提取素材视频文案。",
+    );
+    if (!provider) {
+      throw new ServiceUnavailableException("MathMind 视频工具平台未配置，暂时无法提取素材视频文案。");
+    }
+    const apiKeys = await this.resolveBrandAwareApiKeys(brandId, provider);
+    const apiBaseUrl = this.apiProvidersService.getBaseUrls(provider)[0] || provider.baseUrl;
+    const apiKey = apiKeys[0];
+    if (!apiBaseUrl || !apiKey) {
+      throw new ServiceUnavailableException("MathMind 视频工具平台未配置可用 API Key，暂时无法提取素材视频文案。");
+    }
+
+    const requestJson = async (url: string, method: "GET" | "POST", body?: Record<string, unknown>) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120000);
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+          },
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+        const rawText = await response.text();
+        let payload: Record<string, unknown> | undefined;
+        try {
+          payload = rawText ? this.asRecord(JSON.parse(rawText)) || undefined : undefined;
+        } catch {
+          payload = undefined;
+        }
+        if (!response.ok) {
+          throw new ServiceUnavailableException(
+            `MathMind 接口调用失败：${this.truncateText(
+              this.readRecordString(payload, "message")
+              || this.readRecordString(payload, "msg")
+              || rawText
+              || `${response.status} ${response.statusText}`,
+              240,
+            )}`,
+          );
+        }
+        return payload || {};
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    const extractResultText = (payload: Record<string, unknown>) => {
+      const resultRecord = this.asRecord(payload.result) || this.asRecord(payload.data) || payload;
+      const candidates = [
+        this.readRecordString(resultRecord, "result"),
+        this.readRecordString(resultRecord, "content"),
+        this.readRecordString(resultRecord, "text"),
+        this.readRecordString(resultRecord, "copy"),
+        this.readRecordString(resultRecord, "transcript"),
+        this.readRecordString(payload, "result"),
+        this.readRecordString(payload, "content"),
+        this.readRecordString(payload, "text"),
+      ];
+      return candidates.find((item) => item.trim())?.trim() || "";
+    };
+
+    const readTaskStatus = (payload: Record<string, unknown>) => {
+      const resultRecord = this.asRecord(payload.data) || this.asRecord(payload.result) || payload;
+      return (
+        this.readRecordString(resultRecord, "status")
+        || this.readRecordString(resultRecord, "state")
+        || this.readRecordString(payload, "status")
+        || this.readRecordString(payload, "state")
+        || ""
+      ).trim().toUpperCase();
+    };
+
+    await onProgress?.("正在向 MathMind 提交视频文案提取任务");
+    const submitPayload = await requestJson(
+      `${apiBaseUrl.replace(/\/+$/, "")}/minimalist/api/video-audio/video2txtAsync`,
+      "POST",
+      { videoUrl },
+    );
+    const submitData = this.asRecord(submitPayload.data) || submitPayload;
+    const immediateResult = extractResultText(submitPayload);
+    if (immediateResult) {
+      return immediateResult;
+    }
+
+    const taskId = (
+      this.readRecordString(submitData, "taskId")
+      || this.readRecordString(submitPayload, "taskId")
+    ).trim();
+    const statusUrl = (
+      this.readRecordString(submitData, "statusUrl")
+      || this.readRecordString(submitPayload, "statusUrl")
+    ).trim();
+    if (!taskId && !statusUrl) {
+      throw new ServiceUnavailableException("MathMind 未返回可查询的任务 ID，无法继续提取视频文案。");
+    }
+
+    const pollUrl = statusUrl
+      ? (statusUrl.startsWith("http")
+        ? statusUrl
+        : `${apiBaseUrl.replace(/\/+$/, "")}/${statusUrl.replace(/^\/+/, "")}`)
+      : `${apiBaseUrl.replace(/\/+$/, "")}/minimalist/api/task/${encodeURIComponent(taskId)}?timeout=50`;
+
+    for (let attempt = 1; attempt <= 40; attempt += 1) {
+      if (attempt > 1) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 3000));
+      }
+      await onProgress?.(`MathMind 正在提取视频文案，第 ${attempt} 次查询任务结果`);
+      const pollPayload = await requestJson(pollUrl, "GET");
+      const resultText = extractResultText(pollPayload);
+      if (resultText) {
+        return resultText;
+      }
+
+      const status = readTaskStatus(pollPayload);
+      if (["FAILED", "ERROR", "CANCELLED", "TIMEOUT"].includes(status)) {
+        throw new ServiceUnavailableException(
+          this.readRecordString(this.asRecord(pollPayload.data), "message")
+          || this.readRecordString(pollPayload, "message")
+          || this.readRecordString(pollPayload, "msg")
+          || "MathMind 提取视频文案失败，请稍后重试。",
+        );
+      }
+      if (["SUCCESS", "SUCCEEDED", "DONE", "FINISHED", "COMPLETED"].includes(status)) {
+        throw new ServiceUnavailableException("MathMind 已完成任务，但没有返回可用的视频文案结果。");
+      }
+    }
+
+    throw new ServiceUnavailableException("MathMind 提取视频文案超时，请稍后重试。");
   }
 
   private async loadThirdPartyChatConfig(settings: ModelGenerationSettings): Promise<ThirdPartyChatConfig> {
@@ -8208,6 +9453,38 @@ ${normalizedMarkdown}`;
     };
   }
 
+  private async loadDouyinRemixStageGenerationSettings(
+    brandId: string | undefined,
+    stage: DouyinRemixCopyPromptStage,
+  ): Promise<ModelGenerationSettings> {
+    const config = DOUYIN_REMIX_COPY_PROMPT_CONFIG[stage];
+    const skill = await this.skillsPromptsService.getActiveSkillBySlug(config.skillSlug);
+    const prompt = await this.skillsPromptsService.getActivePromptById(config.promptId);
+    const preferredSelections = [skill?.defaultModel || "", prompt?.modelName || ""];
+    const provider = await this.resolvePreferredProvider(skill?.provider, "text-domestic-deepseek", [
+      "text-domestic-deepseek",
+      "text-domestic-doubao",
+      "text-domestic-kimi",
+      "text-global",
+    ], preferredSelections);
+    const preferredModelNames = this.mergeModelPreferenceOrder(
+      skill?.defaultModel || "",
+      prompt?.modelName || "",
+      "deepseek-v4-pro, deepseek-v4-flash, doubao-seed-2-0-pro-260215, kimi-k2.6, gpt-5.5, claude-sonnet-4-6",
+    );
+    const preferredModelName = preferredModelNames[0] || skill?.defaultModel || prompt?.modelName || provider?.defaultModel || "deepseek-v4-pro";
+    return {
+      baseUrl: provider?.baseUrl || "",
+      modelName: preferredModelNames.join(", "),
+      temperature: prompt?.temperature ?? config.temperature,
+      maxTokens: prompt?.maxTokens ?? config.maxTokens,
+      promptContent: prompt?.content || this.loadDouyinRemixPrompt(stage),
+      preferredModelName,
+      brandId,
+      preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+    };
+  }
+
   private async loadXiaohongshuMarketingCalendarGenerationSettings(brandId?: string): Promise<ModelGenerationSettings> {
     const skill = await this.skillsPromptsService.getActiveSkillBySlug("xiaohongshu-marketing-calendar");
     const prompt = await this.skillsPromptsService.getActivePromptById("prompt_xhs_calendar");
@@ -8717,6 +9994,20 @@ ${normalizedMarkdown}`;
   private buildManualDouyinOriginalCopyResult(content: string, nextTitle?: string, fallbackTitle?: string) {
     const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
     const title = nextTitle?.trim() || this.extractMarkdownTitle(normalizedMarkdown) || fallbackTitle || "抖音原创文案";
+    const reportMarkdown = normalizedMarkdown.startsWith("# ")
+      ? normalizedMarkdown
+      : `# ${title}\n\n${normalizedMarkdown}`;
+    const summary = this.extractMarkdownSummary(reportMarkdown) || `${title}已更新。`;
+    return {
+      title,
+      summary,
+      content: reportMarkdown,
+    };
+  }
+
+  private buildManualDouyinRemixCopyResult(content: string, nextTitle?: string, fallbackTitle?: string) {
+    const normalizedMarkdown = this.stripMarkdownCodeFence(content).trim();
+    const title = nextTitle?.trim() || this.extractMarkdownTitle(normalizedMarkdown) || fallbackTitle || "抖音二创文案";
     const reportMarkdown = normalizedMarkdown.startsWith("# ")
       ? normalizedMarkdown
       : `# ${title}\n\n${normalizedMarkdown}`;
@@ -9470,6 +10761,26 @@ ${normalizedMarkdown}`;
     return DOUYIN_ORIGINAL_COPY_TYPE_CONFIG[copyType].fallbackPrompt;
   }
 
+  private loadDouyinRemixPrompt(stage: DouyinRemixCopyPromptStage) {
+    const fileNameMap: Record<DouyinRemixCopyPromptStage, string> = {
+      INTRO: "拆解开头.txt",
+      BODY: "拆解正文.txt",
+      OUTRO: "拆解结尾.txt",
+      FINAL: "二创.txt",
+    };
+    const fileName = fileNameMap[stage];
+    const candidates = [
+      resolve(this.resolveAiWorkspaceRoot(), "提示词", "抖音板块", fileName),
+      resolve(this.resolveOperationRoot(), "提示词", "抖音板块", fileName),
+    ];
+    for (const filePath of candidates) {
+      if (existsSync(filePath)) {
+        return readFileSync(filePath, "utf8").trim();
+      }
+    }
+    return DOUYIN_REMIX_COPY_PROMPT_CONFIG[stage].fallbackPrompt;
+  }
+
   private extractJsonObject(content: string) {
     const trimmed = this.stripMarkdownCodeFence(content).trim();
     if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -9749,6 +11060,38 @@ ${normalizedMarkdown}`;
       injectMarketingPlan: Boolean(meta.injectMarketingPlan),
       marketingPlanTitle: this.readMetaString(meta, "marketingPlanTitle") || undefined,
       userRequirement: this.readMetaString(meta, "userRequirement") || undefined,
+    };
+  }
+
+  private mapDouyinRemixCopyAsset(asset: AssetRecord): DouyinRemixCopyRecord | undefined {
+    const meta = this.asMeta(asset.metadataJson);
+    if (meta.kind !== "DOUYIN_REMIX_COPY") {
+      return undefined;
+    }
+
+    return {
+      id: asset.id,
+      title: asset.title,
+      summary: this.readMetaString(meta, "summary") || asset.description,
+      generatedAt: this.readMetaString(meta, "generatedAt"),
+      taskId: this.readMetaString(meta, "taskId") || undefined,
+      modelName: this.readMetaString(meta, "modelName") || undefined,
+      content: this.readMetaString(meta, "content"),
+      sourceMaterialId: this.readMetaString(meta, "sourceMaterialId"),
+      sourceMaterialTitle: this.readMetaString(meta, "sourceMaterialTitle"),
+      sourceVideoUrl: this.readMetaString(meta, "sourceVideoUrl"),
+      sourceAuthorName: this.readMetaString(meta, "sourceAuthorName") || undefined,
+      sourceWorkUrl: this.readMetaString(meta, "sourceWorkUrl") || undefined,
+      injectBrandProfile: Boolean(meta.injectBrandProfile),
+      injectMarketingPlan: Boolean(meta.injectMarketingPlan),
+      marketingPlanTitle: this.readMetaString(meta, "marketingPlanTitle") || undefined,
+      productId: this.readMetaString(meta, "productId") || undefined,
+      productName: this.readMetaString(meta, "productName") || undefined,
+      userRequirement: this.readMetaString(meta, "userRequirement") || undefined,
+      extractedCopy: this.readMetaString(meta, "extractedCopy") || undefined,
+      introBreakdown: this.readMetaString(meta, "introBreakdown") || undefined,
+      bodyBreakdown: this.readMetaString(meta, "bodyBreakdown") || undefined,
+      outroBreakdown: this.readMetaString(meta, "outroBreakdown") || undefined,
     };
   }
 

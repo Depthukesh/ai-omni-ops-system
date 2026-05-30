@@ -242,6 +242,31 @@ export type DouyinOriginalCopyRecord = {
   userRequirement?: string;
 };
 
+export type DouyinRemixCopyRecord = {
+  id: string;
+  title: string;
+  summary: string;
+  generatedAt: string;
+  taskId?: string;
+  modelName?: string;
+  content: string;
+  sourceMaterialId: string;
+  sourceMaterialTitle: string;
+  sourceVideoUrl: string;
+  sourceAuthorName?: string;
+  sourceWorkUrl?: string;
+  injectBrandProfile: boolean;
+  injectMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+  productId?: string;
+  productName?: string;
+  userRequirement?: string;
+  extractedCopy?: string;
+  introBreakdown?: string;
+  bodyBreakdown?: string;
+  outroBreakdown?: string;
+};
+
 export type DouyinHotTopicCandidatesRecord = {
   id: string;
   title: string;
@@ -272,6 +297,31 @@ export type DouyinOriginalCopyWorkspace = {
   latestTask?: DouyinOriginalCopyTaskRecord;
   calendarOptions: DouyinOriginalCopyCalendarOption[];
   topicOptions: DouyinTopicLibraryItem[];
+  hasMarketingPlan: boolean;
+  marketingPlanTitle?: string;
+};
+
+export type DouyinRemixCopyMaterialOption = {
+  id: string;
+  title: string;
+  videoUrl: string;
+  authorName?: string;
+  workUrl?: string;
+};
+
+export type DouyinRemixCopyProductOption = {
+  id: string;
+  productName: string;
+};
+
+export type DouyinRemixCopyTaskRecord = DouyinOriginalCopyTaskRecord;
+
+export type DouyinRemixCopyWorkspace = {
+  latest?: DouyinRemixCopyRecord;
+  history: DouyinRemixCopyRecord[];
+  latestTask?: DouyinRemixCopyTaskRecord;
+  materialOptions: DouyinRemixCopyMaterialOption[];
+  productOptions: DouyinRemixCopyProductOption[];
   hasMarketingPlan: boolean;
   marketingPlanTitle?: string;
 };
@@ -392,6 +442,14 @@ export const douyinOriginalCopySeed: DouyinOriginalCopyWorkspace = {
   history: [],
   calendarOptions: [],
   topicOptions: [],
+  hasMarketingPlan: false,
+};
+
+export const douyinRemixCopySeed: DouyinRemixCopyWorkspace = {
+  latest: undefined,
+  history: [],
+  materialOptions: [],
+  productOptions: [],
   hasMarketingPlan: false,
 };
 
@@ -540,6 +598,40 @@ export async function updateDouyinOriginalCopy(
 
 export async function deleteDouyinOriginalCopy(reportId: string, brandId?: string) {
   return request<DouyinOriginalCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-original-copy/${reportId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinRemixCopyWorkspace(brandId?: string) {
+  return request<DouyinRemixCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-remix-copy`);
+}
+
+export async function generateDouyinRemixCopy(
+  payload: {
+    materialId: string;
+    injectBrandProfile?: boolean;
+    productId?: string;
+    injectMarketingPlan?: boolean;
+    userRequirement?: string;
+  },
+  brandId?: string,
+) {
+  return jsonRequest<DouyinRemixCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-remix-copy/generate`, "POST", payload);
+}
+
+export async function updateDouyinRemixCopy(
+  reportId: string,
+  payload: {
+    title?: string;
+    content: string;
+  },
+  brandId?: string,
+) {
+  return jsonRequest<DouyinRemixCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-remix-copy/${reportId}`, "PATCH", payload);
+}
+
+export async function deleteDouyinRemixCopy(reportId: string, brandId?: string) {
+  return request<DouyinRemixCopyWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/douyin-remix-copy/${reportId}`, {
     method: "DELETE",
   });
 }

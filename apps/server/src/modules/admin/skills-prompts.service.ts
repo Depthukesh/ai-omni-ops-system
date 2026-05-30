@@ -169,6 +169,38 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_douyin_original_copy_local_sales"],
     promptScenes: ["抖音原创文案-同城带货"],
   },
+  skill_douyin_remix_copy_intro: {
+    promptIds: ["prompt_douyin_remix_copy_intro"],
+    promptScenes: ["抖音二创文案-拆解开头"],
+  },
+  "douyin-remix-copy-intro": {
+    promptIds: ["prompt_douyin_remix_copy_intro"],
+    promptScenes: ["抖音二创文案-拆解开头"],
+  },
+  skill_douyin_remix_copy_body: {
+    promptIds: ["prompt_douyin_remix_copy_body"],
+    promptScenes: ["抖音二创文案-拆解正文"],
+  },
+  "douyin-remix-copy-body": {
+    promptIds: ["prompt_douyin_remix_copy_body"],
+    promptScenes: ["抖音二创文案-拆解正文"],
+  },
+  skill_douyin_remix_copy_outro: {
+    promptIds: ["prompt_douyin_remix_copy_outro"],
+    promptScenes: ["抖音二创文案-拆解结尾"],
+  },
+  "douyin-remix-copy-outro": {
+    promptIds: ["prompt_douyin_remix_copy_outro"],
+    promptScenes: ["抖音二创文案-拆解结尾"],
+  },
+  skill_douyin_remix_copy_final: {
+    promptIds: ["prompt_douyin_remix_copy_final"],
+    promptScenes: ["抖音二创文案-生成二创文案"],
+  },
+  "douyin-remix-copy-final": {
+    promptIds: ["prompt_douyin_remix_copy_final"],
+    promptScenes: ["抖音二创文案-生成二创文案"],
+  },
   skill_xhs_calendar: {
     promptIds: ["prompt_xhs_calendar"],
     promptScenes: ["小红书营销日历生成"],

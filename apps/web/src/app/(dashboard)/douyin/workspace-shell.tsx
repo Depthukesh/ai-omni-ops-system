@@ -8,24 +8,30 @@ import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollecti
 import {
   annualMarketingPlanSeed,
   deleteDouyinOriginalCopy,
+  deleteDouyinRemixCopy,
   deleteDouyinMarketingPlan,
   douyinHotTopicCandidatesSeed,
   douyinMarketingPlanSeed,
   douyinOriginalCopySeed,
+  douyinRemixCopySeed,
   generateDouyinHotTopicCandidates,
   generateDouyinMarketingPlan,
   generateDouyinOriginalCopy,
+  generateDouyinRemixCopy,
   getAnnualMarketingPlanWorkspace,
   getDouyinHotTopicCandidatesWorkspace,
   getDouyinMarketingPlanWorkspace,
   getDouyinOriginalCopyWorkspace,
+  getDouyinRemixCopyWorkspace,
   getGrowthReportWorkspace,
   growthReportSeed,
   updateDouyinTopicLibrary,
   updateDouyinOriginalCopy,
+  updateDouyinRemixCopy,
   updateDouyinMarketingPlan,
   type DouyinHotTopicCandidatesWorkspace,
   type DouyinOriginalCopyWorkspace,
+  type DouyinRemixCopyWorkspace,
   type DouyinTopicLibraryItem,
   type DouyinMarketingPlanTaskRecord,
   type DouyinMarketingPlanWorkspace,
@@ -37,10 +43,11 @@ import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
 import { DouyinOriginalCopyWorkspace as DouyinOriginalCopyWorkspacePanel } from "./original-copy-workspace";
+import { DouyinRemixCopyWorkspace as DouyinRemixCopyWorkspacePanel } from "./remix-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy";
+type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
@@ -48,6 +55,7 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "hotTopics", label: "热点找选题", description: "按所选日期读取每日热点全部榜单和品牌背景资料，生成 3 个可勾选的抖音热点选题。" },
   { key: "topicLibrary", label: "选题库", description: "按品牌独立沉淀抖音选题，一行展示两条记录，超过 20 行自动分页。" },
   { key: "originalCopy", label: "原创文案", description: "基于选题库、营销日历和抖音营销策划方案，按不同文案类型生成品牌独立存储的原创文案。" },
+  { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
 ];
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -96,12 +104,14 @@ export function DouyinWorkspaceShell() {
   const [marketingPlanWorkspace, setMarketingPlanWorkspace] = useState<DouyinMarketingPlanWorkspace>(douyinMarketingPlanSeed);
   const [hotTopicWorkspace, setHotTopicWorkspace] = useState<DouyinHotTopicCandidatesWorkspace>(douyinHotTopicCandidatesSeed);
   const [originalCopyWorkspace, setOriginalCopyWorkspace] = useState<DouyinOriginalCopyWorkspace>(douyinOriginalCopySeed);
+  const [remixCopyWorkspace, setRemixCopyWorkspace] = useState<DouyinRemixCopyWorkspace>(douyinRemixCopySeed);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingHotTopics, setIsGeneratingHotTopics] = useState(false);
   const [isSubmittingOriginalCopy, setIsSubmittingOriginalCopy] = useState(false);
+  const [isSubmittingRemixCopy, setIsSubmittingRemixCopy] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -123,6 +133,11 @@ export function DouyinWorkspaceShell() {
     latestOriginalCopyTask?.taskStatus === "RUNNING"
     || latestOriginalCopyTask?.taskStatus === "QUEUED"
     || latestOriginalCopyTask?.taskStatus === "PENDING";
+  const latestRemixCopyTask = remixCopyWorkspace.latestTask;
+  const isRemixCopyTaskActive =
+    latestRemixCopyTask?.taskStatus === "RUNNING"
+    || latestRemixCopyTask?.taskStatus === "QUEUED"
+    || latestRemixCopyTask?.taskStatus === "PENDING";
   const permissionEntry = brandPermissionSettings?.currentUserPermissions?.["douyin.plan"];
   const hasWorkspaceAccess = permissionEntry?.view ?? true;
   const canEditMarketingPlan = permissionEntry?.edit ?? true;
@@ -147,7 +162,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库和原创文案，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案和二创文案，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -172,12 +187,18 @@ export function DouyinWorkspaceShell() {
     return nextWorkspace;
   }, [activeBrandId]);
 
+  const refreshRemixCopyWorkspace = useCallback(async () => {
+    const nextWorkspace = await getDouyinRemixCopyWorkspace(activeBrandId);
+    setRemixCopyWorkspace(nextWorkspace);
+    return nextWorkspace;
+  }, [activeBrandId]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
 
-    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
@@ -185,6 +206,7 @@ export function DouyinWorkspaceShell() {
       getDouyinMarketingPlanWorkspace(activeBrandId),
       getDouyinHotTopicCandidatesWorkspace(activeBrandId),
       getDouyinOriginalCopyWorkspace(activeBrandId),
+      getDouyinRemixCopyWorkspace(activeBrandId),
     ]);
 
     let hasFallback = false;
@@ -237,6 +259,13 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setOriginalCopyWorkspace(douyinOriginalCopySeed);
+    }
+
+    if (remixCopyResult.status === "fulfilled") {
+      setRemixCopyWorkspace(remixCopyResult.value);
+    } else {
+      hasFallback = true;
+      setRemixCopyWorkspace(douyinRemixCopySeed);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -312,10 +341,20 @@ export function DouyinWorkspaceShell() {
   }, [isOriginalCopyTaskActive, refreshOriginalCopyWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && notice.includes("任务已提交")) {
+    if (!isRemixCopyTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshRemixCopyWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isRemixCopyTaskActive, refreshRemixCopyWorkspace]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isTaskActive, notice]);
+  }, [isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
@@ -326,6 +365,14 @@ export function DouyinWorkspaceShell() {
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
+      ...current,
+      hasMarketingPlan: Boolean(marketingPlanWorkspace.latest),
+      marketingPlanTitle: marketingPlanWorkspace.latest?.title,
+    }));
+  }, [marketingPlanWorkspace.latest?.id, marketingPlanWorkspace.latest?.title]);
+
+  useEffect(() => {
+    setRemixCopyWorkspace((current) => ({
       ...current,
       hasMarketingPlan: Boolean(marketingPlanWorkspace.latest),
       marketingPlanTitle: marketingPlanWorkspace.latest?.title,
@@ -646,6 +693,85 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditMarketingPlan]);
 
+  const handleCreateRemixCopy = useCallback(async (payload: {
+    materialId: string;
+    injectBrandProfile: boolean;
+    productId?: string;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+  }) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能生成二创文案。");
+      return false;
+    }
+
+    setIsSubmittingRemixCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await generateDouyinRemixCopy(payload, activeBrandId);
+      setRemixCopyWorkspace(nextWorkspace);
+      setNotice("二创文案任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "二创文案提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingRemixCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
+  const handleUpdateRemixCopy = useCallback(async (payload: {
+    reportId: string;
+    title?: string;
+    content: string;
+  }) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能修改二创文案。");
+      return false;
+    }
+
+    setIsSubmittingRemixCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await updateDouyinRemixCopy(payload.reportId, {
+        title: payload.title,
+        content: payload.content,
+      }, activeBrandId);
+      setRemixCopyWorkspace(nextWorkspace);
+      setNotice("二创文案已修改。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "二创文案修改失败。");
+      return false;
+    } finally {
+      setIsSubmittingRemixCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
+  const handleDeleteRemixCopy = useCallback(async (reportId: string) => {
+    if (!canEditMarketingPlan) {
+      setErrorMessage("当前账号只有查看权限，不能删除二创文案。");
+      return false;
+    }
+
+    setIsSubmittingRemixCopy(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const nextWorkspace = await deleteDouyinRemixCopy(reportId, activeBrandId);
+      setRemixCopyWorkspace(nextWorkspace);
+      setNotice("二创文案已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "二创文案删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingRemixCopy(false);
+    }
+  }, [activeBrandId, canEditMarketingPlan]);
+
   const shiftMaterialPreview = useCallback((materialId: string, total: number, delta: number) => {
     if (!materialId || total <= 0) {
       return;
@@ -729,7 +855,7 @@ export function DouyinWorkspaceShell() {
                           type="button"
                           className="secondary-button"
                           onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSaving || isDeleting}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSaving || isDeleting}
                         >
                           刷新数据
                         </button>
@@ -814,6 +940,27 @@ export function DouyinWorkspaceShell() {
                     onCreate={handleCreateOriginalCopy}
                     onUpdate={handleUpdateOriginalCopy}
                     onDelete={handleDeleteOriginalCopy}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "remixCopy" ? (
+                  <DouyinRemixCopyWorkspacePanel
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingRemixCopy}
+                    canEdit={canEditMarketingPlan}
+                    history={remixCopyWorkspace.history}
+                    latestTask={remixCopyWorkspace.latestTask}
+                    materialOptions={remixCopyWorkspace.materialOptions.map((item) => ({ id: item.id, label: item.title }))}
+                    productOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
+                    hasMarketingPlan={remixCopyWorkspace.hasMarketingPlan}
+                    marketingPlanTitle={remixCopyWorkspace.marketingPlanTitle}
+                    onRefresh={async () => {
+                      await refreshRemixCopyWorkspace();
+                    }}
+                    onCreate={handleCreateRemixCopy}
+                    onUpdate={handleUpdateRemixCopy}
+                    onDelete={handleDeleteRemixCopy}
                     formatDateTime={formatDateTime}
                   />
                 ) : (
