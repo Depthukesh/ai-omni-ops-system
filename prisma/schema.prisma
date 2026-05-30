@@ -757,11 +757,13 @@ model DigitalHumanScriptTemplate {
   content   String
   isShared  Boolean  @default(false)
   category  String   @default("general")
+  isArchived Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, brandId, updatedAt])
   @@index([brandId, category, updatedAt])
+  @@index([brandId, isArchived, updatedAt])
   @@index([brandId, isShared, updatedAt])
   @@index([brandId, updatedAt])
   @@map("digital_human_script_templates")
