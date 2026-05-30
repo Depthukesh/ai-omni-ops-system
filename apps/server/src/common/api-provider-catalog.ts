@@ -32,6 +32,8 @@ export const APIZ_API_BASE_URL = "https://api.xskill.ai";
 export const APIZ_LEGACY_API_BASE_URL = "https://api.apiz.ai";
 export const APIZ_TASK_CREATE_PATH = "/api/v3/tasks/create";
 export const APIZ_TASK_QUERY_PATH = "/api/v3/tasks/query";
+export const MATHMIND_PLATFORM_BASE_URL = "https://agent.mathmind.cn";
+export const MATHMIND_API_BASE_URL = "https://api.mathmind.cn";
 
 function createSeed(input: Omit<ApiProviderSeedRecord, "successRate" | "requestCount24h" | "totalCostYuan" | "lastCalledAt" | "updatedAt">): ApiProviderSeedRecord {
   return {
@@ -426,6 +428,64 @@ const APIZ_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   }),
 ];
 
+const MATHMIND_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createSeed({
+    id: "provider_runtime_mathmind_video_tools",
+    name: "MathMind · 视频工具平台",
+    providerType: "CUSTOM",
+    status: "ACTIVE",
+    baseUrl: MATHMIND_PLATFORM_BASE_URL,
+    tutorialUrl: MATHMIND_PLATFORM_BASE_URL,
+    modelWhitelist: [
+      "longVideoCopyExtract",
+      "longVideoCopyFetch",
+      "imgs2video",
+      "imgs2video_lite",
+      "video2video",
+      "videoCutRandom",
+      "videoDuration",
+      "videoFrames",
+      "videoAddSubtitle",
+      "subTaskFetch",
+      "videoAddGif",
+      "imgToVideo",
+      "videoAddAudio",
+      "subtitleRecognition",
+    ],
+    apiKey: "",
+    defaultModel: "imgs2video",
+    organization: "",
+    project: "",
+    timeoutMs: 300000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "mathmind-video-tools",
+      runtimeTags: ["mathmind", "video-tools", "third-party-platform"],
+      baseUrls: [MATHMIND_API_BASE_URL],
+      platformBaseUrls: [MATHMIND_PLATFORM_BASE_URL, MATHMIND_API_BASE_URL],
+      endpointMap: {
+        longVideoCopyExtract: "https://api.mathmind.cn/355206439e0",
+        longVideoCopyFetch: "https://api.mathmind.cn/356729281e0",
+        imgs2video: "https://api.mathmind.cn/342940119e0",
+        imgs2video_lite: "https://api.mathmind.cn/342940120e0",
+        video2video: "https://api.mathmind.cn/342940121e0",
+        videoCutRandom: "https://api.mathmind.cn/342940124e0",
+        videoDuration: "https://api.mathmind.cn/342940125e0",
+        videoFrames: "https://api.mathmind.cn/342940126e0",
+        videoAddSubtitle: "https://api.mathmind.cn/342940127e0",
+        subTaskFetch: "https://api.mathmind.cn/355190704e0",
+        videoAddGif: "https://api.mathmind.cn/342940129e0",
+        imgToVideo: "https://api.mathmind.cn/342940132e0",
+        videoAddAudio: "https://api.mathmind.cn/342940133e0",
+        subtitleRecognition: "https://api.mathmind.cn/355189087e0",
+      },
+      sourceFolder: "MathMind 视频工具平台",
+    },
+    remark: "MathMind 第三方视频工具平台，包含长视频文案提取/查询、图片合成视频、视频转视频、随机切片、时长获取、截帧、加字幕/音频/GIF、单图转视频和字幕识别；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+  }),
+];
+
 export const LEGACY_API_PROVIDER_IDS = ["provider_openai", "provider_gemini", "provider_doubao"];
 export const DECOMMISSIONED_SYSTEM_API_PROVIDER_IDS = [
   "provider_runtime_text_global",
@@ -621,4 +681,5 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
   ...APIZ_IMAGE_PROVIDER_SEEDS,
   ...VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS,
   ...APIZ_VIDEO_PROVIDER_SEEDS,
+  ...MATHMIND_PROVIDER_SEEDS,
 ];

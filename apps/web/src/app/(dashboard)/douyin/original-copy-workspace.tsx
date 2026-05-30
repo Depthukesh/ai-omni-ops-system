@@ -46,6 +46,7 @@ export interface DouyinOriginalCopyWorkspaceProps {
     topicId?: string;
     injectMarketingPlan: boolean;
     copyType: DouyinOriginalCopyType;
+    userRequirement?: string;
   }) => Promise<boolean>;
   onUpdate: (payload: {
     reportId: string;
@@ -95,6 +96,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
   const [topicValue, setTopicValue] = useState(EMPTY_TOPIC_VALUE);
   const [injectMarketingPlanValue, setInjectMarketingPlanValue] = useState("yes");
   const [copyTypeValue, setCopyTypeValue] = useState<DouyinOriginalCopyType>("VIEWPOINT");
+  const [userRequirementValue, setUserRequirementValue] = useState("");
   const [editingReportId, setEditingReportId] = useState<string>("");
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -145,9 +147,11 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
       topicId: topicValue !== EMPTY_TOPIC_VALUE ? topicValue : undefined,
       injectMarketingPlan: injectMarketingPlanValue === "yes",
       copyType: copyTypeValue,
+      userRequirement: userRequirementValue.trim() || undefined,
     });
     if (success) {
       setIsCreateOpen(false);
+      setUserRequirementValue("");
     }
   }
 
@@ -335,6 +339,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         topicValue={topicValue}
         injectMarketingPlanValue={injectMarketingPlanValue}
         copyTypeValue={copyTypeValue}
+        userRequirementValue={userRequirementValue}
         hasMarketingPlan={props.hasMarketingPlan}
         marketingPlanTitle={props.marketingPlanTitle}
         onClose={() => setIsCreateOpen(false)}
@@ -343,6 +348,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
         onTopicChange={setTopicValue}
         onInjectMarketingPlanChange={setInjectMarketingPlanValue}
         onCopyTypeChange={(value) => setCopyTypeValue(value as DouyinOriginalCopyType)}
+        onUserRequirementChange={setUserRequirementValue}
       />
 
       {editingItem ? (

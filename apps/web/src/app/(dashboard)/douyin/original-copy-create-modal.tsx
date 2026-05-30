@@ -20,6 +20,7 @@ export interface DouyinOriginalCopyCreateModalProps {
   topicValue: string;
   injectMarketingPlanValue: string;
   copyTypeValue: string;
+  userRequirementValue: string;
   hasMarketingPlan: boolean;
   marketingPlanTitle?: string;
   onClose: () => void;
@@ -28,6 +29,7 @@ export interface DouyinOriginalCopyCreateModalProps {
   onTopicChange: (value: string) => void;
   onInjectMarketingPlanChange: (value: string) => void;
   onCopyTypeChange: (value: string) => void;
+  onUserRequirementChange: (value: string) => void;
 }
 
 export function DouyinOriginalCopyCreateModal(props: DouyinOriginalCopyCreateModalProps) {
@@ -93,6 +95,17 @@ export function DouyinOriginalCopyCreateModal(props: DouyinOriginalCopyCreateMod
             </option>
           ))}
         </select>
+      </label>
+
+      <label style={{ display: "grid", gap: 6 }}>
+        <span className="status-text">用户要求</span>
+        <textarea
+          value={props.userRequirementValue}
+          onChange={(event) => props.onUserRequirementChange(event.target.value)}
+          disabled={props.isPublishing}
+          rows={4}
+          placeholder="可补充指定语气、结构、卖点或禁用词要求"
+        />
       </label>
     </NoteCreateModalShell>
   );

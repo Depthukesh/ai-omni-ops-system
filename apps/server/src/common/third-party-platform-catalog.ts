@@ -29,6 +29,8 @@ const PLATFORM_NAME_BY_HOST: Record<string, string> = {
   "api.moonshot.cn": "Kimi 平台",
   "open.bigmodel.cn": "GLM 平台",
   "api.tikhub.io": "Tikhub 平台",
+  "agent.mathmind.cn": "MathMind 平台",
+  "api.mathmind.cn": "MathMind 平台",
 };
 
 export const THIRD_PARTY_PLATFORM_SEEDS: ThirdPartyPlatformRecord[] = buildThirdPartyPlatformSeeds();
