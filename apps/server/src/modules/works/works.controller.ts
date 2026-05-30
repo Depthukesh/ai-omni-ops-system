@@ -4,9 +4,11 @@ import {
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
+  type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
   type GenerateDouyinVideoNotePayload,
   type GenerateXiaohongshuVideoNotePayload,
+  type RecoverDouyinDigitalHumanVideoPayload,
   type RecoverDouyinDirectVideoGenerationPayload,
   type RecoverDouyinVideoGenerationPayload,
   type RegenerateXiaohongshuVideoStoryboardPayload,
@@ -119,6 +121,36 @@ export class WorksController {
     return this.worksService.listDouyinDirectVideoProviderOptions();
   }
 
+  @Get("brands/:brandId/douyin/digital-human/template-tags")
+  async listDouyinDigitalHumanTemplateTags(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanTemplateTags(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/templates")
+  async listDouyinDigitalHumanTemplates(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanTemplates(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/video")
+  async listDouyinDigitalHumanVideoWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanVideoWorks(brandId);
+  }
+
   @Get("brands/:brandId/douyin/video/storyboard-image/providers")
   async listDouyinVideoStoryboardImageProviders(
     @Param("brandId") brandId: string,
@@ -213,6 +245,20 @@ export class WorksController {
       .then(async (auth) => {
         const access = await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
         return this.worksService.generateDouyinDirectVideo(brandId, payload, auth, access.role);
+      });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/video/generate")
+  generateDouyinDigitalHumanVideo(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinDigitalHumanVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        return this.worksService.generateDouyinDigitalHumanVideo(brandId, payload, auth);
       });
   }
 
@@ -314,6 +360,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
       return this.worksService.recoverDouyinDirectVideoGeneration(brandId, payload);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/video/recover")
+  recoverDouyinDigitalHumanVideo(
+    @Param("brandId") brandId: string,
+    @Body() payload: RecoverDouyinDigitalHumanVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.recoverDouyinDigitalHumanVideo(brandId, payload);
     });
   }
 
@@ -439,6 +497,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "edit", auth);
       return this.worksService.deleteDouyinDirectVideo(brandId, workId);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/video/:workId")
+  deleteDouyinDigitalHumanVideo(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinDigitalHumanVideo(brandId, workId);
     });
   }
 

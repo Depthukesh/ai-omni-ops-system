@@ -128,6 +128,18 @@ function buildThirdPartyPlatformSeeds() {
         remark: "用于抖音数据采集。用户需要在个人中心按品牌填写自己的 Tikhub API Key，后台维护平台链接与文档入口。",
         updatedAt: "2026-05-21T00:00:00.000Z",
       },
+      {
+        id: "platform_https_open_api_chanjing_cc",
+        name: "蝉镜 OpenAPI",
+        providerType: "CUSTOM" as const,
+        status: "ACTIVE" as const,
+        baseUrl: "https://open-api.chanjing.cc",
+        tutorialUrl: "https://doc.chanjing.cc/api/open-api-common-knowledge.html",
+        modelIds: [],
+        defaultModel: "",
+        remark: "用于抖音数字人模板库与数字人视频合成。当前品牌 Owner 请在个人中心按 `appId::secretKey` 形式填写凭证。",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
     ])
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }

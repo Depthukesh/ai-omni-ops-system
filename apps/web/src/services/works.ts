@@ -223,6 +223,84 @@ export type XiaohongshuVideoWorkRecord = {
 export type DouyinVideoWorkRecord = XiaohongshuVideoWorkRecord;
 export type DouyinDirectVideoWorkRecord = XiaohongshuVideoWorkRecord;
 
+export type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
+export type DigitalHumanSource = "COMMON" | "CUSTOM";
+export type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
+
+export type DigitalHumanTemplateFigureRecord = {
+  type: DigitalHumanFigureType;
+  cover: string;
+  width: number;
+  height: number;
+  previewVideoUrl?: string;
+  bgReplace?: boolean;
+};
+
+export type DigitalHumanTemplateRecord = {
+  id: string;
+  name: string;
+  gender?: string;
+  audioManId?: string;
+  audioName?: string;
+  audioPreview?: string;
+  audioLang?: string;
+  tagIds: number[];
+  tagNames: string[];
+  figures: DigitalHumanTemplateFigureRecord[];
+};
+
+export type DigitalHumanTemplateTagGroupRecord = {
+  id: number;
+  name: string;
+  businessType: number;
+  tagList: Array<{
+    id: number;
+    name: string;
+  }>;
+};
+
+export type DouyinDigitalHumanVideoWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  title: string;
+  content: string;
+  stage: DigitalHumanVideoStage;
+  personId: string;
+  personName: string;
+  personSource: DigitalHumanSource;
+  figureType: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth: number;
+  figureHeight: number;
+  audioManId?: string;
+  audioName?: string;
+  speechRate: number;
+  pitch?: number;
+  volume: number;
+  language: string;
+  backgroundColor?: string;
+  subtitleEnabled: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth: number;
+  screenHeight: number;
+  providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  renderedDurationSec?: number;
+  audioUrls: string[];
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GenerateXiaohongshuOriginalNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -290,6 +368,31 @@ export type GenerateDouyinDirectVideoForm = {
   durationSec?: number;
   aspectRatio?: VideoAspectRatio;
   includeMarketingPlan?: boolean;
+};
+
+export type GenerateDouyinDigitalHumanVideoForm = {
+  title?: string;
+  personId?: string;
+  personName?: string;
+  personSource?: DigitalHumanSource;
+  figureType?: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth?: number;
+  figureHeight?: number;
+  audioManId?: string;
+  audioName?: string;
+  script?: string;
+  speechRate?: number;
+  pitch?: number;
+  volume?: number;
+  language?: string;
+  backgroundColor?: string;
+  subtitleEnabled?: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth?: number;
+  screenHeight?: number;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -663,6 +766,58 @@ export async function updateDouyinDirectVideoWork(
 
 export async function deleteDouyinDirectVideoWork(brandId: string, workId: string) {
   return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/direct-video/${workId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinDigitalHumanTemplateTags(brandId: string) {
+  return request<{ list: DigitalHumanTemplateTagGroupRecord[] }>(`/works/brands/${brandId}/douyin/digital-human/template-tags`);
+}
+
+export async function getDouyinDigitalHumanTemplates(brandId: string) {
+  return request<{
+    list: DigitalHumanTemplateRecord[];
+    pageInfo?: {
+      page: number;
+      size: number;
+      totalCount: number;
+      totalPage: number;
+    };
+  }>(`/works/brands/${brandId}/douyin/digital-human/templates`);
+}
+
+export async function getDouyinDigitalHumanVideoWorks(brandId: string) {
+  return request<{ items: DouyinDigitalHumanVideoWorkRecord[] }>(`/works/brands/${brandId}/douyin/digital-human/video`);
+}
+
+export async function generateDouyinDigitalHumanVideoWork(
+  brandId: string,
+  form: GenerateDouyinDigitalHumanVideoForm,
+) {
+  return jsonRequest<{ item: DouyinDigitalHumanVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/video/generate`,
+    "POST",
+    form,
+  );
+}
+
+export async function recoverDouyinDigitalHumanVideo(
+  brandId: string,
+  payload: {
+    workId?: string;
+    providerTaskId?: string;
+  },
+) {
+  return jsonRequest<{
+    recovered: boolean;
+    providerTaskId: string;
+    thirdPartyStatus: string;
+    item: DouyinDigitalHumanVideoWorkRecord;
+  }>(`/works/brands/${brandId}/douyin/digital-human/video/recover`, "POST", payload);
+}
+
+export async function deleteDouyinDigitalHumanVideoWork(brandId: string, workId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/digital-human/video/${workId}`, {
     method: "DELETE",
   });
 }

@@ -16,6 +16,12 @@ import { CollectorsService } from "../collectors/collectors.service";
 import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../reports/reports.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
+import {
+  ChanjingOpenApiService,
+  type ChanjingTemplateRecord,
+  type ChanjingTemplateTagGroup,
+  type ChanjingVideoDetail,
+} from "./chanjing-open-api.service";
 
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 180 * 1000;
@@ -45,6 +51,9 @@ type VideoWorkflowStage =
   | "GENERATING_VIDEO"
   | "SUCCESS"
   | "FAILED";
+type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
+type DigitalHumanSource = "COMMON" | "CUSTOM";
+type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
 
 export type GenerateXiaohongshuOriginalNotePayload = {
   calendarItemId?: string;
@@ -158,6 +167,36 @@ export type RecoverXiaohongshuVideoGenerationPayload = {
 
 export type RecoverDouyinVideoGenerationPayload = RecoverXiaohongshuVideoGenerationPayload;
 export type RecoverDouyinDirectVideoGenerationPayload = RecoverXiaohongshuVideoGenerationPayload;
+
+export type GenerateDouyinDigitalHumanVideoPayload = {
+  title?: string;
+  personId?: string;
+  personName?: string;
+  personSource?: DigitalHumanSource;
+  figureType?: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth?: number;
+  figureHeight?: number;
+  audioManId?: string;
+  audioName?: string;
+  script?: string;
+  speechRate?: number;
+  pitch?: number;
+  volume?: number;
+  language?: string;
+  backgroundColor?: string;
+  subtitleEnabled?: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth?: number;
+  screenHeight?: number;
+};
+
+export type RecoverDouyinDigitalHumanVideoPayload = {
+  workId?: string;
+  providerTaskId?: string;
+};
 
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
@@ -433,6 +472,160 @@ type XhsOriginalReferenceTemplateRecord = {
   fileName: string;
   sourcePath: string;
   assetUrl: string;
+};
+
+type DigitalHumanTemplateFigureRecord = {
+  type: DigitalHumanFigureType;
+  cover: string;
+  width: number;
+  height: number;
+  previewVideoUrl?: string;
+  bgReplace?: boolean;
+};
+
+export type DigitalHumanTemplateRecord = {
+  id: string;
+  name: string;
+  gender?: string;
+  audioManId?: string;
+  audioName?: string;
+  audioPreview?: string;
+  audioLang?: string;
+  tagIds: number[];
+  tagNames: string[];
+  figures: DigitalHumanTemplateFigureRecord[];
+};
+
+export type DigitalHumanTemplateTagGroupRecord = {
+  id: number;
+  name: string;
+  businessType: number;
+  tagList: Array<{
+    id: number;
+    name: string;
+  }>;
+};
+
+type DigitalHumanVideoWorkAssetMeta = {
+  kind: "DOUYIN_DIGITAL_HUMAN_VIDEO";
+  taskId: string;
+  stage: DigitalHumanVideoStage;
+  title: string;
+  content: string;
+  htmlContent: string;
+  personId: string;
+  personName: string;
+  personSource: DigitalHumanSource;
+  figureType: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth: number;
+  figureHeight: number;
+  audioManId?: string;
+  audioName?: string;
+  speechRate: number;
+  pitch?: number;
+  volume: number;
+  language: string;
+  backgroundColor?: string;
+  subtitleEnabled: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth: number;
+  screenHeight: number;
+  providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoAssetId?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  renderedDurationSec?: number;
+  audioUrls?: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinDigitalHumanVideoWorkRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  title: string;
+  content: string;
+  stage: DigitalHumanVideoStage;
+  personId: string;
+  personName: string;
+  personSource: DigitalHumanSource;
+  figureType: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth: number;
+  figureHeight: number;
+  audioManId?: string;
+  audioName?: string;
+  speechRate: number;
+  pitch?: number;
+  volume: number;
+  language: string;
+  backgroundColor?: string;
+  subtitleEnabled: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth: number;
+  screenHeight: number;
+  providerTaskId?: string;
+  thirdPartyStatus?: string;
+  thirdPartyStatusLabel?: string;
+  thirdPartyStatusDetail?: string;
+  thirdPartyRawStatus?: string;
+  thirdPartyStatusUpdatedAt?: string;
+  videoUrl?: string;
+  coverImageUrl?: string;
+  renderedDurationSec?: number;
+  audioUrls: string[];
+  taskStatus?: WorkTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type NormalizedDigitalHumanCreatePayload = {
+  title: string;
+  personId: string;
+  personName: string;
+  personSource: DigitalHumanSource;
+  figureType: DigitalHumanFigureType;
+  figureCoverUrl?: string;
+  figurePreviewVideoUrl?: string;
+  figureWidth: number;
+  figureHeight: number;
+  audioManId?: string;
+  audioName?: string;
+  script: string;
+  speechRate: number;
+  pitch?: number;
+  volume: number;
+  language: string;
+  backgroundColor?: string;
+  subtitleEnabled: boolean;
+  subtitleTextColor?: string;
+  subtitleStrokeColor?: string;
+  screenWidth: number;
+  screenHeight: number;
+};
+
+type DigitalHumanVideoSnapshot = {
+  id: string;
+  stage: DigitalHumanVideoStage;
+  status: string;
+  statusLabel: string;
+  rawStatus?: string;
+  detail?: string;
+  videoUrl?: string;
+  previewUrl?: string;
+  durationSec?: number;
+  audioUrls: string[];
 };
 
 export type XiaohongshuOriginalWorkRecord = {
@@ -779,6 +972,8 @@ export class WorksService {
     private readonly skillsPromptsService: SkillsPromptsService,
     @Inject(ThirdPartyPlatformsService)
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    @Inject(ChanjingOpenApiService)
+    private readonly chanjingOpenApiService: ChanjingOpenApiService,
   ) {}
 
   private async resolveBrandAwareApiKeys(
@@ -1097,6 +1292,75 @@ export class WorksService {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
+  }
+
+  async listDouyinDigitalHumanTemplateTags(brandId: string) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    return {
+      list: await this.chanjingOpenApiService.listTemplateTags(credential),
+    };
+  }
+
+  async listDouyinDigitalHumanTemplates(
+    brandId: string,
+    options?: {
+      page?: number;
+      size?: number;
+      sort?: string;
+      tagIds?: number[];
+    },
+  ) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    const response = await this.chanjingOpenApiService.listCommonDigitalPersons(credential, options);
+    return {
+      list: response.list,
+      pageInfo: response.pageInfo,
+    };
+  }
+
+  async listDouyinDigitalHumanVideoWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const workRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const activeRows = workRows
+        .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
+        .slice(0, 10);
+      if (activeRows.length) {
+        await Promise.allSettled(activeRows.map((item) => this.refreshDigitalHumanWorkSnapshot(brandId, item.id)));
+      }
+      const refreshedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      const items = refreshedRows
+        .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
+        .map((item) => this.mapDigitalHumanVideoWorkFromDatabase(item))
+        .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item));
+      return { items };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDigitalHumanVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => this.mapDigitalHumanVideoWorkFromMock(item))
+      .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    await Promise.allSettled(items.slice(0, 10).map((item) => this.refreshDigitalHumanWorkSnapshot(brandId, item.id)));
+    const refreshedItems = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDigitalHumanVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => this.mapDigitalHumanVideoWorkFromMock(item))
+      .filter((item): item is DouyinDigitalHumanVideoWorkRecord => Boolean(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return { items: refreshedItems };
   }
 
   async getXiaohongshuPublishableWork(brandId: string, workId: string): Promise<XiaohongshuPublishableWorkRecord> {
@@ -1949,6 +2213,80 @@ export class WorksService {
     };
   }
 
+  async generateDouyinDigitalHumanVideo(
+    brandId: string,
+    payload: GenerateDouyinDigitalHumanVideoPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const normalized = this.normalizeDigitalHumanCreatePayload(payload);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_DIGITAL_HUMAN_VIDEO",
+      taskTitle: `生成数字人视频：${normalized.title}`,
+      requestedVideoProvider: "chanjing_digital_human",
+      modelName: "chanjing-digital-human",
+    });
+    const now = new Date().toISOString();
+    const htmlContent = this.renderGeneratedDigitalHumanVideoHtml({
+      title: normalized.title,
+      content: normalized.script,
+      stage: "QUEUED",
+      personName: normalized.personName,
+      figureCoverUrl: normalized.figureCoverUrl,
+      figureType: normalized.figureType,
+    });
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-digital-human.html`, htmlContent);
+    const metadata: DigitalHumanVideoWorkAssetMeta = {
+      kind: "DOUYIN_DIGITAL_HUMAN_VIDEO",
+      taskId: task.id,
+      stage: "QUEUED",
+      title: normalized.title,
+      content: normalized.script,
+      htmlContent,
+      personId: normalized.personId,
+      personName: normalized.personName,
+      personSource: normalized.personSource,
+      figureType: normalized.figureType,
+      figureCoverUrl: normalized.figureCoverUrl,
+      figurePreviewVideoUrl: normalized.figurePreviewVideoUrl,
+      figureWidth: normalized.figureWidth,
+      figureHeight: normalized.figureHeight,
+      audioManId: normalized.audioManId,
+      audioName: normalized.audioName,
+      speechRate: normalized.speechRate,
+      pitch: normalized.pitch,
+      volume: normalized.volume,
+      language: normalized.language,
+      backgroundColor: normalized.backgroundColor,
+      subtitleEnabled: normalized.subtitleEnabled,
+      subtitleTextColor: normalized.subtitleTextColor,
+      subtitleStrokeColor: normalized.subtitleStrokeColor,
+      screenWidth: normalized.screenWidth,
+      screenHeight: normalized.screenHeight,
+      coverImageUrl: normalized.figureCoverUrl,
+      audioUrls: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音数字人 - ${normalized.title}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata,
+    });
+    setTimeout(() => {
+      void this.runGenerateDigitalHumanVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey);
+    }, 0);
+    return {
+      item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
+    };
+  }
+
   async updateXiaohongshuOriginalNote(brandId: string, workId: string, payload: UpdateXiaohongshuOriginalNotePayload) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
@@ -2689,6 +3027,40 @@ export class WorksService {
     };
   }
 
+  async recoverDouyinDigitalHumanVideo(
+    brandId: string,
+    payload: RecoverDouyinDigitalHumanVideoPayload,
+  ) {
+    const providerTaskId = payload.providerTaskId?.trim();
+    if (!providerTaskId && !payload.workId?.trim()) {
+      throw new BadRequestException("请提供站内作品 ID 或蝉镜视频任务 ID。");
+    }
+    const target = payload.workId?.trim()
+      ? await this.getDigitalHumanWorkRowById(brandId, payload.workId.trim())
+      : await this.findRecoverableDigitalHumanWorkRow(brandId, providerTaskId || "");
+    const workId = String(target.id || "").trim();
+    const storageKey = target.storageKey || `${workId}.html`;
+    const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || String(target.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("当前数字人作品缺少站内任务记录，暂无法恢复。");
+    }
+    const snapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId || meta.providerTaskId || "");
+    const nextMeta = await this.persistDigitalHumanSnapshot(brandId, workId, storageKey, taskId, meta, snapshot);
+    return {
+      recovered: snapshot.status === "SUCCESS" && Boolean(snapshot.videoUrl),
+      providerTaskId: snapshot.id,
+      thirdPartyStatus: this.resolveDigitalHumanThirdPartyStatus(snapshot),
+      item: this.mapDigitalHumanVideoWorkRecord(
+        workId,
+        brandId,
+        taskId,
+        nextMeta,
+        snapshot.status === "SUCCESS" && snapshot.videoUrl ? "SUCCESS" : "RUNNING",
+      ),
+    };
+  }
+
   async deleteXiaohongshuOriginalNote(brandId: string, workId: string) {
     const target = await this.getOriginalWorkRowById(brandId, workId);
     const meta = this.readOriginalWorkMeta(this.getMediaMetadata(target));
@@ -2878,6 +3250,44 @@ export class WorksService {
     const localReferenceFileName = meta.referenceImageUrl ? this.extractLocalAssetFileName(meta.referenceImageUrl, brandId) : "";
     await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
     await this.deleteGeneratedFileIfExists(brandId, localReferenceFileName);
+    return { success: true };
+  }
+
+  async deleteDouyinDigitalHumanVideo(brandId: string, workId: string) {
+    const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+    const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
+    const taskId = meta.taskId || target.taskId || undefined;
+
+    if (await this.prismaService.canUseDatabase()) {
+      const relatedRows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          OR: [{ id: workId }, ...(taskId ? [{ taskId }] : [])],
+        },
+      });
+      if (relatedRows.length) {
+        await this.prismaService.mediaAsset.deleteMany({
+          where: {
+            id: { in: relatedRows.map((item) => item.id) },
+          },
+        });
+      }
+      if (taskId) {
+        await this.prismaService.task.deleteMany({
+          where: { id: taskId },
+        });
+      }
+    } else {
+      database.media = database.media.filter((item) => item.id !== workId && item.taskId !== taskId);
+      if (taskId) {
+        database.tasks = database.tasks.filter((item) => item.id !== taskId);
+      }
+    }
+
+    await this.deleteGeneratedFileIfExists(brandId, this.extractFileName(target.storageKey || ""));
+    const localVideoFileName = meta.videoUrl ? this.extractLocalAssetFileName(meta.videoUrl, brandId) : "";
+    const localCoverFileName = meta.coverImageUrl ? this.extractLocalAssetFileName(meta.coverImageUrl, brandId) : "";
+    await this.deleteGeneratedFileIfExists(brandId, localVideoFileName);
+    await this.deleteGeneratedFileIfExists(brandId, localCoverFileName);
     return { success: true };
   }
 
@@ -3665,7 +4075,7 @@ export class WorksService {
     title: string;
     storageKey: string;
     sourceUrl: string;
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta;
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.mediaAsset.create({
@@ -4014,7 +4424,7 @@ export class WorksService {
   private async updateWorkHtmlMetadata(
     workId: string,
     brandId: string,
-    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta,
+    metadata: OriginalWorkAssetMeta | RewriteWorkAssetMeta | VideoWorkAssetMeta | DigitalHumanVideoWorkAssetMeta,
     title: string,
   ) {
     if (await this.prismaService.canUseDatabase()) {
@@ -6240,6 +6650,680 @@ export class WorksService {
       throw new NotFoundException(`未找到可用于恢复第三方任务 ${providerTaskId} 的视频笔记。`);
     }
     throw new BadRequestException("当前品牌下存在多条待恢复的视频笔记，请补充 workId 后重试。");
+  }
+
+  private isDigitalHumanVideoWorkMeta(metadataJson: unknown) {
+    return this.asRecord(metadataJson)?.kind === "DOUYIN_DIGITAL_HUMAN_VIDEO";
+  }
+
+  private readDigitalHumanVideoWorkMeta(metadataJson: unknown): DigitalHumanVideoWorkAssetMeta {
+    const meta = this.asRecord(metadataJson);
+    if (!meta || meta.kind !== "DOUYIN_DIGITAL_HUMAN_VIDEO") {
+      throw new NotFoundException("数字人作品不存在");
+    }
+    return {
+      kind: "DOUYIN_DIGITAL_HUMAN_VIDEO",
+      taskId: String(meta.taskId ?? "").trim(),
+      stage: this.normalizeDigitalHumanStage(this.readOptionalString(meta.stage)),
+      title: String(meta.title ?? "").trim(),
+      content: String(meta.content ?? "").trim(),
+      htmlContent: String(meta.htmlContent ?? "").trim(),
+      personId: String(meta.personId ?? "").trim(),
+      personName: String(meta.personName ?? "").trim() || String(meta.personId ?? "").trim(),
+      personSource: this.normalizeDigitalHumanSource(this.readOptionalString(meta.personSource)),
+      figureType: this.normalizeDigitalHumanFigureType(this.readOptionalString(meta.figureType)),
+      figureCoverUrl: this.readOptionalString(meta.figureCoverUrl),
+      figurePreviewVideoUrl: this.readOptionalString(meta.figurePreviewVideoUrl),
+      figureWidth: this.readPositiveInteger(meta.figureWidth, 720),
+      figureHeight: this.readPositiveInteger(meta.figureHeight, 1280),
+      audioManId: this.readOptionalString(meta.audioManId),
+      audioName: this.readOptionalString(meta.audioName),
+      speechRate: this.readNumberWithFallback(meta.speechRate, 1),
+      pitch: typeof meta.pitch === "number" ? meta.pitch : undefined,
+      volume: this.readNumberWithFallback(meta.volume, 1),
+      language: this.readOptionalString(meta.language) || "cn",
+      backgroundColor: this.readOptionalString(meta.backgroundColor),
+      subtitleEnabled: meta.subtitleEnabled !== false,
+      subtitleTextColor: this.readOptionalString(meta.subtitleTextColor),
+      subtitleStrokeColor: this.readOptionalString(meta.subtitleStrokeColor),
+      screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
+      screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
+      providerTaskId: this.readOptionalString(meta.providerTaskId),
+      thirdPartyStatus: this.readOptionalString(meta.thirdPartyStatus),
+      thirdPartyStatusLabel: this.readOptionalString(meta.thirdPartyStatusLabel),
+      thirdPartyStatusDetail: this.readOptionalString(meta.thirdPartyStatusDetail),
+      thirdPartyRawStatus: this.readOptionalString(meta.thirdPartyRawStatus),
+      thirdPartyStatusUpdatedAt: this.readOptionalString(meta.thirdPartyStatusUpdatedAt),
+      videoAssetId: this.readOptionalString(meta.videoAssetId),
+      videoUrl: this.readOptionalString(meta.videoUrl),
+      coverImageUrl: this.readOptionalString(meta.coverImageUrl),
+      renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
+      audioUrls: this.normalizeStringArray(meta.audioUrls, [], 8),
+      createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
+      updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private normalizeDigitalHumanStage(value?: string): DigitalHumanVideoStage {
+    switch (value) {
+      case "GENERATING":
+      case "SUCCESS":
+      case "FAILED":
+        return value;
+      default:
+        return "QUEUED";
+    }
+  }
+
+  private normalizeDigitalHumanSource(value?: string): DigitalHumanSource {
+    return value === "CUSTOM" ? "CUSTOM" : "COMMON";
+  }
+
+  private normalizeDigitalHumanFigureType(value?: string): DigitalHumanFigureType {
+    if (value === "whole_body" || value === "circle_view") {
+      return value;
+    }
+    return "sit_body";
+  }
+
+  private readPositiveInteger(value: unknown, fallbackValue: number) {
+    const next = typeof value === "number" ? value : Number(value || 0);
+    return Number.isFinite(next) && next > 0 ? Math.round(next) : fallbackValue;
+  }
+
+  private readNumberWithFallback(value: unknown, fallbackValue: number) {
+    const next = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(next) ? next : fallbackValue;
+  }
+
+  private normalizeDigitalHumanCreatePayload(
+    payload: GenerateDouyinDigitalHumanVideoPayload,
+  ): NormalizedDigitalHumanCreatePayload {
+    const personId = String(payload.personId || "").trim();
+    if (!personId) {
+      throw new BadRequestException("请选择一个数字人形象。");
+    }
+    const script = String(payload.script || "").trim();
+    if (!script) {
+      throw new BadRequestException("请输入数字人口播脚本。");
+    }
+    const screenWidth = this.readPositiveInteger(payload.screenWidth, 1080);
+    const screenHeight = this.readPositiveInteger(payload.screenHeight, 1920);
+    const figureWidth = Math.min(this.readPositiveInteger(payload.figureWidth, 720), screenWidth);
+    const figureHeight = Math.min(this.readPositiveInteger(payload.figureHeight, 1280), screenHeight);
+    const personName = String(payload.personName || "").trim() || personId;
+    return {
+      title: String(payload.title || "").trim() || `${personName} 数字人口播`,
+      personId,
+      personName,
+      personSource: this.normalizeDigitalHumanSource(payload.personSource),
+      figureType: this.normalizeDigitalHumanFigureType(payload.figureType),
+      figureCoverUrl: this.readOptionalString(payload.figureCoverUrl),
+      figurePreviewVideoUrl: this.readOptionalString(payload.figurePreviewVideoUrl),
+      figureWidth,
+      figureHeight,
+      audioManId: this.readOptionalString(payload.audioManId),
+      audioName: this.readOptionalString(payload.audioName),
+      script,
+      speechRate: Math.max(0.5, Math.min(2, this.readNumberWithFallback(payload.speechRate, 1))),
+      pitch: typeof payload.pitch === "number" ? Math.max(-12, Math.min(12, payload.pitch)) : undefined,
+      volume: Math.max(0.1, Math.min(2, this.readNumberWithFallback(payload.volume, 1))),
+      language: this.readOptionalString(payload.language) || "cn",
+      backgroundColor: this.readOptionalString(payload.backgroundColor) || "#ffffff",
+      subtitleEnabled: payload.subtitleEnabled !== false,
+      subtitleTextColor: this.readOptionalString(payload.subtitleTextColor) || "#FFFFFF",
+      subtitleStrokeColor: this.readOptionalString(payload.subtitleStrokeColor) || "#000000",
+      screenWidth,
+      screenHeight,
+    };
+  }
+
+  private renderGeneratedDigitalHumanVideoHtml(params: {
+    title: string;
+    content: string;
+    personName: string;
+    figureType: DigitalHumanFigureType;
+    figureCoverUrl?: string;
+    figurePreviewVideoUrl?: string;
+    stage: DigitalHumanVideoStage;
+    thirdPartyStatusLabel?: string;
+    thirdPartyStatusDetail?: string;
+    videoUrl?: string;
+    audioName?: string;
+    audioUrls?: string[];
+  }) {
+    const paragraphs = params.content
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.9;">${this.escapeHtml(item)}</p>`)
+      .join("");
+    const cover = params.figureCoverUrl
+      ? `<img src="${this.escapeHtml(params.figureCoverUrl)}" alt="" style="width:100%;border-radius:28px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" />`
+      : "";
+    const preview = params.figurePreviewVideoUrl
+      ? `<video controls preload="metadata" src="${this.escapeHtml(params.figurePreviewVideoUrl)}" style="width:100%;margin-top:18px;border-radius:24px;background:#0f1525;"></video>`
+      : "";
+    const finalVideo = params.videoUrl
+      ? `<video controls preload="metadata" src="${this.escapeHtml(params.videoUrl)}" style="width:100%;margin-top:18px;border-radius:24px;background:#0f1525;box-shadow:0 18px 40px rgba(24,36,68,0.16);"></video>`
+      : `<div style="margin-top:18px;padding:24px;border-radius:24px;background:#f7f9ff;border:1px solid #dfe5f2;color:#63708a;">视频生成完成后，这里会显示最终数字人视频。</div>`;
+    const audioBlocks = (params.audioUrls || []).length
+      ? `<div style="display:grid;gap:12px;margin-top:18px;">${(params.audioUrls || []).map((item) => `<audio controls preload="none" src="${this.escapeHtml(item)}" style="width:100%;"></audio>`).join("")}</div>`
+      : "";
+    const stageLabel = this.getDigitalHumanStageLabel(params.stage);
+
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>',
+      this.escapeHtml(params.title),
+      '</title></head><body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:\'PingFang SC\',\'Microsoft YaHei\',sans-serif;">',
+      '<main style="max-width:880px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      cover,
+      `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="display:flex;flex-wrap:wrap;gap:10px;color:#63708a;font-size:13px;margin-bottom:18px;"><span>抖音数字人</span><span>${this.escapeHtml(params.personName)}</span><span>${this.escapeHtml(stageLabel)}</span><span>${this.escapeHtml(this.getDigitalHumanFigureTypeLabel(params.figureType))}</span>${params.audioName ? `<span>${this.escapeHtml(params.audioName)}</span>` : ""}</div>`,
+      params.thirdPartyStatusLabel
+        ? `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#f7f9ff;border:1px solid #dfe5f2;color:#24314a;"><strong>${this.escapeHtml(params.thirdPartyStatusLabel)}</strong>${params.thirdPartyStatusDetail ? `<div style="margin-top:6px;color:#63708a;font-size:14px;">${this.escapeHtml(params.thirdPartyStatusDetail)}</div>` : ""}</div>`
+        : "",
+      paragraphs,
+      preview,
+      finalVideo,
+      audioBlocks,
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private getDigitalHumanFigureTypeLabel(type: DigitalHumanFigureType) {
+    switch (type) {
+      case "whole_body":
+        return "全身";
+      case "circle_view":
+        return "圆形";
+      default:
+        return "半身";
+    }
+  }
+
+  private getDigitalHumanStageLabel(stage: DigitalHumanVideoStage) {
+    switch (stage) {
+      case "SUCCESS":
+        return "已完成";
+      case "FAILED":
+        return "失败";
+      case "GENERATING":
+        return "生成中";
+      default:
+        return "排队中";
+    }
+  }
+
+  private async saveDigitalHumanWorkMetadataSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    meta: DigitalHumanVideoWorkAssetMeta,
+  ) {
+    const nextMeta: DigitalHumanVideoWorkAssetMeta = {
+      ...meta,
+      htmlContent: this.renderGeneratedDigitalHumanVideoHtml({
+        title: meta.title,
+        content: meta.content,
+        personName: meta.personName,
+        figureType: meta.figureType,
+        figureCoverUrl: meta.coverImageUrl || meta.figureCoverUrl,
+        figurePreviewVideoUrl: meta.figurePreviewVideoUrl,
+        stage: meta.stage,
+        thirdPartyStatusLabel: meta.thirdPartyStatusLabel,
+        thirdPartyStatusDetail: meta.thirdPartyStatusDetail,
+        videoUrl: meta.videoUrl,
+        audioName: meta.audioName,
+        audioUrls: meta.audioUrls,
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
+    await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `抖音数字人 - ${nextMeta.title}`);
+    return nextMeta;
+  }
+
+  private async resolveChanjingCredential(brandId: string) {
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
+      "https://open-api.chanjing.cc",
+    ]);
+    if (resolution.status === "resolved") {
+      const apiKey = String(resolution.apiKeys[0] || "").trim();
+      if (apiKey) {
+        return apiKey;
+      }
+    }
+    throw new ServiceUnavailableException(
+      "当前品牌尚未配置蝉镜 OpenAPI 凭证，请先在个人中心第三方平台中按 `appId::secretKey` 格式填写蝉镜凭证。",
+    );
+  }
+
+  private async runGenerateDigitalHumanVideoTask(brandId: string, workId: string, taskId: string, storageKey: string) {
+    try {
+      await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, { workId, stage: "GENERATING", title: "创建数字人视频任务" });
+      const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+      let meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        stage: "GENERATING",
+        thirdPartyStatus: "GENERATING",
+        thirdPartyStatusLabel: "正在提交蝉镜任务",
+        thirdPartyStatusDetail: "已创建站内任务，正在调用蝉镜数字人视频接口。",
+      });
+      const credential = await this.resolveChanjingCredential(brandId);
+      const personX = Math.max(0, Math.floor((meta.screenWidth - meta.figureWidth) / 2));
+      const personY = Math.max(0, meta.screenHeight - meta.figureHeight);
+      const providerTaskId = await this.chanjingOpenApiService.createVideo(credential, {
+        person: {
+          id: meta.personId,
+          x: personX,
+          y: personY,
+          width: meta.figureWidth,
+          height: meta.figureHeight,
+          figure_type: meta.figureType,
+        },
+        audio: {
+          type: "tts",
+          tts: {
+            text: [meta.content],
+            speed: meta.speechRate,
+            audio_man: meta.audioManId,
+            pitch: meta.pitch,
+          },
+          volume: meta.volume,
+          language: meta.language,
+        },
+        bg_color: meta.backgroundColor,
+        subtitle_config: meta.subtitleEnabled
+          ? {
+              show: true,
+              x: Math.floor(meta.screenWidth * 0.08),
+              y: Math.floor(meta.screenHeight * 0.78),
+              width: Math.floor(meta.screenWidth * 0.84),
+              height: Math.floor(meta.screenHeight * 0.14),
+              font_size: Math.max(28, Math.floor(meta.screenWidth * 0.034)),
+              color: meta.subtitleTextColor,
+              stroke_color: meta.subtitleStrokeColor,
+              stroke_width: 2,
+            }
+          : {
+              show: false,
+              x: 0,
+              y: 0,
+              width: 0,
+              height: 0,
+              font_size: 0,
+            },
+        screen_width: meta.screenWidth,
+        screen_height: meta.screenHeight,
+        add_compliance_watermark: true,
+      });
+      meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        stage: "GENERATING",
+        providerTaskId,
+        thirdPartyStatus: "GENERATING",
+        thirdPartyStatusLabel: "蝉镜任务已创建",
+        thirdPartyStatusDetail: `蝉镜任务 ID：${providerTaskId}`,
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+      });
+      await this.updateTaskOutputJson(taskId, {
+        workId,
+        stage: "PROVIDER_TASK_CREATED",
+        title: meta.title,
+        providerTaskId,
+      });
+      await this.persistDigitalHumanSnapshot(
+        brandId,
+        workId,
+        storageKey,
+        taskId,
+        meta,
+        await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "数字人视频生成失败";
+      try {
+        const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+        const meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target)),
+          taskId,
+          stage: "FAILED",
+          thirdPartyStatus: "FAILED",
+          thirdPartyStatusLabel: "数字人视频生成失败",
+          thirdPartyStatusDetail: errorMessage,
+          thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        });
+        await this.updateTaskOutputJson(taskId, {
+          workId,
+          stage: "FAILED",
+          title: meta.title,
+          errorMessage,
+        });
+      } catch {
+        // Ignore snapshot persistence failures when the primary task already failed.
+      }
+      await this.markTaskFailed(taskId, errorMessage);
+    }
+  }
+
+  private async queryDigitalHumanVideoSnapshot(brandId: string, providerTaskId: string): Promise<DigitalHumanVideoSnapshot> {
+    const normalizedTaskId = String(providerTaskId || "").trim();
+    if (!normalizedTaskId) {
+      throw new BadRequestException("缺少蝉镜视频任务 ID。");
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    const detail = await this.chanjingOpenApiService.getVideoDetail(credential, normalizedTaskId);
+    const stage = this.resolveDigitalHumanSnapshotStage(detail);
+    const rawStatus = [detail.status, detail.queueStatus].filter((item) => item !== undefined && item !== null && item !== "").join("/");
+    return {
+      id: detail.id || normalizedTaskId,
+      stage,
+      status: stage,
+      statusLabel: this.getDigitalHumanStageLabel(stage),
+      rawStatus: rawStatus || undefined,
+      detail: detail.msg || detail.queueDesc || undefined,
+      videoUrl: detail.videoUrl,
+      previewUrl: detail.previewUrl,
+      durationSec: detail.duration,
+      audioUrls: detail.audioUrls || [],
+    };
+  }
+
+  private resolveDigitalHumanSnapshotStage(detail: ChanjingVideoDetail): DigitalHumanVideoStage {
+    if (detail.videoUrl) {
+      return "SUCCESS";
+    }
+    const statusNumber = Number(detail.status || 0);
+    const failureText = `${detail.msg || ""} ${detail.queueDesc || ""} ${detail.queueStatus || ""}`;
+    if (statusNumber === 3 || statusNumber === -1 || /失败|错误|error|fail/i.test(failureText)) {
+      return "FAILED";
+    }
+    if (statusNumber === 0 || /排队|queue/i.test(failureText)) {
+      return "QUEUED";
+    }
+    return "GENERATING";
+  }
+
+  private resolveDigitalHumanThirdPartyStatus(snapshot: DigitalHumanVideoSnapshot) {
+    return snapshot.status;
+  }
+
+  private async persistDigitalHumanSnapshot(
+    brandId: string,
+    workId: string,
+    storageKey: string,
+    taskId: string,
+    meta: DigitalHumanVideoWorkAssetMeta,
+    snapshot: DigitalHumanVideoSnapshot,
+  ) {
+    let cachedVideoUrl = meta.videoUrl;
+    let coverImageUrl = meta.coverImageUrl || meta.figureCoverUrl;
+    let videoAssetId = meta.videoAssetId;
+
+    if (snapshot.stage === "SUCCESS" && snapshot.videoUrl) {
+      cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+        brandId,
+        `${taskId}-digital-human-video.mp4`,
+        snapshot.videoUrl,
+      );
+      const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+      const userId = String((target as { userId?: string | null }).userId || "").trim() || await this.getBrandOwnerUserId(brandId);
+      const videoMedia = await this.upsertRecoveredVideoMedia({
+        userId,
+        brandId,
+        taskId,
+        workId,
+        title: `数字人视频 - ${meta.title}`,
+        sourceUrl: cachedVideoUrl,
+        provider: "chanjing_digital_human",
+        modelName: "chanjing-digital-human",
+        providerTaskId: snapshot.id,
+        durationSec: snapshot.durationSec || meta.renderedDurationSec,
+        videoAssetId,
+      });
+      videoAssetId = videoMedia.id;
+      coverImageUrl = coverImageUrl || meta.figureCoverUrl;
+    }
+
+    const nextMeta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+      ...meta,
+      taskId,
+      stage: snapshot.stage,
+      providerTaskId: snapshot.id || meta.providerTaskId,
+      thirdPartyStatus: snapshot.status,
+      thirdPartyStatusLabel: snapshot.statusLabel,
+      thirdPartyStatusDetail: snapshot.detail,
+      thirdPartyRawStatus: snapshot.rawStatus,
+      thirdPartyStatusUpdatedAt: new Date().toISOString(),
+      renderedDurationSec: snapshot.durationSec || meta.renderedDurationSec,
+      videoAssetId,
+      videoUrl: cachedVideoUrl,
+      coverImageUrl,
+      audioUrls: snapshot.audioUrls.length ? snapshot.audioUrls : meta.audioUrls,
+    });
+
+    if (snapshot.stage === "SUCCESS" && nextMeta.videoUrl) {
+      await this.markTaskSuccess(
+        taskId,
+        {
+          workId,
+          stage: "SUCCESS",
+          title: nextMeta.title,
+          providerTaskId: nextMeta.providerTaskId,
+          videoUrl: nextMeta.videoUrl,
+        },
+        { modelName: "chanjing-digital-human" },
+      );
+      return nextMeta;
+    }
+
+    if (snapshot.stage === "FAILED") {
+      await this.markTaskFailed(taskId, snapshot.detail || "蝉镜数字人视频生成失败");
+      return nextMeta;
+    }
+
+    await this.markTaskRunning(taskId);
+    await this.updateTaskOutputJson(taskId, {
+      workId,
+      stage: snapshot.stage,
+      title: nextMeta.title,
+      providerTaskId: nextMeta.providerTaskId,
+      thirdPartyStatus: snapshot.status,
+      thirdPartyStatusLabel: snapshot.statusLabel,
+      thirdPartyStatusDetail: snapshot.detail,
+    });
+    return nextMeta;
+  }
+
+  private mapDigitalHumanVideoWorkFromDatabase(
+    item: {
+      id: string;
+      brandId: string | null;
+      taskId: string | null;
+      metadataJson: Prisma.JsonValue | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+  ) {
+    const meta = this.readDigitalHumanVideoWorkMeta(item.metadataJson);
+    return this.mapDigitalHumanVideoWorkRecord(
+      item.id,
+      item.brandId ?? undefined,
+      item.taskId ?? meta.taskId,
+      meta,
+      undefined,
+      item.createdAt.toISOString(),
+      item.updatedAt.toISOString(),
+    );
+  }
+
+  private mapDigitalHumanVideoWorkFromMock(
+    item: { id: string; brandId?: string; taskId?: string; metadataJson?: unknown; createdAt: string; updatedAt?: string },
+  ) {
+    const meta = this.readDigitalHumanVideoWorkMeta(item.metadataJson);
+    const task = database.tasks.find((entry) => entry.id === (item.taskId || meta.taskId));
+    return this.mapDigitalHumanVideoWorkRecord(
+      item.id,
+      item.brandId,
+      item.taskId || meta.taskId,
+      meta,
+      task?.taskStatus,
+      item.createdAt,
+      item.updatedAt || item.createdAt,
+    );
+  }
+
+  private mapDigitalHumanVideoWorkRecord(
+    id: string,
+    brandId: string | undefined,
+    taskId: string | undefined,
+    meta: DigitalHumanVideoWorkAssetMeta,
+    taskStatus?: WorkTaskStatus,
+    createdAt?: string,
+    updatedAt?: string,
+  ): DouyinDigitalHumanVideoWorkRecord {
+    return {
+      id,
+      taskId: taskId || meta.taskId,
+      brandId,
+      title: meta.title,
+      content: meta.content,
+      stage: meta.stage,
+      personId: meta.personId,
+      personName: meta.personName,
+      personSource: meta.personSource,
+      figureType: meta.figureType,
+      figureCoverUrl: meta.figureCoverUrl,
+      figurePreviewVideoUrl: meta.figurePreviewVideoUrl,
+      figureWidth: meta.figureWidth,
+      figureHeight: meta.figureHeight,
+      audioManId: meta.audioManId,
+      audioName: meta.audioName,
+      speechRate: meta.speechRate,
+      pitch: meta.pitch,
+      volume: meta.volume,
+      language: meta.language,
+      backgroundColor: meta.backgroundColor,
+      subtitleEnabled: meta.subtitleEnabled,
+      subtitleTextColor: meta.subtitleTextColor,
+      subtitleStrokeColor: meta.subtitleStrokeColor,
+      screenWidth: meta.screenWidth,
+      screenHeight: meta.screenHeight,
+      providerTaskId: meta.providerTaskId,
+      thirdPartyStatus: meta.thirdPartyStatus,
+      thirdPartyStatusLabel: meta.thirdPartyStatusLabel,
+      thirdPartyStatusDetail: meta.thirdPartyStatusDetail,
+      thirdPartyRawStatus: meta.thirdPartyRawStatus,
+      thirdPartyStatusUpdatedAt: meta.thirdPartyStatusUpdatedAt,
+      videoUrl: meta.videoUrl,
+      coverImageUrl: meta.coverImageUrl || meta.figureCoverUrl,
+      renderedDurationSec: meta.renderedDurationSec,
+      audioUrls: meta.audioUrls || [],
+      taskStatus,
+      createdAt: createdAt || meta.createdAt,
+      updatedAt: updatedAt || meta.updatedAt,
+    };
+  }
+
+  private async getDigitalHumanWorkRowById(brandId: string, workId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const row = await this.prismaService.mediaAsset.findUnique({
+        where: { id: workId },
+      });
+      if (!row || row.brandId !== brandId || !this.isDigitalHumanVideoWorkMeta(row.metadataJson)) {
+        throw new NotFoundException("数字人作品不存在");
+      }
+      return row;
+    }
+
+    const row = database.media.find((item) => item.id === workId && item.brandId === brandId);
+    if (!row || !this.isDigitalHumanVideoWorkMeta((row as { metadataJson?: unknown }).metadataJson)) {
+      throw new NotFoundException("数字人作品不存在");
+    }
+    return row;
+  }
+
+  private async findRecoverableDigitalHumanWorkRow(brandId: string, providerTaskId: string) {
+    const normalizedTaskId = String(providerTaskId || "").trim();
+    const isRecoverableStage = (stage?: DigitalHumanVideoStage) =>
+      stage === "QUEUED" || stage === "GENERATING" || stage === "FAILED";
+
+    if (await this.prismaService.canUseDatabase()) {
+      const rows = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.HTML,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const candidates = rows
+        .filter((item) => this.isDigitalHumanVideoWorkMeta(item.metadataJson))
+        .map((item) => ({ row: item, meta: this.readDigitalHumanVideoWorkMeta(item.metadataJson) }));
+      const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
+      if (exact) {
+        return exact.row;
+      }
+      const recoverable = candidates.filter((item) => !item.meta.videoUrl && isRecoverableStage(item.meta.stage));
+      if (recoverable.length === 1) {
+        return recoverable[0].row;
+      }
+      if (!recoverable.length) {
+        throw new NotFoundException(`未找到可用于恢复蝉镜任务 ${normalizedTaskId} 的数字人作品。`);
+      }
+      throw new BadRequestException("当前品牌下存在多条待恢复的数字人作品，请补充 workId 后重试。");
+    }
+
+    const candidates = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "HTML")
+      .filter((item) => this.isDigitalHumanVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson))
+      .map((item) => ({
+        row: item,
+        meta: this.readDigitalHumanVideoWorkMeta((item as { metadataJson?: unknown }).metadataJson),
+      }))
+      .sort((a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime());
+    const exact = candidates.find((item) => item.meta.providerTaskId === normalizedTaskId);
+    if (exact) {
+      return exact.row;
+    }
+    const recoverable = candidates.filter((item) => !item.meta.videoUrl && isRecoverableStage(item.meta.stage));
+    if (recoverable.length === 1) {
+      return recoverable[0].row;
+    }
+    if (!recoverable.length) {
+      throw new NotFoundException(`未找到可用于恢复蝉镜任务 ${normalizedTaskId} 的数字人作品。`);
+    }
+    throw new BadRequestException("当前品牌下存在多条待恢复的数字人作品，请补充 workId 后重试。");
+  }
+
+  private async refreshDigitalHumanWorkSnapshot(brandId: string, workId: string) {
+    try {
+      const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+      const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
+      if (!meta.providerTaskId || (meta.stage === "SUCCESS" && meta.videoUrl)) {
+        return;
+      }
+      const taskId = meta.taskId || String(target.taskId || "").trim();
+      if (!taskId) {
+        return;
+      }
+      await this.persistDigitalHumanSnapshot(
+        brandId,
+        workId,
+        target.storageKey || `${workId}.html`,
+        taskId,
+        meta,
+        await this.queryDigitalHumanVideoSnapshot(brandId, meta.providerTaskId),
+      );
+    } catch {
+      // Ignore list auto-refresh failures to avoid blocking the workspace.
+    }
   }
 
   private getMediaMetadata(item: { metadataJson?: unknown }) {

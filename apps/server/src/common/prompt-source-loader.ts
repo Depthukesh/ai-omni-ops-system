@@ -97,6 +97,10 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/抖音板块/AI生成视频不带故事板.txt",
     "../提示词/抖音板块/AI生成视频不带故事板.txt",
   ],
+  prompt_douyin_digital_human_script: [
+    "../../../提示词/抖音板块/数字人口播脚本.txt",
+    "../提示词/抖音板块/数字人口播脚本.txt",
+  ],
   prompt_growth_report: [
     "../../../.trae/skills/brand-omni-growth-analysis/SKILL.md",
     "../../../.runtime/brand-omni-growth-analysis/brand-omni-growth-analysis/SKILL.md",

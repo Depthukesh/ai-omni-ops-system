@@ -434,6 +434,10 @@ const douyinDirectVideoSkillContent = readPromptSourceBundle(
   "prompt_douyin_direct_video",
   "根据用户输入的选题、产品、素材、参考图、营销策划和用户要求，生成可直接用于 Seedance 2.0 的抖音视频提示词。",
 ).content;
+const douyinDigitalHumanScriptSkillContent = readPromptSourceBundle(
+  "prompt_douyin_digital_human_script",
+  "根据产品资料、营销目标、视频主题和用户要求，生成适合抖音数字人口播的短视频脚本。",
+).content;
 
 export type MockDatabase = {
   users: UserRecord[];
@@ -1282,6 +1286,18 @@ export const database: MockDatabase = {
       description: "用于根据选题、产品、素材和营销策划生成可直接用于 Seedance 2.0 的抖音视频提示词。",
       updatedAt: "2026-05-30T23:20:00.000Z",
     },
+    {
+      id: "skill_douyin_digital_human_script",
+      name: "抖音数字人口播脚本",
+      slug: "douyin-digital-human-script-studio",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "国内文生文 · DeepSeek",
+      defaultModel: "deepseek-v4-pro",
+      pointsCost: 180,
+      description: "用于生成适合抖音数字人口播视频的脚本文案。",
+      updatedAt: "2026-05-30T23:40:00.000Z",
+    },
   ],
   promptTemplates: [
     {
@@ -1715,6 +1731,18 @@ export const database: MockDatabase = {
       maxTokens: 6000,
       content: douyinDirectVideoSkillContent,
       updatedAt: "2026-05-30T23:20:00.000Z",
+    },
+    {
+      id: "prompt_douyin_digital_human_script",
+      name: "抖音数字人-口播脚本",
+      scene: "抖音数字人-口播脚本",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "deepseek-v4-pro",
+      temperature: 0.4,
+      maxTokens: 6000,
+      content: douyinDigitalHumanScriptSkillContent,
+      updatedAt: "2026-05-30T23:40:00.000Z",
     },
     {
       id: "prompt_annual_marketing_plan",

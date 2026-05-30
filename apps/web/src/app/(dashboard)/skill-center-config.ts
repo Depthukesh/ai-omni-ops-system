@@ -346,6 +346,19 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           },
         ],
       },
+      {
+        id: "douyin-digital-human",
+        label: "数字人",
+        items: [
+          {
+            id: "douyin-digital-human-script",
+            label: "数字人-口播脚本",
+            description: "对应前台抖音数字人板块，用于生成适合数字人口播视频的短视频脚本。",
+            skillSlug: "douyin-digital-human-script-studio",
+            promptScene: "抖音数字人-口播脚本",
+          },
+        ],
+      },
     ],
   },
 ];

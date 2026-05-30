@@ -337,6 +337,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_douyin_direct_video"],
     promptScenes: ["抖音AI生视频-Seedance提示词"],
   },
+  skill_douyin_digital_human_script: {
+    promptIds: ["prompt_douyin_digital_human_script"],
+    promptScenes: ["抖音数字人-口播脚本"],
+  },
+  "douyin-digital-human-script-studio": {
+    promptIds: ["prompt_douyin_digital_human_script"],
+    promptScenes: ["抖音数字人-口播脚本"],
+  },
 };
 
 @Injectable()

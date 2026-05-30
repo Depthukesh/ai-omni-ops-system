@@ -37,20 +37,29 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  deleteDouyinDigitalHumanVideoWork,
   continueDouyinDirectVideoGeneration,
   continueDouyinVideoGeneration,
   deleteDouyinDirectVideoWork,
   deleteDouyinVideoWork,
+  generateDouyinDigitalHumanVideoWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinDigitalHumanTemplates,
+  getDouyinDigitalHumanTemplateTags,
+  getDouyinDigitalHumanVideoWorks,
   getDouyinDirectVideoProviders,
   getDouyinDirectVideoWorks,
   getDouyinVideoProviders,
   getDouyinVideoStoryboardImageProviders,
   getDouyinVideoWorks,
+  recoverDouyinDigitalHumanVideo,
   recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
+  type DigitalHumanTemplateRecord,
+  type DigitalHumanTemplateTagGroupRecord,
+  type DouyinDigitalHumanVideoWorkRecord,
   updateDouyinDirectVideoWork,
   updateDouyinVideoWork,
   type DouyinDirectVideoWorkRecord,
@@ -61,6 +70,7 @@ import {
 import { MediaLightbox } from "../xiaohongshu/media-lightbox";
 import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAssetsWorkspace } from "./assets-workspace";
+import { DouyinDigitalHumanWorkspace } from "./digital-human-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
@@ -71,7 +81,16 @@ import { DouyinDirectVideoWorkspace } from "./video-direct-workspace";
 import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
 
 type LoadState = "loading" | "api" | "seed";
-type DouyinSectionKey = "plan" | "assets" | "hotTopics" | "topicLibrary" | "originalCopy" | "remixCopy" | "video" | "videoDirect";
+type DouyinSectionKey =
+  | "plan"
+  | "assets"
+  | "hotTopics"
+  | "topicLibrary"
+  | "originalCopy"
+  | "remixCopy"
+  | "video"
+  | "videoDirect"
+  | "digitalHuman";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
@@ -82,6 +101,7 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
   { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
   { key: "videoDirect", label: "AI生视频", description: "基于营销日历、抖音素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
+  { key: "digitalHuman", label: "数字人", description: "对接蝉镜 OpenAPI，支持公共模板库、数字人口播视频创建、结果找回和作品中心管理。" },
 ];
 
 const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
@@ -93,6 +113,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   remixCopy: "douyin.remix",
   video: "douyin.video",
   videoDirect: "douyin.videoDirect",
+  digitalHuman: "douyin.digitalHuman",
 };
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
@@ -147,6 +168,9 @@ export function DouyinWorkspaceShell() {
   const [storyboardImageModelOptions, setStoryboardImageModelOptions] = useState<StoryboardImageModelOptionRecord[]>([]);
   const [directVideoWorks, setDirectVideoWorks] = useState<DouyinDirectVideoWorkRecord[]>([]);
   const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
+  const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
+  const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
+  const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
@@ -156,6 +180,7 @@ export function DouyinWorkspaceShell() {
   const [isSubmittingRemixCopy, setIsSubmittingRemixCopy] = useState(false);
   const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
   const [isSubmittingDirectVideo, setIsSubmittingDirectVideo] = useState(false);
+  const [isSubmittingDigitalHuman, setIsSubmittingDigitalHuman] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -184,6 +209,7 @@ export function DouyinWorkspaceShell() {
     || latestRemixCopyTask?.taskStatus === "PENDING";
   const isVideoTaskActive = videoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const isDirectVideoTaskActive = directVideoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
+  const isDigitalHumanTaskActive = digitalHumanWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -201,6 +227,7 @@ export function DouyinWorkspaceShell() {
   const canEditRemixCopy = brandPermissionSettings ? (permissionMap?.["douyin.remix"]?.edit ?? false) : true;
   const canEditVideo = brandPermissionSettings ? (permissionMap?.["douyin.video"]?.edit ?? false) : true;
   const canEditDirectVideo = brandPermissionSettings ? (permissionMap?.["douyin.videoDirect"]?.edit ?? false) : true;
+  const canEditDigitalHuman = brandPermissionSettings ? (permissionMap?.["douyin.digitalHuman"]?.edit ?? false) : true;
   const canEditCurrentSection = brandPermissionSettings
     ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
     : true;
@@ -225,7 +252,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）和 AI 生视频，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频和数字人，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
   const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
   const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 
@@ -280,6 +307,18 @@ export function DouyinWorkspaceShell() {
     return items.items || [];
   }, [activeBrandId]);
 
+  const refreshDigitalHumanWorkspace = useCallback(async () => {
+    const [items, templates, tagGroups] = await Promise.all([
+      getDouyinDigitalHumanVideoWorks(activeBrandId),
+      getDouyinDigitalHumanTemplates(activeBrandId),
+      getDouyinDigitalHumanTemplateTags(activeBrandId),
+    ]);
+    setDigitalHumanWorks(items.items || []);
+    setDigitalHumanTemplates(templates.list || []);
+    setDigitalHumanTemplateTags(tagGroups.list || []);
+    return items.items || [];
+  }, [activeBrandId]);
+
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
@@ -304,7 +343,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -320,6 +359,9 @@ export function DouyinWorkspaceShell() {
       canViewSection("video") ? getDouyinVideoStoryboardImageProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplates(activeBrandId) : Promise.resolve({ list: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
     ]);
 
     if (collectionResult.status === "fulfilled") {
@@ -406,6 +448,27 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setDirectVideoProviderOptions([]);
+    }
+
+    if (digitalHumanResult.status === "fulfilled") {
+      setDigitalHumanWorks(digitalHumanResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanWorks([]);
+    }
+
+    if (digitalHumanTemplatesResult.status === "fulfilled") {
+      setDigitalHumanTemplates(digitalHumanTemplatesResult.value.list || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanTemplates([]);
+    }
+
+    if (digitalHumanTagGroupsResult.status === "fulfilled") {
+      setDigitalHumanTemplateTags(digitalHumanTagGroupsResult.value.list || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanTemplateTags([]);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -520,10 +583,20 @@ export function DouyinWorkspaceShell() {
   }, [isDirectVideoTaskActive, refreshDirectVideoWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && notice.includes("任务已提交")) {
+    if (!isDigitalHumanTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshDigitalHumanWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isDigitalHumanTaskActive, refreshDigitalHumanWorkspace]);
+
+  useEffect(() => {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && !isDigitalHumanTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
+  }, [isDigitalHumanTaskActive, isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
@@ -1198,7 +1271,73 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
 
-  const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord) => {
+  const handleCreateDigitalHuman = useCallback(async (payload: Parameters<typeof generateDouyinDigitalHumanVideoWork>[1]) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能生成数字人视频。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await generateDouyinDigitalHumanVideoWork(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("数字人视频任务已提交，系统正在后台生成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人视频提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const handleRecoverDigitalHuman = useCallback(async (payload: {
+    workId?: string;
+    providerTaskId?: string;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能找回数字人视频结果。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await recoverDouyinDigitalHumanVideo(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("数字人视频结果找回完成。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "找回数字人视频结果失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const handleDeleteDigitalHuman = useCallback(async (workId: string) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能删除数字人作品。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinDigitalHumanVideoWork(activeBrandId, workId);
+      await refreshDigitalHumanWorkspace();
+      setNotice("数字人作品已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人作品删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord | DouyinDigitalHumanVideoWorkRecord) => {
     if (item.videoUrl) {
       setMaterialLightbox({
         title: item.title,
@@ -1207,10 +1346,12 @@ export function DouyinWorkspaceShell() {
       });
       return;
     }
-    if (item.storyboardImageUrl || item.coverImageUrl || item.referenceImageUrl) {
+    const storyboardImageUrl = "storyboardImageUrl" in item ? item.storyboardImageUrl : undefined;
+    const referenceImageUrl = "referenceImageUrl" in item ? item.referenceImageUrl : undefined;
+    if (storyboardImageUrl || item.coverImageUrl || referenceImageUrl) {
       setMaterialLightbox({
-        title: item.storyboardImageUrl ? `${item.title} 故事板` : `${item.title} 参考图`,
-        url: item.storyboardImageUrl || item.coverImageUrl || item.referenceImageUrl || "",
+        title: storyboardImageUrl ? `${item.title} 故事板` : `${item.title} 参考图`,
+        url: storyboardImageUrl || item.coverImageUrl || referenceImageUrl || "",
         type: "IMAGE",
       });
     }
@@ -1299,7 +1440,7 @@ export function DouyinWorkspaceShell() {
                           type="button"
                           className="secondary-button"
                           onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSaving || isDeleting}
+                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSubmittingDigitalHuman || isSaving || isDeleting}
                         >
                           刷新数据
                         </button>
@@ -1459,6 +1600,25 @@ export function DouyinWorkspaceShell() {
                     onDelete={handleDeleteDirectVideo}
                     onGenerateVideo={handleGenerateDirectVideo}
                     onRecoverVideo={handleRecoverDirectVideo}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "digitalHuman" ? (
+                  <DouyinDigitalHumanWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingDigitalHuman}
+                    canEdit={canEditDigitalHuman}
+                    items={digitalHumanWorks}
+                    templateTagGroups={digitalHumanTemplateTags}
+                    templates={digitalHumanTemplates}
+                    onRefresh={async () => {
+                      await refreshDigitalHumanWorkspace();
+                    }}
+                    onPreview={openGeneratedVideoPreview}
+                    onCreate={handleCreateDigitalHuman}
+                    onRecoverVideo={handleRecoverDigitalHuman}
+                    onDelete={handleDeleteDigitalHuman}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

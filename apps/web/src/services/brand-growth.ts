@@ -33,6 +33,7 @@ export type BrandPermissionKey =
   | "xiaohongshu.video"
   | "douyin.video"
   | "douyin.videoDirect"
+  | "douyin.digitalHuman"
   | "personalCenter.skills"
   | "personalCenter.thirdPartyPlatforms"
   | "personalCenter.tasks"

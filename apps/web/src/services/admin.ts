@@ -576,6 +576,18 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     description: "用于生成可直接用于 Seedance 2.0 的抖音视频提示词，并衔接后续短视频生成。",
     updatedAt: "2026-05-30T23:20:00.000Z",
   },
+  {
+    id: "skill_douyin_digital_human_script",
+    name: "抖音数字人口播脚本",
+    slug: "douyin-digital-human-script-studio",
+    category: "内容生产",
+    status: "ACTIVE",
+    provider: "Text to Script",
+    defaultModel: "deepseek-v4-pro",
+    pointsCost: 180,
+    description: "用于生成适合抖音数字人口播视频的脚本文案。",
+    updatedAt: "2026-05-30T23:40:00.000Z",
+  },
 ];
 
 export const promptTemplateSeed: PromptTemplateRecord[] = [
@@ -782,6 +794,18 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     maxTokens: 6000,
     content: "根据用户输入的选题、产品、素材、参考图、营销策划和用户要求，生成可直接用于 Seedance 2.0 的抖音视频提示词。",
     updatedAt: "2026-05-30T23:20:00.000Z",
+  },
+  {
+    id: "prompt_douyin_digital_human_script",
+    name: "抖音数字人-口播脚本",
+    scene: "抖音数字人-口播脚本",
+    version: "v1.0",
+    status: "ACTIVE",
+    modelName: "deepseek-v4-pro",
+    temperature: 0.4,
+    maxTokens: 6000,
+    content: "根据产品资料、营销目标、视频主题和用户要求，生成适合抖音数字人口播的短视频脚本。",
+    updatedAt: "2026-05-30T23:40:00.000Z",
   },
 ];
 
