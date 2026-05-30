@@ -6,9 +6,15 @@ import {
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
+  type DouyinDigitalHumanCustomPersonRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
 } from "../../../services/works";
+import { DigitalHumanCustomPersonWorkspace } from "./digital-human-custom-person-workspace";
+import { DigitalHumanPlaceholderPanel } from "./digital-human-placeholder-panel";
+import { DigitalHumanTemplateLibrary } from "./digital-human-template-library";
+import { DigitalHumanVideoPanel } from "./digital-human-video-panel";
+import { DigitalHumanWorksCenterPanel } from "./digital-human-works-center-panel";
 import { WorkspaceSectionHeader } from "../xiaohongshu/note-workspace-shared-panels";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
@@ -47,7 +53,17 @@ type DigitalHumanEditorDiffEntry = {
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
 type PersonalScriptTemplateFilter = "ALL" | "SELF" | "SHARED";
 type PersonalScriptTemplateArchiveFilter = "ACTIVE" | "ARCHIVED" | "ALL";
+type PersonalScriptTemplateGovernanceFilter = "ALL" | "NEED_NOTE" | "READONLY_SHARED" | "SHARED_ACTIVE" | "ARCHIVED";
 type ScriptTemplateCategory = "general" | "brand_promo" | "activity_promo" | "knowledge" | "live_warmup" | "selling";
+type DigitalHumanWorkspaceTab = "templateLibrary" | "videoStudio" | "worksCenter" | "customPerson" | "lipSync";
+
+const DIGITAL_HUMAN_WORKSPACE_TABS: Array<{ key: DigitalHumanWorkspaceTab; label: string; description: string }> = [
+  { key: "templateLibrary", label: "模板库", description: "先筛选并预览公共数字人模板，再带入视频创建。" },
+  { key: "videoStudio", label: "数字人视频", description: "基于选中模板填写脚本和参数，提交数字人视频。" },
+  { key: "worksCenter", label: "作品中心", description: "查看数字人视频结果、失败任务和找回进度。" },
+  { key: "customPerson", label: "定制数字人", description: "V2 能力，占位说明已补，后续接训练和管理接口。" },
+  { key: "lipSync", label: "口型驱动", description: "V2 能力，占位说明已补，后续接视频口型驱动流程。" },
+];
 
 const DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES: Array<{ value: ScriptTemplateCategory; label: string }> = [
   { value: "general", label: "通用模板" },
@@ -132,6 +148,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   isSubmitting: boolean;
   canEdit: boolean;
   items: DouyinDigitalHumanVideoWorkRecord[];
+  customPersons: DouyinDigitalHumanCustomPersonRecord[];
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
   favoriteTemplateIds: string[];
@@ -174,13 +191,23 @@ export interface DouyinDigitalHumanWorkspaceProps {
     screenWidth?: number;
     screenHeight?: number;
   }) => Promise<boolean>;
+  onCreateCustomPerson: (payload: {
+    name?: string;
+    trainingVideoFile?: File | null;
+    trainType?: "figure" | "both";
+    language?: string;
+    resolutionRate?: "1080p" | "4K";
+    errorSkip?: boolean;
+  }) => Promise<boolean>;
   onRecoverVideo: (payload: { workId?: string; providerTaskId?: string }) => Promise<boolean>;
+  onDeleteCustomPerson: (customPersonId: string) => Promise<boolean>;
   onDelete: (workId: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
 export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspaceProps) {
   const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<DigitalHumanWorkspaceTab>("templateLibrary");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateSearch, setTemplateSearch] = useState("");
   const [templateScopeFilter, setTemplateScopeFilter] = useState<"ALL" | "FAVORITES" | "RECENT">("ALL");
@@ -209,9 +236,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [personalScriptTemplateSort, setPersonalScriptTemplateSort] = useState<PersonalScriptTemplateSort>("UPDATED_DESC");
   const [personalScriptTemplateFilter, setPersonalScriptTemplateFilter] = useState<PersonalScriptTemplateFilter>("ALL");
   const [personalScriptTemplateArchiveFilter, setPersonalScriptTemplateArchiveFilter] = useState<PersonalScriptTemplateArchiveFilter>("ACTIVE");
+  const [personalScriptTemplateGovernanceFilter, setPersonalScriptTemplateGovernanceFilter] = useState<PersonalScriptTemplateGovernanceFilter>("ALL");
   const [scriptTemplateVisibility, setScriptTemplateVisibility] = useState<"SELF" | "SHARED">("SELF");
   const [scriptTemplateCategory, setScriptTemplateCategory] = useState<ScriptTemplateCategory>("general");
   const [personalScriptTemplateNote, setPersonalScriptTemplateNote] = useState("");
+  const [showScriptTemplateManager, setShowScriptTemplateManager] = useState(false);
   const [personalScriptTemplateCategoryFilter, setPersonalScriptTemplateCategoryFilter] = useState<ScriptTemplateCategory | "ALL">("ALL");
 
   const filteredTemplates = useMemo(() => {
@@ -330,14 +359,29 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       personalScriptTemplateCategoryFilter === "ALL"
         ? archiveFiltered
         : archiveFiltered.filter((item) => normalizeScriptTemplateCategory(item.category) === personalScriptTemplateCategoryFilter);
+    const governanceFiltered = categoryFiltered.filter((item) => {
+      switch (personalScriptTemplateGovernanceFilter) {
+        case "NEED_NOTE":
+          return !item.note.trim();
+        case "READONLY_SHARED":
+          return item.isShared && !item.editable;
+        case "SHARED_ACTIVE":
+          return item.isShared && !item.isArchived;
+        case "ARCHIVED":
+          return item.isArchived;
+        case "ALL":
+        default:
+          return true;
+      }
+    });
     const filtered = keyword
-      ? categoryFiltered.filter((item) =>
+      ? governanceFiltered.filter((item) =>
           [item.name, item.content, item.note]
             .join(" ")
             .toLowerCase()
             .includes(keyword),
         )
-      : categoryFiltered;
+      : governanceFiltered;
 
     return [...filtered].sort((left, right) => {
       switch (personalScriptTemplateSort) {
@@ -352,13 +396,44 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
       }
     });
-  }, [personalScriptTemplateArchiveFilter, personalScriptTemplateCategoryFilter, personalScriptTemplateFilter, personalScriptTemplateSearch, personalScriptTemplateSort, props.personalScriptTemplates]);
+  }, [personalScriptTemplateArchiveFilter, personalScriptTemplateCategoryFilter, personalScriptTemplateFilter, personalScriptTemplateGovernanceFilter, personalScriptTemplateSearch, personalScriptTemplateSort, props.personalScriptTemplates]);
   const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && props.favoriteTemplateIds.includes(selectedTemplate.id));
   const selectedPersonalScriptTemplateEditable = selectedPersonalScriptTemplate?.editable ?? false;
   const isReadonlySharedScriptTemplate = Boolean(selectedPersonalScriptTemplate?.isShared && !selectedPersonalScriptTemplateEditable);
   const selectedPersonalScriptTemplateArchived = Boolean(selectedPersonalScriptTemplate?.isArchived);
   const scriptTemplateSaveScopeLabel = scriptTemplateVisibility === "SHARED" ? "团队共享模板" : "个人模板";
   const duplicateTargetIsShared = isReadonlySharedScriptTemplate ? false : scriptTemplateVisibility === "SHARED";
+  const personalTemplateGovernanceSummary = useMemo(() => {
+    const templates = props.personalScriptTemplates;
+    return {
+      total: templates.length,
+      shared: templates.filter((item) => item.isShared).length,
+      sharedActive: templates.filter((item) => item.isShared && !item.isArchived).length,
+      archived: templates.filter((item) => item.isArchived).length,
+      missingNotes: templates.filter((item) => !item.note.trim()).length,
+      readonlyShared: templates.filter((item) => item.isShared && !item.editable).length,
+    };
+  }, [props.personalScriptTemplates]);
+  const selectedTemplateAuditMessages = useMemo(() => {
+    const target = selectedPersonalScriptTemplate;
+    if (!target) {
+      return [];
+    }
+    const messages: string[] = [];
+    if (target.isShared && !target.note.trim()) {
+      messages.push("共享模板缺少协作备注，建议补充适用场景和禁用说法。");
+    }
+    if (target.isShared && !target.editable) {
+      messages.push("当前模板来自他人共享区，如需改内容请先保存为我的副本。");
+    }
+    if (target.isArchived) {
+      messages.push("当前模板已归档，适合历史复用参考，不建议直接作为默认生产模板。");
+    }
+    if (!target.isArchived && !target.isShared && !target.note.trim()) {
+      messages.push("当前个人模板尚未补备注，后续共享前建议先写清使用边界。");
+    }
+    return messages;
+  }, [selectedPersonalScriptTemplate]);
   const editorDiffs = useMemo<DigitalHumanEditorDiffEntry[]>(() => {
     if (!selectedWork) {
       return [];
@@ -505,6 +580,29 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
 
   const createDisabled = !props.canEdit || !selectedTemplate || !selectedFigure || !script.trim();
   const selectedWorkIsRecoverable = Boolean(selectedWork && isRecoverableWork(selectedWork));
+  const activeTabMeta = DIGITAL_HUMAN_WORKSPACE_TABS.find((item) => item.key === activeTab) || DIGITAL_HUMAN_WORKSPACE_TABS[0];
+  const templateCountLabel = props.templatePageInfo?.totalCount
+    ? `已加载 ${props.templates.length}/${props.templatePageInfo.totalCount} 个模板`
+    : props.templates.length
+      ? `${props.templates.length} 个模板`
+      : "暂无模板";
+  const workCountLabel = filteredWorks.length ? `${filteredWorks.length} 条作品` : "暂无作品";
+  const primaryActionLabel =
+    activeTab === "templateLibrary"
+      ? "带入视频创建"
+      : activeTab === "videoStudio"
+        ? "提交数字人视频"
+        : activeTab === "worksCenter"
+          ? "回填到创建区"
+          : "建设中";
+  const primaryActionDisabled =
+    activeTab === "templateLibrary"
+      ? !selectedTemplate
+      : activeTab === "videoStudio"
+        ? createDisabled
+        : activeTab === "worksCenter"
+          ? !selectedWork || props.isSubmitting
+          : true;
 
   const handleCopyScript = async () => {
     const text = script.trim();
@@ -843,710 +941,288 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
         ? "已将当前作品参数回填到创建区，可直接继续修改后重新提交。"
         : "已回填脚本与主要参数；当前模板未命中本地模板列表，请检查模板选择后再提交。",
     );
+    setActiveTab("videoStudio");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSubmitCurrentVideo = () => {
+    if (createDisabled || !selectedTemplate || !selectedFigure) {
+      return;
+    }
+    void props.onCreate({
+      title: title.trim() || `${selectedTemplate.name} 数字人口播`,
+      personId: selectedTemplate.id,
+      personName: selectedTemplate.name,
+      personSource: "COMMON",
+      figureType: selectedFigure.type,
+      figureCoverUrl: selectedFigure.cover,
+      figurePreviewVideoUrl: selectedFigure.previewVideoUrl,
+      figureWidth: selectedFigure.width,
+      figureHeight: selectedFigure.height,
+      audioManId: selectedTemplate.audioManId,
+      audioName: selectedTemplate.audioName,
+      script: script.trim(),
+      speechRate: Number(speechRate || 1),
+      pitch: Number(pitch || 0),
+      volume: Number(volume || 1),
+      language: selectedTemplate.audioLang || "cn",
+      backgroundColor,
+      subtitleEnabled,
+      subtitleTextColor,
+      subtitleStrokeColor,
+      screenWidth: Number(screenWidth || 1080),
+      screenHeight: Number(screenHeight || 1920),
+    });
   };
 
   return (
     <section className="workspace-panel strategy-page-card">
       <WorkspaceSectionHeader
         sectionLabel={props.sectionLabel}
-        sectionDescription={props.sectionDescription}
-        createLabel="提交数字人视频"
+        sectionDescription={activeTabMeta.description}
+        createLabel={primaryActionLabel}
         refreshDisabled={props.isLoading || props.isSubmitting}
-        createDisabled={createDisabled}
+        createDisabled={primaryActionDisabled}
         onRefresh={props.onRefresh}
         onOpenCreate={() => {
-          if (createDisabled || !selectedTemplate || !selectedFigure) {
+          if (activeTab === "templateLibrary") {
+            if (selectedTemplate) {
+              setActiveTab("videoStudio");
+            }
             return;
           }
-          void props.onCreate({
-            title: title.trim() || `${selectedTemplate.name} 数字人口播`,
-            personId: selectedTemplate.id,
-            personName: selectedTemplate.name,
-            personSource: "COMMON",
-            figureType: selectedFigure.type,
-            figureCoverUrl: selectedFigure.cover,
-            figurePreviewVideoUrl: selectedFigure.previewVideoUrl,
-            figureWidth: selectedFigure.width,
-            figureHeight: selectedFigure.height,
-            audioManId: selectedTemplate.audioManId,
-            audioName: selectedTemplate.audioName,
-            script: script.trim(),
-            speechRate: Number(speechRate || 1),
-            pitch: Number(pitch || 0),
-            volume: Number(volume || 1),
-            language: selectedTemplate.audioLang || "cn",
-            backgroundColor,
-            subtitleEnabled,
-            subtitleTextColor,
-            subtitleStrokeColor,
-            screenWidth: Number(screenWidth || 1080),
-            screenHeight: Number(screenHeight || 1920),
-          });
+          if (activeTab === "videoStudio") {
+            handleSubmitCurrentVideo();
+            return;
+          }
+          if (activeTab === "worksCenter") {
+            handleBackfillSelectedWork();
+          }
         }}
       />
 
       <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-        <div className="report-editor-head">
-          <div>
-            <strong>模板库与生成参数</strong>
-            <p>先选模板，再填写口播脚本和字幕参数，提交后系统会调用蝉镜创建数字人视频任务。</p>
-          </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${props.templates.length ? "status-ready" : "status-in_progress"}`}>
-              {props.templatePageInfo?.totalCount
-                ? `已加载 ${props.templates.length}/${props.templatePageInfo.totalCount} 个模板`
-                : props.templates.length
-                  ? `${props.templates.length} 个模板`
-                  : "暂无模板"}
-            </span>
-            <span className={`archive-pill ${props.items.length ? "status-ready" : "status-in_progress"}`}>
-              {filteredWorks.length ? `${filteredWorks.length} 条作品` : "暂无作品"}
-            </span>
-          </div>
-        </div>
-
-        <div className="personal-grid">
-          <label className="field">
-            <span>模板标签</span>
-            <select
-              value={props.activeTagId || ""}
-              onChange={(event) => {
-                void props.onTemplateTagChange(event.target.value);
-              }}
-              disabled={props.isTemplateLoading}
-            >
-              <option value="">全部标签</option>
-              {props.templateTagGroups.flatMap((group) =>
-                group.tagList.map((tag) => (
-                  <option key={tag.id} value={String(tag.id)}>
-                    {group.name} / {tag.name}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
-          <label className="field">
-            <span>模板搜索</span>
-            <input
-              value={templateSearch}
-              onChange={(event) => setTemplateSearch(event.target.value)}
-              placeholder="搜索模板名、音色或标签"
-            />
-          </label>
-          <label className="field">
-            <span>模板范围</span>
-            <select value={templateScopeFilter} onChange={(event) => setTemplateScopeFilter(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
-              <option value="ALL">全部模板</option>
-              <option value="FAVORITES">仅看收藏</option>
-              <option value="RECENT">最近使用</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>数字人模板</span>
-            <select value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)}>
-              {filteredTemplates.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>形象类型</span>
-            <select value={selectedFigureType} onChange={(event) => setSelectedFigureType(event.target.value as DigitalHumanFigureType)}>
-              {(selectedTemplate?.figures || []).map((item) => (
-                <option key={item.type} value={item.type}>
-                  {getFigureTypeLabel(item.type)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>作品标题</span>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：新品活动数字人口播" />
-          </label>
-          <label className="field field-full">
-            <span>口播脚本</span>
-            <textarea
-              className="composer-form-textarea"
-              value={script}
-              onChange={(event) => setScript(event.target.value)}
-              placeholder="请输入适合 15-60 秒数字人口播的视频脚本。"
-            />
-          </label>
-          <div className="field field-full">
-            <span>脚本快捷模板</span>
-            <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
-              {DIGITAL_HUMAN_SCRIPT_PRESETS.map((preset) => (
-                <button
-                  key={preset.key}
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setScript((current) => current.trim() ? `${current.trim()}\n\n${preset.content}` : preset.content)}
-                >
-                  {preset.label}
-                </button>
-              ))}
-              <button type="button" className="secondary-button" onClick={() => setScript("")}>
-                清空脚本
-              </button>
-              <button type="button" className="secondary-button" onClick={() => void handleCopyScript()}>
-                复制脚本
-              </button>
-              <button type="button" className="secondary-button" onClick={handleExportScript}>
-                导出脚本
-              </button>
-              <select
-                value={scriptTemplateVisibility}
-                onChange={(event) => setScriptTemplateVisibility(event.target.value as "SELF" | "SHARED")}
-                style={{ minWidth: 180 }}
-              >
-                <option value="SELF">保存到个人模板</option>
-                <option value="SHARED">保存到团队共享模板</option>
-              </select>
-              <select
-                value={scriptTemplateCategory}
-                onChange={(event) => setScriptTemplateCategory(event.target.value as ScriptTemplateCategory)}
-                style={{ minWidth: 180 }}
-              >
-                {DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="secondary-button" onClick={() => void handleSaveCurrentScriptTemplate()}>
-                保存脚本模板
-              </button>
-            </div>
-            <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节，并选择保存范围与模板分类。</small>
-            <small className="personal-meta">当前保存目标：{scriptTemplateSaveScopeLabel} / {getScriptTemplateCategoryLabel(scriptTemplateCategory)}</small>
-            <textarea
-              className="composer-form-textarea"
-              value={personalScriptTemplateNote}
-              onChange={(event) => setPersonalScriptTemplateNote(event.target.value.slice(0, 200))}
-              placeholder="可填写适用场景、口径提醒、开头钩子建议等协作备注，最多 200 字。"
-              style={{ marginTop: 8, minHeight: 88 }}
-            />
-            <small className="personal-meta">协作备注会随脚本模板一起保存，并进入模板搜索与预览摘要。</small>
-            {isReadonlySharedScriptTemplate ? (
-              <small className="personal-meta">当前选中的是他人共享模板，另存副本会默认保存到你的个人模板，避免直接覆盖团队资产。</small>
-            ) : null}
-            {scriptActionMessage ? <small className="personal-meta">{scriptActionMessage}</small> : null}
-            {editorActionMessage ? <small className="personal-meta">{editorActionMessage}</small> : null}
-          </div>
-          <div className="field field-full">
-            <span>脚本模板资产</span>
-            <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
-              <input
-                value={personalScriptTemplateSearch}
-                onChange={(event) => setPersonalScriptTemplateSearch(event.target.value)}
-                placeholder="搜索模板名称、备注或脚本内容"
-                style={{ minWidth: 240 }}
-              />
-              <select
-                value={personalScriptTemplateFilter}
-                onChange={(event) => setPersonalScriptTemplateFilter(event.target.value as PersonalScriptTemplateFilter)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ALL">全部模板</option>
-                <option value="SELF">仅看个人模板</option>
-                <option value="SHARED">仅看团队共享</option>
-              </select>
-              <select
-                value={personalScriptTemplateArchiveFilter}
-                onChange={(event) => setPersonalScriptTemplateArchiveFilter(event.target.value as PersonalScriptTemplateArchiveFilter)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ACTIVE">仅看生效中</option>
-                <option value="ARCHIVED">仅看已归档</option>
-                <option value="ALL">全部状态</option>
-              </select>
-              <select
-                value={personalScriptTemplateCategoryFilter}
-                onChange={(event) => setPersonalScriptTemplateCategoryFilter(event.target.value as ScriptTemplateCategory | "ALL")}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ALL">全部分类</option>
-                {DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={personalScriptTemplateSort}
-                onChange={(event) => setPersonalScriptTemplateSort(event.target.value as PersonalScriptTemplateSort)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="UPDATED_DESC">最近更新优先</option>
-                <option value="UPDATED_ASC">最早更新优先</option>
-                <option value="NAME_ASC">名称 A-Z</option>
-                <option value="NAME_DESC">名称 Z-A</option>
-              </select>
-              <select
-                value={selectedPersonalScriptTemplateId}
-                onChange={(event) => setSelectedPersonalScriptTemplateId(event.target.value)}
-                style={{ minWidth: 240 }}
-              >
-                <option value="">选择脚本模板</option>
-                {filteredPersonalScriptTemplates.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.isShared ? `[共享]` : `[个人]`} [{getScriptTemplateArchiveLabel(item.isArchived)}] {getScriptTemplateCategoryLabel(item.category)} / {item.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={personalScriptTemplateName}
-                onChange={(event) => setPersonalScriptTemplateName(event.target.value)}
-                placeholder="编辑模板名称"
-                style={{ minWidth: 220 }}
-              />
-              <select
-                value={scriptTemplateCategory}
-                onChange={(event) => setScriptTemplateCategory(event.target.value as ScriptTemplateCategory)}
-                style={{ minWidth: 180 }}
-              >
-                {DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="secondary-button" onClick={handleApplyPersonalScriptTemplate}>
-                套用模板
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleRenamePersonalScriptTemplate()}>
-                重命名模板
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleUpdatePersonalScriptTemplateCategory()}>
-                更新分类
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleUpdatePersonalScriptTemplateNote()}>
-                更新备注
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleOverwritePersonalScriptTemplate()}>
-                用当前脚本覆盖
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleToggleSharedPersonalScriptTemplate()}>
-                {selectedPersonalScriptTemplate?.isShared ? "取消团队共享" : "设为团队共享"}
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleToggleArchivePersonalScriptTemplate()}>
-                {selectedPersonalScriptTemplateArchived ? "恢复模板" : "归档模板"}
-              </button>
-              <button type="button" className="secondary-button" onClick={() => void handleDuplicatePersonalScriptTemplate()}>
-                {isReadonlySharedScriptTemplate ? "保存为我的副本" : "另存为副本"}
-              </button>
-              <button type="button" className="secondary-button" disabled={!selectedPersonalScriptTemplateEditable} onClick={() => void handleDeletePersonalScriptTemplate()}>
-                删除模板
-              </button>
-            </div>
-            <small className="personal-meta">
-              当前已切到服务端持久化，支持个人模板与团队共享模板两种资产形态，并可直接搜索、排序、归档、恢复、切换共享状态、更新备注、另存副本或用当前脚本覆盖更新模板。
-            </small>
-            <small className="personal-meta">
-              当前筛选结果 {filteredPersonalScriptTemplates.length} / {props.personalScriptTemplates.length} 条。
-            </small>
-            {selectedPersonalScriptTemplate ? (
-              <div className="entity-card personal-card" style={{ marginTop: 12 }}>
-                <strong>{selectedPersonalScriptTemplate.name}</strong>
-                <p className="personal-meta">
-                  {selectedPersonalScriptTemplate.isShared ? "团队共享模板" : "个人模板"}
-                  {" · "}
-                  {getScriptTemplateArchiveLabel(selectedPersonalScriptTemplate.isArchived)}
-                  {" · "}
-                  {getScriptTemplateCategoryLabel(selectedPersonalScriptTemplate.category)}
-                  {" · "}
-                  {selectedPersonalScriptTemplateEditable ? "可编辑" : "只读"}
-                  {" · "}
-                  最近更新：{props.formatDateTime(selectedPersonalScriptTemplate.updatedAt)} · 脚本字数：
-                  {selectedPersonalScriptTemplate.content.trim().length}
-                </p>
-                {isReadonlySharedScriptTemplate ? (
-                  <p className="personal-meta">当前模板来自团队共享区，你可以直接套用，也可以保存为自己的副本后再重命名、改分类或覆盖内容。</p>
-                ) : null}
-                {selectedPersonalScriptTemplate.note ? (
-                  <p className="personal-meta">协作备注：{selectedPersonalScriptTemplate.note}</p>
-                ) : (
-                  <p className="personal-meta">协作备注：暂无，可补充适用场景、节奏提醒或禁用说法。</p>
-                )}
-                <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                  {selectedPersonalScriptTemplate.content.trim().slice(0, 180)}
-                  {selectedPersonalScriptTemplate.content.trim().length > 180 ? "..." : ""}
-                </p>
-              </div>
-            ) : null}
-          </div>
-          <label className="field">
-            <span>语速</span>
-            <input value={speechRate} onChange={(event) => setSpeechRate(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>音调</span>
-            <input value={pitch} onChange={(event) => setPitch(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>音量</span>
-            <input value={volume} onChange={(event) => setVolume(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>背景色</span>
-            <input value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>画布宽度</span>
-            <input value={screenWidth} onChange={(event) => setScreenWidth(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>画布高度</span>
-            <input value={screenHeight} onChange={(event) => setScreenHeight(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>字幕开关</span>
-            <select value={subtitleEnabled ? "yes" : "no"} onChange={(event) => setSubtitleEnabled(event.target.value === "yes")}>
-              <option value="yes">开启</option>
-              <option value="no">关闭</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>字幕颜色</span>
-            <input value={subtitleTextColor} onChange={(event) => setSubtitleTextColor(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>描边颜色</span>
-            <input value={subtitleStrokeColor} onChange={(event) => setSubtitleStrokeColor(event.target.value)} />
-          </label>
-        </div>
-
-        <div className="personal-grid" style={{ marginTop: 16 }}>
-          <div className="entity-card personal-card">
-            <strong>{selectedTemplate?.name || "未选择模板"}</strong>
-            <p className="personal-meta">
-              {selectedTemplate?.audioName ? `默认音色：${selectedTemplate.audioName}` : "请选择模板"}
-            </p>
-            <p className="panel-subtext">{selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。"}</p>
-            {selectedTemplate?.audioPreview ? (
-              <audio controls preload="none" src={selectedTemplate.audioPreview} style={{ width: "100%", marginTop: 12 }} />
-            ) : (
-              <p className="panel-subtext" style={{ marginTop: 12 }}>当前模板暂无音色试听链接。</p>
-            )}
-            {selectedTemplate?.id ? (
-              <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => void props.onToggleFavoriteTemplate(selectedTemplate.id, !isSelectedTemplateFavorite)}
-                >
-                  {isSelectedTemplateFavorite ? "取消收藏" : "收藏模板"}
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <div className="entity-card personal-card">
-            <strong>{selectedFigure ? getFigureTypeLabel(selectedFigure.type) : "形象预览"}</strong>
-            <p className="personal-meta">
-              {selectedFigure ? `${selectedFigure.width} x ${selectedFigure.height}` : "待选择"}
-            </p>
-            {selectedFigure?.cover ? (
-              <img src={selectedFigure.cover} alt={selectedTemplate?.name || "数字人模板"} style={{ width: "100%", borderRadius: 16, marginTop: 12 }} />
-            ) : (
-              <p className="panel-subtext">当前模板暂无封面图。</p>
-            )}
-            {selectedFigure?.previewVideoUrl ? (
-              <video controls preload="metadata" src={selectedFigure.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
-            ) : null}
-          </div>
-          <div className="entity-card personal-card">
-            <strong>配置提醒</strong>
-            <p className="panel-subtext">请先在个人中心的第三方平台里配置蝉镜凭证，格式为 `appId::secretKey`。</p>
-            <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
-            <p className="panel-subtext">如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。</p>
-            <p className="panel-subtext">常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。</p>
-          </div>
-        </div>
-
-        {selectedWork ? (
-          <div className="report-inline-tip" style={{ marginTop: 16 }}>
-            {editorDiffs.length ? (
-              <>
-                <strong>与当前选中作品相比，已修改参数：</strong>
-                {" "}
-                {editorDiffs.map((item) => item.label).join("、")}
-              </>
-            ) : (
-              <>当前创建区参数与选中作品一致，可直接提交重做或继续修改。</>
-            )}
-          </div>
-        ) : null}
-
-        {recentTemplates.length ? (
-          <div className="strategy-inline-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
-            <span className="panel-subtext">最近使用：</span>
-            {recentTemplates.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="secondary-button"
-                onClick={() => setSelectedTemplateId(item.id)}
-              >
-                {item.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
-          <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
+        <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
+          {DIGITAL_HUMAN_WORKSPACE_TABS.map((item) => (
             <button
+              key={item.key}
               type="button"
-              className="secondary-button"
-              onClick={() => void props.onLoadMoreTemplates?.()}
-              disabled={props.isTemplateLoading}
+              className={item.key === activeTab ? "primary-button" : "secondary-button"}
+              onClick={() => setActiveTab(item.key)}
             >
-              {props.isTemplateLoading ? "加载中..." : "继续加载模板"}
+              {item.label}
             </button>
-            <span className="panel-subtext">
-              当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页，每页 {props.templatePageInfo.size} 条
-            </span>
+          ))}
+        </div>
+        <div className="strategy-grid" style={{ marginTop: 16 }}>
+          <div className="entity-card personal-card">
+            <strong>当前栏目</strong>
+            <p className="personal-meta">{activeTabMeta.label}</p>
+            <p className="panel-subtext">{activeTabMeta.description}</p>
           </div>
-        ) : null}
-      </article>
-
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-        <div className="report-editor-head">
-          <div>
+          <div className="entity-card personal-card">
+            <strong>模板库</strong>
+            <p className="personal-meta">
+              {templateCountLabel}
+            </p>
+            <p className="panel-subtext">当前选中：{selectedTemplate?.name || "未选择模板"}</p>
+          </div>
+          <div className="entity-card personal-card">
             <strong>作品中心</strong>
-            <p>展示最近生成的数字人视频作品，支持找回结果、删除记录和媒体预览。</p>
+            <p className="personal-meta">{workCountLabel}</p>
+            <p className="panel-subtext">待找回：{props.items.filter((item) => isRecoverableWork(item)).length} 条</p>
           </div>
         </div>
-
-        <div className="personal-grid" style={{ marginBottom: 16 }}>
-          <label className="field">
-            <span>作品搜索</span>
-            <input
-              value={workSearch}
-              onChange={(event) => setWorkSearch(event.target.value)}
-              placeholder="搜索标题、数字人、音色或脚本内容"
-            />
-          </label>
-          <label className="field">
-            <span>状态筛选</span>
-            <select value={workStageFilter} onChange={(event) => setWorkStageFilter(event.target.value)}>
-              <option value="ALL">全部状态</option>
-              <option value="RECOVERABLE">待找回</option>
-              <option value="QUEUED">排队中</option>
-              <option value="GENERATING">生成中</option>
-              <option value="SUCCESS">已完成</option>
-              <option value="FAILED">失败</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="strategy-inline-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
-          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("ALL")}>
-            查看全部
-          </button>
-          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("FAILED")}>
-            只看失败
-          </button>
-          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("RECOVERABLE")}>
-            只看待找回
-          </button>
-          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("SUCCESS")}>
-            只看已完成
-          </button>
-          <button type="button" className="secondary-button" onClick={() => setWorkStageFilter("GENERATING")}>
-            只看生成中
-          </button>
-          <button type="button" className="secondary-button" onClick={() => setWorkSearch("")}>
-            清空搜索
-          </button>
-        </div>
-
-        {!props.items.length ? (
-          <div className="empty-state">当前还没有数字人作品，先从上方选择模板并提交一条视频任务。</div>
-        ) : !filteredWorks.length ? (
-          <div className="empty-state">当前筛选条件下没有匹配作品，试试清空关键词或切换状态。</div>
-        ) : (
-          <>
-            <div className="xhs-material-library">
-              <div className="xhs-material-card-grid">
-                {pagedItems.map((item) => (
-                  <article key={item.id} className="xhs-material-card">
-                    <button
-                      type="button"
-                      className={`xhs-material-card-stage ${selectedWork?.id === item.id ? "is-active" : ""}`}
-                      onClick={() => setSelectedWorkId(item.id)}
-                    >
-                      {item.coverImageUrl ? (
-                        <img className="xhs-material-card-media" src={item.coverImageUrl} alt={item.title} />
-                      ) : item.videoUrl ? (
-                        <video className="xhs-material-card-media" src={item.videoUrl} muted preload="none" />
-                      ) : (
-                        <span className="xhs-material-card-empty">暂无封面</span>
-                      )}
-                      <span className={`xhs-material-card-badge ${getStageClass(item.stage)}`}>{getStageLabel(item.stage)}</span>
-                    </button>
-                    <div className="xhs-material-card-body">
-                      <strong>{item.title}</strong>
-                      <p>{item.personName} · {getFigureTypeLabel(item.figureType)}</p>
-                      <p>{props.formatDateTime(item.createdAt)}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            {pageCount > 1 ? (
-              <div className="pagination-bar">
-                <button type="button" className="secondary-button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                  上一页
-                </button>
-                <span className="panel-subtext">第 {page} / {pageCount} 页</span>
-                <button type="button" className="secondary-button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
-                  下一页
-                </button>
-              </div>
-            ) : null}
-
-            {selectedWork && editorDiffs.length ? (
-              <div className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-                <div className="report-editor-head">
-                  <div>
-                    <strong>参数差异提示</strong>
-                    <p>对比当前创建区与已选作品，方便确认是否已经完成必要修改。</p>
-                  </div>
-                </div>
-                <div className="xhs-material-card-grid">
-                  {editorDiffs.map((item) => (
-                    <article key={item.key} className="entity-card personal-card">
-                      <strong>{item.label}</strong>
-                      <p className="panel-subtext">当前：{item.currentValue || "未填写"}</p>
-                      <p className="panel-subtext">原作品：{item.selectedValue || "未填写"}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {selectedWork ? (
-              <article className="light-data-panel report-editor-panel" style={{ marginTop: 20 }}>
-                <div className="report-editor-head">
-                  <div>
-                    <strong>{selectedWork.title}</strong>
-                    <p>
-                      {selectedWork.personName}
-                      {" · "}
-                      {getFigureTypeLabel(selectedWork.figureType)}
-                      {selectedWork.audioName ? ` · ${selectedWork.audioName}` : ""}
-                    </p>
-                  </div>
-                  <div className="report-editor-actions">
-                    <span className={`archive-pill ${getStageClass(selectedWork.stage)}`}>{getStageLabel(selectedWork.stage)}</span>
-                    {selectedWorkIsRecoverable ? <span className="archive-pill status-in_progress">待找回</span> : null}
-                    {selectedWork.thirdPartyStatusLabel ? (
-                      <span className="archive-pill status-pending">{selectedWork.thirdPartyStatusLabel}</span>
-                    ) : null}
-                    <span className="archive-pill status-pending">{props.formatDateTime(selectedWork.updatedAt)}</span>
-                  </div>
-                </div>
-
-                <div className="personal-grid">
-                  <div className="report-editor-pane field-full">
-                    <span>口播脚本</span>
-                    <textarea className="report-markdown-textarea composer-form-textarea" value={selectedWork.content} readOnly />
-                  </div>
-                  <div className="report-editor-pane">
-                    <span>数字人封面</span>
-                    {selectedWork.coverImageUrl ? (
-                      <img src={selectedWork.coverImageUrl} alt={selectedWork.title} style={{ width: "100%", borderRadius: 20, border: "1px solid #dfe5f2" }} />
-                    ) : (
-                      <div className="empty-state">暂无封面。</div>
-                    )}
-                  </div>
-                  <div className="report-editor-pane">
-                    <span>最终视频</span>
-                    {selectedWork.videoUrl ? (
-                      <video controls preload="metadata" src={selectedWork.videoUrl} style={{ width: "100%", borderRadius: 20, background: "#0f1525" }} />
-                    ) : (
-                      <div className="empty-state">视频生成完成后这里会显示最终成片。</div>
-                    )}
-                  </div>
-                </div>
-
-                {selectedWork.thirdPartyStatusDetail ? (
-                  <div className="report-inline-tip" style={{ marginTop: 16 }}>{selectedWork.thirdPartyStatusDetail}</div>
-                ) : null}
-
-                <div className="personal-grid" style={{ marginTop: 16 }}>
-                  <label className="field field-full">
-                    <span>手动找回蝉镜任务 ID</span>
-                    <input
-                      value={manualRecoverTaskId}
-                      onChange={(event) => setManualRecoverTaskId(event.target.value)}
-                      placeholder="可手动输入蝉镜任务 ID，用于补找回最终视频结果"
-                      disabled={!props.canEdit || props.isSubmitting}
-                    />
-                    <small className="personal-meta">适用于已知蝉镜任务 ID，但当前作品未回填最终视频的场景。</small>
-                  </label>
-                </div>
-
-                <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={handleBackfillSelectedWork}
-                    disabled={props.isSubmitting}
-                  >
-                    回填到创建区
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void props.onRecoverVideo({ workId: selectedWork.id, providerTaskId: selectedWork.providerTaskId })}
-                    disabled={!props.canEdit || props.isSubmitting || !selectedWork.providerTaskId}
-                  >
-                    找回视频结果
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void props.onRecoverVideo({ workId: selectedWork.id, providerTaskId: manualRecoverTaskId.trim() || undefined })}
-                    disabled={!props.canEdit || props.isSubmitting || !manualRecoverTaskId.trim()}
-                  >
-                    按任务 ID 找回
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleRetrySelectedWork()}
-                    disabled={!props.canEdit || props.isSubmitting || selectedWork.stage !== "FAILED"}
-                  >
-                    失败重试
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => props.onPreview(selectedWork)}
-                    disabled={!selectedWork.videoUrl && !selectedWork.coverImageUrl}
-                  >
-                    预览媒体
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void props.onDelete(selectedWork.id)}
-                    disabled={!props.canEdit || props.isSubmitting}
-                  >
-                    删除
-                  </button>
-                </div>
-              </article>
-            ) : null}
-          </>
-        )}
       </article>
+
+      {activeTab === "templateLibrary" ? (
+        <DigitalHumanTemplateLibrary
+          templateCountLabel={templateCountLabel}
+          workCountLabel={workCountLabel}
+          templateTagGroups={props.templateTagGroups}
+          activeTagId={props.activeTagId}
+          isTemplateLoading={props.isTemplateLoading}
+          templateSearch={templateSearch}
+          templateScopeFilter={templateScopeFilter}
+          filteredTemplates={filteredTemplates}
+          selectedTemplateId={selectedTemplateId}
+          selectedTemplate={selectedTemplate}
+          selectedFigureType={selectedFigureType}
+          selectedFigure={selectedFigure}
+          isSelectedTemplateFavorite={isSelectedTemplateFavorite}
+          templatePageInfo={props.templatePageInfo}
+          onTemplateTagChange={props.onTemplateTagChange}
+          onTemplateSearchChange={setTemplateSearch}
+          onTemplateScopeFilterChange={setTemplateScopeFilter}
+          onSelectedTemplateChange={setSelectedTemplateId}
+          onSelectedFigureTypeChange={setSelectedFigureType}
+          onToggleFavoriteTemplate={props.onToggleFavoriteTemplate}
+          onUseTemplate={() => setActiveTab("videoStudio")}
+          getFigureTypeLabel={getFigureTypeLabel}
+          onLoadMoreTemplates={props.onLoadMoreTemplates}
+        />
+      ) : null}
+
+      {activeTab === "videoStudio" ? (
+        <DigitalHumanVideoPanel
+          templateCountLabel={templateCountLabel}
+          workCountLabel={workCountLabel}
+          templateTagGroups={props.templateTagGroups}
+          activeTagId={props.activeTagId}
+          isTemplateLoading={props.isTemplateLoading}
+          templateSearch={templateSearch}
+          templateScopeFilter={templateScopeFilter}
+          filteredTemplates={filteredTemplates}
+          selectedTemplateId={selectedTemplateId}
+          selectedTemplate={selectedTemplate}
+          selectedFigureType={selectedFigureType}
+          selectedFigure={selectedFigure}
+          title={title}
+          script={script}
+          speechRate={speechRate}
+          pitch={pitch}
+          volume={volume}
+          backgroundColor={backgroundColor}
+          subtitleEnabled={subtitleEnabled}
+          subtitleTextColor={subtitleTextColor}
+          subtitleStrokeColor={subtitleStrokeColor}
+          screenWidth={screenWidth}
+          screenHeight={screenHeight}
+          scriptTemplateVisibility={scriptTemplateVisibility}
+          scriptTemplateCategory={scriptTemplateCategory}
+          personalScriptTemplateNote={personalScriptTemplateNote}
+          showScriptTemplateManager={showScriptTemplateManager}
+          personalScriptTemplateSearch={personalScriptTemplateSearch}
+          personalScriptTemplateFilter={personalScriptTemplateFilter}
+          personalScriptTemplateArchiveFilter={personalScriptTemplateArchiveFilter}
+          personalScriptTemplateCategoryFilter={personalScriptTemplateCategoryFilter}
+          personalScriptTemplateGovernanceFilter={personalScriptTemplateGovernanceFilter}
+          personalScriptTemplateSort={personalScriptTemplateSort}
+          selectedPersonalScriptTemplateId={selectedPersonalScriptTemplateId}
+          filteredPersonalScriptTemplates={filteredPersonalScriptTemplates}
+          personalScriptTemplateName={personalScriptTemplateName}
+          selectedPersonalScriptTemplate={selectedPersonalScriptTemplate}
+          selectedPersonalScriptTemplateEditable={selectedPersonalScriptTemplateEditable}
+          selectedPersonalScriptTemplateArchived={selectedPersonalScriptTemplateArchived}
+          scriptTemplateSaveScopeLabel={scriptTemplateSaveScopeLabel}
+          isReadonlySharedScriptTemplate={isReadonlySharedScriptTemplate}
+          scriptActionMessage={scriptActionMessage}
+          editorActionMessage={editorActionMessage}
+          personalTemplateGovernanceSummary={personalTemplateGovernanceSummary}
+          selectedTemplateAuditMessages={selectedTemplateAuditMessages}
+          selectedWork={selectedWork}
+          editorDiffs={editorDiffs}
+          recentTemplates={recentTemplates}
+          isSelectedTemplateFavorite={isSelectedTemplateFavorite}
+          isSubmitting={props.isSubmitting}
+          canEdit={props.canEdit}
+          scriptPresets={DIGITAL_HUMAN_SCRIPT_PRESETS}
+          scriptTemplateCategories={DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES}
+          templatePageInfo={props.templatePageInfo}
+          formatDateTime={props.formatDateTime}
+          onTemplateTagChange={props.onTemplateTagChange}
+          onTemplateSearchChange={setTemplateSearch}
+          onTemplateScopeFilterChange={setTemplateScopeFilter}
+          onSelectedTemplateChange={setSelectedTemplateId}
+          onSelectedFigureTypeChange={setSelectedFigureType}
+          onTitleChange={setTitle}
+          onScriptChange={setScript}
+          onSpeechRateChange={setSpeechRate}
+          onPitchChange={setPitch}
+          onVolumeChange={setVolume}
+          onBackgroundColorChange={setBackgroundColor}
+          onSubtitleEnabledChange={setSubtitleEnabled}
+          onSubtitleTextColorChange={setSubtitleTextColor}
+          onSubtitleStrokeColorChange={setSubtitleStrokeColor}
+          onScreenWidthChange={setScreenWidth}
+          onScreenHeightChange={setScreenHeight}
+          onScriptTemplateVisibilityChange={setScriptTemplateVisibility}
+          onScriptTemplateCategoryChange={setScriptTemplateCategory}
+          onPersonalScriptTemplateNoteChange={setPersonalScriptTemplateNote}
+          onShowScriptTemplateManagerChange={setShowScriptTemplateManager}
+          onPersonalScriptTemplateSearchChange={setPersonalScriptTemplateSearch}
+          onPersonalScriptTemplateFilterChange={setPersonalScriptTemplateFilter}
+          onPersonalScriptTemplateArchiveFilterChange={setPersonalScriptTemplateArchiveFilter}
+          onPersonalScriptTemplateCategoryFilterChange={setPersonalScriptTemplateCategoryFilter}
+          onPersonalScriptTemplateGovernanceFilterChange={setPersonalScriptTemplateGovernanceFilter}
+          onPersonalScriptTemplateSortChange={setPersonalScriptTemplateSort}
+          onSelectedPersonalScriptTemplateChange={setSelectedPersonalScriptTemplateId}
+          onPersonalScriptTemplateNameChange={setPersonalScriptTemplateName}
+          onToggleFavoriteTemplate={props.onToggleFavoriteTemplate}
+          onCopyScript={handleCopyScript}
+          onExportScript={handleExportScript}
+          onSaveCurrentScriptTemplate={handleSaveCurrentScriptTemplate}
+          onApplyPersonalScriptTemplate={handleApplyPersonalScriptTemplate}
+          onRenamePersonalScriptTemplate={handleRenamePersonalScriptTemplate}
+          onUpdatePersonalScriptTemplateCategory={handleUpdatePersonalScriptTemplateCategory}
+          onUpdatePersonalScriptTemplateNote={handleUpdatePersonalScriptTemplateNote}
+          onOverwritePersonalScriptTemplate={handleOverwritePersonalScriptTemplate}
+          onToggleSharedPersonalScriptTemplate={handleToggleSharedPersonalScriptTemplate}
+          onToggleArchivePersonalScriptTemplate={handleToggleArchivePersonalScriptTemplate}
+          onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
+          onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
+          onLoadMoreTemplates={props.onLoadMoreTemplates}
+          onSubmitCurrentVideo={handleSubmitCurrentVideo}
+          getFigureTypeLabel={getFigureTypeLabel}
+          getScriptTemplateCategoryLabel={getScriptTemplateCategoryLabel}
+          getScriptTemplateArchiveLabel={getScriptTemplateArchiveLabel}
+        />
+      ) : null}
+
+      {activeTab === "worksCenter" ? (
+        <DigitalHumanWorksCenterPanel
+          items={props.items}
+          filteredWorks={filteredWorks}
+          pagedItems={pagedItems}
+          selectedWork={selectedWork}
+          selectedWorkId={selectedWorkId}
+          selectedWorkIsRecoverable={selectedWorkIsRecoverable}
+          workSearch={workSearch}
+          workStageFilter={workStageFilter}
+          page={page}
+          pageCount={pageCount}
+          manualRecoverTaskId={manualRecoverTaskId}
+          editorDiffs={editorDiffs}
+          isSubmitting={props.isSubmitting}
+          canEdit={props.canEdit}
+          formatDateTime={props.formatDateTime}
+          getStageLabel={getStageLabel}
+          getStageClass={getStageClass}
+          getFigureTypeLabel={getFigureTypeLabel}
+          onWorkSearchChange={setWorkSearch}
+          onWorkStageFilterChange={setWorkStageFilter}
+          onSelectWork={setSelectedWorkId}
+          onPageChange={setPage}
+          onManualRecoverTaskIdChange={setManualRecoverTaskId}
+          onBackfillSelectedWork={handleBackfillSelectedWork}
+          onRecoverVideo={props.onRecoverVideo}
+          onRetrySelectedWork={handleRetrySelectedWork}
+          onPreview={props.onPreview}
+          onDelete={props.onDelete}
+        />
+      ) : null}
+
+      {activeTab === "customPerson" ? (
+        <DigitalHumanCustomPersonWorkspace
+          items={props.customPersons}
+          isSubmitting={props.isSubmitting}
+          canEdit={props.canEdit}
+          onRefresh={props.onRefresh}
+          onCreate={props.onCreateCustomPerson}
+          onDelete={props.onDeleteCustomPerson}
+          formatDateTime={props.formatDateTime}
+        />
+      ) : null}
+
+      {activeTab === "lipSync" ? (
+        <DigitalHumanPlaceholderPanel
+          title="口型驱动"
+          description="这一栏位已按方案补为独立栏目，后续将接入“上传视频 + 文本/音频驱动”的口型生成流程。"
+          statusText="V2 规划中"
+          statusDescription="待接入视频上传、驱动参数、任务详情与结果找回接口。"
+          planDescription="适合对现有真人或形象视频做文本配音、音频驱动和口型同步。"
+        />
+      ) : null}
     </section>
   );
 }

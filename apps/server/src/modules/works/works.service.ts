@@ -198,6 +198,15 @@ export type RecoverDouyinDigitalHumanVideoPayload = {
   providerTaskId?: string;
 };
 
+export type CreateDouyinDigitalHumanCustomPersonPayload = {
+  name?: string;
+  trainingVideo?: UploadFilePayload;
+  trainType?: "figure" | "both";
+  language?: string;
+  resolutionRate?: "1080p" | "4K";
+  errorSkip?: boolean;
+};
+
 export type CreateDouyinDigitalHumanScriptTemplatePayload = {
   name?: string;
   content?: string;
@@ -231,6 +240,23 @@ export type DouyinDigitalHumanScriptTemplateRecord = {
   category: string;
   isArchived: boolean;
   editable: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinDigitalHumanCustomPersonRecord = {
+  id: string;
+  name: string;
+  personId?: string;
+  trainType: "figure" | "both";
+  language: string;
+  resolutionRate: "1080p" | "4K";
+  errorSkip: boolean;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  previewVideoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -1478,6 +1504,29 @@ export class WorksService {
   async deleteDouyinDigitalHumanScriptTemplate(brandId: string, templateId: string, auth?: RequestAuthContext) {
     const userId = await this.resolveTaskUserId(brandId, auth);
     await this.removeDigitalHumanScriptTemplate(userId, brandId, templateId);
+    return { success: true };
+  }
+
+  async listDouyinDigitalHumanCustomPersons(_brandId: string) {
+    return {
+      items: [] as DouyinDigitalHumanCustomPersonRecord[],
+    };
+  }
+
+  async createDouyinDigitalHumanCustomPerson(
+    _brandId: string,
+    payload: CreateDouyinDigitalHumanCustomPersonPayload,
+    _auth?: RequestAuthContext,
+  ) {
+    if (!payload.trainingVideo) {
+      throw new BadRequestException("请先上传训练视频，再提交定制数字人任务。");
+    }
+    throw new ServiceUnavailableException(
+      "定制数字人的文件上传与训练接口正在接入中，当前已开放栏目与表单壳子，暂不支持真实提交训练任务。",
+    );
+  }
+
+  async deleteDouyinDigitalHumanCustomPerson(_brandId: string, _customPersonId: string, _auth?: RequestAuthContext) {
     return { success: true };
   }
 

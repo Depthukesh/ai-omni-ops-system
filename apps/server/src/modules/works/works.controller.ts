@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
+  type CreateDouyinDigitalHumanCustomPersonPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
@@ -163,6 +164,40 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanVideoWorks(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/custom-person")
+  async listDouyinDigitalHumanCustomPersons(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanCustomPersons(brandId);
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/custom-person/create")
+  createDouyinDigitalHumanCustomPerson(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinDigitalHumanCustomPersonPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.createDouyinDigitalHumanCustomPerson(brandId, payload, auth);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/custom-person/:customPersonId")
+  deleteDouyinDigitalHumanCustomPerson(
+    @Param("brandId") brandId: string,
+    @Param("customPersonId") customPersonId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinDigitalHumanCustomPerson(brandId, customPersonId, auth);
+    });
   }
 
   @Get("brands/:brandId/douyin/digital-human/favorites")

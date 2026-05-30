@@ -37,7 +37,9 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  createDouyinDigitalHumanCustomPerson,
   createDouyinDigitalHumanScriptTemplate,
+  deleteDouyinDigitalHumanCustomPerson,
   deleteDouyinDigitalHumanVideoWork,
   deleteDouyinDigitalHumanFavoriteTemplate,
   deleteDouyinDigitalHumanScriptTemplate,
@@ -48,6 +50,7 @@ import {
   generateDouyinDigitalHumanVideoWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinDigitalHumanCustomPersons,
   getDouyinDigitalHumanFavoriteTemplates,
   getDouyinDigitalHumanScriptTemplates,
   getDouyinDigitalHumanTemplates,
@@ -65,6 +68,7 @@ import {
   saveDouyinDigitalHumanFavoriteTemplate,
   updateDouyinDigitalHumanScriptTemplate,
   type DouyinDigitalHumanFavoriteTemplateRecord,
+  type DouyinDigitalHumanCustomPersonRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
@@ -90,7 +94,7 @@ import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
 import { DouyinDirectVideoWorkspace } from "./video-direct-workspace";
 import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
 
-type LoadState = "loading" | "api" | "seed";
+type LoadState = "loading" | "api" | "partial";
 type DouyinSectionKey =
   | "plan"
   | "assets"
@@ -179,6 +183,7 @@ export function DouyinWorkspaceShell() {
   const [directVideoWorks, setDirectVideoWorks] = useState<DouyinDirectVideoWorkRecord[]>([]);
   const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
+  const [digitalHumanCustomPersons, setDigitalHumanCustomPersons] = useState<DouyinDigitalHumanCustomPersonRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
   const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
   const [digitalHumanFavoriteTemplates, setDigitalHumanFavoriteTemplates] = useState<DouyinDigitalHumanFavoriteTemplateRecord[]>([]);
@@ -224,7 +229,9 @@ export function DouyinWorkspaceShell() {
     || latestRemixCopyTask?.taskStatus === "PENDING";
   const isVideoTaskActive = videoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const isDirectVideoTaskActive = directVideoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
-  const isDigitalHumanTaskActive = digitalHumanWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
+  const isDigitalHumanTaskActive =
+    digitalHumanWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING")
+    || digitalHumanCustomPersons.some((item) => item.status === "PENDING" || item.status === "RUNNING");
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -357,13 +364,15 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, tagGroups, favorites, scriptTemplates] = await Promise.all([
+    const [items, customPersons, tagGroups, favorites, scriptTemplates] = await Promise.all([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
+      getDouyinDigitalHumanCustomPersons(activeBrandId),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
       getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
       getDouyinDigitalHumanScriptTemplates(activeBrandId),
     ]);
     setDigitalHumanWorks(items.items || []);
+    setDigitalHumanCustomPersons(customPersons.items || []);
     setDigitalHumanTemplateTags(tagGroups.list || []);
     setDigitalHumanFavoriteTemplates(favorites.items || []);
     setDigitalHumanScriptTemplates(scriptTemplates.items || []);
@@ -399,7 +408,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -416,6 +425,7 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman")
         ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hot_desc", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
         : Promise.resolve({ list: [], pageInfo: undefined }),
@@ -517,6 +527,13 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanWorks([]);
     }
 
+    if (digitalHumanCustomPersonsResult.status === "fulfilled") {
+      setDigitalHumanCustomPersons(digitalHumanCustomPersonsResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanCustomPersons([]);
+    }
+
     if (digitalHumanTemplatesResult.status === "fulfilled") {
       setDigitalHumanTemplates(digitalHumanTemplatesResult.value.list || []);
       setDigitalHumanTemplatePageInfo(digitalHumanTemplatesResult.value.pageInfo);
@@ -547,9 +564,9 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanScriptTemplates([]);
     }
 
-    setLoadState(hasFallback ? "seed" : "api");
+    setLoadState(hasFallback ? "partial" : "api");
     if (hasFallback) {
-      setErrorMessage("部分抖音工作台数据读取失败，当前显示本地示例/已缓存内容。");
+      setErrorMessage("部分抖音工作台接口读取失败，当前仅保留已成功加载的数据；失败板块请按需刷新重试。");
     }
     setIsLoading(false);
   }, [activeBrandId]);
@@ -1413,6 +1430,55 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
 
+  const handleCreateDigitalHumanCustomPerson = useCallback(async (payload: {
+    name?: string;
+    trainingVideoFile?: File | null;
+    trainType?: "figure" | "both";
+    language?: string;
+    resolutionRate?: "1080p" | "4K";
+    errorSkip?: boolean;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能创建定制数字人。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await createDouyinDigitalHumanCustomPerson(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("定制数字人任务已提交。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "定制数字人提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
+  const handleDeleteDigitalHumanCustomPerson = useCallback(async (customPersonId: string) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能删除定制数字人记录。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinDigitalHumanCustomPerson(activeBrandId, customPersonId);
+      await refreshDigitalHumanWorkspace();
+      setNotice("定制数字人记录已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "定制数字人记录删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
   const handleDigitalHumanTemplateTagChange = useCallback(async (tagId: string) => {
     setErrorMessage("");
     setNotice("");
@@ -1632,8 +1698,8 @@ export function DouyinWorkspaceShell() {
                         <span className={`archive-pill ${canEditCurrentSection ? "status-ready" : "status-pending"}`}>
                           {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
                         </span>
-                        <span className={`archive-pill ${loadState === "api" ? "status-ready" : "status-in_progress"}`}>
-                          {loadState === "api" ? "接口数据" : loadState === "seed" ? "演示数据" : "加载中"}
+                        <span className={`archive-pill ${loadState === "api" ? "status-ready" : loadState === "partial" ? "status-pending" : "status-in_progress"}`}>
+                          {loadState === "api" ? "接口数据" : loadState === "partial" ? "部分接口降级" : "加载中"}
                         </span>
                         {isLoading ? <span className="status-text">正在加载抖音工作台...</span> : null}
                         {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
@@ -1814,6 +1880,7 @@ export function DouyinWorkspaceShell() {
                     isSubmitting={isSubmittingDigitalHuman}
                     canEdit={canEditDigitalHuman}
                     items={digitalHumanWorks}
+                    customPersons={digitalHumanCustomPersons}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
@@ -1832,7 +1899,9 @@ export function DouyinWorkspaceShell() {
                     onDeleteScriptTemplate={handleDeleteDigitalHumanScriptTemplate}
                     onPreview={openGeneratedVideoPreview}
                     onCreate={handleCreateDigitalHuman}
+                    onCreateCustomPerson={handleCreateDigitalHumanCustomPerson}
                     onRecoverVideo={handleRecoverDigitalHuman}
+                    onDeleteCustomPerson={handleDeleteDigitalHumanCustomPerson}
                     onDelete={handleDeleteDigitalHuman}
                     formatDateTime={formatDateTime}
                   />

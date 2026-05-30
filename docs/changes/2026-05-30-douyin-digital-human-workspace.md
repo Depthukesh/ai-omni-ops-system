@@ -38,6 +38,7 @@
   - 只读共享模板继续补充“保存为我的副本”默认落到个人模板，并在界面提示共享来源与当前保存目标，减少误覆盖团队资产
   - 脚本模板区继续补充“归档 / 恢复模板”，支持按生效中和已归档状态筛选模板资产，避免不常用模板只能删除
   - 脚本模板区继续补充“协作备注 / 适用说明”，支持保存、更新、搜索和预览模板备注，帮助团队沉淀适用场景与使用提醒
+  - 脚本模板区继续补充“治理视图 / 审计提示”，支持按缺备注、只读共享、生效共享、归档资产等维度筛选，并展示模板资产统计和风险提示
   - 创建区补充“参数差异提示”，可对比当前编辑参数与选中作品的差异，减少重复提交流程中的遗漏
 
 ### 2. 后端接通蝉镜 OpenAPI 与 works 作品闭环
@@ -115,6 +116,37 @@
   - 当选中蝉镜平台时，输入框标题、占位文案和说明会明确提示按 `appId::secretKey` 形式填写
   - 页面会说明 `access_token` 由系统自动换取，无需手填，减少配置误解
 
+### 5. 数字人结构纠偏第一轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 把原先单页混合工作台纠偏为数字人内部五个栏目：
+    - 模板库
+    - 数字人视频
+    - 作品中心
+    - 定制数字人
+    - 口型驱动
+  - 顶部增加栏目切换与摘要卡，让用户先知道当前在“选模板 / 创建视频 / 看作品”的哪一步
+  - 模板库与数字人视频改为条件渲染，避免继续把筛选、创建、作品和治理区全部堆在一个长页面
+  - 作品中心独立为单独栏目，集中承载筛选、分页、详情、找回、失败重试、回填到创建区
+  - 为 `定制数字人 / 口型驱动` 补独立栏目占位，先把原方案中的能力入口显式补齐
+  - 脚本模板治理区收敛到 `数字人视频` 栏目下，并默认折叠，降低主创建流噪音
+  - 从作品中心回填参数后会自动切回 `数字人视频`，形成“作品复用 -> 二次编辑 -> 再提交”的闭环
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 顶部全局状态从“演示数据”改为“部分接口降级”
+  - 读取失败提示改为保留成功加载数据并提示刷新重试，避免误导用户以为当前数字人页是本地示例模式
+
+### 6. 数字人组件拆分第二轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-works-center-panel.tsx`
+  - 新增作品中心独立子组件
+  - 把作品搜索、状态筛选、卡片列表、分页、详情、找回、重试、预览、删除等结构从主文件中抽离
+- `apps/web/src/app/(dashboard)/douyin/digital-human-placeholder-panel.tsx`
+  - 新增通用占位栏目组件
+  - 统一承载 `定制数字人 / 口型驱动` 两个 V2 栏目的说明壳子
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 主文件改为编排层，继续保留状态和业务动作，但把作品中心与占位栏目交给独立组件渲染
+  - 本轮先优先抽离最重的分支，降低继续迭代时再次回到“大单体 JSX 文件”的风险
+
 ## 影响范围
 
 - 前端：
@@ -150,14 +182,16 @@
   - `apps/web/src/services/works.ts`
   - `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
   - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
-- 后续应继续执行：
-  - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- 已执行：
   - `npm --workspace apps/web exec -- tsc --noEmit -p tsconfig.json`
+  - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+- 后续应继续执行：
+  - 定制数字人真实文件上传与训练接口联调
 
 ## 后续关注
 
 - 当前数字人模板接口已经支持 `tag/page/size` 查询；模板收藏与个人脚本模板已切服务端持久化，最近使用继续保留前端本地缓存，下一步建议继续补团队共享和更细粒度排序。
-- 当前脚本模板已经支持个人/团队共享双形态、分类、归档、协作备注、新增、套用、搜索、排序、重命名、覆盖更新、另存副本和删除，并补充只读共享模板副本导向与来源提示；下一步可继续补更强审计与共享审批。
+- 当前脚本模板已经支持个人/团队共享双形态、分类、归档、协作备注、治理视图、新增、套用、搜索、排序、重命名、覆盖更新、另存副本和删除，并补充只读共享模板副本导向与来源提示；下一步可继续补更强审计与共享审批。
 - 当前脚本复制和导出先走浏览器能力，适合单人运营使用；如果后续需要团队复用，建议继续补脚本模板沉淀和服务端共享。
 - 当前服务端持久化已带未迁移数据库时的内存兜底；正式环境仍建议尽快执行本次 Prisma migration，避免重启后丢失收藏与脚本模板。
 - 当前参数差异提示基于前端表单和选中作品实时比较，适合二次编辑校对；如果后续字段继续增加，建议抽成统一对比配置。
@@ -165,3 +199,48 @@
 - 当前回填编辑优先复用本地模板列表匹配 `personId`；如果后续接入定制数字人，再补模板缺失时的兜底展示和更细的差异提示。
 - 当前个人中心第三方平台仍是单输入框，蝉镜凭证暂按 `appId::secretKey` 兼容；后续如果同类平台继续增加，建议把私钥模型升级成多字段结构。
 - 当前数字人 V1 只覆盖公共模板库和数字人视频，定制数字人、口型驱动、背景图上传和更细的字幕布局仍留在下一轮。
+- 当前多栏目结构已经落地第一轮，但前端仍集中在 `digital-human-workspace.tsx` 单文件内；下一轮建议继续按栏目拆分子组件，降低后续继续迭代时再次走偏的风险。
+- 当前组件拆分已启动，作品中心和 V2 占位栏目已抽出；下一轮建议继续拆模板库/数字人视频区域，并开始接定制数字人接口壳子。
+- 当前模板库与数字人视频渲染也已拆出，但主文件仍保留大量状态与动作；下一轮建议开始补 `定制数字人` 接口壳子，并继续收敛模板/脚本资产相关 props。
+- 当前定制数字人已从静态占位升级为真实接口壳子，但训练视频上传、任务提交、详情查询和真正的持久化仍待下一轮继续接入。
+
+### 8. 定制数字人接口壳子第四轮
+
+- `apps/web/src/services/works.ts`
+  - 新增定制数字人类型：
+    - `DouyinDigitalHumanCustomPersonRecord`
+    - `CreateDouyinDigitalHumanCustomPersonForm`
+  - 新增定制数字人服务方法：
+    - `getDouyinDigitalHumanCustomPersons`
+    - `createDouyinDigitalHumanCustomPerson`
+    - `deleteDouyinDigitalHumanCustomPerson`
+- `apps/server/src/modules/works/works.controller.ts`
+  - 新增定制数字人路由壳子：
+    - `GET /works/brands/:brandId/douyin/digital-human/custom-person`
+    - `POST /works/brands/:brandId/douyin/digital-human/custom-person/create`
+    - `DELETE /works/brands/:brandId/douyin/digital-human/custom-person/:customPersonId`
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增定制数字人 payload / record 类型
+  - 新增定制数字人 service 壳子方法
+  - 当前列表接口返回空数组，创建接口会明确提示“文件上传与训练接口正在接入中”，避免前端出现 404 或静默失败
+- `apps/web/src/app/(dashboard)/douyin/digital-human-custom-person-workspace.tsx`
+  - 新增定制数字人栏目组件
+  - 提供列表、详情、训练表单、训练视频选择和删除入口
+  - 当前先作为可联调壳子，下一轮继续接真实文件上传与训练任务
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 新增定制数字人 state、刷新逻辑和创建/删除回调
+  - 数字人工作台刷新时会一起拉取定制数字人列表
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 定制数字人 tab 从纯说明占位升级为真实子组件接入
+
+### 7. 数字人组件拆分第三轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`
+  - 新增模板库独立子组件
+  - 把模板标签、关键词、收藏/最近使用筛选、模板选择、形象选择、模板预览、继续加载等结构从主文件中抽离
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 新增数字人视频创建子组件
+  - 把模板选择、脚本编辑、脚本模板资产、参数配置、模板预览、最近使用模板等渲染结构从主文件中抽离
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 主文件继续收敛为 tab 编排层和状态/动作集中层
+  - 模板库、数字人视频、作品中心、V2 占位栏目已全部开始以独立子组件渲染，不再继续把主结构堆回单个 JSX 分支

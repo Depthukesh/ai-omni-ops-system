@@ -266,6 +266,23 @@ export type DigitalHumanTemplatePageInfo = {
   totalPage: number;
 };
 
+export type DouyinDigitalHumanCustomPersonRecord = {
+  id: string;
+  name: string;
+  personId?: string;
+  trainType: "figure" | "both";
+  language: string;
+  resolutionRate: "1080p" | "4K";
+  errorSkip: boolean;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  progress: number;
+  previewVideoUrl?: string;
+  coverImageUrl?: string;
+  errorReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinDigitalHumanFavoriteTemplateRecord = {
   templateId: string;
   createdAt: string;
@@ -419,6 +436,15 @@ export type GenerateDouyinDigitalHumanVideoForm = {
   subtitleStrokeColor?: string;
   screenWidth?: number;
   screenHeight?: number;
+};
+
+export type CreateDouyinDigitalHumanCustomPersonForm = {
+  name?: string;
+  trainingVideoFile?: File | null;
+  trainType?: "figure" | "both";
+  language?: string;
+  resolutionRate?: "1080p" | "4K";
+  errorSkip?: boolean;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -905,6 +931,40 @@ export async function deleteDouyinDigitalHumanScriptTemplate(brandId: string, te
 
 export async function getDouyinDigitalHumanVideoWorks(brandId: string) {
   return request<{ items: DouyinDigitalHumanVideoWorkRecord[] }>(`/works/brands/${brandId}/douyin/digital-human/video`);
+}
+
+export async function getDouyinDigitalHumanCustomPersons(brandId: string) {
+  return request<{ items: DouyinDigitalHumanCustomPersonRecord[] }>(
+    `/works/brands/${brandId}/douyin/digital-human/custom-person`,
+  );
+}
+
+export async function createDouyinDigitalHumanCustomPerson(
+  brandId: string,
+  form: CreateDouyinDigitalHumanCustomPersonForm,
+) {
+  const trainingVideo = form.trainingVideoFile ? await toUploadPayload(form.trainingVideoFile) : undefined;
+  return jsonRequest<{ item: DouyinDigitalHumanCustomPersonRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/custom-person/create`,
+    "POST",
+    {
+      name: form.name,
+      trainingVideo,
+      trainType: form.trainType,
+      language: form.language,
+      resolutionRate: form.resolutionRate,
+      errorSkip: form.errorSkip,
+    },
+  );
+}
+
+export async function deleteDouyinDigitalHumanCustomPerson(brandId: string, customPersonId: string) {
+  return request<{ success: boolean }>(
+    `/works/brands/${brandId}/douyin/digital-human/custom-person/${customPersonId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function generateDouyinDigitalHumanVideoWork(
