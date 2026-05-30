@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import { getBrandPermissionSettings, DEMO_BRAND_ID, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
+import { getBrandPermissionSettings, DEMO_BRAND_ID, type BrandPermissionKey, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
 import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollectionWorkspace } from "../../../services/collectors";
 import {
   annualMarketingPlanSeed,
@@ -73,6 +73,16 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "remixCopy", label: "二创文案", description: "基于素材库视频、品牌资料、产品资料和营销策划方案，提取视频文案后生成品牌独立存储的二创文案。" },
   { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
 ];
+
+const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
+  plan: "douyin.plan",
+  assets: "douyin.assets",
+  hotTopics: "douyin.hotTopics",
+  topicLibrary: "douyin.topicLibrary",
+  originalCopy: "douyin.original",
+  remixCopy: "douyin.remix",
+  video: "douyin.video",
+};
 
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
   if (status === "SUCCESS") {
@@ -160,10 +170,24 @@ export function DouyinWorkspaceShell() {
     || latestRemixCopyTask?.taskStatus === "PENDING";
   const isVideoTaskActive = videoWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING");
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
-  const hasWorkspaceAccess = Boolean(permissionMap?.["douyin.plan"]?.view || permissionMap?.["douyin.video"]?.view || !permissionMap);
-  const canEditMarketingPlan = permissionMap?.["douyin.plan"]?.edit ?? true;
-  const canEditVideo = permissionMap?.["douyin.video"]?.edit ?? true;
-  const canEditCurrentSection = activeSection === "video" ? canEditVideo : canEditMarketingPlan;
+  const visibleSections = useMemo(
+    () =>
+      brandPermissionSettings
+        ? douyinSections.filter((item) => Boolean(permissionMap?.[douyinSectionPermissionMap[item.key]]?.view))
+        : douyinSections,
+    [brandPermissionSettings, permissionMap],
+  );
+  const hasWorkspaceAccess = visibleSections.length > 0;
+  const canEditMarketingPlan = brandPermissionSettings ? (permissionMap?.["douyin.plan"]?.edit ?? false) : true;
+  const canEditHotTopics = brandPermissionSettings ? (permissionMap?.["douyin.hotTopics"]?.edit ?? false) : true;
+  const canEditTopicLibrary = brandPermissionSettings ? (permissionMap?.["douyin.topicLibrary"]?.edit ?? false) : true;
+  const canViewTopicLibrary = brandPermissionSettings ? (permissionMap?.["douyin.topicLibrary"]?.view ?? false) : true;
+  const canEditOriginalCopy = brandPermissionSettings ? (permissionMap?.["douyin.original"]?.edit ?? false) : true;
+  const canEditRemixCopy = brandPermissionSettings ? (permissionMap?.["douyin.remix"]?.edit ?? false) : true;
+  const canEditVideo = brandPermissionSettings ? (permissionMap?.["douyin.video"]?.edit ?? false) : true;
+  const canEditCurrentSection = brandPermissionSettings
+    ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
+    : true;
   const materialWorks = useMemo(
     () => [
       ...collectionWorkspace.benchmarkWorks,
@@ -183,9 +207,11 @@ export function DouyinWorkspaceShell() {
     && annualPlanWorkspace.latest
     && (collectionWorkspace.brandAccounts.length || collectionWorkspace.competitorAccounts.length || collectionWorkspace.brandWorks.length || collectionWorkspace.benchmarkWorks.length),
   );
-  const currentSection = douyinSections.find((item) => item.key === activeSection) ?? douyinSections[0];
+  const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
   const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案和 AI 生视频（故事板），可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
+  const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 
   const marketingPlanPreviewHtml = useMemo(
     () => renderMarkdownToHtml(marketingPlanDraft || latestMarketingPlan?.reportMarkdown || ""),
@@ -233,27 +259,40 @@ export function DouyinWorkspaceShell() {
     setErrorMessage("");
     setNotice("");
 
-    const [permissionResult, collectionResult, growthResult, annualResult, planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult] = await Promise.allSettled([
+    const [permissionResult, collectionResult, growthResult, annualResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
       getDouyinCollectionWorkspace(activeBrandId),
       getGrowthReportWorkspace(activeBrandId),
       getAnnualMarketingPlanWorkspace(activeBrandId),
-      getDouyinMarketingPlanWorkspace(activeBrandId),
-      getDouyinHotTopicCandidatesWorkspace(activeBrandId),
-      getDouyinOriginalCopyWorkspace(activeBrandId),
-      getDouyinRemixCopyWorkspace(activeBrandId),
-      getDouyinVideoWorks(activeBrandId),
-      getDouyinVideoProviders(activeBrandId),
-      getDouyinVideoStoryboardImageProviders(activeBrandId),
     ]);
 
     let hasFallback = false;
+    const resolvedPermissionSettings = permissionResult.status === "fulfilled" ? permissionResult.value : null;
     if (permissionResult.status === "fulfilled") {
       setBrandPermissionSettings(permissionResult.value);
     } else {
       hasFallback = true;
       setBrandPermissionSettings(null);
     }
+
+    const canViewSection = (sectionKey: DouyinSectionKey) =>
+      !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
+
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult] = await Promise.allSettled([
+      canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
+      canViewSection("hotTopics") || canViewSection("topicLibrary")
+        ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
+        : Promise.resolve(douyinHotTopicCandidatesSeed),
+      canViewSection("originalCopy") || canViewSection("video")
+        ? getDouyinOriginalCopyWorkspace(activeBrandId)
+        : Promise.resolve(douyinOriginalCopySeed),
+      canViewSection("remixCopy") || canViewSection("video")
+        ? getDouyinRemixCopyWorkspace(activeBrandId)
+        : Promise.resolve(douyinRemixCopySeed),
+      canViewSection("video") ? getDouyinVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("video") ? getDouyinVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("video") ? getDouyinVideoStoryboardImageProviders(activeBrandId) : Promise.resolve({ items: [] }),
+    ]);
 
     if (collectionResult.status === "fulfilled") {
       setCollectionWorkspace(collectionResult.value);
@@ -337,6 +376,15 @@ export function DouyinWorkspaceShell() {
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (!visibleSections.length) {
+      return;
+    }
+    if (!visibleSections.some((item) => item.key === activeSection)) {
+      setActiveSection(visibleSections[0].key);
+    }
+  }, [activeSection, visibleSections]);
 
   useEffect(() => {
     setMarketingPlanDraft(marketingPlanWorkspace.latest?.reportMarkdown || "");
@@ -539,7 +587,7 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId]);
 
   const handleGenerateHotTopics = useCallback(async () => {
-    if (!canEditMarketingPlan) {
+    if (!canEditHotTopics) {
       setErrorMessage("当前账号只有查看权限，不能生成热点找选题。");
       return;
     }
@@ -560,7 +608,7 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsGeneratingHotTopics(false);
     }
-  }, [activeBrandId, canEditMarketingPlan, selectedHotTopicDate]);
+  }, [activeBrandId, canEditHotTopics, selectedHotTopicDate]);
 
   const handleToggleTopic = useCallback((topicId: string, checked: boolean) => {
     setSelectedTopicIds((current) => {
@@ -593,7 +641,7 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId]);
 
   const handleAddSelectedTopics = useCallback(async () => {
-    if (!canEditMarketingPlan) {
+    if (!canEditTopicLibrary) {
       setErrorMessage("当前账号只有查看权限，不能写入选题库。");
       return;
     }
@@ -633,7 +681,7 @@ export function DouyinWorkspaceShell() {
       setSelectedTopicIds([]);
     }
   }, [
-    canEditMarketingPlan,
+    canEditTopicLibrary,
     hotTopicWorkspace.topicLibrary,
     latestHotTopicResult,
     saveTopicLibrary,
@@ -642,7 +690,7 @@ export function DouyinWorkspaceShell() {
   ]);
 
   const handleAddManualTopic = useCallback(async (payload: { topicContent: string; topicDescription: string }) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditTopicLibrary) {
       setErrorMessage("当前账号只有查看权限，不能写入选题库。");
       return;
     }
@@ -667,10 +715,10 @@ export function DouyinWorkspaceShell() {
       },
       ...existing,
     ], "选题已添加到当前品牌选题库。");
-  }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
+  }, [canEditTopicLibrary, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
 
   const handleDeleteTopic = useCallback(async (topicId: string) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditTopicLibrary) {
       setErrorMessage("当前账号只有查看权限，不能修改选题库。");
       return;
     }
@@ -681,7 +729,7 @@ export function DouyinWorkspaceShell() {
       return;
     }
     await saveTopicLibrary(nextItems, "选题已从当前品牌选题库删除。");
-  }, [canEditMarketingPlan, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
+  }, [canEditTopicLibrary, hotTopicWorkspace.topicLibrary, saveTopicLibrary]);
 
   const handleCreateOriginalCopy = useCallback(async (payload: {
     calendarItemId?: string;
@@ -690,7 +738,7 @@ export function DouyinWorkspaceShell() {
     copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
     userRequirement?: string;
   }) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditOriginalCopy) {
       setErrorMessage("当前账号只有查看权限，不能生成原创文案。");
       return false;
     }
@@ -709,14 +757,14 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingOriginalCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditOriginalCopy]);
 
   const handleUpdateOriginalCopy = useCallback(async (payload: {
     reportId: string;
     title?: string;
     content: string;
   }) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditOriginalCopy) {
       setErrorMessage("当前账号只有查看权限，不能修改原创文案。");
       return false;
     }
@@ -738,10 +786,10 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingOriginalCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditOriginalCopy]);
 
   const handleDeleteOriginalCopy = useCallback(async (reportId: string) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditOriginalCopy) {
       setErrorMessage("当前账号只有查看权限，不能删除原创文案。");
       return false;
     }
@@ -760,7 +808,7 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingOriginalCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditOriginalCopy]);
 
   const handleCreateRemixCopy = useCallback(async (payload: {
     materialId: string;
@@ -769,7 +817,7 @@ export function DouyinWorkspaceShell() {
     injectMarketingPlan: boolean;
     userRequirement?: string;
   }) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditRemixCopy) {
       setErrorMessage("当前账号只有查看权限，不能生成二创文案。");
       return false;
     }
@@ -788,14 +836,14 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingRemixCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditRemixCopy]);
 
   const handleUpdateRemixCopy = useCallback(async (payload: {
     reportId: string;
     title?: string;
     content: string;
   }) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditRemixCopy) {
       setErrorMessage("当前账号只有查看权限，不能修改二创文案。");
       return false;
     }
@@ -817,10 +865,10 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingRemixCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditRemixCopy]);
 
   const handleDeleteRemixCopy = useCallback(async (reportId: string) => {
-    if (!canEditMarketingPlan) {
+    if (!canEditRemixCopy) {
       setErrorMessage("当前账号只有查看权限，不能删除二创文案。");
       return false;
     }
@@ -839,7 +887,7 @@ export function DouyinWorkspaceShell() {
     } finally {
       setIsSubmittingRemixCopy(false);
     }
-  }, [activeBrandId, canEditMarketingPlan]);
+  }, [activeBrandId, canEditRemixCopy]);
 
   const handleCreateVideo = useCallback(async (payload: Parameters<typeof generateDouyinVideoWork>[1]) => {
     if (!canEditVideo) {
@@ -1048,7 +1096,7 @@ export function DouyinWorkspaceShell() {
             <>
               <aside className="strategy-level-panel strategy-level-panel--directory">
                 <div className="strategy-level-button-list">
-                  {douyinSections.map((item) => (
+                  {visibleSections.map((item) => (
                     <button
                       key={item.key}
                       type="button"
@@ -1068,7 +1116,7 @@ export function DouyinWorkspaceShell() {
                     <p>{heroDescription}</p>
                     <div className="workspace-toolbar top-toolbar">
                       <div className="workspace-status">
-                        <span className={`archive-pill ${canEditMarketingPlan ? "status-ready" : "status-pending"}`}>
+                        <span className={`archive-pill ${canEditCurrentSection ? "status-ready" : "status-pending"}`}>
                           {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
                         </span>
                         <span className={`archive-pill ${loadState === "api" ? "status-ready" : "status-in_progress"}`}>
@@ -1117,7 +1165,9 @@ export function DouyinWorkspaceShell() {
                     sectionLabel={currentSection.label}
                     sectionDescription={currentSection.description}
                     isLoading={isLoading || isGeneratingHotTopics}
-                    canEdit={canEditMarketingPlan}
+                    canEdit={canEditHotTopics}
+                    canEditTopicLibrary={canEditTopicLibrary}
+                    canViewTopicLibrary={canViewTopicLibrary}
                     availableDates={hotTopicWorkspace.availableDates}
                     selectedDate={selectedHotTopicDate}
                     latest={latestHotTopicResult}
@@ -1131,7 +1181,7 @@ export function DouyinWorkspaceShell() {
                     onGenerate={handleGenerateHotTopics}
                     onToggleTopic={handleToggleTopic}
                     onAddSelectedTopics={handleAddSelectedTopics}
-                    onOpenTopicLibrary={() => setActiveSection("topicLibrary")}
+                    onOpenTopicLibrary={canViewTopicLibrary ? () => setActiveSection("topicLibrary") : undefined}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "topicLibrary" ? (
@@ -1139,7 +1189,7 @@ export function DouyinWorkspaceShell() {
                     sectionLabel={currentSection.label}
                     sectionDescription={currentSection.description}
                     isLoading={isLoading}
-                    canEdit={canEditMarketingPlan}
+                    canEdit={canEditTopicLibrary}
                     items={hotTopicWorkspace.topicLibrary || []}
                     isSaving={isSavingTopicLibrary}
                     onRefresh={async () => {
@@ -1155,7 +1205,7 @@ export function DouyinWorkspaceShell() {
                     sectionDescription={currentSection.description}
                     isLoading={isLoading}
                     isSubmitting={isSubmittingOriginalCopy}
-                    canEdit={canEditMarketingPlan}
+                    canEdit={canEditOriginalCopy}
                     history={originalCopyWorkspace.history}
                     latestTask={originalCopyWorkspace.latestTask}
                     calendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
@@ -1176,7 +1226,7 @@ export function DouyinWorkspaceShell() {
                     sectionDescription={currentSection.description}
                     isLoading={isLoading}
                     isSubmitting={isSubmittingRemixCopy}
-                    canEdit={canEditMarketingPlan}
+                    canEdit={canEditRemixCopy}
                     history={remixCopyWorkspace.history}
                     latestTask={remixCopyWorkspace.latestTask}
                     materialOptions={remixCopyWorkspace.materialOptions.map((item) => ({ id: item.id, label: item.title }))}
@@ -1204,8 +1254,8 @@ export function DouyinWorkspaceShell() {
                     materialOptions={materialWorks.map((item) => ({ id: item.id, label: item.title, videoUrl: item.videoUrl }))}
                     videoProviderOptions={videoProviderOptions}
                     storyboardImageModelOptions={storyboardImageModelOptions}
-                    hasMarketingPlan={Boolean(marketingPlanWorkspace.latest)}
-                    marketingPlanTitle={marketingPlanWorkspace.latest?.title}
+                    hasMarketingPlan={hasVideoMarketingPlan}
+                    marketingPlanTitle={videoMarketingPlanTitle}
                     onRefresh={async () => {
                       await refreshVideoWorkspace();
                     }}

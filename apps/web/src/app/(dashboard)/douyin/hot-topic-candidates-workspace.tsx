@@ -9,6 +9,8 @@ export interface DouyinHotTopicCandidatesWorkspaceProps {
   sectionDescription: string;
   isLoading: boolean;
   canEdit: boolean;
+  canEditTopicLibrary?: boolean;
+  canViewTopicLibrary?: boolean;
   availableDates: string[];
   selectedDate: string;
   latest?: DouyinHotTopicCandidatesRecord;
@@ -20,7 +22,7 @@ export interface DouyinHotTopicCandidatesWorkspaceProps {
   onGenerate: () => void | Promise<void>;
   onToggleTopic: (topicId: string, checked: boolean) => void;
   onAddSelectedTopics: () => void | Promise<void>;
-  onOpenTopicLibrary: () => void;
+  onOpenTopicLibrary?: () => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -182,17 +184,19 @@ export function DouyinHotTopicCandidatesWorkspace(props: DouyinHotTopicCandidate
                     type="button"
                     className="secondary-button"
                     onClick={() => void props.onAddSelectedTopics()}
-                    disabled={!props.canEdit || props.isSavingTopicLibrary || !canAddSelectedTopics}
+                    disabled={!props.canEditTopicLibrary || props.isSavingTopicLibrary || !canAddSelectedTopics}
                   >
                     加入选题库
                   </button>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={props.onOpenTopicLibrary}
-                  >
-                    查看选题库
-                  </button>
+                  {props.canViewTopicLibrary && props.onOpenTopicLibrary ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={props.onOpenTopicLibrary}
+                    >
+                      查看选题库
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </section>

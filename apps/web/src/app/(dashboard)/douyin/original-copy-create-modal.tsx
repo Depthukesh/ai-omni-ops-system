@@ -5,7 +5,7 @@ import { type NoteCreateModalCopy } from "../xiaohongshu/note-create-modal-copy"
 import { type SelectOption } from "../xiaohongshu/shared-types";
 
 const DOUYIN_ORIGINAL_COPY_MODAL_COPY: NoteCreateModalCopy = {
-  title: "添加原创笔记",
+  title: "创建原创文案",
   metaText: "选择品牌营销日历、选题（可不选）、策划方案植入方式和文案类型后，生成抖音原创文案。",
 };
 

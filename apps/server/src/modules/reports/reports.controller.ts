@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res, UnauthorizedException } from "@nestjs/common";
+import { type BrandPermissionAction, type BrandPermissionKey } from "../../../../../packages/shared/src/brand-permissions";
 import { AuthService } from "../auth/auth.service";
 import {
   ReportsService,
@@ -20,6 +21,27 @@ export class ReportsController {
     @Inject(ReportsService) private readonly reportsService: ReportsService,
     @Inject(AuthService) private readonly authService: AuthService,
   ) {}
+
+  private async assertAnyBrandPermission(
+    brandId: string,
+    permissions: Array<{ key: BrandPermissionKey; action: BrandPermissionAction }>,
+    auth?: Parameters<AuthService["assertBrandPermission"]>[3],
+  ) {
+    const results = await Promise.allSettled(
+      permissions.map((permission) =>
+        this.authService.assertBrandPermission(brandId, permission.key, permission.action, auth),
+      ),
+    );
+    const granted = results.find((item) => item.status === "fulfilled");
+    if (granted?.status === "fulfilled") {
+      return granted.value;
+    }
+    throw new UnauthorizedException(
+      permissions.some((item) => item.action === "edit")
+        ? "当前账号没有该板块的编辑权限"
+        : "当前账号没有该板块的查看权限",
+    );
+  }
 
   @Get("brands/:brandId/growth-report")
   async getGrowthReportWorkspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
@@ -193,7 +215,10 @@ export class ReportsController {
     @Query("date") date?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    await this.assertAnyBrandPermission(brandId, [
+      { key: "douyin.hotTopics", action: "view" },
+      { key: "douyin.topicLibrary", action: "view" },
+    ], auth);
     return this.reportsService.getDouyinHotTopicCandidatesWorkspace(brandId, date);
   }
 
@@ -204,7 +229,7 @@ export class ReportsController {
     @Body() payload: { selectedDate?: string },
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.hotTopics", "edit", auth);
     return this.reportsService.generateDouyinHotTopicCandidates(brandId, payload?.selectedDate);
   }
 
@@ -215,7 +240,7 @@ export class ReportsController {
     @Body() payload: UpdateDouyinTopicLibraryPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.topicLibrary", "edit", auth);
     return this.reportsService.updateDouyinTopicLibrary(brandId, payload);
   }
 
@@ -225,7 +250,10 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    await this.assertAnyBrandPermission(brandId, [
+      { key: "douyin.original", action: "view" },
+      { key: "douyin.video", action: "view" },
+    ], auth);
     return this.reportsService.getDouyinOriginalCopyWorkspace(brandId);
   }
 
@@ -236,7 +264,7 @@ export class ReportsController {
     @Body() payload: GenerateDouyinOriginalCopyPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "edit", auth);
     return this.reportsService.generateDouyinOriginalCopy(brandId, payload);
   }
 
@@ -248,7 +276,7 @@ export class ReportsController {
     @Body() payload: UpdateDouyinOriginalCopyPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "edit", auth);
     return this.reportsService.updateDouyinOriginalCopy(brandId, reportId, payload);
   }
 
@@ -259,7 +287,7 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "edit", auth);
     return this.reportsService.deleteDouyinOriginalCopy(brandId, reportId);
   }
 
@@ -269,7 +297,10 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "view", auth);
+    await this.assertAnyBrandPermission(brandId, [
+      { key: "douyin.remix", action: "view" },
+      { key: "douyin.video", action: "view" },
+    ], auth);
     return this.reportsService.getDouyinRemixCopyWorkspace(brandId);
   }
 
@@ -280,7 +311,7 @@ export class ReportsController {
     @Body() payload: GenerateDouyinRemixCopyPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "edit", auth);
     return this.reportsService.generateDouyinRemixCopy(brandId, payload);
   }
 
@@ -292,7 +323,7 @@ export class ReportsController {
     @Body() payload: UpdateDouyinRemixCopyPayload,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "edit", auth);
     return this.reportsService.updateDouyinRemixCopy(brandId, reportId, payload);
   }
 
@@ -303,7 +334,7 @@ export class ReportsController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "douyin.plan", "edit", auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "edit", auth);
     return this.reportsService.deleteDouyinRemixCopy(brandId, reportId);
   }
 

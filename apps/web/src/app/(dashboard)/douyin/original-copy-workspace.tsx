@@ -201,7 +201,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
               onClick={() => setIsCreateOpen(true)}
               disabled={!props.canEdit || props.isSubmitting}
             >
-              添加原创笔记
+              创建原创文案
             </button>
           </div>
         </div>
@@ -237,7 +237,7 @@ export function DouyinOriginalCopyWorkspace(props: DouyinOriginalCopyWorkspacePr
           ) : null}
 
           {!props.history.length ? (
-            <div className="note-empty-state">当前品牌还没有原创文案。点击右上角“添加原创笔记”后，可按不同文案类型生成并沉淀结果。</div>
+            <div className="note-empty-state">当前品牌还没有原创文案。点击右上角“创建原创文案”后，可按不同文案类型生成并沉淀结果。</div>
           ) : (
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
               {paginatedItems.map((item) => (

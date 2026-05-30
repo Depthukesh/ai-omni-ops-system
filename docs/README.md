@@ -96,10 +96,12 @@
 
 - `docs/changes/2026-05-26-video-note-direct-video-and-storyboard-image-model.md`
   - 视频笔记最终视频阶段改为直接使用固定提示词加故事板图片生成，不再额外生成“短视频提示词”；同时创建弹窗新增“故事板生图大模型”选择，并继续收口为单个主 Agent 开发模式
+- `docs/changes/2026-05-30-douyin-remix-copy-and-ai-video-workspace.md`
+  - 抖音工作台补齐二创文案与 AI生视频（故事板）两条内容生产链路，并同步修正文档中过时的工作台能力描述与视频阶段说明
+- `docs/changes/2026-05-30-douyin-workspace-permission-split.md`
+  - 抖音工作台权限拆分到营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案和 AI生视频（故事板）板块级，前后端鉴权与目录显示同步按板块独立控制
 - `docs/changes/2026-05-25-single-agent-mode-reinstated.md`
   - 结束当前多 Agent 并行开发模式，恢复由单个主 Agent 统一开发、验证、提交和推送；当前不再存在其他并行开发 Agent，相关协作文档仅保留为历史参考
-- `docs/changes/2026-05-24-multi-agent-worktree-and-module-boundary-clarification.md`
-  - 将多 Agent 协作从“抽象主从规则”进一步落到“同仓库、不同本地工作树、不同分支、按板块分工、共享文件升级机制和飞书登记字段”
 - `docs/changes/2026-05-23-douyin-material-library.md`
   - 品牌增长策略的抖音对标作品表新增素材库勾选入口，抖音工作台同步新增素材库分区，并支持加入/取消加入素材库
 - `docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
