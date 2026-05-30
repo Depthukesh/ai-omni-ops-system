@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
   type ContinueDouyinDirectVideoGenerationPayload,
@@ -135,10 +135,22 @@ export class WorksController {
   async listDouyinDigitalHumanTemplates(
     @Param("brandId") brandId: string,
     @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("page") page?: string,
+    @Query("size") size?: string,
+    @Query("sort") sort?: string,
+    @Query("tagIds") tagIds?: string,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
-    return this.worksService.listDouyinDigitalHumanTemplates(brandId);
+    return this.worksService.listDouyinDigitalHumanTemplates(brandId, {
+      page: Number(page || 1) || 1,
+      size: Number(size || 24) || 24,
+      sort: String(sort || "").trim() || undefined,
+      tagIds: String(tagIds || "")
+        .split(",")
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    });
   }
 
   @Get("brands/:brandId/douyin/digital-human/video")

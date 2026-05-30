@@ -259,6 +259,13 @@ export type DigitalHumanTemplateTagGroupRecord = {
   }>;
 };
 
+export type DigitalHumanTemplatePageInfo = {
+  page: number;
+  size: number;
+  totalCount: number;
+  totalPage: number;
+};
+
 export type DouyinDigitalHumanVideoWorkRecord = {
   id: string;
   taskId: string;
@@ -774,16 +781,35 @@ export async function getDouyinDigitalHumanTemplateTags(brandId: string) {
   return request<{ list: DigitalHumanTemplateTagGroupRecord[] }>(`/works/brands/${brandId}/douyin/digital-human/template-tags`);
 }
 
-export async function getDouyinDigitalHumanTemplates(brandId: string) {
+export async function getDouyinDigitalHumanTemplates(
+  brandId: string,
+  query?: {
+    page?: number;
+    size?: number;
+    sort?: string;
+    tagIds?: number[];
+  },
+) {
+  const searchParams = new URLSearchParams();
+  if (query?.page && query.page > 0) {
+    searchParams.set("page", String(query.page));
+  }
+  if (query?.size && query.size > 0) {
+    searchParams.set("size", String(query.size));
+  }
+  if (query?.sort?.trim()) {
+    searchParams.set("sort", query.sort.trim());
+  }
+  if (query?.tagIds?.length) {
+    searchParams.set("tagIds", query.tagIds.join(","));
+  }
+  const path = searchParams.toString()
+    ? `/works/brands/${brandId}/douyin/digital-human/templates?${searchParams.toString()}`
+    : `/works/brands/${brandId}/douyin/digital-human/templates`;
   return request<{
     list: DigitalHumanTemplateRecord[];
-    pageInfo?: {
-      page: number;
-      size: number;
-      totalCount: number;
-      totalPage: number;
-    };
-  }>(`/works/brands/${brandId}/douyin/digital-human/templates`);
+    pageInfo?: DigitalHumanTemplatePageInfo;
+  }>(path);
 }
 
 export async function getDouyinDigitalHumanVideoWorks(brandId: string) {

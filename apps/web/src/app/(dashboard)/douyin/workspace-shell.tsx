@@ -57,6 +57,7 @@ import {
   recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
+  type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
   type DouyinDigitalHumanVideoWorkRecord,
@@ -171,6 +172,9 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
   const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
+  const [digitalHumanTemplatePageInfo, setDigitalHumanTemplatePageInfo] = useState<DigitalHumanTemplatePageInfo | undefined>(undefined);
+  const [digitalHumanTemplateTagId, setDigitalHumanTemplateTagId] = useState("");
+  const [isDigitalHumanTemplateLoading, setIsDigitalHumanTemplateLoading] = useState(false);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
@@ -307,17 +311,54 @@ export function DouyinWorkspaceShell() {
     return items.items || [];
   }, [activeBrandId]);
 
+  const loadDigitalHumanTemplates = useCallback(async (
+    options?: {
+      page?: number;
+      size?: number;
+      tagId?: string;
+    },
+    append?: boolean,
+  ) => {
+    const nextPage = Math.max(1, options?.page || 1);
+    const nextSize = Math.max(1, options?.size || digitalHumanTemplatePageInfo?.size || 24);
+    const nextTagId = options?.tagId ?? digitalHumanTemplateTagId;
+    setIsDigitalHumanTemplateLoading(true);
+    try {
+      const templates = await getDouyinDigitalHumanTemplates(activeBrandId, {
+        page: nextPage,
+        size: nextSize,
+        sort: "hot_desc",
+        tagIds: nextTagId ? [Number(nextTagId)] : [],
+      });
+      setDigitalHumanTemplateTagId(nextTagId);
+      setDigitalHumanTemplatePageInfo(templates.pageInfo);
+      setDigitalHumanTemplates((current) => {
+        if (!append) {
+          return templates.list || [];
+        }
+        const merged = [...current, ...(templates.list || [])];
+        return merged.filter((item, index) => merged.findIndex((entry) => entry.id === item.id) === index);
+      });
+      return templates.list || [];
+    } finally {
+      setIsDigitalHumanTemplateLoading(false);
+    }
+  }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
+
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, templates, tagGroups] = await Promise.all([
+    const [items, tagGroups] = await Promise.all([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
-      getDouyinDigitalHumanTemplates(activeBrandId),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
     ]);
     setDigitalHumanWorks(items.items || []);
-    setDigitalHumanTemplates(templates.list || []);
     setDigitalHumanTemplateTags(tagGroups.list || []);
+    await loadDigitalHumanTemplates({
+      page: 1,
+      size: digitalHumanTemplatePageInfo?.size || 24,
+      tagId: digitalHumanTemplateTagId,
+    });
     return items.items || [];
-  }, [activeBrandId]);
+  }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
 
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
@@ -360,7 +401,9 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
-      canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplates(activeBrandId) : Promise.resolve({ list: [] }),
+      canViewSection("digitalHuman")
+        ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hot_desc", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
+        : Promise.resolve({ list: [], pageInfo: undefined }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
     ]);
 
@@ -459,9 +502,11 @@ export function DouyinWorkspaceShell() {
 
     if (digitalHumanTemplatesResult.status === "fulfilled") {
       setDigitalHumanTemplates(digitalHumanTemplatesResult.value.list || []);
+      setDigitalHumanTemplatePageInfo(digitalHumanTemplatesResult.value.pageInfo);
     } else {
       hasFallback = true;
       setDigitalHumanTemplates([]);
+      setDigitalHumanTemplatePageInfo(undefined);
     }
 
     if (digitalHumanTagGroupsResult.status === "fulfilled") {
@@ -1337,6 +1382,39 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
 
+  const handleDigitalHumanTemplateTagChange = useCallback(async (tagId: string) => {
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await loadDigitalHumanTemplates({
+        page: 1,
+        size: digitalHumanTemplatePageInfo?.size || 24,
+        tagId,
+      });
+      setNotice(tagId ? "数字人模板已按标签筛选。" : "已恢复全部数字人模板。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人模板刷新失败。");
+    }
+  }, [digitalHumanTemplatePageInfo?.size, loadDigitalHumanTemplates]);
+
+  const handleLoadMoreDigitalHumanTemplates = useCallback(async () => {
+    if (!digitalHumanTemplatePageInfo || digitalHumanTemplatePageInfo.page >= digitalHumanTemplatePageInfo.totalPage) {
+      return;
+    }
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await loadDigitalHumanTemplates({
+        page: digitalHumanTemplatePageInfo.page + 1,
+        size: digitalHumanTemplatePageInfo.size,
+        tagId: digitalHumanTemplateTagId,
+      }, true);
+      setNotice("已加载更多数字人模板。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "加载更多数字人模板失败。");
+    }
+  }, [digitalHumanTemplatePageInfo, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
+
   const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord | DouyinDigitalHumanVideoWorkRecord) => {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -1612,9 +1690,14 @@ export function DouyinWorkspaceShell() {
                     items={digitalHumanWorks}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
+                    templatePageInfo={digitalHumanTemplatePageInfo}
+                    activeTagId={digitalHumanTemplateTagId}
+                    isTemplateLoading={isDigitalHumanTemplateLoading}
                     onRefresh={async () => {
                       await refreshDigitalHumanWorkspace();
                     }}
+                    onTemplateTagChange={handleDigitalHumanTemplateTagChange}
+                    onLoadMoreTemplates={handleLoadMoreDigitalHumanTemplates}
                     onPreview={openGeneratedVideoPreview}
                     onCreate={handleCreateDigitalHuman}
                     onRecoverVideo={handleRecoverDigitalHuman}

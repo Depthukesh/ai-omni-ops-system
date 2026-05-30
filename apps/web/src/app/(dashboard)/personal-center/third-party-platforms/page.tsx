@@ -18,6 +18,11 @@ type PlatformDraft = {
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
 
+function isChanjingPlatform(platform?: UserThirdPartyPlatformRecord) {
+  const searchable = [platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
+  return searchable.includes("chanjing") || searchable.includes("蝉镜");
+}
+
 export default function PersonalCenterThirdPartyPlatformsPage() {
   const router = useRouter();
   const [platforms, setPlatforms] = useState<UserThirdPartyPlatformRecord[]>([]);
@@ -94,6 +99,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
   );
   const selectedDraft = selectedPlatform ? drafts[selectedPlatform.id] : undefined;
   const isDirty = selectedPlatform && selectedDraft ? selectedDraft.apiKey !== selectedPlatform.apiKey : false;
+  const selectedPlatformIsChanjing = isChanjingPlatform(selectedPlatform);
 
   async function loadPage() {
     setIsLoading(true);
@@ -415,7 +421,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
 
             <div className="personal-list">
               <label className="field">
-                <span>API Key</span>
+                <span>{selectedPlatformIsChanjing ? "蝉镜凭证" : "API Key"}</span>
                 <input
                   type="password"
                   value={selectedDraft.apiKey}
@@ -428,9 +434,13 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                     }))
                   }
                   disabled={!canManage}
-                  placeholder="填写当前账号在该平台使用的私有 API Key"
+                  placeholder={selectedPlatformIsChanjing ? "按 appId::secretKey 格式填写蝉镜凭证" : "填写当前账号在该平台使用的私有 API Key"}
                 />
-                <small className="personal-meta">该字段是当前账号、当前品牌下的私有值，不会影响后台平台基线。</small>
+                <small className="personal-meta">
+                  {selectedPlatformIsChanjing
+                    ? "蝉镜平台当前复用单字段存储，请填写 `appId::secretKey`；系统会在服务端自动换取 access_token，不需要手动填写 token。"
+                    : "该字段是当前账号、当前品牌下的私有值，不会影响后台平台基线。"}
+                </small>
               </label>
 
               <div className="field">

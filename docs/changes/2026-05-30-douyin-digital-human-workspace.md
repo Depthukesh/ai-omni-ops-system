@@ -22,6 +22,7 @@
 - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
   - 新增数字人工作区组件
   - 首版提供模板筛选、模板选择、形象类型切换、脚本输入、字幕/画布参数、作品中心和结果找回入口
+  - 后续补充模板标签切换后的服务端筛选和模板分页增量加载，避免模板列表扩大后一次拉全量
 
 ### 2. 后端接通蝉镜 OpenAPI 与 works 作品闭环
 
@@ -68,6 +69,9 @@
   - 继续复用现有 `apiKey` 单字段
   - 后端在调用蝉镜前再拆分为 `app_id` 和 `secret_key`
   - `access_token` 由 `ChanjingOpenApiService` 按需获取并缓存
+- `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
+  - 当选中蝉镜平台时，输入框标题、占位文案和说明会明确提示按 `appId::secretKey` 形式填写
+  - 页面会说明 `access_token` 由系统自动换取，无需手填，减少配置误解
 
 ## 影响范围
 

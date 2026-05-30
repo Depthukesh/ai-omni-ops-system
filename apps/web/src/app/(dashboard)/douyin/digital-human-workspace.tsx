@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   type DigitalHumanFigureType,
+  type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
   type DouyinDigitalHumanVideoWorkRecord,
@@ -56,7 +57,12 @@ export interface DouyinDigitalHumanWorkspaceProps {
   items: DouyinDigitalHumanVideoWorkRecord[];
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
+  templatePageInfo?: DigitalHumanTemplatePageInfo;
+  activeTagId?: string;
+  isTemplateLoading?: boolean;
   onRefresh: () => void | Promise<void>;
+  onTemplateTagChange: (tagId: string) => Promise<void>;
+  onLoadMoreTemplates?: () => Promise<void>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
   onCreate: (payload: {
     title?: string;
@@ -89,7 +95,6 @@ export interface DouyinDigitalHumanWorkspaceProps {
 
 export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspaceProps) {
   const [page, setPage] = useState(1);
-  const [selectedTagId, setSelectedTagId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedFigureType, setSelectedFigureType] = useState<DigitalHumanFigureType>("sit_body");
   const [title, setTitle] = useState("");
@@ -106,11 +111,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [selectedWorkId, setSelectedWorkId] = useState("");
 
   const filteredTemplates = useMemo(() => {
-    if (!selectedTagId) {
-      return props.templates;
-    }
-    return props.templates.filter((item) => item.tagIds.includes(Number(selectedTagId)));
-  }, [props.templates, selectedTagId]);
+    return props.templates;
+  }, [props.templates]);
 
   const selectedTemplate = useMemo(
     () => filteredTemplates.find((item) => item.id === selectedTemplateId) || filteredTemplates[0],
@@ -219,7 +221,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           </div>
           <div className="report-editor-actions">
             <span className={`archive-pill ${props.templates.length ? "status-ready" : "status-in_progress"}`}>
-              {props.templates.length ? `${props.templates.length} 个模板` : "暂无模板"}
+              {props.templatePageInfo?.totalCount
+                ? `已加载 ${props.templates.length}/${props.templatePageInfo.totalCount} 个模板`
+                : props.templates.length
+                  ? `${props.templates.length} 个模板`
+                  : "暂无模板"}
             </span>
             <span className={`archive-pill ${props.items.length ? "status-ready" : "status-in_progress"}`}>
               {props.items.length ? `${props.items.length} 条作品` : "暂无作品"}
@@ -230,7 +236,13 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
         <div className="personal-grid">
           <label className="field">
             <span>模板标签</span>
-            <select value={selectedTagId} onChange={(event) => setSelectedTagId(event.target.value)}>
+            <select
+              value={props.activeTagId || ""}
+              onChange={(event) => {
+                void props.onTemplateTagChange(event.target.value);
+              }}
+              disabled={props.isTemplateLoading}
+            >
               <option value="">全部标签</option>
               {props.templateTagGroups.flatMap((group) =>
                 group.tagList.map((tag) => (
@@ -340,6 +352,22 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
             <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
           </div>
         </div>
+
+        {props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
+          <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void props.onLoadMoreTemplates?.()}
+              disabled={props.isTemplateLoading}
+            >
+              {props.isTemplateLoading ? "加载中..." : "继续加载模板"}
+            </button>
+            <span className="panel-subtext">
+              当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页，每页 {props.templatePageInfo.size} 条
+            </span>
+          </div>
+        ) : null}
       </article>
 
       <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
