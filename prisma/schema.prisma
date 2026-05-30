@@ -735,3 +735,30 @@ model UserThirdPartyPlatformSecret {
   @@unique([userId, brandId, platformId])
   @@index([brandId, platformId])
 }
+
+model DigitalHumanFavoriteTemplate {
+  id         String   @id @default(cuid())
+  userId     String
+  brandId    String
+  templateId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, brandId, templateId])
+  @@index([brandId, updatedAt])
+  @@map("digital_human_favorite_templates")
+}
+
+model DigitalHumanScriptTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  brandId   String
+  name      String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, brandId, updatedAt])
+  @@index([brandId, updatedAt])
+  @@map("digital_human_script_templates")
+}

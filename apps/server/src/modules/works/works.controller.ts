@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import {
+  type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
@@ -14,6 +15,7 @@ import {
   type RegenerateXiaohongshuVideoStoryboardPayload,
   type RegenerateDouyinVideoStoryboardPayload,
   type RecoverXiaohongshuVideoGenerationPayload,
+  type UpdateDouyinDigitalHumanScriptTemplatePayload,
   WorksService,
   type UpdateDouyinDirectVideoPayload,
   type UpdateDouyinVideoNotePayload,
@@ -161,6 +163,87 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
     return this.worksService.listDouyinDigitalHumanVideoWorks(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/favorites")
+  async listDouyinDigitalHumanFavorites(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanFavoriteTemplates(brandId, auth);
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/favorites")
+  saveDouyinDigitalHumanFavorite(
+    @Param("brandId") brandId: string,
+    @Body() payload: { templateId?: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.saveDouyinDigitalHumanFavoriteTemplate(brandId, String(payload?.templateId || ""), auth);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/favorites/:templateId")
+  deleteDouyinDigitalHumanFavorite(
+    @Param("brandId") brandId: string,
+    @Param("templateId") templateId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinDigitalHumanFavoriteTemplate(brandId, templateId, auth);
+    });
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/script-templates")
+  async listDouyinDigitalHumanScriptTemplates(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinDigitalHumanScriptTemplates(brandId, auth);
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/script-templates")
+  createDouyinDigitalHumanScriptTemplate(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinDigitalHumanScriptTemplatePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.createDouyinDigitalHumanScriptTemplate(brandId, payload, auth);
+    });
+  }
+
+  @Patch("brands/:brandId/douyin/digital-human/script-templates/:templateId")
+  updateDouyinDigitalHumanScriptTemplate(
+    @Param("brandId") brandId: string,
+    @Param("templateId") templateId: string,
+    @Body() payload: UpdateDouyinDigitalHumanScriptTemplatePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.updateDouyinDigitalHumanScriptTemplate(brandId, templateId, payload, auth);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/script-templates/:templateId")
+  deleteDouyinDigitalHumanScriptTemplate(
+    @Param("brandId") brandId: string,
+    @Param("templateId") templateId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinDigitalHumanScriptTemplate(brandId, templateId, auth);
+    });
   }
 
   @Get("brands/:brandId/douyin/video/storyboard-image/providers")

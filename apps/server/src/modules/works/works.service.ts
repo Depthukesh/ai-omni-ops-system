@@ -198,7 +198,53 @@ export type RecoverDouyinDigitalHumanVideoPayload = {
   providerTaskId?: string;
 };
 
+export type CreateDouyinDigitalHumanScriptTemplatePayload = {
+  name?: string;
+  content?: string;
+};
+
+export type UpdateDouyinDigitalHumanScriptTemplatePayload = {
+  name?: string;
+  content?: string;
+};
+
+export type DouyinDigitalHumanFavoriteTemplateRecord = {
+  templateId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinDigitalHumanScriptTemplateRecord = {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+
+type DigitalHumanFavoriteTemplateStoreItem = {
+  id: string;
+  userId: string;
+  brandId: string;
+  templateId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DigitalHumanScriptTemplateStoreItem = {
+  id: string;
+  userId: string;
+  brandId: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const digitalHumanFavoriteTemplateMockStore: DigitalHumanFavoriteTemplateStoreItem[] = [];
+const digitalHumanScriptTemplateMockStore: DigitalHumanScriptTemplateStoreItem[] = [];
 
 type ImageTextPlanEntry = {
   title: string;
@@ -1316,6 +1362,90 @@ export class WorksService {
       list: response.list,
       pageInfo: response.pageInfo,
     };
+  }
+
+  async listDouyinDigitalHumanFavoriteTemplates(brandId: string, auth?: RequestAuthContext) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    return {
+      items: await this.loadDigitalHumanFavoriteTemplates(userId, brandId),
+    };
+  }
+
+  async saveDouyinDigitalHumanFavoriteTemplate(brandId: string, templateId: string, auth?: RequestAuthContext) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      throw new BadRequestException("请选择要收藏的数字人模板。");
+    }
+    return {
+      item: await this.upsertDigitalHumanFavoriteTemplate(userId, brandId, normalizedTemplateId),
+    };
+  }
+
+  async deleteDouyinDigitalHumanFavoriteTemplate(brandId: string, templateId: string, auth?: RequestAuthContext) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    await this.removeDigitalHumanFavoriteTemplate(userId, brandId, templateId);
+    return { success: true };
+  }
+
+  async listDouyinDigitalHumanScriptTemplates(brandId: string, auth?: RequestAuthContext) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    return {
+      items: await this.loadDigitalHumanScriptTemplates(userId, brandId),
+    };
+  }
+
+  async createDouyinDigitalHumanScriptTemplate(
+    brandId: string,
+    payload: CreateDouyinDigitalHumanScriptTemplatePayload,
+    auth?: RequestAuthContext,
+  ) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const name = String(payload.name || "").trim();
+    const content = String(payload.content || "").trim();
+    if (!content) {
+      throw new BadRequestException("脚本模板内容不能为空。");
+    }
+    return {
+      item: await this.createDigitalHumanScriptTemplate(userId, brandId, {
+        name: name || "我的数字人脚本模板",
+        content,
+      }),
+    };
+  }
+
+  async updateDouyinDigitalHumanScriptTemplate(
+    brandId: string,
+    templateId: string,
+    payload: UpdateDouyinDigitalHumanScriptTemplatePayload,
+    auth?: RequestAuthContext,
+  ) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const hasName = typeof payload.name !== "undefined";
+    const hasContent = typeof payload.content !== "undefined";
+    if (!hasName && !hasContent) {
+      throw new BadRequestException("请至少提供一个要更新的脚本模板字段。");
+    }
+    const normalizedName = hasName ? String(payload.name || "").trim() : undefined;
+    const normalizedContent = hasContent ? String(payload.content || "").trim() : undefined;
+    if (hasName && !normalizedName) {
+      throw new BadRequestException("脚本模板名称不能为空。");
+    }
+    if (hasContent && !normalizedContent) {
+      throw new BadRequestException("脚本模板内容不能为空。");
+    }
+    return {
+      item: await this.updateDigitalHumanScriptTemplate(userId, brandId, templateId, {
+        name: normalizedName,
+        content: normalizedContent,
+      }),
+    };
+  }
+
+  async deleteDouyinDigitalHumanScriptTemplate(brandId: string, templateId: string, auth?: RequestAuthContext) {
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    await this.removeDigitalHumanScriptTemplate(userId, brandId, templateId);
+    return { success: true };
   }
 
   async listDouyinDigitalHumanVideoWorks(brandId: string) {
@@ -7324,6 +7454,324 @@ export class WorksService {
     } catch {
       // Ignore list auto-refresh failures to avoid blocking the workspace.
     }
+  }
+
+  private async loadDigitalHumanFavoriteTemplates(userId: string, brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          templateId: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `SELECT "templateId", "createdAt", "updatedAt"
+           FROM "digital_human_favorite_templates"
+           WHERE "userId" = $1 AND "brandId" = $2
+           ORDER BY "updatedAt" DESC`,
+          userId,
+          brandId,
+        );
+        return rows.map((item) => this.mapDigitalHumanFavoriteTemplateRow(item));
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    return digitalHumanFavoriteTemplateMockStore
+      .filter((item) => item.userId === userId && item.brandId === brandId)
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .map((item) => this.mapDigitalHumanFavoriteTemplateRow(item));
+  }
+
+  private async upsertDigitalHumanFavoriteTemplate(userId: string, brandId: string, templateId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          templateId: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `INSERT INTO "digital_human_favorite_templates" ("id", "userId", "brandId", "templateId", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           ON CONFLICT ("userId", "brandId", "templateId")
+           DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
+           RETURNING "templateId", "createdAt", "updatedAt"`,
+          randomUUID(),
+          userId,
+          brandId,
+          templateId,
+        );
+        return this.mapDigitalHumanFavoriteTemplateRow(rows[0]);
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const now = new Date().toISOString();
+    const existing = digitalHumanFavoriteTemplateMockStore.find(
+      (item) => item.userId === userId && item.brandId === brandId && item.templateId === templateId,
+    );
+    if (existing) {
+      existing.updatedAt = now;
+      return this.mapDigitalHumanFavoriteTemplateRow(existing);
+    }
+    const created: DigitalHumanFavoriteTemplateStoreItem = {
+      id: randomUUID(),
+      userId,
+      brandId,
+      templateId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    digitalHumanFavoriteTemplateMockStore.unshift(created);
+    return this.mapDigitalHumanFavoriteTemplateRow(created);
+  }
+
+  private async removeDigitalHumanFavoriteTemplate(userId: string, brandId: string, templateId: string) {
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      throw new BadRequestException("请选择要取消收藏的数字人模板。");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        await this.prismaService.$executeRawUnsafe(
+          `DELETE FROM "digital_human_favorite_templates"
+           WHERE "userId" = $1 AND "brandId" = $2 AND "templateId" = $3`,
+          userId,
+          brandId,
+          normalizedTemplateId,
+        );
+        return;
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const targetIndex = digitalHumanFavoriteTemplateMockStore.findIndex(
+      (item) => item.userId === userId && item.brandId === brandId && item.templateId === normalizedTemplateId,
+    );
+    if (targetIndex >= 0) {
+      digitalHumanFavoriteTemplateMockStore.splice(targetIndex, 1);
+    }
+  }
+
+  private async loadDigitalHumanScriptTemplates(userId: string, brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          id: string;
+          name: string;
+          content: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `SELECT "id", "name", "content", "createdAt", "updatedAt"
+           FROM "digital_human_script_templates"
+           WHERE "userId" = $1 AND "brandId" = $2
+           ORDER BY "updatedAt" DESC`,
+          userId,
+          brandId,
+        );
+        return rows.map((item) => this.mapDigitalHumanScriptTemplateRow(item));
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    return digitalHumanScriptTemplateMockStore
+      .filter((item) => item.userId === userId && item.brandId === brandId)
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .map((item) => this.mapDigitalHumanScriptTemplateRow(item));
+  }
+
+  private async createDigitalHumanScriptTemplate(
+    userId: string,
+    brandId: string,
+    payload: {
+      name: string;
+      content: string;
+    },
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          id: string;
+          name: string;
+          content: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `INSERT INTO "digital_human_script_templates" ("id", "userId", "brandId", "name", "content", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           RETURNING "id", "name", "content", "createdAt", "updatedAt"`,
+          randomUUID(),
+          userId,
+          brandId,
+          payload.name,
+          payload.content,
+        );
+        return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const now = new Date().toISOString();
+    const created: DigitalHumanScriptTemplateStoreItem = {
+      id: randomUUID(),
+      userId,
+      brandId,
+      name: payload.name,
+      content: payload.content,
+      createdAt: now,
+      updatedAt: now,
+    };
+    digitalHumanScriptTemplateMockStore.unshift(created);
+    return this.mapDigitalHumanScriptTemplateRow(created);
+  }
+
+  private async updateDigitalHumanScriptTemplate(
+    userId: string,
+    brandId: string,
+    templateId: string,
+    payload: {
+      name?: string;
+      content?: string;
+    },
+  ) {
+    const existing = await this.getDigitalHumanScriptTemplateById(userId, brandId, templateId);
+    const nextName = payload.name ?? existing.name;
+    const nextContent = payload.content ?? existing.content;
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          id: string;
+          name: string;
+          content: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `UPDATE "digital_human_script_templates"
+           SET "name" = $4, "content" = $5, "updatedAt" = CURRENT_TIMESTAMP
+           WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+           RETURNING "id", "name", "content", "createdAt", "updatedAt"`,
+          templateId,
+          userId,
+          brandId,
+          nextName,
+          nextContent,
+        );
+        return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const target = digitalHumanScriptTemplateMockStore.find(
+      (item) => item.id === templateId && item.userId === userId && item.brandId === brandId,
+    );
+    if (!target) {
+      throw new NotFoundException("个人脚本模板不存在。");
+    }
+    target.name = nextName;
+    target.content = nextContent;
+    target.updatedAt = new Date().toISOString();
+    return this.mapDigitalHumanScriptTemplateRow(target);
+  }
+
+  private async removeDigitalHumanScriptTemplate(userId: string, brandId: string, templateId: string) {
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      throw new BadRequestException("请选择要删除的脚本模板。");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        await this.prismaService.$executeRawUnsafe(
+          `DELETE FROM "digital_human_script_templates"
+           WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3`,
+          normalizedTemplateId,
+          userId,
+          brandId,
+        );
+        return;
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const targetIndex = digitalHumanScriptTemplateMockStore.findIndex(
+      (item) => item.id === normalizedTemplateId && item.userId === userId && item.brandId === brandId,
+    );
+    if (targetIndex >= 0) {
+      digitalHumanScriptTemplateMockStore.splice(targetIndex, 1);
+    }
+  }
+
+  private async getDigitalHumanScriptTemplateById(userId: string, brandId: string, templateId: string) {
+    const normalizedTemplateId = String(templateId || "").trim();
+    if (!normalizedTemplateId) {
+      throw new BadRequestException("请选择要更新的脚本模板。");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      try {
+        const rows = await this.prismaService.$queryRawUnsafe<Array<{
+          id: string;
+          name: string;
+          content: string;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>>(
+          `SELECT "id", "name", "content", "createdAt", "updatedAt"
+           FROM "digital_human_script_templates"
+           WHERE "id" = $1 AND "userId" = $2 AND "brandId" = $3
+           LIMIT 1`,
+          normalizedTemplateId,
+          userId,
+          brandId,
+        );
+        if (rows[0]) {
+          return this.mapDigitalHumanScriptTemplateRow(rows[0]);
+        }
+      } catch {
+        // Fall back to in-memory store when migration has not been applied yet.
+      }
+    }
+
+    const target = digitalHumanScriptTemplateMockStore.find(
+      (item) => item.id === normalizedTemplateId && item.userId === userId && item.brandId === brandId,
+    );
+    if (!target) {
+      throw new NotFoundException("个人脚本模板不存在。");
+    }
+    return this.mapDigitalHumanScriptTemplateRow(target);
+  }
+
+  private mapDigitalHumanFavoriteTemplateRow(item: {
+    templateId?: string;
+    createdAt?: Date | string;
+    updatedAt?: Date | string;
+  }): DouyinDigitalHumanFavoriteTemplateRecord {
+    return {
+      templateId: String(item.templateId || "").trim(),
+      createdAt: normalizeMaybeDate(item.createdAt) || new Date().toISOString(),
+      updatedAt: normalizeMaybeDate(item.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private mapDigitalHumanScriptTemplateRow(item: {
+    id?: string;
+    name?: string;
+    content?: string;
+    createdAt?: Date | string;
+    updatedAt?: Date | string;
+  }): DouyinDigitalHumanScriptTemplateRecord {
+    return {
+      id: String(item.id || "").trim(),
+      name: String(item.name || "").trim() || "我的数字人脚本模板",
+      content: String(item.content || ""),
+      createdAt: normalizeMaybeDate(item.createdAt) || new Date().toISOString(),
+      updatedAt: normalizeMaybeDate(item.updatedAt) || new Date().toISOString(),
+    };
   }
 
   private getMediaMetadata(item: { metadataJson?: unknown }) {

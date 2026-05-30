@@ -37,7 +37,10 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  createDouyinDigitalHumanScriptTemplate,
   deleteDouyinDigitalHumanVideoWork,
+  deleteDouyinDigitalHumanFavoriteTemplate,
+  deleteDouyinDigitalHumanScriptTemplate,
   continueDouyinDirectVideoGeneration,
   continueDouyinVideoGeneration,
   deleteDouyinDirectVideoWork,
@@ -45,6 +48,8 @@ import {
   generateDouyinDigitalHumanVideoWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinDigitalHumanFavoriteTemplates,
+  getDouyinDigitalHumanScriptTemplates,
   getDouyinDigitalHumanTemplates,
   getDouyinDigitalHumanTemplateTags,
   getDouyinDigitalHumanVideoWorks,
@@ -57,6 +62,10 @@ import {
   recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
+  saveDouyinDigitalHumanFavoriteTemplate,
+  updateDouyinDigitalHumanScriptTemplate,
+  type DouyinDigitalHumanFavoriteTemplateRecord,
+  type DouyinDigitalHumanScriptTemplateRecord,
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
@@ -172,6 +181,8 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
   const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
+  const [digitalHumanFavoriteTemplates, setDigitalHumanFavoriteTemplates] = useState<DouyinDigitalHumanFavoriteTemplateRecord[]>([]);
+  const [digitalHumanScriptTemplates, setDigitalHumanScriptTemplates] = useState<DouyinDigitalHumanScriptTemplateRecord[]>([]);
   const [digitalHumanTemplatePageInfo, setDigitalHumanTemplatePageInfo] = useState<DigitalHumanTemplatePageInfo | undefined>(undefined);
   const [digitalHumanTemplateTagId, setDigitalHumanTemplateTagId] = useState("");
   const [isDigitalHumanTemplateLoading, setIsDigitalHumanTemplateLoading] = useState(false);
@@ -346,12 +357,16 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, tagGroups] = await Promise.all([
+    const [items, tagGroups, favorites, scriptTemplates] = await Promise.all([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
+      getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
+      getDouyinDigitalHumanScriptTemplates(activeBrandId),
     ]);
     setDigitalHumanWorks(items.items || []);
     setDigitalHumanTemplateTags(tagGroups.list || []);
+    setDigitalHumanFavoriteTemplates(favorites.items || []);
+    setDigitalHumanScriptTemplates(scriptTemplates.items || []);
     await loadDigitalHumanTemplates({
       page: 1,
       size: digitalHumanTemplatePageInfo?.size || 24,
@@ -384,7 +399,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -405,6 +420,8 @@ export function DouyinWorkspaceShell() {
         ? getDouyinDigitalHumanTemplates(activeBrandId, { page: 1, size: 24, sort: "hot_desc", tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [] })
         : Promise.resolve({ list: [], pageInfo: undefined }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinDigitalHumanScriptTemplates(activeBrandId) : Promise.resolve({ items: [] }),
     ]);
 
     if (collectionResult.status === "fulfilled") {
@@ -514,6 +531,20 @@ export function DouyinWorkspaceShell() {
     } else {
       hasFallback = true;
       setDigitalHumanTemplateTags([]);
+    }
+
+    if (digitalHumanFavoritesResult.status === "fulfilled") {
+      setDigitalHumanFavoriteTemplates(digitalHumanFavoritesResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanFavoriteTemplates([]);
+    }
+
+    if (digitalHumanScriptTemplatesResult.status === "fulfilled") {
+      setDigitalHumanScriptTemplates(digitalHumanScriptTemplatesResult.value.items || []);
+    } else {
+      hasFallback = true;
+      setDigitalHumanScriptTemplates([]);
     }
 
     setLoadState(hasFallback ? "seed" : "api");
@@ -1415,6 +1446,101 @@ export function DouyinWorkspaceShell() {
     }
   }, [digitalHumanTemplatePageInfo, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
 
+  const handleToggleDigitalHumanFavoriteTemplate = useCallback(async (templateId: string, nextFavorite: boolean) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能修改数字人模板收藏。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      if (nextFavorite) {
+        await saveDouyinDigitalHumanFavoriteTemplate(activeBrandId, templateId);
+      } else {
+        await deleteDouyinDigitalHumanFavoriteTemplate(activeBrandId, templateId);
+      }
+      const favorites = await getDouyinDigitalHumanFavoriteTemplates(activeBrandId);
+      setDigitalHumanFavoriteTemplates(favorites.items || []);
+      setNotice(nextFavorite ? "已收藏数字人模板。" : "已取消收藏数字人模板。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人模板收藏更新失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
+  const handleSaveDigitalHumanScriptTemplate = useCallback(async (payload: { name?: string; content?: string }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能保存个人脚本模板。");
+      return null;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await createDouyinDigitalHumanScriptTemplate(activeBrandId, payload);
+      const templates = await getDouyinDigitalHumanScriptTemplates(activeBrandId);
+      setDigitalHumanScriptTemplates(templates.items || []);
+      setNotice(`已保存个人脚本模板：${response.item.name}`);
+      return response.item;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "个人脚本模板保存失败。");
+      return null;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
+  const handleUpdateDigitalHumanScriptTemplate = useCallback(async (
+    templateId: string,
+    payload: { name?: string; content?: string },
+  ) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能编辑个人脚本模板。");
+      return null;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await updateDouyinDigitalHumanScriptTemplate(activeBrandId, templateId, payload);
+      const templates = await getDouyinDigitalHumanScriptTemplates(activeBrandId);
+      setDigitalHumanScriptTemplates(templates.items || []);
+      setNotice(`个人脚本模板已更新：${response.item.name}`);
+      return response.item;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "个人脚本模板更新失败。");
+      return null;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
+  const handleDeleteDigitalHumanScriptTemplate = useCallback(async (templateId: string) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能删除个人脚本模板。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinDigitalHumanScriptTemplate(activeBrandId, templateId);
+      const templates = await getDouyinDigitalHumanScriptTemplates(activeBrandId);
+      setDigitalHumanScriptTemplates(templates.items || []);
+      setNotice("个人脚本模板已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "个人脚本模板删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
   const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord | DouyinDigitalHumanVideoWorkRecord) => {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -1690,6 +1816,8 @@ export function DouyinWorkspaceShell() {
                     items={digitalHumanWorks}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
+                    favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
+                    personalScriptTemplates={digitalHumanScriptTemplates}
                     templatePageInfo={digitalHumanTemplatePageInfo}
                     activeTagId={digitalHumanTemplateTagId}
                     isTemplateLoading={isDigitalHumanTemplateLoading}
@@ -1698,6 +1826,10 @@ export function DouyinWorkspaceShell() {
                     }}
                     onTemplateTagChange={handleDigitalHumanTemplateTagChange}
                     onLoadMoreTemplates={handleLoadMoreDigitalHumanTemplates}
+                    onToggleFavoriteTemplate={handleToggleDigitalHumanFavoriteTemplate}
+                    onSaveScriptTemplate={handleSaveDigitalHumanScriptTemplate}
+                    onUpdateScriptTemplate={handleUpdateDigitalHumanScriptTemplate}
+                    onDeleteScriptTemplate={handleDeleteDigitalHumanScriptTemplate}
                     onPreview={openGeneratedVideoPreview}
                     onCreate={handleCreateDigitalHuman}
                     onRecoverVideo={handleRecoverDigitalHuman}

@@ -6,15 +6,14 @@ import {
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
+  type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
 } from "../../../services/works";
 import { WorkspaceSectionHeader } from "../xiaohongshu/note-workspace-shared-panels";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
 const PAGE_SIZE = 18;
-const DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY = "douyin-digital-human-template-favorites";
 const DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY = "douyin-digital-human-template-recents";
-const DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY = "douyin-digital-human-script-templates";
 const DIGITAL_HUMAN_SCRIPT_PRESETS = [
   {
     key: "brand-promo",
@@ -38,19 +37,14 @@ const DIGITAL_HUMAN_SCRIPT_PRESETS = [
   },
 ] as const;
 
-type PersonalDigitalHumanScriptTemplate = {
-  id: string;
-  name: string;
-  content: string;
-  updatedAt: string;
-};
-
 type DigitalHumanEditorDiffEntry = {
   key: string;
   label: string;
   currentValue: string;
   selectedValue: string;
 };
+
+type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
 
 function getStageLabel(stage?: DouyinDigitalHumanVideoWorkRecord["stage"]) {
   switch (stage) {
@@ -106,12 +100,21 @@ export interface DouyinDigitalHumanWorkspaceProps {
   items: DouyinDigitalHumanVideoWorkRecord[];
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
+  favoriteTemplateIds: string[];
+  personalScriptTemplates: DouyinDigitalHumanScriptTemplateRecord[];
   templatePageInfo?: DigitalHumanTemplatePageInfo;
   activeTagId?: string;
   isTemplateLoading?: boolean;
   onRefresh: () => void | Promise<void>;
   onTemplateTagChange: (tagId: string) => Promise<void>;
   onLoadMoreTemplates?: () => Promise<void>;
+  onToggleFavoriteTemplate: (templateId: string, nextFavorite: boolean) => Promise<boolean>;
+  onSaveScriptTemplate: (payload: { name?: string; content?: string }) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
+  onUpdateScriptTemplate: (
+    templateId: string,
+    payload: { name?: string; content?: string },
+  ) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
+  onDeleteScriptTemplate: (templateId: string) => Promise<boolean>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
   onCreate: (payload: {
     title?: string;
@@ -163,16 +166,17 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [screenHeight, setScreenHeight] = useState("1920");
   const [selectedWorkId, setSelectedWorkId] = useState("");
   const [manualRecoverTaskId, setManualRecoverTaskId] = useState("");
-  const [favoriteTemplateIds, setFavoriteTemplateIds] = useState<string[]>([]);
   const [recentTemplateIds, setRecentTemplateIds] = useState<string[]>([]);
   const [scriptActionMessage, setScriptActionMessage] = useState("");
   const [editorActionMessage, setEditorActionMessage] = useState("");
-  const [personalScriptTemplates, setPersonalScriptTemplates] = useState<PersonalDigitalHumanScriptTemplate[]>([]);
   const [selectedPersonalScriptTemplateId, setSelectedPersonalScriptTemplateId] = useState("");
+  const [personalScriptTemplateName, setPersonalScriptTemplateName] = useState("");
+  const [personalScriptTemplateSearch, setPersonalScriptTemplateSearch] = useState("");
+  const [personalScriptTemplateSort, setPersonalScriptTemplateSort] = useState<PersonalScriptTemplateSort>("UPDATED_DESC");
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
-    const favoriteIdSet = new Set(favoriteTemplateIds);
+    const favoriteIdSet = new Set(props.favoriteTemplateIds);
     const recentIdSet = new Set(recentTemplateIds);
     const recentOrderMap = new Map(recentTemplateIds.map((id, index) => [id, index]));
     const favorites = props.templates.filter((item) => favoriteIdSet.has(item.id));
@@ -213,7 +217,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       }
       return left.name.localeCompare(right.name, "zh-CN");
     });
-  }, [favoriteTemplateIds, props.templates, recentTemplateIds, templateScopeFilter, templateSearch]);
+  }, [props.favoriteTemplateIds, props.templates, recentTemplateIds, templateScopeFilter, templateSearch]);
 
   const selectedTemplate = useMemo(
     () => filteredTemplates.find((item) => item.id === selectedTemplateId) || filteredTemplates[0],
@@ -263,7 +267,36 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
         .slice(0, 6),
     [props.templates, recentTemplateIds],
   );
-  const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && favoriteTemplateIds.includes(selectedTemplate.id));
+  const selectedPersonalScriptTemplate = useMemo(
+    () => props.personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId),
+    [props.personalScriptTemplates, selectedPersonalScriptTemplateId],
+  );
+  const filteredPersonalScriptTemplates = useMemo(() => {
+    const keyword = personalScriptTemplateSearch.trim().toLowerCase();
+    const filtered = keyword
+      ? props.personalScriptTemplates.filter((item) =>
+          [item.name, item.content]
+            .join(" ")
+            .toLowerCase()
+            .includes(keyword),
+        )
+      : props.personalScriptTemplates;
+
+    return [...filtered].sort((left, right) => {
+      switch (personalScriptTemplateSort) {
+        case "UPDATED_ASC":
+          return new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+        case "NAME_ASC":
+          return left.name.localeCompare(right.name, "zh-CN");
+        case "NAME_DESC":
+          return right.name.localeCompare(left.name, "zh-CN");
+        case "UPDATED_DESC":
+        default:
+          return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      }
+    });
+  }, [personalScriptTemplateSearch, personalScriptTemplateSort, props.personalScriptTemplates]);
+  const isSelectedTemplateFavorite = Boolean(selectedTemplate?.id && props.favoriteTemplateIds.includes(selectedTemplate.id));
   const editorDiffs = useMemo<DigitalHumanEditorDiffEntry[]>(() => {
     if (!selectedWork) {
       return [];
@@ -312,30 +345,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       return;
     }
     try {
-      const favoriteText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY);
       const recentText = window.localStorage.getItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY);
-      const personalScriptTemplatesText = window.localStorage.getItem(DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY);
-      const favoriteList = JSON.parse(favoriteText || "[]");
       const recentList = JSON.parse(recentText || "[]");
-      const personalScriptTemplateList = JSON.parse(personalScriptTemplatesText || "[]");
-      setFavoriteTemplateIds(Array.isArray(favoriteList) ? favoriteList.map((item) => String(item || "").trim()).filter(Boolean) : []);
       setRecentTemplateIds(Array.isArray(recentList) ? recentList.map((item) => String(item || "").trim()).filter(Boolean) : []);
-      setPersonalScriptTemplates(
-        Array.isArray(personalScriptTemplateList)
-          ? personalScriptTemplateList
-              .map((item) => ({
-                id: String(item?.id || "").trim(),
-                name: String(item?.name || "").trim(),
-                content: String(item?.content || ""),
-                updatedAt: String(item?.updatedAt || ""),
-              }))
-              .filter((item) => item.id && item.name && item.content.trim())
-          : [],
-      );
     } catch {
-      setFavoriteTemplateIds([]);
       setRecentTemplateIds([]);
-      setPersonalScriptTemplates([]);
     }
   }, []);
 
@@ -343,22 +357,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem(DIGITAL_HUMAN_TEMPLATE_FAVORITES_STORAGE_KEY, JSON.stringify(favoriteTemplateIds));
-  }, [favoriteTemplateIds]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
     window.localStorage.setItem(DIGITAL_HUMAN_TEMPLATE_RECENTS_STORAGE_KEY, JSON.stringify(recentTemplateIds));
   }, [recentTemplateIds]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(DIGITAL_HUMAN_SCRIPT_TEMPLATES_STORAGE_KEY, JSON.stringify(personalScriptTemplates));
-  }, [personalScriptTemplates]);
 
   useEffect(() => {
     if (!filteredTemplates.length) {
@@ -407,6 +407,30 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   useEffect(() => {
     setPage((current) => Math.min(current, pageCount));
   }, [pageCount]);
+
+  useEffect(() => {
+    if (!selectedPersonalScriptTemplateId) {
+      setPersonalScriptTemplateName("");
+      return;
+    }
+    const target = props.personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId);
+    if (!target) {
+      setSelectedPersonalScriptTemplateId("");
+      setPersonalScriptTemplateName("");
+      return;
+    }
+    setPersonalScriptTemplateName(target.name);
+  }, [props.personalScriptTemplates, selectedPersonalScriptTemplateId]);
+
+  useEffect(() => {
+    if (!selectedPersonalScriptTemplateId) {
+      return;
+    }
+    if (!filteredPersonalScriptTemplates.some((item) => item.id === selectedPersonalScriptTemplateId)) {
+      setSelectedPersonalScriptTemplateId("");
+      setPersonalScriptTemplateName("");
+    }
+  }, [filteredPersonalScriptTemplates, selectedPersonalScriptTemplateId]);
 
   const createDisabled = !props.canEdit || !selectedTemplate || !selectedFigure || !script.trim();
   const selectedWorkIsRecoverable = Boolean(selectedWork && isRecoverableWork(selectedWork));
@@ -478,26 +502,32 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     });
   };
 
-  const handleSaveCurrentScriptTemplate = () => {
+  const handleSaveCurrentScriptTemplate = async () => {
     const content = script.trim();
     if (!content) {
       setScriptActionMessage("当前没有可保存的脚本内容。");
       return;
     }
-    const templateName = (title.trim() || selectedTemplate?.name || "我的数字人脚本模板").slice(0, 60);
-    const nextTemplate: PersonalDigitalHumanScriptTemplate = {
-      id: `script-template-${Date.now()}`,
+    const templateName = (
+      personalScriptTemplateName.trim()
+      || title.trim()
+      || selectedTemplate?.name
+      || "我的数字人脚本模板"
+    ).slice(0, 60);
+    const created = await props.onSaveScriptTemplate({
       name: templateName,
       content,
-      updatedAt: new Date().toISOString(),
-    };
-    setPersonalScriptTemplates((current) => [nextTemplate, ...current.filter((item) => item.content.trim() !== content)].slice(0, 20));
-    setSelectedPersonalScriptTemplateId(nextTemplate.id);
-    setScriptActionMessage(`已保存个人脚本模板：${templateName}`);
+    });
+    if (!created) {
+      setScriptActionMessage("个人脚本模板保存失败，请稍后重试。");
+      return;
+    }
+    setSelectedPersonalScriptTemplateId(created.id);
+    setScriptActionMessage(`已保存个人脚本模板：${created.name}`);
   };
 
   const handleApplyPersonalScriptTemplate = () => {
-    const target = personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId);
+    const target = selectedPersonalScriptTemplate;
     if (!target) {
       setScriptActionMessage("请先选择一个个人脚本模板。");
       return;
@@ -506,15 +536,87 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setScriptActionMessage(`已套用脚本模板：${target.name}`);
   };
 
-  const handleDeletePersonalScriptTemplate = () => {
+  const handleDeletePersonalScriptTemplate = async () => {
     if (!selectedPersonalScriptTemplateId) {
       setScriptActionMessage("请先选择要删除的个人脚本模板。");
       return;
     }
-    const target = personalScriptTemplates.find((item) => item.id === selectedPersonalScriptTemplateId);
-    setPersonalScriptTemplates((current) => current.filter((item) => item.id !== selectedPersonalScriptTemplateId));
+    const target = selectedPersonalScriptTemplate;
+    const success = await props.onDeleteScriptTemplate(selectedPersonalScriptTemplateId);
+    if (!success) {
+      setScriptActionMessage("脚本模板删除失败，请稍后重试。");
+      return;
+    }
     setSelectedPersonalScriptTemplateId("");
     setScriptActionMessage(target ? `已删除脚本模板：${target.name}` : "已删除所选脚本模板。");
+  };
+
+  const handleDuplicatePersonalScriptTemplate = async () => {
+    const content = script.trim();
+    if (!content) {
+      setScriptActionMessage("当前没有可另存为副本的脚本内容。");
+      return;
+    }
+    const baseName =
+      personalScriptTemplateName.trim()
+      || selectedPersonalScriptTemplate?.name
+      || title.trim()
+      || selectedTemplate?.name
+      || "我的数字人脚本模板";
+    const created = await props.onSaveScriptTemplate({
+      name: `${baseName} 副本`.slice(0, 60),
+      content,
+    });
+    if (!created) {
+      setScriptActionMessage("脚本模板副本保存失败，请稍后重试。");
+      return;
+    }
+    setSelectedPersonalScriptTemplateId(created.id);
+    setPersonalScriptTemplateName(created.name);
+    setScriptActionMessage(`已另存脚本模板副本：${created.name}`);
+  };
+
+  const handleRenamePersonalScriptTemplate = async () => {
+    if (!selectedPersonalScriptTemplateId) {
+      setScriptActionMessage("请先选择一个个人脚本模板。");
+      return;
+    }
+    const nextName = personalScriptTemplateName.trim();
+    if (!nextName) {
+      setScriptActionMessage("请输入新的脚本模板名称。");
+      return;
+    }
+    const updated = await props.onUpdateScriptTemplate(selectedPersonalScriptTemplateId, {
+      name: nextName,
+    });
+    if (!updated) {
+      setScriptActionMessage("脚本模板重命名失败，请稍后重试。");
+      return;
+    }
+    setPersonalScriptTemplateName(updated.name);
+    setScriptActionMessage(`已重命名脚本模板：${updated.name}`);
+  };
+
+  const handleOverwritePersonalScriptTemplate = async () => {
+    if (!selectedPersonalScriptTemplateId) {
+      setScriptActionMessage("请先选择一个个人脚本模板。");
+      return;
+    }
+    const content = script.trim();
+    if (!content) {
+      setScriptActionMessage("当前没有可覆盖到模板的脚本内容。");
+      return;
+    }
+    const updated = await props.onUpdateScriptTemplate(selectedPersonalScriptTemplateId, {
+      name: personalScriptTemplateName.trim() || undefined,
+      content,
+    });
+    if (!updated) {
+      setScriptActionMessage("脚本模板更新失败，请稍后重试。");
+      return;
+    }
+    setPersonalScriptTemplateName(updated.name);
+    setScriptActionMessage(`已用当前脚本更新模板：${updated.name}`);
   };
 
   const handleBackfillSelectedWork = () => {
@@ -700,7 +802,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               <button type="button" className="secondary-button" onClick={handleExportScript}>
                 导出脚本
               </button>
-              <button type="button" className="secondary-button" onClick={handleSaveCurrentScriptTemplate}>
+              <button type="button" className="secondary-button" onClick={() => void handleSaveCurrentScriptTemplate()}>
                 保存为个人模板
               </button>
             </div>
@@ -711,26 +813,75 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           <div className="field field-full">
             <span>个人脚本模板</span>
             <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+              <input
+                value={personalScriptTemplateSearch}
+                onChange={(event) => setPersonalScriptTemplateSearch(event.target.value)}
+                placeholder="搜索模板名称或脚本内容"
+                style={{ minWidth: 240 }}
+              />
+              <select
+                value={personalScriptTemplateSort}
+                onChange={(event) => setPersonalScriptTemplateSort(event.target.value as PersonalScriptTemplateSort)}
+                style={{ minWidth: 180 }}
+              >
+                <option value="UPDATED_DESC">最近更新优先</option>
+                <option value="UPDATED_ASC">最早更新优先</option>
+                <option value="NAME_ASC">名称 A-Z</option>
+                <option value="NAME_DESC">名称 Z-A</option>
+              </select>
               <select
                 value={selectedPersonalScriptTemplateId}
                 onChange={(event) => setSelectedPersonalScriptTemplateId(event.target.value)}
                 style={{ minWidth: 240 }}
               >
                 <option value="">选择已保存模板</option>
-                {personalScriptTemplates.map((item) => (
+                {filteredPersonalScriptTemplates.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
                   </option>
                 ))}
               </select>
+              <input
+                value={personalScriptTemplateName}
+                onChange={(event) => setPersonalScriptTemplateName(event.target.value)}
+                placeholder="编辑模板名称"
+                style={{ minWidth: 220 }}
+              />
               <button type="button" className="secondary-button" onClick={handleApplyPersonalScriptTemplate}>
                 套用模板
               </button>
-              <button type="button" className="secondary-button" onClick={handleDeletePersonalScriptTemplate}>
+              <button type="button" className="secondary-button" onClick={() => void handleRenamePersonalScriptTemplate()}>
+                重命名模板
+              </button>
+              <button type="button" className="secondary-button" onClick={() => void handleOverwritePersonalScriptTemplate()}>
+                用当前脚本覆盖
+              </button>
+              <button type="button" className="secondary-button" onClick={() => void handleDuplicatePersonalScriptTemplate()}>
+                另存为副本
+              </button>
+              <button type="button" className="secondary-button" onClick={() => void handleDeletePersonalScriptTemplate()}>
                 删除模板
               </button>
             </div>
-            <small className="personal-meta">当前先保存在本机浏览器，适合个人高频复用常用数字人口播脚本。</small>
+            <small className="personal-meta">
+              当前已切到服务端持久化，支持跨设备复用，并可直接搜索、排序、重命名、另存副本或用当前脚本覆盖更新模板。
+            </small>
+            <small className="personal-meta">
+              当前筛选结果 {filteredPersonalScriptTemplates.length} / {props.personalScriptTemplates.length} 条。
+            </small>
+            {selectedPersonalScriptTemplate ? (
+              <div className="entity-card personal-card" style={{ marginTop: 12 }}>
+                <strong>{selectedPersonalScriptTemplate.name}</strong>
+                <p className="personal-meta">
+                  最近更新：{props.formatDateTime(selectedPersonalScriptTemplate.updatedAt)} · 脚本字数：
+                  {selectedPersonalScriptTemplate.content.trim().length}
+                </p>
+                <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
+                  {selectedPersonalScriptTemplate.content.trim().slice(0, 180)}
+                  {selectedPersonalScriptTemplate.content.trim().length > 180 ? "..." : ""}
+                </p>
+              </div>
+            ) : null}
           </div>
           <label className="field">
             <span>语速</span>
@@ -790,13 +941,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() =>
-                    setFavoriteTemplateIds((current) =>
-                      current.includes(selectedTemplate.id)
-                        ? current.filter((item) => item !== selectedTemplate.id)
-                        : [selectedTemplate.id, ...current].slice(0, 30),
-                    )
-                  }
+                  onClick={() => void props.onToggleFavoriteTemplate(selectedTemplate.id, !isSelectedTemplateFavorite)}
                 >
                   {isSelectedTemplateFavorite ? "取消收藏" : "收藏模板"}
                 </button>

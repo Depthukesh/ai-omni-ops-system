@@ -26,11 +26,13 @@
   - 作品详情区补充手动输入蝉镜任务 ID 的找回入口，便于在已知任务号但本地记录未及时回填时补拉最终视频
   - 模板区补充关键词搜索、音色试听和形象预览视频，提升数字人模板挑选效率
   - 脚本编辑区补充快捷模板按钮，作品中心补充关键词搜索和状态筛选，方便高频运营场景快速复用与排查
-  - 模板区补充“收藏模板”和“最近使用”，当前先用前端本地持久化存储，优先提升模板挑选效率
+  - 模板区补充“收藏模板”和“最近使用”，其中收藏已切服务端持久化，最近使用继续保留前端本地缓存
   - 脚本编辑区补充一键复制和导出 txt，作品中心补充“只看失败 / 只看已完成 / 只看生成中”等快捷筛选按钮
   - 作品中心继续补充“只看待找回”快捷筛选和失败作品一键重试，复用现有创建动作快速补单
   - 作品详情区补充“回填到创建区”，可把当前作品脚本和主要参数回填到编辑区继续修改
-  - 脚本编辑区补充“保存为个人模板 / 套用模板 / 删除模板”，当前先采用前端本地持久化保存常用脚本
+  - 脚本编辑区补充“保存为个人模板 / 套用模板 / 删除模板”，当前已切服务端持久化保存常用脚本
+  - 个人脚本模板区继续补充“重命名模板 / 用当前脚本覆盖”，形成增删改查完整闭环
+  - 个人脚本模板区继续补充“模板搜索 / 排序 / 另存为副本 / 已选模板摘要预览”，解决模板增多后下拉框难管理的问题
   - 创建区补充“参数差异提示”，可对比当前编辑参数与选中作品的差异，减少重复提交流程中的遗漏
 
 ### 2. 后端接通蝉镜 OpenAPI 与 works 作品闭环
@@ -41,6 +43,7 @@
 - `apps/server/src/modules/works/works.service.ts`
   - 新增数字人模板与作品列表接口
   - 新增数字人视频创建、轮询刷新、结果找回、删除能力
+  - 新增数字人模板收藏、个人脚本模板的服务端持久化读写接口，并为未迁移数据库场景保留内存兜底
   - 新增 `DOUYIN_DIGITAL_HUMAN_VIDEO` 元数据映射和 HTML 作品壳
   - 继续复用 `Task + MediaAsset + OSS 缓存 + recover` 模式，不新增独立持久化体系
 - `apps/server/src/modules/works/works.controller.ts`
@@ -48,9 +51,22 @@
     - `GET /works/brands/:brandId/douyin/digital-human/template-tags`
     - `GET /works/brands/:brandId/douyin/digital-human/templates`
     - `GET /works/brands/:brandId/douyin/digital-human/video`
+    - `GET /works/brands/:brandId/douyin/digital-human/favorites`
+    - `POST /works/brands/:brandId/douyin/digital-human/favorites`
+    - `DELETE /works/brands/:brandId/douyin/digital-human/favorites/:templateId`
+    - `GET /works/brands/:brandId/douyin/digital-human/script-templates`
+    - `POST /works/brands/:brandId/douyin/digital-human/script-templates`
+    - `PATCH /works/brands/:brandId/douyin/digital-human/script-templates/:templateId`
+    - `DELETE /works/brands/:brandId/douyin/digital-human/script-templates/:templateId`
     - `POST /works/brands/:brandId/douyin/digital-human/video/generate`
     - `POST /works/brands/:brandId/douyin/digital-human/video/recover`
     - `DELETE /works/brands/:brandId/douyin/digital-human/video/:workId`
+- `prisma/schema.prisma`
+  - 新增：
+    - `DigitalHumanFavoriteTemplate`
+    - `DigitalHumanScriptTemplate`
+- `prisma/migrations/20260530_digital_human_user_templates/migration.sql`
+  - 新增数字人模板收藏和个人脚本模板的数据表迁移
 
 ### 3. 技能中心与提示词注册数字人口播脚本
 
@@ -123,9 +139,10 @@
 
 ## 后续关注
 
-- 当前数字人模板接口已经支持 `tag/page/size` 查询；模板收藏和最近使用已先落前端本地持久化，下一步建议继续补服务端同步、团队共享和更细粒度排序。
+- 当前数字人模板接口已经支持 `tag/page/size` 查询；模板收藏与个人脚本模板已切服务端持久化，最近使用继续保留前端本地缓存，下一步建议继续补团队共享和更细粒度排序。
+- 当前个人脚本模板已经支持新增、套用、搜索、排序、重命名、覆盖更新、另存副本和删除，下一步可继续补标签分类与团队共享。
 - 当前脚本复制和导出先走浏览器能力，适合单人运营使用；如果后续需要团队复用，建议继续补脚本模板沉淀和服务端共享。
-- 当前个人脚本模板先保存在本机浏览器，适合个人场景；如果后续要跨设备复用，建议再补服务端持久化与团队共享模板。
+- 当前服务端持久化已带未迁移数据库时的内存兜底；正式环境仍建议尽快执行本次 Prisma migration，避免重启后丢失收藏与脚本模板。
 - 当前参数差异提示基于前端表单和选中作品实时比较，适合二次编辑校对；如果后续字段继续增加，建议抽成统一对比配置。
 - 当前失败重试先复用前端已有作品参数重新发起新任务，适合快速补单；如果后续要做更强审计，建议再补“重试来源记录”和失败原因归档。
 - 当前回填编辑优先复用本地模板列表匹配 `personId`；如果后续接入定制数字人，再补模板缺失时的兜底展示和更细的差异提示。

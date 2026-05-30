@@ -266,6 +266,20 @@ export type DigitalHumanTemplatePageInfo = {
   totalPage: number;
 };
 
+export type DouyinDigitalHumanFavoriteTemplateRecord = {
+  templateId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinDigitalHumanScriptTemplateRecord = {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DouyinDigitalHumanVideoWorkRecord = {
   id: string;
   taskId: string;
@@ -810,6 +824,70 @@ export async function getDouyinDigitalHumanTemplates(
     list: DigitalHumanTemplateRecord[];
     pageInfo?: DigitalHumanTemplatePageInfo;
   }>(path);
+}
+
+export async function getDouyinDigitalHumanFavoriteTemplates(brandId: string) {
+  return request<{ items: DouyinDigitalHumanFavoriteTemplateRecord[] }>(
+    `/works/brands/${brandId}/douyin/digital-human/favorites`,
+  );
+}
+
+export async function saveDouyinDigitalHumanFavoriteTemplate(brandId: string, templateId: string) {
+  return jsonRequest<{ item: DouyinDigitalHumanFavoriteTemplateRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/favorites`,
+    "POST",
+    { templateId },
+  );
+}
+
+export async function deleteDouyinDigitalHumanFavoriteTemplate(brandId: string, templateId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/digital-human/favorites/${templateId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinDigitalHumanScriptTemplates(brandId: string) {
+  return request<{ items: DouyinDigitalHumanScriptTemplateRecord[] }>(
+    `/works/brands/${brandId}/douyin/digital-human/script-templates`,
+  );
+}
+
+export async function createDouyinDigitalHumanScriptTemplate(
+  brandId: string,
+  payload: {
+    name?: string;
+    content?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinDigitalHumanScriptTemplateRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/script-templates`,
+    "POST",
+    payload,
+  );
+}
+
+export async function updateDouyinDigitalHumanScriptTemplate(
+  brandId: string,
+  templateId: string,
+  payload: {
+    name?: string;
+    content?: string;
+  },
+) {
+  return jsonRequest<{ item: DouyinDigitalHumanScriptTemplateRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/script-templates/${templateId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteDouyinDigitalHumanScriptTemplate(brandId: string, templateId: string) {
+  return request<{ success: boolean }>(
+    `/works/brands/${brandId}/douyin/digital-human/script-templates/${templateId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function getDouyinDigitalHumanVideoWorks(brandId: string) {
