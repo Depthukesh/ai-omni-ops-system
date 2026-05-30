@@ -337,6 +337,27 @@
   - 避免服务端继续仅依赖 `@nestjs/platform-express -> body-parser -> raw-body` 的间接依赖链
   - 降低远端部署时因裁剪/安装异常导致的保存接口崩溃风险
 
+### 13. 定制数字人本地 metadata 自动同步第八轮
+
+- `apps/server/src/modules/works/works.service.ts`
+  - `listDouyinDigitalHumanCustomPersons` 新增“蝉镜列表刷新 -> 本地 metadata 回写”逻辑
+  - 当蝉镜返回定制数字人的最新状态、进度、预览视频、封面、失败原因、音色或尺寸信息时：
+    - 会自动对比本地 `DOUYIN_DIGITAL_HUMAN_CUSTOM` metadata
+    - 仅在存在差异时回写本地 HTML work metadata
+  - 新增：
+    - `DigitalHumanCustomPersonLocalEntry`
+    - `syncDigitalHumanCustomPersonLocalSnapshot`
+    - `shouldSyncDigitalHumanCustomPersonLocalMeta`
+- 本轮效果
+  - 本地配置回填不再只在“创建时”写入一次
+  - 定制数字人的本地 work 壳会随着蝉镜真实状态持续同步，后续联动和回填更稳定
+
+## 第八轮验证
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/works.service.ts`
+- `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
+
 ## 第六轮验证
 
 - `GetDiagnostics`

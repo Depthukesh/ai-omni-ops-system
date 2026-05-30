@@ -673,6 +673,12 @@ type DigitalHumanCustomPersonWorkAssetMeta = {
   updatedAt: string;
 };
 
+type DigitalHumanCustomPersonLocalEntry = {
+  workId: string;
+  storageKey?: string;
+  meta: DigitalHumanCustomPersonWorkAssetMeta;
+};
+
 export type DouyinDigitalHumanVideoWorkRecord = {
   id: string;
   taskId: string;
@@ -1551,12 +1557,23 @@ export class WorksService {
     });
     const localConfigMap = await this.loadDigitalHumanCustomPersonLocalConfigMap(brandId);
     const remoteIds = new Set(response.list.map((item) => item.id).filter(Boolean));
-    const merged = response.list.map((item) => this.mapChanjingCustomPersonRecord(item, localConfigMap.get(item.id)));
-    for (const [personId, meta] of localConfigMap.entries()) {
-      if (!personId || remoteIds.has(personId) || meta.personId !== personId) {
+    const merged: DouyinDigitalHumanCustomPersonRecord[] = [];
+    const syncedWorkIds = new Set<string>();
+    for (const item of response.list) {
+      const entry = localConfigMap.get(item.id);
+      const record = this.mapChanjingCustomPersonRecord(item, entry?.meta);
+      merged.push(record);
+      if (entry) {
+        syncedWorkIds.add(entry.workId);
+        await this.syncDigitalHumanCustomPersonLocalSnapshot(brandId, entry, record);
+      }
+    }
+    for (const [personId, entry] of localConfigMap.entries()) {
+      if (!personId || syncedWorkIds.has(entry.workId) || remoteIds.has(personId) || entry.meta.personId !== personId) {
         continue;
       }
-      merged.push(this.mapLocalCustomPersonMeta(meta, personId));
+      merged.push(this.mapLocalCustomPersonMeta(entry.meta, personId));
+      syncedWorkIds.add(entry.workId);
     }
     return {
       items: merged
@@ -7237,15 +7254,19 @@ export class WorksService {
 
   private async loadDigitalHumanCustomPersonLocalConfigMap(brandId: string) {
     const rows = await this.listDigitalHumanCustomPersonWorkRows(brandId);
-    const result = new Map<string, DigitalHumanCustomPersonWorkAssetMeta>();
+    const result = new Map<string, DigitalHumanCustomPersonLocalEntry>();
     for (const row of rows) {
       const meta = this.readDigitalHumanCustomPersonWorkMeta(this.getMediaMetadata(row));
+      const entry: DigitalHumanCustomPersonLocalEntry = {
+        workId: String(row.id || "").trim(),
+        storageKey: typeof row.storageKey === "string" ? row.storageKey : undefined,
+        meta,
+      };
       if (meta.personId) {
-        result.set(meta.personId, meta);
+        result.set(meta.personId, entry);
       }
-      const rowId = String(row.id || "").trim();
-      if (rowId) {
-        result.set(rowId, meta);
+      if (entry.workId) {
+        result.set(entry.workId, entry);
       }
     }
     return result;
@@ -7380,6 +7401,46 @@ export class WorksService {
     await this.writeGeneratedTextFile(brandId, this.extractFileName(storageKey), nextMeta.htmlContent);
     await this.updateWorkHtmlMetadata(workId, brandId, nextMeta, `抖音定制数字人 - ${nextMeta.name}`);
     return nextMeta;
+  }
+
+  private async syncDigitalHumanCustomPersonLocalSnapshot(
+    brandId: string,
+    entry: DigitalHumanCustomPersonLocalEntry,
+    record: DouyinDigitalHumanCustomPersonRecord,
+  ) {
+    if (!this.shouldSyncDigitalHumanCustomPersonLocalMeta(entry.meta, record)) {
+      return;
+    }
+    await this.saveDigitalHumanCustomPersonMetadataSnapshot(
+      brandId,
+      entry.workId,
+      entry.storageKey || `${entry.workId}.html`,
+      {
+        ...entry.meta,
+        ...this.mergeCustomPersonMetaWithRecord(entry.meta, record),
+        personId: record.personId || entry.meta.personId,
+        providerStatusText: record.status,
+        providerUpdatedAt: record.updatedAt,
+        updatedAt: new Date().toISOString(),
+      },
+    );
+  }
+
+  private shouldSyncDigitalHumanCustomPersonLocalMeta(
+    meta: DigitalHumanCustomPersonWorkAssetMeta,
+    record: DouyinDigitalHumanCustomPersonRecord,
+  ) {
+    return (
+      meta.status !== record.status
+      || meta.progress !== record.progress
+      || (meta.previewVideoUrl || "") !== (record.previewVideoUrl || "")
+      || (meta.coverImageUrl || "") !== (record.coverImageUrl || "")
+      || (meta.errorReason || "") !== (record.errorReason || "")
+      || (meta.audioManId || "") !== (record.audioManId || "")
+      || (meta.width || 0) !== (record.width || 0)
+      || (meta.height || 0) !== (record.height || 0)
+      || Boolean(meta.support4k) !== Boolean(record.support4k)
+    );
   }
 
   private renderDigitalHumanCustomPersonHtml(params: {
