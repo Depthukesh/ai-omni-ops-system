@@ -38,7 +38,7 @@ export type UserThirdPartyPlatformRecord = ThirdPartyPlatformRecord & {
   apiKey: string;
   effectiveApiKeyMasked: string;
   dynamicStats?: {
-    status: "ready" | "missing_credential" | "error";
+    status: "ready" | "partial" | "missing_credential" | "error";
     templateCount?: number;
     customPersonCount?: number;
     tagCount?: number;
@@ -420,16 +420,36 @@ export class ThirdPartyPlatformsService {
       };
     }
     try {
-      const [tags, templates, customPersons] = await Promise.all([
+      const [tagsResult, templatesResult, customPersonsResult] = await Promise.allSettled([
         this.chanjingOpenApiService.listTemplateTags(credential),
         this.chanjingOpenApiService.listCommonDigitalPersons(credential, { page: 1, size: 1 }),
         this.chanjingOpenApiService.listCustomisedPersons(credential, { page: 1, pageSize: 1 }),
       ]);
+      const templateCount = templatesResult.status === "fulfilled"
+        ? (templatesResult.value.pageInfo.totalCount || templatesResult.value.list.length)
+        : undefined;
+      const customPersonCount = customPersonsResult.status === "fulfilled"
+        ? (customPersonsResult.value.pageInfo.totalCount || customPersonsResult.value.list.length)
+        : undefined;
+      const tagCount = tagsResult.status === "fulfilled" ? tagsResult.value.length : undefined;
+      const failureMessages = [
+        tagsResult.status === "rejected" ? this.describeDynamicStatsFailure("标签统计", tagsResult.reason) : "",
+        templatesResult.status === "rejected" ? this.describeDynamicStatsFailure("模板统计", templatesResult.reason) : "",
+        customPersonsResult.status === "rejected" ? this.describeDynamicStatsFailure("定制数字人统计", customPersonsResult.reason) : "",
+      ].filter(Boolean);
+      if (typeof templateCount === "number" || typeof customPersonCount === "number" || typeof tagCount === "number") {
+        return {
+          status: failureMessages.length ? "partial" as const : "ready" as const,
+          templateCount,
+          customPersonCount,
+          tagCount,
+          syncedAt: new Date().toISOString(),
+          message: failureMessages.join("；") || undefined,
+        };
+      }
       return {
-        status: "ready" as const,
-        templateCount: templates.pageInfo.totalCount || templates.list.length,
-        customPersonCount: customPersons.pageInfo.totalCount || customPersons.list.length,
-        tagCount: tags.length,
+        status: "error" as const,
+        message: failureMessages.join("；") || "蝉镜统计同步失败",
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
@@ -440,6 +460,11 @@ export class ThirdPartyPlatformsService {
         syncedAt: new Date().toISOString(),
       };
     }
+  }
+
+  private describeDynamicStatsFailure(label: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "接口请求失败";
+    return `${label}失败：${message}`;
   }
 
   private async listUserSecrets(userId: string, brandId: string) {

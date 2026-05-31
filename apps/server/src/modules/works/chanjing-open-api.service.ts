@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 
 const CHANJING_BASE_URL = "https://open-api.chanjing.cc";
+const CHANJING_WEB_API_BASE_URL = "https://www.chanjing.cc/api";
 
 export type ChanjingTemplateFigure = {
   type: "whole_body" | "sit_body" | "circle_view";
@@ -176,14 +177,26 @@ export class ChanjingOpenApiService {
 
   async listTemplateTags(credential: string) {
     const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<{ list?: unknown[] }>(
-      "/open/v1/common/tag_list?business_type=1",
-      {
-        method: "GET",
-        accessToken,
-      },
-    );
-    return (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeTemplateTagGroup(item));
+    try {
+      const response = await this.requestJson<{ list?: unknown[] }>(
+        "/open/v1/common/tag_list?business_type=1",
+        {
+          method: "GET",
+          accessToken,
+        },
+      );
+      return this.normalizeTemplateTagGroups(response.list);
+    } catch {
+      const fallbackResponse = await this.requestJson<{ list?: unknown[] }>(
+        "/open/v1/common/tag_list?business_type=1",
+        {
+          method: "GET",
+          accessToken,
+          baseUrl: CHANJING_WEB_API_BASE_URL,
+        },
+      );
+      return this.normalizeTemplateTagGroups(fallbackResponse.list);
+    }
   }
 
   async listCommonDigitalPersons(
@@ -479,12 +492,13 @@ export class ChanjingOpenApiService {
       accessToken?: string;
       body?: Record<string, unknown>;
       timeoutMs?: number;
+      baseUrl?: string;
     },
   ) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
     try {
-      const response = await fetch(`${CHANJING_BASE_URL}${requestPath}`, {
+      const response = await fetch(`${options.baseUrl || CHANJING_BASE_URL}${requestPath}`, {
         method: options.method,
         headers: {
           Accept: "application/json",
@@ -494,10 +508,18 @@ export class ChanjingOpenApiService {
         body: options.method === "POST" ? JSON.stringify(options.body || {}) : undefined,
         signal: controller.signal,
       });
-      const payload = await response.json() as ChanjingResponse<T>;
+      const rawText = await response.text();
+      const payload = this.tryParseResponsePayload<T>(rawText, response.headers.get("content-type"));
       if (!response.ok) {
         throw new ServiceUnavailableException(
-          `蝉镜接口请求失败：${options.method} ${requestPath} ${response.status}${payload?.msg ? `，${payload.msg}` : ""}`,
+          `蝉镜接口请求失败：${options.method} ${requestPath} ${response.status}${
+            this.buildResponseMessage(payload?.msg, rawText) ? `，${this.buildResponseMessage(payload?.msg, rawText)}` : ""
+          }`,
+        );
+      }
+      if (!payload) {
+        throw new ServiceUnavailableException(
+          `蝉镜接口返回非 JSON：${options.method} ${requestPath}${rawText ? `，${this.buildPlainTextSummary(rawText)}` : ""}`,
         );
       }
       if (Number(payload?.code || 0) !== 0) {
@@ -519,6 +541,41 @@ export class ChanjingOpenApiService {
     }
   }
 
+  private tryParseResponsePayload<T>(rawText: string, contentType: string | null) {
+    const normalizedText = String(rawText || "").trim();
+    const normalizedContentType = String(contentType || "").toLowerCase();
+    if (!normalizedText) {
+      return undefined;
+    }
+    const looksLikeJson = normalizedContentType.includes("application/json")
+      || normalizedText.startsWith("{")
+      || normalizedText.startsWith("[");
+    if (!looksLikeJson) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(normalizedText) as ChanjingResponse<T>;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private buildResponseMessage(apiMessage: string | undefined, rawText: string) {
+    const normalizedApiMessage = String(apiMessage || "").trim();
+    if (normalizedApiMessage) {
+      return normalizedApiMessage;
+    }
+    return this.buildPlainTextSummary(rawText);
+  }
+
+  private buildPlainTextSummary(rawText: string) {
+    const normalized = String(rawText || "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return "";
+    }
+    return normalized.length > 160 ? `${normalized.slice(0, 160)}...` : normalized;
+  }
+
   private normalizeTemplateTagGroup(input: unknown): ChanjingTemplateTagGroup {
     const record = this.asRecord(input);
     const tagList = Array.isArray(record?.tag_list)
@@ -536,6 +593,10 @@ export class ChanjingOpenApiService {
       businessType: Number(record?.business_type || 0),
       tagList,
     };
+  }
+
+  private normalizeTemplateTagGroups(input: unknown[] | undefined) {
+    return (Array.isArray(input) ? input : []).map((item) => this.normalizeTemplateTagGroup(item));
   }
 
   private normalizeTemplate(input: unknown): ChanjingTemplateRecord {

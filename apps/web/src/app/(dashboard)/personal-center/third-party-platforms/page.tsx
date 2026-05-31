@@ -35,7 +35,7 @@ function normalizeDynamicStats(value: unknown): UserThirdPartyPlatformRecord["dy
   }
   const record = value as Record<string, unknown>;
   const status = record.status;
-  if (status !== "ready" && status !== "missing_credential" && status !== "error") {
+  if (status !== "ready" && status !== "partial" && status !== "missing_credential" && status !== "error") {
     return undefined;
   }
   return {
@@ -103,7 +103,7 @@ function getPlatformMetricTitle(platform: UserThirdPartyPlatformRecord) {
 
 function getPlatformMetricValue(platform: UserThirdPartyPlatformRecord) {
   if (isChanjingPlatform(platform)) {
-    if (platform.dynamicStats?.status === "ready") {
+    if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.templateCount ?? 0);
     }
     return "-";
@@ -117,7 +117,7 @@ function getPlatformDefaultLabel(platform: UserThirdPartyPlatformRecord) {
 
 function getPlatformDefaultValue(platform: UserThirdPartyPlatformRecord) {
   if (isChanjingPlatform(platform)) {
-    if (platform.dynamicStats?.status === "ready") {
+    if (platform.dynamicStats?.status === "ready" || platform.dynamicStats?.status === "partial") {
       return String(platform.dynamicStats.customPersonCount ?? 0);
     }
     if (platform.dynamicStats?.status === "missing_credential") {
@@ -134,6 +134,12 @@ function getChanjingStatsSummary(platform: UserThirdPartyPlatformRecord) {
   }
   if (platform.dynamicStats?.status === "ready") {
     return `标签 ${platform.dynamicStats.tagCount ?? 0} 个，已同步真实模板与定制数字人统计`;
+  }
+  if (platform.dynamicStats?.status === "partial") {
+    const tagText = typeof platform.dynamicStats.tagCount === "number"
+      ? `标签 ${platform.dynamicStats.tagCount} 个`
+      : "标签统计暂不可用";
+    return `${tagText}，模板与定制数字人数已同步。${platform.dynamicStats.message ? ` ${platform.dynamicStats.message}` : ""}`;
   }
   if (platform.dynamicStats?.status === "missing_credential") {
     return "当前还未配置蝉镜凭证，暂时无法同步模板与形象统计。";
@@ -576,9 +582,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <div className="admin-provider-chip-row" style={{ marginTop: 8 }}>
                   {selectedPlatformIsChanjing ? (
                     <>
-                      <span className="admin-provider-chip">模板 {selectedPlatform.dynamicStats?.templateCount ?? 0}</span>
-                      <span className="admin-provider-chip">定制数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? 0}</span>
-                      <span className="admin-provider-chip">标签 {selectedPlatform.dynamicStats?.tagCount ?? 0}</span>
+                      <span className="admin-provider-chip">模板 {selectedPlatform.dynamicStats?.templateCount ?? "-"}</span>
+                      <span className="admin-provider-chip">定制数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? "-"}</span>
+                      <span className="admin-provider-chip">标签 {selectedPlatform.dynamicStats?.tagCount ?? "-"}</span>
                     </>
                   ) : selectedPlatform.modelIds.length ? (
                     selectedPlatform.modelIds.map((model) => (

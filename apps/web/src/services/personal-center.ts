@@ -126,7 +126,7 @@ export type UserThirdPartyPlatformRecord = {
   apiKey: string;
   effectiveApiKeyMasked: string;
   dynamicStats?: {
-    status: "ready" | "missing_credential" | "error";
+    status: "ready" | "partial" | "missing_credential" | "error";
     templateCount?: number;
     customPersonCount?: number;
     tagCount?: number;

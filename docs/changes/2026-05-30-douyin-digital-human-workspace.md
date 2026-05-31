@@ -626,6 +626,27 @@
   - 兼容以下旧值并归一到蝉镜真实参数：
     - `hot_desc` -> `hottest`
     - `latest_desc` -> `latest`
+
+### 19. 蝉镜标签接口兼容与动态统计降级第十六轮
+
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 蝉镜请求层不再直接 `response.json()`，改为先读取原始文本再安全解析
+  - 当上游返回 404 纯文本、网关页或其他非 JSON 内容时，直接透出可读错误，不再显示 `Unexpected non-whitespace character after JSON at position 4`
+  - `listTemplateTags` 新增 `www.chanjing.cc/api` 回退请求，兼容 `open-api.chanjing.cc` 下 `tag_list` 返回 404 的现场
+- `apps/server/src/modules/third-party-platforms/third-party-platforms.service.ts`
+  - 蝉镜动态统计改为 `Promise.allSettled`
+  - 当标签接口失败但模板列表、定制数字人列表成功时，动态统计进入 `partial` 状态
+  - 页面仍展示：
+    - 模板数
+    - 定制数字人数
+    - 已同步时间
+    - 标签统计失败原因
+- `apps/web/src/services/personal-center.ts`
+  - 第三方平台前端类型为蝉镜动态统计补充 `partial` 状态
+- `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
+  - 蝉镜动态统计支持 `partial` 渲染
+  - 模板 / 定制数字人 / 标签 chip 对未取到的统计值显示 `-`
+  - 蝉镜说明文案改为优先展示“模板与定制数字人数已同步，标签接口暂不可用”的真实状态
   - 非法排序值不再透传给蝉镜，避免公共数字人模板列表被参数错误直接打空
 
 ## 第十三轮验证
