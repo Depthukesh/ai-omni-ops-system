@@ -266,6 +266,52 @@ export type DigitalHumanTemplatePageInfo = {
   totalPage: number;
 };
 
+export type VoiceLibraryPageInfo = DigitalHumanTemplatePageInfo;
+
+export type DouyinVoiceLibraryRecord = {
+  id: string;
+  grade?: number;
+  name: string;
+  gender?: string;
+  lang?: string;
+  desc?: string;
+  speed?: number;
+  pitch?: number;
+  audition?: string;
+};
+
+export type DouyinCustomVoiceRecord = {
+  id: string;
+  name: string;
+  type?: string;
+  progress: number;
+  audioPath?: string;
+  errMsg?: string;
+  status?: number;
+};
+
+export type DouyinSpeechSubtitleRecord = {
+  key: string;
+  startTime: number;
+  endTime: number;
+  subtitle: string;
+};
+
+export type DouyinSpeechTaskRecord = {
+  id: string;
+  type?: string;
+  status: number;
+  text: string[];
+  full?: {
+    url?: string;
+    path?: string;
+    duration?: number;
+  };
+  errMsg?: string;
+  errReason?: string;
+  subtitles: DouyinSpeechSubtitleRecord[];
+};
+
 export type DouyinDigitalHumanCustomPersonRecord = {
   id: string;
   name: string;
@@ -496,6 +542,22 @@ export type CreateDouyinLipSyncForm = {
   volume?: number;
   screenWidth?: number;
   screenHeight?: number;
+};
+
+export type CreateDouyinVoiceCloneForm = {
+  name?: string;
+  audioFile?: File | null;
+  modelType?: "cicada1.0" | "cicada3.0" | "cicada3.0-turbo";
+  language?: "cn" | "en";
+  text?: string;
+};
+
+export type GenerateDouyinSpeechForm = {
+  audioManId?: string;
+  text?: string;
+  speed?: number;
+  pitch?: number;
+  dialect?: number;
 };
 
 export async function getXiaohongshuOriginalWorks(brandId: string) {
@@ -906,6 +968,96 @@ export async function getDouyinDigitalHumanTemplates(
     list: DigitalHumanTemplateRecord[];
     pageInfo?: DigitalHumanTemplatePageInfo;
   }>(path);
+}
+
+export async function getDouyinVoiceLibrary(
+  brandId: string,
+  query?: {
+    page?: number;
+    size?: number;
+  },
+) {
+  const searchParams = new URLSearchParams();
+  if (query?.page && query.page > 0) {
+    searchParams.set("page", String(query.page));
+  }
+  if (query?.size && query.size > 0) {
+    searchParams.set("size", String(query.size));
+  }
+  const path = searchParams.toString()
+    ? `/works/brands/${brandId}/douyin/digital-human/voice-library?${searchParams.toString()}`
+    : `/works/brands/${brandId}/douyin/digital-human/voice-library`;
+  return request<{
+    list: DouyinVoiceLibraryRecord[];
+    pageInfo?: VoiceLibraryPageInfo;
+  }>(path);
+}
+
+export async function getDouyinCustomVoices(
+  brandId: string,
+  query?: {
+    page?: number;
+    pageSize?: number;
+  },
+) {
+  const searchParams = new URLSearchParams();
+  if (query?.page && query.page > 0) {
+    searchParams.set("page", String(query.page));
+  }
+  if (query?.pageSize && query.pageSize > 0) {
+    searchParams.set("pageSize", String(query.pageSize));
+  }
+  const path = searchParams.toString()
+    ? `/works/brands/${brandId}/douyin/digital-human/voice-library/custom?${searchParams.toString()}`
+    : `/works/brands/${brandId}/douyin/digital-human/voice-library/custom`;
+  return request<{
+    list: DouyinCustomVoiceRecord[];
+    pageInfo?: VoiceLibraryPageInfo;
+  }>(path);
+}
+
+export async function createDouyinCustomVoice(
+  brandId: string,
+  form: CreateDouyinVoiceCloneForm,
+) {
+  const audioFile = form.audioFile ? await toUploadPayload(form.audioFile) : undefined;
+  return jsonRequest<{ item: DouyinCustomVoiceRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/voice-library/custom`,
+    "POST",
+    {
+      name: form.name,
+      audioFile,
+      modelType: form.modelType,
+      language: form.language,
+      text: form.text,
+    },
+  );
+}
+
+export async function deleteDouyinCustomVoice(brandId: string, voiceId: string) {
+  return request<{ success: boolean }>(
+    `/works/brands/${brandId}/douyin/digital-human/voice-library/custom/${voiceId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function createDouyinSpeechTask(
+  brandId: string,
+  form: GenerateDouyinSpeechForm,
+) {
+  return jsonRequest<{ taskId: string; item: DouyinSpeechTaskRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/voice-library/speech`,
+    "POST",
+    form,
+  );
+}
+
+export async function getDouyinSpeechTaskDetail(brandId: string, taskId: string) {
+  return request<{ item: DouyinSpeechTaskRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/voice-library/speech/${taskId}`,
+  );
 }
 
 export async function getDouyinDigitalHumanFavoriteTemplates(brandId: string) {

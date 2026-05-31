@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Que
 import { AuthService } from "../auth/auth.service";
 import {
   type CreateDouyinDigitalHumanCustomPersonPayload,
+  type CreateDouyinVoiceClonePayload,
   type CreateDouyinLipSyncPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
@@ -15,6 +16,7 @@ import {
   type RecoverDouyinLipSyncPayload,
   type RecoverDouyinDirectVideoGenerationPayload,
   type RecoverDouyinVideoGenerationPayload,
+  type GenerateDouyinSpeechPayload,
   type RegenerateXiaohongshuVideoStoryboardPayload,
   type RegenerateDouyinVideoStoryboardPayload,
   type RecoverXiaohongshuVideoGenerationPayload,
@@ -156,6 +158,83 @@ export class WorksController {
         .map((item) => Number(item.trim()))
         .filter((item) => Number.isFinite(item) && item > 0),
     });
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/voice-library")
+  async listDouyinVoiceLibrary(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("page") page?: string,
+    @Query("size") size?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinVoiceLibrary(brandId, {
+      page: Number(page || 1) || 1,
+      size: Number(size || 24) || 24,
+    });
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/voice-library/custom")
+  async listDouyinCustomVoices(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.listDouyinCustomVoices(brandId, {
+      page: Number(page || 1) || 1,
+      pageSize: Number(pageSize || 24) || 24,
+    });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/voice-library/custom")
+  createDouyinCustomVoice(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinVoiceClonePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.createDouyinCustomVoice(brandId, payload, auth);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/digital-human/voice-library/custom/:voiceId")
+  deleteDouyinCustomVoice(
+    @Param("brandId") brandId: string,
+    @Param("voiceId") voiceId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.deleteDouyinCustomVoice(brandId, voiceId, auth);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/voice-library/speech")
+  createDouyinSpeechTask(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinSpeechPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.createDouyinSpeechTask(brandId, payload, auth);
+    });
+  }
+
+  @Get("brands/:brandId/douyin/digital-human/voice-library/speech/:taskId")
+  async getDouyinSpeechTaskDetail(
+    @Param("brandId") brandId: string,
+    @Param("taskId") taskId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "view", auth);
+    return this.worksService.getDouyinSpeechTaskDetail(brandId, taskId);
   }
 
   @Get("brands/:brandId/douyin/digital-human/video")

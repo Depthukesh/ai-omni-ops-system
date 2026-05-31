@@ -6,15 +6,20 @@ import {
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
+  type DouyinCustomVoiceRecord,
   type DouyinDigitalHumanCustomPersonRecord,
   type DouyinLipSyncWorkRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
+  type DouyinSpeechTaskRecord,
+  type DouyinVoiceLibraryRecord,
+  type VoiceLibraryPageInfo,
 } from "../../../services/works";
 import { DigitalHumanCustomPersonWorkspace } from "./digital-human-custom-person-workspace";
 import { DigitalHumanLipSyncWorkspace } from "./digital-human-lip-sync-workspace";
 import { DigitalHumanPlaceholderPanel } from "./digital-human-placeholder-panel";
 import { DigitalHumanTemplateLibrary } from "./digital-human-template-library";
+import { DigitalHumanVoiceLibraryWorkspace } from "./digital-human-voice-library-workspace";
 import { DigitalHumanVideoPanel } from "./digital-human-video-panel";
 import { DigitalHumanWorksCenterPanel } from "./digital-human-works-center-panel";
 import { WorkspaceSectionHeader } from "../xiaohongshu/note-workspace-shared-panels";
@@ -57,10 +62,11 @@ type PersonalScriptTemplateFilter = "ALL" | "SELF" | "SHARED";
 type PersonalScriptTemplateArchiveFilter = "ACTIVE" | "ARCHIVED" | "ALL";
 type PersonalScriptTemplateGovernanceFilter = "ALL" | "NEED_NOTE" | "READONLY_SHARED" | "SHARED_ACTIVE" | "ARCHIVED";
 type ScriptTemplateCategory = "general" | "brand_promo" | "activity_promo" | "knowledge" | "live_warmup" | "selling";
-type DigitalHumanWorkspaceTab = "templateLibrary" | "videoStudio" | "worksCenter" | "customPerson" | "lipSync";
+type DigitalHumanWorkspaceTab = "templateLibrary" | "voiceLibrary" | "videoStudio" | "worksCenter" | "customPerson" | "lipSync";
 
 const DIGITAL_HUMAN_WORKSPACE_TABS: Array<{ key: DigitalHumanWorkspaceTab; label: string; description: string }> = [
   { key: "templateLibrary", label: "模板库", description: "先筛选并预览公共数字人模板，再带入视频创建。" },
+  { key: "voiceLibrary", label: "语音库", description: "浏览公共声音、管理我的声音，并完成语音克隆和语音合成。" },
   { key: "videoStudio", label: "数字人视频", description: "基于选中模板填写脚本和参数，提交数字人视频。" },
   { key: "worksCenter", label: "作品中心", description: "查看数字人视频结果、失败任务和找回进度。" },
   { key: "customPerson", label: "定制数字人", description: "V2 能力，占位说明已补，后续接训练和管理接口。" },
@@ -167,6 +173,12 @@ export interface DouyinDigitalHumanWorkspaceProps {
   items: DouyinDigitalHumanVideoWorkRecord[];
   customPersons: DouyinDigitalHumanCustomPersonRecord[];
   lipSyncItems: DouyinLipSyncWorkRecord[];
+  publicVoices: DouyinVoiceLibraryRecord[];
+  customVoices: DouyinCustomVoiceRecord[];
+  publicVoicePageInfo?: VoiceLibraryPageInfo;
+  customVoicePageInfo?: VoiceLibraryPageInfo;
+  currentSpeechTask?: DouyinSpeechTaskRecord | null;
+  currentSpeechTaskId?: string;
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
   favoriteTemplateIds: string[];
@@ -244,6 +256,24 @@ export interface DouyinDigitalHumanWorkspaceProps {
   onDeleteCustomPerson: (customPersonId: string) => Promise<boolean>;
   onDelete: (workId: string) => Promise<boolean>;
   onDeleteLipSync: (workId: string) => Promise<boolean>;
+  onRefreshPublicVoices: (page: number) => Promise<void>;
+  onRefreshCustomVoices: (page: number) => Promise<void>;
+  onCreateCustomVoice: (payload: {
+    name?: string;
+    audioFile?: File | null;
+    modelType?: "cicada1.0" | "cicada3.0" | "cicada3.0-turbo";
+    language?: "cn" | "en";
+    text?: string;
+  }) => Promise<boolean>;
+  onDeleteCustomVoice: (voiceId: string) => Promise<boolean>;
+  onCreateSpeechTask: (payload: {
+    audioManId?: string;
+    text?: string;
+    speed?: number;
+    pitch?: number;
+    dialect?: number;
+  }) => Promise<boolean>;
+  onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -677,6 +707,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const primaryActionLabel =
     activeTab === "templateLibrary"
       ? "带入视频创建"
+      : activeTab === "voiceLibrary"
+        ? "刷新语音库"
       : activeTab === "videoStudio"
         ? "提交数字人视频"
         : activeTab === "worksCenter"
@@ -685,6 +717,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const primaryActionDisabled =
     activeTab === "templateLibrary"
       ? !selectedTemplate
+      : activeTab === "voiceLibrary"
+        ? props.isSubmitting
       : activeTab === "videoStudio"
         ? createDisabled
         : activeTab === "worksCenter"
@@ -1118,6 +1152,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
             }
             return;
           }
+          if (activeTab === "voiceLibrary") {
+            void props.onRefresh();
+            return;
+          }
           if (activeTab === "videoStudio") {
             handleSubmitCurrentVideo();
             return;
@@ -1287,6 +1325,26 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           getFigureTypeLabel={getFigureTypeLabel}
           getScriptTemplateCategoryLabel={getScriptTemplateCategoryLabel}
           getScriptTemplateArchiveLabel={getScriptTemplateArchiveLabel}
+        />
+      ) : null}
+
+      {activeTab === "voiceLibrary" ? (
+        <DigitalHumanVoiceLibraryWorkspace
+          publicVoices={props.publicVoices}
+          customVoices={props.customVoices}
+          publicVoicePageInfo={props.publicVoicePageInfo}
+          customVoicePageInfo={props.customVoicePageInfo}
+          currentSpeechTask={props.currentSpeechTask}
+          currentSpeechTaskId={props.currentSpeechTaskId}
+          isSubmitting={props.isSubmitting}
+          canEdit={props.canEdit}
+          onRefresh={props.onRefresh}
+          onRefreshPublicVoices={props.onRefreshPublicVoices}
+          onRefreshCustomVoices={props.onRefreshCustomVoices}
+          onCreateCustomVoice={props.onCreateCustomVoice}
+          onDeleteCustomVoice={props.onDeleteCustomVoice}
+          onCreateSpeechTask={props.onCreateSpeechTask}
+          onRefreshSpeechTask={props.onRefreshSpeechTask}
         />
       ) : null}
 

@@ -459,6 +459,70 @@
   - 页面被打叉的顶部概览区已去掉
   - 标签异常不再出现在页面上，直接按无标签模式展示
 
+### 19. 独立语音库板块与语音能力接入第二十轮
+
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 新增蝉镜语音相关 OpenAPI 能力：
+    - 公共声音列表
+    - 定制声音创建 / 详情 / 列表 / 删除
+    - 语音合成任务创建 / 状态查询
+  - 新增公共声音、定制声音、语音合成结果的归一化结构
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增抖音数字人语音库业务封装：
+    - `listDouyinVoiceLibrary`
+    - `listDouyinCustomVoices`
+    - `createDouyinCustomVoice`
+    - `deleteDouyinCustomVoice`
+    - `createDouyinSpeechTask`
+    - `getDouyinSpeechTaskDetail`
+  - 新增 `prompt_audio` 上传链路，支持声音克隆前的音频上传与文件就绪轮询
+- `apps/server/src/modules/works/works.controller.ts`
+  - 新增语音库路由：
+    - `GET /works/brands/:brandId/douyin/digital-human/voice-library`
+    - `GET /works/brands/:brandId/douyin/digital-human/voice-library/custom`
+    - `POST /works/brands/:brandId/douyin/digital-human/voice-library/custom`
+    - `DELETE /works/brands/:brandId/douyin/digital-human/voice-library/custom/:voiceId`
+    - `POST /works/brands/:brandId/douyin/digital-human/voice-library/speech`
+    - `GET /works/brands/:brandId/douyin/digital-human/voice-library/speech/:taskId`
+- `apps/web/src/services/works.ts`
+  - 新增前端语音类型：
+    - `DouyinVoiceLibraryRecord`
+    - `DouyinCustomVoiceRecord`
+    - `DouyinSpeechTaskRecord`
+  - 新增语音请求方法：
+    - `getDouyinVoiceLibrary`
+    - `getDouyinCustomVoices`
+    - `createDouyinCustomVoice`
+    - `deleteDouyinCustomVoice`
+    - `createDouyinSpeechTask`
+    - `getDouyinSpeechTaskDetail`
+- `apps/web/src/app/(dashboard)/douyin/digital-human-voice-library-workspace.tsx`
+  - 新增独立语音库子组件
+  - 页面结构改为接近蝉镜 `audio` 页的：
+    - 顶部摘要卡
+    - `公共声音 / 我的声音` 切换
+    - 筛选条
+    - 左侧声音列表
+    - 右侧声音创作区
+  - 支持试听、分页、定制声音创建、删除、语音合成和结果查看
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 在 `模板库` 后新增独立 `语音库` tab
+  - 接入语音库组件渲染和相关 props
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 新增语音库状态：
+    - 公共声音列表
+    - 我的声音列表
+    - 语音合成当前任务与任务 ID
+  - 数字人工作台初始化和刷新时会同步加载语音数据
+  - 活跃任务轮询新增定制声音制作中与语音合成进行中的判断
+  - 新增语音分页、声音克隆、删除声音、语音合成和结果刷新动作
+- `apps/web/src/styles/globals.css`
+  - 新增语音库独立样式，覆盖摘要卡、筛选区、声音卡片、创作区和字幕切片布局
+- 本轮效果
+  - 数字人工作台现在有独立的 `语音库` 板块，位置紧跟 `模板库`
+  - 公共声音、定制声音、语音合成已经从服务端到前端完整接通
+  - 页面不再只是表单堆叠，而是更接近蝉镜声音库的双栏浏览与创作布局
+
 ### 14. 定制数字人与视频创建参数映射第九轮
 
 - `apps/web/src/services/works.ts`

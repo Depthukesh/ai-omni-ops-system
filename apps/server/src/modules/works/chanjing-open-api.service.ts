@@ -165,6 +165,75 @@ export type ChanjingCustomisedPersonRecord = {
   width4k?: number;
 };
 
+export type ChanjingCommonAudioRecord = {
+  id: string;
+  grade?: number;
+  name: string;
+  gender?: string;
+  lang?: string;
+  desc?: string;
+  speed?: number;
+  pitch?: number;
+  audition?: string;
+};
+
+export type ChanjingCustomisedAudioRecord = {
+  id: string;
+  name: string;
+  type?: string;
+  progress: number;
+  audioPath?: string;
+  errMsg?: string;
+  status?: number;
+};
+
+export type ChanjingCreateCustomisedAudioPayload = {
+  name: string;
+  url: string;
+  modelType?: "cicada1.0" | "cicada3.0" | "cicada3.0-turbo";
+  language?: "cn" | "en";
+  text?: string;
+  callback?: string;
+};
+
+export type ChanjingCreateAudioTaskPayload = {
+  audioMan: string;
+  speed: number;
+  pitch: number;
+  text: {
+    text: string;
+    plainText?: string;
+  };
+  fontSize?: number;
+  width?: number;
+  height?: number;
+  callback?: string;
+  aigcWatermark?: boolean;
+  dialect?: number;
+};
+
+export type ChanjingAudioTaskSubtitle = {
+  key: string;
+  startTime: number;
+  endTime: number;
+  subtitle: string;
+};
+
+export type ChanjingAudioTaskDetail = {
+  id: string;
+  type?: string;
+  status: number;
+  text: string[];
+  full?: {
+    url?: string;
+    path?: string;
+    duration?: number;
+  };
+  errMsg?: string;
+  errReason?: string;
+  subtitles: ChanjingAudioTaskSubtitle[];
+};
+
 type ChanjingResponse<T> = {
   code?: number;
   msg?: string;
@@ -382,6 +451,129 @@ export class ChanjingOpenApiService {
       },
     });
     return { success: true };
+  }
+
+  async listCommonAudios(
+    credential: string,
+    options?: {
+      page?: number;
+      size?: number;
+    },
+  ) {
+    const searchParams = new URLSearchParams();
+    searchParams.set("page", String(Math.max(1, options?.page || 1)));
+    searchParams.set("size", String(Math.min(50, Math.max(1, options?.size || 24))));
+    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
+      credential,
+      `/open/v1/list_common_audio?${searchParams.toString()}`,
+      {
+        method: "GET",
+      },
+    );
+    return {
+      list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeCommonAudio(item)),
+      pageInfo: this.normalizePageInfo(response.page_info),
+    };
+  }
+
+  async createCustomisedAudio(credential: string, payload: ChanjingCreateCustomisedAudioPayload) {
+    const response = await this.requestCredentialJson<string>(credential, "/open/v1/create_customised_audio", {
+      method: "POST",
+      body: {
+        name: payload.name,
+        url: payload.url,
+        model_type: payload.modelType,
+        language: payload.language,
+        text: payload.text,
+        callback: payload.callback,
+      },
+    });
+    const audioId = String(response || "").trim();
+    if (!audioId) {
+      throw new ServiceUnavailableException("蝉镜创建定制声音失败：未返回声音 ID");
+    }
+    return audioId;
+  }
+
+  async getCustomisedAudioDetail(credential: string, id: string) {
+    const response = await this.requestCredentialJson<unknown>(
+      credential,
+      `/open/v1/customised_audio?id=${encodeURIComponent(String(id || "").trim())}`,
+      {
+        method: "GET",
+      },
+    );
+    return this.normalizeCustomisedAudio(response);
+  }
+
+  async listCustomisedAudios(
+    credential: string,
+    options?: {
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
+      credential,
+      "/open/v1/list_customised_audio",
+      {
+        method: "POST",
+        body: {
+          page: Math.max(1, options?.page || 1),
+          page_size: Math.min(50, Math.max(1, options?.pageSize || 24)),
+        },
+      },
+    );
+    return {
+      list: (Array.isArray(response.list) ? response.list : []).map((item) => this.normalizeCustomisedAudio(item)),
+      pageInfo: this.normalizePageInfo(response.page_info),
+    };
+  }
+
+  async deleteCustomisedAudio(credential: string, id: string) {
+    await this.requestCredentialJson<string>(credential, "/open/v1/delete_customised_audio", {
+      method: "POST",
+      body: {
+        id: String(id || "").trim(),
+      },
+    });
+    return { success: true };
+  }
+
+  async createAudioTask(credential: string, payload: ChanjingCreateAudioTaskPayload) {
+    const response = await this.requestCredentialJson<{ task_id?: string }>(credential, "/open/v1/create_audio_task", {
+      method: "POST",
+      body: {
+        audio_man: payload.audioMan,
+        speed: payload.speed,
+        pitch: payload.pitch,
+        text: {
+          text: payload.text.text,
+          plain_text: payload.text.plainText,
+        },
+        font_size: payload.fontSize,
+        width: payload.width,
+        height: payload.height,
+        callback: payload.callback,
+        aigc_watermark: payload.aigcWatermark,
+        dialect: payload.dialect,
+      },
+    });
+    const taskId = String(response?.task_id || "").trim();
+    if (!taskId) {
+      throw new ServiceUnavailableException("蝉镜语音合成失败：未返回任务 ID");
+    }
+    return taskId;
+  }
+
+  async getAudioTaskDetail(credential: string, taskId: string) {
+    const response = await this.requestCredentialJson<unknown>(credential, "/open/v1/audio_task_state", {
+      method: "POST",
+      body: {
+        task_id: String(taskId || "").trim(),
+      },
+    });
+    return this.normalizeAudioTaskDetail(response);
   }
 
   async createLipSyncVideo(credential: string, payload: ChanjingCreateLipSyncPayload) {
@@ -718,6 +910,65 @@ export class ChanjingOpenApiService {
       support4k: typeof record?.support_4k === "boolean" ? record.support_4k : undefined,
       height4k: Number(record?.height_4k || 0) || undefined,
       width4k: Number(record?.width_4k || 0) || undefined,
+    };
+  }
+
+  private normalizeCommonAudio(input: unknown): ChanjingCommonAudioRecord {
+    const record = this.asRecord(input);
+    return {
+      id: String(record?.id || "").trim(),
+      grade: Number(record?.grade || 0) || undefined,
+      name: String(record?.name || "").trim(),
+      gender: String(record?.gender || "").trim() || undefined,
+      lang: String(record?.lang || "").trim() || undefined,
+      desc: String(record?.desc || "").trim() || undefined,
+      speed: typeof record?.speed === "number" ? record.speed : Number(record?.speed || 0) || undefined,
+      pitch: typeof record?.pitch === "number" ? record.pitch : Number(record?.pitch || 0) || undefined,
+      audition: String(record?.audition || "").trim() || undefined,
+    };
+  }
+
+  private normalizeCustomisedAudio(input: unknown): ChanjingCustomisedAudioRecord {
+    const record = this.asRecord(input);
+    return {
+      id: String(record?.id || "").trim(),
+      name: String(record?.name || "").trim(),
+      type: String(record?.type || "").trim() || undefined,
+      progress: Number(record?.progress || 0),
+      audioPath: String(record?.audio_path || "").trim() || undefined,
+      errMsg: String(record?.err_msg || "").trim() || undefined,
+      status: typeof record?.status === "number" ? record.status : Number(record?.status || 0) || undefined,
+    };
+  }
+
+  private normalizeAudioTaskDetail(input: unknown): ChanjingAudioTaskDetail {
+    const record = this.asRecord(input);
+    const full = this.asRecord(record?.full);
+    return {
+      id: String(record?.id || "").trim(),
+      type: String(record?.type || "").trim() || undefined,
+      status: Number(record?.status || 0),
+      text: Array.isArray(record?.text) ? record.text.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      full: full
+        ? {
+            url: String(full.url || "").trim() || undefined,
+            path: String(full.path || "").trim() || undefined,
+            duration: typeof full.duration === "number" ? full.duration : Number(full.duration || 0) || undefined,
+          }
+        : undefined,
+      errMsg: String(record?.errMsg || "").trim() || undefined,
+      errReason: String(record?.errReason || "").trim() || undefined,
+      subtitles: Array.isArray(record?.subtitles)
+        ? record.subtitles.map((item) => {
+            const subtitle = this.asRecord(item);
+            return {
+              key: String(subtitle?.key || "").trim(),
+              startTime: Number(subtitle?.start_time || 0),
+              endTime: Number(subtitle?.end_time || 0),
+              subtitle: String(subtitle?.subtitle || "").trim(),
+            };
+          }).filter((item) => item.subtitle)
+        : [],
     };
   }
 

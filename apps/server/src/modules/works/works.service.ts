@@ -17,7 +17,10 @@ import { ReportsService, type XiaohongshuMarketingCalendarRecord } from "../repo
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 import { XHS_ORIGINAL_REFERENCE_TEMPLATE_LIBRARY } from "./xhs-original-reference-templates.generated";
 import {
+  type ChanjingAudioTaskDetail,
+  type ChanjingCommonAudioRecord,
   ChanjingOpenApiService,
+  type ChanjingCustomisedAudioRecord,
   type ChanjingCreateLipSyncPayload,
   type ChanjingCustomisedPersonRecord,
   type ChanjingFileRecord,
@@ -231,6 +234,22 @@ export type CreateDouyinLipSyncPayload = {
   volume?: number;
   screenWidth?: number;
   screenHeight?: number;
+};
+
+export type CreateDouyinVoiceClonePayload = {
+  name?: string;
+  audioFile?: UploadFilePayload;
+  modelType?: "cicada1.0" | "cicada3.0" | "cicada3.0-turbo";
+  language?: "cn" | "en";
+  text?: string;
+};
+
+export type GenerateDouyinSpeechPayload = {
+  audioManId?: string;
+  text?: string;
+  speed?: number;
+  pitch?: number;
+  dialect?: number;
 };
 
 export type RecoverDouyinLipSyncPayload = {
@@ -1569,6 +1588,134 @@ export class WorksService {
     return {
       list: response.list,
       pageInfo: response.pageInfo,
+    };
+  }
+
+  async listDouyinVoiceLibrary(
+    brandId: string,
+    options?: {
+      page?: number;
+      size?: number;
+    },
+  ) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    const response = await this.chanjingOpenApiService.listCommonAudios(credential, options);
+    return {
+      list: response.list,
+      pageInfo: response.pageInfo,
+    };
+  }
+
+  async listDouyinCustomVoices(
+    brandId: string,
+    options?: {
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    const response = await this.chanjingOpenApiService.listCustomisedAudios(credential, options);
+    return {
+      list: response.list,
+      pageInfo: response.pageInfo,
+    };
+  }
+
+  async createDouyinCustomVoice(
+    brandId: string,
+    payload: CreateDouyinVoiceClonePayload,
+    _auth?: RequestAuthContext,
+  ) {
+    if (!payload.audioFile) {
+      throw new BadRequestException("请先上传用于克隆的声音文件。");
+    }
+    this.validateLipSyncAudioFile(payload.audioFile);
+    const credential = await this.resolveChanjingCredential(brandId);
+    const uploaded = await this.uploadChanjingPromptAudio(credential, payload.audioFile);
+    const normalizedName = this.normalizeVoiceCloneName(payload.name, payload.audioFile.fileName);
+    const voiceId = await this.chanjingOpenApiService.createCustomisedAudio(credential, {
+      name: normalizedName,
+      url: uploaded.fileUrl,
+      modelType: payload.modelType,
+      language: payload.language,
+      text: this.normalizeVoicePreviewText(payload.text),
+    });
+    let item: ChanjingCustomisedAudioRecord;
+    try {
+      item = await this.chanjingOpenApiService.getCustomisedAudioDetail(credential, voiceId);
+    } catch {
+      item = {
+        id: voiceId,
+        name: normalizedName,
+        type: payload.modelType,
+        progress: 0,
+        audioPath: uploaded.fileUrl,
+        status: 0,
+      };
+    }
+    return { item };
+  }
+
+  async deleteDouyinCustomVoice(brandId: string, voiceId: string, _auth?: RequestAuthContext) {
+    const normalizedVoiceId = String(voiceId || "").trim();
+    if (!normalizedVoiceId) {
+      throw new BadRequestException("缺少要删除的定制声音 ID。");
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    await this.chanjingOpenApiService.deleteCustomisedAudio(credential, normalizedVoiceId);
+    return { success: true };
+  }
+
+  async createDouyinSpeechTask(
+    brandId: string,
+    payload: GenerateDouyinSpeechPayload,
+    _auth?: RequestAuthContext,
+  ) {
+    const audioManId = String(payload.audioManId || "").trim();
+    const text = String(payload.text || "").trim();
+    if (!audioManId) {
+      throw new BadRequestException("请先选择一个声音，再创建语音合成任务。");
+    }
+    if (!text) {
+      throw new BadRequestException("请输入要合成的文本内容。");
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    const taskId = await this.chanjingOpenApiService.createAudioTask(credential, {
+      audioMan: audioManId,
+      speed: this.normalizeSpeechRate(payload.speed),
+      pitch: this.normalizeSpeechPitch(payload.pitch),
+      dialect: this.normalizeSpeechDialect(payload.dialect),
+      text: {
+        text,
+        plainText: text,
+      },
+    });
+    let item: ChanjingAudioTaskDetail;
+    try {
+      item = await this.chanjingOpenApiService.getAudioTaskDetail(credential, taskId);
+    } catch {
+      item = {
+        id: taskId,
+        type: "tts",
+        status: 1,
+        text: [text],
+        subtitles: [],
+      };
+    }
+    return {
+      taskId,
+      item,
+    };
+  }
+
+  async getDouyinSpeechTaskDetail(brandId: string, taskId: string) {
+    const normalizedTaskId = String(taskId || "").trim();
+    if (!normalizedTaskId) {
+      throw new BadRequestException("缺少语音合成任务 ID。");
+    }
+    const credential = await this.resolveChanjingCredential(brandId);
+    return {
+      item: await this.chanjingOpenApiService.getAudioTaskDetail(credential, normalizedTaskId),
     };
   }
 
@@ -7767,6 +7914,28 @@ export class WorksService {
     };
   }
 
+  private async uploadChanjingPromptAudio(credential: string, payload: UploadFilePayload) {
+    const upload = await this.chanjingOpenApiService.createUploadUrl(credential, {
+      service: "prompt_audio",
+      name: payload.fileName || `prompt-audio${this.resolveAudioExtensionFromMimeType(payload.contentType, ".mp3")}`,
+    });
+    await this.chanjingOpenApiService.uploadSignedFile(
+      upload.signUrl,
+      payload,
+      upload.mimeType || payload.contentType || "application/octet-stream",
+    );
+    const fileDetail = await this.waitForChanjingFileReady(credential, upload.fileId);
+    const fileUrl = String(fileDetail.filePath || upload.fullPath || "").trim();
+    if (!fileUrl) {
+      throw new ServiceUnavailableException("蝉镜语音文件上传成功，但未返回可用文件地址。");
+    }
+    return {
+      ...upload,
+      fileDetail,
+      fileUrl,
+    };
+  }
+
   private buildChanjingLipSyncCreatePayload(meta: DouyinLipSyncWorkAssetMeta): ChanjingCreateLipSyncPayload {
     return {
       video_file_id: meta.sourceVideoFileId || "",
@@ -13414,6 +13583,46 @@ export class WorksService {
       return ".mp3";
     }
     return this.resolveExtensionFromFileName(fallbackFileName, ".mp3");
+  }
+
+  private normalizeVoiceCloneName(name: string | undefined, fallbackFileName = "") {
+    const normalized = String(name || "").trim();
+    if (normalized) {
+      return normalized.slice(0, 60);
+    }
+    const fallback = String(fallbackFileName || "")
+      .replace(/\.[^.]+$/, "")
+      .trim();
+    return (fallback || `定制声音-${Date.now()}`).slice(0, 60);
+  }
+
+  private normalizeVoicePreviewText(text: string | undefined) {
+    const normalized = String(text || "").trim();
+    return normalized ? normalized.slice(0, 50) : undefined;
+  }
+
+  private normalizeSpeechRate(value?: number) {
+    const numeric = Number(value || 1);
+    if (!Number.isFinite(numeric)) {
+      return 1;
+    }
+    return Math.min(2, Math.max(0.5, numeric));
+  }
+
+  private normalizeSpeechPitch(value?: number) {
+    const numeric = Number(value || 1);
+    if (!Number.isFinite(numeric)) {
+      return 1;
+    }
+    return Math.min(3, Math.max(0, numeric));
+  }
+
+  private normalizeSpeechDialect(value?: number) {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) {
+      return undefined;
+    }
+    return Math.min(12, Math.max(0, Math.trunc(numeric)));
   }
 
   private async cacheRemoteGeneratedVideo(brandId: string, fileName: string, remoteUrl: string) {

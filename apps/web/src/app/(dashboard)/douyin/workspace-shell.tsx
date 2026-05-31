@@ -37,8 +37,11 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  createDouyinCustomVoice,
   createDouyinDigitalHumanCustomPerson,
   createDouyinDigitalHumanScriptTemplate,
+  createDouyinSpeechTask,
+  deleteDouyinCustomVoice,
   deleteDouyinDigitalHumanCustomPerson,
   deleteDouyinLipSyncWork,
   deleteDouyinDigitalHumanVideoWork,
@@ -58,12 +61,15 @@ import {
   getDouyinDigitalHumanTemplates,
   getDouyinDigitalHumanTemplateTags,
   getDouyinDigitalHumanVideoWorks,
+  getDouyinCustomVoices,
   getDouyinLipSyncWorks,
+  getDouyinSpeechTaskDetail,
   getDouyinDirectVideoProviders,
   getDouyinDirectVideoWorks,
   getDouyinVideoProviders,
   getDouyinVideoStoryboardImageProviders,
   getDouyinVideoWorks,
+  getDouyinVoiceLibrary,
   recoverDouyinDigitalHumanVideo,
   recoverDouyinLipSyncGeneration,
   recoverDouyinDirectVideoGeneration,
@@ -75,10 +81,14 @@ import {
   type DouyinDigitalHumanCustomPersonRecord,
   type DouyinLipSyncWorkRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
+  type DouyinCustomVoiceRecord,
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
   type DouyinDigitalHumanVideoWorkRecord,
+  type DouyinSpeechTaskRecord,
+  type DouyinVoiceLibraryRecord,
+  type VoiceLibraryPageInfo,
   updateDouyinDirectVideoWork,
   updateDouyinVideoWork,
   type DouyinDirectVideoWorkRecord,
@@ -201,6 +211,12 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanTemplateTags, setDigitalHumanTemplateTags] = useState<DigitalHumanTemplateTagGroupRecord[]>([]);
   const [digitalHumanFavoriteTemplates, setDigitalHumanFavoriteTemplates] = useState<DouyinDigitalHumanFavoriteTemplateRecord[]>([]);
   const [digitalHumanScriptTemplates, setDigitalHumanScriptTemplates] = useState<DouyinDigitalHumanScriptTemplateRecord[]>([]);
+  const [digitalHumanPublicVoices, setDigitalHumanPublicVoices] = useState<DouyinVoiceLibraryRecord[]>([]);
+  const [digitalHumanCustomVoices, setDigitalHumanCustomVoices] = useState<DouyinCustomVoiceRecord[]>([]);
+  const [digitalHumanPublicVoicePageInfo, setDigitalHumanPublicVoicePageInfo] = useState<VoiceLibraryPageInfo | undefined>(undefined);
+  const [digitalHumanCustomVoicePageInfo, setDigitalHumanCustomVoicePageInfo] = useState<VoiceLibraryPageInfo | undefined>(undefined);
+  const [digitalHumanCurrentSpeechTask, setDigitalHumanCurrentSpeechTask] = useState<DouyinSpeechTaskRecord | null>(null);
+  const [digitalHumanCurrentSpeechTaskId, setDigitalHumanCurrentSpeechTaskId] = useState("");
   const [digitalHumanTemplatePageInfo, setDigitalHumanTemplatePageInfo] = useState<DigitalHumanTemplatePageInfo | undefined>(undefined);
   const [digitalHumanTemplateTagId, setDigitalHumanTemplateTagId] = useState("");
   const [digitalHumanTemplateError, setDigitalHumanTemplateError] = useState("");
@@ -247,7 +263,9 @@ export function DouyinWorkspaceShell() {
   const isDigitalHumanTaskActive =
     digitalHumanWorks.some((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING")
     || digitalHumanCustomPersons.some((item) => item.status === "PENDING" || item.status === "RUNNING")
-    || digitalHumanLipSyncWorks.some((item) => item.status === "PENDING" || item.status === "RUNNING");
+    || digitalHumanLipSyncWorks.some((item) => item.status === "PENDING" || item.status === "RUNNING")
+    || digitalHumanCustomVoices.some((item) => item.status === 1)
+    || Boolean(digitalHumanCurrentSpeechTaskId && digitalHumanCurrentSpeechTask?.status !== 9 && !digitalHumanCurrentSpeechTask?.errMsg && !digitalHumanCurrentSpeechTask?.errReason);
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -345,6 +363,37 @@ export function DouyinWorkspaceShell() {
     return items.items || [];
   }, [activeBrandId]);
 
+  const refreshDigitalHumanPublicVoices = useCallback(async (page = 1) => {
+    const response = await getDouyinVoiceLibrary(activeBrandId, {
+      page,
+      size: digitalHumanPublicVoicePageInfo?.size || 24,
+    });
+    setDigitalHumanPublicVoices(response.list || []);
+    setDigitalHumanPublicVoicePageInfo(response.pageInfo);
+    return response.list || [];
+  }, [activeBrandId, digitalHumanPublicVoicePageInfo?.size]);
+
+  const refreshDigitalHumanCustomVoices = useCallback(async (page = 1) => {
+    const response = await getDouyinCustomVoices(activeBrandId, {
+      page,
+      pageSize: digitalHumanCustomVoicePageInfo?.size || 24,
+    });
+    setDigitalHumanCustomVoices(response.list || []);
+    setDigitalHumanCustomVoicePageInfo(response.pageInfo);
+    return response.list || [];
+  }, [activeBrandId, digitalHumanCustomVoicePageInfo?.size]);
+
+  const refreshDigitalHumanSpeechTask = useCallback(async (taskId?: string) => {
+    const targetTaskId = String(taskId || digitalHumanCurrentSpeechTaskId || "").trim();
+    if (!targetTaskId) {
+      return null;
+    }
+    const response = await getDouyinSpeechTaskDetail(activeBrandId, targetTaskId);
+    setDigitalHumanCurrentSpeechTaskId(targetTaskId);
+    setDigitalHumanCurrentSpeechTask(response.item || null);
+    return response.item || null;
+  }, [activeBrandId, digitalHumanCurrentSpeechTaskId]);
+
   const loadDigitalHumanTemplates = useCallback(async (
     options?: {
       page?: number;
@@ -384,13 +433,24 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates] = await Promise.allSettled([
+    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates, publicVoices, customVoices, speechTask] = await Promise.allSettled([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanCustomPersons(activeBrandId),
       getDouyinLipSyncWorks(activeBrandId),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
       getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
       getDouyinDigitalHumanScriptTemplates(activeBrandId),
+      getDouyinVoiceLibrary(activeBrandId, {
+        page: digitalHumanPublicVoicePageInfo?.page || 1,
+        size: digitalHumanPublicVoicePageInfo?.size || 24,
+      }),
+      getDouyinCustomVoices(activeBrandId, {
+        page: digitalHumanCustomVoicePageInfo?.page || 1,
+        pageSize: digitalHumanCustomVoicePageInfo?.size || 24,
+      }),
+      digitalHumanCurrentSpeechTaskId
+        ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
+        : Promise.resolve({ item: digitalHumanCurrentSpeechTask || null }),
     ]);
     if (items.status === "fulfilled") {
       setDigitalHumanWorks(items.value.items || []);
@@ -424,13 +484,41 @@ export function DouyinWorkspaceShell() {
     } else {
       setDigitalHumanScriptTemplates([]);
     }
+    if (publicVoices.status === "fulfilled") {
+      setDigitalHumanPublicVoices(publicVoices.value.list || []);
+      setDigitalHumanPublicVoicePageInfo(publicVoices.value.pageInfo);
+    } else {
+      setDigitalHumanPublicVoices([]);
+      setDigitalHumanPublicVoicePageInfo(undefined);
+    }
+    if (customVoices.status === "fulfilled") {
+      setDigitalHumanCustomVoices(customVoices.value.list || []);
+      setDigitalHumanCustomVoicePageInfo(customVoices.value.pageInfo);
+    } else {
+      setDigitalHumanCustomVoices([]);
+      setDigitalHumanCustomVoicePageInfo(undefined);
+    }
+    if (speechTask.status === "fulfilled") {
+      setDigitalHumanCurrentSpeechTask(speechTask.value.item || null);
+    }
     await loadDigitalHumanTemplates({
       page: 1,
       size: digitalHumanTemplatePageInfo?.size || 24,
       tagId: digitalHumanTemplateTagId,
     });
     return items.status === "fulfilled" ? (items.value.items || []) : [];
-  }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
+  }, [
+    activeBrandId,
+    digitalHumanCurrentSpeechTask,
+    digitalHumanCurrentSpeechTaskId,
+    digitalHumanCustomVoicePageInfo?.page,
+    digitalHumanCustomVoicePageInfo?.size,
+    digitalHumanPublicVoicePageInfo?.page,
+    digitalHumanPublicVoicePageInfo?.size,
+    digitalHumanTemplatePageInfo?.size,
+    digitalHumanTemplateTagId,
+    loadDigitalHumanTemplates,
+  ]);
 
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
@@ -456,7 +544,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -481,6 +569,11 @@ export function DouyinWorkspaceShell() {
       canViewSection("digitalHuman") ? getDouyinDigitalHumanTemplateTags(activeBrandId) : Promise.resolve({ list: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanFavoriteTemplates(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanScriptTemplates(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("digitalHuman") ? getDouyinVoiceLibrary(activeBrandId, { page: 1, size: 24 }) : Promise.resolve({ list: [], pageInfo: undefined }),
+      canViewSection("digitalHuman") ? getDouyinCustomVoices(activeBrandId, { page: 1, pageSize: 24 }) : Promise.resolve({ list: [], pageInfo: undefined }),
+      canViewSection("digitalHuman") && digitalHumanCurrentSpeechTaskId
+        ? getDouyinSpeechTaskDetail(activeBrandId, digitalHumanCurrentSpeechTaskId)
+        : Promise.resolve({ item: null }),
     ]);
 
     if (collectionResult.status === "fulfilled") {
@@ -628,12 +721,36 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanScriptTemplates([]);
     }
 
+    if (digitalHumanVoiceLibraryResult.status === "fulfilled") {
+      setDigitalHumanPublicVoices(digitalHumanVoiceLibraryResult.value.list || []);
+      setDigitalHumanPublicVoicePageInfo(digitalHumanVoiceLibraryResult.value.pageInfo);
+    } else {
+      hasFallback = true;
+      setDigitalHumanPublicVoices([]);
+      setDigitalHumanPublicVoicePageInfo(undefined);
+    }
+
+    if (digitalHumanCustomVoicesResult.status === "fulfilled") {
+      setDigitalHumanCustomVoices(digitalHumanCustomVoicesResult.value.list || []);
+      setDigitalHumanCustomVoicePageInfo(digitalHumanCustomVoicesResult.value.pageInfo);
+    } else {
+      hasFallback = true;
+      setDigitalHumanCustomVoices([]);
+      setDigitalHumanCustomVoicePageInfo(undefined);
+    }
+
+    if (digitalHumanSpeechTaskResult.status === "fulfilled") {
+      setDigitalHumanCurrentSpeechTask(digitalHumanSpeechTaskResult.value.item || null);
+    } else if (digitalHumanCurrentSpeechTaskId) {
+      hasFallback = true;
+    }
+
     setLoadState(hasFallback ? "partial" : "api");
     if (hasFallback) {
       setErrorMessage("部分抖音工作台接口读取失败，当前仅保留已成功加载的数据；失败板块请按需刷新重试。");
     }
     setIsLoading(false);
-  }, [activeBrandId]);
+  }, [activeBrandId, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -1624,6 +1741,122 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
 
+  const handleRefreshDigitalHumanPublicVoices = useCallback(async (page: number) => {
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await refreshDigitalHumanPublicVoices(page);
+      setNotice(`已切换到公共声音第 ${page} 页。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "公共声音列表刷新失败。");
+    }
+  }, [refreshDigitalHumanPublicVoices]);
+
+  const handleRefreshDigitalHumanCustomVoices = useCallback(async (page: number) => {
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await refreshDigitalHumanCustomVoices(page);
+      setNotice(`已切换到我的声音第 ${page} 页。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "我的声音列表刷新失败。");
+    }
+  }, [refreshDigitalHumanCustomVoices]);
+
+  const handleCreateDigitalHumanCustomVoice = useCallback(async (payload: {
+    name?: string;
+    audioFile?: File | null;
+    modelType?: "cicada1.0" | "cicada3.0" | "cicada3.0-turbo";
+    language?: "cn" | "en";
+    text?: string;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能创建定制声音。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await createDouyinCustomVoice(activeBrandId, payload);
+      setDigitalHumanCurrentSpeechTask(null);
+      await refreshDigitalHumanCustomVoices(1);
+      setNotice(`定制声音已提交：${response.item.name}`);
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "定制声音创建失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanCustomVoices]);
+
+  const handleDeleteDigitalHumanCustomVoice = useCallback(async (voiceId: string) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能删除定制声音。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinCustomVoice(activeBrandId, voiceId);
+      await refreshDigitalHumanCustomVoices(Math.min(digitalHumanCustomVoicePageInfo?.page || 1, digitalHumanCustomVoicePageInfo?.totalPage || 1));
+      setNotice("定制声音已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "定制声音删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, digitalHumanCustomVoicePageInfo?.page, digitalHumanCustomVoicePageInfo?.totalPage, refreshDigitalHumanCustomVoices]);
+
+  const handleCreateDigitalHumanSpeechTask = useCallback(async (payload: {
+    audioManId?: string;
+    text?: string;
+    speed?: number;
+    pitch?: number;
+    dialect?: number;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能提交语音合成任务。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await createDouyinSpeechTask(activeBrandId, payload);
+      setDigitalHumanCurrentSpeechTaskId(response.taskId || response.item.id);
+      setDigitalHumanCurrentSpeechTask(response.item || null);
+      setNotice("语音合成任务已提交。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "语音合成提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
+  const handleRefreshDigitalHumanSpeechTask = useCallback(async (taskId?: string) => {
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const item = await refreshDigitalHumanSpeechTask(taskId);
+      if (!item) {
+        setErrorMessage("请先提交一次语音合成任务。");
+        return false;
+      }
+      setNotice(item.full?.url ? "语音合成结果已刷新。" : "语音合成任务状态已刷新。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "语音合成结果刷新失败。");
+      return false;
+    }
+  }, [refreshDigitalHumanSpeechTask]);
+
   const handleDigitalHumanTemplateTagChange = useCallback(async (tagId: string) => {
     setErrorMessage("");
     setNotice("");
@@ -2045,6 +2278,12 @@ export function DouyinWorkspaceShell() {
                     items={digitalHumanWorks}
                     customPersons={digitalHumanCustomPersons}
                     lipSyncItems={digitalHumanLipSyncWorks}
+                    publicVoices={digitalHumanPublicVoices}
+                    customVoices={digitalHumanCustomVoices}
+                    publicVoicePageInfo={digitalHumanPublicVoicePageInfo}
+                    customVoicePageInfo={digitalHumanCustomVoicePageInfo}
+                    currentSpeechTask={digitalHumanCurrentSpeechTask}
+                    currentSpeechTaskId={digitalHumanCurrentSpeechTaskId}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
@@ -2072,6 +2311,12 @@ export function DouyinWorkspaceShell() {
                     onDeleteCustomPerson={handleDeleteDigitalHumanCustomPerson}
                     onDelete={handleDeleteDigitalHuman}
                     onDeleteLipSync={handleDeleteLipSync}
+                    onRefreshPublicVoices={handleRefreshDigitalHumanPublicVoices}
+                    onRefreshCustomVoices={handleRefreshDigitalHumanCustomVoices}
+                    onCreateCustomVoice={handleCreateDigitalHumanCustomVoice}
+                    onDeleteCustomVoice={handleDeleteDigitalHumanCustomVoice}
+                    onCreateSpeechTask={handleCreateDigitalHumanSpeechTask}
+                    onRefreshSpeechTask={handleRefreshDigitalHumanSpeechTask}
                     formatDateTime={formatDateTime}
                   />
                 ) : (
