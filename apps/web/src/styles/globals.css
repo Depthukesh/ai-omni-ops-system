@@ -1305,6 +1305,112 @@ button {
   color: #b14334;
 }
 
+.digital-human-template-wall {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.digital-human-template-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #e6eaf3;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(63, 78, 120, 0.06);
+}
+
+.digital-human-template-card.is-active {
+  border-color: rgba(95, 118, 255, 0.35);
+  box-shadow: 0 16px 32px rgba(95, 118, 255, 0.14);
+}
+
+.digital-human-template-card__media {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8faff 100%);
+}
+
+.digital-human-template-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.digital-human-template-card__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #9aa3b6;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.digital-human-template-card__badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.digital-human-template-card__body {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.digital-human-template-card__title-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.digital-human-template-card__title-row strong {
+  color: #2b3142;
+  font-size: 15px;
+}
+
+.digital-human-template-card__body p {
+  margin: 0;
+  color: #697286;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.digital-human-template-card__tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.digital-human-template-card__tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f4f7ff;
+  color: #5e6781;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .report-editor-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

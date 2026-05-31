@@ -143,6 +143,7 @@ export interface DigitalHumanVideoPanelProps {
 }
 
 export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
+  const isTagOnlyFailure = Boolean(props.templateLoadError) && props.filteredTemplates.length > 0;
   const selectedPersonName =
     props.personSource === "CUSTOM"
       ? props.selectedCustomPerson?.name || "未选择定制数字人"
@@ -175,7 +176,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
       {props.personSource === "COMMON" && props.templateLoadError ? (
         <div className="empty-state" style={{ marginTop: 12, borderColor: "#fecaca", background: "#fff1f2", color: "#9f1239" }}>
-          公共模板读取失败：{props.templateLoadError}
+          {isTagOnlyFailure ? `公共模板已加载，标签接口异常：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
         </div>
       ) : null}
 

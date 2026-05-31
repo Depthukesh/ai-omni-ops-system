@@ -35,6 +35,35 @@ export interface DigitalHumanTemplateLibraryProps {
 }
 
 export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryProps) {
+  const hasTemplates = props.filteredTemplates.length > 0;
+  const tagOptions = props.templateTagGroups.length
+    ? props.templateTagGroups.flatMap((group) =>
+        group.tagList.map((tag) => ({
+          key: String(tag.id),
+          label: tag.name,
+          helper: group.name,
+          mode: "remote" as const,
+        })),
+      )
+    : Array.from(
+        new Map(
+          props.filteredTemplates
+            .flatMap((item) => item.tagNames)
+            .filter((item) => item.trim())
+            .map((item) => [
+              item.trim().toLowerCase(),
+              {
+                key: item.trim(),
+                label: item.trim(),
+                helper: "本地筛选",
+                mode: "local" as const,
+              },
+            ]),
+        ).values(),
+      );
+  const isTagOnlyFailure = Boolean(props.templateLoadError) && hasTemplates;
+  const activeLocalTag = !props.activeTagId && props.templateSearch.trim();
+
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
       <div className="report-editor-head">
@@ -50,30 +79,60 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
 
       {props.templateLoadError ? (
         <div className="empty-state" style={{ marginTop: 12, borderColor: "#fecaca", background: "#fff1f2", color: "#9f1239" }}>
-          模板加载失败：{props.templateLoadError}
+          {isTagOnlyFailure ? `模板已加载，标签接口异常：${props.templateLoadError}` : `模板加载失败：${props.templateLoadError}`}
+        </div>
+      ) : null}
+
+      {tagOptions.length ? (
+        <div className="strategy-chip-row" style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className={`filter-chip ${!props.activeTagId && !activeLocalTag ? "is-active" : ""}`}
+            onClick={() => {
+              if (!props.templateTagGroups.length) {
+                props.onTemplateSearchChange("");
+                return;
+              }
+              void props.onTemplateTagChange("");
+            }}
+            disabled={props.isTemplateLoading}
+          >
+            全部标签
+          </button>
+          {tagOptions.map((tag) => {
+            const isActive = tag.mode === "remote"
+              ? props.activeTagId === tag.key
+              : activeLocalTag === tag.label;
+            return (
+              <button
+                key={`${tag.mode}-${tag.key}`}
+                type="button"
+                className={`filter-chip ${isActive ? "is-active" : ""}`}
+                title={tag.helper}
+                onClick={() => {
+                  if (tag.mode === "remote") {
+                    void props.onTemplateTagChange(tag.key);
+                    return;
+                  }
+                  props.onTemplateSearchChange(tag.label);
+                }}
+                disabled={props.isTemplateLoading}
+              >
+                {tag.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {isTagOnlyFailure ? (
+        <div className="report-inline-tip report-inline-tip--error" style={{ marginBottom: 16 }}>
+          当前已回退为模板直出浏览。
+          {props.templateTagGroups.length ? "你仍可继续选模板和形象类型，标签筛选稍后再恢复。" : "由于标签接口异常，顶部标签已切换为本地关键词筛选。"}
         </div>
       ) : null}
 
       <div className="personal-grid">
-        <label className="field">
-          <span>模板标签</span>
-          <select
-            value={props.activeTagId || ""}
-            onChange={(event) => {
-              void props.onTemplateTagChange(event.target.value);
-            }}
-            disabled={props.isTemplateLoading}
-          >
-            <option value="">全部标签</option>
-            {props.templateTagGroups.flatMap((group) =>
-              group.tagList.map((tag) => (
-                <option key={tag.id} value={String(tag.id)}>
-                  {group.name} / {tag.name}
-                </option>
-              )),
-            )}
-          </select>
-        </label>
         <label className="field">
           <span>模板搜索</span>
           <input
@@ -88,22 +147,6 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
             <option value="ALL">全部模板</option>
             <option value="FAVORITES">仅看收藏</option>
             <option value="RECENT">最近使用</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>数字人模板</span>
-          <select value={props.selectedTemplateId} onChange={(event) => props.onSelectedTemplateChange(event.target.value)}>
-            {props.filteredTemplates.length ? (
-              props.filteredTemplates.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))
-            ) : (
-              <option value="">
-                {props.templateLoadError ? "模板加载失败，请先处理上方报错" : "当前筛选下暂无模板"}
-              </option>
-            )}
           </select>
         </label>
         <label className="field">
@@ -122,6 +165,52 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
             )}
           </select>
         </label>
+      </div>
+
+      <div className="digital-human-template-wall">
+        {props.filteredTemplates.length ? (
+          props.filteredTemplates.map((item) => {
+            const previewFigure = item.figures[0];
+            const isActive = item.id === props.selectedTemplate?.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`digital-human-template-card ${isActive ? "is-active" : ""}`}
+                onClick={() => props.onSelectedTemplateChange(item.id)}
+              >
+                <div className="digital-human-template-card__media">
+                  {previewFigure?.cover ? (
+                    <img src={previewFigure.cover} alt={item.name} />
+                  ) : (
+                    <div className="digital-human-template-card__empty">暂无封面</div>
+                  )}
+                  <span className="digital-human-template-card__badge">
+                    {previewFigure ? props.getFigureTypeLabel(previewFigure.type) : "模板"}
+                  </span>
+                </div>
+                <div className="digital-human-template-card__body">
+                  <div className="digital-human-template-card__title-row">
+                    <strong>{item.name}</strong>
+                    {item.id === props.selectedTemplate?.id ? <span className="archive-pill status-ready">当前选中</span> : null}
+                  </div>
+                  <p>{item.audioName ? `默认音色：${item.audioName}` : "暂无默认音色信息"}</p>
+                  <div className="digital-human-template-card__tags">
+                    {item.tagNames.length
+                      ? item.tagNames.slice(0, 5).map((tag) => (
+                          <span key={`${item.id}-${tag}`}>{tag}</span>
+                        ))
+                      : <span>暂无标签</span>}
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        ) : (
+          <div className="empty-state">
+            {props.templateLoadError ? "模板接口异常时可先检查上方提示；若已恢复，请刷新后重新选择。" : "当前筛选下暂无模板，试试清空关键词或切换模板范围。"}
+          </div>
+        )}
       </div>
 
       <div className="personal-grid" style={{ marginTop: 16 }}>

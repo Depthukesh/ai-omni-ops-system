@@ -677,6 +677,19 @@
   - 若上游返回 `AccessToken已失效`、`invalid access_token` 等鉴权失效信息，服务端会自动清理当前凭证对应的 token 缓存并重试一次
   - 用于处理“当前账号就是品牌 Owner、凭证手工校验正常，但服务端进程仍缓存着旧 token”这类现场
 
+### 22. 数字人模板库卡片墙与标签降级第十九轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`
+  - 模板库从“下拉选择模板”升级为“卡片墙选模板”
+  - 顶部标签从纯下拉改为 chip 选择
+  - 当蝉镜 `tag_list` 接口失败但模板列表可用时，不再把页面整体判定为模板失败
+  - 无法拿到服务端标签分组时，会从模板返回的 `tagNames` 回退成本地筛选 chip
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 数字人视频创建区对齐模板异常文案
+  - 当模板已加载、仅标签接口失败时，提示改为“公共模板已加载，标签接口异常”
+- `apps/web/src/styles/globals.css`
+  - 新增数字人模板卡片墙、模板封面卡片、标签 pill 等样式
+
 ## 第十三轮验证
 
 - `GetDiagnostics`
