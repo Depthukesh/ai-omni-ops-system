@@ -358,6 +358,24 @@
   - `apps/server/src/modules/works/works.service.ts`
 - `npm --workspace apps/server exec -- tsc --noEmit -p tsconfig.json`
 
+### 14. 口型驱动高级参数真实提交第十四轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-lip-sync-workspace.tsx`
+  - 口型驱动状态说明改为与当前真实能力保持一致
+  - 明确提示模型版本、播放顺序、驱动模式和音量会随任务一起提交并回写站内记录
+- `apps/server/src/modules/works/works.service.ts`
+  - `buildChanjingLipSyncCreatePayload` 不再写死 `model: 0`
+  - 把前端已经打通到 metadata 的高级参数继续下钻到蝉镜真实创建请求：
+    - `model`
+    - `backway`
+    - `drive_mode`
+    - `volume`
+  - `drive_mode` 为空时不再透传，避免无效空值污染请求
+- 部署补充说明
+  - 用户当前仍看到“数字人模板 / 形象类型为空”，高概率不是这条修复没写，而是服务器部署现场仍停留在模板排序修复之前的旧提交
+  - 用户提供的 `10.txt` 已确认服务器当时停在 `a74cdeb`，部署脚本先死于 `apps/web/.next` 的 `EACCES`，后续 PM2 又遇到 `127.0.0.1:3001` 端口占用
+  - 也就是说，线上之所以还没有模板，大概率是“修复提交未成功落到线上”，不是当前仓库里仍缺少模板排序修复
+
 ### 14. 定制数字人与视频创建参数映射第九轮
 
 - `apps/web/src/services/works.ts`

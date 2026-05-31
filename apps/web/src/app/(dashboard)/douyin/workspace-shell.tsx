@@ -1502,9 +1502,13 @@ export function DouyinWorkspaceShell() {
     audioType?: "TEXT" | "AUDIO";
     script?: string;
     audioFile?: File | null;
+    model?: 0 | 1;
+    backway?: 1 | 2;
+    driveMode?: "" | "random";
     audioManId?: string;
     speechRate?: number;
     pitch?: number;
+    volume?: number;
     screenWidth?: number;
     screenHeight?: number;
   }) => {

@@ -222,9 +222,13 @@ export type CreateDouyinLipSyncPayload = {
   audioType?: "TEXT" | "AUDIO";
   script?: string;
   audioFile?: UploadFilePayload;
+  model?: 0 | 1;
+  backway?: 1 | 2;
+  driveMode?: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume?: number;
   screenWidth?: number;
   screenHeight?: number;
 };
@@ -299,9 +303,13 @@ export type DouyinLipSyncWorkRecord = {
   title: string;
   audioType: "TEXT" | "AUDIO";
   script?: string;
+  model?: 0 | 1;
+  backway?: 1 | 2;
+  driveMode?: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume?: number;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -698,9 +706,13 @@ type DouyinLipSyncWorkAssetMeta = {
   htmlContent: string;
   audioType: "TEXT" | "AUDIO";
   script?: string;
+  model?: 0 | 1;
+  backway?: 1 | 2;
+  driveMode?: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume?: number;
   screenWidth: number;
   screenHeight: number;
   sourceVideoFileName?: string;
@@ -857,9 +869,13 @@ type NormalizedDouyinLipSyncPayload = {
   title: string;
   audioType: "TEXT" | "AUDIO";
   script?: string;
+  model: 0 | 1;
+  backway: 1 | 2;
+  driveMode: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume: number;
   screenWidth: number;
   screenHeight: number;
   sourceVideo: UploadFilePayload;
@@ -1865,17 +1881,25 @@ export class WorksService {
         progress: 0,
         audioType: normalized.audioType,
         script: normalized.script,
+        model: normalized.model,
+        backway: normalized.backway,
+        driveMode: normalized.driveMode,
         audioManId: normalized.audioManId,
         speechRate: normalized.speechRate,
         pitch: normalized.pitch,
+        volume: normalized.volume,
         screenWidth: normalized.screenWidth,
         screenHeight: normalized.screenHeight,
       }),
       audioType: normalized.audioType,
       script: normalized.script,
+      model: normalized.model,
+      backway: normalized.backway,
+      driveMode: normalized.driveMode,
       audioManId: normalized.audioManId,
       speechRate: normalized.speechRate,
       pitch: normalized.pitch,
+      volume: normalized.volume,
       screenWidth: normalized.screenWidth,
       screenHeight: normalized.screenHeight,
       sourceVideoFileName: normalized.sourceVideo.fileName,
@@ -7322,9 +7346,13 @@ export class WorksService {
       htmlContent: String(meta.htmlContent ?? "").trim(),
       audioType: this.normalizeDouyinLipSyncAudioType(this.readOptionalString(meta.audioType)),
       script: this.readOptionalString(meta.script),
+      model: this.normalizeDouyinLipSyncModel(meta.model),
+      backway: this.normalizeDouyinLipSyncBackway(meta.backway),
+      driveMode: this.normalizeDouyinLipSyncDriveMode(this.readOptionalString(meta.driveMode)),
       audioManId: this.readOptionalString(meta.audioManId),
       speechRate: typeof meta.speechRate === "number" ? meta.speechRate : undefined,
       pitch: typeof meta.pitch === "number" ? meta.pitch : undefined,
+      volume: this.readLipSyncVolume(meta.volume),
       screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
       screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
       sourceVideoFileName: this.readOptionalString(meta.sourceVideoFileName),
@@ -7361,6 +7389,26 @@ export class WorksService {
     return value === "AUDIO" ? "AUDIO" : "TEXT";
   }
 
+  private normalizeDouyinLipSyncModel(value: unknown): 0 | 1 {
+    return Number(value) === 1 ? 1 : 0;
+  }
+
+  private normalizeDouyinLipSyncBackway(value: unknown): 1 | 2 {
+    return Number(value) === 2 ? 2 : 1;
+  }
+
+  private normalizeDouyinLipSyncDriveMode(value?: string): "" | "random" {
+    return value === "random" ? "random" : "";
+  }
+
+  private readLipSyncVolume(value: unknown) {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) {
+      return 100;
+    }
+    return Math.max(1, Math.min(100, Math.round(normalized)));
+  }
+
   private normalizeDouyinLipSyncPayload(payload: CreateDouyinLipSyncPayload): NormalizedDouyinLipSyncPayload {
     if (!payload.sourceVideo) {
       throw new BadRequestException("请先上传用于口型驱动的视频，再提交任务。");
@@ -7380,6 +7428,9 @@ export class WorksService {
       title: String(payload.title || "").trim() || `${fallbackTitle} 口型驱动`,
       audioType,
       script: audioType === "TEXT" ? String(payload.script || "").trim() : undefined,
+      model: this.normalizeDouyinLipSyncModel(payload.model),
+      backway: this.normalizeDouyinLipSyncBackway(payload.backway),
+      driveMode: this.normalizeDouyinLipSyncDriveMode(this.readOptionalString(payload.driveMode)),
       audioManId: audioType === "TEXT" ? this.readOptionalString(payload.audioManId) : undefined,
       speechRate: audioType === "TEXT"
         ? Math.max(0.5, Math.min(2, this.readNumberWithFallback(payload.speechRate, 1)))
@@ -7387,6 +7438,7 @@ export class WorksService {
       pitch: audioType === "TEXT" && typeof payload.pitch === "number"
         ? Math.max(-12, Math.min(12, payload.pitch))
         : undefined,
+      volume: this.readLipSyncVolume(payload.volume),
       screenWidth: this.readPositiveInteger(payload.screenWidth, 1080),
       screenHeight: this.readPositiveInteger(payload.screenHeight, 1920),
       sourceVideo: payload.sourceVideo,
@@ -7420,9 +7472,13 @@ export class WorksService {
     progress: number;
     audioType: DouyinLipSyncWorkAssetMeta["audioType"];
     script?: string;
+    model: 0 | 1;
+    backway: 1 | 2;
+    driveMode: "" | "random";
     audioManId?: string;
     speechRate?: number;
     pitch?: number;
+    volume?: number;
     screenWidth: number;
     screenHeight: number;
     providerTaskId?: string;
@@ -7453,11 +7509,11 @@ export class WorksService {
       '<section style="padding:22px;border-radius:30px;background:rgba(255,255,255,0.9);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
       preview,
       `<h1 style="margin:20px 0 14px;font-size:32px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
-      `<div style="display:flex;flex-wrap:wrap;gap:10px;color:#63708a;font-size:13px;margin-bottom:18px;"><span>抖音口型驱动</span><span>${this.escapeHtml(this.getDouyinLipSyncStatusLabel(params.status))}</span><span>进度 ${Math.max(0, Math.min(100, Math.round(params.progress)))}%</span><span>${params.audioType === "AUDIO" ? "音频驱动" : "文本驱动"}</span><span>${params.screenWidth} x ${params.screenHeight}</span>${params.providerTaskId ? `<span>任务ID ${this.escapeHtml(params.providerTaskId)}</span>` : ""}</div>`,
+      `<div style="display:flex;flex-wrap:wrap;gap:10px;color:#63708a;font-size:13px;margin-bottom:18px;"><span>抖音口型驱动</span><span>${this.escapeHtml(this.getDouyinLipSyncStatusLabel(params.status))}</span><span>进度 ${Math.max(0, Math.min(100, Math.round(params.progress)))}%</span><span>${params.audioType === "AUDIO" ? "音频驱动" : "文本驱动"}</span><span>${params.model === 1 ? "高质量版" : "基础版"}</span><span>${params.driveMode === "random" ? "随机帧驱动" : "正常驱动"}</span><span>${params.backway === 2 ? "倒放到末尾" : "正放到末尾"}</span><span>${params.screenWidth} x ${params.screenHeight}</span>${params.providerTaskId ? `<span>任务ID ${this.escapeHtml(params.providerTaskId)}</span>` : ""}</div>`,
       params.errorReason
         ? `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#fff4f4;border:1px solid #ffd5d5;color:#b42318;"><strong>失败原因</strong><div style="margin-top:6px;font-size:14px;">${this.escapeHtml(params.errorReason)}</div></div>`
         : "",
-      `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#f7f9ff;border:1px solid #dfe5f2;color:#24314a;"><strong>驱动参数</strong><div style="margin-top:6px;color:#63708a;font-size:14px;">音色 ID：${this.escapeHtml(params.audioManId || "未填写")} / 语速：${params.speechRate ?? 1} / 音调：${params.pitch ?? 0}</div></div>`,
+      `<div style="margin:0 0 16px;padding:14px 16px;border-radius:18px;background:#f7f9ff;border:1px solid #dfe5f2;color:#24314a;"><strong>驱动参数</strong><div style="margin-top:6px;color:#63708a;font-size:14px;">音色 ID：${this.escapeHtml(params.audioManId || "未填写")} / 语速：${params.speechRate ?? 1} / 音调：${params.pitch ?? 0} / 音量：${params.volume ?? 100}</div></div>`,
       scriptBlocks,
       finalVideo,
       "</section></main></body></html>",
@@ -7491,9 +7547,13 @@ export class WorksService {
         progress: meta.progress,
         audioType: meta.audioType,
         script: meta.script,
+        model: meta.model || 0,
+        backway: meta.backway || 1,
+        driveMode: meta.driveMode || "",
         audioManId: meta.audioManId,
         speechRate: meta.speechRate,
         pitch: meta.pitch,
+        volume: meta.volume,
         screenWidth: meta.screenWidth,
         screenHeight: meta.screenHeight,
         providerTaskId: meta.providerTaskId,
@@ -7558,9 +7618,13 @@ export class WorksService {
       title: meta.title,
       audioType: meta.audioType,
       script: meta.script,
+      model: meta.model,
+      backway: meta.backway,
+      driveMode: meta.driveMode,
       audioManId: meta.audioManId,
       speechRate: meta.speechRate,
       pitch: meta.pitch,
+      volume: meta.volume,
       screenWidth: meta.screenWidth,
       screenHeight: meta.screenHeight,
       providerTaskId: meta.providerTaskId,
@@ -7708,8 +7772,11 @@ export class WorksService {
       video_file_id: meta.sourceVideoFileId || "",
       screen_width: meta.screenWidth,
       screen_height: meta.screenHeight,
-      model: 0,
+      model: meta.model ?? 0,
+      backway: meta.backway ?? 1,
+      ...(meta.driveMode ? { drive_mode: meta.driveMode } : {}),
       audio_type: meta.audioType === "AUDIO" ? "audio" : "tts",
+      ...(typeof meta.volume === "number" ? { volume: meta.volume } : {}),
       ...(meta.audioType === "AUDIO"
         ? {
             audio_file_id: meta.audioFileId,

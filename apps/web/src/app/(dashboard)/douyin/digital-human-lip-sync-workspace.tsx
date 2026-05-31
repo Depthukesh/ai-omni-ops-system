@@ -15,9 +15,13 @@ export interface DigitalHumanLipSyncWorkspaceProps {
     audioType?: "TEXT" | "AUDIO";
     script?: string;
     audioFile?: File | null;
+    model?: 0 | 1;
+    backway?: 1 | 2;
+    driveMode?: "" | "random";
     audioManId?: string;
     speechRate?: number;
     pitch?: number;
+    volume?: number;
     screenWidth?: number;
     screenHeight?: number;
   }) => Promise<boolean>;
@@ -55,9 +59,13 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
   const [title, setTitle] = useState("");
   const [audioType, setAudioType] = useState<"TEXT" | "AUDIO">("TEXT");
   const [script, setScript] = useState("");
+  const [model, setModel] = useState<"0" | "1">("0");
+  const [backway, setBackway] = useState<"1" | "2">("1");
+  const [driveMode, setDriveMode] = useState<"" | "random">("");
   const [audioManId, setAudioManId] = useState("");
   const [speechRate, setSpeechRate] = useState("1");
   const [pitch, setPitch] = useState("0");
+  const [volume, setVolume] = useState("100");
   const [screenWidth, setScreenWidth] = useState("1080");
   const [screenHeight, setScreenHeight] = useState("1920");
   const [sourceVideoFile, setSourceVideoFile] = useState<File | null>(null);
@@ -86,16 +94,24 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
       audioType,
       script: script.trim() || undefined,
       audioFile,
+      model: Number(model) as 0 | 1,
+      backway: Number(backway) as 1 | 2,
+      driveMode,
       audioManId: audioManId.trim() || undefined,
       speechRate: Number(speechRate || 1),
       pitch: Number(pitch || 0),
+      volume: Number(volume || 100),
       screenWidth: Number(screenWidth || 1080),
       screenHeight: Number(screenHeight || 1920),
     });
     if (success) {
       setTitle("");
       setScript("");
+      setModel("0");
+      setBackway("1");
+      setDriveMode("");
       setAudioManId("");
+      setVolume("100");
       setSourceVideoFile(null);
       setAudioFile(null);
     }
@@ -121,12 +137,12 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
       <div className="strategy-grid">
         <div className="entity-card personal-card">
           <strong>当前状态</strong>
-          <p className="personal-meta">真实提交、找回、删除已接通</p>
-          <p className="panel-subtext">当前会先上传驱动视频和驱动音频，再调用蝉镜口型驱动接口；生成成功后会把结果视频回写到站内记录。</p>
+          <p className="personal-meta">真实提交、找回、删除和高级参数已接通</p>
+          <p className="panel-subtext">当前会先上传驱动视频和驱动音频，再调用蝉镜口型驱动接口；模型版本、播放顺序、驱动模式和音量会随任务一起提交并回写站内记录。</p>
         </div>
         <div className="entity-card personal-card">
           <strong>下一步能力</strong>
-          <p className="panel-subtext">下一轮继续补更多模型参数、远端列表兜底和结果资产联动，让口型驱动和数字人作品中心进一步打通。</p>
+          <p className="panel-subtext">下一轮继续补远端列表兜底、任务详情透出和结果资产联动，让口型驱动和数字人作品中心进一步打通。</p>
         </div>
       </div>
 
@@ -189,8 +205,29 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
                 disabled={!props.canEdit || props.isSubmitting}
               />
               <small className="personal-meta">
-                {sourceVideoFile ? `已选择：${sourceVideoFile.name}` : "支持上传 mp4、mov、webm 等视频；下一轮会接入蝉镜真实视频上传。"}
+                {sourceVideoFile ? `已选择：${sourceVideoFile.name}` : "支持上传 mp4、mov、webm 视频文件，提交后会先走蝉镜文件管理上传。"}
               </small>
+            </label>
+            <label className="field">
+              <span>模型版本</span>
+              <select value={model} onChange={(event) => setModel(event.target.value as "0" | "1")}>
+                <option value="0">基础版</option>
+                <option value="1">高质量版</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>播放顺序</span>
+              <select value={backway} onChange={(event) => setBackway(event.target.value as "1" | "2")}>
+                <option value="1">正放到末尾</option>
+                <option value="2">倒放到末尾</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>驱动模式</span>
+              <select value={driveMode} onChange={(event) => setDriveMode(event.target.value as "" | "random")}>
+                <option value="">正常驱动</option>
+                <option value="random">随机帧驱动</option>
+              </select>
             </label>
             {audioType === "TEXT" ? (
               <>
@@ -210,20 +247,30 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
                   <span>音调</span>
                   <input value={pitch} onChange={(event) => setPitch(event.target.value)} placeholder="0" />
                 </label>
+                <label className="field">
+                  <span>音量</span>
+                  <input value={volume} onChange={(event) => setVolume(event.target.value)} placeholder="100" />
+                </label>
               </>
             ) : (
-              <label className="field field-full">
-                <span>驱动音频</span>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
-                  disabled={!props.canEdit || props.isSubmitting}
-                />
-                <small className="personal-meta">
-                  {audioFile ? `已选择：${audioFile.name}` : "音频驱动模式下，后续会先上传音频再调用蝉镜口型同步接口。"}
-                </small>
-              </label>
+              <>
+                <label className="field field-full">
+                  <span>驱动音频</span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                    disabled={!props.canEdit || props.isSubmitting}
+                  />
+                  <small className="personal-meta">
+                    {audioFile ? `已选择：${audioFile.name}` : "音频驱动模式下，会先上传 mp3、m4a、wav 音频，再调用蝉镜口型同步接口。"}
+                  </small>
+                </label>
+                <label className="field">
+                  <span>音量</span>
+                  <input value={volume} onChange={(event) => setVolume(event.target.value)} placeholder="100" />
+                </label>
+              </>
             )}
             <label className="field">
               <span>画布宽度</span>
@@ -251,9 +298,13 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
                 setTitle("");
                 setAudioType("TEXT");
                 setScript("");
+                setModel("0");
+                setBackway("1");
+                setDriveMode("");
                 setAudioManId("");
                 setSpeechRate("1");
                 setPitch("0");
+                setVolume("100");
                 setScreenWidth("1080");
                 setScreenHeight("1920");
                 setSourceVideoFile(null);
@@ -316,7 +367,11 @@ export function DigitalHumanLipSyncWorkspace(props: DigitalHumanLipSyncWorkspace
             <div className="entity-card personal-card">
               <strong>驱动配置</strong>
               <p className="panel-subtext">驱动方式：{selectedItem.audioType === "AUDIO" ? "音频驱动" : "文本驱动"}</p>
+              <p className="panel-subtext">模型版本：{selectedItem.model === 1 ? "高质量版" : "基础版"}</p>
+              <p className="panel-subtext">播放顺序：{selectedItem.backway === 2 ? "倒放到末尾" : "正放到末尾"}</p>
+              <p className="panel-subtext">驱动模式：{selectedItem.driveMode === "random" ? "随机帧驱动" : "正常驱动"}</p>
               <p className="panel-subtext">音色 ID：{selectedItem.audioManId || "未填写"}</p>
+              <p className="panel-subtext">音量：{selectedItem.volume ?? 100}</p>
               <p className="panel-subtext">画布尺寸：{selectedItem.screenWidth} x {selectedItem.screenHeight}</p>
             </div>
             <div className="entity-card personal-card">

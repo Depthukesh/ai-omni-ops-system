@@ -294,9 +294,13 @@ export type DouyinLipSyncWorkRecord = {
   title: string;
   audioType: "TEXT" | "AUDIO";
   script?: string;
+  model?: 0 | 1;
+  backway?: 1 | 2;
+  driveMode?: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume?: number;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -483,9 +487,13 @@ export type CreateDouyinLipSyncForm = {
   audioType?: "TEXT" | "AUDIO";
   script?: string;
   audioFile?: File | null;
+  model?: 0 | 1;
+  backway?: 1 | 2;
+  driveMode?: "" | "random";
   audioManId?: string;
   speechRate?: number;
   pitch?: number;
+  volume?: number;
   screenWidth?: number;
   screenHeight?: number;
 };
@@ -1028,9 +1036,13 @@ export async function generateDouyinLipSyncWork(brandId: string, form: CreateDou
       audioType: form.audioType,
       script: form.script,
       audioFile,
+      model: form.model,
+      backway: form.backway,
+      driveMode: form.driveMode,
       audioManId: form.audioManId,
       speechRate: form.speechRate,
       pitch: form.pitch,
+      volume: form.volume,
       screenWidth: form.screenWidth,
       screenHeight: form.screenHeight,
     },
