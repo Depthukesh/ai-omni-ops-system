@@ -13,6 +13,7 @@ export interface DigitalHumanTemplateLibraryProps {
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   activeTagId?: string;
   templateLoadError?: string;
+  templateTagLoadError?: string;
   isTemplateLoading?: boolean;
   templateSearch: string;
   templateScopeFilter: "ALL" | "FAVORITES" | "RECENT";
@@ -36,6 +37,11 @@ export interface DigitalHumanTemplateLibraryProps {
 
 export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryProps) {
   const hasTemplates = props.filteredTemplates.length > 0;
+  const scopeOptions: Array<{ value: "ALL" | "FAVORITES" | "RECENT"; label: string; helper: string }> = [
+    { value: "ALL", label: "推荐浏览", helper: "按当前模板墙浏览全部模板" },
+    { value: "FAVORITES", label: "我的收藏", helper: "只看已收藏模板" },
+    { value: "RECENT", label: "最近使用", helper: "只看最近使用模板" },
+  ];
   const tagOptions = props.templateTagGroups.length
     ? props.templateTagGroups.flatMap((group) =>
         group.tagList.map((tag) => ({
@@ -61,8 +67,10 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
             ]),
         ).values(),
       );
-  const isTagOnlyFailure = Boolean(props.templateLoadError) && hasTemplates;
+  const isTemplateFailure = Boolean(props.templateLoadError);
+  const isTagFailure = Boolean(props.templateTagLoadError);
   const activeLocalTag = !props.activeTagId && props.templateSearch.trim();
+  const heroFigure = props.selectedFigure || props.selectedTemplate?.figures[0];
 
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
@@ -77,9 +85,78 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         </div>
       </div>
 
-      {props.templateLoadError ? (
+      <div className="digital-human-template-hero">
+        <div className="digital-human-template-hero__preview">
+          {heroFigure?.cover ? (
+            <img src={heroFigure.cover} alt={props.selectedTemplate?.name || "数字人模板"} />
+          ) : (
+            <div className="digital-human-template-card__empty">暂无封面</div>
+          )}
+          <span className="digital-human-template-hero__badge">
+            {heroFigure ? props.getFigureTypeLabel(heroFigure.type) : "模板广场"}
+          </span>
+        </div>
+        <div className="digital-human-template-hero__content">
+          <div>
+            <strong>{props.selectedTemplate?.name || "从模板广场选择一个数字人"}</strong>
+            <p>
+              {props.selectedTemplate?.audioName
+                ? `默认音色：${props.selectedTemplate.audioName}`
+                : "当前可先按标签、收藏或最近使用快速缩小范围，再继续选择模板与形象类型。"}
+            </p>
+          </div>
+          <div className="digital-human-template-stat-grid">
+            <div className="digital-human-template-stat-card">
+              <span>模板状态</span>
+              <strong>{props.templateCountLabel}</strong>
+            </div>
+            <div className="digital-human-template-stat-card">
+              <span>作品累计</span>
+              <strong>{props.workCountLabel}</strong>
+            </div>
+            <div className="digital-human-template-stat-card">
+              <span>当前标签</span>
+              <strong>{props.activeTagId || activeLocalTag || "全部标签"}</strong>
+            </div>
+          </div>
+          <div className="digital-human-template-toolbar">
+            <div className="digital-human-template-toolbar__group">
+              {scopeOptions.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={`filter-chip ${props.templateScopeFilter === item.value ? "is-active" : ""}`}
+                  title={item.helper}
+                  onClick={() => props.onTemplateScopeFilterChange(item.value)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {props.selectedTemplate?.tagNames?.length ? (
+              <div className="digital-human-template-toolbar__group">
+                {props.selectedTemplate.tagNames.slice(0, 4).map((tag) => (
+                  <span key={`${props.selectedTemplate?.id}-${tag}`} className="action-chip">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {isTemplateFailure ? (
         <div className="empty-state" style={{ marginTop: 12, borderColor: "#fecaca", background: "#fff1f2", color: "#9f1239" }}>
-          {isTagOnlyFailure ? `模板已加载，标签接口异常：${props.templateLoadError}` : `模板加载失败：${props.templateLoadError}`}
+          {hasTemplates ? `模板已加载，但模板接口最近一次刷新失败：${props.templateLoadError}` : `模板加载失败：${props.templateLoadError}`}
+        </div>
+      ) : null}
+
+      {isTagFailure ? (
+        <div className="empty-state" style={{ marginTop: 12, borderColor: "#fde68a", background: "#fffbeb", color: "#92400e" }}>
+          {hasTemplates
+            ? `模板已加载，标签接口异常：${props.templateTagLoadError}`
+            : `标签接口异常：${props.templateTagLoadError}`}
         </div>
       ) : null}
 
@@ -125,7 +202,7 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         </div>
       ) : null}
 
-      {isTagOnlyFailure ? (
+      {isTagFailure ? (
         <div className="report-inline-tip report-inline-tip--error" style={{ marginBottom: 16 }}>
           当前已回退为模板直出浏览。
           {props.templateTagGroups.length ? "你仍可继续选模板和形象类型，标签筛选稍后再恢复。" : "由于标签接口异常，顶部标签已切换为本地关键词筛选。"}
@@ -140,14 +217,6 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
             onChange={(event) => props.onTemplateSearchChange(event.target.value)}
             placeholder="搜索模板名、音色或标签"
           />
-        </label>
-        <label className="field">
-          <span>模板范围</span>
-          <select value={props.templateScopeFilter} onChange={(event) => props.onTemplateScopeFilterChange(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
-            <option value="ALL">全部模板</option>
-            <option value="FAVORITES">仅看收藏</option>
-            <option value="RECENT">最近使用</option>
-          </select>
         </label>
         <label className="field">
           <span>形象类型</span>
@@ -208,7 +277,7 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
           })
         ) : (
           <div className="empty-state">
-            {props.templateLoadError ? "模板接口异常时可先检查上方提示；若已恢复，请刷新后重新选择。" : "当前筛选下暂无模板，试试清空关键词或切换模板范围。"}
+            {props.templateLoadError ? "模板接口异常时可先检查上方提示；若已恢复，请刷新后重新选择。" : "当前筛选下暂无模板，试试切回推荐浏览、清空关键词或更换标签。"}
           </div>
         )}
       </div>

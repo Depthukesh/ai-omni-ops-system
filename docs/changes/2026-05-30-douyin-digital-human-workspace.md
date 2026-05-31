@@ -393,6 +393,33 @@
   - 用户现在可以直接在数字人面板看到“蝉镜配置缺失 / 模板接口失败 / 标签接口失败”等具体错误信息
   - 页面空白态从“看起来像没有模板”改为“明确告诉用户是读取失败还是当前筛选无结果”
 
+### 16. 模板错误拆分与模板广场继续贴近蝉镜第十六轮
+
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 把数字人模板错误拆分为：
+    - `templateLoadError`
+    - `templateTagLoadError`
+  - `refreshDigitalHumanWorkspace` 改为 `Promise.allSettled`
+  - 当标签接口失败时，不再阻断作品、收藏、脚本模板和模板列表的刷新
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增 `templateTagLoadError` 透传到模板库和数字人视频创建区
+- `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`
+  - 模板库顶部新增“模板广场”式焦点区：
+    - 当前选中模板大图预览
+    - 模板状态 / 作品累计 / 当前标签摘要
+    - 推荐浏览 / 我的收藏 / 最近使用快捷切换
+  - 模板错误与标签错误改为分开展示
+  - 当标签接口失败但模板可用时，明确提示当前已回退为模板直出浏览和本地标签筛选
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 公共模板模式下同步区分：
+    - 模板接口最近一次刷新失败
+    - 标签接口异常但仍可继续创建视频
+- `apps/web/src/styles/globals.css`
+  - 新增模板广场头图、统计卡和快捷筛选区样式
+- 本轮效果
+  - 页面红条不再继续把“标签失败”误报成“模板整体失败”
+  - 数字人模板区进一步从“表单选模板”升级为更接近蝉镜 `people` 页的广场浏览入口
+
 ### 14. 定制数字人与视频创建参数映射第九轮
 
 - `apps/web/src/services/works.ts`

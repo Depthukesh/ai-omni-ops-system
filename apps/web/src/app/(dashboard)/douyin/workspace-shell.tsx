@@ -204,6 +204,7 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanTemplatePageInfo, setDigitalHumanTemplatePageInfo] = useState<DigitalHumanTemplatePageInfo | undefined>(undefined);
   const [digitalHumanTemplateTagId, setDigitalHumanTemplateTagId] = useState("");
   const [digitalHumanTemplateError, setDigitalHumanTemplateError] = useState("");
+  const [digitalHumanTemplateTagError, setDigitalHumanTemplateTagError] = useState("");
   const [isDigitalHumanTemplateLoading, setIsDigitalHumanTemplateLoading] = useState(false);
   const [marketingPlanDraft, setMarketingPlanDraft] = useState("");
   const [selectedHotTopicDate, setSelectedHotTopicDate] = useState("");
@@ -383,7 +384,7 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates] = await Promise.all([
+    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates] = await Promise.allSettled([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanCustomPersons(activeBrandId),
       getDouyinLipSyncWorks(activeBrandId),
@@ -391,18 +392,44 @@ export function DouyinWorkspaceShell() {
       getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
       getDouyinDigitalHumanScriptTemplates(activeBrandId),
     ]);
-    setDigitalHumanWorks(items.items || []);
-    setDigitalHumanCustomPersons(customPersons.items || []);
-    setDigitalHumanLipSyncWorks(lipSyncWorks.items || []);
-    setDigitalHumanTemplateTags(tagGroups.list || []);
-    setDigitalHumanFavoriteTemplates(favorites.items || []);
-    setDigitalHumanScriptTemplates(scriptTemplates.items || []);
+    if (items.status === "fulfilled") {
+      setDigitalHumanWorks(items.value.items || []);
+    } else {
+      setDigitalHumanWorks([]);
+    }
+    if (customPersons.status === "fulfilled") {
+      setDigitalHumanCustomPersons(customPersons.value.items || []);
+    } else {
+      setDigitalHumanCustomPersons([]);
+    }
+    if (lipSyncWorks.status === "fulfilled") {
+      setDigitalHumanLipSyncWorks(lipSyncWorks.value.items || []);
+    } else {
+      setDigitalHumanLipSyncWorks([]);
+    }
+    if (tagGroups.status === "fulfilled") {
+      setDigitalHumanTemplateTags(tagGroups.value.list || []);
+      setDigitalHumanTemplateTagError("");
+    } else {
+      setDigitalHumanTemplateTags([]);
+      setDigitalHumanTemplateTagError(readRequestErrorMessage(tagGroups.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
+    }
+    if (favorites.status === "fulfilled") {
+      setDigitalHumanFavoriteTemplates(favorites.value.items || []);
+    } else {
+      setDigitalHumanFavoriteTemplates([]);
+    }
+    if (scriptTemplates.status === "fulfilled") {
+      setDigitalHumanScriptTemplates(scriptTemplates.value.items || []);
+    } else {
+      setDigitalHumanScriptTemplates([]);
+    }
     await loadDigitalHumanTemplates({
       page: 1,
       size: digitalHumanTemplatePageInfo?.size || 24,
       tagId: digitalHumanTemplateTagId,
     });
-    return items.items || [];
+    return items.status === "fulfilled" ? (items.value.items || []) : [];
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
 
   const loadWorkspace = useCallback(async () => {
@@ -574,22 +601,17 @@ export function DouyinWorkspaceShell() {
 
     if (digitalHumanTagGroupsResult.status === "fulfilled") {
       setDigitalHumanTemplateTags(digitalHumanTagGroupsResult.value.list || []);
+      setDigitalHumanTemplateTagError("");
     } else {
       hasFallback = true;
       setDigitalHumanTemplateTags([]);
+      setDigitalHumanTemplateTagError(readRequestErrorMessage(digitalHumanTagGroupsResult.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
     }
 
-    if (digitalHumanTemplatesResult.status === "fulfilled" && digitalHumanTagGroupsResult.status === "fulfilled") {
+    if (digitalHumanTemplatesResult.status === "fulfilled") {
       setDigitalHumanTemplateError("");
     } else {
-      const templateErrors: string[] = [];
-      if (digitalHumanTemplatesResult.status === "rejected") {
-        templateErrors.push(readRequestErrorMessage(digitalHumanTemplatesResult.reason, "数字人模板读取失败，请检查蝉镜配置。"));
-      }
-      if (digitalHumanTagGroupsResult.status === "rejected") {
-        templateErrors.push(readRequestErrorMessage(digitalHumanTagGroupsResult.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
-      }
-      setDigitalHumanTemplateError(templateErrors.join("；"));
+      setDigitalHumanTemplateError(readRequestErrorMessage(digitalHumanTemplatesResult.reason, "数字人模板读取失败，请检查蝉镜配置。"));
     }
 
     if (digitalHumanFavoritesResult.status === "fulfilled") {
@@ -2012,6 +2034,7 @@ export function DouyinWorkspaceShell() {
                     templatePageInfo={digitalHumanTemplatePageInfo}
                     activeTagId={digitalHumanTemplateTagId}
                     templateLoadError={digitalHumanTemplateError}
+                    templateTagLoadError={digitalHumanTemplateTagError}
                     isTemplateLoading={isDigitalHumanTemplateLoading}
                     onRefresh={async () => {
                       await refreshDigitalHumanWorkspace();

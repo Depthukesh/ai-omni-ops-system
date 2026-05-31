@@ -31,6 +31,7 @@ export interface DigitalHumanVideoPanelProps {
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   activeTagId?: string;
   templateLoadError?: string;
+  templateTagLoadError?: string;
   isTemplateLoading?: boolean;
   templateSearch: string;
   templateScopeFilter: "ALL" | "FAVORITES" | "RECENT";
@@ -143,7 +144,7 @@ export interface DigitalHumanVideoPanelProps {
 }
 
 export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
-  const isTagOnlyFailure = Boolean(props.templateLoadError) && props.filteredTemplates.length > 0;
+  const hasTemplates = props.filteredTemplates.length > 0;
   const selectedPersonName =
     props.personSource === "CUSTOM"
       ? props.selectedCustomPerson?.name || "未选择定制数字人"
@@ -176,7 +177,14 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
       {props.personSource === "COMMON" && props.templateLoadError ? (
         <div className="empty-state" style={{ marginTop: 12, borderColor: "#fecaca", background: "#fff1f2", color: "#9f1239" }}>
-          {isTagOnlyFailure ? `公共模板已加载，标签接口异常：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
+          {hasTemplates ? `公共模板已加载，但模板接口最近一次刷新失败：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
+        </div>
+      ) : null}
+      {props.personSource === "COMMON" && props.templateTagLoadError ? (
+        <div className="report-inline-tip report-inline-tip--error" style={{ marginTop: 12 }}>
+          {hasTemplates
+            ? `标签接口异常：${props.templateTagLoadError}。你仍可继续选模板、形象类型并提交数字人视频。`
+            : `标签接口异常：${props.templateTagLoadError}`}
         </div>
       ) : null}
 
