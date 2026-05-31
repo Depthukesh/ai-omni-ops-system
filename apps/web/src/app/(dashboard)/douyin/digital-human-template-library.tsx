@@ -42,33 +42,14 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
     { value: "FAVORITES", label: "我的收藏", helper: "只看已收藏模板" },
     { value: "RECENT", label: "最近使用", helper: "只看最近使用模板" },
   ];
-  const tagOptions = props.templateTagGroups.length
-    ? props.templateTagGroups.flatMap((group) =>
-        group.tagList.map((tag) => ({
-          key: String(tag.id),
-          label: tag.name,
-          helper: group.name,
-          mode: "remote" as const,
-        })),
-      )
-    : Array.from(
-        new Map(
-          props.filteredTemplates
-            .flatMap((item) => item.tagNames)
-            .filter((item) => item.trim())
-            .map((item) => [
-              item.trim().toLowerCase(),
-              {
-                key: item.trim(),
-                label: item.trim(),
-                helper: "本地筛选",
-                mode: "local" as const,
-              },
-            ]),
-        ).values(),
-      );
+  const tagOptions = props.templateTagGroups.flatMap((group) =>
+    group.tagList.map((tag) => ({
+      key: String(tag.id),
+      label: tag.name,
+      helper: group.name,
+    })),
+  );
   const isTemplateFailure = Boolean(props.templateLoadError);
-  const isTagFailure = Boolean(props.templateTagLoadError);
   const activeLocalTag = !props.activeTagId && props.templateSearch.trim();
   const previewTemplate = useMemo(
     () => props.filteredTemplates.find((item) => item.id === previewTemplateId),
@@ -151,24 +132,12 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         </div>
       ) : null}
 
-      {isTagFailure ? (
-        <div className="empty-state" style={{ marginTop: 12, borderColor: "#fde68a", background: "#fffbeb", color: "#92400e" }}>
-          {hasTemplates
-            ? `模板已加载，标签接口异常：${props.templateTagLoadError}`
-            : `标签接口异常：${props.templateTagLoadError}`}
-        </div>
-      ) : null}
-
       {tagOptions.length ? (
         <div className="strategy-chip-row" style={{ marginBottom: 16 }}>
           <button
             type="button"
             className={`filter-chip ${!props.activeTagId && !activeLocalTag ? "is-active" : ""}`}
             onClick={() => {
-              if (!props.templateTagGroups.length) {
-                props.onTemplateSearchChange("");
-                return;
-              }
               void props.onTemplateTagChange("");
             }}
             disabled={props.isTemplateLoading}
@@ -176,21 +145,15 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
             全部标签
           </button>
           {tagOptions.map((tag) => {
-            const isActive = tag.mode === "remote"
-              ? props.activeTagId === tag.key
-              : activeLocalTag === tag.label;
+            const isActive = props.activeTagId === tag.key;
             return (
               <button
-                key={`${tag.mode}-${tag.key}`}
+                key={tag.key}
                 type="button"
                 className={`filter-chip ${isActive ? "is-active" : ""}`}
                 title={tag.helper}
                 onClick={() => {
-                  if (tag.mode === "remote") {
-                    void props.onTemplateTagChange(tag.key);
-                    return;
-                  }
-                  props.onTemplateSearchChange(tag.label);
+                  void props.onTemplateTagChange(tag.key);
                 }}
                 disabled={props.isTemplateLoading}
               >
@@ -198,13 +161,6 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
               </button>
             );
           })}
-        </div>
-      ) : null}
-
-      {isTagFailure ? (
-        <div className="report-inline-tip report-inline-tip--error" style={{ marginBottom: 16 }}>
-          当前已回退为模板直出浏览。
-          {props.templateTagGroups.length ? "你仍可继续选模板和形象类型，标签筛选稍后再恢复。" : "由于标签接口异常，顶部标签已切换为本地关键词筛选。"}
         </div>
       ) : null}
 

@@ -1128,41 +1128,18 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
         }}
       />
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
-        <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
-          {DIGITAL_HUMAN_WORKSPACE_TABS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={item.key === activeTab ? "primary-button" : "secondary-button"}
-              onClick={() => setActiveTab(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="strategy-grid" style={{ marginTop: 16 }}>
-          <div className="entity-card personal-card">
-            <strong>当前栏目</strong>
-            <p className="personal-meta">{activeTabMeta.label}</p>
-            <p className="panel-subtext">{activeTabMeta.description}</p>
-          </div>
-          <div className="entity-card personal-card">
-            <strong>模板库</strong>
-            <p className="personal-meta">
-              {templateCountLabel}
-            </p>
-            <p className="panel-subtext">
-              当前视频来源：{selectedPersonSource === "CUSTOM" ? `定制数字人 / ${selectedCustomPerson?.name || "未选择"}` : `公共模板 / ${selectedTemplate?.name || "未选择模板"}`}
-            </p>
-          </div>
-          <div className="entity-card personal-card">
-            <strong>作品中心</strong>
-            <p className="personal-meta">{workCountLabel}</p>
-            <p className="panel-subtext">待找回：{props.items.filter((item) => isRecoverableWork(item)).length} 条</p>
-          </div>
-        </div>
-      </article>
+      <div className="strategy-inline-actions" style={{ marginTop: 20, flexWrap: "wrap" }}>
+        {DIGITAL_HUMAN_WORKSPACE_TABS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={item.key === activeTab ? "primary-button" : "secondary-button"}
+            onClick={() => setActiveTab(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {activeTab === "templateLibrary" ? (
         <DigitalHumanTemplateLibrary

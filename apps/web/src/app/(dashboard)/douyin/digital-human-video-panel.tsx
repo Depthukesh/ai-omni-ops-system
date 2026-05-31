@@ -180,14 +180,6 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           {hasTemplates ? `公共模板已加载，但模板接口最近一次刷新失败：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
         </div>
       ) : null}
-      {props.personSource === "COMMON" && props.templateTagLoadError ? (
-        <div className="report-inline-tip report-inline-tip--error" style={{ marginTop: 12 }}>
-          {hasTemplates
-            ? `标签接口异常：${props.templateTagLoadError}。你仍可继续选模板、形象类型并提交数字人视频。`
-            : `标签接口异常：${props.templateTagLoadError}`}
-        </div>
-      ) : null}
-
       <div className="personal-grid">
         <label className="field">
           <span>数字人来源</span>
@@ -198,25 +190,27 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         </label>
         {props.personSource === "COMMON" ? (
           <>
-            <label className="field">
-              <span>模板标签</span>
-              <select
-                value={props.activeTagId || ""}
-                onChange={(event) => {
-                  void props.onTemplateTagChange(event.target.value);
-                }}
-                disabled={props.isTemplateLoading}
-              >
-                <option value="">全部标签</option>
-                {props.templateTagGroups.flatMap((group) =>
-                  group.tagList.map((tag) => (
-                    <option key={tag.id} value={String(tag.id)}>
-                      {group.name} / {tag.name}
-                    </option>
-                  )),
-                )}
-              </select>
-            </label>
+            {props.templateTagGroups.length ? (
+              <label className="field">
+                <span>模板标签</span>
+                <select
+                  value={props.activeTagId || ""}
+                  onChange={(event) => {
+                    void props.onTemplateTagChange(event.target.value);
+                  }}
+                  disabled={props.isTemplateLoading}
+                >
+                  <option value="">全部标签</option>
+                  {props.templateTagGroups.flatMap((group) =>
+                    group.tagList.map((tag) => (
+                      <option key={tag.id} value={String(tag.id)}>
+                        {group.name} / {tag.name}
+                      </option>
+                    )),
+                  )}
+                </select>
+              </label>
+            ) : null}
             <label className="field">
               <span>模板搜索</span>
               <input

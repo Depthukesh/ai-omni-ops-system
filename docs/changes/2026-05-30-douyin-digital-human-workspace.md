@@ -445,6 +445,20 @@
   - 模板库主页面回到“纯浏览卡片墙”形态
   - 详情信息改为点击人物后在弹窗中查看，更接近蝉镜原站交互
 
+### 18. 顶部概览移除与标签失败静默化第十八轮
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 移除模板库顶部“当前栏目 / 模板库 / 作品中心”概览卡区域，仅保留 tab 切换
+- `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`
+  - 标签未同步成功时不再展示错误提示
+  - 标签区改为“同步成功才显示”，同步失败时直接隐藏
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 公共模板模式下移除标签同步失败提示
+  - 当标签未同步成功时，模板标签下拉直接隐藏
+- 本轮效果
+  - 页面被打叉的顶部概览区已去掉
+  - 标签异常不再出现在页面上，直接按无标签模式展示
+
 ### 14. 定制数字人与视频创建参数映射第九轮
 
 - `apps/web/src/services/works.ts`
