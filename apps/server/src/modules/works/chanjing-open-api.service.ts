@@ -176,22 +176,21 @@ export class ChanjingOpenApiService {
   private readonly tokenCache = new Map<string, { accessToken: string; expireAtMs: number }>();
 
   async listTemplateTags(credential: string) {
-    const accessToken = await this.getAccessToken(credential);
     try {
-      const response = await this.requestJson<{ list?: unknown[] }>(
+      const response = await this.requestCredentialJson<{ list?: unknown[] }>(
+        credential,
         "/open/v1/common/tag_list?business_type=1",
         {
           method: "GET",
-          accessToken,
         },
       );
       return this.normalizeTemplateTagGroups(response.list);
     } catch {
-      const fallbackResponse = await this.requestJson<{ list?: unknown[] }>(
+      const fallbackResponse = await this.requestCredentialJson<{ list?: unknown[] }>(
+        credential,
         "/open/v1/common/tag_list?business_type=1",
         {
           method: "GET",
-          accessToken,
           baseUrl: CHANJING_WEB_API_BASE_URL,
         },
       );
@@ -208,7 +207,6 @@ export class ChanjingOpenApiService {
       tagIds?: number[];
     },
   ) {
-    const accessToken = await this.getAccessToken(credential);
     const searchParams = new URLSearchParams();
     searchParams.set("page", String(Math.max(1, options?.page || 1)));
     searchParams.set("size", String(Math.min(50, Math.max(1, options?.size || 50))));
@@ -219,11 +217,11 @@ export class ChanjingOpenApiService {
     if (options?.tagIds?.length) {
       searchParams.set("tag_ids", options.tagIds.join(","));
     }
-    const response = await this.requestJson<{ list?: unknown[]; page_info?: unknown }>(
+    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(
+      credential,
       `/open/v1/list_common_dp?${searchParams.toString()}`,
       {
         method: "GET",
-        accessToken,
       },
     );
     return {
@@ -248,10 +246,8 @@ export class ChanjingOpenApiService {
   }
 
   async createVideo(credential: string, payload: ChanjingCreateVideoPayload) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<string>("/open/v1/create_video", {
+    const response = await this.requestCredentialJson<string>(credential, "/open/v1/create_video", {
       method: "POST",
-      accessToken,
       body: payload,
     });
     const taskId = String(response || "").trim();
@@ -262,10 +258,8 @@ export class ChanjingOpenApiService {
   }
 
   async getVideoDetail(credential: string, id: string) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<unknown>(`/open/v1/video?id=${encodeURIComponent(id)}`, {
+    const response = await this.requestCredentialJson<unknown>(credential, `/open/v1/video?id=${encodeURIComponent(id)}`, {
       method: "GET",
-      accessToken,
     });
     return this.normalizeVideoDetail(response);
   }
@@ -277,15 +271,14 @@ export class ChanjingOpenApiService {
       name: string;
     },
   ) {
-    const accessToken = await this.getAccessToken(credential);
     const searchParams = new URLSearchParams();
     searchParams.set("service", String(options.service || "").trim());
     searchParams.set("name", String(options.name || "").trim());
-    const response = await this.requestJson<unknown>(
+    const response = await this.requestCredentialJson<unknown>(
+      credential,
       `/open/v1/common/create_upload_url?${searchParams.toString()}`,
       {
         method: "GET",
-        accessToken,
       },
     );
     return this.normalizeUploadUrlRecord(response);
@@ -309,12 +302,11 @@ export class ChanjingOpenApiService {
   }
 
   async getFileDetail(credential: string, id: string) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<unknown>(
+    const response = await this.requestCredentialJson<unknown>(
+      credential,
       `/open/v1/common/file_detail?id=${encodeURIComponent(String(id || "").trim())}`,
       {
         method: "GET",
-        accessToken,
       },
     );
     return this.normalizeFileRecord(response);
@@ -332,10 +324,8 @@ export class ChanjingOpenApiService {
       resolutionRate?: 0 | 1;
     },
   ) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<string>("/open/v1/create_customised_person", {
+    const response = await this.requestCredentialJson<string>(credential, "/open/v1/create_customised_person", {
       method: "POST",
-      accessToken,
       body: {
         name: payload.name,
         callback: payload.callback,
@@ -360,10 +350,8 @@ export class ChanjingOpenApiService {
       pageSize?: number;
     },
   ) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<{ list?: unknown[]; page_info?: unknown }>("/open/v1/list_customised_person", {
+    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(credential, "/open/v1/list_customised_person", {
       method: "POST",
-      accessToken,
       body: {
         page: Math.max(1, options?.page || 1),
         page_size: Math.min(50, Math.max(1, options?.pageSize || 20)),
@@ -376,22 +364,19 @@ export class ChanjingOpenApiService {
   }
 
   async getCustomisedPersonDetail(credential: string, id: string) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<unknown>(
+    const response = await this.requestCredentialJson<unknown>(
+      credential,
       `/open/v1/customised_person?id=${encodeURIComponent(String(id || "").trim())}`,
       {
         method: "GET",
-        accessToken,
       },
     );
     return this.normalizeCustomisedPerson(response);
   }
 
   async deleteCustomisedPerson(credential: string, id: string) {
-    const accessToken = await this.getAccessToken(credential);
-    await this.requestJson<string>("/open/v1/delete_customised_person", {
+    await this.requestCredentialJson<string>(credential, "/open/v1/delete_customised_person", {
       method: "POST",
-      accessToken,
       body: {
         id: String(id || "").trim(),
       },
@@ -400,10 +385,8 @@ export class ChanjingOpenApiService {
   }
 
   async createLipSyncVideo(credential: string, payload: ChanjingCreateLipSyncPayload) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<string>("/open/v1/video_lip_sync/create", {
+    const response = await this.requestCredentialJson<string>(credential, "/open/v1/video_lip_sync/create", {
       method: "POST",
-      accessToken,
       body: payload,
     });
     const taskId = String(response || "").trim();
@@ -420,10 +403,8 @@ export class ChanjingOpenApiService {
       pageSize?: number;
     },
   ) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<{ list?: unknown[]; page_info?: unknown }>("/open/v1/video_lip_sync/list", {
+    const response = await this.requestCredentialJson<{ list?: unknown[]; page_info?: unknown }>(credential, "/open/v1/video_lip_sync/list", {
       method: "POST",
-      accessToken,
       body: {
         page: Math.max(1, options?.page || 1),
         page_size: Math.min(50, Math.max(1, options?.pageSize || 20)),
@@ -436,12 +417,11 @@ export class ChanjingOpenApiService {
   }
 
   async getLipSyncVideoDetail(credential: string, id: string) {
-    const accessToken = await this.getAccessToken(credential);
-    const response = await this.requestJson<unknown>(
+    const response = await this.requestCredentialJson<unknown>(
+      credential,
       `/open/v1/video_lip_sync/detail?id=${encodeURIComponent(String(id || "").trim())}`,
       {
         method: "GET",
-        accessToken,
       },
     );
     return this.normalizeLipSyncDetail(response);
@@ -473,6 +453,33 @@ export class ChanjingOpenApiService {
     return accessToken;
   }
 
+  private async requestCredentialJson<T>(
+    credential: string,
+    requestPath: string,
+    options: {
+      method: "GET" | "POST";
+      body?: Record<string, unknown>;
+      timeoutMs?: number;
+      baseUrl?: string;
+    },
+  ) {
+    try {
+      return await this.requestJson<T>(requestPath, {
+        ...options,
+        accessToken: await this.getAccessToken(credential),
+      });
+    } catch (error) {
+      if (!this.isExpiredAccessTokenError(error)) {
+        throw error;
+      }
+      this.clearAccessTokenCache(credential);
+      return this.requestJson<T>(requestPath, {
+        ...options,
+        accessToken: await this.getAccessToken(credential),
+      });
+    }
+  }
+
   private parseCredential(credential: string) {
     const raw = String(credential || "").trim();
     const [appId = "", secretKey = ""] = raw.split("::");
@@ -483,6 +490,22 @@ export class ChanjingOpenApiService {
       appId: appId.trim(),
       secretKey: secretKey.trim(),
     };
+  }
+
+  private clearAccessTokenCache(credential: string) {
+    const { appId, secretKey } = this.parseCredential(credential);
+    this.tokenCache.delete(`${appId}::${secretKey}`);
+  }
+
+  private isExpiredAccessTokenError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    const normalized = message.toLowerCase();
+    return normalized.includes("accesstoken已失效")
+      || normalized.includes("access token已失效")
+      || normalized.includes("access_token已失效")
+      || normalized.includes("access token invalid")
+      || normalized.includes("invalid access_token")
+      || normalized.includes("token已失效");
   }
 
   private async requestJson<T>(

@@ -669,7 +669,13 @@
   - 更新第三方接口配置模块、数字人模块和管理模块说明，改为品牌共享密钥策略
 - `docs/database-archive.md`
   - 数据归档说明改为 `BrandThirdPartyPlatformSecret`
-  - 非法排序值不再透传给蝉镜，避免公共数字人模板列表被参数错误直接打空
+
+### 21. 蝉镜 AccessToken 失效自动刷新第十八轮
+
+- `apps/server/src/modules/works/chanjing-open-api.service.ts`
+  - 蝉镜所有业务请求改为统一走 `requestCredentialJson`
+  - 若上游返回 `AccessToken已失效`、`invalid access_token` 等鉴权失效信息，服务端会自动清理当前凭证对应的 token 缓存并重试一次
+  - 用于处理“当前账号就是品牌 Owner、凭证手工校验正常，但服务端进程仍缓存着旧 token”这类现场
 
 ## 第十三轮验证
 
