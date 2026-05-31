@@ -316,6 +316,14 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
                     <p>
                       {previewTemplate.audioName ? `默认音色：${previewTemplate.audioName}` : "暂无默认音色信息"}
                     </p>
+                    {previewTemplate.audioPreview ? (
+                      <audio
+                        controls
+                        preload="none"
+                        src={previewTemplate.audioPreview}
+                        style={{ width: "100%", marginTop: 12 }}
+                      />
+                    ) : null}
                   </div>
                   <button
                     type="button"
