@@ -215,6 +215,8 @@ export function DouyinWorkspaceShell() {
   const [digitalHumanCustomVoices, setDigitalHumanCustomVoices] = useState<DouyinCustomVoiceRecord[]>([]);
   const [digitalHumanPublicVoicePageInfo, setDigitalHumanPublicVoicePageInfo] = useState<VoiceLibraryPageInfo | undefined>(undefined);
   const [digitalHumanCustomVoicePageInfo, setDigitalHumanCustomVoicePageInfo] = useState<VoiceLibraryPageInfo | undefined>(undefined);
+  const [digitalHumanPublicVoiceError, setDigitalHumanPublicVoiceError] = useState("");
+  const [digitalHumanCustomVoiceError, setDigitalHumanCustomVoiceError] = useState("");
   const [digitalHumanCurrentSpeechTask, setDigitalHumanCurrentSpeechTask] = useState<DouyinSpeechTaskRecord | null>(null);
   const [digitalHumanCurrentSpeechTaskId, setDigitalHumanCurrentSpeechTaskId] = useState("");
   const [digitalHumanTemplatePageInfo, setDigitalHumanTemplatePageInfo] = useState<DigitalHumanTemplatePageInfo | undefined>(undefined);
@@ -370,6 +372,7 @@ export function DouyinWorkspaceShell() {
     });
     setDigitalHumanPublicVoices(response.list || []);
     setDigitalHumanPublicVoicePageInfo(response.pageInfo);
+    setDigitalHumanPublicVoiceError("");
     return response.list || [];
   }, [activeBrandId, digitalHumanPublicVoicePageInfo?.size]);
 
@@ -380,6 +383,7 @@ export function DouyinWorkspaceShell() {
     });
     setDigitalHumanCustomVoices(response.list || []);
     setDigitalHumanCustomVoicePageInfo(response.pageInfo);
+    setDigitalHumanCustomVoiceError("");
     return response.list || [];
   }, [activeBrandId, digitalHumanCustomVoicePageInfo?.size]);
 
@@ -487,16 +491,20 @@ export function DouyinWorkspaceShell() {
     if (publicVoices.status === "fulfilled") {
       setDigitalHumanPublicVoices(publicVoices.value.list || []);
       setDigitalHumanPublicVoicePageInfo(publicVoices.value.pageInfo);
+      setDigitalHumanPublicVoiceError("");
     } else {
       setDigitalHumanPublicVoices([]);
       setDigitalHumanPublicVoicePageInfo(undefined);
+      setDigitalHumanPublicVoiceError(readRequestErrorMessage(publicVoices.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
     }
     if (customVoices.status === "fulfilled") {
       setDigitalHumanCustomVoices(customVoices.value.list || []);
       setDigitalHumanCustomVoicePageInfo(customVoices.value.pageInfo);
+      setDigitalHumanCustomVoiceError("");
     } else {
       setDigitalHumanCustomVoices([]);
       setDigitalHumanCustomVoicePageInfo(undefined);
+      setDigitalHumanCustomVoiceError(readRequestErrorMessage(customVoices.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
     }
     if (speechTask.status === "fulfilled") {
       setDigitalHumanCurrentSpeechTask(speechTask.value.item || null);
@@ -724,19 +732,23 @@ export function DouyinWorkspaceShell() {
     if (digitalHumanVoiceLibraryResult.status === "fulfilled") {
       setDigitalHumanPublicVoices(digitalHumanVoiceLibraryResult.value.list || []);
       setDigitalHumanPublicVoicePageInfo(digitalHumanVoiceLibraryResult.value.pageInfo);
+      setDigitalHumanPublicVoiceError("");
     } else {
       hasFallback = true;
       setDigitalHumanPublicVoices([]);
       setDigitalHumanPublicVoicePageInfo(undefined);
+      setDigitalHumanPublicVoiceError(readRequestErrorMessage(digitalHumanVoiceLibraryResult.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
     }
 
     if (digitalHumanCustomVoicesResult.status === "fulfilled") {
       setDigitalHumanCustomVoices(digitalHumanCustomVoicesResult.value.list || []);
       setDigitalHumanCustomVoicePageInfo(digitalHumanCustomVoicesResult.value.pageInfo);
+      setDigitalHumanCustomVoiceError("");
     } else {
       hasFallback = true;
       setDigitalHumanCustomVoices([]);
       setDigitalHumanCustomVoicePageInfo(undefined);
+      setDigitalHumanCustomVoiceError(readRequestErrorMessage(digitalHumanCustomVoicesResult.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
     }
 
     if (digitalHumanSpeechTaskResult.status === "fulfilled") {
@@ -1748,7 +1760,9 @@ export function DouyinWorkspaceShell() {
       await refreshDigitalHumanPublicVoices(page);
       setNotice(`已切换到公共声音第 ${page} 页。`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "公共声音列表刷新失败。");
+      const message = readRequestErrorMessage(error, "公共声音列表刷新失败。");
+      setDigitalHumanPublicVoiceError(message);
+      setErrorMessage(message);
     }
   }, [refreshDigitalHumanPublicVoices]);
 
@@ -1759,7 +1773,9 @@ export function DouyinWorkspaceShell() {
       await refreshDigitalHumanCustomVoices(page);
       setNotice(`已切换到我的声音第 ${page} 页。`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "我的声音列表刷新失败。");
+      const message = readRequestErrorMessage(error, "我的声音列表刷新失败。");
+      setDigitalHumanCustomVoiceError(message);
+      setErrorMessage(message);
     }
   }, [refreshDigitalHumanCustomVoices]);
 
@@ -2282,6 +2298,8 @@ export function DouyinWorkspaceShell() {
                     customVoices={digitalHumanCustomVoices}
                     publicVoicePageInfo={digitalHumanPublicVoicePageInfo}
                     customVoicePageInfo={digitalHumanCustomVoicePageInfo}
+                    publicVoiceLoadError={digitalHumanPublicVoiceError}
+                    customVoiceLoadError={digitalHumanCustomVoiceError}
                     currentSpeechTask={digitalHumanCurrentSpeechTask}
                     currentSpeechTaskId={digitalHumanCurrentSpeechTaskId}
                     templateTagGroups={digitalHumanTemplateTags}

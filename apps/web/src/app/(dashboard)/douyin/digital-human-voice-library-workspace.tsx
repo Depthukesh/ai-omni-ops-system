@@ -17,6 +17,8 @@ export interface DigitalHumanVoiceLibraryWorkspaceProps {
   customVoices: DouyinCustomVoiceRecord[];
   publicVoicePageInfo?: VoiceLibraryPageInfo;
   customVoicePageInfo?: VoiceLibraryPageInfo;
+  publicVoiceLoadError?: string;
+  customVoiceLoadError?: string;
   currentSpeechTask?: DouyinSpeechTaskRecord | null;
   currentSpeechTaskId?: string;
   isSubmitting: boolean;
@@ -145,6 +147,7 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
   const selectedVoice = filteredVoices.find((item) => item.id === selectedVoiceId) || filteredVoices[0];
   const publicPages = Array.from({ length: props.publicVoicePageInfo?.totalPage || 0 }, (_, index) => index + 1);
   const customPages = Array.from({ length: props.customVoicePageInfo?.totalPage || 0 }, (_, index) => index + 1);
+  const activeLoadError = activeTab === "PUBLIC" ? props.publicVoiceLoadError : props.customVoiceLoadError;
   const currentSpeechStatus = getSpeechTaskStatusLabel(
     props.currentSpeechTask?.status,
     props.currentSpeechTask?.errMsg,
@@ -200,6 +203,12 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
         </button>
       </div>
 
+      {activeLoadError ? (
+        <div className="empty-state" style={{ marginTop: 0 }}>
+          {activeLoadError}
+        </div>
+      ) : null}
+
       <div className="digital-human-voice-library__filters">
         <label className="field">
           <span>搜索声音</span>
@@ -236,7 +245,11 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
           </div>
           {!filteredVoices.length ? (
             <div className="empty-state" style={{ marginTop: 12 }}>
-              {activeTab === "PUBLIC" ? "当前没有读取到公共声音。" : "当前还没有定制声音，可先在右侧提交声音克隆。"}
+              {activeLoadError
+                ? "当前语音列表读取失败，请先处理上方报错后再重试。"
+                : activeTab === "PUBLIC"
+                  ? "当前没有读取到公共声音。"
+                  : "当前还没有定制声音，可先在右侧提交声音克隆。"}
             </div>
           ) : (
             <div className="digital-human-voice-library__list-grid">

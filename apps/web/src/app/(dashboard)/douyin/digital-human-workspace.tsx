@@ -177,6 +177,8 @@ export interface DouyinDigitalHumanWorkspaceProps {
   customVoices: DouyinCustomVoiceRecord[];
   publicVoicePageInfo?: VoiceLibraryPageInfo;
   customVoicePageInfo?: VoiceLibraryPageInfo;
+  publicVoiceLoadError?: string;
+  customVoiceLoadError?: string;
   currentSpeechTask?: DouyinSpeechTaskRecord | null;
   currentSpeechTaskId?: string;
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
@@ -1334,6 +1336,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           customVoices={props.customVoices}
           publicVoicePageInfo={props.publicVoicePageInfo}
           customVoicePageInfo={props.customVoicePageInfo}
+          publicVoiceLoadError={props.publicVoiceLoadError}
+          customVoiceLoadError={props.customVoiceLoadError}
           currentSpeechTask={props.currentSpeechTask}
           currentSpeechTaskId={props.currentSpeechTaskId}
           isSubmitting={props.isSubmitting}
