@@ -18,6 +18,80 @@ type PlatformDraft = {
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
 
+function normalizeString(value: unknown) {
+  return typeof value === "string" ? value : String(value || "");
+}
+
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => normalizeString(item).trim()).filter(Boolean);
+}
+
+function normalizeDynamicStats(value: unknown): UserThirdPartyPlatformRecord["dynamicStats"] {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const status = record.status;
+  if (status !== "ready" && status !== "missing_credential" && status !== "error") {
+    return undefined;
+  }
+  return {
+    status,
+    templateCount: typeof record.templateCount === "number" ? record.templateCount : undefined,
+    customPersonCount: typeof record.customPersonCount === "number" ? record.customPersonCount : undefined,
+    tagCount: typeof record.tagCount === "number" ? record.tagCount : undefined,
+    syncedAt: normalizeString(record.syncedAt || "").trim() || undefined,
+    message: normalizeString(record.message || "").trim() || undefined,
+  };
+}
+
+function normalizePlatformRecord(platform: unknown): UserThirdPartyPlatformRecord | null {
+  if (!platform || typeof platform !== "object") {
+    return null;
+  }
+  const record = platform as Record<string, unknown>;
+  const id = normalizeString(record.id).trim();
+  const name = normalizeString(record.name).trim();
+  if (!id || !name) {
+    return null;
+  }
+  const providerType = record.providerType;
+  const status = record.status;
+  return {
+    id,
+    name,
+    providerType:
+      providerType === "OPENAI" || providerType === "GEMINI" || providerType === "DOUBAO" || providerType === "CUSTOM"
+        ? providerType
+        : "CUSTOM",
+    status: status === "ACTIVE" || status === "DISABLED" || status === "DRAFT" ? status : "DRAFT",
+    baseUrl: normalizeString(record.baseUrl).trim(),
+    tutorialUrl: normalizeString(record.tutorialUrl).trim(),
+    modelIds: normalizeStringArray(record.modelIds),
+    defaultModel: normalizeString(record.defaultModel).trim(),
+    remark: normalizeString(record.remark).trim(),
+    updatedAt: normalizeString(record.updatedAt).trim(),
+    apiKey: normalizeString(record.apiKey),
+    effectiveApiKeyMasked: normalizeString(record.effectiveApiKeyMasked).trim() || "未设置",
+    dynamicStats: normalizeDynamicStats(record.dynamicStats),
+  };
+}
+
+function normalizePlatformResponse(result: GetMyThirdPartyPlatformsResponse): GetMyThirdPartyPlatformsResponse {
+  const platforms = Array.isArray(result?.platforms)
+    ? result.platforms.map((item) => normalizePlatformRecord(item)).filter(Boolean) as UserThirdPartyPlatformRecord[]
+    : [];
+  return {
+    brandId: normalizeString(result?.brandId).trim(),
+    role: normalizeString(result?.role).trim(),
+    canManage: Boolean(result?.canManage),
+    platforms,
+  };
+}
+
 function isChanjingPlatform(platform?: UserThirdPartyPlatformRecord) {
   const searchable = [platform?.name, platform?.baseUrl, platform?.tutorialUrl, platform?.remark].join(" ").toLowerCase();
   return searchable.includes("chanjing") || searchable.includes("蝉镜");
@@ -187,10 +261,11 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
   }
 
   function applyPlatformResponse(result: GetMyThirdPartyPlatformsResponse) {
-    setPlatforms(result.platforms);
+    const normalized = normalizePlatformResponse(result);
+    setPlatforms(normalized.platforms);
     setDrafts(
       Object.fromEntries(
-        result.platforms.map((item) => [
+        normalized.platforms.map((item) => [
           item.id,
           {
             apiKey: item.apiKey,
@@ -199,9 +274,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       ) as Record<string, PlatformDraft>,
     );
     setSearch("");
-    setSelectedPlatformId((current) => current || result.platforms[0]?.id || "");
-    setRole(result.role || "");
-    setCanManage(Boolean(result.canManage));
+    setSelectedPlatformId((current) => current || normalized.platforms[0]?.id || "");
+    setRole(normalized.role || "");
+    setCanManage(Boolean(normalized.canManage));
   }
 
   async function handleBrandSwitch(nextBrandId: string) {
