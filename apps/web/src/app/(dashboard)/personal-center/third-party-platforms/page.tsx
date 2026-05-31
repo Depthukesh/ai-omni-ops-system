@@ -442,7 +442,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         ) : null}
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
-          <span className="status-text">{canManage ? "当前角色可维护 API Key" : "当前角色仅可查看平台基线"}</span>
+          <span className="status-text">{canManage ? "当前角色可维护品牌共享 API Key" : "当前角色仅可查看平台基线"}</span>
         </div>
       </div>
 
@@ -513,13 +513,13 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 onClick={() => void handleSavePlatform(selectedPlatform.id)}
                 disabled={!canManage || !isDirty || savingPlatformId === selectedPlatform.id}
               >
-                {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存我的 API Key"}
+                {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存品牌共享 API Key"}
               </button>
             </div>
 
             {!canManage ? (
               <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-                当前角色没有第三方接口配置的编辑权限，只能查看平台基线与已脱敏的有效 Key。
+                当前角色没有第三方接口配置的编辑权限，只能查看平台基线与已脱敏的品牌共享 Key。
               </div>
             ) : null}
 
@@ -539,7 +539,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <strong>{getPlatformDefaultValue(selectedPlatform)}</strong>
               </div>
               <div>
-                <span>我的 API Key</span>
+                <span>当前品牌 API Key</span>
                 <strong>{selectedPlatform.effectiveApiKeyMasked}</strong>
               </div>
               <div>
@@ -568,12 +568,12 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                     }))
                   }
                   disabled={!canManage}
-                  placeholder={selectedPlatformIsChanjing ? "按 appId::secretKey 格式填写蝉镜凭证" : "填写当前账号在该平台使用的私有 API Key"}
+                  placeholder={selectedPlatformIsChanjing ? "按 appId::secretKey 格式填写蝉镜凭证" : "填写当前品牌在该平台使用的共享 API Key"}
                 />
                 <small className="personal-meta">
                   {selectedPlatformIsChanjing
                     ? "蝉镜平台当前复用单字段存储，请填写 `appId::secretKey`；系统会在服务端自动换取 access_token，不需要手动填写 token。"
-                    : "该字段是当前账号、当前品牌下的私有值，不会影响后台平台基线。"}
+                    : "该字段是当前品牌共享值，同品牌下有编辑权限的管理员维护的是同一份 Key，不会影响后台平台基线。"}
                 </small>
               </label>
 

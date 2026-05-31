@@ -647,6 +647,28 @@
   - 蝉镜动态统计支持 `partial` 渲染
   - 模板 / 定制数字人 / 标签 chip 对未取到的统计值显示 `-`
   - 蝉镜说明文案改为优先展示“模板与定制数字人数已同步，标签接口暂不可用”的真实状态
+
+### 20. 第三方接口改为品牌共享密钥第十七轮
+
+- `apps/server/src/modules/third-party-platforms/third-party-platforms.service.ts`
+  - 新增品牌共享密钥运行时模型：`BrandThirdPartyPlatformSecret`
+  - 个人中心第三方接口配置从“当前用户私有 Key”切换为“当前品牌共享 Key”
+  - 服务启动时自动创建品牌共享密钥表，并将历史 `UserThirdPartyPlatformSecret` 中同品牌同平台最近一次非空配置迁移到新表
+  - `resolveBrandRuntimeApiKeys` 不再按 `ownerUserId` 解析，改为直接按 `brandId + platformId(baseUrl 匹配)` 读取共享密钥
+- `apps/server/src/modules/third-party-platforms/third-party-platforms.controller.ts`
+  - `/api/third-party-platforms/:id/secret` 继续沿用原路由，但写入目标改为品牌共享密钥
+- `apps/server/src/modules/works/works.service.ts`
+  - 第三方平台缺失密钥时的报错从“品牌 Owner 未配置”改为“当前品牌未配置品牌共享 API Key”
+- `apps/server/src/modules/reports/reports.service.ts`
+  - 报告链路对齐品牌共享密钥的报错口径
+- `apps/server/src/common/mock-data.ts`
+  - mock 数据从 `userThirdPartyPlatformSecrets` 切换为 `brandThirdPartyPlatformSecrets`
+- `apps/web/src/app/(dashboard)/personal-center/third-party-platforms/page.tsx`
+  - 页面按钮、字段标题、说明文案统一改为“品牌共享 API Key”
+- `docs/site-map.md`
+  - 更新第三方接口配置模块、数字人模块和管理模块说明，改为品牌共享密钥策略
+- `docs/database-archive.md`
+  - 数据归档说明改为 `BrandThirdPartyPlatformSecret`
   - 非法排序值不再透传给蝉镜，避免公共数字人模板列表被参数错误直接打空
 
 ## 第十三轮验证

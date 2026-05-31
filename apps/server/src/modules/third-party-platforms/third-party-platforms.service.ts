@@ -30,7 +30,7 @@ export type UpdateThirdPartyPlatformPayload = {
   remark?: string;
 };
 
-export type UpdateMyThirdPartyPlatformSecretPayload = {
+export type UpdateBrandThirdPartyPlatformSecretPayload = {
   apiKey?: string;
 };
 
@@ -59,7 +59,7 @@ export type BrandRuntimeApiKeyResolution =
       apiKeys: string[];
     }
   | {
-      status: "owner-api-key-missing";
+      status: "brand-api-key-missing";
       platform: Pick<ThirdPartyPlatformRecord, "id" | "name" | "baseUrl">;
       apiKeys: [];
     };
@@ -77,9 +77,8 @@ type ThirdPartyPlatformRow = {
   updatedAt: Date | string;
 };
 
-type UserThirdPartyPlatformSecretRow = {
+type BrandThirdPartyPlatformSecretRow = {
   id: string;
-  userId: string;
   brandId: string;
   platformId: string;
   apiKey: string;
@@ -112,7 +111,7 @@ export class ThirdPartyPlatformsService {
     database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter(
       (item) => !this.isDecommissionedPlatform(item),
     );
-    database.userThirdPartyPlatformSecrets = (database.userThirdPartyPlatformSecrets || []).filter((item) =>
+    database.brandThirdPartyPlatformSecrets = (database.brandThirdPartyPlatformSecrets || []).filter((item) =>
       database.thirdPartyPlatforms?.some((platform) => platform.id === item.platformId),
     );
     return [...database.thirdPartyPlatforms].map((item) => ({ ...item }));
@@ -229,7 +228,7 @@ export class ThirdPartyPlatformsService {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
       await this.prismaService.$queryRawUnsafe(
-        `DELETE FROM "UserThirdPartyPlatformSecret" WHERE "platformId" = $1`,
+        `DELETE FROM "BrandThirdPartyPlatformSecret" WHERE "platformId" = $1`,
         platformId,
       );
       const rows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
@@ -241,14 +240,14 @@ export class ThirdPartyPlatformsService {
     }
 
     database.thirdPartyPlatforms = (database.thirdPartyPlatforms || []).filter((item) => item.id !== platformId);
-    database.userThirdPartyPlatformSecrets = (database.userThirdPartyPlatformSecrets || []).filter(
+    database.brandThirdPartyPlatformSecrets = (database.brandThirdPartyPlatformSecrets || []).filter(
       (item) => item.platformId !== platformId,
     );
     return current;
   }
 
-  async listUserPlatforms(userId: string, brandId: string) {
-    const [platforms, secrets] = await Promise.all([this.listPlatforms(), this.listUserSecrets(userId, brandId)]);
+  async listUserPlatforms(_userId: string, brandId: string) {
+    const [platforms, secrets] = await Promise.all([this.listPlatforms(), this.listBrandSecrets(brandId)]);
     return Promise.all(platforms.map(async (item) => {
       const secret = secrets.find((entry) => entry.platformId === item.id);
       const apiKey = secret?.apiKey || "";
@@ -262,7 +261,7 @@ export class ThirdPartyPlatformsService {
     }));
   }
 
-  async updateUserPlatformSecret(userId: string, brandId: string, platformId: string, payload: UpdateMyThirdPartyPlatformSecretPayload) {
+  async updateBrandPlatformSecret(brandId: string, platformId: string, payload: UpdateBrandThirdPartyPlatformSecretPayload) {
     const platform = await this.getPlatformById(platformId);
     if (!platform) {
       throw new NotFoundException("第三方平台不存在");
@@ -272,19 +271,18 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const existingRows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+      const existingRows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
         SELECT *
-        FROM "UserThirdPartyPlatformSecret"
-        WHERE "userId" = ${userId}
-          AND "brandId" = ${brandId}
+        FROM "BrandThirdPartyPlatformSecret"
+        WHERE "brandId" = ${brandId}
           AND "platformId" = ${platformId}
         LIMIT 1
       `;
       const existing = existingRows[0];
 
       if (existing) {
-        const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
-          UPDATE "UserThirdPartyPlatformSecret"
+        const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
+          UPDATE "BrandThirdPartyPlatformSecret"
           SET
             "apiKey" = ${nextApiKey},
             "updatedAt" = CURRENT_TIMESTAMP
@@ -294,18 +292,16 @@ export class ThirdPartyPlatformsService {
         return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
       }
 
-      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
-        INSERT INTO "UserThirdPartyPlatformSecret" (
+      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
+        INSERT INTO "BrandThirdPartyPlatformSecret" (
           "id",
-          "userId",
           "brandId",
           "platformId",
           "apiKey",
           "updatedAt"
         )
         VALUES (
-          ${`user_platform_secret_${Date.now()}`},
-          ${userId},
+          ${`brand_platform_secret_${Date.now()}`},
           ${brandId},
           ${platformId},
           ${nextApiKey},
@@ -316,11 +312,11 @@ export class ThirdPartyPlatformsService {
       return this.normalizeUserPlatform(platform, rows[0]?.apiKey || nextApiKey);
     }
 
-    if (!database.userThirdPartyPlatformSecrets) {
-      database.userThirdPartyPlatformSecrets = [];
+    if (!database.brandThirdPartyPlatformSecrets) {
+      database.brandThirdPartyPlatformSecrets = [];
     }
-    const existing = database.userThirdPartyPlatformSecrets.find(
-      (item) => item.userId === userId && item.brandId === brandId && item.platformId === platformId,
+    const existing = database.brandThirdPartyPlatformSecrets.find(
+      (item) => item.brandId === brandId && item.platformId === platformId,
     );
     if (existing) {
       existing.apiKey = nextApiKey;
@@ -328,9 +324,8 @@ export class ThirdPartyPlatformsService {
       return this.normalizeUserPlatform(platform, existing.apiKey);
     }
 
-    database.userThirdPartyPlatformSecrets.push({
-      id: `user_platform_secret_${Date.now()}`,
-      userId,
+    database.brandThirdPartyPlatformSecrets.push({
+      id: `brand_platform_secret_${Date.now()}`,
       brandId,
       platformId,
       apiKey: nextApiKey,
@@ -356,29 +351,14 @@ export class ThirdPartyPlatformsService {
         apiKeys: [],
       };
     }
-
-    const ownerUserId = await this.resolveBrandOwnerUserId(normalizedBrandId);
-    if (!ownerUserId) {
-      return {
-        status: "owner-api-key-missing",
-        platform: {
-          id: platform.id,
-          name: platform.name,
-          baseUrl: platform.baseUrl,
-        },
-        apiKeys: [],
-      };
-    }
-
-    const secret = await this.findUserPlatformSecretByPlatforms(
-      ownerUserId,
+    const secret = await this.findBrandPlatformSecretByPlatforms(
       normalizedBrandId,
       matchedPlatforms.map((item) => item.id),
     );
     const apiKey = String(secret?.apiKey || "").trim();
     if (!apiKey) {
       return {
-        status: "owner-api-key-missing",
+        status: "brand-api-key-missing",
         platform: {
           id: platform.id,
           name: platform.name,
@@ -467,18 +447,16 @@ export class ThirdPartyPlatformsService {
     return `${label}失败：${message}`;
   }
 
-  private async listUserSecrets(userId: string, brandId: string) {
+  private async listBrandSecrets(brandId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
         SELECT *
-        FROM "UserThirdPartyPlatformSecret"
-        WHERE "userId" = ${userId}
-          AND "brandId" = ${brandId}
+        FROM "BrandThirdPartyPlatformSecret"
+        WHERE "brandId" = ${brandId}
       `;
       return rows.map((item) => ({
         id: item.id,
-        userId: item.userId,
         brandId: item.brandId,
         platformId: item.platformId,
         apiKey: String(item.apiKey || ""),
@@ -486,8 +464,8 @@ export class ThirdPartyPlatformsService {
       }));
     }
 
-    return (database.userThirdPartyPlatformSecrets || [])
-      .filter((item) => item.userId === userId && item.brandId === brandId)
+    return (database.brandThirdPartyPlatformSecrets || [])
+      .filter((item) => item.brandId === brandId)
       .map((item) => ({ ...item }));
   }
 
@@ -534,40 +512,25 @@ export class ThirdPartyPlatformsService {
     });
   }
 
-  private async resolveBrandOwnerUserId(brandId: string) {
-    if (await this.prismaService.canUseDatabase()) {
-      const rows = await this.prismaService.$queryRaw<Array<{ ownerUserId: string | null }>>`
-        SELECT "ownerUserId"
-        FROM "Brand"
-        WHERE "id" = ${brandId}
-        LIMIT 1
-      `;
-      return String(rows[0]?.ownerUserId || "").trim();
-    }
-
-    return String(database.brands.find((item) => item.id === brandId)?.ownerUserId || "").trim();
-  }
-
-  private async findUserPlatformSecret(userId: string, brandId: string, platformId: string) {
+  private async findBrandPlatformSecret(brandId: string, platformId: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
         SELECT *
-        FROM "UserThirdPartyPlatformSecret"
-        WHERE "userId" = ${userId}
-          AND "brandId" = ${brandId}
+        FROM "BrandThirdPartyPlatformSecret"
+        WHERE "brandId" = ${brandId}
           AND "platformId" = ${platformId}
         LIMIT 1
       `;
       return rows[0];
     }
 
-    return (database.userThirdPartyPlatformSecrets || []).find(
-      (item) => item.userId === userId && item.brandId === brandId && item.platformId === platformId,
+    return (database.brandThirdPartyPlatformSecrets || []).find(
+      (item) => item.brandId === brandId && item.platformId === platformId,
     );
   }
 
-  private async findUserPlatformSecretByPlatforms(userId: string, brandId: string, platformIds: string[]) {
+  private async findBrandPlatformSecretByPlatforms(brandId: string, platformIds: string[]) {
     const normalizedPlatformIds = Array.from(
       new Set(
         platformIds
@@ -581,11 +544,10 @@ export class ThirdPartyPlatformsService {
 
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureTablesReady();
-      const rows = await this.prismaService.$queryRaw<UserThirdPartyPlatformSecretRow[]>`
+      const rows = await this.prismaService.$queryRaw<BrandThirdPartyPlatformSecretRow[]>`
         SELECT *
-        FROM "UserThirdPartyPlatformSecret"
-        WHERE "userId" = ${userId}
-          AND "brandId" = ${brandId}
+        FROM "BrandThirdPartyPlatformSecret"
+        WHERE "brandId" = ${brandId}
           AND "platformId" = ANY (${normalizedPlatformIds}::text[])
       `;
       const byPlatformId = new Map(rows.map((item) => [item.platformId, item] as const));
@@ -593,8 +555,8 @@ export class ThirdPartyPlatformsService {
     }
 
     const byPlatformId = new Map(
-      (database.userThirdPartyPlatformSecrets || [])
-        .filter((item) => item.userId === userId && item.brandId === brandId)
+      (database.brandThirdPartyPlatformSecrets || [])
+        .filter((item) => item.brandId === brandId)
         .map((item) => [item.platformId, item] as const),
     );
     return normalizedPlatformIds.map((item) => byPlatformId.get(item)).find(Boolean);
@@ -737,6 +699,32 @@ export class ThirdPartyPlatformsService {
       CREATE UNIQUE INDEX IF NOT EXISTS "UserThirdPartyPlatformSecret_user_brand_platform_key"
       ON "UserThirdPartyPlatformSecret" ("userId", "brandId", "platformId")
     `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "BrandThirdPartyPlatformSecret" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL,
+        "platformId" TEXT NOT NULL,
+        "apiKey" TEXT NOT NULL DEFAULT '',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "BrandThirdPartyPlatformSecret_brand_platform_key"
+      ON "BrandThirdPartyPlatformSecret" ("brandId", "platformId")
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      INSERT INTO "BrandThirdPartyPlatformSecret" ("id", "brandId", "platformId", "apiKey", "updatedAt")
+      SELECT DISTINCT ON ("brandId", "platformId")
+        CONCAT('brand_platform_secret_migrated_', md5("brandId" || ':' || "platformId")),
+        "brandId",
+        "platformId",
+        "apiKey",
+        "updatedAt"
+      FROM "UserThirdPartyPlatformSecret"
+      WHERE COALESCE("apiKey", '') <> ''
+      ORDER BY "brandId", "platformId", "updatedAt" DESC
+      ON CONFLICT ("brandId", "platformId") DO NOTHING
+    `);
 
     const existingRows = await this.prismaService.$queryRaw<ThirdPartyPlatformRow[]>`
       SELECT *
@@ -751,6 +739,10 @@ export class ThirdPartyPlatformsService {
       .filter((item) => this.isDecommissionedPlatform(item))
       .map((item) => item.id);
     if (decommissionedPlatformIds.length) {
+      await this.prismaService.$executeRaw`
+        DELETE FROM "BrandThirdPartyPlatformSecret"
+        WHERE "platformId" = ANY (${decommissionedPlatformIds}::text[])
+      `;
       await this.prismaService.$executeRaw`
         DELETE FROM "UserThirdPartyPlatformSecret"
         WHERE "platformId" = ANY (${decommissionedPlatformIds}::text[])

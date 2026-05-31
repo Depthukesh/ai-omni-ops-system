@@ -154,10 +154,10 @@
   - 关键字段：`name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`defaultModel`、`remark`
   - JSON 字段：`modelIdsJson`
   - 当前约定：若平台 `baseUrl` 命中已下线平台域名，服务启动时允许自动清理旧 `ThirdPartyPlatformConfig` 与关联私钥记录
-- `UserThirdPartyPlatformSecret`
-  - 用途：保存当前用户在当前品牌下、针对某个平台配置的私有 API Key
-  - 关键字段：`userId`、`brandId`、`platformId`、`apiKey`
-  - 当前约定：唯一键为 `userId + brandId + platformId`，只有品牌 Owner 可写；当 `ApiProviderConfig.baseUrl / extraParams.baseUrls` 命中平台 `baseUrl` 时，`ReportsModule` 与 `WorksModule` 会按 `brandId + ownerUserId + platformId` 强制读取这里的私有 Key，若 Owner 未配置则直接返回提醒，不再回退公共 Key
+- `BrandThirdPartyPlatformSecret`
+  - 用途：保存当前品牌下、针对某个平台配置的共享 API Key
+  - 关键字段：`brandId`、`platformId`、`apiKey`
+  - 当前约定：唯一键为 `brandId + platformId`；拥有 `personalCenter.thirdPartyPlatforms.edit` 权限的成员维护同一份品牌共享 Key；当 `ApiProviderConfig.baseUrl / extraParams.baseUrls` 命中平台 `baseUrl` 时，`ReportsModule` 与 `WorksModule` 会按 `brandId + platformId` 强制读取这里的共享 Key，若当前品牌未配置则直接返回提醒，不再回退公共 Key
 
 ## 4. 业务板块与数据表映射
 
@@ -209,8 +209,8 @@
 - 邀请站内消息：`BrandInviteNotification`
 - 第三方接口配置：
   - 平台基线：`ThirdPartyPlatformConfig`
-  - 当前品牌下当前用户私有 Key：`UserThirdPartyPlatformSecret`
-  - 若历史品牌下仍残留已下线平台的私有 Key，启动时会随平台基线一起清理
+  - 当前品牌下平台共享 Key：`BrandThirdPartyPlatformSecret`
+  - 若历史品牌下仍残留已下线平台的共享 Key，启动时会随平台基线一起清理
 
 ### 4.4 后台管理 `/admin`
 
@@ -220,8 +220,8 @@
 - 品牌成员与权限：`Brand`、`BrandMember`
 - API Provider 管理：当前已升级为数据库优先、`mock-data` 兜底；数据库可用时通过运行时表 `ApiProviderConfig` 持久化第三方接口供应商配置，字段覆盖 `name`、`providerType`、`status`、`baseUrl`、`tutorialUrl`、`apiKey`、`defaultModel`、`organization`、`project`、`timeoutMs`、`streamEnabled`、`customHeadersJson`、`extraParamsJson`、`modelWhitelistJson`、`remark`
   - 当前视频模型下拉、报告生成和小红书创作生成链路已开始直接读取 `ApiProviderConfig`
-- 第三方平台配置管理：当前后台“接口供应商”可见页已切到平台级配置视图；数据库可用时通过 `ThirdPartyPlatformConfig` 持久化平台基线，通过 `UserThirdPartyPlatformSecret` 持久化个人中心 Owner 私有 API Key
-  - 当前这层不替代 `ApiProviderConfig` 的运行时 `runtimeKey` 分组真源，但已作为运行时 API Key 强制隔离层参与 `ReportsModule` 与 `WorksModule`：命中平台后必须使用品牌私钥，缺失时直接报错提醒
+- 第三方平台配置管理：当前后台“接口供应商”可见页已切到平台级配置视图；数据库可用时通过 `ThirdPartyPlatformConfig` 持久化平台基线，通过 `BrandThirdPartyPlatformSecret` 持久化个人中心品牌共享 API Key
+  - 当前这层不替代 `ApiProviderConfig` 的运行时 `runtimeKey` 分组真源，但已作为运行时 API Key 强制隔离层参与 `ReportsModule` 与 `WorksModule`：命中平台后必须使用品牌共享密钥，缺失时直接报错提醒
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`

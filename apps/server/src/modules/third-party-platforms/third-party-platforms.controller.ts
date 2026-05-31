@@ -4,7 +4,7 @@ import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "../admin/admin-access";
 import {
   ThirdPartyPlatformsService,
   type CreateThirdPartyPlatformPayload,
-  type UpdateMyThirdPartyPlatformSecretPayload,
+  type UpdateBrandThirdPartyPlatformSecretPayload,
   type UpdateThirdPartyPlatformPayload,
 } from "./third-party-platforms.service";
 
@@ -68,7 +68,7 @@ export class ThirdPartyPlatformsController {
   @Patch("third-party-platforms/:id/secret")
   async updateUserPlatformSecret(
     @Param("id") id: string,
-    @Body() payload: UpdateMyThirdPartyPlatformSecretPayload,
+    @Body() payload: UpdateBrandThirdPartyPlatformSecretPayload,
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
@@ -76,6 +76,6 @@ export class ThirdPartyPlatformsController {
       throw new UnauthorizedException("请先登录并进入品牌工作区");
     }
     const access = await this.authService.assertBrandPermission(auth.brandId, "personalCenter.thirdPartyPlatforms", "edit", auth);
-    return this.thirdPartyPlatformsService.updateUserPlatformSecret(access.userId, access.brandId, id, payload);
+    return this.thirdPartyPlatformsService.updateBrandPlatformSecret(access.brandId, id, payload);
   }
 }

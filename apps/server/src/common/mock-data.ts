@@ -460,9 +460,8 @@ export type MockDatabase = {
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
   apiProviders: ApiProviderRecord[];
   thirdPartyPlatforms: ThirdPartyPlatformRecord[];
-  userThirdPartyPlatformSecrets: Array<{
+  brandThirdPartyPlatformSecrets: Array<{
     id: string;
-    userId: string;
     brandId: string;
     platformId: string;
     apiKey: string;
@@ -1888,7 +1887,7 @@ export const database: MockDatabase = {
   ],
   apiProviders: SYSTEM_API_PROVIDER_SEEDS.map((item) => ({ ...item })),
   thirdPartyPlatforms: THIRD_PARTY_PLATFORM_SEEDS.map((item) => ({ ...item })),
-  userThirdPartyPlatformSecrets: [],
+  brandThirdPartyPlatformSecrets: [],
 };
 
 export function createId(prefix: string): string {

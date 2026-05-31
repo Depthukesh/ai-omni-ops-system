@@ -247,7 +247,7 @@
   - 已接入蝉镜 OpenAPI 公共数字人模板库、模板标签、数字人口播视频创建、作品中心和结果找回
   - 当前模板库支持按标签服务端筛选与分页增量加载，避免后续模板数量继续增长后一次性全量拉取
   - 当前数字人作品继续复用 `works` 模块的 `Task + MediaAsset + HTML 壳 + OSS 资产缓存` 链路，不额外新建独立作品表
-  - 当前品牌 Owner 需先在个人中心第三方平台里按 `appId::secretKey` 形式配置蝉镜凭证，工作台再按品牌维度读取凭证创建和轮询数字人视频
+  - 当前品牌需先在个人中心第三方平台里按 `appId::secretKey` 形式配置蝉镜凭证，工作台再按品牌维度读取共享凭证创建和轮询数字人视频
 - 当前素材库直接消费品牌增长策略中“收集数据 -> 抖音 -> 对标作品信息及数据 / 获取低粉爆款榜 / 获取高完播率榜 / 获取高点赞率榜”被勾选入库的作品
 - 当前素材卡片中的视频预览优先读取抖音采集阶段缓存到 OSS 的视频签名地址，降低采集直链过期后素材库打不开的概率
 - 当前“热点找选题”会先提供每日热点日期下拉；选中日期后，后端把该日全部热点榜单和品牌背景资料一起送入统一技能，输出 3 条可勾选的抖音选题，并支持加入当前品牌独立存储的“选题库”
@@ -301,16 +301,16 @@
   - 参考变更：`docs/changes/2026-05-28-brand-skill-center-shared-overrides.md`
 - `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
   - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
-  - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护自己的私有 API Key，仅有 `view` 的成员保持只读
+  - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护当前品牌的共享 API Key，仅有 `view` 的成员保持只读
   - 当前品牌与角色展示已统一到三角色口径，品牌切换下拉与页面头部状态均显示 `管理员 / 员工 / 达人`
-  - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前账号在当前品牌下的私有 Key
+  - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前品牌下的平台共享 Key
   - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
   - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
-  - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由 Owner 单独维护该平台私有 Key
+  - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由有权限的管理员共同维护该平台品牌共享 Key
   - 当前平台基线已补入火山方舟视频模型 `doubao-seedance-2-0-260128 / doubao-seedance-2-0-fast-260128`；平台页会把这两条模型并入既有 `火山方舟平台`，无需手工新增第二个平台
-  - 柏拉图平台当前已正式下线；服务启动时会自动清理 `hk-api.gptbest.vip / api.gptbest.vip / api.bltcy.ai` 对应的平台基线与私有 Key 残留，前后台都不再展示该平台
-  - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时会先按当前 `brandId` 找品牌 Owner，再按平台 `baseUrl` 匹配对应私有 Key；命中平台后必须使用品牌私钥，若 Owner 尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
-  - 当前品牌间第三方模型调用已按 `brandId + ownerUserId + platformId` 隔离，不再直接共用同一套品牌外私钥
+  - 柏拉图平台当前已正式下线；服务启动时会自动清理 `hk-api.gptbest.vip / api.gptbest.vip / api.bltcy.ai` 对应的平台基线与共享 Key 残留，前后台都不再展示该平台
+  - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时按 `brandId + platformId(baseUrl 匹配)` 读取品牌共享 Key；命中平台后必须使用品牌共享密钥，若当前品牌尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
+  - 当前品牌间第三方模型调用已按 `brandId + platformId` 隔离，不再直接共用同一套品牌外私钥
   - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
@@ -523,7 +523,7 @@
   - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
   - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
   - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
-  - 当 `ApiProviderConfig` 的 `baseUrl` 能匹配到平台级 `ThirdPartyPlatformConfig` 时，报告链路必须读取当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；若未配置则直接中断并提醒先到个人中心完成配置
+  - 当 `ApiProviderConfig` 的 `baseUrl` 能匹配到平台级 `ThirdPartyPlatformConfig` 时，报告链路必须读取当前品牌在 `BrandThirdPartyPlatformSecret` 中保存的共享 Key；若未配置则直接中断并提醒先到个人中心完成配置
   - 当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，报告链路会优先按该 Provider 解析同名模型，再进入兼容模型 fallback
   - 品牌增长报告现已对齐可视化报告/半年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
   - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
@@ -551,7 +551,7 @@
   - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
   - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域站内接口读取，不直接暴露底层 OSS 链接，降低不同浏览器因绝对地址不一致导致的裂图差异
   - 原创文案、原创配图提示词、原创图片生成、二创文案、二创配图提示词、二创图片生成、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
-  - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌 Owner 在 `UserThirdPartyPlatformSecret` 中保存的私有 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
+  - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌在 `BrandThirdPartyPlatformSecret` 中保存的共享 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
   - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
   - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
   - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
@@ -595,9 +595,9 @@
 - `admin/api-providers`
   - 当前已支持后台真实读取与保存接口供应商配置；数据库可用时优先读写 `ApiProviderConfig` 运行时表，不可用时回退到 `mock-data`
 - `ThirdPartyPlatformsModule`
-  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由拥有对应权限的成员保存私有 API Key
-  - 当前该模块还负责把平台基线 + 品牌 Owner 私钥映射回 `ReportsModule` 与 `WorksModule` 的真实运行时；解析顺序为 `brandId -> ownerUserId -> platformId(baseUrl 匹配)`，命中平台后若缺少品牌私钥会直接返回提醒，不再允许继续落回 `ApiProviderConfig` 公共 Key
-  - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `UserThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
+  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由拥有对应权限的成员保存品牌共享 API Key
+  - 当前该模块还负责把平台基线 + 品牌共享密钥映射回 `ReportsModule` 与 `WorksModule` 的真实运行时；解析顺序为 `brandId -> platformId(baseUrl 匹配)`，命中平台后若缺少品牌共享密钥会直接返回提醒，不再允许继续落回 `ApiProviderConfig` 公共 Key
+  - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `BrandThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
 - `admin/billing-rules`
 - `admin/knowledge-bases`
 - `admin/model-usage`

@@ -1250,10 +1250,10 @@ export class WorksService {
       brandId,
       configuredPlatformBaseUrls,
     );
-    if (resolution.status === "owner-api-key-missing") {
+    if (resolution.status === "brand-api-key-missing") {
       const prefix = options?.sceneLabel ? `${options.sceneLabel} Provider 已激活，但` : "";
       throw new ServiceUnavailableException(
-        `${prefix}当前品牌的 Owner 尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成设置后再试。`,
+        `${prefix}当前品牌尚未配置第三方平台「${resolution.platform.name}」API Key，请先前往个人中心-第三方接口配置完成品牌共享设置后再试。`,
       );
     }
     if (resolution.status === "no-platform-match" && !fallbackApiKeys.length) {
