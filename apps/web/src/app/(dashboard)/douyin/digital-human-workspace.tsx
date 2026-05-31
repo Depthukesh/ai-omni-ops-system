@@ -173,6 +173,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   personalScriptTemplates: DouyinDigitalHumanScriptTemplateRecord[];
   templatePageInfo?: DigitalHumanTemplatePageInfo;
   activeTagId?: string;
+  templateLoadError?: string;
   isTemplateLoading?: boolean;
   onRefresh: () => void | Promise<void>;
   onTemplateTagChange: (tagId: string) => Promise<void>;
@@ -1168,6 +1169,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           workCountLabel={workCountLabel}
           templateTagGroups={props.templateTagGroups}
           activeTagId={props.activeTagId}
+          templateLoadError={props.templateLoadError}
           isTemplateLoading={props.isTemplateLoading}
           templateSearch={templateSearch}
           templateScopeFilter={templateScopeFilter}
@@ -1200,6 +1202,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           personSource={selectedPersonSource}
           templateTagGroups={props.templateTagGroups}
           activeTagId={props.activeTagId}
+          templateLoadError={props.templateLoadError}
           isTemplateLoading={props.isTemplateLoading}
           templateSearch={templateSearch}
           templateScopeFilter={templateScopeFilter}

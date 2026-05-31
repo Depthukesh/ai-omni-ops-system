@@ -376,6 +376,23 @@
   - 用户提供的 `10.txt` 已确认服务器当时停在 `a74cdeb`，部署脚本先死于 `apps/web/.next` 的 `EACCES`，后续 PM2 又遇到 `127.0.0.1:3001` 端口占用
   - 也就是说，线上之所以还没有模板，大概率是“修复提交未成功落到线上”，不是当前仓库里仍缺少模板排序修复
 
+### 15. 数字人模板失败原因可视化第十五轮
+
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 新增数字人模板专属错误状态
+  - 当模板列表或模板标签接口失败时，不再只保留全局“部分接口降级”，会单独提取失败消息并传给数字人工作台
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增 `templateLoadError` 透传
+- `apps/web/src/app/(dashboard)/douyin/digital-human-template-library.tsx`
+  - 模板库顶部新增就地错误提示
+  - 当模板未成功读取时，模板下拉和形象类型下拉会显示明确占位文案，不再表现为无声空白
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 数字人视频创建区在公共模板模式下同步展示模板读取失败原因
+  - 模板和形象类型下拉新增失败态占位文案
+- 本轮效果
+  - 用户现在可以直接在数字人面板看到“蝉镜配置缺失 / 模板接口失败 / 标签接口失败”等具体错误信息
+  - 页面空白态从“看起来像没有模板”改为“明确告诉用户是读取失败还是当前筛选无结果”
+
 ### 14. 定制数字人与视频创建参数映射第九轮
 
 - `apps/web/src/services/works.ts`

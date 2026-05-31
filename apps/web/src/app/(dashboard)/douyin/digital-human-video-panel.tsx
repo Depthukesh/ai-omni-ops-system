@@ -30,6 +30,7 @@ export interface DigitalHumanVideoPanelProps {
   personSource: "COMMON" | "CUSTOM";
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   activeTagId?: string;
+  templateLoadError?: string;
   isTemplateLoading?: boolean;
   templateSearch: string;
   templateScopeFilter: "ALL" | "FAVORITES" | "RECENT";
@@ -172,6 +173,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         </div>
       </div>
 
+      {props.personSource === "COMMON" && props.templateLoadError ? (
+        <div className="empty-state" style={{ marginTop: 12, borderColor: "#fecaca", background: "#fff1f2", color: "#9f1239" }}>
+          公共模板读取失败：{props.templateLoadError}
+        </div>
+      ) : null}
+
       <div className="personal-grid">
         <label className="field">
           <span>数字人来源</span>
@@ -220,11 +227,17 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             <label className="field">
               <span>数字人模板</span>
               <select value={props.selectedTemplateId} onChange={(event) => props.onSelectedTemplateChange(event.target.value)}>
-                {props.filteredTemplates.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
+                {props.filteredTemplates.length ? (
+                  props.filteredTemplates.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">
+                    {props.templateLoadError ? "公共模板读取失败，请先处理上方报错" : "当前筛选下暂无模板"}
                   </option>
-                ))}
+                )}
               </select>
             </label>
           </>
@@ -290,11 +303,17 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             disabled={props.personSource === "CUSTOM"}
           >
             {props.personSource === "COMMON" ? (
-              (props.selectedTemplate?.figures || []).map((item) => (
-                <option key={item.type} value={item.type}>
-                  {props.getFigureTypeLabel(item.type)}
+              (props.selectedTemplate?.figures || []).length ? (
+                (props.selectedTemplate?.figures || []).map((item) => (
+                  <option key={item.type} value={item.type}>
+                    {props.getFigureTypeLabel(item.type)}
+                  </option>
+                ))
+              ) : (
+                <option value="">
+                  {props.templateLoadError ? "模板未加载成功，暂无形象类型" : "请先选择模板"}
                 </option>
-              ))
+              )
             ) : (
               <option value="sit_body">半身</option>
             )}
