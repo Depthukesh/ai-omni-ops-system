@@ -246,6 +246,7 @@ model Brand {
   brandPromptOverrides BrandPromptOverride[]
   brandSkillResetLogs BrandSkillResetLog[]
   thirdPartyPlatformSecrets UserThirdPartyPlatformSecret[]
+  brandThirdPartyPlatformSecrets BrandThirdPartyPlatformSecret[]
 
   @@index([ownerUserId, createdAt])
 }
@@ -718,6 +719,7 @@ model ThirdPartyPlatformConfig {
   updatedAt    DateTime @updatedAt
 
   userSecrets  UserThirdPartyPlatformSecret[]
+  brandSecrets BrandThirdPartyPlatformSecret[]
 }
 
 model UserThirdPartyPlatformSecret {
@@ -734,6 +736,19 @@ model UserThirdPartyPlatformSecret {
 
   @@unique([userId, brandId, platformId])
   @@index([brandId, platformId])
+}
+
+model BrandThirdPartyPlatformSecret {
+  id         String   @id
+  brandId    String
+  platformId String
+  apiKey     String
+  updatedAt  DateTime @updatedAt
+
+  brand      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  platform   ThirdPartyPlatformConfig @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, platformId])
 }
 
 model DigitalHumanFavoriteTemplate {
