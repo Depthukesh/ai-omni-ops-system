@@ -11,6 +11,20 @@ import {
 } from "../../../services/works";
 
 type VoiceLibraryTab = "PUBLIC" | "CUSTOM";
+type VoiceDialogType = "CLONE" | "SYNTHESIS" | null;
+
+type VoiceListItem = {
+  id: string;
+  name: string;
+  gender?: string;
+  lang?: string;
+  desc?: string;
+  speed?: number;
+  pitch?: number;
+  audition?: string;
+  isCustom: boolean;
+  raw: DouyinVoiceLibraryRecord | DouyinCustomVoiceRecord;
+};
 
 export interface DigitalHumanVoiceLibraryWorkspaceProps {
   publicVoices: DouyinVoiceLibraryRecord[];
@@ -77,10 +91,12 @@ function getSpeechTaskStatusLabel(status?: number, errMsg?: string, errReason?: 
 
 export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibraryWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<VoiceLibraryTab>("PUBLIC");
+  const [activeDialog, setActiveDialog] = useState<VoiceDialogType>(null);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("ALL");
   const [languageFilter, setLanguageFilter] = useState("ALL");
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [synthesisVoiceId, setSynthesisVoiceId] = useState("");
   const [cloneName, setCloneName] = useState("");
   const [cloneModelType, setCloneModelType] = useState<CreateDouyinVoiceCloneForm["modelType"]>("cicada1.0");
   const [cloneLanguage, setCloneLanguage] = useState<CreateDouyinVoiceCloneForm["language"]>("cn");
@@ -91,31 +107,43 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
   const [speechPitch, setSpeechPitch] = useState("1");
   const [speechDialect, setSpeechDialect] = useState("0");
 
-  const currentList = activeTab === "CUSTOM"
-    ? props.customVoices.map((item) => ({
-        id: item.id,
-        name: item.name,
-        gender: undefined,
-        lang: undefined,
-        desc: item.type || "",
-        speed: undefined,
-        pitch: undefined,
-        audition: item.audioPath,
-        isCustom: true,
-        raw: item,
-      }))
-    : props.publicVoices.map((item) => ({
-        id: item.id,
-        name: item.name,
-        gender: item.gender,
-        lang: item.lang,
-        desc: item.desc || "",
-        speed: item.speed,
-        pitch: item.pitch,
-        audition: item.audition,
-        isCustom: false,
-        raw: item,
-      }));
+  const publicVoiceList = useMemo<VoiceListItem[]>(
+    () => props.publicVoices.map((item) => ({
+      id: item.id,
+      name: item.name,
+      gender: item.gender,
+      lang: item.lang,
+      desc: item.desc || "",
+      speed: item.speed,
+      pitch: item.pitch,
+      audition: item.audition,
+      isCustom: false,
+      raw: item,
+    })),
+    [props.publicVoices],
+  );
+
+  const customVoiceList = useMemo<VoiceListItem[]>(
+    () => props.customVoices.map((item) => ({
+      id: item.id,
+      name: item.name,
+      gender: undefined,
+      lang: undefined,
+      desc: item.type || "",
+      speed: undefined,
+      pitch: undefined,
+      audition: item.audioPath,
+      isCustom: true,
+      raw: item,
+    })),
+    [props.customVoices],
+  );
+
+  const currentList = activeTab === "CUSTOM" ? customVoiceList : publicVoiceList;
+  const allVoiceOptions = useMemo(
+    () => [...publicVoiceList, ...customVoiceList],
+    [customVoiceList, publicVoiceList],
+  );
 
   const filteredVoices = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -145,6 +173,9 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
   }, [filteredVoices, selectedVoiceId]);
 
   const selectedVoice = filteredVoices.find((item) => item.id === selectedVoiceId) || filteredVoices[0];
+  const synthesisVoice = allVoiceOptions.find((item) => item.id === synthesisVoiceId)
+    || allVoiceOptions.find((item) => item.id === selectedVoice?.id)
+    || allVoiceOptions[0];
   const publicPages = Array.from({ length: props.publicVoicePageInfo?.totalPage || 0 }, (_, index) => index + 1);
   const customPages = Array.from({ length: props.customVoicePageInfo?.totalPage || 0 }, (_, index) => index + 1);
   const activeLoadError = activeTab === "PUBLIC" ? props.publicVoiceLoadError : props.customVoiceLoadError;
@@ -154,53 +185,86 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
     props.currentSpeechTask?.errReason,
   );
 
+  useEffect(() => {
+    if (activeDialog !== "SYNTHESIS") {
+      return;
+    }
+    if (synthesisVoiceId && allVoiceOptions.some((item) => item.id === synthesisVoiceId)) {
+      return;
+    }
+    if (selectedVoice?.id) {
+      setSynthesisVoiceId(selectedVoice.id);
+      return;
+    }
+    if (allVoiceOptions[0]?.id) {
+      setSynthesisVoiceId(allVoiceOptions[0].id);
+    }
+  }, [activeDialog, allVoiceOptions, selectedVoice?.id, synthesisVoiceId]);
+
+  const openCloneDialog = () => {
+    setActiveDialog("CLONE");
+  };
+
+  const openSynthesisDialog = (voiceId?: string) => {
+    const nextVoiceId = String(voiceId || selectedVoice?.id || allVoiceOptions[0]?.id || "").trim();
+    if (nextVoiceId) {
+      setSynthesisVoiceId(nextVoiceId);
+    }
+    setActiveDialog("SYNTHESIS");
+  };
+
+  const closeDialog = () => {
+    setActiveDialog(null);
+  };
+
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact digital-human-voice-library" style={{ marginTop: 20 }}>
       <div className="report-editor-head digital-human-voice-library__head">
         <div>
           <strong>语音库</strong>
-          <p>新增独立语音板块，当前已接入公共声音、定制声音和语音合成，可直接复用蝉镜声音资产。</p>
+          <p>页面改为按蝉镜语音库方向展示全部声音卡片，定制声音和语音合成通过弹窗完成，结果可回流到我的声音与合成结果区。</p>
         </div>
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.publicVoices.length || props.customVoices.length ? "status-ready" : "status-in_progress"}`}>
             公共 {props.publicVoicePageInfo?.totalCount || props.publicVoices.length} / 我的 {props.customVoicePageInfo?.totalCount || props.customVoices.length}
           </span>
+          <button type="button" className="primary-button" onClick={openCloneDialog} disabled={!props.canEdit || props.isSubmitting}>
+            声音克隆
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => openSynthesisDialog()}
+            disabled={!props.canEdit || props.isSubmitting || !allVoiceOptions.length}
+          >
+            语音合成
+          </button>
           <button type="button" className="secondary-button" onClick={() => void props.onRefresh()} disabled={props.isSubmitting}>
             刷新列表
           </button>
         </div>
       </div>
 
-      <div className="digital-human-voice-library__summary-grid">
-        <div className="entity-card personal-card digital-human-voice-library__summary-card">
-          <strong>声音克隆</strong>
-          <p className="panel-subtext">上传 30 秒到 5 分钟的音频，创建“我的声音”中的定制声音。</p>
-        </div>
-        <div className="entity-card personal-card digital-human-voice-library__summary-card">
-          <strong>语音合成</strong>
-          <p className="panel-subtext">可直接使用公共声音或定制声音生成音频，并查看字幕切片与结果音频。</p>
-        </div>
-        <div className="entity-card personal-card digital-human-voice-library__summary-card">
-          <strong>页面结构</strong>
-          <p className="panel-subtext">当前排版按蝉镜语音库方向重构为“公共声音 / 我的声音 + 创作区”的独立板块。</p>
-        </div>
-      </div>
-
       <div className="digital-human-voice-library__toolbar">
-        <button
-          type="button"
-          className={activeTab === "PUBLIC" ? "primary-button" : "secondary-button"}
-          onClick={() => setActiveTab("PUBLIC")}
-        >
-          公共声音
-        </button>
-        <button
-          type="button"
-          className={activeTab === "CUSTOM" ? "primary-button" : "secondary-button"}
-          onClick={() => setActiveTab("CUSTOM")}
-        >
-          我的声音
-        </button>
+        <div className="strategy-inline-actions">
+          <button
+            type="button"
+            className={activeTab === "PUBLIC" ? "primary-button" : "secondary-button"}
+            onClick={() => setActiveTab("PUBLIC")}
+          >
+            公共声音
+          </button>
+          <button
+            type="button"
+            className={activeTab === "CUSTOM" ? "primary-button" : "secondary-button"}
+            onClick={() => setActiveTab("CUSTOM")}
+          >
+            我的声音
+          </button>
+        </div>
+        <small className="panel-subtext">
+          {activeTab === "PUBLIC" ? "浏览蝉镜公共声音，点击卡片可直接发起语音合成。" : "定制声音创建成功后会自动出现在这里。"}
+        </small>
       </div>
 
       {activeLoadError ? (
@@ -237,109 +301,189 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
         ) : null}
       </div>
 
-      <div className="digital-human-voice-library__layout">
-        <article className="report-editor-pane digital-human-voice-library__list-pane">
-          <div className="digital-human-voice-library__section-head">
-            <span>{activeTab === "PUBLIC" ? "声音列表" : "我的声音"}</span>
-            <small className="panel-subtext">已筛选 {filteredVoices.length} 个声音</small>
+      {selectedVoice ? (
+        <div className="entity-card personal-card digital-human-voice-library__selected-card">
+          <div>
+            <strong>当前选中：{selectedVoice.name}</strong>
+            <p className="panel-subtext" style={{ marginTop: 8 }}>
+              {[selectedVoice.gender, selectedVoice.lang, selectedVoice.desc].filter(Boolean).join(" / ") || "暂无更多描述"}
+            </p>
           </div>
-          {!filteredVoices.length ? (
-            <div className="empty-state" style={{ marginTop: 12 }}>
-              {activeLoadError
-                ? "当前语音列表读取失败，请先处理上方报错后再重试。"
-                : activeTab === "PUBLIC"
-                  ? "当前没有读取到公共声音。"
-                  : "当前还没有定制声音，可先在右侧提交声音克隆。"}
-            </div>
-          ) : (
-            <div className="digital-human-voice-library__list-grid">
-              {filteredVoices.map((item) => (
-                <article key={item.id} className={`entity-card personal-card digital-human-voice-library__voice-card ${selectedVoice?.id === item.id ? "is-active" : ""}`}>
-                  <button
-                    type="button"
-                    className={`digital-human-voice-library__voice-stage ${selectedVoice?.id === item.id ? "is-active" : ""}`}
-                    onClick={() => setSelectedVoiceId(item.id)}
-                  >
-                    <span className="digital-human-voice-library__voice-stage-label">{item.isCustom ? "我的声音" : "公共声音"}</span>
-                    <span className={`archive-pill ${item.isCustom ? getCustomVoiceStatusClass((item.raw as DouyinCustomVoiceRecord).status) : "status-ready"}`}>
-                      {item.isCustom ? getCustomVoiceStatusLabel((item.raw as DouyinCustomVoiceRecord).status) : "可试听"}
-                    </span>
-                  </button>
-                  <div className="digital-human-voice-library__voice-body">
-                    <strong>{item.name}</strong>
-                    <p>{[item.gender, item.lang, item.desc].filter(Boolean).join(" / ") || "暂无更多描述"}</p>
-                    {item.audition ? (
-                      <audio controls preload="none" src={item.audition} style={{ width: "100%", marginTop: 8 }} />
-                    ) : (
-                      <p className="panel-subtext" style={{ marginTop: 8 }}>当前暂无试听音频。</p>
-                    )}
-                    <div className="strategy-inline-actions" style={{ marginTop: 8 }}>
+          <div className="strategy-inline-actions">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => openSynthesisDialog(selectedVoice.id)}
+              disabled={!props.canEdit || props.isSubmitting}
+            >
+              用这个声音合成
+            </button>
+            {selectedVoice.isCustom ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void props.onDeleteCustomVoice(selectedVoice.id)}
+                disabled={!props.canEdit || props.isSubmitting}
+              >
+                删除声音
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <article className="report-editor-pane digital-human-voice-library__list-pane">
+        <div className="digital-human-voice-library__section-head">
+          <span>{activeTab === "PUBLIC" ? "声音列表" : "我的声音"}</span>
+          <small className="panel-subtext">已筛选 {filteredVoices.length} 个声音</small>
+        </div>
+        {!filteredVoices.length ? (
+          <div className="empty-state" style={{ marginTop: 12 }}>
+            {activeLoadError
+              ? "当前语音列表读取失败，请先处理上方报错后再重试。"
+              : activeTab === "PUBLIC"
+                ? "当前没有读取到公共声音。"
+                : "当前还没有定制声音，点击上方“声音克隆”即可创建。"}
+          </div>
+        ) : (
+          <div className="digital-human-voice-library__list-grid">
+            {filteredVoices.map((item) => (
+              <article key={item.id} className={`entity-card personal-card digital-human-voice-library__voice-card ${selectedVoice?.id === item.id ? "is-active" : ""}`}>
+                <button
+                  type="button"
+                  className={`digital-human-voice-library__voice-stage ${selectedVoice?.id === item.id ? "is-active" : ""}`}
+                  onClick={() => setSelectedVoiceId(item.id)}
+                >
+                  <span className="digital-human-voice-library__voice-stage-label">{item.isCustom ? "我的声音" : "公共声音"}</span>
+                  <span className={`archive-pill ${item.isCustom ? getCustomVoiceStatusClass((item.raw as DouyinCustomVoiceRecord).status) : "status-ready"}`}>
+                    {item.isCustom ? getCustomVoiceStatusLabel((item.raw as DouyinCustomVoiceRecord).status) : "可试听"}
+                  </span>
+                </button>
+                <div className="digital-human-voice-library__voice-body">
+                  <strong>{item.name}</strong>
+                  <p>{[item.gender, item.lang, item.desc].filter(Boolean).join(" / ") || "暂无更多描述"}</p>
+                  {item.audition ? (
+                    <audio controls preload="none" src={item.audition} style={{ width: "100%", marginTop: 8 }} />
+                  ) : (
+                    <p className="panel-subtext" style={{ marginTop: 8 }}>当前暂无试听音频。</p>
+                  )}
+                  <div className="strategy-inline-actions" style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => openSynthesisDialog(item.id)}
+                      disabled={!props.canEdit || props.isSubmitting}
+                    >
+                      语音合成
+                    </button>
+                    {item.isCustom ? (
                       <button
                         type="button"
                         className="secondary-button"
-                        onClick={() => setSelectedVoiceId(item.id)}
+                        onClick={() => void props.onDeleteCustomVoice(item.id)}
+                        disabled={!props.canEdit || props.isSubmitting}
                       >
-                        用于合成
+                        删除
                       </button>
-                      {item.isCustom ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => void props.onDeleteCustomVoice(item.id)}
-                          disabled={!props.canEdit || props.isSubmitting}
-                        >
-                          删除
-                        </button>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
-                </article>
-              ))}
-            </div>
-          )}
-
-          {activeTab === "PUBLIC" && publicPages.length > 1 ? (
-            <div className="digital-human-voice-library__pagination">
-              {publicPages.map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  className={(props.publicVoicePageInfo?.page || 1) === page ? "primary-button" : "secondary-button"}
-                  onClick={() => void props.onRefreshPublicVoices(page)}
-                  disabled={props.isSubmitting}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {activeTab === "CUSTOM" && customPages.length > 1 ? (
-            <div className="digital-human-voice-library__pagination">
-              {customPages.map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  className={(props.customVoicePageInfo?.page || 1) === page ? "primary-button" : "secondary-button"}
-                  onClick={() => void props.onRefreshCustomVoices(page)}
-                  disabled={props.isSubmitting}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </article>
-
-        <article className="report-editor-pane digital-human-voice-library__studio-pane">
-          <div className="digital-human-voice-library__section-head">
-            <span>声音创作</span>
-            <small className="panel-subtext">{selectedVoice?.name ? `当前选中：${selectedVoice.name}` : "请先在左侧选择一个声音"}</small>
+                </div>
+              </article>
+            ))}
           </div>
-          <div className="digital-human-voice-library__studio-grid">
-            <div className="entity-card personal-card digital-human-voice-library__studio-card">
-              <strong>定制声音</strong>
-              <div className="personal-grid" style={{ marginTop: 12 }}>
+        )}
+
+        {activeTab === "PUBLIC" && publicPages.length > 1 ? (
+          <div className="digital-human-voice-library__pagination">
+            {publicPages.map((page) => (
+              <button
+                key={page}
+                type="button"
+                className={(props.publicVoicePageInfo?.page || 1) === page ? "primary-button" : "secondary-button"}
+                onClick={() => void props.onRefreshPublicVoices(page)}
+                disabled={props.isSubmitting}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {activeTab === "CUSTOM" && customPages.length > 1 ? (
+          <div className="digital-human-voice-library__pagination">
+            {customPages.map((page) => (
+              <button
+                key={page}
+                type="button"
+                className={(props.customVoicePageInfo?.page || 1) === page ? "primary-button" : "secondary-button"}
+                onClick={() => void props.onRefreshCustomVoices(page)}
+                disabled={props.isSubmitting}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </article>
+
+      <div className="entity-card personal-card digital-human-voice-library__result-card">
+        <div className="digital-human-voice-library__section-head">
+          <span>最近一次语音合成</span>
+          <div className="strategy-inline-actions">
+            <small className="panel-subtext">{props.currentSpeechTaskId || props.currentSpeechTask?.id || "暂无任务"}</small>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={props.isSubmitting || !props.currentSpeechTaskId}
+              onClick={() => void props.onRefreshSpeechTask(props.currentSpeechTaskId)}
+            >
+              刷新结果
+            </button>
+          </div>
+        </div>
+        {props.currentSpeechTask ? (
+          <>
+            <p className="personal-meta" style={{ marginTop: 8 }}>
+              任务状态：{currentSpeechStatus}
+            </p>
+            {props.currentSpeechTask.full?.url ? (
+              <audio controls preload="none" src={props.currentSpeechTask.full.url} style={{ width: "100%", marginTop: 12 }} />
+            ) : (
+              <p className="panel-subtext" style={{ marginTop: 12 }}>当前还没有返回合成音频链接。</p>
+            )}
+            {props.currentSpeechTask.subtitles.length ? (
+              <div className="digital-human-voice-library__subtitle-section">
+                <strong>字幕切片</strong>
+                <div className="digital-human-voice-library__subtitle-grid">
+                  {props.currentSpeechTask.subtitles.slice(0, 8).map((item) => (
+                    <div key={item.key} className="entity-card personal-card digital-human-voice-library__subtitle-card">
+                      <p className="panel-subtext">{item.startTime}s - {item.endTime}s</p>
+                      <p>{item.subtitle}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="empty-state" style={{ marginTop: 12 }}>
+            这里会显示最近一次语音合成结果，包括音频地址和字幕切片。
+          </div>
+        )}
+      </div>
+
+      {activeDialog === "CLONE" ? (
+        <div className="digital-human-template-modal-overlay" onClick={closeDialog}>
+          <div className="digital-human-template-modal digital-human-voice-library__modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="digital-human-template-modal__close" onClick={closeDialog}>
+              关闭
+            </button>
+            <div className="digital-human-voice-library__modal-stack">
+              <div className="digital-human-voice-library__modal-header">
+                <strong>声音克隆</strong>
+                <p>上传样本人声，创建属于品牌的定制声音。创建成功后会自动出现在“我的声音”里。</p>
+              </div>
+              <div className="personal-grid">
                 <label className="field">
                   <span>声音名称</span>
                   <input value={cloneName} onChange={(event) => setCloneName(event.target.value)} placeholder="例如：品牌讲师女声" />
@@ -376,7 +520,7 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
                   </small>
                 </label>
               </div>
-              <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+              <div className="strategy-inline-actions">
                 <button
                   type="button"
                   className="primary-button"
@@ -394,20 +538,42 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
                       setClonePreviewText("");
                       setCloneAudioFile(null);
                       setActiveTab("CUSTOM");
+                      closeDialog();
                     }
                   }}
                 >
                   创建定制声音
                 </button>
+                <button type="button" className="secondary-button" onClick={closeDialog}>
+                  取消
+                </button>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
 
-            <div className="entity-card personal-card digital-human-voice-library__studio-card">
-              <strong>语音合成</strong>
-              <div className="personal-grid" style={{ marginTop: 12 }}>
-                <label className="field">
+      {activeDialog === "SYNTHESIS" ? (
+        <div className="digital-human-template-modal-overlay" onClick={closeDialog}>
+          <div className="digital-human-template-modal digital-human-voice-library__modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="digital-human-template-modal__close" onClick={closeDialog}>
+              关闭
+            </button>
+            <div className="digital-human-voice-library__modal-stack">
+              <div className="digital-human-voice-library__modal-header">
+                <strong>语音合成</strong>
+                <p>选择一个声音并输入文案，生成新的语音音频。合成结果会展示在页面下方的结果区。</p>
+              </div>
+              <div className="personal-grid">
+                <label className="field field-full">
                   <span>当前声音</span>
-                  <input value={selectedVoice?.name || ""} readOnly placeholder="请先在左侧选择声音" />
+                  <select value={synthesisVoice?.id || ""} onChange={(event) => setSynthesisVoiceId(event.target.value)}>
+                    {allVoiceOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.isCustom ? "我的声音" : "公共声音"}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="field">
                   <span>语速</span>
@@ -436,73 +602,38 @@ export function DigitalHumanVoiceLibraryWorkspace(props: DigitalHumanVoiceLibrar
                 </label>
                 <label className="field field-full">
                   <span>合成文案</span>
-                  <textarea value={speechText} onChange={(event) => setSpeechText(event.target.value)} rows={6} placeholder="输入要合成的文本，长度限制 4000 字以内" />
+                  <textarea value={speechText} onChange={(event) => setSpeechText(event.target.value)} rows={7} placeholder="输入要合成的文本，长度限制 4000 字以内" />
                 </label>
               </div>
-              <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+              <div className="strategy-inline-actions">
                 <button
                   type="button"
                   className="primary-button"
-                  disabled={!props.canEdit || props.isSubmitting || !selectedVoice?.id || !speechText.trim()}
-                  onClick={() => void props.onCreateSpeechTask({
-                    audioManId: selectedVoice?.id,
-                    text: speechText.trim(),
-                    speed: Number(speechSpeed || 1),
-                    pitch: Number(speechPitch || 1),
-                    dialect: Number(speechDialect || 0),
-                  })}
+                  disabled={!props.canEdit || props.isSubmitting || !synthesisVoice?.id || !speechText.trim()}
+                  onClick={async () => {
+                    const success = await props.onCreateSpeechTask({
+                      audioManId: synthesisVoice?.id,
+                      text: speechText.trim(),
+                      speed: Number(speechSpeed || 1),
+                      pitch: Number(speechPitch || 1),
+                      dialect: Number(speechDialect || 0),
+                    });
+                    if (success) {
+                      setSpeechText("");
+                      closeDialog();
+                    }
+                  }}
                 >
-                  文字转语音
+                  开始合成
                 </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={props.isSubmitting || !props.currentSpeechTaskId}
-                  onClick={() => void props.onRefreshSpeechTask(props.currentSpeechTaskId)}
-                >
-                  刷新结果
+                <button type="button" className="secondary-button" onClick={closeDialog}>
+                  取消
                 </button>
               </div>
             </div>
           </div>
-
-          <div className="entity-card personal-card digital-human-voice-library__result-card">
-            <strong>最近一次语音合成</strong>
-            {props.currentSpeechTask ? (
-              <>
-                <p className="personal-meta" style={{ marginTop: 8 }}>
-                  任务状态：{currentSpeechStatus}
-                </p>
-                <p className="panel-subtext">
-                  任务 ID：{props.currentSpeechTaskId || props.currentSpeechTask.id}
-                </p>
-                {props.currentSpeechTask.full?.url ? (
-                  <audio controls preload="none" src={props.currentSpeechTask.full.url} style={{ width: "100%", marginTop: 12 }} />
-                ) : (
-                  <p className="panel-subtext" style={{ marginTop: 12 }}>当前还没有返回合成音频链接。</p>
-                )}
-                {props.currentSpeechTask.subtitles.length ? (
-                  <div className="digital-human-voice-library__subtitle-section">
-                    <strong>字幕切片</strong>
-                    <div className="digital-human-voice-library__subtitle-grid">
-                      {props.currentSpeechTask.subtitles.slice(0, 6).map((item) => (
-                        <div key={item.key} className="entity-card personal-card digital-human-voice-library__subtitle-card">
-                          <p className="panel-subtext">{item.startTime}s - {item.endTime}s</p>
-                          <p>{item.subtitle}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="empty-state" style={{ marginTop: 12 }}>
-                这里会显示最近一次语音合成结果，包括音频地址和字幕切片。
-              </div>
-            )}
-          </div>
-        </article>
-      </div>
+        </div>
+      ) : null}
     </article>
   );
 }
