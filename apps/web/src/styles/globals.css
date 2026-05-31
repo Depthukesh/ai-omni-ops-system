@@ -1409,6 +1409,26 @@ button {
   flex-wrap: wrap;
 }
 
+.digital-human-template-filters {
+  margin-top: 16px;
+}
+
+.digital-human-template-search {
+  min-width: min(100%, 320px);
+  flex: 1 1 280px;
+}
+
+.digital-human-template-search input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d9e2f2;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0 16px;
+  color: #31374d;
+  font-size: 14px;
+}
+
 .digital-human-template-wall {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1436,8 +1456,13 @@ button {
 
 .digital-human-template-card__media {
   position: relative;
+  display: block;
+  width: 100%;
   aspect-ratio: 3 / 4;
+  padding: 0;
+  border: 0;
   background: linear-gradient(180deg, #eef2ff 0%, #f8faff 100%);
+  cursor: pointer;
 }
 
 .digital-human-template-card__media img {
@@ -1470,6 +1495,47 @@ button {
   color: #fff;
   font-size: 12px;
   font-weight: 600;
+}
+
+.digital-human-template-card__hover-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.02) 0%, rgba(15, 23, 42, 0.52) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.digital-human-template-card__hover-actions {
+  position: absolute;
+  inset: auto 16px 18px;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.digital-human-template-card:hover .digital-human-template-card__hover-mask,
+.digital-human-template-card:hover .digital-human-template-card__hover-actions,
+.digital-human-template-card:focus-within .digital-human-template-card__hover-mask,
+.digital-human-template-card:focus-within .digital-human-template-card__hover-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.digital-human-template-card__create-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff784e 0%, #ff5d36 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(255, 108, 72, 0.32);
 }
 
 .digital-human-template-card__body {
@@ -1512,6 +1578,147 @@ button {
   background: #f4f7ff;
   color: #5e6781;
   font-size: 12px;
+  font-weight: 600;
+}
+
+.digital-human-template-pagination {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.digital-human-template-pagination__buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.digital-human-template-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.digital-human-template-modal {
+  position: relative;
+  width: min(1120px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  padding: 24px;
+}
+
+.digital-human-template-modal__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d8dfec;
+  border-radius: 999px;
+  background: #fff;
+  color: #566072;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.digital-human-template-modal__layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.digital-human-template-modal__preview {
+  display: grid;
+  gap: 16px;
+}
+
+.digital-human-template-modal__preview img,
+.digital-human-template-modal__preview video {
+  display: block;
+  width: 100%;
+  border-radius: 20px;
+  background: #0f1525;
+}
+
+.digital-human-template-modal__create {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+}
+
+.digital-human-template-modal__content {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.digital-human-template-modal__header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.digital-human-template-modal__header strong {
+  display: block;
+  color: #111827;
+  font-size: 34px;
+  line-height: 1.35;
+}
+
+.digital-human-template-modal__header p {
+  margin: 10px 0 0;
+  color: #697286;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.digital-human-template-modal__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.digital-human-template-modal__figure-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.digital-human-template-modal__figure-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #e6eaf3;
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+}
+
+.digital-human-template-modal__figure-card.is-active {
+  border-color: rgba(95, 118, 255, 0.34);
+  box-shadow: 0 12px 24px rgba(95, 118, 255, 0.12);
+}
+
+.digital-human-template-modal__figure-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.digital-human-template-modal__figure-card span {
+  color: #4a5264;
+  font-size: 13px;
   font-weight: 600;
 }
 

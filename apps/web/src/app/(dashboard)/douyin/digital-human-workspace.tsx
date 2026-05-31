@@ -178,7 +178,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   isTemplateLoading?: boolean;
   onRefresh: () => void | Promise<void>;
   onTemplateTagChange: (tagId: string) => Promise<void>;
-  onLoadMoreTemplates?: () => Promise<void>;
+  onTemplatePageChange?: (page: number) => Promise<void>;
   onToggleFavoriteTemplate: (templateId: string, nextFavorite: boolean) => Promise<boolean>;
   onSaveScriptTemplate: (payload: { name?: string; content?: string; note?: string; isShared?: boolean; category?: string; isArchived?: boolean }) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
   onUpdateScriptTemplate: (
@@ -1176,11 +1176,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           templateSearch={templateSearch}
           templateScopeFilter={templateScopeFilter}
           filteredTemplates={filteredTemplates}
-          selectedTemplateId={selectedTemplateId}
-          selectedTemplate={selectedTemplate}
-          selectedFigureType={selectedFigureType}
-          selectedFigure={selectedFigure}
-          isSelectedTemplateFavorite={isSelectedTemplateFavorite}
+          favoriteTemplateIds={props.favoriteTemplateIds}
           templatePageInfo={props.templatePageInfo}
           onTemplateTagChange={props.onTemplateTagChange}
           onTemplateSearchChange={setTemplateSearch}
@@ -1188,12 +1184,18 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onSelectedTemplateChange={setSelectedTemplateId}
           onSelectedFigureTypeChange={setSelectedFigureType}
           onToggleFavoriteTemplate={props.onToggleFavoriteTemplate}
-          onUseTemplate={() => {
+          onUseTemplate={(payload) => {
             setSelectedPersonSource("COMMON");
+            if (payload?.templateId) {
+              setSelectedTemplateId(payload.templateId);
+            }
+            if (payload?.figureType) {
+              setSelectedFigureType(payload.figureType);
+            }
             setActiveTab("videoStudio");
           }}
           getFigureTypeLabel={getFigureTypeLabel}
-          onLoadMoreTemplates={props.onLoadMoreTemplates}
+          onTemplatePageChange={props.onTemplatePageChange}
         />
       ) : null}
 
@@ -1303,7 +1305,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onToggleArchivePersonalScriptTemplate={handleToggleArchivePersonalScriptTemplate}
           onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
-          onLoadMoreTemplates={props.onLoadMoreTemplates}
+          onLoadMoreTemplates={undefined}
           onSubmitCurrentVideo={handleSubmitCurrentVideo}
           getFigureTypeLabel={getFigureTypeLabel}
           getScriptTemplateCategoryLabel={getScriptTemplateCategoryLabel}

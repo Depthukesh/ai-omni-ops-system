@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import {
   type DigitalHumanFigureType,
   type DigitalHumanTemplatePageInfo,
@@ -18,11 +19,7 @@ export interface DigitalHumanTemplateLibraryProps {
   templateSearch: string;
   templateScopeFilter: "ALL" | "FAVORITES" | "RECENT";
   filteredTemplates: DigitalHumanTemplateRecord[];
-  selectedTemplateId: string;
-  selectedTemplate?: DigitalHumanTemplateRecord;
-  selectedFigureType: DigitalHumanFigureType;
-  selectedFigure?: DigitalHumanTemplateRecord["figures"][number];
-  isSelectedTemplateFavorite: boolean;
+  favoriteTemplateIds: string[];
   templatePageInfo?: DigitalHumanTemplatePageInfo;
   onTemplateTagChange: (tagId: string) => Promise<void>;
   onTemplateSearchChange: (value: string) => void;
@@ -30,13 +27,16 @@ export interface DigitalHumanTemplateLibraryProps {
   onSelectedTemplateChange: (templateId: string) => void;
   onSelectedFigureTypeChange: (figureType: DigitalHumanFigureType) => void;
   onToggleFavoriteTemplate: (templateId: string, nextFavorite: boolean) => Promise<boolean>;
-  onUseTemplate: () => void;
+  onUseTemplate: (payload?: { templateId: string; figureType?: DigitalHumanFigureType }) => void;
   getFigureTypeLabel: (type?: DigitalHumanFigureType) => string;
-  onLoadMoreTemplates?: () => Promise<void>;
+  onTemplatePageChange?: (page: number) => Promise<void>;
 }
 
 export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryProps) {
   const hasTemplates = props.filteredTemplates.length > 0;
+  const [previewTemplateId, setPreviewTemplateId] = useState("");
+  const [previewFigureType, setPreviewFigureType] = useState<DigitalHumanFigureType>("sit_body");
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const scopeOptions: Array<{ value: "ALL" | "FAVORITES" | "RECENT"; label: string; helper: string }> = [
     { value: "ALL", label: "推荐浏览", helper: "按当前模板墙浏览全部模板" },
     { value: "FAVORITES", label: "我的收藏", helper: "只看已收藏模板" },
@@ -70,7 +70,67 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
   const isTemplateFailure = Boolean(props.templateLoadError);
   const isTagFailure = Boolean(props.templateTagLoadError);
   const activeLocalTag = !props.activeTagId && props.templateSearch.trim();
-  const heroFigure = props.selectedFigure || props.selectedTemplate?.figures[0];
+  const previewTemplate = useMemo(
+    () => props.filteredTemplates.find((item) => item.id === previewTemplateId),
+    [previewTemplateId, props.filteredTemplates],
+  );
+  const previewFigure = useMemo(
+    () => previewTemplate?.figures.find((item) => item.type === previewFigureType) || previewTemplate?.figures[0],
+    [previewFigureType, previewTemplate],
+  );
+  const isPreviewFavorite = Boolean(previewTemplate?.id && props.favoriteTemplateIds.includes(previewTemplate.id));
+  const pageNumbers = useMemo(
+    () => Array.from({ length: props.templatePageInfo?.totalPage || 0 }, (_, index) => index + 1),
+    [props.templatePageInfo?.totalPage],
+  );
+  const shouldShowPagination = Boolean(
+    props.onTemplatePageChange
+    && props.templatePageInfo
+    && props.templatePageInfo.totalPage > 1
+    && props.templateScopeFilter === "ALL"
+    && !activeLocalTag,
+  );
+
+  useEffect(() => {
+    if (!previewTemplateId && props.filteredTemplates[0]?.id) {
+      setPreviewTemplateId(props.filteredTemplates[0].id);
+      setPreviewFigureType(props.filteredTemplates[0].figures[0]?.type || "sit_body");
+    }
+  }, [previewTemplateId, props.filteredTemplates]);
+
+  useEffect(() => {
+    if (!previewTemplateId) {
+      return;
+    }
+    const nextTemplate = props.filteredTemplates.find((item) => item.id === previewTemplateId);
+    if (!nextTemplate) {
+      setPreviewTemplateId("");
+      setPreviewFigureType("sit_body");
+      return;
+    }
+    if (!nextTemplate.figures.some((item) => item.type === previewFigureType)) {
+      setPreviewFigureType(nextTemplate.figures[0]?.type || "sit_body");
+    }
+  }, [previewFigureType, previewTemplateId, props.filteredTemplates]);
+
+  const openTemplateModal = (template: DigitalHumanTemplateRecord, figureType?: DigitalHumanFigureType) => {
+    props.onSelectedTemplateChange(template.id);
+    setPreviewTemplateId(template.id);
+    const nextFigureType = figureType || template.figures[0]?.type || "sit_body";
+    setPreviewFigureType(nextFigureType);
+    props.onSelectedFigureTypeChange(nextFigureType);
+    setIsPreviewOpen(true);
+  };
+
+  const handleUseTemplate = (template: DigitalHumanTemplateRecord, figureType?: DigitalHumanFigureType) => {
+    const nextFigureType = figureType || template.figures[0]?.type || "sit_body";
+    props.onSelectedTemplateChange(template.id);
+    props.onSelectedFigureTypeChange(nextFigureType);
+    props.onUseTemplate({
+      templateId: template.id,
+      figureType: nextFigureType,
+    });
+  };
 
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
@@ -82,67 +142,6 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.filteredTemplates.length ? "status-ready" : "status-in_progress"}`}>{props.templateCountLabel}</span>
           <span className="archive-pill status-ready">{props.workCountLabel}</span>
-        </div>
-      </div>
-
-      <div className="digital-human-template-hero">
-        <div className="digital-human-template-hero__preview">
-          {heroFigure?.cover ? (
-            <img src={heroFigure.cover} alt={props.selectedTemplate?.name || "数字人模板"} />
-          ) : (
-            <div className="digital-human-template-card__empty">暂无封面</div>
-          )}
-          <span className="digital-human-template-hero__badge">
-            {heroFigure ? props.getFigureTypeLabel(heroFigure.type) : "模板广场"}
-          </span>
-        </div>
-        <div className="digital-human-template-hero__content">
-          <div>
-            <strong>{props.selectedTemplate?.name || "从模板广场选择一个数字人"}</strong>
-            <p>
-              {props.selectedTemplate?.audioName
-                ? `默认音色：${props.selectedTemplate.audioName}`
-                : "当前可先按标签、收藏或最近使用快速缩小范围，再继续选择模板与形象类型。"}
-            </p>
-          </div>
-          <div className="digital-human-template-stat-grid">
-            <div className="digital-human-template-stat-card">
-              <span>模板状态</span>
-              <strong>{props.templateCountLabel}</strong>
-            </div>
-            <div className="digital-human-template-stat-card">
-              <span>作品累计</span>
-              <strong>{props.workCountLabel}</strong>
-            </div>
-            <div className="digital-human-template-stat-card">
-              <span>当前标签</span>
-              <strong>{props.activeTagId || activeLocalTag || "全部标签"}</strong>
-            </div>
-          </div>
-          <div className="digital-human-template-toolbar">
-            <div className="digital-human-template-toolbar__group">
-              {scopeOptions.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className={`filter-chip ${props.templateScopeFilter === item.value ? "is-active" : ""}`}
-                  title={item.helper}
-                  onClick={() => props.onTemplateScopeFilterChange(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            {props.selectedTemplate?.tagNames?.length ? (
-              <div className="digital-human-template-toolbar__group">
-                {props.selectedTemplate.tagNames.slice(0, 4).map((tag) => (
-                  <span key={`${props.selectedTemplate?.id}-${tag}`} className="action-chip">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
         </div>
       </div>
 
@@ -209,46 +208,46 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         </div>
       ) : null}
 
-      <div className="personal-grid">
-        <label className="field">
-          <span>模板搜索</span>
-          <input
-            value={props.templateSearch}
-            onChange={(event) => props.onTemplateSearchChange(event.target.value)}
-            placeholder="搜索模板名、音色或标签"
-          />
-        </label>
-        <label className="field">
-          <span>形象类型</span>
-          <select value={props.selectedFigureType} onChange={(event) => props.onSelectedFigureTypeChange(event.target.value as DigitalHumanFigureType)}>
-            {(props.selectedTemplate?.figures || []).length ? (
-              (props.selectedTemplate?.figures || []).map((item) => (
-                <option key={item.type} value={item.type}>
-                  {props.getFigureTypeLabel(item.type)}
-                </option>
-              ))
-            ) : (
-              <option value="">
-                {props.templateLoadError ? "模板未加载成功，暂无形象类型" : "请先选择模板"}
-              </option>
-            )}
-          </select>
-        </label>
+      <div className="digital-human-template-filters">
+        <div className="digital-human-template-toolbar">
+          <div className="digital-human-template-toolbar__group">
+            {scopeOptions.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`filter-chip ${props.templateScopeFilter === item.value ? "is-active" : ""}`}
+                title={item.helper}
+                onClick={() => props.onTemplateScopeFilterChange(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="digital-human-template-search">
+            <input
+              value={props.templateSearch}
+              onChange={(event) => props.onTemplateSearchChange(event.target.value)}
+              placeholder="按名称、音色或标签搜索"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="digital-human-template-wall">
         {props.filteredTemplates.length ? (
           props.filteredTemplates.map((item) => {
             const previewFigure = item.figures[0];
-            const isActive = item.id === props.selectedTemplate?.id;
+            const isActive = item.id === previewTemplateId;
             return (
-              <button
+              <article
                 key={item.id}
-                type="button"
                 className={`digital-human-template-card ${isActive ? "is-active" : ""}`}
-                onClick={() => props.onSelectedTemplateChange(item.id)}
               >
-                <div className="digital-human-template-card__media">
+                <button
+                  type="button"
+                  className="digital-human-template-card__media"
+                  onClick={() => openTemplateModal(item)}
+                >
                   {previewFigure?.cover ? (
                     <img src={previewFigure.cover} alt={item.name} />
                   ) : (
@@ -257,11 +256,24 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
                   <span className="digital-human-template-card__badge">
                     {previewFigure ? props.getFigureTypeLabel(previewFigure.type) : "模板"}
                   </span>
-                </div>
+                  <span className="digital-human-template-card__hover-mask" />
+                  <span className="digital-human-template-card__hover-actions">
+                    <span
+                      className="digital-human-template-card__create-button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleUseTemplate(item, previewFigure?.type);
+                      }}
+                    >
+                      创建视频
+                    </span>
+                  </span>
+                </button>
                 <div className="digital-human-template-card__body">
                   <div className="digital-human-template-card__title-row">
                     <strong>{item.name}</strong>
-                    {item.id === props.selectedTemplate?.id ? <span className="archive-pill status-ready">当前选中</span> : null}
+                    {isActive ? <span className="archive-pill status-ready">已预览</span> : null}
                   </div>
                   <p>{item.audioName ? `默认音色：${item.audioName}` : "暂无默认音色信息"}</p>
                   <div className="digital-human-template-card__tags">
@@ -272,7 +284,7 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
                       : <span>暂无标签</span>}
                   </div>
                 </div>
-              </button>
+              </article>
             );
           })
         ) : (
@@ -282,69 +294,113 @@ export function DigitalHumanTemplateLibrary(props: DigitalHumanTemplateLibraryPr
         )}
       </div>
 
-      <div className="personal-grid" style={{ marginTop: 16 }}>
-        <div className="entity-card personal-card">
-          <strong>{props.selectedTemplate?.name || "未选择模板"}</strong>
-          <p className="personal-meta">
-            {props.selectedTemplate?.audioName ? `默认音色：${props.selectedTemplate.audioName}` : "请选择模板"}
-          </p>
-          <p className="panel-subtext">{props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。"}</p>
-          {props.selectedTemplate?.audioPreview ? (
-            <audio controls preload="none" src={props.selectedTemplate.audioPreview} style={{ width: "100%", marginTop: 12 }} />
-          ) : (
-            <p className="panel-subtext" style={{ marginTop: 12 }}>当前模板暂无音色试听链接。</p>
-          )}
-          {props.selectedTemplate?.id ? (
-            <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void props.onToggleFavoriteTemplate(props.selectedTemplate!.id, !props.isSelectedTemplateFavorite)}
-              >
-                {props.isSelectedTemplateFavorite ? "取消收藏" : "收藏模板"}
-              </button>
-              <button type="button" className="primary-button" onClick={props.onUseTemplate}>
-                用当前模板创建视频
-              </button>
-            </div>
-          ) : null}
-        </div>
-        <div className="entity-card personal-card">
-          <strong>{props.selectedFigure ? props.getFigureTypeLabel(props.selectedFigure.type) : "形象预览"}</strong>
-          <p className="personal-meta">
-            {props.selectedFigure ? `${props.selectedFigure.width} x ${props.selectedFigure.height}` : "待选择"}
-          </p>
-          {props.selectedFigure?.cover ? (
-            <img src={props.selectedFigure.cover} alt={props.selectedTemplate?.name || "数字人模板"} style={{ width: "100%", borderRadius: 16, marginTop: 12 }} />
-          ) : (
-            <p className="panel-subtext">当前模板暂无封面图。</p>
-          )}
-          {props.selectedFigure?.previewVideoUrl ? (
-            <video controls preload="metadata" src={props.selectedFigure.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
-          ) : null}
-        </div>
-        <div className="entity-card personal-card">
-          <strong>配置提醒</strong>
-          <p className="panel-subtext">请先在个人中心的第三方平台里配置蝉镜凭证，格式为 `appId::secretKey`。</p>
-          <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
-          <p className="panel-subtext">如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。</p>
-          <p className="panel-subtext">常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。</p>
-        </div>
-      </div>
-
-      {props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
-        <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void props.onLoadMoreTemplates?.()}
-            disabled={props.isTemplateLoading}
-          >
-            {props.isTemplateLoading ? "加载中..." : "继续加载模板"}
-          </button>
+      {shouldShowPagination ? (
+        <div className="digital-human-template-pagination">
           <span className="panel-subtext">
-            当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页，每页 {props.templatePageInfo.size} 条
+            共 {props.templatePageInfo?.totalCount || 0} 人物，每页 24 个
           </span>
+          <div className="digital-human-template-pagination__buttons">
+            {pageNumbers.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                className={`filter-chip ${props.templatePageInfo?.page === pageNumber ? "is-active" : ""}`}
+                disabled={props.isTemplateLoading || props.templatePageInfo?.page === pageNumber}
+                onClick={() => void props.onTemplatePageChange?.(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {previewTemplate && isPreviewOpen ? (
+        <div
+          className="digital-human-template-modal-overlay"
+          onClick={() => setIsPreviewOpen(false)}
+        >
+          <div
+            className="digital-human-template-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="digital-human-template-modal__close"
+              onClick={() => setIsPreviewOpen(false)}
+            >
+              关闭
+            </button>
+            <div className="digital-human-template-modal__layout">
+              <div className="digital-human-template-modal__preview">
+                {previewFigure?.previewVideoUrl ? (
+                  <video
+                    controls
+                    preload="metadata"
+                    src={previewFigure.previewVideoUrl}
+                    poster={previewFigure.cover}
+                  />
+                ) : previewFigure?.cover ? (
+                  <img src={previewFigure.cover} alt={previewTemplate.name} />
+                ) : (
+                  <div className="digital-human-template-card__empty">暂无预览</div>
+                )}
+                <button
+                  type="button"
+                  className="primary-button digital-human-template-modal__create"
+                  onClick={() => handleUseTemplate(previewTemplate, previewFigure?.type)}
+                >
+                  创建视频
+                </button>
+              </div>
+              <div className="digital-human-template-modal__content">
+                <div className="digital-human-template-modal__header">
+                  <div>
+                    <strong>{previewTemplate.name}</strong>
+                    <p>
+                      {previewTemplate.audioName ? `默认音色：${previewTemplate.audioName}` : "暂无默认音色信息"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void props.onToggleFavoriteTemplate(previewTemplate.id, !isPreviewFavorite)}
+                  >
+                    {isPreviewFavorite ? "取消收藏" : "收藏模板"}
+                  </button>
+                </div>
+                <div className="digital-human-template-modal__meta">
+                  <span className="action-chip">{previewTemplate.figures.length} 个造型</span>
+                  {previewTemplate.tagNames.slice(0, 6).map((tag) => (
+                    <span key={`${previewTemplate.id}-${tag}`} className="action-chip">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="digital-human-template-modal__figure-grid">
+                  {previewTemplate.figures.map((figure, index) => (
+                    <button
+                      key={`${previewTemplate.id}-${figure.type}-${index}`}
+                      type="button"
+                      className={`digital-human-template-modal__figure-card ${previewFigure?.type === figure.type ? "is-active" : ""}`}
+                      onClick={() => {
+                        setPreviewFigureType(figure.type);
+                        props.onSelectedTemplateChange(previewTemplate.id);
+                        props.onSelectedFigureTypeChange(figure.type);
+                      }}
+                    >
+                      {figure.cover ? (
+                        <img src={figure.cover} alt={`${previewTemplate.name}-${props.getFigureTypeLabel(figure.type)}`} />
+                      ) : (
+                        <div className="digital-human-template-card__empty">暂无封面</div>
+                      )}
+                      <span>{props.getFigureTypeLabel(figure.type)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
     </article>

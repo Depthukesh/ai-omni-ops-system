@@ -1657,6 +1657,24 @@ export function DouyinWorkspaceShell() {
     }
   }, [digitalHumanTemplatePageInfo, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
 
+  const handleDigitalHumanTemplatePageChange = useCallback(async (page: number) => {
+    if (!digitalHumanTemplatePageInfo || page < 1 || page > digitalHumanTemplatePageInfo.totalPage) {
+      return;
+    }
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await loadDigitalHumanTemplates({
+        page,
+        size: digitalHumanTemplatePageInfo.size || 24,
+        tagId: digitalHumanTemplateTagId,
+      });
+      setNotice(`已切换到数字人模板第 ${page} 页。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人模板分页切换失败。");
+    }
+  }, [digitalHumanTemplatePageInfo, digitalHumanTemplateTagId, loadDigitalHumanTemplates]);
+
   const handleToggleDigitalHumanFavoriteTemplate = useCallback(async (templateId: string, nextFavorite: boolean) => {
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能修改数字人模板收藏。");
@@ -2040,7 +2058,7 @@ export function DouyinWorkspaceShell() {
                       await refreshDigitalHumanWorkspace();
                     }}
                     onTemplateTagChange={handleDigitalHumanTemplateTagChange}
-                    onLoadMoreTemplates={handleLoadMoreDigitalHumanTemplates}
+                    onTemplatePageChange={handleDigitalHumanTemplatePageChange}
                     onToggleFavoriteTemplate={handleToggleDigitalHumanFavoriteTemplate}
                     onSaveScriptTemplate={handleSaveDigitalHumanScriptTemplate}
                     onUpdateScriptTemplate={handleUpdateDigitalHumanScriptTemplate}
