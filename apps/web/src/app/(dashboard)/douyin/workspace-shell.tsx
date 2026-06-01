@@ -2306,6 +2306,11 @@ export function DouyinWorkspaceShell() {
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
                     personalScriptTemplates={digitalHumanScriptTemplates}
+                    materialLibraryItems={materialWorks.map((item) => ({
+                      id: item.id,
+                      label: item.title,
+                      videoUrl: item.videoUrl,
+                    }))}
                     templatePageInfo={digitalHumanTemplatePageInfo}
                     activeTagId={digitalHumanTemplateTagId}
                     templateLoadError={digitalHumanTemplateError}

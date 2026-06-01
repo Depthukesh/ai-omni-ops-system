@@ -5,9 +5,11 @@ import {
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
+  type DouyinCustomVoiceRecord,
   type DouyinDigitalHumanCustomPersonRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
   type DouyinDigitalHumanVideoWorkRecord,
+  type DouyinVoiceLibraryRecord,
 } from "../../../services/works";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
@@ -22,6 +24,21 @@ type DigitalHumanEditorDiffEntry = {
   label: string;
   currentValue: string;
   selectedValue: string;
+};
+
+type DigitalHumanVideoPanelDraftCard = {
+  id: string;
+  name: string;
+  personLabel: string;
+  voiceLabel: string;
+  materialLabel?: string;
+  scriptLength: number;
+};
+
+type DigitalHumanVideoPanelMaterialItem = {
+  id: string;
+  label: string;
+  videoUrl?: string;
 };
 
 export interface DigitalHumanVideoPanelProps {
@@ -43,6 +60,18 @@ export interface DigitalHumanVideoPanelProps {
   selectedCustomPerson?: DouyinDigitalHumanCustomPersonRecord;
   selectedFigureType: DigitalHumanFigureType;
   selectedFigure?: DigitalHumanTemplateRecord["figures"][number];
+  selectedVoiceMode: "DEFAULT" | "PUBLIC" | "CUSTOM";
+  selectedPublicVoiceId: string;
+  selectedCustomVoiceId: string;
+  publicVoices: DouyinVoiceLibraryRecord[];
+  customVoices: DouyinCustomVoiceRecord[];
+  selectedPublicVoice?: DouyinVoiceLibraryRecord;
+  selectedCustomVoice?: DouyinCustomVoiceRecord;
+  materialLibraryItems: DigitalHumanVideoPanelMaterialItem[];
+  selectedMaterialLibraryItemId: string;
+  selectedMaterialLibraryItem?: DigitalHumanVideoPanelMaterialItem;
+  creatorDraftCards: DigitalHumanVideoPanelDraftCard[];
+  activeDraftCardId: string;
   title: string;
   script: string;
   speechRate: string;
@@ -100,6 +129,14 @@ export interface DigitalHumanVideoPanelProps {
   onSelectedTemplateChange: (templateId: string) => void;
   onSelectedCustomPersonChange: (customPersonId: string) => void;
   onSelectedFigureTypeChange: (figureType: DigitalHumanFigureType) => void;
+  onSelectedVoiceModeChange: (value: "DEFAULT" | "PUBLIC" | "CUSTOM") => void;
+  onSelectedPublicVoiceChange: (voiceId: string) => void;
+  onSelectedCustomVoiceChange: (voiceId: string) => void;
+  onSelectedMaterialLibraryItemChange: (materialId: string) => void;
+  onSelectCreatorDraftCard: (draftId: string) => void;
+  onCreateCreatorDraftCard: () => void;
+  onDuplicateCreatorDraftCard: () => void;
+  onDeleteActiveDraftCard: () => void;
   onTitleChange: (value: string) => void;
   onScriptChange: (value: string | ((current: string) => string)) => void;
   onSpeechRateChange: (value: string) => void;
@@ -161,13 +198,34 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     props.personSource === "CUSTOM"
       ? "成功定制的数字人会自动带入推荐画布尺寸，并按当前已知训练能力收敛参数；当前先按半身形态提交。"
       : props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。";
+  const selectedVoiceSummary =
+    props.selectedVoiceMode === "DEFAULT"
+      ? props.personSource === "CUSTOM"
+        ? props.selectedCustomPerson?.audioManId
+          ? `默认使用当前定制数字人返回的克隆音色：${props.selectedCustomPerson.audioManId}`
+          : "当前定制数字人没有返回克隆音色，提交时会继续沿用平台默认语音策略。"
+        : props.selectedTemplate?.audioName
+          ? `默认使用模板自带音色：${props.selectedTemplate.audioName}`
+          : "当前模板未返回默认音色，提交时将交由平台按默认策略处理。"
+      : props.selectedVoiceMode === "PUBLIC"
+        ? props.selectedPublicVoice
+          ? `已选择公共声音：${props.selectedPublicVoice.name}${props.selectedPublicVoice.lang ? ` / ${props.selectedPublicVoice.lang}` : ""}`
+          : "当前没有可用的公共声音。"
+        : props.selectedCustomVoice
+          ? `已选择我的声音：${props.selectedCustomVoice.name}`
+          : "当前没有可用的我的声音。";
+  const selectedMaterialSummary = props.selectedMaterialLibraryItem
+    ? `当前引用素材：${props.selectedMaterialLibraryItem.label}${props.selectedMaterialLibraryItem.videoUrl ? "，可直接预览参考视频。" : ""}`
+    : props.materialLibraryItems.length
+      ? "请选择一条品牌素材库中的视频，作为当前片段的参考素材。"
+      : "当前品牌素材库还没有已入库的视频素材。";
 
   return (
     <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
       <div className="report-editor-head">
         <div>
-          <strong>数字人视频</strong>
-          <p>基于已选模板填写脚本与参数，提交后系统会调用蝉镜创建数字人视频任务。</p>
+          <strong>创作作品</strong>
+          <p>基于已选数字人填写脚本与参数，提交后系统会调用蝉镜创建数字人视频任务；模板库和语音库继续作为独立资源中心保留。</p>
         </div>
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.filteredTemplates.length ? "status-ready" : "status-in_progress"}`}>{props.templateCountLabel}</span>
@@ -180,6 +238,42 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           {hasTemplates ? `公共模板已加载，但模板接口最近一次刷新失败：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
         </div>
       ) : null}
+      <div className="digital-human-creator-drafts">
+        <div className="digital-human-creator-drafts__head">
+          <div>
+            <strong>多片段草稿</strong>
+            <p className="panel-subtext">每个片段都能单独记住数字人、声音、文案和素材引用，方便后续批量生成多个视频或继续做完整视频编排。</p>
+          </div>
+          <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
+            <span className="archive-pill status-ready">{props.creatorDraftCards.length} 个片段</span>
+            <button type="button" className="secondary-button" onClick={props.onCreateCreatorDraftCard}>
+              + 新增片段
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onDuplicateCreatorDraftCard}>
+              复制当前片段
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onDeleteActiveDraftCard}>
+              删除当前片段
+            </button>
+          </div>
+        </div>
+        <div className="digital-human-creator-drafts__grid">
+          {props.creatorDraftCards.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`digital-human-creator-draft-card ${item.id === props.activeDraftCardId ? "is-active" : ""}`}
+              onClick={() => props.onSelectCreatorDraftCard(item.id)}
+            >
+              <strong>{item.name}</strong>
+              <span>{item.personLabel}</span>
+              <span>{item.voiceLabel}</span>
+              {item.materialLabel ? <span>{item.materialLabel}</span> : <span>未引用素材</span>}
+              <span>{item.scriptLength} 字脚本</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="personal-grid">
         <label className="field">
           <span>数字人来源</span>
@@ -326,6 +420,78 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           <span>作品标题</span>
           <input value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} placeholder="例如：新品活动数字人口播" />
         </label>
+        <label className="field">
+          <span>声音来源</span>
+          <select value={props.selectedVoiceMode} onChange={(event) => props.onSelectedVoiceModeChange(event.target.value as "DEFAULT" | "PUBLIC" | "CUSTOM")}>
+            <option value="DEFAULT">默认音色</option>
+            <option value="PUBLIC" disabled={!props.publicVoices.length}>
+              公共声音
+            </option>
+            <option value="CUSTOM" disabled={!props.customVoices.length}>
+              我的声音
+            </option>
+          </select>
+        </label>
+        {props.selectedVoiceMode === "PUBLIC" ? (
+          <label className="field">
+            <span>公共声音</span>
+            <select value={props.selectedPublicVoiceId} onChange={(event) => props.onSelectedPublicVoiceChange(event.target.value)}>
+              {props.publicVoices.length ? (
+                props.publicVoices.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                    {item.lang ? ` / ${item.lang}` : ""}
+                  </option>
+                ))
+              ) : (
+                <option value="">当前没有可用的公共声音</option>
+              )}
+            </select>
+          </label>
+        ) : null}
+        {props.selectedVoiceMode === "CUSTOM" ? (
+          <label className="field">
+            <span>我的声音</span>
+            <select value={props.selectedCustomVoiceId} onChange={(event) => props.onSelectedCustomVoiceChange(event.target.value)}>
+              {props.customVoices.length ? (
+                props.customVoices.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">当前没有可用的我的声音</option>
+              )}
+            </select>
+          </label>
+        ) : null}
+        <label className="field field-full">
+          <span>当前声音说明</span>
+          <input value={selectedVoiceSummary} readOnly />
+        </label>
+        <label className="field">
+          <span>我的素材库</span>
+          <select value={props.selectedMaterialLibraryItemId} onChange={(event) => props.onSelectedMaterialLibraryItemChange(event.target.value)}>
+            {props.materialLibraryItems.length ? (
+              props.materialLibraryItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))
+            ) : (
+              <option value="">当前没有可用素材</option>
+            )}
+          </select>
+        </label>
+        <div className="field">
+          <span>素材说明</span>
+          <input value={selectedMaterialSummary} readOnly />
+          {props.selectedMaterialLibraryItem?.videoUrl ? (
+            <a href={props.selectedMaterialLibraryItem.videoUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ marginTop: 8, textAlign: "center" }}>
+              预览素材视频
+            </a>
+          ) : null}
+        </div>
         <label className="field field-full">
           <span>口播脚本</span>
           <textarea

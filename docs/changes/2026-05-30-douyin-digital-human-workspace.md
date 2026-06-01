@@ -857,3 +857,88 @@
 - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
   - 主文件继续收敛为 tab 编排层和状态/动作集中层
   - 模板库、数字人视频、作品中心、V2 占位栏目已全部开始以独立子组件渲染，不再继续把主结构堆回单个 JSX 分支
+
+### 23. 飞影式首页与创作作品第一阶段
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-home-panel.tsx`
+  - 新增数字人首页子组件
+  - 首屏收口为：
+    - 快速创建数字人
+    - 我的数字人
+    - 公共数字人
+    - 最近作品
+  - 快速创建数字人改为弹窗提交，直接复用现有定制数字人训练链路
+  - 首页提供：
+    - 去创作作品
+    - 去模板库挑选
+    - 去语音库管理
+    - 去作品中心
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 数字人工作台 tab 改为兼容式主流程：
+    - 首页
+    - 创作作品
+    - 模板库
+    - 语音库
+    - 作品中心
+  - 默认进入 `首页`
+  - 原 `数字人视频` 保留底层创建逻辑，但界面命名改为 `创作作品`
+  - `定制数字人 / 口型驱动` 先从主 tab 中收口，不再作为用户第一层主路径
+  - 首页、模板库、公用数字人卡片和定制数字人卡片都统一带入 `创作作品`
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 面板标题从“数字人视频”改为“创作作品”
+  - 文案明确说明模板库和语音库继续作为独立资源中心保留
+- `apps/web/src/styles/globals.css`
+  - 新增数字人首页首屏、卡片、快捷创建入口和弹窗样式
+- 本轮效果
+  - 新主流程已经开始落地，但没有推翻之前已经做好的模板库和语音库
+  - 用户现在可以先从首页进入，再按需深入到模板库、语音库和作品中心
+  - 数字人板块开始从“资源页堆叠”过渡到“首页 + 创作作品 + 资源中心”的兼容式结构
+
+### 24. 创作作品声音选择接入第二阶段第一步
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 创作页状态新增：
+    - `selectedVoiceMode`
+    - `selectedPublicVoiceId`
+    - `selectedCustomVoiceId`
+  - 支持 `默认音色 / 公共声音 / 我的声音` 三种模式
+  - 作品回填时会优先按 `audioManId` 命中公共声音或我的声音
+  - 提交数字人视频时，会把当前显式选中的声音真正写入 payload，不再只依赖模板默认音色
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 创作作品面板新增声音来源切换
+  - 当选择公共声音或我的声音时，展示对应下拉选择器
+  - 新增“当前声音说明”，明确告诉用户当前走的是模板默认音色、定制数字人默认音色、公共声音还是我的声音
+- 本轮效果
+  - 创作作品页现在已经可以直接改声音，不需要先退回语音库页面才能决定最终提交音色
+  - 语音库继续保留为深度资源中心，创作页则补齐了高频选择能力
+
+### 25. 创作作品多片段草稿与我的素材库接入
+
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 复用现有品牌素材库 `materialWorks`
+  - 将已入库视频素材映射为数字人工作台可直接使用的 `materialLibraryItems`
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增创作作品草稿卡片状态
+  - 当前编辑区会自动同步到活动草稿卡片
+  - 支持：
+    - 新增片段
+    - 复制当前片段
+    - 删除当前片段
+    - 切换片段并回填编辑区
+  - 每个片段会独立记录：
+    - 数字人来源
+    - 形象
+    - 声音来源
+    - 我的素材库引用
+    - 标题与脚本
+    - 画布与字幕参数
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 创作作品页新增“多片段草稿”卡片条
+  - 新增“我的素材库”选择器和素材预览入口
+  - 创作页开始具备飞影式多片段编排的前端基础
+- `apps/web/src/styles/globals.css`
+  - 新增多片段草稿卡片样式
+- 本轮效果
+  - 创作作品不再只有单条创建表单，而是具备多片段编排层
+  - 品牌素材库中的已入库视频可以直接在数字人创作页被引用
+  - 当前仍保持兼容式重构，不影响模板库、语音库和作品中心
