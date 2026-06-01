@@ -1041,6 +1041,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       }),
     [creatorDraftCards, props.customPersons, props.customVoices, props.materialLibraryItems, props.publicVoices, props.templates],
   );
+  const activeDraftCardIndex = useMemo(
+    () => creatorDraftCards.findIndex((item) => item.id === activeDraftCardId),
+    [activeDraftCardId, creatorDraftCards],
+  );
+  const canMoveActiveDraftCardUp = activeDraftCardIndex > 0;
+  const canMoveActiveDraftCardDown = activeDraftCardIndex >= 0 && activeDraftCardIndex < creatorDraftCards.length - 1;
 
   const handleUseTemplateInVideo = (payload?: { templateId?: string; figureType?: DigitalHumanFigureType }) => {
     setSelectedPersonSource("COMMON");
@@ -1115,6 +1121,22 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       applyDraftCardToEditor(fallbackDraft);
     }
     setEditorActionMessage(`已删除 ${activeDraftCard.name}。`);
+  };
+
+  const handleMoveActiveDraftCard = (direction: -1 | 1) => {
+    if (!activeDraftCard) {
+      return;
+    }
+    const currentIndex = creatorDraftCards.findIndex((item) => item.id === activeDraftCard.id);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= creatorDraftCards.length) {
+      return;
+    }
+    const nextDrafts = [...creatorDraftCards];
+    const [targetDraft] = nextDrafts.splice(currentIndex, 1);
+    nextDrafts.splice(nextIndex, 0, targetDraft);
+    setCreatorDraftCards(nextDrafts);
+    setEditorActionMessage(`已将 ${activeDraftCard.name} 调整到第 ${nextIndex + 1} 位。`);
   };
 
   const handleCopyScript = async () => {
@@ -1820,6 +1842,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onCreateCreatorDraftCard={handleCreateCreatorDraftCard}
           onDuplicateCreatorDraftCard={handleDuplicateCreatorDraftCard}
           onDeleteActiveDraftCard={handleDeleteActiveDraftCard}
+          onMoveActiveDraftCardUp={() => handleMoveActiveDraftCard(-1)}
+          onMoveActiveDraftCardDown={() => handleMoveActiveDraftCard(1)}
+          canMoveActiveDraftCardUp={canMoveActiveDraftCardUp}
+          canMoveActiveDraftCardDown={canMoveActiveDraftCardDown}
           onOpenAudioDriveDialog={handleOpenAudioDriveDialog}
           onCloseAudioDriveDialog={handleCloseAudioDriveDialog}
           onAudioDriveTitleChange={setAudioDriveTitle}

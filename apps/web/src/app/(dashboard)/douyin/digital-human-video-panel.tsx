@@ -143,6 +143,10 @@ export interface DigitalHumanVideoPanelProps {
   onCreateCreatorDraftCard: () => void;
   onDuplicateCreatorDraftCard: () => void;
   onDeleteActiveDraftCard: () => void;
+  onMoveActiveDraftCardUp: () => void;
+  onMoveActiveDraftCardDown: () => void;
+  canMoveActiveDraftCardUp: boolean;
+  canMoveActiveDraftCardDown: boolean;
   onOpenAudioDriveDialog: () => void;
   onCloseAudioDriveDialog: () => void;
   onAudioDriveTitleChange: (value: string) => void;
@@ -264,6 +268,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             </button>
             <button type="button" className="secondary-button" onClick={props.onDuplicateCreatorDraftCard}>
               复制当前片段
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardUp} disabled={!props.canMoveActiveDraftCardUp}>
+              上移当前片段
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardDown} disabled={!props.canMoveActiveDraftCardDown}>
+              下移当前片段
             </button>
             <button type="button" className="secondary-button" onClick={props.onDeleteActiveDraftCard}>
               删除当前片段
