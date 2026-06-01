@@ -91,10 +91,16 @@ type DigitalHumanCreatorDraftCard = {
 type DigitalHumanCreatorDraftCardSummary = {
   id: string;
   name: string;
+  personSource: "COMMON" | "CUSTOM";
   personLabel: string;
   voiceLabel: string;
   materialLabel?: string;
+  title: string;
+  scriptPreview: string;
   scriptLength: number;
+  subtitleEnabled: boolean;
+  previewImageUrl?: string;
+  previewVideoUrl?: string;
 };
 
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
@@ -1019,10 +1025,13 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const creatorDraftCardSummaries = useMemo<DigitalHumanCreatorDraftCardSummary[]>(
     () =>
       creatorDraftCards.map((item, index) => {
+        const matchedTemplate = props.templates.find((entry) => entry.id === item.selectedTemplateId);
+        const matchedFigure = matchedTemplate?.figures.find((entry) => entry.type === item.selectedFigureType) || matchedTemplate?.figures[0];
+        const matchedCustomPerson = props.customPersons.find((entry) => entry.id === item.selectedCustomPersonId);
         const personLabel =
           item.personSource === "CUSTOM"
-            ? props.customPersons.find((entry) => entry.id === item.selectedCustomPersonId)?.name || "我的数字人"
-            : props.templates.find((entry) => entry.id === item.selectedTemplateId)?.name || "公共模板";
+            ? matchedCustomPerson?.name || "我的数字人"
+            : matchedTemplate?.name || "公共模板";
         const voiceLabel =
           item.selectedVoiceMode === "DEFAULT"
             ? "默认音色"
@@ -1033,10 +1042,16 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
         return {
           id: item.id,
           name: item.name || `片段 ${index + 1}`,
+          personSource: item.personSource,
           personLabel,
           voiceLabel,
           materialLabel,
+          title: item.title,
+          scriptPreview: item.script.trim(),
           scriptLength: item.script.trim().length,
+          subtitleEnabled: item.subtitleEnabled,
+          previewImageUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.coverImageUrl : matchedFigure?.cover,
+          previewVideoUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.previewVideoUrl : matchedFigure?.previewVideoUrl,
         };
       }),
     [creatorDraftCards, props.customPersons, props.customVoices, props.materialLibraryItems, props.publicVoices, props.templates],

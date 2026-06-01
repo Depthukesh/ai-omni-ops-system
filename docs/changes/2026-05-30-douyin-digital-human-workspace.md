@@ -979,3 +979,59 @@
 - 本轮效果
   - 多片段草稿已经开始具备真正的顺序编排能力
   - 为后续“生成一个完整视频”的拼接顺序控制提前打底
+
+### 28. 飞影式首页与创作页结构纠偏收口
+
+- `apps/web/src/app/(dashboard)/douyin/digital-human-home-panel.tsx`
+  - 首页继续从“兼容式首页”纠偏为更接近飞影 / hifly 的卡片墙
+  - 顶部收口为：
+    - `我的数字人`
+    - `公共数字人`
+  - `我的数字人` 视图首卡固定为 `快速创建数字人`
+  - 我的数字人与公共数字人统一改为封面卡片，悬停展示 `去创作`
+  - 快速创建数字人改为上传弹窗，补充视频方向、格式、时长、大小说明和大面积上传区
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - 创作页继续从“大表单工作台”纠偏为“多片段连续创作块”
+  - 每个片段围绕：
+    - 人物预览
+    - 更换人物
+    - 声音选择
+    - 我的素材库
+    - 文案编辑
+    - 字幕开关与样式
+    - 片段顺序与复制新增
+  - 人物切换统一进入弹窗，弹窗内切换：
+    - 我的数字人
+    - 公共数字人
+    - 我的素材库
+  - 声音切换统一进入弹窗，弹窗内切换：
+    - 我的声音
+    - 公共声音
+  - 页面底部新增固定动作条，保留：
+    - 高级设置
+    - 脚本资产
+    - 生成 1 个完整作品（先占位）
+    - 生成当前片段
+    - 批量生成 n 个作品
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 扩展创作片段摘要字段，补齐卡片式编排需要的：
+    - 人物来源
+    - 标题
+    - 文案摘要
+    - 字幕状态
+    - 预览图 / 预览视频
+- `apps/web/src/styles/globals.css`
+  - 新增首页卡片墙、快速创建弹窗、创作片段卡片、人物 / 声音选择弹窗和底部生成条样式
+  - 补齐响应式栈式布局，避免小屏下页面再次退化成表单挤压态
+- 本轮效果
+  - 数字人首页已经更接近“我的数字人 / 公共数字人”的卡片流主入口
+  - 创作作品页已经更接近“一个数字人一个创作块”的连续编排结构
+  - 模板库、语音库、作品中心和底层生成能力继续保留，没有因纠偏被推翻
+
+## 本轮前端验证补充
+
+- `GetDiagnostics`
+  - `apps/web/src/styles/globals.css`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-home-panel.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+- `npm exec tsc -- --noEmit -p apps/web/tsconfig.json`

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
   type DigitalHumanFigureType,
   type DigitalHumanTemplatePageInfo,
@@ -29,10 +30,16 @@ type DigitalHumanEditorDiffEntry = {
 type DigitalHumanVideoPanelDraftCard = {
   id: string;
   name: string;
+  personSource: "COMMON" | "CUSTOM";
   personLabel: string;
   voiceLabel: string;
   materialLabel?: string;
+  title: string;
+  scriptPreview: string;
   scriptLength: number;
+  subtitleEnabled: boolean;
+  previewImageUrl?: string;
+  previewVideoUrl?: string;
 };
 
 type DigitalHumanVideoPanelMaterialItem = {
@@ -198,54 +205,234 @@ export interface DigitalHumanVideoPanelProps {
 }
 
 export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
+  const [isPersonDialogOpen, setIsPersonDialogOpen] = useState(false);
+  const [personDialogTab, setPersonDialogTab] = useState<"MY" | "PUBLIC" | "MATERIAL">("PUBLIC");
+  const [isVoiceDialogOpen, setIsVoiceDialogOpen] = useState(false);
+  const [voiceDialogTab, setVoiceDialogTab] = useState<"CUSTOM" | "PUBLIC">("CUSTOM");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showScriptAssets, setShowScriptAssets] = useState(false);
+
   const hasTemplates = props.filteredTemplates.length > 0;
-  const selectedPersonName =
-    props.personSource === "CUSTOM"
-      ? props.selectedCustomPerson?.name || "未选择定制数字人"
-      : props.selectedTemplate?.name || "未选择模板";
-  const selectedPersonAudioText =
-    props.personSource === "CUSTOM"
-      ? props.selectedCustomPerson?.audioManId
-        ? `已返回克隆音色 ID：${props.selectedCustomPerson.audioManId}`
-        : "当前定制数字人未返回克隆音色，将按蝉镜默认语音策略提交"
-      : props.selectedTemplate?.audioName
-        ? `默认音色：${props.selectedTemplate.audioName}`
-        : "请选择模板";
-  const selectedPersonSummary =
-    props.personSource === "CUSTOM"
-      ? "成功定制的数字人会自动带入推荐画布尺寸，并按当前已知训练能力收敛参数；当前先按半身形态提交。"
-      : props.selectedTemplate?.tagNames?.join(" / ") || "支持按标签筛选蝉镜公共数字人模板。";
+  const estimatedDurationLabel = useMemo(() => {
+    const textLength = props.script.trim().length;
+    const durationSeconds = textLength ? Math.max(6, Math.ceil(textLength / 6)) : 0;
+    if (!durationSeconds) {
+      return "待输入文案";
+    }
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    return minutes ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+  }, [props.script]);
+  const selectedAuditionUrl =
+    props.selectedVoiceMode === "PUBLIC"
+      ? props.selectedPublicVoice?.audition
+      : props.selectedVoiceMode === "CUSTOM"
+        ? props.selectedCustomVoice?.audioPath
+        : props.personSource === "COMMON"
+          ? props.selectedTemplate?.audioPreview
+          : undefined;
+
   const selectedVoiceSummary =
     props.selectedVoiceMode === "DEFAULT"
       ? props.personSource === "CUSTOM"
         ? props.selectedCustomPerson?.audioManId
-          ? `默认使用当前定制数字人返回的克隆音色：${props.selectedCustomPerson.audioManId}`
-          : "当前定制数字人没有返回克隆音色，提交时会继续沿用平台默认语音策略。"
+          ? `默认沿用当前数字人返回的克隆音色：${props.selectedCustomPerson.audioManId}`
+          : "当前数字人暂无默认克隆音色，提交时会沿用平台默认语音策略。"
         : props.selectedTemplate?.audioName
-          ? `默认使用模板自带音色：${props.selectedTemplate.audioName}`
-          : "当前模板未返回默认音色，提交时将交由平台按默认策略处理。"
+          ? `默认音色：${props.selectedTemplate.audioName}`
+          : "当前模板未返回默认音色。"
       : props.selectedVoiceMode === "PUBLIC"
         ? props.selectedPublicVoice
           ? `已选择公共声音：${props.selectedPublicVoice.name}${props.selectedPublicVoice.lang ? ` / ${props.selectedPublicVoice.lang}` : ""}`
-          : "当前没有可用的公共声音。"
+          : "当前没有可用公共声音。"
         : props.selectedCustomVoice
           ? `已选择我的声音：${props.selectedCustomVoice.name}`
-          : "当前没有可用的我的声音。";
-  const selectedMaterialSummary = props.selectedMaterialLibraryItem
-    ? `当前引用素材：${props.selectedMaterialLibraryItem.label}${props.selectedMaterialLibraryItem.videoUrl ? "，可直接预览参考视频。" : ""}`
-    : props.materialLibraryItems.length
-      ? "请选择一条品牌素材库中的视频，作为当前片段的参考素材。"
-      : "当前品牌素材库还没有已入库的视频素材。";
+          : "当前没有可用我的声音。";
+
+  const handleOpenPersonDialog = () => {
+    setPersonDialogTab(props.personSource === "CUSTOM" ? "MY" : "PUBLIC");
+    setIsPersonDialogOpen(true);
+  };
+
+  const handleOpenVoiceDialog = () => {
+    setVoiceDialogTab(props.selectedVoiceMode === "CUSTOM" ? "CUSTOM" : "PUBLIC");
+    setIsVoiceDialogOpen(true);
+  };
+
+  const handlePickTemplate = (templateId: string) => {
+    const target = props.filteredTemplates.find((item) => item.id === templateId);
+    props.onPersonSourceChange("COMMON");
+    props.onSelectedTemplateChange(templateId);
+    props.onSelectedFigureTypeChange(target?.figures[0]?.type || "sit_body");
+    setIsPersonDialogOpen(false);
+  };
+
+  const handlePickCustomPerson = (customPersonId: string) => {
+    props.onPersonSourceChange("CUSTOM");
+    props.onSelectedCustomPersonChange(customPersonId);
+    setIsPersonDialogOpen(false);
+  };
+
+  const handlePickMaterial = (materialId: string) => {
+    props.onSelectedMaterialLibraryItemChange(materialId);
+    setIsPersonDialogOpen(false);
+  };
+
+  const handlePickPublicVoice = (voiceId: string) => {
+    props.onSelectedVoiceModeChange("PUBLIC");
+    props.onSelectedPublicVoiceChange(voiceId);
+    setIsVoiceDialogOpen(false);
+  };
+
+  const handlePickCustomVoice = (voiceId: string) => {
+    props.onSelectedVoiceModeChange("CUSTOM");
+    props.onSelectedCustomVoiceChange(voiceId);
+    setIsVoiceDialogOpen(false);
+  };
+
+  const handleInsertPause = () => {
+    props.onScriptChange((current) => `${current.trim()} ...`.trim());
+  };
+
+  const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
+    const isActive = item.id === props.activeDraftCardId;
+    return (
+      <article key={item.id} className={`digital-human-creator-v2-card ${isActive ? "is-active" : ""}`}>
+        <div className="digital-human-creator-v2-card__topbar">
+          <div>
+            <strong>{item.title || item.name}</strong>
+            <p>
+              {item.personLabel} / {item.voiceLabel} / {item.scriptLength} 字
+            </p>
+          </div>
+          <div className="digital-human-creator-v2-card__topbar-actions">
+            {!isActive ? (
+              <button type="button" className="secondary-button" onClick={() => props.onSelectCreatorDraftCard(item.id)}>
+                编辑此片段
+              </button>
+            ) : null}
+            <span className={`archive-pill ${item.subtitleEnabled ? "status-ready" : "status-pending"}`}>{item.subtitleEnabled ? "显示字幕" : "隐藏字幕"}</span>
+          </div>
+        </div>
+
+        <div className="digital-human-creator-v2-card__layout">
+          <div className="digital-human-creator-v2-card__media-column">
+            <div className="digital-human-creator-v2-card__preview">
+              {isActive ? <button type="button" className="digital-human-creator-v2-card__change-bg">更换背景</button> : null}
+              {item.previewImageUrl ? (
+                <img src={item.previewImageUrl} alt={item.personLabel} className="digital-human-creator-v2-card__preview-image" />
+              ) : (
+                <div className="digital-human-creator-v2-card__preview-empty">未选择数字人</div>
+              )}
+              {isActive ? (
+                <button type="button" className="digital-human-creator-v2-card__replace" onClick={handleOpenPersonDialog}>
+                  更换
+                </button>
+              ) : null}
+            </div>
+
+            <button type="button" className="digital-human-creator-v2-card__voice-button" onClick={isActive ? handleOpenVoiceDialog : () => props.onSelectCreatorDraftCard(item.id)}>
+              <span className="digital-human-creator-v2-card__voice-icon">▶</span>
+              <span>
+                <strong>{item.voiceLabel}</strong>
+                <small>{isActive ? "点击切换我的声音 / 公共声音" : "点击进入当前片段"}</small>
+              </span>
+              <span className="digital-human-creator-v2-card__voice-arrow">›</span>
+            </button>
+
+            {isActive && props.selectedMaterialLibraryItem ? (
+              <div className="digital-human-creator-v2-card__material">
+                <strong>我的素材库</strong>
+                <p>{props.selectedMaterialLibraryItem.label}</p>
+                {props.selectedMaterialLibraryItem.videoUrl ? (
+                  <a href={props.selectedMaterialLibraryItem.videoUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    预览素材
+                  </a>
+                ) : null}
+              </div>
+            ) : item.materialLabel ? (
+              <div className="digital-human-creator-v2-card__material">
+                <strong>我的素材库</strong>
+                <p>{item.materialLabel}</p>
+              </div>
+            ) : null}
+
+            {isActive && selectedAuditionUrl ? <audio controls preload="metadata" src={selectedAuditionUrl} className="digital-human-creator-v2-card__audio" /> : null}
+            {isActive && item.previewVideoUrl ? <video controls preload="metadata" src={item.previewVideoUrl} className="digital-human-creator-v2-card__video" /> : null}
+          </div>
+
+          <div className="digital-human-creator-v2-card__editor-column">
+            <div className="digital-human-creator-v2-card__editor-tools">
+              <button type="button" className="secondary-button" disabled={!selectedAuditionUrl}>
+                试听
+              </button>
+              <button type="button" className="secondary-button" onClick={isActive ? handleInsertPause : () => props.onSelectCreatorDraftCard(item.id)} disabled={!isActive}>
+                插入停顿
+              </button>
+              <button type="button" className="secondary-button" onClick={isActive ? props.onOpenAudioDriveDialog : () => props.onSelectCreatorDraftCard(item.id)} disabled={!isActive}>
+                切换成音频驱动
+              </button>
+            </div>
+
+            {isActive ? (
+              <>
+                <textarea
+                  className="digital-human-creator-v2-card__textarea"
+                  value={props.script}
+                  onChange={(event) => props.onScriptChange(event.target.value)}
+                  placeholder="请输入台词，也可以先插入一段脚本模板。"
+                />
+                <div className="digital-human-creator-v2-card__footer">
+                  <span className="digital-human-creator-v2-card__duration">预计时长：{estimatedDurationLabel}</span>
+                  <button type="button" className={`digital-human-creator-v2-card__toggle ${props.subtitleEnabled ? "is-active" : ""}`} onClick={() => props.onSubtitleEnabledChange(!props.subtitleEnabled)}>
+                    显示字幕
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => setShowAdvancedSettings((current) => !current)}>
+                    调整字幕样式
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="digital-human-creator-v2-card__readonly">{item.scriptPreview || "点击“编辑此片段”后输入台词"}</div>
+            )}
+          </div>
+        </div>
+
+        {isActive ? (
+          <div className="digital-human-creator-v2-card__segment-actions">
+            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardUp} disabled={!props.canMoveActiveDraftCardUp}>
+              上移
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardDown} disabled={!props.canMoveActiveDraftCardDown}>
+              下移
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onDuplicateCreatorDraftCard}>
+              复制
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onCreateCreatorDraftCard}>
+              + 新增片段
+            </button>
+            <button type="button" className="secondary-button" onClick={props.onDeleteActiveDraftCard} disabled={props.creatorDraftCards.length <= 1}>
+              删除片段
+            </button>
+          </div>
+        ) : index < props.creatorDraftCards.length - 1 ? (
+          <div className="digital-human-creator-v2-card__connector" aria-hidden="true" />
+        ) : null}
+      </article>
+    );
+  };
 
   return (
-    <article className="light-data-panel report-editor-panel report-editor-panel--compact" style={{ marginTop: 20 }}>
+    <article className="light-data-panel report-editor-panel report-editor-panel--compact digital-human-creator-v2" style={{ marginTop: 20 }}>
       <div className="report-editor-head">
         <div>
           <strong>创作作品</strong>
-          <p>基于已选数字人填写脚本与参数，提交后系统会调用蝉镜创建数字人视频任务；模板库和语音库继续作为独立资源中心保留。</p>
+          <p>按参考图调整为多片段创作块，每个片段都围绕数字人、声音、文案和字幕展开，不再使用大表单式工作台。</p>
         </div>
         <div className="report-editor-actions">
           <span className={`archive-pill ${props.filteredTemplates.length ? "status-ready" : "status-in_progress"}`}>{props.templateCountLabel}</span>
+          <span className="archive-pill status-ready">{props.creatorDraftCards.length} 个创作片段</span>
           <span className="archive-pill status-ready">{props.workCountLabel}</span>
         </div>
       </div>
@@ -255,278 +442,69 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           {hasTemplates ? `公共模板已加载，但模板接口最近一次刷新失败：${props.templateLoadError}` : `公共模板读取失败：${props.templateLoadError}`}
         </div>
       ) : null}
-      <div className="digital-human-creator-drafts">
-        <div className="digital-human-creator-drafts__head">
-          <div>
-            <strong>多片段草稿</strong>
-            <p className="panel-subtext">每个片段都能单独记住数字人、声音、文案和素材引用，方便后续批量生成多个视频或继续做完整视频编排。</p>
-          </div>
-          <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
-            <span className="archive-pill status-ready">{props.creatorDraftCards.length} 个片段</span>
-            <button type="button" className="secondary-button" onClick={props.onCreateCreatorDraftCard}>
-              + 新增片段
-            </button>
-            <button type="button" className="secondary-button" onClick={props.onDuplicateCreatorDraftCard}>
-              复制当前片段
-            </button>
-            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardUp} disabled={!props.canMoveActiveDraftCardUp}>
-              上移当前片段
-            </button>
-            <button type="button" className="secondary-button" onClick={props.onMoveActiveDraftCardDown} disabled={!props.canMoveActiveDraftCardDown}>
-              下移当前片段
-            </button>
-            <button type="button" className="secondary-button" onClick={props.onDeleteActiveDraftCard}>
-              删除当前片段
-            </button>
-          </div>
+
+      <div className="digital-human-creator-v2__title-row">
+        <input className="report-title-input" value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} placeholder="未命名" />
+        <span className="digital-human-creator-v2__title-duration">预计时长：{estimatedDurationLabel}</span>
+      </div>
+
+      <div className="digital-human-creator-v2__stack">{props.creatorDraftCards.map(renderSegmentCard)}</div>
+
+      <div className="digital-human-creator-v2__summary">
+        <div className="entity-card personal-card">
+          <strong>当前声音说明</strong>
+          <p className="personal-meta">{selectedVoiceSummary}</p>
+          <p className="panel-subtext">声音统一从“我的声音 / 公共声音”弹窗里选择，避免长下拉框影响创作节奏。</p>
         </div>
-        <div className="digital-human-creator-drafts__grid">
-          {props.creatorDraftCards.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`digital-human-creator-draft-card ${item.id === props.activeDraftCardId ? "is-active" : ""}`}
-              onClick={() => props.onSelectCreatorDraftCard(item.id)}
-            >
-              <strong>{item.name}</strong>
-              <span>{item.personLabel}</span>
-              <span>{item.voiceLabel}</span>
-              {item.materialLabel ? <span>{item.materialLabel}</span> : <span>未引用素材</span>}
-              <span>{item.scriptLength} 字脚本</span>
-            </button>
-          ))}
+        <div className="entity-card personal-card">
+          <strong>当前素材说明</strong>
+          <p className="personal-meta">{props.selectedMaterialLibraryItem?.label || "暂未关联素材"}</p>
+          <p className="panel-subtext">我的素材库继续作为参考视频入口，已并入“更换数字人”弹窗体系。</p>
         </div>
       </div>
-      <div className="personal-grid">
-        <label className="field">
-          <span>数字人来源</span>
-          <select value={props.personSource} onChange={(event) => props.onPersonSourceChange(event.target.value as "COMMON" | "CUSTOM")}>
-            <option value="COMMON">公共模板</option>
-            <option value="CUSTOM">我的定制数字人</option>
-          </select>
-        </label>
-        {props.personSource === "COMMON" ? (
-          <>
-            {props.templateTagGroups.length ? (
-              <label className="field">
-                <span>模板标签</span>
-                <select
-                  value={props.activeTagId || ""}
-                  onChange={(event) => {
-                    void props.onTemplateTagChange(event.target.value);
-                  }}
-                  disabled={props.isTemplateLoading}
-                >
-                  <option value="">全部标签</option>
-                  {props.templateTagGroups.flatMap((group) =>
-                    group.tagList.map((tag) => (
-                      <option key={tag.id} value={String(tag.id)}>
-                        {group.name} / {tag.name}
-                      </option>
-                    )),
-                  )}
-                </select>
-              </label>
-            ) : null}
+
+      {showAdvancedSettings ? (
+        <div className="digital-human-creator-v2__advanced">
+          <div className="personal-grid">
             <label className="field">
-              <span>模板搜索</span>
-              <input
-                value={props.templateSearch}
-                onChange={(event) => props.onTemplateSearchChange(event.target.value)}
-                placeholder="搜索模板名、音色或标签"
-              />
+              <span>语速</span>
+              <input value={props.speechRate} onChange={(event) => props.onSpeechRateChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>模板范围</span>
-              <select value={props.templateScopeFilter} onChange={(event) => props.onTemplateScopeFilterChange(event.target.value as "ALL" | "FAVORITES" | "RECENT")}>
-                <option value="ALL">全部模板</option>
-                <option value="FAVORITES">仅看收藏</option>
-                <option value="RECENT">最近使用</option>
-              </select>
+              <span>音调</span>
+              <input value={props.pitch} onChange={(event) => props.onPitchChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>数字人模板</span>
-              <select value={props.selectedTemplateId} onChange={(event) => props.onSelectedTemplateChange(event.target.value)}>
-                {props.filteredTemplates.length ? (
-                  props.filteredTemplates.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">
-                    {props.templateLoadError ? "公共模板读取失败，请先处理上方报错" : "当前筛选下暂无模板"}
-                  </option>
-                )}
-              </select>
-            </label>
-          </>
-        ) : (
-          <>
-            <label className="field">
-              <span>定制数字人</span>
-              <select value={props.selectedCustomPersonId} onChange={(event) => props.onSelectedCustomPersonChange(event.target.value)}>
-                {props.availableCustomPersons.length ? null : <option value="">暂无可用于视频创建的定制数字人</option>}
-                {props.availableCustomPersons.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
+              <span>音量</span>
+              <input value={props.volume} onChange={(event) => props.onVolumeChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>训练状态</span>
-              <input
-                value={props.selectedCustomPerson ? `${props.selectedCustomPerson.progress}% / ${props.selectedCustomPerson.status}` : "暂无可选定制数字人"}
-                readOnly
-              />
+              <span>背景色</span>
+              <input value={props.backgroundColor} onChange={(event) => props.onBackgroundColorChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>可用数量</span>
-              <input value={`${props.availableCustomPersons.length} 个成功定制数字人`} readOnly />
+              <span>字幕颜色</span>
+              <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>训练类型</span>
-              <input
-                value={
-                  props.selectedCustomPerson?.trainType === "both"
-                    ? "形象 + 音色"
-                    : props.selectedCustomPerson?.trainType === "figure"
-                      ? "仅形象"
-                      : "服务端未返回"
-                }
-                readOnly
-              />
+              <span>描边颜色</span>
+              <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>数字人 ID</span>
-              <input value={props.selectedCustomPerson?.personId || props.selectedCustomPerson?.id || ""} readOnly placeholder="提交后会带入蝉镜数字人 ID" />
+              <span>画布宽度</span>
+              <input value={props.screenWidth} onChange={(event) => props.onScreenWidthChange(event.target.value)} />
             </label>
             <label className="field">
-              <span>输出能力</span>
-              <input
-                value={
-                  props.selectedCustomPerson?.support4k
-                    ? `支持 4K${props.selectedCustomPerson.width4k && props.selectedCustomPerson.height4k ? ` / ${props.selectedCustomPerson.width4k} x ${props.selectedCustomPerson.height4k}` : ""}`
-                    : "默认按 1080p 提交"
-                }
-                readOnly
-              />
+              <span>画布高度</span>
+              <input value={props.screenHeight} onChange={(event) => props.onScreenHeightChange(event.target.value)} />
             </label>
-          </>
-        )}
-        <label className="field">
-          <span>形象类型</span>
-          <select
-            value={props.personSource === "CUSTOM" ? "sit_body" : props.selectedFigureType}
-            onChange={(event) => props.onSelectedFigureTypeChange(event.target.value as DigitalHumanFigureType)}
-            disabled={props.personSource === "CUSTOM"}
-          >
-            {props.personSource === "COMMON" ? (
-              (props.selectedTemplate?.figures || []).length ? (
-                (props.selectedTemplate?.figures || []).map((item) => (
-                  <option key={item.type} value={item.type}>
-                    {props.getFigureTypeLabel(item.type)}
-                  </option>
-                ))
-              ) : (
-                <option value="">
-                  {props.templateLoadError ? "模板未加载成功，暂无形象类型" : "请先选择模板"}
-                </option>
-              )
-            ) : (
-              <option value="sit_body">半身</option>
-            )}
-          </select>
-        </label>
-        <label className="field">
-          <span>作品标题</span>
-          <input value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} placeholder="例如：新品活动数字人口播" />
-        </label>
-        <label className="field">
-          <span>声音来源</span>
-          <select value={props.selectedVoiceMode} onChange={(event) => props.onSelectedVoiceModeChange(event.target.value as "DEFAULT" | "PUBLIC" | "CUSTOM")}>
-            <option value="DEFAULT">默认音色</option>
-            <option value="PUBLIC" disabled={!props.publicVoices.length}>
-              公共声音
-            </option>
-            <option value="CUSTOM" disabled={!props.customVoices.length}>
-              我的声音
-            </option>
-          </select>
-        </label>
-        {props.selectedVoiceMode === "PUBLIC" ? (
-          <label className="field">
-            <span>公共声音</span>
-            <select value={props.selectedPublicVoiceId} onChange={(event) => props.onSelectedPublicVoiceChange(event.target.value)}>
-              {props.publicVoices.length ? (
-                props.publicVoices.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                    {item.lang ? ` / ${item.lang}` : ""}
-                  </option>
-                ))
-              ) : (
-                <option value="">当前没有可用的公共声音</option>
-              )}
-            </select>
-          </label>
-        ) : null}
-        {props.selectedVoiceMode === "CUSTOM" ? (
-          <label className="field">
-            <span>我的声音</span>
-            <select value={props.selectedCustomVoiceId} onChange={(event) => props.onSelectedCustomVoiceChange(event.target.value)}>
-              {props.customVoices.length ? (
-                props.customVoices.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))
-              ) : (
-                <option value="">当前没有可用的我的声音</option>
-              )}
-            </select>
-          </label>
-        ) : null}
-        <label className="field field-full">
-          <span>当前声音说明</span>
-          <input value={selectedVoiceSummary} readOnly />
-        </label>
-        <label className="field">
-          <span>我的素材库</span>
-          <select value={props.selectedMaterialLibraryItemId} onChange={(event) => props.onSelectedMaterialLibraryItemChange(event.target.value)}>
-            {props.materialLibraryItems.length ? (
-              props.materialLibraryItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))
-            ) : (
-              <option value="">当前没有可用素材</option>
-            )}
-          </select>
-        </label>
-        <div className="field">
-          <span>素材说明</span>
-          <input value={selectedMaterialSummary} readOnly />
-          {props.selectedMaterialLibraryItem?.videoUrl ? (
-            <a href={props.selectedMaterialLibraryItem.videoUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ marginTop: 8, textAlign: "center" }}>
-              预览素材视频
-            </a>
-          ) : null}
+          </div>
         </div>
-        <label className="field field-full">
-          <span>口播脚本</span>
-          <textarea
-            className="composer-form-textarea"
-            value={props.script}
-            onChange={(event) => props.onScriptChange(event.target.value)}
-            placeholder="请输入适合 15-60 秒数字人口播的视频脚本。"
-          />
-        </label>
-        <div className="field field-full">
-          <span>脚本快捷模板</span>
-          <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+      ) : null}
+
+      {showScriptAssets ? (
+        <div className="digital-human-creator-v2__script-assets">
+          <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
             {props.scriptPresets.map((preset) => (
               <button
                 key={preset.key}
@@ -537,418 +515,167 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                 {preset.label}
               </button>
             ))}
-            <button type="button" className="secondary-button" onClick={() => props.onScriptChange("")}>
-              清空脚本
-            </button>
             <button type="button" className="secondary-button" onClick={() => void props.onCopyScript()}>
               复制脚本
             </button>
             <button type="button" className="secondary-button" onClick={props.onExportScript}>
               导出脚本
             </button>
-            <select
-              value={props.scriptTemplateVisibility}
-              onChange={(event) => props.onScriptTemplateVisibilityChange(event.target.value as "SELF" | "SHARED")}
-              style={{ minWidth: 180 }}
-            >
-              <option value="SELF">保存到个人模板</option>
-              <option value="SHARED">保存到团队共享模板</option>
-            </select>
-            <select
-              value={props.scriptTemplateCategory}
-              onChange={(event) => props.onScriptTemplateCategoryChange(event.target.value as ScriptTemplateCategory)}
-              style={{ minWidth: 180 }}
-            >
-              {props.scriptTemplateCategories.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
             <button type="button" className="secondary-button" onClick={() => void props.onSaveCurrentScriptTemplate()}>
               保存脚本模板
             </button>
-            <button type="button" className="secondary-button" onClick={() => props.onShowScriptTemplateManagerChange((current) => !current)}>
-              {props.showScriptTemplateManager ? "收起模板资产" : "展开模板资产"}
-            </button>
-            <button type="button" className="secondary-button" onClick={props.onOpenAudioDriveDialog} disabled={!props.canEdit || props.isSubmitting}>
-              音频驱动
-            </button>
-            <button type="button" className="secondary-button" onClick={() => void props.onSubmitBatchVideos()} disabled={!props.canEdit || props.isSubmitting}>
-              批量生成 {props.creatorDraftCards.length} 个视频
-            </button>
-            <button type="button" className="primary-button" onClick={props.onSubmitCurrentVideo} disabled={!props.canEdit || props.isSubmitting}>
-              提交数字人视频
+            <button type="button" className="secondary-button" onClick={props.onApplyPersonalScriptTemplate} disabled={!props.selectedPersonalScriptTemplateId}>
+              套用已选模板
             </button>
           </div>
-          <small className="personal-meta">可先插入一版基础结构，再按实际产品和场景补充细节，并选择保存范围与模板分类。</small>
-          <small className="personal-meta">当前保存目标：{props.scriptTemplateSaveScopeLabel} / {props.getScriptTemplateCategoryLabel(props.scriptTemplateCategory)}</small>
-          <textarea
-            className="composer-form-textarea"
-            value={props.personalScriptTemplateNote}
-            onChange={(event) => props.onPersonalScriptTemplateNoteChange(event.target.value.slice(0, 200))}
-            placeholder="可填写适用场景、口径提醒、开头钩子建议等协作备注，最多 200 字。"
-            style={{ marginTop: 8, minHeight: 88 }}
-          />
-          <small className="personal-meta">协作备注会随脚本模板一起保存，并进入模板搜索与预览摘要。</small>
-          {!props.showScriptTemplateManager ? (
-            <small className="personal-meta">创建区默认只保留高频操作；如需共享、归档、治理脚本模板，再展开模板资产区。</small>
-          ) : null}
-          {props.isReadonlySharedScriptTemplate ? (
-            <small className="personal-meta">当前选中的是他人共享模板，另存副本会默认保存到你的个人模板，避免直接覆盖团队资产。</small>
-          ) : null}
-          {props.scriptActionMessage ? <small className="personal-meta">{props.scriptActionMessage}</small> : null}
-          {props.editorActionMessage ? <small className="personal-meta">{props.editorActionMessage}</small> : null}
-        </div>
-        {props.showScriptTemplateManager ? (
-          <div className="field field-full">
-            <span>脚本模板资产</span>
-            <div className="strategy-inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
-              <input
-                value={props.personalScriptTemplateSearch}
-                onChange={(event) => props.onPersonalScriptTemplateSearchChange(event.target.value)}
-                placeholder="搜索模板名称、备注或脚本内容"
-                style={{ minWidth: 240 }}
-              />
-              <select
-                value={props.personalScriptTemplateFilter}
-                onChange={(event) => props.onPersonalScriptTemplateFilterChange(event.target.value as PersonalScriptTemplateFilter)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ALL">全部模板</option>
-                <option value="SELF">仅看个人模板</option>
-                <option value="SHARED">仅看团队共享</option>
+          <div className="personal-grid" style={{ marginTop: 12 }}>
+            <label className="field">
+              <span>保存范围</span>
+              <select value={props.scriptTemplateVisibility} onChange={(event) => props.onScriptTemplateVisibilityChange(event.target.value as "SELF" | "SHARED")}>
+                <option value="SELF">个人模板</option>
+                <option value="SHARED">团队共享</option>
               </select>
-              <select
-                value={props.personalScriptTemplateArchiveFilter}
-                onChange={(event) => props.onPersonalScriptTemplateArchiveFilterChange(event.target.value as PersonalScriptTemplateArchiveFilter)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ACTIVE">仅看生效中</option>
-                <option value="ARCHIVED">仅看已归档</option>
-                <option value="ALL">全部状态</option>
-              </select>
-              <select
-                value={props.personalScriptTemplateCategoryFilter}
-                onChange={(event) => props.onPersonalScriptTemplateCategoryFilterChange(event.target.value as ScriptTemplateCategory | "ALL")}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ALL">全部分类</option>
+            </label>
+            <label className="field">
+              <span>模板分类</span>
+              <select value={props.scriptTemplateCategory} onChange={(event) => props.onScriptTemplateCategoryChange(event.target.value as ScriptTemplateCategory)}>
                 {props.scriptTemplateCategories.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
                   </option>
                 ))}
               </select>
-              <select
-                value={props.personalScriptTemplateGovernanceFilter}
-                onChange={(event) => props.onPersonalScriptTemplateGovernanceFilterChange(event.target.value as PersonalScriptTemplateGovernanceFilter)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="ALL">全部治理视图</option>
-                <option value="NEED_NOTE">只看缺备注</option>
-                <option value="READONLY_SHARED">只看只读共享</option>
-                <option value="SHARED_ACTIVE">只看生效共享</option>
-                <option value="ARCHIVED">只看归档资产</option>
-              </select>
-              <select
-                value={props.personalScriptTemplateSort}
-                onChange={(event) => props.onPersonalScriptTemplateSortChange(event.target.value as PersonalScriptTemplateSort)}
-                style={{ minWidth: 180 }}
-              >
-                <option value="UPDATED_DESC">最近更新优先</option>
-                <option value="UPDATED_ASC">最早更新优先</option>
-                <option value="NAME_ASC">名称 A-Z</option>
-                <option value="NAME_DESC">名称 Z-A</option>
-              </select>
-              <select
-                value={props.selectedPersonalScriptTemplateId}
-                onChange={(event) => props.onSelectedPersonalScriptTemplateChange(event.target.value)}
-                style={{ minWidth: 240 }}
-              >
-                <option value="">选择脚本模板</option>
-                {props.filteredPersonalScriptTemplates.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.isShared ? `[共享]` : `[个人]`} [{props.getScriptTemplateArchiveLabel(item.isArchived)}] {props.getScriptTemplateCategoryLabel(item.category)} / {item.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={props.personalScriptTemplateName}
-                onChange={(event) => props.onPersonalScriptTemplateNameChange(event.target.value)}
-                placeholder="编辑模板名称"
-                style={{ minWidth: 220 }}
-              />
-              <select
-                value={props.scriptTemplateCategory}
-                onChange={(event) => props.onScriptTemplateCategoryChange(event.target.value as ScriptTemplateCategory)}
-                style={{ minWidth: 180 }}
-              >
-                {props.scriptTemplateCategories.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="secondary-button" onClick={props.onApplyPersonalScriptTemplate}>
-                套用模板
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onRenamePersonalScriptTemplate()}>
-                重命名模板
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onUpdatePersonalScriptTemplateCategory()}>
-                更新分类
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onUpdatePersonalScriptTemplateNote()}>
-                更新备注
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onOverwritePersonalScriptTemplate()}>
-                用当前脚本覆盖
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onToggleSharedPersonalScriptTemplate()}>
-                {props.selectedPersonalScriptTemplate?.isShared ? "取消团队共享" : "设为团队共享"}
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onToggleArchivePersonalScriptTemplate()}>
-                {props.selectedPersonalScriptTemplateArchived ? "恢复模板" : "归档模板"}
-              </button>
-              <button type="button" className="secondary-button" onClick={() => void props.onDuplicatePersonalScriptTemplate()}>
-                {props.isReadonlySharedScriptTemplate ? "保存为我的副本" : "另存为副本"}
-              </button>
-              <button type="button" className="secondary-button" disabled={!props.selectedPersonalScriptTemplateEditable} onClick={() => void props.onDeletePersonalScriptTemplate()}>
-                删除模板
-              </button>
-            </div>
-            <small className="personal-meta">
-              当前已切到服务端持久化，支持个人模板与团队共享模板两种资产形态，并可直接搜索、排序、归档、恢复、切换共享状态、更新备注、另存副本或用当前脚本覆盖更新模板。
-            </small>
-            <div className="strategy-grid" style={{ marginTop: 12 }}>
-              <div className="entity-card personal-card">
-                <strong>模板总数</strong>
-                <p className="personal-meta">{props.personalTemplateGovernanceSummary.total} 条</p>
-              </div>
-              <div className="entity-card personal-card">
-                <strong>生效共享</strong>
-                <p className="personal-meta">{props.personalTemplateGovernanceSummary.sharedActive} 条共享中</p>
-              </div>
-              <div className="entity-card personal-card">
-                <strong>待补备注</strong>
-                <p className="personal-meta">{props.personalTemplateGovernanceSummary.missingNotes} 条建议补协作说明</p>
-              </div>
-              <div className="entity-card personal-card">
-                <strong>只读共享</strong>
-                <p className="personal-meta">{props.personalTemplateGovernanceSummary.readonlyShared} 条建议另存副本</p>
-              </div>
-            </div>
-            <small className="personal-meta">
-              当前筛选结果 {props.filteredPersonalScriptTemplates.length} / {props.selectedPersonalScriptTemplate ? props.filteredPersonalScriptTemplates.length : props.filteredPersonalScriptTemplates.length} 条。
-            </small>
-            {props.selectedPersonalScriptTemplate ? (
-              <div className="entity-card personal-card" style={{ marginTop: 12 }}>
-                <strong>{props.selectedPersonalScriptTemplate.name}</strong>
-                <p className="personal-meta">
-                  {props.selectedPersonalScriptTemplate.isShared ? "团队共享模板" : "个人模板"}
-                  {" · "}
-                  {props.getScriptTemplateArchiveLabel(props.selectedPersonalScriptTemplate.isArchived)}
-                  {" · "}
-                  {props.getScriptTemplateCategoryLabel(props.selectedPersonalScriptTemplate.category)}
-                  {" · "}
-                  {props.selectedPersonalScriptTemplateEditable ? "可编辑" : "只读"}
-                  {" · "}
-                  最近更新：{props.formatDateTime(props.selectedPersonalScriptTemplate.updatedAt)} · 脚本字数：
-                  {props.selectedPersonalScriptTemplate.content.trim().length}
-                </p>
-                {props.isReadonlySharedScriptTemplate ? (
-                  <p className="personal-meta">当前模板来自团队共享区，你可以直接套用，也可以保存为自己的副本后再重命名、改分类或覆盖内容。</p>
-                ) : null}
-                {props.selectedPersonalScriptTemplate.note ? (
-                  <p className="personal-meta">协作备注：{props.selectedPersonalScriptTemplate.note}</p>
-                ) : (
-                  <p className="personal-meta">协作备注：暂无，可补充适用场景、节奏提醒或禁用说法。</p>
-                )}
-                {props.selectedTemplateAuditMessages.length ? (
-                  <div style={{ marginTop: 8 }}>
-                    {props.selectedTemplateAuditMessages.map((message) => (
-                      <p key={message} className="personal-meta">{`审计提示：${message}`}</p>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="personal-meta">审计提示：当前模板信息较完整，可直接复用或继续沉淀。</p>
-                )}
-                <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                  {props.selectedPersonalScriptTemplate.content.trim().slice(0, 180)}
-                  {props.selectedPersonalScriptTemplate.content.trim().length > 180 ? "..." : ""}
-                </p>
-              </div>
-            ) : null}
+            </label>
+            <label className="field field-full">
+              <span>协作备注</span>
+              <textarea value={props.personalScriptTemplateNote} onChange={(event) => props.onPersonalScriptTemplateNoteChange(event.target.value.slice(0, 200))} />
+            </label>
           </div>
-        ) : null}
-        <label className="field">
-          <span>语速</span>
-          <input value={props.speechRate} onChange={(event) => props.onSpeechRateChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>音调</span>
-          <input value={props.pitch} onChange={(event) => props.onPitchChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>音量</span>
-          <input value={props.volume} onChange={(event) => props.onVolumeChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>背景色</span>
-          <input value={props.backgroundColor} onChange={(event) => props.onBackgroundColorChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>画布宽度</span>
-          <input value={props.screenWidth} onChange={(event) => props.onScreenWidthChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>画布高度</span>
-          <input value={props.screenHeight} onChange={(event) => props.onScreenHeightChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>字幕开关</span>
-          <select value={props.subtitleEnabled ? "yes" : "no"} onChange={(event) => props.onSubtitleEnabledChange(event.target.value === "yes")}>
-            <option value="yes">开启</option>
-            <option value="no">关闭</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>字幕颜色</span>
-          <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>描边颜色</span>
-          <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value)} />
-        </label>
+          {props.scriptActionMessage ? <p className="panel-subtext">{props.scriptActionMessage}</p> : null}
+          {props.editorActionMessage ? <p className="panel-subtext">{props.editorActionMessage}</p> : null}
+        </div>
+      ) : null}
+
+      <div className="digital-human-creator-v2__bottom-bar">
+        <button type="button" className="secondary-button" onClick={() => setShowAdvancedSettings((current) => !current)}>
+          高级设置
+        </button>
+        <button type="button" className="secondary-button" onClick={() => setShowScriptAssets((current) => !current)}>
+          脚本资产
+        </button>
+        <button type="button" className="secondary-button" disabled title="完整视频拼接链路下一步继续接">
+          生成1个完整作品
+        </button>
+        <button type="button" className="primary-button" onClick={props.onSubmitCurrentVideo} disabled={!props.canEdit || props.isSubmitting}>
+          生成当前片段
+        </button>
+        <button type="button" className="primary-button" onClick={() => void props.onSubmitBatchVideos()} disabled={!props.canEdit || props.isSubmitting}>
+          批量生成{props.creatorDraftCards.length}个作品
+        </button>
       </div>
 
-      <div className="personal-grid" style={{ marginTop: 16 }}>
-        <div className="entity-card personal-card">
-          <strong>{selectedPersonName}</strong>
-          <p className="personal-meta">
-            {selectedPersonAudioText}
-          </p>
-          <p className="panel-subtext">{selectedPersonSummary}</p>
-          {props.personSource === "COMMON" && props.selectedTemplate?.audioPreview ? (
-            <audio controls preload="none" src={props.selectedTemplate.audioPreview} style={{ width: "100%", marginTop: 12 }} />
-          ) : null}
-          {props.personSource === "CUSTOM" && props.selectedCustomPerson?.previewVideoUrl ? (
-            <video controls preload="metadata" src={props.selectedCustomPerson.previewVideoUrl} style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }} />
-          ) : (
-            <p className="panel-subtext" style={{ marginTop: 12 }}>
-              {props.personSource === "CUSTOM" ? "当前定制数字人暂无预览视频。" : "当前模板暂无音色试听链接。"}
-            </p>
-          )}
-          {props.personSource === "COMMON" && props.selectedTemplate?.id ? (
-            <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void props.onToggleFavoriteTemplate(props.selectedTemplate!.id, !props.isSelectedTemplateFavorite)}
-              >
-                {props.isSelectedTemplateFavorite ? "取消收藏" : "收藏模板"}
+      {isPersonDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsPersonDialogOpen(false)}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="digital-human-creator-v2-dialog__head">
+              <div>
+                <strong>选择数字人</strong>
+                <p>把“我的数字人 / 公共数字人 / 我的素材库”收口在同一个弹窗里切换。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsPersonDialogOpen(false)}>
+                关闭
               </button>
             </div>
-          ) : null}
-        </div>
-        <div className="entity-card personal-card">
-          <strong>{props.personSource === "CUSTOM" ? props.getFigureTypeLabel(props.selectedFigureType) : props.selectedFigure ? props.getFigureTypeLabel(props.selectedFigure.type) : "形象预览"}</strong>
-          <p className="personal-meta">
-            {props.personSource === "CUSTOM"
-              ? `${props.selectedCustomPerson?.width || 720} x ${props.selectedCustomPerson?.height || 1280}`
-              : props.selectedFigure
-                ? `${props.selectedFigure.width} x ${props.selectedFigure.height}`
-                : "待选择"}
-          </p>
-          {(props.personSource === "CUSTOM" ? props.selectedCustomPerson?.coverImageUrl : props.selectedFigure?.cover) ? (
-            <img
-              src={props.personSource === "CUSTOM" ? props.selectedCustomPerson?.coverImageUrl : props.selectedFigure?.cover}
-              alt={selectedPersonName}
-              style={{ width: "100%", borderRadius: 16, marginTop: 12 }}
-            />
-          ) : (
-            <p className="panel-subtext">{props.personSource === "CUSTOM" ? "当前定制数字人暂无封面图。" : "当前模板暂无封面图。"}</p>
-          )}
-          {(props.personSource === "CUSTOM" ? props.selectedCustomPerson?.previewVideoUrl : props.selectedFigure?.previewVideoUrl) ? (
-            <video
-              controls
-              preload="metadata"
-              src={props.personSource === "CUSTOM" ? props.selectedCustomPerson?.previewVideoUrl : props.selectedFigure?.previewVideoUrl}
-              style={{ width: "100%", borderRadius: 16, marginTop: 12, background: "#0f1525" }}
-            />
-          ) : null}
-        </div>
-        <div className="entity-card personal-card">
-          <strong>配置提醒</strong>
-          <p className="panel-subtext">请先在个人中心的第三方平台里配置蝉镜凭证，格式为 `appId::secretKey`。</p>
-          <p className="panel-subtext">模板、作品列表和找回动作都会直接走蝉镜 OpenAPI。</p>
-          <p className="panel-subtext">
-            {props.personSource === "CUSTOM"
-              ? "这里只展示训练成功的定制数字人；若刚完成训练但列表未刷新，可回到“定制数字人”点刷新。"
-              : "如果模板较多，可先按标签筛选，再用关键词搜索模板名、音色或标签。"}
-          </p>
-          <p className="panel-subtext">
-            {props.personSource === "CUSTOM"
-              ? "定制数字人当前会默认按半身提交；若未返回 4K 能力，后端会阻止超出 1080p 的画布尺寸。"
-              : "常用模板可加入收藏，最近点过的模板会自动进入“最近使用”。"}
-          </p>
-        </div>
-      </div>
-
-      {props.selectedWork ? (
-        <div className="report-inline-tip" style={{ marginTop: 16 }}>
-          {props.editorDiffs.length ? (
-            <>
-              <strong>与当前选中作品相比，已修改参数：</strong>
-              {" "}
-              {props.editorDiffs.map((item) => item.label).join("、")}
-            </>
-          ) : (
-            <>当前创建区参数与选中作品一致，可直接提交重做或继续修改。</>
-          )}
+            <div className="digital-human-creator-v2-dialog__tabs">
+              <button type="button" className={`personal-reference-tab ${personDialogTab === "MY" ? "is-active" : ""}`} onClick={() => setPersonDialogTab("MY")}>
+                我的数字人
+              </button>
+              <button type="button" className={`personal-reference-tab ${personDialogTab === "PUBLIC" ? "is-active" : ""}`} onClick={() => setPersonDialogTab("PUBLIC")}>
+                公共数字人
+              </button>
+              <button type="button" className={`personal-reference-tab ${personDialogTab === "MATERIAL" ? "is-active" : ""}`} onClick={() => setPersonDialogTab("MATERIAL")}>
+                我的素材库
+              </button>
+            </div>
+            <div className="digital-human-creator-v2-dialog__grid">
+              {personDialogTab === "MY"
+                ? props.availableCustomPersons.map((item) => (
+                    <button key={item.id} type="button" className="digital-human-creator-v2-picker-card" onClick={() => handlePickCustomPerson(item.id)}>
+                      {item.coverImageUrl ? <img src={item.coverImageUrl} alt={item.name} /> : <div className="digital-human-creator-v2-picker-card__empty">暂无封面</div>}
+                      <strong>{item.name}</strong>
+                    </button>
+                  ))
+                : null}
+              {personDialogTab === "PUBLIC"
+                ? props.filteredTemplates.map((item) => (
+                    <button key={item.id} type="button" className="digital-human-creator-v2-picker-card" onClick={() => handlePickTemplate(item.id)}>
+                      {item.figures[0]?.cover ? <img src={item.figures[0].cover} alt={item.name} /> : <div className="digital-human-creator-v2-picker-card__empty">暂无封面</div>}
+                      <strong>{item.name}</strong>
+                    </button>
+                  ))
+                : null}
+              {personDialogTab === "MATERIAL"
+                ? props.materialLibraryItems.map((item) => (
+                    <button key={item.id} type="button" className="digital-human-creator-v2-picker-card is-material" onClick={() => handlePickMaterial(item.id)}>
+                      <div className="digital-human-creator-v2-picker-card__empty">素材参考</div>
+                      <strong>{item.label}</strong>
+                    </button>
+                  ))
+                : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
-      {props.recentTemplates.length ? (
-        <div className="strategy-inline-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
-          <span className="panel-subtext">最近使用：</span>
-          {props.recentTemplates.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="secondary-button"
-              onClick={() => props.onSelectedTemplateChange(item.id)}
-            >
-              {item.name}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
-        <div className="strategy-inline-actions" style={{ marginTop: 16 }}>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void props.onLoadMoreTemplates?.()}
-            disabled={props.isTemplateLoading}
-          >
-            {props.isTemplateLoading ? "加载中..." : "继续加载模板"}
-          </button>
-          <span className="panel-subtext">
-            当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页，每页 {props.templatePageInfo.size} 条
-          </span>
+      {isVoiceDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsVoiceDialogOpen(false)}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog digital-human-creator-v2-dialog--voice" onClick={(event) => event.stopPropagation()}>
+            <div className="digital-human-creator-v2-dialog__head">
+              <div>
+                <strong>选择声音</strong>
+                <p>统一从“我的声音 / 公共声音”里选择，不再使用长下拉框。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsVoiceDialogOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="digital-human-creator-v2-dialog__tabs">
+              <button type="button" className={`personal-reference-tab ${voiceDialogTab === "CUSTOM" ? "is-active" : ""}`} onClick={() => setVoiceDialogTab("CUSTOM")}>
+                我的声音
+              </button>
+              <button type="button" className={`personal-reference-tab ${voiceDialogTab === "PUBLIC" ? "is-active" : ""}`} onClick={() => setVoiceDialogTab("PUBLIC")}>
+                公共声音
+              </button>
+            </div>
+            <div className="digital-human-creator-v2-voice-grid">
+              {voiceDialogTab === "CUSTOM"
+                ? props.customVoices.map((item) => (
+                    <button key={item.id} type="button" className="digital-human-creator-v2-voice-card" onClick={() => handlePickCustomVoice(item.id)}>
+                      <strong>{item.name}</strong>
+                      <span>{item.progress ? `${item.progress}%` : "我的声音"}</span>
+                    </button>
+                  ))
+                : null}
+              {voiceDialogTab === "PUBLIC"
+                ? props.publicVoices.map((item) => (
+                    <button key={item.id} type="button" className="digital-human-creator-v2-voice-card" onClick={() => handlePickPublicVoice(item.id)}>
+                      <strong>{item.name}</strong>
+                      <span>{item.lang || "公共声音"}</span>
+                    </button>
+                  ))
+                : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
       {props.isAudioDriveDialogOpen ? (
         <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={props.onCloseAudioDriveDialog}>
-          <div className="digital-human-template-modal digital-human-home-dialog" onClick={(event) => event.stopPropagation()}>
+          <div className="digital-human-template-modal digital-human-home-dialog digital-human-creator-v2-dialog" onClick={(event) => event.stopPropagation()}>
             <div className="report-editor-head">
               <div>
                 <strong>音频驱动</strong>
-                <p>上传驱动视频和音频后，将复用现有口型驱动链路提交任务；音频时长会直接作为本次驱动的预计时长参考。</p>
+                <p>上传驱动视频和音频后，将继续复用现有口型驱动链路提交任务；音频时长会作为预计时长参考。</p>
               </div>
               <button type="button" className="secondary-button" onClick={props.onCloseAudioDriveDialog} disabled={props.isSubmitting}>
                 关闭
@@ -972,11 +699,6 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   onChange={(event) => props.onAudioDriveSourceVideoFileChange(event.target.files?.[0] || null)}
                   disabled={props.isSubmitting || !props.canEdit}
                 />
-                <small className="personal-meta">
-                  {props.audioDriveSourceVideoFile
-                    ? `已选择驱动视频：${props.audioDriveSourceVideoFile.name}`
-                    : "请上传本地驱动视频文件；如果素材库里已有参考视频，请先下载到本地再上传。"}
-                </small>
               </label>
               <label className="field field-full">
                 <span>驱动音频</span>
@@ -986,25 +708,8 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   onChange={(event) => props.onAudioDriveAudioFileChange(event.target.files?.[0] || null)}
                   disabled={props.isSubmitting || !props.canEdit}
                 />
-                <small className="personal-meta">
-                  {props.audioDriveAudioFile ? `已选择驱动音频：${props.audioDriveAudioFile.name}` : "支持上传 mp3、wav、m4a 等音频文件。"}
-                </small>
-                {props.audioDriveAudioPreviewUrl ? (
-                  <audio controls preload="metadata" src={props.audioDriveAudioPreviewUrl} style={{ width: "100%", marginTop: 12 }} />
-                ) : null}
+                {props.audioDriveAudioPreviewUrl ? <audio controls preload="metadata" src={props.audioDriveAudioPreviewUrl} style={{ width: "100%", marginTop: 12 }} /> : null}
               </label>
-            </div>
-
-            <div className="strategy-grid" style={{ marginTop: 16 }}>
-              <div className="entity-card personal-card">
-                <strong>当前片段说明</strong>
-                <p className="personal-meta">{props.title.trim() || "未填写创作标题，将使用弹窗标题提交口型驱动任务"}</p>
-                <p className="panel-subtext">音频驱动会单独生成口型驱动任务，并在提交成功后进入作品中心继续查看进度。</p>
-              </div>
-              <div className="entity-card personal-card">
-                <strong>上传提醒</strong>
-                <p className="panel-subtext">当前创作页的“我的素材库”仍是参考素材中心；音频驱动接口需要真实文件上传，因此这里继续要求本地选择视频和音频。</p>
-              </div>
             </div>
 
             <div className="digital-human-home-dialog__actions">
