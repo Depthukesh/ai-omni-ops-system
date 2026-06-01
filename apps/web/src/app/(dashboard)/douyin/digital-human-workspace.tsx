@@ -275,6 +275,37 @@ export interface DouyinDigitalHumanWorkspaceProps {
     customPersonWidth4k?: number;
     customPersonHeight4k?: number;
   }) => Promise<boolean>;
+  onCreateCompleteVideo: (payload: {
+    title?: string;
+    segments: Array<{
+      title?: string;
+      personId?: string;
+      personName?: string;
+      personSource?: "COMMON" | "CUSTOM";
+      figureType?: DigitalHumanFigureType;
+      figureCoverUrl?: string;
+      figurePreviewVideoUrl?: string;
+      figureWidth?: number;
+      figureHeight?: number;
+      audioManId?: string;
+      audioName?: string;
+      script?: string;
+      speechRate?: number;
+      pitch?: number;
+      volume?: number;
+      language?: string;
+      backgroundColor?: string;
+      subtitleEnabled?: boolean;
+      subtitleTextColor?: string;
+      subtitleStrokeColor?: string;
+      screenWidth?: number;
+      screenHeight?: number;
+      customPersonTrainType?: "figure" | "both";
+      customPersonSupport4k?: boolean;
+      customPersonWidth4k?: number;
+      customPersonHeight4k?: number;
+    }>;
+  }) => Promise<boolean>;
   onCreateCustomPerson: (payload: {
     name?: string;
     trainingVideoFile?: File | null;
@@ -1629,6 +1660,23 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setEditorActionMessage(`批量生成已提交 ${successCount}/${validDrafts.length} 个片段。`);
   };
 
+  const handleSubmitCompleteVideo = async () => {
+    const validDrafts = creatorDraftCards
+      .map((draft) => ({ draft, payload: buildVideoPayloadFromDraft(draft) }))
+      .filter((item) => Boolean(item.payload)) as Array<{ draft: DigitalHumanCreatorDraftCard; payload: NonNullable<ReturnType<typeof buildVideoPayloadFromDraft>> }>;
+    if (validDrafts.length < 2) {
+      setEditorActionMessage("生成完整作品至少需要 2 个有效片段，请先补齐数字人和脚本。");
+      return;
+    }
+    const success = await props.onCreateCompleteVideo({
+      title: title.trim() || `${validDrafts[0]?.payload.personName || "数字人"} 完整作品`,
+      segments: validDrafts.map((item) => item.payload),
+    });
+    if (success) {
+      setEditorActionMessage(`完整作品已提交，系统将按顺序生成并拼接 ${validDrafts.length} 个片段。`);
+    }
+  };
+
   const handleOpenAudioDriveDialog = () => {
     setAudioDriveTitle(title.trim() || `${activeDraftCard?.name || "当前片段"} 音频驱动`);
     setAudioDriveSourceVideoFile(null);
@@ -1904,6 +1952,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
           onLoadMoreTemplates={undefined}
           onSubmitCurrentVideo={handleSubmitCurrentVideo}
+          onSubmitCompleteVideo={handleSubmitCompleteVideo}
           onSubmitBatchVideos={handleSubmitBatchVideos}
           onSubmitAudioDrive={handleSubmitAudioDrive}
           getFigureTypeLabel={getFigureTypeLabel}

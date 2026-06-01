@@ -1035,3 +1035,52 @@
   - `apps/web/src/app/(dashboard)/douyin/digital-human-home-panel.tsx`
   - `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
 - `npm exec tsc -- --noEmit -p apps/web/tsconfig.json`
+
+### 29. 完整作品链路第一版落地
+
+- `apps/server/package.json`
+  - 新增 `ffmpeg-static`
+  - 避免完整视频拼接依赖部署机系统级 ffmpeg
+- `apps/server/src/modules/works/works.controller.ts`
+  - 新增接口：
+    - `POST /works/brands/:brandId/douyin/digital-human/video/complete`
+- `apps/server/src/modules/works/works.service.ts`
+  - 新增 `GenerateDouyinDigitalHumanCompleteVideoPayload`
+  - 新增完整作品后台工作流：
+    - 把多个数字人片段 payload 归一化
+    - 串行调用蝉镜生成每一个片段
+    - 轮询片段结果直到成功
+    - 把片段视频缓存回站内
+    - 用 `ffmpeg-static` 进行顺序拼接
+    - 把拼接后的 mp4 回填成新的数字人作品
+  - 数字人作品 metadata 补充组合信息：
+    - `compositeMode`
+    - `segmentCount`
+    - `segmentTitles`
+- `apps/web/src/services/works.ts`
+  - 新增 `GenerateDouyinDigitalHumanCompleteVideoForm`
+  - 新增 `generateDouyinDigitalHumanCompleteVideoWork`
+- `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - 新增完整作品创建回调
+  - 提交后继续复用原有数字人刷新链路与结果通知
+- `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - 新增完整作品提交逻辑
+  - 从多个有效草稿卡收集 `segments` 后统一发给后端
+- `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+  - `生成1个完整作品` 按钮从占位态改为真实调用
+- 本轮效果
+  - 用户可以在创作作品页点击一次 `生成1个完整作品`
+  - 服务端会自动按片段顺序生成并拼接
+  - 最终成片继续进入同一个作品中心
+
+## 本轮完整作品验证补充
+
+- `GetDiagnostics`
+  - `apps/server/src/modules/works/works.service.ts`
+  - `apps/server/src/modules/works/works.controller.ts`
+  - `apps/web/src/services/works.ts`
+  - `apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-workspace.tsx`
+  - `apps/web/src/app/(dashboard)/douyin/digital-human-video-panel.tsx`
+- `npm exec tsc -- --noEmit -p apps/server/tsconfig.json`
+- `npm exec tsc -- --noEmit -p apps/web/tsconfig.json`

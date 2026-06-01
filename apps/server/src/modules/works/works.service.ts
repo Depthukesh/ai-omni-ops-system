@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { extname, join, resolve } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
+import ffmpegPath from "ffmpeg-static";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { AppConfigService } from "../../config/app-config.service";
@@ -208,6 +212,11 @@ export type GenerateDouyinDigitalHumanVideoPayload = {
 export type RecoverDouyinDigitalHumanVideoPayload = {
   workId?: string;
   providerTaskId?: string;
+};
+
+export type GenerateDouyinDigitalHumanCompleteVideoPayload = {
+  title?: string;
+  segments?: GenerateDouyinDigitalHumanVideoPayload[];
 };
 
 export type CreateDouyinDigitalHumanCustomPersonPayload = {
@@ -713,6 +722,9 @@ type DigitalHumanVideoWorkAssetMeta = {
   coverImageUrl?: string;
   renderedDurationSec?: number;
   audioUrls?: string[];
+  compositeMode?: "SEGMENT_MERGE";
+  segmentCount?: number;
+  segmentTitles?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -858,6 +870,11 @@ type NormalizedDigitalHumanCreatePayload = {
   customPersonSupport4k?: boolean;
   customPersonWidth4k?: number;
   customPersonHeight4k?: number;
+};
+
+type NormalizedDigitalHumanCompletePayload = {
+  title: string;
+  segments: NormalizedDigitalHumanCreatePayload[];
 };
 
 type DigitalHumanVideoSnapshot = {
@@ -3105,6 +3122,84 @@ export class WorksService {
     });
     setTimeout(() => {
       void this.runGenerateDigitalHumanVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey);
+    }, 0);
+    return {
+      item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
+    };
+  }
+
+  async generateDouyinDigitalHumanCompleteVideo(
+    brandId: string,
+    payload: GenerateDouyinDigitalHumanCompleteVideoPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const normalized = this.normalizeDigitalHumanCompletePayload(payload);
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createVideoTask({
+      userId,
+      brandId,
+      taskType: "DOUYIN_DIGITAL_HUMAN_COMPLETE_VIDEO",
+      taskTitle: `生成完整数字人视频：${normalized.title}`,
+      requestedVideoProvider: "chanjing_digital_human + ffmpeg_concat",
+      modelName: "digital-human-composer",
+    });
+    const now = new Date().toISOString();
+    const firstSegment = normalized.segments[0];
+    const htmlContent = this.renderGeneratedDigitalHumanVideoHtml({
+      title: normalized.title,
+      content: normalized.segments.map((item, index) => `${index + 1}. ${item.title}\n${item.script}`).join("\n\n"),
+      stage: "QUEUED",
+      personName: `完整作品（${normalized.segments.length}段）`,
+      figureCoverUrl: firstSegment?.figureCoverUrl,
+      figureType: firstSegment?.figureType || "sit_body",
+    });
+    const htmlFile = await this.writeGeneratedTextFile(brandId, `${task.id}-douyin-digital-human-complete.html`, htmlContent);
+    const metadata: DigitalHumanVideoWorkAssetMeta = {
+      kind: "DOUYIN_DIGITAL_HUMAN_VIDEO",
+      taskId: task.id,
+      stage: "QUEUED",
+      title: normalized.title,
+      content: normalized.segments.map((item) => item.script).join("\n\n"),
+      htmlContent,
+      personId: firstSegment?.personId || "digital-human-complete",
+      personName: `完整作品（${normalized.segments.length}段）`,
+      personSource: firstSegment?.personSource || "COMMON",
+      figureType: firstSegment?.figureType || "sit_body",
+      figureCoverUrl: firstSegment?.figureCoverUrl,
+      figurePreviewVideoUrl: firstSegment?.figurePreviewVideoUrl,
+      figureWidth: firstSegment?.figureWidth || 720,
+      figureHeight: firstSegment?.figureHeight || 1280,
+      audioManId: firstSegment?.audioManId,
+      audioName: firstSegment?.audioName,
+      speechRate: firstSegment?.speechRate || 1,
+      pitch: firstSegment?.pitch,
+      volume: firstSegment?.volume || 1,
+      language: firstSegment?.language || "cn",
+      backgroundColor: firstSegment?.backgroundColor,
+      subtitleEnabled: firstSegment?.subtitleEnabled !== false,
+      subtitleTextColor: firstSegment?.subtitleTextColor,
+      subtitleStrokeColor: firstSegment?.subtitleStrokeColor,
+      screenWidth: firstSegment?.screenWidth || 1080,
+      screenHeight: firstSegment?.screenHeight || 1920,
+      coverImageUrl: firstSegment?.figureCoverUrl,
+      audioUrls: [],
+      compositeMode: "SEGMENT_MERGE",
+      segmentCount: normalized.segments.length,
+      segmentTitles: normalized.segments.map((item) => item.title),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const workMedia = await this.createWorkHtmlMedia({
+      userId,
+      brandId,
+      taskId: task.id,
+      title: `抖音数字人完整视频 - ${normalized.title}`,
+      storageKey: htmlFile.storageKey,
+      sourceUrl: htmlFile.url,
+      metadata,
+    });
+    setTimeout(() => {
+      void this.runGenerateDigitalHumanCompleteVideoTask(brandId, workMedia.id, task.id, htmlFile.storageKey, normalized);
     }, 0);
     return {
       item: this.mapDigitalHumanVideoWorkRecord(workMedia.id, brandId, task.id, metadata, "QUEUED"),
@@ -8217,6 +8312,9 @@ export class WorksService {
       coverImageUrl: this.readOptionalString(meta.coverImageUrl),
       renderedDurationSec: typeof meta.renderedDurationSec === "number" ? meta.renderedDurationSec : undefined,
       audioUrls: this.normalizeStringArray(meta.audioUrls, [], 8),
+      compositeMode: meta.compositeMode === "SEGMENT_MERGE" ? "SEGMENT_MERGE" : undefined,
+      segmentCount: typeof meta.segmentCount === "number" ? Math.max(0, Math.trunc(meta.segmentCount)) : undefined,
+      segmentTitles: this.normalizeStringArray(meta.segmentTitles, [], 12),
       createdAt: this.readOptionalString(meta.createdAt) || new Date().toISOString(),
       updatedAt: this.readOptionalString(meta.updatedAt) || new Date().toISOString(),
     };
@@ -8319,6 +8417,73 @@ export class WorksService {
       customPersonSupport4k,
       customPersonWidth4k,
       customPersonHeight4k,
+    };
+  }
+
+  private normalizeDigitalHumanCompletePayload(
+    payload: GenerateDouyinDigitalHumanCompleteVideoPayload,
+  ): NormalizedDigitalHumanCompletePayload {
+    const normalizedSegments = Array.isArray(payload.segments)
+      ? payload.segments.map((item) => this.normalizeDigitalHumanCreatePayload(item))
+      : [];
+    if (normalizedSegments.length < 2) {
+      throw new BadRequestException("生成完整作品至少需要 2 个有效片段。");
+    }
+    const title = String(payload.title || "").trim() || `${normalizedSegments[0]?.personName || "数字人"} 完整作品`;
+    return {
+      title,
+      segments: normalizedSegments,
+    };
+  }
+
+  private buildDigitalHumanVideoRequest(meta: NormalizedDigitalHumanCreatePayload | DigitalHumanVideoWorkAssetMeta) {
+    const personX = Math.max(0, Math.floor((meta.screenWidth - meta.figureWidth) / 2));
+    const personY = Math.max(0, meta.screenHeight - meta.figureHeight);
+    const script = "script" in meta ? meta.script : meta.content;
+    return {
+      person: {
+        id: meta.personId,
+        x: personX,
+        y: personY,
+        width: meta.figureWidth,
+        height: meta.figureHeight,
+        figure_type: meta.figureType,
+      },
+      audio: {
+        type: "tts" as const,
+        tts: {
+          text: [script],
+          speed: meta.speechRate,
+          audio_man: meta.audioManId,
+          pitch: meta.pitch,
+        },
+        volume: meta.volume,
+        language: meta.language,
+      },
+      bg_color: meta.backgroundColor,
+      subtitle_config: meta.subtitleEnabled
+        ? {
+            show: true,
+            x: Math.floor(meta.screenWidth * 0.08),
+            y: Math.floor(meta.screenHeight * 0.78),
+            width: Math.floor(meta.screenWidth * 0.84),
+            height: Math.floor(meta.screenHeight * 0.14),
+            font_size: Math.max(28, Math.floor(meta.screenWidth * 0.034)),
+            color: meta.subtitleTextColor,
+            stroke_color: meta.subtitleStrokeColor,
+            stroke_width: 2,
+          }
+        : {
+            show: false,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            font_size: 0,
+          },
+      screen_width: meta.screenWidth,
+      screen_height: meta.screenHeight,
+      add_compliance_watermark: true,
     };
   }
 
@@ -8941,53 +9106,7 @@ export class WorksService {
         thirdPartyStatusDetail: "已创建站内任务，正在调用蝉镜数字人视频接口。",
       });
       const credential = await this.resolveChanjingCredential(brandId);
-      const personX = Math.max(0, Math.floor((meta.screenWidth - meta.figureWidth) / 2));
-      const personY = Math.max(0, meta.screenHeight - meta.figureHeight);
-      const providerTaskId = await this.chanjingOpenApiService.createVideo(credential, {
-        person: {
-          id: meta.personId,
-          x: personX,
-          y: personY,
-          width: meta.figureWidth,
-          height: meta.figureHeight,
-          figure_type: meta.figureType,
-        },
-        audio: {
-          type: "tts",
-          tts: {
-            text: [meta.content],
-            speed: meta.speechRate,
-            audio_man: meta.audioManId,
-            pitch: meta.pitch,
-          },
-          volume: meta.volume,
-          language: meta.language,
-        },
-        bg_color: meta.backgroundColor,
-        subtitle_config: meta.subtitleEnabled
-          ? {
-              show: true,
-              x: Math.floor(meta.screenWidth * 0.08),
-              y: Math.floor(meta.screenHeight * 0.78),
-              width: Math.floor(meta.screenWidth * 0.84),
-              height: Math.floor(meta.screenHeight * 0.14),
-              font_size: Math.max(28, Math.floor(meta.screenWidth * 0.034)),
-              color: meta.subtitleTextColor,
-              stroke_color: meta.subtitleStrokeColor,
-              stroke_width: 2,
-            }
-          : {
-              show: false,
-              x: 0,
-              y: 0,
-              width: 0,
-              height: 0,
-              font_size: 0,
-            },
-        screen_width: meta.screenWidth,
-        screen_height: meta.screenHeight,
-        add_compliance_watermark: true,
-      });
+      const providerTaskId = await this.chanjingOpenApiService.createVideo(credential, this.buildDigitalHumanVideoRequest(meta));
       meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
         ...meta,
         taskId,
@@ -9033,6 +9152,263 @@ export class WorksService {
         });
       } catch {
         // Ignore snapshot persistence failures when the primary task already failed.
+      }
+      await this.markTaskFailed(taskId, errorMessage);
+    }
+  }
+
+  private async generateDigitalHumanSegmentForComposition(
+    brandId: string,
+    taskId: string,
+    segmentIndex: number,
+    segment: NormalizedDigitalHumanCreatePayload,
+  ) {
+    const credential = await this.resolveChanjingCredential(brandId);
+    const providerTaskId = await this.chanjingOpenApiService.createVideo(
+      credential,
+      this.buildDigitalHumanVideoRequest(segment),
+    );
+    const snapshot = await this.pollDigitalHumanVideoUntilFinished(brandId, providerTaskId);
+    if (snapshot.stage !== "SUCCESS" || !snapshot.videoUrl) {
+      throw new ServiceUnavailableException(snapshot.detail || `第 ${segmentIndex + 1} 段数字人视频生成失败`);
+    }
+    const cachedVideoUrl = await this.cacheRemoteGeneratedVideo(
+      brandId,
+      `${taskId}-complete-segment-${segmentIndex + 1}.mp4`,
+      snapshot.videoUrl,
+    );
+    return {
+      ...snapshot,
+      providerTaskId,
+      videoUrl: cachedVideoUrl,
+    };
+  }
+
+  private async pollDigitalHumanVideoUntilFinished(brandId: string, providerTaskId: string) {
+    const startedAt = Date.now();
+    let latestSnapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId);
+    while (latestSnapshot.stage === "QUEUED" || latestSnapshot.stage === "GENERATING") {
+      if (Date.now() - startedAt >= VIDEO_TASK_TOTAL_TIMEOUT_MS) {
+        throw new ServiceUnavailableException(`蝉镜数字人任务 ${providerTaskId} 超时，请稍后在作品中心找回结果。`);
+      }
+      await wait(IMAGE_TASK_POLL_INTERVAL_MS);
+      latestSnapshot = await this.queryDigitalHumanVideoSnapshot(brandId, providerTaskId);
+    }
+    return latestSnapshot;
+  }
+
+  private async mergeDigitalHumanSegmentVideos(params: {
+    brandId: string;
+    taskId: string;
+    workId: string;
+    title: string;
+    segmentVideoUrls: string[];
+  }) {
+    if (params.segmentVideoUrls.length < 2) {
+      throw new BadRequestException("完整作品至少需要 2 个已生成片段。");
+    }
+    const binary = process.env.FFMPEG_BINARY || (typeof ffmpegPath === "string" ? ffmpegPath : "");
+    if (!binary) {
+      throw new ServiceUnavailableException("当前服务端未配置 ffmpeg，暂时无法拼接完整作品。");
+    }
+    const tempRoot = await mkdtemp(join(tmpdir(), "digital-human-compose-"));
+    try {
+      const localSegmentPaths: string[] = [];
+      let durationSec = 0;
+      for (let index = 0; index < params.segmentVideoUrls.length; index += 1) {
+        const sourceUrl = params.segmentVideoUrls[index];
+        const response = await fetch(sourceUrl);
+        if (!response.ok) {
+          throw new ServiceUnavailableException(`下载第 ${index + 1} 段视频失败：${response.status}`);
+        }
+        const filePath = join(tempRoot, `segment-${index + 1}.mp4`);
+        await writeFile(filePath, Buffer.from(await response.arrayBuffer()));
+        localSegmentPaths.push(filePath);
+      }
+      const concatListPath = join(tempRoot, "concat.txt");
+      await writeFile(
+        concatListPath,
+        `${localSegmentPaths.map((item) => `file '${item.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n")}\n`,
+        "utf8",
+      );
+      const outputPath = join(tempRoot, "merged-output.mp4");
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        const command = spawn(binary, [
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          concatListPath,
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "23",
+          "-c:a",
+          "aac",
+          "-movflags",
+          "+faststart",
+          outputPath,
+        ], {
+          windowsHide: true,
+        });
+        let stderr = "";
+        command.stderr.on("data", (chunk) => {
+          stderr += String(chunk || "");
+        });
+        command.on("error", (error) => {
+          rejectPromise(error);
+        });
+        command.on("close", (code) => {
+          if (code === 0) {
+            resolvePromise();
+            return;
+          }
+          rejectPromise(new Error(stderr.trim() || `ffmpeg 退出码 ${code}`));
+        });
+      });
+      const outputBuffer = await readFile(outputPath);
+      const fileName = `${params.taskId}-digital-human-complete.mp4`;
+      const saved = await this.writeGeneratedBinaryFile(
+        params.brandId,
+        fileName,
+        outputBuffer.toString("base64"),
+        "video/mp4",
+      );
+      return {
+        videoUrl: saved.url,
+        durationSec: durationSec || undefined,
+      };
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true }).catch(() => false);
+    }
+  }
+
+  private async runGenerateDigitalHumanCompleteVideoTask(
+    brandId: string,
+    workId: string,
+    taskId: string,
+    storageKey: string,
+    payload: NormalizedDigitalHumanCompletePayload,
+  ) {
+    try {
+      await this.markTaskRunning(taskId);
+      await this.updateTaskOutputJson(taskId, {
+        workId,
+        stage: "GENERATING",
+        title: payload.title,
+        segmentCount: payload.segments.length,
+      });
+      const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+      let meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target)),
+        taskId,
+        stage: "GENERATING",
+        thirdPartyStatus: "GENERATING",
+        thirdPartyStatusLabel: "正在生成完整作品",
+        thirdPartyStatusDetail: `准备串行生成 ${payload.segments.length} 个片段。`,
+      });
+      const segmentResults: Array<{ title: string; videoUrl: string; durationSec?: number }> = [];
+      for (let index = 0; index < payload.segments.length; index += 1) {
+        const segment = payload.segments[index];
+        await this.ensureTaskNotCancelled(taskId);
+        meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...meta,
+          taskId,
+          stage: "GENERATING",
+          thirdPartyStatus: "GENERATING",
+          thirdPartyStatusLabel: `正在生成第 ${index + 1}/${payload.segments.length} 段`,
+          thirdPartyStatusDetail: segment.title,
+          thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        });
+        await this.updateTaskOutputJson(taskId, {
+          workId,
+          stage: "GENERATING_SEGMENT",
+          title: payload.title,
+          segmentIndex: index + 1,
+          segmentCount: payload.segments.length,
+          segmentTitle: segment.title,
+        });
+        const segmentSnapshot = await this.generateDigitalHumanSegmentForComposition(brandId, taskId, index, segment);
+        segmentResults.push({
+          title: segment.title,
+          videoUrl: segmentSnapshot.videoUrl,
+          durationSec: segmentSnapshot.durationSec,
+        });
+      }
+
+      meta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        stage: "GENERATING",
+        thirdPartyStatus: "GENERATING",
+        thirdPartyStatusLabel: "正在拼接完整视频",
+        thirdPartyStatusDetail: `已生成 ${segmentResults.length} 个片段，开始拼接。`,
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+      });
+
+      const merged = await this.mergeDigitalHumanSegmentVideos({
+        brandId,
+        taskId,
+        workId,
+        title: payload.title,
+        segmentVideoUrls: segmentResults.map((item) => item.videoUrl),
+      });
+      const userId = String((target as { userId?: string | null }).userId || "").trim() || await this.getBrandOwnerUserId(brandId);
+      const videoMedia = await this.upsertRecoveredVideoMedia({
+        userId,
+        brandId,
+        taskId,
+        workId,
+        title: `数字人完整视频 - ${payload.title}`,
+        sourceUrl: merged.videoUrl,
+        provider: "ffmpeg_concat",
+        modelName: "ffmpeg-static",
+        durationSec: merged.durationSec,
+        videoAssetId: meta.videoAssetId,
+      });
+      const nextMeta = await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+        ...meta,
+        taskId,
+        stage: "SUCCESS",
+        thirdPartyStatus: "SUCCESS",
+        thirdPartyStatusLabel: "完整作品已生成",
+        thirdPartyStatusDetail: `已完成 ${segmentResults.length} 段拼接。`,
+        thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        videoAssetId: videoMedia.id,
+        videoUrl: merged.videoUrl,
+        coverImageUrl: meta.coverImageUrl || meta.figureCoverUrl,
+        renderedDurationSec: merged.durationSec,
+      });
+      await this.markTaskSuccess(
+        taskId,
+        {
+          workId,
+          stage: "SUCCESS",
+          title: nextMeta.title,
+          videoUrl: nextMeta.videoUrl,
+          segmentCount: payload.segments.length,
+        },
+        { modelName: "ffmpeg-static" },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "完整作品生成失败";
+      try {
+        const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+        await this.saveDigitalHumanWorkMetadataSnapshot(brandId, workId, storageKey, {
+          ...this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target)),
+          taskId,
+          stage: "FAILED",
+          thirdPartyStatus: "FAILED",
+          thirdPartyStatusLabel: "完整作品生成失败",
+          thirdPartyStatusDetail: errorMessage,
+          thirdPartyStatusUpdatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Ignore metadata save failures after the compose task itself fails.
       }
       await this.markTaskFailed(taskId, errorMessage);
     }

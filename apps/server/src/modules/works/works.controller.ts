@@ -8,6 +8,7 @@ import {
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
+  type GenerateDouyinDigitalHumanCompleteVideoPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
   type GenerateDouyinVideoNotePayload,
@@ -516,6 +517,20 @@ export class WorksController {
       .then(async (auth) => {
         await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
         return this.worksService.generateDouyinDigitalHumanVideo(brandId, payload, auth);
+      });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/video/complete")
+  generateDouyinDigitalHumanCompleteVideo(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinDigitalHumanCompleteVideoPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService
+      .resolveRequestAuthContext(headers)
+      .then(async (auth) => {
+        await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+        return this.worksService.generateDouyinDigitalHumanCompleteVideo(brandId, payload, auth);
       });
   }
 

@@ -51,6 +51,7 @@ import {
   continueDouyinVideoGeneration,
   deleteDouyinDirectVideoWork,
   deleteDouyinVideoWork,
+  generateDouyinDigitalHumanCompleteVideoWork,
   generateDouyinDigitalHumanVideoWork,
   generateDouyinLipSyncWork,
   generateDouyinDirectVideoWork,
@@ -1578,6 +1579,27 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
 
+  const handleCreateDigitalHumanCompleteVideo = useCallback(async (payload: Parameters<typeof generateDouyinDigitalHumanCompleteVideoWork>[1]) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能生成完整数字人作品。");
+      return false;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await generateDouyinDigitalHumanCompleteVideoWork(activeBrandId, payload);
+      await refreshDigitalHumanWorkspace();
+      setNotice("完整数字人作品任务已提交，系统将串行生成片段并自动拼接。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "完整数字人作品提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman, refreshDigitalHumanWorkspace]);
+
   const handleRecoverDigitalHuman = useCallback(async (payload: {
     workId?: string;
     providerTaskId?: string;
@@ -2327,6 +2349,7 @@ export function DouyinWorkspaceShell() {
                     onDeleteScriptTemplate={handleDeleteDigitalHumanScriptTemplate}
                     onPreview={openGeneratedVideoPreview}
                     onCreate={handleCreateDigitalHuman}
+                    onCreateCompleteVideo={handleCreateDigitalHumanCompleteVideo}
                     onCreateCustomPerson={handleCreateDigitalHumanCustomPerson}
                     onCreateLipSync={handleCreateLipSync}
                     onRecoverVideo={handleRecoverDigitalHuman}

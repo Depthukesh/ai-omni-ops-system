@@ -415,6 +415,9 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   coverImageUrl?: string;
   renderedDurationSec?: number;
   audioUrls: string[];
+  compositeMode?: "SEGMENT_MERGE";
+  segmentCount?: number;
+  segmentTitles?: string[];
   taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   createdAt: string;
   updatedAt: string;
@@ -516,6 +519,11 @@ export type GenerateDouyinDigitalHumanVideoForm = {
   customPersonSupport4k?: boolean;
   customPersonWidth4k?: number;
   customPersonHeight4k?: number;
+};
+
+export type GenerateDouyinDigitalHumanCompleteVideoForm = {
+  title?: string;
+  segments: GenerateDouyinDigitalHumanVideoForm[];
 };
 
 export type CreateDouyinDigitalHumanCustomPersonForm = {
@@ -1230,6 +1238,17 @@ export async function generateDouyinDigitalHumanVideoWork(
 ) {
   return jsonRequest<{ item: DouyinDigitalHumanVideoWorkRecord }>(
     `/works/brands/${brandId}/douyin/digital-human/video/generate`,
+    "POST",
+    form,
+  );
+}
+
+export async function generateDouyinDigitalHumanCompleteVideoWork(
+  brandId: string,
+  form: GenerateDouyinDigitalHumanCompleteVideoForm,
+) {
+  return jsonRequest<{ item: DouyinDigitalHumanVideoWorkRecord }>(
+    `/works/brands/${brandId}/douyin/digital-human/video/complete`,
     "POST",
     form,
   );

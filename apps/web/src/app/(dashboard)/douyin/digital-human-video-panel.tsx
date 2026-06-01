@@ -197,6 +197,7 @@ export interface DigitalHumanVideoPanelProps {
   onDeletePersonalScriptTemplate: () => Promise<void> | void;
   onLoadMoreTemplates?: () => Promise<void>;
   onSubmitCurrentVideo: () => void;
+  onSubmitCompleteVideo: () => Promise<void> | void;
   onSubmitBatchVideos: () => Promise<void> | void;
   onSubmitAudioDrive: () => Promise<void> | void;
   getFigureTypeLabel: (type?: DigitalHumanFigureType) => string;
@@ -563,7 +564,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         <button type="button" className="secondary-button" onClick={() => setShowScriptAssets((current) => !current)}>
           脚本资产
         </button>
-        <button type="button" className="secondary-button" disabled title="完整视频拼接链路下一步继续接">
+        <button type="button" className="secondary-button" onClick={() => void props.onSubmitCompleteVideo()} disabled={!props.canEdit || props.isSubmitting}>
           生成1个完整作品
         </button>
         <button type="button" className="primary-button" onClick={props.onSubmitCurrentVideo} disabled={!props.canEdit || props.isSubmitting}>
