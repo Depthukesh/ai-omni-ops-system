@@ -392,6 +392,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     },
   ]);
   const [activeDraftCardId, setActiveDraftCardId] = useState("");
+  const [isAudioDriveDialogOpen, setIsAudioDriveDialogOpen] = useState(false);
+  const [audioDriveTitle, setAudioDriveTitle] = useState("");
+  const [audioDriveSourceVideoFile, setAudioDriveSourceVideoFile] = useState<File | null>(null);
+  const [audioDriveAudioFile, setAudioDriveAudioFile] = useState<File | null>(null);
+  const [audioDriveAudioPreviewUrl, setAudioDriveAudioPreviewUrl] = useState("");
+  const [audioDriveAudioDurationLabel, setAudioDriveAudioDurationLabel] = useState("");
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
@@ -764,6 +770,30 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       setActiveDraftCardId(creatorDraftCards[0]?.id || "");
     }
   }, [activeDraftCardId, creatorDraftCards]);
+
+  useEffect(() => {
+    if (!audioDriveAudioFile) {
+      setAudioDriveAudioPreviewUrl("");
+      setAudioDriveAudioDurationLabel("");
+      return;
+    }
+    const previewUrl = window.URL.createObjectURL(audioDriveAudioFile);
+    setAudioDriveAudioPreviewUrl(previewUrl);
+    const audio = document.createElement("audio");
+    audio.preload = "metadata";
+    audio.src = previewUrl;
+    const handleLoadedMetadata = () => {
+      const durationSeconds = Number.isFinite(audio.duration) ? Math.max(0, Math.round(audio.duration)) : 0;
+      const minutes = Math.floor(durationSeconds / 60);
+      const seconds = durationSeconds % 60;
+      setAudioDriveAudioDurationLabel(`${minutes}:${String(seconds).padStart(2, "0")}`);
+    };
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      window.URL.revokeObjectURL(previewUrl);
+    };
+  }, [audioDriveAudioFile]);
 
   useEffect(() => {
     if (!activeDraftCardId) {
@@ -1452,41 +1482,151 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSubmitCurrentVideo = () => {
-    if (createDisabled) {
-      return;
+  const buildVideoPayloadFromDraft = (draft: DigitalHumanCreatorDraftCard) => {
+    const currentCommonSource = draft.personSource === "COMMON" ? props.templates.find((item) => item.id === draft.selectedTemplateId) : undefined;
+    const currentCommonFigure =
+      draft.personSource === "COMMON"
+        ? currentCommonSource?.figures.find((item) => item.type === draft.selectedFigureType) || currentCommonSource?.figures[0]
+        : undefined;
+    const currentCustomSource =
+      draft.personSource === "CUSTOM"
+        ? props.customPersons.find((item) => item.id === draft.selectedCustomPersonId && item.status === "SUCCESS")
+        : undefined;
+    const currentPublicVoice =
+      draft.selectedVoiceMode === "PUBLIC"
+        ? props.publicVoices.find((item) => item.id === draft.selectedPublicVoiceId)
+        : undefined;
+    const currentCustomVoice =
+      draft.selectedVoiceMode === "CUSTOM"
+        ? props.customVoices.find((item) => item.id === draft.selectedCustomVoiceId)
+        : undefined;
+    const resolvedVoice = currentPublicVoice || currentCustomVoice;
+    if (!draft.script.trim()) {
+      return null;
     }
-    const currentCommonSource = selectedPersonSource === "COMMON" ? selectedTemplate : undefined;
-    const currentCommonFigure = selectedPersonSource === "COMMON" ? selectedFigure : undefined;
-    const currentCustomSource = selectedPersonSource === "CUSTOM" ? selectedCustomPerson : undefined;
-    void props.onCreate({
-      title: title.trim() || `${currentCustomSource?.name || currentCommonSource?.name || "数字人"} 数字人口播`,
+    if (draft.personSource === "COMMON" && (!currentCommonSource || !currentCommonFigure)) {
+      return null;
+    }
+    if (draft.personSource === "CUSTOM" && !currentCustomSource) {
+      return null;
+    }
+    return {
+      title: draft.title.trim() || `${currentCustomSource?.name || currentCommonSource?.name || "数字人"} 数字人口播`,
       personId: currentCustomSource?.personId || currentCustomSource?.id || currentCommonSource?.id,
       personName: currentCustomSource?.name || currentCommonSource?.name,
-      personSource: selectedPersonSource,
-      figureType: currentCommonFigure?.type || selectedFigureType,
+      personSource: draft.personSource,
+      figureType: currentCommonFigure?.type || draft.selectedFigureType,
       figureCoverUrl: currentCustomSource?.coverImageUrl || currentCommonFigure?.cover,
       figurePreviewVideoUrl: currentCustomSource?.previewVideoUrl || currentCommonFigure?.previewVideoUrl,
       figureWidth: currentCustomSource?.width || currentCommonFigure?.width,
       figureHeight: currentCustomSource?.height || currentCommonFigure?.height,
-      audioManId: resolvedSelectedVoice?.id || currentCustomSource?.audioManId || currentCommonSource?.audioManId,
-      audioName: resolvedSelectedVoice?.name || currentCommonSource?.audioName,
-      script: script.trim(),
-      speechRate: Number(speechRate || 1),
-      pitch: Number(pitch || 0),
-      volume: Number(volume || 1),
-      language: (selectedVoiceMode === "PUBLIC" ? selectedPublicVoice?.lang : undefined) || currentCustomSource?.language || currentCommonSource?.audioLang || "cn",
-      backgroundColor,
-      subtitleEnabled,
-      subtitleTextColor,
-      subtitleStrokeColor,
-      screenWidth: Number(screenWidth || 1080),
-      screenHeight: Number(screenHeight || 1920),
+      audioManId: resolvedVoice?.id || currentCustomSource?.audioManId || currentCommonSource?.audioManId,
+      audioName: resolvedVoice?.name || currentCommonSource?.audioName,
+      script: draft.script.trim(),
+      speechRate: Number(draft.speechRate || 1),
+      pitch: Number(draft.pitch || 0),
+      volume: Number(draft.volume || 1),
+      language: (draft.selectedVoiceMode === "PUBLIC" ? currentPublicVoice?.lang : undefined) || currentCustomSource?.language || currentCommonSource?.audioLang || "cn",
+      backgroundColor: draft.backgroundColor,
+      subtitleEnabled: draft.subtitleEnabled,
+      subtitleTextColor: draft.subtitleTextColor,
+      subtitleStrokeColor: draft.subtitleStrokeColor,
+      screenWidth: Number(draft.screenWidth || 1080),
+      screenHeight: Number(draft.screenHeight || 1920),
       customPersonTrainType: currentCustomSource?.trainType,
       customPersonSupport4k: currentCustomSource?.support4k,
       customPersonWidth4k: currentCustomSource?.width4k,
       customPersonHeight4k: currentCustomSource?.height4k,
+    };
+  };
+
+  const handleSubmitCurrentVideo = () => {
+    if (createDisabled) {
+      return;
+    }
+    const payload = buildVideoPayloadFromDraft({
+      id: activeDraftCard?.id || createDigitalHumanDraftId(),
+      name: activeDraftCard?.name || "当前片段",
+      personSource: selectedPersonSource,
+      selectedTemplateId,
+      selectedCustomPersonId,
+      selectedFigureType,
+      selectedVoiceMode,
+      selectedPublicVoiceId,
+      selectedCustomVoiceId,
+      selectedMaterialLibraryItemId,
+      title,
+      script,
+      speechRate,
+      pitch,
+      volume,
+      backgroundColor,
+      subtitleEnabled,
+      subtitleTextColor,
+      subtitleStrokeColor,
+      screenWidth,
+      screenHeight,
     });
+    if (!payload) {
+      setEditorActionMessage("当前片段信息不完整，请先补齐数字人和脚本。");
+      return;
+    }
+    void props.onCreate(payload);
+  };
+
+  const handleSubmitBatchVideos = async () => {
+    const validDrafts = creatorDraftCards
+      .map((draft) => ({ draft, payload: buildVideoPayloadFromDraft(draft) }))
+      .filter((item) => Boolean(item.payload)) as Array<{ draft: DigitalHumanCreatorDraftCard; payload: NonNullable<ReturnType<typeof buildVideoPayloadFromDraft>> }>;
+    if (!validDrafts.length) {
+      setEditorActionMessage("当前没有可批量生成的片段，请先补齐至少一个有效片段。");
+      return;
+    }
+    let successCount = 0;
+    for (const item of validDrafts) {
+      const success = await props.onCreate(item.payload);
+      if (success) {
+        successCount += 1;
+      }
+    }
+    setEditorActionMessage(`批量生成已提交 ${successCount}/${validDrafts.length} 个片段。`);
+  };
+
+  const handleOpenAudioDriveDialog = () => {
+    setAudioDriveTitle(title.trim() || `${activeDraftCard?.name || "当前片段"} 音频驱动`);
+    setAudioDriveSourceVideoFile(null);
+    setAudioDriveAudioFile(null);
+    setAudioDriveAudioDurationLabel("");
+    setIsAudioDriveDialogOpen(true);
+  };
+
+  const handleCloseAudioDriveDialog = () => {
+    setIsAudioDriveDialogOpen(false);
+    setAudioDriveSourceVideoFile(null);
+    setAudioDriveAudioFile(null);
+    setAudioDriveTitle("");
+    setAudioDriveAudioDurationLabel("");
+  };
+
+  const handleSubmitAudioDrive = async () => {
+    if (!audioDriveSourceVideoFile || !audioDriveAudioFile) {
+      return;
+    }
+    const normalizedAudioDriveVolume = Math.max(0, Math.round(Number(volume || 1) * 100));
+    const success = await props.onCreateLipSync({
+      title: audioDriveTitle.trim() || undefined,
+      sourceVideoFile: audioDriveSourceVideoFile,
+      audioType: "AUDIO",
+      audioFile: audioDriveAudioFile,
+      volume: normalizedAudioDriveVolume || 100,
+      screenWidth: Number(screenWidth || 1080),
+      screenHeight: Number(screenHeight || 1920),
+    });
+    if (!success) {
+      return;
+    }
+    handleCloseAudioDriveDialog();
+    setEditorActionMessage("音频驱动任务已提交，可在作品中心继续查看进度。");
   };
 
   return (
@@ -1616,6 +1756,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           selectedMaterialLibraryItem={selectedMaterialLibraryItem}
           creatorDraftCards={creatorDraftCardSummaries}
           activeDraftCardId={activeDraftCardId}
+          isAudioDriveDialogOpen={isAudioDriveDialogOpen}
+          audioDriveTitle={audioDriveTitle}
+          audioDriveSourceVideoFile={audioDriveSourceVideoFile}
+          audioDriveAudioFile={audioDriveAudioFile}
+          audioDriveAudioPreviewUrl={audioDriveAudioPreviewUrl}
+          audioDriveAudioDurationLabel={audioDriveAudioDurationLabel}
           title={title}
           script={script}
           speechRate={speechRate}
@@ -1674,6 +1820,11 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onCreateCreatorDraftCard={handleCreateCreatorDraftCard}
           onDuplicateCreatorDraftCard={handleDuplicateCreatorDraftCard}
           onDeleteActiveDraftCard={handleDeleteActiveDraftCard}
+          onOpenAudioDriveDialog={handleOpenAudioDriveDialog}
+          onCloseAudioDriveDialog={handleCloseAudioDriveDialog}
+          onAudioDriveTitleChange={setAudioDriveTitle}
+          onAudioDriveSourceVideoFileChange={setAudioDriveSourceVideoFile}
+          onAudioDriveAudioFileChange={setAudioDriveAudioFile}
           onTitleChange={setTitle}
           onScriptChange={setScript}
           onSpeechRateChange={setSpeechRate}
@@ -1712,6 +1863,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
           onLoadMoreTemplates={undefined}
           onSubmitCurrentVideo={handleSubmitCurrentVideo}
+          onSubmitBatchVideos={handleSubmitBatchVideos}
+          onSubmitAudioDrive={handleSubmitAudioDrive}
           getFigureTypeLabel={getFigureTypeLabel}
           getScriptTemplateCategoryLabel={getScriptTemplateCategoryLabel}
           getScriptTemplateArchiveLabel={getScriptTemplateArchiveLabel}

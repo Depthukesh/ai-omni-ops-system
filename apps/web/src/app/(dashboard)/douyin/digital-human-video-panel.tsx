@@ -72,6 +72,12 @@ export interface DigitalHumanVideoPanelProps {
   selectedMaterialLibraryItem?: DigitalHumanVideoPanelMaterialItem;
   creatorDraftCards: DigitalHumanVideoPanelDraftCard[];
   activeDraftCardId: string;
+  isAudioDriveDialogOpen: boolean;
+  audioDriveTitle: string;
+  audioDriveSourceVideoFile: File | null;
+  audioDriveAudioFile: File | null;
+  audioDriveAudioPreviewUrl: string;
+  audioDriveAudioDurationLabel: string;
   title: string;
   script: string;
   speechRate: string;
@@ -137,6 +143,11 @@ export interface DigitalHumanVideoPanelProps {
   onCreateCreatorDraftCard: () => void;
   onDuplicateCreatorDraftCard: () => void;
   onDeleteActiveDraftCard: () => void;
+  onOpenAudioDriveDialog: () => void;
+  onCloseAudioDriveDialog: () => void;
+  onAudioDriveTitleChange: (value: string) => void;
+  onAudioDriveSourceVideoFileChange: (value: File | null) => void;
+  onAudioDriveAudioFileChange: (value: File | null) => void;
   onTitleChange: (value: string) => void;
   onScriptChange: (value: string | ((current: string) => string)) => void;
   onSpeechRateChange: (value: string) => void;
@@ -175,6 +186,8 @@ export interface DigitalHumanVideoPanelProps {
   onDeletePersonalScriptTemplate: () => Promise<void> | void;
   onLoadMoreTemplates?: () => Promise<void>;
   onSubmitCurrentVideo: () => void;
+  onSubmitBatchVideos: () => Promise<void> | void;
+  onSubmitAudioDrive: () => Promise<void> | void;
   getFigureTypeLabel: (type?: DigitalHumanFigureType) => string;
   getScriptTemplateCategoryLabel: (value?: string) => string;
   getScriptTemplateArchiveLabel: (isArchived?: boolean) => string;
@@ -548,6 +561,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             <button type="button" className="secondary-button" onClick={() => props.onShowScriptTemplateManagerChange((current) => !current)}>
               {props.showScriptTemplateManager ? "收起模板资产" : "展开模板资产"}
             </button>
+            <button type="button" className="secondary-button" onClick={props.onOpenAudioDriveDialog} disabled={!props.canEdit || props.isSubmitting}>
+              音频驱动
+            </button>
+            <button type="button" className="secondary-button" onClick={() => void props.onSubmitBatchVideos()} disabled={!props.canEdit || props.isSubmitting}>
+              批量生成 {props.creatorDraftCards.length} 个视频
+            </button>
             <button type="button" className="primary-button" onClick={props.onSubmitCurrentVideo} disabled={!props.canEdit || props.isSubmitting}>
               提交数字人视频
             </button>
@@ -910,6 +929,88 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           <span className="panel-subtext">
             当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页，每页 {props.templatePageInfo.size} 条
           </span>
+        </div>
+      ) : null}
+
+      {props.isAudioDriveDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={props.onCloseAudioDriveDialog}>
+          <div className="digital-human-template-modal digital-human-home-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="report-editor-head">
+              <div>
+                <strong>音频驱动</strong>
+                <p>上传驱动视频和音频后，将复用现有口型驱动链路提交任务；音频时长会直接作为本次驱动的预计时长参考。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={props.onCloseAudioDriveDialog} disabled={props.isSubmitting}>
+                关闭
+              </button>
+            </div>
+
+            <div className="personal-grid" style={{ marginTop: 16 }}>
+              <label className="field">
+                <span>任务标题</span>
+                <input value={props.audioDriveTitle} onChange={(event) => props.onAudioDriveTitleChange(event.target.value)} placeholder="例如：品牌讲解片段 1 音频驱动" />
+              </label>
+              <label className="field">
+                <span>预计时长</span>
+                <input value={props.audioDriveAudioDurationLabel || "等待读取音频时长"} readOnly />
+              </label>
+              <label className="field field-full">
+                <span>驱动视频</span>
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,video/*"
+                  onChange={(event) => props.onAudioDriveSourceVideoFileChange(event.target.files?.[0] || null)}
+                  disabled={props.isSubmitting || !props.canEdit}
+                />
+                <small className="personal-meta">
+                  {props.audioDriveSourceVideoFile
+                    ? `已选择驱动视频：${props.audioDriveSourceVideoFile.name}`
+                    : "请上传本地驱动视频文件；如果素材库里已有参考视频，请先下载到本地再上传。"}
+                </small>
+              </label>
+              <label className="field field-full">
+                <span>驱动音频</span>
+                <input
+                  type="file"
+                  accept="audio/mp3,audio/mpeg,audio/wav,audio/x-wav,audio/m4a,audio/*"
+                  onChange={(event) => props.onAudioDriveAudioFileChange(event.target.files?.[0] || null)}
+                  disabled={props.isSubmitting || !props.canEdit}
+                />
+                <small className="personal-meta">
+                  {props.audioDriveAudioFile ? `已选择驱动音频：${props.audioDriveAudioFile.name}` : "支持上传 mp3、wav、m4a 等音频文件。"}
+                </small>
+                {props.audioDriveAudioPreviewUrl ? (
+                  <audio controls preload="metadata" src={props.audioDriveAudioPreviewUrl} style={{ width: "100%", marginTop: 12 }} />
+                ) : null}
+              </label>
+            </div>
+
+            <div className="strategy-grid" style={{ marginTop: 16 }}>
+              <div className="entity-card personal-card">
+                <strong>当前片段说明</strong>
+                <p className="personal-meta">{props.title.trim() || "未填写创作标题，将使用弹窗标题提交口型驱动任务"}</p>
+                <p className="panel-subtext">音频驱动会单独生成口型驱动任务，并在提交成功后进入作品中心继续查看进度。</p>
+              </div>
+              <div className="entity-card personal-card">
+                <strong>上传提醒</strong>
+                <p className="panel-subtext">当前创作页的“我的素材库”仍是参考素材中心；音频驱动接口需要真实文件上传，因此这里继续要求本地选择视频和音频。</p>
+              </div>
+            </div>
+
+            <div className="digital-human-home-dialog__actions">
+              <button type="button" className="secondary-button" onClick={props.onCloseAudioDriveDialog} disabled={props.isSubmitting}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void props.onSubmitAudioDrive()}
+                disabled={!props.canEdit || props.isSubmitting || !props.audioDriveSourceVideoFile || !props.audioDriveAudioFile}
+              >
+                {props.isSubmitting ? "提交中..." : "提交音频驱动"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </article>
