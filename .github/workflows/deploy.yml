@@ -36,6 +36,9 @@ jobs:
             -p "$ALIYUN_PORT" \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=6 \
+            -o TCPKeepAlive=yes \
             "$ALIYUN_USER@$ALIYUN_HOST" \
             "DEPLOY_PATH=$REMOTE_DEPLOY_PATH TIKHUB_API_KEY=$REMOTE_TIKHUB_API_KEY bash -se" <<'REMOTE_SCRIPT'
             set -Eeuo pipefail
@@ -175,7 +178,7 @@ jobs:
                 exit 1
               fi
 
-              run_checked "npm ci" npm ci
+              run_checked "npm ci" npm ci --foreground-scripts --loglevel=notice
               run_checked "npm run prisma:generate" npm run prisma:generate
               run_checked "npm run prisma:db:push" npm run prisma:db:push
               run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
