@@ -400,9 +400,18 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   volume: number;
   language: string;
   backgroundColor?: string;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -510,9 +519,19 @@ export type GenerateDouyinDigitalHumanVideoForm = {
   volume?: number;
   language?: string;
   backgroundColor?: string;
+  backgroundImageFile?: File | null;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled?: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth?: number;
   screenHeight?: number;
   customPersonTrainType?: "figure" | "both";
@@ -1236,10 +1255,14 @@ export async function generateDouyinDigitalHumanVideoWork(
   brandId: string,
   form: GenerateDouyinDigitalHumanVideoForm,
 ) {
+  const backgroundImage = form.backgroundImageFile ? await toUploadPayload(form.backgroundImageFile) : undefined;
   return jsonRequest<{ item: DouyinDigitalHumanVideoWorkRecord }>(
     `/works/brands/${brandId}/douyin/digital-human/video/generate`,
     "POST",
-    form,
+    {
+      ...form,
+      backgroundImage,
+    },
   );
 }
 
@@ -1247,10 +1270,19 @@ export async function generateDouyinDigitalHumanCompleteVideoWork(
   brandId: string,
   form: GenerateDouyinDigitalHumanCompleteVideoForm,
 ) {
+  const segments = await Promise.all(
+    form.segments.map(async (segment) => ({
+      ...segment,
+      backgroundImage: segment.backgroundImageFile ? await toUploadPayload(segment.backgroundImageFile) : undefined,
+    })),
+  );
   return jsonRequest<{ item: DouyinDigitalHumanVideoWorkRecord }>(
     `/works/brands/${brandId}/douyin/digital-human/video/complete`,
     "POST",
-    form,
+    {
+      ...form,
+      segments,
+    },
   );
 }
 

@@ -59,6 +59,40 @@ type DigitalHumanVideoPanelMaterialItem = {
   sourceLabel?: string;
 };
 
+type DigitalHumanBackgroundPreset = {
+  key: string;
+  name: string;
+  description: string;
+  url: string;
+};
+
+const DIGITAL_HUMAN_BACKGROUND_PRESETS: DigitalHumanBackgroundPreset[] = [
+  {
+    key: "warm-studio",
+    name: "暖光演播室",
+    description: "适合品牌口播和产品讲解",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=warm%20minimalist%20broadcast%20studio%20background%2C%20soft%20golden%20lighting%2C%20premium%20modern%20stage%2C%20clean%20floor%20reflection%2C%20cinematic%2C%20realistic&image_size=portrait_16_9",
+  },
+  {
+    key: "city-night",
+    name: "都市夜景",
+    description: "适合科技感和活动宣传",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=modern%20city%20night%20background%2C%20soft%20bokeh%20lights%2C%20clean%20stage%20foreground%2C%20deep%20blue%20tone%2C%20realistic%20commercial%20visual&image_size=portrait_16_9",
+  },
+  {
+    key: "office-window",
+    name: "落地窗办公室",
+    description: "适合商务分享和知识讲解",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=bright%20modern%20office%20with%20large%20windows%2C%20city%20view%2C%20clean%20corporate%20background%2C%20natural%20daylight%2C%20realistic&image_size=portrait_16_9",
+  },
+  {
+    key: "lifestyle-home",
+    name: "轻生活客厅",
+    description: "适合生活方式和种草内容",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=stylish%20modern%20living%20room%20background%2C%20neutral%20colors%2C%20soft%20daylight%2C%20minimal%20decor%2C%20commercial%20realistic&image_size=portrait_16_9",
+  },
+];
+
 export interface DigitalHumanVideoPanelProps {
   templateCountLabel: string;
   workCountLabel: string;
@@ -102,9 +136,19 @@ export interface DigitalHumanVideoPanelProps {
   pitch: string;
   volume: string;
   backgroundColor: string;
+  backgroundImageFile: File | null;
+  backgroundImageUrl: string;
+  backgroundImageName: string;
   subtitleEnabled: boolean;
+  subtitlePositionX: string;
+  subtitlePositionY: string;
+  subtitleWidth: string;
+  subtitleHeight: string;
+  subtitleFontSize: string;
   subtitleTextColor: string;
   subtitleStrokeColor: string;
+  subtitleStrokeWidth: string;
+  subtitleFontId: string;
   screenWidth: string;
   screenHeight: string;
   scriptTemplateVisibility: "SELF" | "SHARED";
@@ -187,9 +231,19 @@ export interface DigitalHumanVideoPanelProps {
   onPitchChange: (value: string) => void;
   onVolumeChange: (value: string) => void;
   onBackgroundColorChange: (value: string) => void;
+  onBackgroundImageFileChange: (value: File | null) => void;
+  onBackgroundImageUrlChange: (value: string) => void;
+  onBackgroundImageNameChange: (value: string) => void;
   onSubtitleEnabledChange: (value: boolean) => void;
+  onSubtitlePositionXChange: (value: string) => void;
+  onSubtitlePositionYChange: (value: string) => void;
+  onSubtitleWidthChange: (value: string) => void;
+  onSubtitleHeightChange: (value: string) => void;
+  onSubtitleFontSizeChange: (value: string) => void;
   onSubtitleTextColorChange: (value: string) => void;
   onSubtitleStrokeColorChange: (value: string) => void;
+  onSubtitleStrokeWidthChange: (value: string) => void;
+  onSubtitleFontIdChange: (value: string) => void;
   onScreenWidthChange: (value: string) => void;
   onScreenHeightChange: (value: string) => void;
   onScriptTemplateVisibilityChange: (value: "SELF" | "SHARED") => void;
@@ -258,6 +312,9 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const [voiceDialogTab, setVoiceDialogTab] = useState<"CUSTOM" | "PUBLIC">("CUSTOM");
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [copyDialogTab, setCopyDialogTab] = useState<"ORIGINAL" | "REMIX">("ORIGINAL");
+  const [isSubtitleDialogOpen, setIsSubtitleDialogOpen] = useState(false);
+  const [isBackgroundDialogOpen, setIsBackgroundDialogOpen] = useState(false);
+  const [uploadedBackgroundPreviewUrl, setUploadedBackgroundPreviewUrl] = useState("");
   const [originalCopyType, setOriginalCopyType] = useState<"VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES">("KNOWLEDGE");
   const [originalCalendarId, setOriginalCalendarId] = useState("");
   const [originalTopicId, setOriginalTopicId] = useState("");
@@ -272,8 +329,6 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     () => Array.from({ length: props.templatePageInfo?.totalPage || 0 }, (_, index) => index + 1),
     [props.templatePageInfo?.totalPage],
   );
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [showScriptAssets, setShowScriptAssets] = useState(false);
 
   const hasTemplates = props.filteredTemplates.length > 0;
   const estimatedDurationLabel = useMemo(() => {
@@ -380,12 +435,30 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
   const recentOriginalCopies = useMemo(() => props.originalCopyHistory.slice(0, 8), [props.originalCopyHistory]);
   const recentRemixCopies = useMemo(() => props.remixCopyHistory.slice(0, 8), [props.remixCopyHistory]);
+  const currentBackgroundPreviewUrl = uploadedBackgroundPreviewUrl || props.backgroundImageUrl;
+  const currentBackgroundLabel = props.backgroundImageName || (props.backgroundImageUrl ? "已选择预设背景" : "");
+  const selectedBackgroundPreset = useMemo(
+    () => DIGITAL_HUMAN_BACKGROUND_PRESETS.find((item) => item.url === props.backgroundImageUrl),
+    [props.backgroundImageUrl],
+  );
 
   useEffect(() => {
     if (!remixMaterialId && props.materialLibraryItems[0]?.id) {
       setRemixMaterialId(props.materialLibraryItems[0].id);
     }
   }, [props.materialLibraryItems, remixMaterialId]);
+
+  useEffect(() => {
+    if (!props.backgroundImageFile) {
+      setUploadedBackgroundPreviewUrl("");
+      return;
+    }
+    const previewUrl = window.URL.createObjectURL(props.backgroundImageFile);
+    setUploadedBackgroundPreviewUrl(previewUrl);
+    return () => {
+      window.URL.revokeObjectURL(previewUrl);
+    };
+  }, [props.backgroundImageFile]);
 
   const handleAudition = async () => {
     const text = props.script.trim();
@@ -438,6 +511,32 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     }
   };
 
+  const handleOpenSubtitleDialog = () => {
+    setIsSubtitleDialogOpen(true);
+  };
+
+  const handleOpenBackgroundDialog = () => {
+    setIsBackgroundDialogOpen(true);
+  };
+
+  const handleSelectBackgroundPreset = (preset: DigitalHumanBackgroundPreset) => {
+    props.onBackgroundImageFileChange(null);
+    props.onBackgroundImageUrlChange(preset.url);
+    props.onBackgroundImageNameChange(preset.name);
+  };
+
+  const handleBackgroundFileChange = (file: File | null) => {
+    props.onBackgroundImageFileChange(file);
+    props.onBackgroundImageUrlChange("");
+    props.onBackgroundImageNameChange(file?.name || "");
+  };
+
+  const handleClearBackground = () => {
+    props.onBackgroundImageFileChange(null);
+    props.onBackgroundImageUrlChange("");
+    props.onBackgroundImageNameChange("");
+  };
+
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
     const isActive = item.id === props.activeDraftCardId;
     const activeMaterialVideoUrl = isActive ? props.selectedMaterialLibraryItem?.videoUrl : undefined;
@@ -470,7 +569,11 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         <div className="digital-human-creator-v2-card__layout">
           <div className="digital-human-creator-v2-card__media-column">
             <div className="digital-human-creator-v2-card__preview">
-              {isActive && !isMaterialMode ? <button type="button" className="digital-human-creator-v2-card__change-bg">更换背景</button> : null}
+              {isActive && !isMaterialMode ? (
+                <button type="button" className="digital-human-creator-v2-card__change-bg" onClick={handleOpenBackgroundDialog}>
+                  更换背景
+                </button>
+              ) : null}
               {previewVideoUrl && isMaterialMode ? (
                 <video src={previewVideoUrl} className="digital-human-creator-v2-card__preview-video" controls preload="metadata" />
               ) : previewImageUrl ? (
@@ -516,6 +619,14 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   <a href={item.materialWorkUrl} target="_blank" rel="noreferrer" className="secondary-button">
                     打开源视频
                   </a>
+                ) : null}
+              </div>
+            ) : isActive ? (
+              <div className="digital-human-creator-v2-card__material">
+                <strong>当前背景</strong>
+                <p>{currentBackgroundLabel || "未设置背景图，将沿用背景底色。"}</p>
+                {currentBackgroundPreviewUrl ? (
+                  <img src={currentBackgroundPreviewUrl} alt={currentBackgroundLabel || "背景预览"} className="digital-human-creator-v2-card__background-thumb" />
                 ) : null}
               </div>
             ) : null}
@@ -584,7 +695,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   <button type="button" className={`digital-human-creator-v2-card__toggle ${props.subtitleEnabled ? "is-active" : ""}`} onClick={() => props.onSubtitleEnabledChange(!props.subtitleEnabled)}>
                     显示字幕
                   </button>
-                  <button type="button" className="secondary-button" onClick={() => setShowAdvancedSettings((current) => !current)}>
+                  <button type="button" className="secondary-button" onClick={handleOpenSubtitleDialog}>
                     调整字幕样式
                   </button>
                 </div>
@@ -679,60 +790,41 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           <p className="personal-meta">{props.selectedMaterialLibraryItem?.label || "暂未关联素材"}</p>
           <p className="panel-subtext">选中我的素材库后，当前片段左侧主预览会直接切换成素材视频，不再显示数字人预览。</p>
         </div>
-      </div>
-
-      {showAdvancedSettings ? (
-        <div className="digital-human-creator-v2__advanced">
-          <div className="personal-grid">
-            <label className="field">
+        <div className="entity-card personal-card">
+          <strong>当前背景与画布</strong>
+          <p className="personal-meta">{currentBackgroundLabel || "未设置背景图，生成时将只使用背景底色。"}</p>
+          <div className="digital-human-creator-v2__quick-settings">
+            <label className="digital-human-creator-v2__mini-field">
               <span>语速</span>
               <input value={props.speechRate} onChange={(event) => props.onSpeechRateChange(event.target.value)} />
             </label>
-            <label className="field">
+            <label className="digital-human-creator-v2__mini-field">
               <span>音调</span>
               <input value={props.pitch} onChange={(event) => props.onPitchChange(event.target.value)} />
             </label>
-            <label className="field">
+            <label className="digital-human-creator-v2__mini-field">
               <span>音量</span>
               <input value={props.volume} onChange={(event) => props.onVolumeChange(event.target.value)} />
             </label>
-            <label className="field">
-              <span>背景色</span>
-              <input value={props.backgroundColor} onChange={(event) => props.onBackgroundColorChange(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>字幕颜色</span>
-              <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>描边颜色</span>
-              <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>画布宽度</span>
+            <label className="digital-human-creator-v2__mini-field">
+              <span>宽度</span>
               <input value={props.screenWidth} onChange={(event) => props.onScreenWidthChange(event.target.value)} />
             </label>
-            <label className="field">
-              <span>画布高度</span>
+            <label className="digital-human-creator-v2__mini-field">
+              <span>高度</span>
               <input value={props.screenHeight} onChange={(event) => props.onScreenHeightChange(event.target.value)} />
             </label>
           </div>
         </div>
-      ) : null}
+      </div>
 
-      {showScriptAssets ? (
-        <div className="digital-human-creator-v2__script-assets">
-          <div className="strategy-inline-actions" style={{ flexWrap: "wrap" }}>
-            {props.scriptPresets.map((preset) => (
-              <button
-                key={preset.key}
-                type="button"
-                className="secondary-button"
-                onClick={() => props.onScriptChange((current) => (current.trim() ? `${current.trim()}\n\n${preset.content}` : preset.content))}
-              >
-                {preset.label}
-              </button>
-            ))}
+      <div className="digital-human-creator-v2__script-actions entity-card personal-card">
+        <div className="digital-human-creator-v2__script-actions-head">
+          <div>
+            <strong>脚本快捷操作</strong>
+            <p className="panel-subtext">保留脚本模板和常用动作，但不再单独占一个“脚本资产”大板块。</p>
+          </div>
+          <div className="digital-human-creator-v2__script-actions-buttons">
             <button type="button" className="secondary-button" onClick={() => void props.onCopyScript()}>
               复制脚本
             </button>
@@ -746,41 +838,47 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               套用已选模板
             </button>
           </div>
-          <div className="personal-grid" style={{ marginTop: 12 }}>
-            <label className="field">
-              <span>保存范围</span>
-              <select value={props.scriptTemplateVisibility} onChange={(event) => props.onScriptTemplateVisibilityChange(event.target.value as "SELF" | "SHARED")}>
-                <option value="SELF">个人模板</option>
-                <option value="SHARED">团队共享</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>模板分类</span>
-              <select value={props.scriptTemplateCategory} onChange={(event) => props.onScriptTemplateCategoryChange(event.target.value as ScriptTemplateCategory)}>
-                {props.scriptTemplateCategories.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field field-full">
-              <span>协作备注</span>
-              <textarea value={props.personalScriptTemplateNote} onChange={(event) => props.onPersonalScriptTemplateNoteChange(event.target.value.slice(0, 200))} />
-            </label>
-          </div>
-          {props.scriptActionMessage ? <p className="panel-subtext">{props.scriptActionMessage}</p> : null}
-          {props.editorActionMessage ? <p className="panel-subtext">{props.editorActionMessage}</p> : null}
         </div>
-      ) : null}
+        <div className="digital-human-creator-v2__preset-row">
+          {props.scriptPresets.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              className="secondary-button"
+              onClick={() => props.onScriptChange((current) => (current.trim() ? `${current.trim()}\n\n${preset.content}` : preset.content))}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <div className="digital-human-creator-v2__template-quick-form">
+          <label className="digital-human-creator-v2__mini-field">
+            <span>保存范围</span>
+            <select value={props.scriptTemplateVisibility} onChange={(event) => props.onScriptTemplateVisibilityChange(event.target.value as "SELF" | "SHARED")}>
+              <option value="SELF">个人模板</option>
+              <option value="SHARED">团队共享</option>
+            </select>
+          </label>
+          <label className="digital-human-creator-v2__mini-field">
+            <span>模板分类</span>
+            <select value={props.scriptTemplateCategory} onChange={(event) => props.onScriptTemplateCategoryChange(event.target.value as ScriptTemplateCategory)}>
+              {props.scriptTemplateCategories.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="digital-human-creator-v2__mini-field digital-human-creator-v2__mini-field--wide">
+            <span>协作备注</span>
+            <input value={props.personalScriptTemplateNote} onChange={(event) => props.onPersonalScriptTemplateNoteChange(event.target.value.slice(0, 200))} placeholder="补充脚本用途、限制和适用场景" />
+          </label>
+        </div>
+        {props.scriptActionMessage ? <p className="panel-subtext">{props.scriptActionMessage}</p> : null}
+        {props.editorActionMessage ? <p className="panel-subtext">{props.editorActionMessage}</p> : null}
+      </div>
 
       <div className="digital-human-creator-v2__bottom-bar">
-        <button type="button" className="secondary-button" onClick={() => setShowAdvancedSettings((current) => !current)}>
-          高级设置
-        </button>
-        <button type="button" className="secondary-button" onClick={() => setShowScriptAssets((current) => !current)}>
-          脚本资产
-        </button>
         <button type="button" className="secondary-button" onClick={() => void props.onSubmitCompleteVideo()} disabled={!props.canEdit || props.isSubmitting}>
           生成1个完整作品
         </button>
@@ -919,6 +1017,126 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                     </button>
                   ))
                 : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isSubtitleDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsSubtitleDialogOpen(false)}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog digital-human-creator-v2-dialog--voice" onClick={(event) => event.stopPropagation()}>
+            <div className="digital-human-creator-v2-dialog__head">
+              <div>
+                <strong>字幕设置</strong>
+                <p>这里直接对应蝉镜数字人视频接口里的 `subtitle_config` 参数，保存后会跟随当前片段一起提交。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsSubtitleDialogOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="digital-human-creator-v2__dialog-form">
+              <div className="digital-human-creator-v2__dialog-switch">
+                <div>
+                  <strong>显示字幕</strong>
+                  <p>关闭后会向蝉镜提交 `show: false`。</p>
+                </div>
+                <button type="button" className={`digital-human-creator-v2-card__toggle ${props.subtitleEnabled ? "is-active" : ""}`} onClick={() => props.onSubtitleEnabledChange(!props.subtitleEnabled)}>
+                  {props.subtitleEnabled ? "已开启" : "已关闭"}
+                </button>
+              </div>
+              <div className="digital-human-creator-v2__settings-grid">
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>X 坐标</span>
+                  <input value={props.subtitlePositionX} onChange={(event) => props.onSubtitlePositionXChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>Y 坐标</span>
+                  <input value={props.subtitlePositionY} onChange={(event) => props.onSubtitlePositionYChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>宽度</span>
+                  <input value={props.subtitleWidth} onChange={(event) => props.onSubtitleWidthChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>高度</span>
+                  <input value={props.subtitleHeight} onChange={(event) => props.onSubtitleHeightChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>字号</span>
+                  <input value={props.subtitleFontSize} onChange={(event) => props.onSubtitleFontSizeChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>描边宽度</span>
+                  <input value={props.subtitleStrokeWidth} onChange={(event) => props.onSubtitleStrokeWidthChange(event.target.value)} />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>字体颜色</span>
+                  <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value)} placeholder="#FFFFFF" />
+                </label>
+                <label className="digital-human-creator-v2__mini-field">
+                  <span>描边颜色</span>
+                  <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value)} placeholder="#000000" />
+                </label>
+                <label className="digital-human-creator-v2__mini-field digital-human-creator-v2__mini-field--wide">
+                  <span>字体 ID</span>
+                  <input value={props.subtitleFontId} onChange={(event) => props.onSubtitleFontIdChange(event.target.value)} placeholder="后续接入蝉镜字体列表后可直接选择" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isBackgroundDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsBackgroundDialogOpen(false)}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="digital-human-creator-v2-dialog__head">
+              <div>
+                <strong>更换背景</strong>
+                <p>支持上传自定义背景，也支持直接选择预设背景图；提交时会按蝉镜 `bg` 参数生成。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsBackgroundDialogOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="digital-human-creator-v2__background-layout">
+              <div className="digital-human-creator-v2__background-preview">
+                {currentBackgroundPreviewUrl ? (
+                  <img src={currentBackgroundPreviewUrl} alt={currentBackgroundLabel || "背景预览"} />
+                ) : (
+                  <div className="digital-human-creator-v2__background-empty">当前未设置背景图，将继续使用背景底色。</div>
+                )}
+                <div className="digital-human-creator-v2__background-meta">
+                  <strong>{currentBackgroundLabel || "仅背景色模式"}</strong>
+                  <span>{selectedBackgroundPreset?.description || (props.backgroundImageFile ? "当前为本地上传背景" : "可上传背景或选择预设图")}</span>
+                </div>
+              </div>
+              <div className="digital-human-creator-v2__background-panel">
+                <div className="digital-human-creator-v2__settings-grid">
+                  <label className="digital-human-creator-v2__mini-field">
+                    <span>背景底色</span>
+                    <input value={props.backgroundColor} onChange={(event) => props.onBackgroundColorChange(event.target.value)} placeholder="#ffffff" />
+                  </label>
+                  <label className="digital-human-creator-v2__mini-field digital-human-creator-v2__mini-field--wide">
+                    <span>上传背景图片</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/*" onChange={(event) => handleBackgroundFileChange(event.target.files?.[0] || null)} />
+                  </label>
+                </div>
+                <div className="digital-human-creator-v2__background-actions">
+                  <button type="button" className="secondary-button" onClick={handleClearBackground}>
+                    清空背景图
+                  </button>
+                </div>
+                <div className="digital-human-creator-v2__preset-grid">
+                  {DIGITAL_HUMAN_BACKGROUND_PRESETS.map((preset) => (
+                    <button key={preset.key} type="button" className={`digital-human-creator-v2__preset-card ${props.backgroundImageUrl === preset.url ? "is-active" : ""}`} onClick={() => handleSelectBackgroundPreset(preset)}>
+                      <img src={preset.url} alt={preset.name} />
+                      <strong>{preset.name}</strong>
+                      <span>{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

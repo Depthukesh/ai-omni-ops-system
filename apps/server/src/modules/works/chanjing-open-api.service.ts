@@ -57,6 +57,14 @@ export type ChanjingCreateVideoPayload = {
     language: string;
   };
   bg_color?: string;
+  bg?: {
+    src_url?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    file_id?: string;
+  };
   subtitle_config?: {
     show: boolean;
     x: number;
@@ -67,6 +75,7 @@ export type ChanjingCreateVideoPayload = {
     color?: string;
     stroke_color?: string;
     stroke_width?: number;
+    font_id?: string;
   };
   screen_width: number;
   screen_height: number;

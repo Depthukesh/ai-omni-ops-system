@@ -85,9 +85,19 @@ type DigitalHumanCreatorDraftCard = {
   pitch: string;
   volume: string;
   backgroundColor: string;
+  backgroundImageFile: File | null;
+  backgroundImageUrl: string;
+  backgroundImageName: string;
   subtitleEnabled: boolean;
+  subtitlePositionX: string;
+  subtitlePositionY: string;
+  subtitleWidth: string;
+  subtitleHeight: string;
+  subtitleFontSize: string;
   subtitleTextColor: string;
   subtitleStrokeColor: string;
+  subtitleStrokeWidth: string;
+  subtitleFontId: string;
   screenWidth: string;
   screenHeight: string;
 };
@@ -287,9 +297,19 @@ export interface DouyinDigitalHumanWorkspaceProps {
     volume?: number;
     language?: string;
     backgroundColor?: string;
+    backgroundImageFile?: File | null;
+    backgroundImageUrl?: string;
+    backgroundImageName?: string;
     subtitleEnabled?: boolean;
+    subtitlePositionX?: number;
+    subtitlePositionY?: number;
+    subtitleWidth?: number;
+    subtitleHeight?: number;
+    subtitleFontSize?: number;
     subtitleTextColor?: string;
     subtitleStrokeColor?: string;
+    subtitleStrokeWidth?: number;
+    subtitleFontId?: string;
     screenWidth?: number;
     screenHeight?: number;
     customPersonTrainType?: "figure" | "both";
@@ -317,9 +337,19 @@ export interface DouyinDigitalHumanWorkspaceProps {
       volume?: number;
       language?: string;
       backgroundColor?: string;
+      backgroundImageFile?: File | null;
+      backgroundImageUrl?: string;
+      backgroundImageName?: string;
       subtitleEnabled?: boolean;
+      subtitlePositionX?: number;
+      subtitlePositionY?: number;
+      subtitleWidth?: number;
+      subtitleHeight?: number;
+      subtitleFontSize?: number;
       subtitleTextColor?: string;
       subtitleStrokeColor?: string;
+      subtitleStrokeWidth?: number;
+      subtitleFontId?: string;
       screenWidth?: number;
       screenHeight?: number;
       customPersonTrainType?: "figure" | "both";
@@ -417,9 +447,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [pitch, setPitch] = useState("0");
   const [volume, setVolume] = useState("1");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const [backgroundImageFile, setBackgroundImageFile] = useState<File | null>(null);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState("");
+  const [backgroundImageName, setBackgroundImageName] = useState("");
   const [subtitleEnabled, setSubtitleEnabled] = useState(true);
+  const [subtitlePositionX, setSubtitlePositionX] = useState("86");
+  const [subtitlePositionY, setSubtitlePositionY] = useState("1498");
+  const [subtitleWidth, setSubtitleWidth] = useState("907");
+  const [subtitleHeight, setSubtitleHeight] = useState("269");
+  const [subtitleFontSize, setSubtitleFontSize] = useState("48");
   const [subtitleTextColor, setSubtitleTextColor] = useState("#FFFFFF");
   const [subtitleStrokeColor, setSubtitleStrokeColor] = useState("#000000");
+  const [subtitleStrokeWidth, setSubtitleStrokeWidth] = useState("2");
+  const [subtitleFontId, setSubtitleFontId] = useState("");
   const [screenWidth, setScreenWidth] = useState("1080");
   const [screenHeight, setScreenHeight] = useState("1920");
   const [selectedWorkId, setSelectedWorkId] = useState("");
@@ -457,9 +497,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       pitch: "0",
       volume: "1",
       backgroundColor: "#ffffff",
+      backgroundImageFile: null,
+      backgroundImageUrl: "",
+      backgroundImageName: "",
       subtitleEnabled: true,
+      subtitlePositionX: "86",
+      subtitlePositionY: "1498",
+      subtitleWidth: "907",
+      subtitleHeight: "269",
+      subtitleFontSize: "48",
       subtitleTextColor: "#FFFFFF",
       subtitleStrokeColor: "#000000",
+      subtitleStrokeWidth: "2",
+      subtitleFontId: "",
       screenWidth: "1080",
       screenHeight: "1920",
     },
@@ -893,9 +943,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               pitch,
               volume,
               backgroundColor,
+              backgroundImageFile,
+              backgroundImageUrl,
+              backgroundImageName,
               subtitleEnabled,
+              subtitlePositionX,
+              subtitlePositionY,
+              subtitleWidth,
+              subtitleHeight,
+              subtitleFontSize,
               subtitleTextColor,
               subtitleStrokeColor,
+              subtitleStrokeWidth,
+              subtitleFontId,
               screenWidth,
               screenHeight,
             }
@@ -905,6 +965,9 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   }, [
     activeDraftCardId,
     backgroundColor,
+    backgroundImageFile,
+    backgroundImageName,
+    backgroundImageUrl,
     pitch,
     screenHeight,
     screenWidth,
@@ -919,8 +982,15 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     selectedVoiceMode,
     speechRate,
     subtitleEnabled,
+    subtitleFontId,
+    subtitleFontSize,
+    subtitleHeight,
+    subtitlePositionX,
+    subtitlePositionY,
     subtitleStrokeColor,
+    subtitleStrokeWidth,
     subtitleTextColor,
+    subtitleWidth,
     title,
     volume,
   ]);
@@ -1061,9 +1131,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     pitch,
     volume,
     backgroundColor,
+    backgroundImageFile,
+    backgroundImageUrl,
+    backgroundImageName,
     subtitleEnabled,
+    subtitlePositionX,
+    subtitlePositionY,
+    subtitleWidth,
+    subtitleHeight,
+    subtitleFontSize,
     subtitleTextColor,
     subtitleStrokeColor,
+    subtitleStrokeWidth,
+    subtitleFontId,
     screenWidth,
     screenHeight,
   });
@@ -1083,9 +1163,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setPitch(draft.pitch);
     setVolume(draft.volume);
     setBackgroundColor(draft.backgroundColor);
+    setBackgroundImageFile(draft.backgroundImageFile);
+    setBackgroundImageUrl(draft.backgroundImageUrl);
+    setBackgroundImageName(draft.backgroundImageName);
     setSubtitleEnabled(draft.subtitleEnabled);
+    setSubtitlePositionX(draft.subtitlePositionX);
+    setSubtitlePositionY(draft.subtitlePositionY);
+    setSubtitleWidth(draft.subtitleWidth);
+    setSubtitleHeight(draft.subtitleHeight);
+    setSubtitleFontSize(draft.subtitleFontSize);
     setSubtitleTextColor(draft.subtitleTextColor);
     setSubtitleStrokeColor(draft.subtitleStrokeColor);
+    setSubtitleStrokeWidth(draft.subtitleStrokeWidth);
+    setSubtitleFontId(draft.subtitleFontId);
     setScreenWidth(draft.screenWidth);
     setScreenHeight(draft.screenHeight);
   };
@@ -1285,9 +1375,18 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       volume: selectedWork.volume,
       language: selectedWork.language,
       backgroundColor: selectedWork.backgroundColor,
+      backgroundImageUrl: selectedWork.backgroundImageUrl,
+      backgroundImageName: selectedWork.backgroundImageName,
       subtitleEnabled: selectedWork.subtitleEnabled,
+      subtitlePositionX: selectedWork.subtitlePositionX,
+      subtitlePositionY: selectedWork.subtitlePositionY,
+      subtitleWidth: selectedWork.subtitleWidth,
+      subtitleHeight: selectedWork.subtitleHeight,
+      subtitleFontSize: selectedWork.subtitleFontSize,
       subtitleTextColor: selectedWork.subtitleTextColor,
       subtitleStrokeColor: selectedWork.subtitleStrokeColor,
+      subtitleStrokeWidth: selectedWork.subtitleStrokeWidth,
+      subtitleFontId: selectedWork.subtitleFontId,
       screenWidth: selectedWork.screenWidth,
       screenHeight: selectedWork.screenHeight,
     });
@@ -1561,9 +1660,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setPitch(String(selectedWork.pitch ?? 0));
     setVolume(String(selectedWork.volume ?? 1));
     setBackgroundColor(selectedWork.backgroundColor || "#ffffff");
+    setBackgroundImageFile(null);
+    setBackgroundImageUrl(selectedWork.backgroundImageUrl || "");
+    setBackgroundImageName(selectedWork.backgroundImageName || "");
     setSubtitleEnabled(Boolean(selectedWork.subtitleEnabled));
+    setSubtitlePositionX(String(selectedWork.subtitlePositionX ?? 86));
+    setSubtitlePositionY(String(selectedWork.subtitlePositionY ?? 1498));
+    setSubtitleWidth(String(selectedWork.subtitleWidth ?? 907));
+    setSubtitleHeight(String(selectedWork.subtitleHeight ?? 269));
+    setSubtitleFontSize(String(selectedWork.subtitleFontSize ?? 48));
     setSubtitleTextColor(selectedWork.subtitleTextColor || "#FFFFFF");
     setSubtitleStrokeColor(selectedWork.subtitleStrokeColor || "#000000");
+    setSubtitleStrokeWidth(String(selectedWork.subtitleStrokeWidth ?? 2));
+    setSubtitleFontId(selectedWork.subtitleFontId || "");
     setScreenWidth(String(selectedWork.screenWidth || 1080));
     setScreenHeight(String(selectedWork.screenHeight || 1920));
     setSelectedMaterialLibraryItemId("");
@@ -1637,9 +1746,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       volume: Number(draft.volume || 1),
       language: (draft.selectedVoiceMode === "PUBLIC" ? currentPublicVoice?.lang : undefined) || currentCustomSource?.language || currentCommonSource?.audioLang || "cn",
       backgroundColor: draft.backgroundColor,
+      backgroundImageFile: draft.backgroundImageFile,
+      backgroundImageUrl: draft.backgroundImageUrl || undefined,
+      backgroundImageName: draft.backgroundImageName || undefined,
       subtitleEnabled: draft.subtitleEnabled,
+      subtitlePositionX: Number(draft.subtitlePositionX || 0),
+      subtitlePositionY: Number(draft.subtitlePositionY || 0),
+      subtitleWidth: Number(draft.subtitleWidth || 0),
+      subtitleHeight: Number(draft.subtitleHeight || 0),
+      subtitleFontSize: Number(draft.subtitleFontSize || 0),
       subtitleTextColor: draft.subtitleTextColor,
       subtitleStrokeColor: draft.subtitleStrokeColor,
+      subtitleStrokeWidth: Number(draft.subtitleStrokeWidth || 0),
+      subtitleFontId: draft.subtitleFontId || undefined,
       screenWidth: Number(draft.screenWidth || 1080),
       screenHeight: Number(draft.screenHeight || 1920),
       customPersonTrainType: currentCustomSource?.trainType,
@@ -1670,9 +1789,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       pitch,
       volume,
       backgroundColor,
+      backgroundImageFile,
+      backgroundImageUrl,
+      backgroundImageName,
       subtitleEnabled,
+      subtitlePositionX,
+      subtitlePositionY,
+      subtitleWidth,
+      subtitleHeight,
+      subtitleFontSize,
       subtitleTextColor,
       subtitleStrokeColor,
+      subtitleStrokeWidth,
+      subtitleFontId,
       screenWidth,
       screenHeight,
     });
@@ -2037,9 +2166,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           pitch={pitch}
           volume={volume}
           backgroundColor={backgroundColor}
+          backgroundImageFile={backgroundImageFile}
+          backgroundImageUrl={backgroundImageUrl}
+          backgroundImageName={backgroundImageName}
           subtitleEnabled={subtitleEnabled}
+          subtitlePositionX={subtitlePositionX}
+          subtitlePositionY={subtitlePositionY}
+          subtitleWidth={subtitleWidth}
+          subtitleHeight={subtitleHeight}
+          subtitleFontSize={subtitleFontSize}
           subtitleTextColor={subtitleTextColor}
           subtitleStrokeColor={subtitleStrokeColor}
+          subtitleStrokeWidth={subtitleStrokeWidth}
+          subtitleFontId={subtitleFontId}
           screenWidth={screenWidth}
           screenHeight={screenHeight}
           scriptTemplateVisibility={scriptTemplateVisibility}
@@ -2115,9 +2254,19 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onPitchChange={setPitch}
           onVolumeChange={setVolume}
           onBackgroundColorChange={setBackgroundColor}
+          onBackgroundImageFileChange={setBackgroundImageFile}
+          onBackgroundImageUrlChange={setBackgroundImageUrl}
+          onBackgroundImageNameChange={setBackgroundImageName}
           onSubtitleEnabledChange={setSubtitleEnabled}
+          onSubtitlePositionXChange={setSubtitlePositionX}
+          onSubtitlePositionYChange={setSubtitlePositionY}
+          onSubtitleWidthChange={setSubtitleWidth}
+          onSubtitleHeightChange={setSubtitleHeight}
+          onSubtitleFontSizeChange={setSubtitleFontSize}
           onSubtitleTextColorChange={setSubtitleTextColor}
           onSubtitleStrokeColorChange={setSubtitleStrokeColor}
+          onSubtitleStrokeWidthChange={setSubtitleStrokeWidth}
+          onSubtitleFontIdChange={setSubtitleFontId}
           onScreenWidthChange={setScreenWidth}
           onScreenHeightChange={setScreenHeight}
           onScriptTemplateVisibilityChange={setScriptTemplateVisibility}

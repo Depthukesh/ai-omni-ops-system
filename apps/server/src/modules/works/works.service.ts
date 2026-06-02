@@ -205,9 +205,19 @@ export type GenerateDouyinDigitalHumanVideoPayload = {
   volume?: number;
   language?: string;
   backgroundColor?: string;
+  backgroundImage?: UploadFilePayload;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled?: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth?: number;
   screenHeight?: number;
   customPersonTrainType?: "figure" | "both";
@@ -713,9 +723,18 @@ type DigitalHumanVideoWorkAssetMeta = {
   volume: number;
   language: string;
   backgroundColor?: string;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -830,9 +849,18 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   volume: number;
   language: string;
   backgroundColor?: string;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -868,9 +896,18 @@ type NormalizedDigitalHumanCreatePayload = {
   volume: number;
   language: string;
   backgroundColor?: string;
+  backgroundImageUrl?: string;
+  backgroundImageName?: string;
   subtitleEnabled: boolean;
+  subtitlePositionX?: number;
+  subtitlePositionY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleFontSize?: number;
   subtitleTextColor?: string;
   subtitleStrokeColor?: string;
+  subtitleStrokeWidth?: number;
+  subtitleFontId?: string;
   screenWidth: number;
   screenHeight: number;
   customPersonTrainType?: "figure" | "both";
@@ -3066,7 +3103,7 @@ export class WorksService {
     payload: GenerateDouyinDigitalHumanVideoPayload,
     auth?: RequestAuthContext,
   ) {
-    const normalized = this.normalizeDigitalHumanCreatePayload(payload);
+    const normalized = await this.normalizeDigitalHumanCreatePayload(brandId, payload);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const task = await this.createVideoTask({
       userId,
@@ -3108,9 +3145,18 @@ export class WorksService {
       volume: normalized.volume,
       language: normalized.language,
       backgroundColor: normalized.backgroundColor,
+      backgroundImageUrl: normalized.backgroundImageUrl,
+      backgroundImageName: normalized.backgroundImageName,
       subtitleEnabled: normalized.subtitleEnabled,
+      subtitlePositionX: normalized.subtitlePositionX,
+      subtitlePositionY: normalized.subtitlePositionY,
+      subtitleWidth: normalized.subtitleWidth,
+      subtitleHeight: normalized.subtitleHeight,
+      subtitleFontSize: normalized.subtitleFontSize,
       subtitleTextColor: normalized.subtitleTextColor,
       subtitleStrokeColor: normalized.subtitleStrokeColor,
+      subtitleStrokeWidth: normalized.subtitleStrokeWidth,
+      subtitleFontId: normalized.subtitleFontId,
       screenWidth: normalized.screenWidth,
       screenHeight: normalized.screenHeight,
       coverImageUrl: normalized.figureCoverUrl,
@@ -3140,7 +3186,7 @@ export class WorksService {
     payload: GenerateDouyinDigitalHumanCompleteVideoPayload,
     auth?: RequestAuthContext,
   ) {
-    const normalized = this.normalizeDigitalHumanCompletePayload(payload);
+    const normalized = await this.normalizeDigitalHumanCompletePayload(brandId, payload);
     const userId = await this.resolveTaskUserId(brandId, auth);
     const task = await this.createVideoTask({
       userId,
@@ -3183,9 +3229,18 @@ export class WorksService {
       volume: firstSegment?.volume || 1,
       language: firstSegment?.language || "cn",
       backgroundColor: firstSegment?.backgroundColor,
+      backgroundImageUrl: firstSegment?.backgroundImageUrl,
+      backgroundImageName: firstSegment?.backgroundImageName,
       subtitleEnabled: firstSegment?.subtitleEnabled !== false,
+      subtitlePositionX: firstSegment?.subtitlePositionX,
+      subtitlePositionY: firstSegment?.subtitlePositionY,
+      subtitleWidth: firstSegment?.subtitleWidth,
+      subtitleHeight: firstSegment?.subtitleHeight,
+      subtitleFontSize: firstSegment?.subtitleFontSize,
       subtitleTextColor: firstSegment?.subtitleTextColor,
       subtitleStrokeColor: firstSegment?.subtitleStrokeColor,
+      subtitleStrokeWidth: firstSegment?.subtitleStrokeWidth,
+      subtitleFontId: firstSegment?.subtitleFontId,
       screenWidth: firstSegment?.screenWidth || 1080,
       screenHeight: firstSegment?.screenHeight || 1920,
       coverImageUrl: firstSegment?.figureCoverUrl,
@@ -8303,9 +8358,18 @@ export class WorksService {
       volume: this.readNumberWithFallback(meta.volume, 1),
       language: this.readOptionalString(meta.language) || "cn",
       backgroundColor: this.readOptionalString(meta.backgroundColor),
+      backgroundImageUrl: this.readOptionalString(meta.backgroundImageUrl),
+      backgroundImageName: this.readOptionalString(meta.backgroundImageName),
       subtitleEnabled: meta.subtitleEnabled !== false,
+      subtitlePositionX: typeof meta.subtitlePositionX === "number" ? Math.max(0, Math.trunc(meta.subtitlePositionX)) : undefined,
+      subtitlePositionY: typeof meta.subtitlePositionY === "number" ? Math.max(0, Math.trunc(meta.subtitlePositionY)) : undefined,
+      subtitleWidth: typeof meta.subtitleWidth === "number" ? Math.max(0, Math.trunc(meta.subtitleWidth)) : undefined,
+      subtitleHeight: typeof meta.subtitleHeight === "number" ? Math.max(0, Math.trunc(meta.subtitleHeight)) : undefined,
+      subtitleFontSize: typeof meta.subtitleFontSize === "number" ? Math.max(0, Math.trunc(meta.subtitleFontSize)) : undefined,
       subtitleTextColor: this.readOptionalString(meta.subtitleTextColor),
       subtitleStrokeColor: this.readOptionalString(meta.subtitleStrokeColor),
+      subtitleStrokeWidth: typeof meta.subtitleStrokeWidth === "number" ? Math.max(0, Math.trunc(meta.subtitleStrokeWidth)) : undefined,
+      subtitleFontId: this.readOptionalString(meta.subtitleFontId),
       screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
       screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
@@ -8359,9 +8423,10 @@ export class WorksService {
     return Number.isFinite(next) ? next : fallbackValue;
   }
 
-  private normalizeDigitalHumanCreatePayload(
+  private async normalizeDigitalHumanCreatePayload(
+    brandId: string,
     payload: GenerateDouyinDigitalHumanVideoPayload,
-  ): NormalizedDigitalHumanCreatePayload {
+  ): Promise<NormalizedDigitalHumanCreatePayload> {
     const personId = String(payload.personId || "").trim();
     if (!personId) {
       throw new BadRequestException("请选择一个数字人形象。");
@@ -8397,6 +8462,27 @@ export class WorksService {
     ) {
       throw new BadRequestException(`当前定制数字人的 4K 推荐上限为 ${customPersonWidth4k} x ${customPersonHeight4k}，请调整画布后再提交。`);
     }
+    const subtitleWidth = Math.min(screenWidth, this.readPositiveInteger(payload.subtitleWidth, Math.floor(screenWidth * 0.84)));
+    const subtitleHeight = Math.min(screenHeight, this.readPositiveInteger(payload.subtitleHeight, Math.floor(screenHeight * 0.14)));
+    const subtitlePositionX = Math.max(
+      0,
+      Math.min(screenWidth - subtitleWidth, this.readPositiveInteger(payload.subtitlePositionX, Math.floor(screenWidth * 0.08))),
+    );
+    const subtitlePositionY = Math.max(
+      0,
+      Math.min(screenHeight - subtitleHeight, this.readPositiveInteger(payload.subtitlePositionY, Math.floor(screenHeight * 0.78))),
+    );
+    const backgroundImageUrl = payload.backgroundImage?.dataBase64
+      ? (
+          await this.persistUploadFile(
+            brandId,
+            `${randomUUID()}-douyin-digital-human-background${this.resolveExtensionFromFileName(payload.backgroundImage.fileName, ".png")}`,
+            payload.backgroundImage,
+          )
+        ).url
+      : this.readOptionalString(payload.backgroundImageUrl);
+    const backgroundImageName = this.readOptionalString(payload.backgroundImageName)
+      || this.readOptionalString(payload.backgroundImage?.fileName);
     return {
       title: String(payload.title || "").trim() || `${personName} 数字人口播`,
       personId,
@@ -8415,9 +8501,18 @@ export class WorksService {
       volume: Math.max(0.1, Math.min(2, this.readNumberWithFallback(payload.volume, 1))),
       language: this.readOptionalString(payload.language) || "cn",
       backgroundColor: this.readOptionalString(payload.backgroundColor) || "#ffffff",
+      backgroundImageUrl,
+      backgroundImageName,
       subtitleEnabled: payload.subtitleEnabled !== false,
+      subtitlePositionX,
+      subtitlePositionY,
+      subtitleWidth,
+      subtitleHeight,
+      subtitleFontSize: this.readPositiveInteger(payload.subtitleFontSize, Math.max(28, Math.floor(screenWidth * 0.034))),
       subtitleTextColor: this.readOptionalString(payload.subtitleTextColor) || "#FFFFFF",
       subtitleStrokeColor: this.readOptionalString(payload.subtitleStrokeColor) || "#000000",
+      subtitleStrokeWidth: this.readPositiveInteger(payload.subtitleStrokeWidth, 2),
+      subtitleFontId: this.readOptionalString(payload.subtitleFontId),
       screenWidth,
       screenHeight,
       customPersonTrainType,
@@ -8427,11 +8522,12 @@ export class WorksService {
     };
   }
 
-  private normalizeDigitalHumanCompletePayload(
+  private async normalizeDigitalHumanCompletePayload(
+    brandId: string,
     payload: GenerateDouyinDigitalHumanCompleteVideoPayload,
-  ): NormalizedDigitalHumanCompletePayload {
+  ): Promise<NormalizedDigitalHumanCompletePayload> {
     const normalizedSegments = Array.isArray(payload.segments)
-      ? payload.segments.map((item) => this.normalizeDigitalHumanCreatePayload(item))
+      ? await Promise.all(payload.segments.map((item) => this.normalizeDigitalHumanCreatePayload(brandId, item)))
       : [];
     if (normalizedSegments.length < 2) {
       throw new BadRequestException("生成完整作品至少需要 2 个有效片段。");
@@ -8468,17 +8564,29 @@ export class WorksService {
         language: meta.language,
       },
       bg_color: meta.backgroundColor,
+      ...(meta.backgroundImageUrl
+        ? {
+            bg: {
+              src_url: meta.backgroundImageUrl,
+              x: 0,
+              y: 0,
+              width: meta.screenWidth,
+              height: meta.screenHeight,
+            },
+          }
+        : {}),
       subtitle_config: meta.subtitleEnabled
         ? {
             show: true,
-            x: Math.floor(meta.screenWidth * 0.08),
-            y: Math.floor(meta.screenHeight * 0.78),
-            width: Math.floor(meta.screenWidth * 0.84),
-            height: Math.floor(meta.screenHeight * 0.14),
-            font_size: Math.max(28, Math.floor(meta.screenWidth * 0.034)),
+            x: meta.subtitlePositionX ?? Math.floor(meta.screenWidth * 0.08),
+            y: meta.subtitlePositionY ?? Math.floor(meta.screenHeight * 0.78),
+            width: meta.subtitleWidth ?? Math.floor(meta.screenWidth * 0.84),
+            height: meta.subtitleHeight ?? Math.floor(meta.screenHeight * 0.14),
+            font_size: meta.subtitleFontSize ?? Math.max(28, Math.floor(meta.screenWidth * 0.034)),
             color: meta.subtitleTextColor,
             stroke_color: meta.subtitleStrokeColor,
-            stroke_width: 2,
+            stroke_width: meta.subtitleStrokeWidth ?? 2,
+            ...(meta.subtitleFontId ? { font_id: meta.subtitleFontId } : {}),
           }
         : {
             show: false,
@@ -9620,9 +9728,18 @@ export class WorksService {
       volume: meta.volume,
       language: meta.language,
       backgroundColor: meta.backgroundColor,
+      backgroundImageUrl: meta.backgroundImageUrl,
+      backgroundImageName: meta.backgroundImageName,
       subtitleEnabled: meta.subtitleEnabled,
+      subtitlePositionX: meta.subtitlePositionX,
+      subtitlePositionY: meta.subtitlePositionY,
+      subtitleWidth: meta.subtitleWidth,
+      subtitleHeight: meta.subtitleHeight,
+      subtitleFontSize: meta.subtitleFontSize,
       subtitleTextColor: meta.subtitleTextColor,
       subtitleStrokeColor: meta.subtitleStrokeColor,
+      subtitleStrokeWidth: meta.subtitleStrokeWidth,
+      subtitleFontId: meta.subtitleFontId,
       screenWidth: meta.screenWidth,
       screenHeight: meta.screenHeight,
       providerTaskId: meta.providerTaskId,
