@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type DigitalHumanFigureType,
   type DigitalHumanTemplatePageInfo,
@@ -123,6 +123,9 @@ export interface DigitalHumanVideoPanelProps {
   currentSpeechTaskId?: string;
   originalCopyHistory: DouyinOriginalCopyRecord[];
   remixCopyHistory: DouyinRemixCopyRecord[];
+  originalCopyCalendarOptions: Array<{ id: string; label: string }>;
+  originalCopyTopicOptions: Array<{ id: string; label: string }>;
+  remixCopyProductOptions: Array<{ id: string; label: string }>;
   scriptActionMessage: string;
   editorActionMessage: string;
   personalTemplateGovernanceSummary: {
@@ -215,6 +218,20 @@ export interface DigitalHumanVideoPanelProps {
   onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
   onApplyOriginalCopy: (item: DouyinOriginalCopyRecord) => void;
   onApplyRemixCopy: (item: DouyinRemixCopyRecord) => void;
+  onCreateOriginalCopy: (payload: {
+    calendarItemId?: string;
+    topicId?: string;
+    injectMarketingPlan: boolean;
+    copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+    userRequirement?: string;
+  }) => Promise<boolean>;
+  onCreateRemixCopy: (payload: {
+    materialId: string;
+    injectBrandProfile: boolean;
+    productId?: string;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+  }) => Promise<boolean>;
   onSubmitCurrentVideo: () => void;
   onSubmitCompleteVideo: () => Promise<void> | void;
   onSubmitBatchVideos: () => Promise<void> | void;
@@ -231,6 +248,16 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const [voiceDialogTab, setVoiceDialogTab] = useState<"CUSTOM" | "PUBLIC">("CUSTOM");
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [copyDialogTab, setCopyDialogTab] = useState<"ORIGINAL" | "REMIX">("ORIGINAL");
+  const [originalCopyType, setOriginalCopyType] = useState<"VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES">("KNOWLEDGE");
+  const [originalCalendarId, setOriginalCalendarId] = useState("");
+  const [originalTopicId, setOriginalTopicId] = useState("");
+  const [originalInjectPlan, setOriginalInjectPlan] = useState(true);
+  const [originalRequirement, setOriginalRequirement] = useState("");
+  const [remixMaterialId, setRemixMaterialId] = useState("");
+  const [remixProductId, setRemixProductId] = useState("");
+  const [remixInjectBrandProfile, setRemixInjectBrandProfile] = useState(true);
+  const [remixInjectPlan, setRemixInjectPlan] = useState(true);
+  const [remixRequirement, setRemixRequirement] = useState("");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showScriptAssets, setShowScriptAssets] = useState(false);
 
@@ -280,6 +307,15 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
           : props.currentSpeechTaskId
             ? "试听等待中"
             : "未试听";
+  const originalTypeOptions: Array<{ value: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES"; label: string }> = [
+    { value: "VIEWPOINT", label: "聊观点" },
+    { value: "STORY", label: "讲故事" },
+    { value: "PROCESS", label: "晒过程" },
+    { value: "KNOWLEDGE", label: "教知识" },
+    { value: "PLOT_SALES", label: "剧情带货" },
+    { value: "SEEDING", label: "种草类" },
+    { value: "LOCAL_SALES", label: "同城带货" },
+  ];
 
   const handleOpenPersonDialog = () => {
     setPersonDialogTab(props.personSource === "CUSTOM" ? "MY" : "PUBLIC");
@@ -329,6 +365,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const recentOriginalCopies = useMemo(() => props.originalCopyHistory.slice(0, 8), [props.originalCopyHistory]);
   const recentRemixCopies = useMemo(() => props.remixCopyHistory.slice(0, 8), [props.remixCopyHistory]);
 
+  useEffect(() => {
+    if (!remixMaterialId && props.materialLibraryItems[0]?.id) {
+      setRemixMaterialId(props.materialLibraryItems[0].id);
+    }
+  }, [props.materialLibraryItems, remixMaterialId]);
+
   const handleAudition = async () => {
     const text = props.script.trim();
     const audioManId =
@@ -349,6 +391,35 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
       pitch: Number(props.pitch || 1),
       dialect: 0,
     });
+  };
+
+  const handleCreateOriginalCopy = async () => {
+    const success = await props.onCreateOriginalCopy({
+      calendarItemId: originalCalendarId || undefined,
+      topicId: originalTopicId || undefined,
+      injectMarketingPlan: originalInjectPlan,
+      copyType: originalCopyType,
+      userRequirement: originalRequirement.trim() || undefined,
+    });
+    if (success) {
+      setOriginalRequirement("");
+    }
+  };
+
+  const handleCreateRemixCopy = async () => {
+    if (!remixMaterialId) {
+      return;
+    }
+    const success = await props.onCreateRemixCopy({
+      materialId: remixMaterialId,
+      injectBrandProfile: remixInjectBrandProfile,
+      productId: remixProductId || undefined,
+      injectMarketingPlan: remixInjectPlan,
+      userRequirement: remixRequirement.trim() || undefined,
+    });
+    if (success) {
+      setRemixRequirement("");
+    }
   };
 
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
@@ -840,6 +911,102 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                     ))
                   : <div className="empty-state">当前还没有可带入的二创文案，请先到“二创文案”板块生成。</div>
                 : null}
+            </div>
+            <div className="digital-human-creator-v2__advanced" style={{ marginTop: 16 }}>
+              {copyDialogTab === "ORIGINAL" ? (
+                <>
+                  <div className="personal-grid">
+                    <label className="field">
+                      <span>文案类型</span>
+                      <select value={originalCopyType} onChange={(event) => setOriginalCopyType(event.target.value as typeof originalCopyType)}>
+                        {originalTypeOptions.map((item) => (
+                          <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>营销日历</span>
+                      <select value={originalCalendarId} onChange={(event) => setOriginalCalendarId(event.target.value)}>
+                        <option value="">不选择</option>
+                        {props.originalCopyCalendarOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>选题</span>
+                      <select value={originalTopicId} onChange={(event) => setOriginalTopicId(event.target.value)}>
+                        <option value="">不选择</option>
+                        {props.originalCopyTopicOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>植入营销策划</span>
+                      <select value={originalInjectPlan ? "yes" : "no"} onChange={(event) => setOriginalInjectPlan(event.target.value === "yes")}>
+                        <option value="yes">是</option>
+                        <option value="no">否</option>
+                      </select>
+                    </label>
+                    <label className="field field-full">
+                      <span>附加要求</span>
+                      <textarea value={originalRequirement} onChange={(event) => setOriginalRequirement(event.target.value)} placeholder="例如：更偏口播感、更像知识分享、控制在 45 秒内" />
+                    </label>
+                  </div>
+                  <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+                    <button type="button" className="primary-button" onClick={() => void handleCreateOriginalCopy()} disabled={!props.canEdit || props.isSubmitting}>
+                      直接生成原创文案
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="personal-grid">
+                    <label className="field">
+                      <span>来源素材</span>
+                      <select value={remixMaterialId} onChange={(event) => setRemixMaterialId(event.target.value)}>
+                        <option value="">请选择素材</option>
+                        {props.materialLibraryItems.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>产品</span>
+                      <select value={remixProductId} onChange={(event) => setRemixProductId(event.target.value)}>
+                        <option value="">不选择</option>
+                        {props.remixCopyProductOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>植入品牌资料</span>
+                      <select value={remixInjectBrandProfile ? "yes" : "no"} onChange={(event) => setRemixInjectBrandProfile(event.target.value === "yes")}>
+                        <option value="yes">是</option>
+                        <option value="no">否</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>植入营销策划</span>
+                      <select value={remixInjectPlan ? "yes" : "no"} onChange={(event) => setRemixInjectPlan(event.target.value === "yes")}>
+                        <option value="yes">是</option>
+                        <option value="no">否</option>
+                      </select>
+                    </label>
+                    <label className="field field-full">
+                      <span>附加要求</span>
+                      <textarea value={remixRequirement} onChange={(event) => setRemixRequirement(event.target.value)} placeholder="例如：更像自然口播、避开太强销售感、保留素材开头的钩子" />
+                    </label>
+                  </div>
+                  <div className="strategy-inline-actions" style={{ marginTop: 12 }}>
+                    <button type="button" className="primary-button" onClick={() => void handleCreateRemixCopy()} disabled={!props.canEdit || props.isSubmitting || !remixMaterialId}>
+                      直接生成二创文案
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

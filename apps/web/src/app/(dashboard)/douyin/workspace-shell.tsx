@@ -2326,6 +2326,9 @@ export function DouyinWorkspaceShell() {
                     currentSpeechTaskId={digitalHumanCurrentSpeechTaskId}
                     originalCopyHistory={originalCopyWorkspace.history}
                     remixCopyHistory={remixCopyWorkspace.history}
+                    originalCopyCalendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
+                    originalCopyTopicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicContent }))}
+                    remixCopyProductOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
@@ -2365,6 +2368,8 @@ export function DouyinWorkspaceShell() {
                     onDeleteCustomVoice={handleDeleteDigitalHumanCustomVoice}
                     onCreateSpeechTask={handleCreateDigitalHumanSpeechTask}
                     onRefreshSpeechTask={handleRefreshDigitalHumanSpeechTask}
+                    onCreateOriginalCopy={handleCreateOriginalCopy}
+                    onCreateRemixCopy={handleCreateRemixCopy}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

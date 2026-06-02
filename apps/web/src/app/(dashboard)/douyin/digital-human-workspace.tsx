@@ -229,6 +229,9 @@ export interface DouyinDigitalHumanWorkspaceProps {
   currentSpeechTaskId?: string;
   originalCopyHistory: DouyinOriginalCopyRecord[];
   remixCopyHistory: DouyinRemixCopyRecord[];
+  originalCopyCalendarOptions: Array<{ id: string; label: string }>;
+  originalCopyTopicOptions: Array<{ id: string; label: string }>;
+  remixCopyProductOptions: Array<{ id: string; label: string }>;
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
   favoriteTemplateIds: string[];
@@ -356,6 +359,20 @@ export interface DouyinDigitalHumanWorkspaceProps {
     dialect?: number;
   }) => Promise<boolean>;
   onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
+  onCreateOriginalCopy: (payload: {
+    calendarItemId?: string;
+    topicId?: string;
+    injectMarketingPlan: boolean;
+    copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+    userRequirement?: string;
+  }) => Promise<boolean>;
+  onCreateRemixCopy: (payload: {
+    materialId: string;
+    injectBrandProfile: boolean;
+    productId?: string;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+  }) => Promise<boolean>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -1735,6 +1752,34 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setEditorActionMessage(`已带入二创文案：${item.title}`);
   };
 
+  const handleCreateOriginalCopyFromStudio = async (payload: {
+    calendarItemId?: string;
+    topicId?: string;
+    injectMarketingPlan: boolean;
+    copyType: "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+    userRequirement?: string;
+  }) => {
+    const success = await props.onCreateOriginalCopy(payload);
+    if (success) {
+      setEditorActionMessage("原创文案任务已提交，稍后可在弹窗中一键带入结果。");
+    }
+    return success;
+  };
+
+  const handleCreateRemixCopyFromStudio = async (payload: {
+    materialId: string;
+    injectBrandProfile: boolean;
+    productId?: string;
+    injectMarketingPlan: boolean;
+    userRequirement?: string;
+  }) => {
+    const success = await props.onCreateRemixCopy(payload);
+    if (success) {
+      setEditorActionMessage("二创文案任务已提交，稍后可在弹窗中一键带入结果。");
+    }
+    return success;
+  };
+
   useEffect(() => {
     if (activeTab !== "videoStudio") {
       return;
@@ -1927,6 +1972,9 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           currentSpeechTaskId={props.currentSpeechTaskId}
           originalCopyHistory={props.originalCopyHistory}
           remixCopyHistory={props.remixCopyHistory}
+          originalCopyCalendarOptions={props.originalCopyCalendarOptions}
+          originalCopyTopicOptions={props.originalCopyTopicOptions}
+          remixCopyProductOptions={props.remixCopyProductOptions}
           scriptActionMessage={scriptActionMessage}
           editorActionMessage={editorActionMessage}
           personalTemplateGovernanceSummary={personalTemplateGovernanceSummary}
@@ -2006,6 +2054,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onRefreshSpeechTask={props.onRefreshSpeechTask}
           onApplyOriginalCopy={handleApplyOriginalCopy}
           onApplyRemixCopy={handleApplyRemixCopy}
+          onCreateOriginalCopy={handleCreateOriginalCopyFromStudio}
+          onCreateRemixCopy={handleCreateRemixCopyFromStudio}
           onSubmitCurrentVideo={handleSubmitCurrentVideo}
           onSubmitCompleteVideo={handleSubmitCompleteVideo}
           onSubmitBatchVideos={handleSubmitBatchVideos}
