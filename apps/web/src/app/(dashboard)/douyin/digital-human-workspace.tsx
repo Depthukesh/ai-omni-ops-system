@@ -63,6 +63,8 @@ type DigitalHumanMaterialLibraryItem = {
   id: string;
   label: string;
   videoUrl?: string;
+  coverUrl?: string;
+  workUrl?: string;
 };
 
 type DigitalHumanCreatorDraftCard = {
@@ -103,6 +105,8 @@ type DigitalHumanCreatorDraftCardSummary = {
   previewImageUrl?: string;
   previewVideoUrl?: string;
   materialPreviewVideoUrl?: string;
+  materialPreviewImageUrl?: string;
+  materialWorkUrl?: string;
 };
 
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
@@ -539,7 +543,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     [props.customVoices, selectedCustomVoiceId],
   );
   const selectedMaterialLibraryItem = useMemo(
-    () => props.materialLibraryItems.find((item) => item.id === selectedMaterialLibraryItemId) || props.materialLibraryItems[0],
+    () => props.materialLibraryItems.find((item) => item.id === selectedMaterialLibraryItemId),
     [props.materialLibraryItems, selectedMaterialLibraryItemId],
   );
   const resolvedSelectedVoice = useMemo(() => {
@@ -827,7 +831,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       return;
     }
     if (!props.materialLibraryItems.some((item) => item.id === selectedMaterialLibraryItemId)) {
-      setSelectedMaterialLibraryItemId(props.materialLibraryItems[0]?.id || "");
+      setSelectedMaterialLibraryItemId("");
     }
   }, [props.materialLibraryItems, selectedMaterialLibraryItemId]);
 
@@ -1101,7 +1105,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
             : item.selectedVoiceMode === "PUBLIC"
               ? props.publicVoices.find((entry) => entry.id === item.selectedPublicVoiceId)?.name || "公共声音"
               : props.customVoices.find((entry) => entry.id === item.selectedCustomVoiceId)?.name || "我的声音";
-        const materialLabel = props.materialLibraryItems.find((entry) => entry.id === item.selectedMaterialLibraryItemId)?.label;
+        const matchedMaterial = props.materialLibraryItems.find((entry) => entry.id === item.selectedMaterialLibraryItemId);
+        const materialLabel = matchedMaterial?.label;
         return {
           id: item.id,
           name: item.name || `片段 ${index + 1}`,
@@ -1115,7 +1120,9 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           subtitleEnabled: item.subtitleEnabled,
           previewImageUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.coverImageUrl : matchedFigure?.cover,
           previewVideoUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.previewVideoUrl : matchedFigure?.previewVideoUrl,
-        materialPreviewVideoUrl: props.materialLibraryItems.find((entry) => entry.id === item.selectedMaterialLibraryItemId)?.videoUrl,
+          materialPreviewVideoUrl: matchedMaterial?.videoUrl,
+          materialPreviewImageUrl: matchedMaterial?.coverUrl,
+          materialWorkUrl: matchedMaterial?.workUrl,
         };
       }),
     [creatorDraftCards, props.customPersons, props.customVoices, props.materialLibraryItems, props.publicVoices, props.templates],
@@ -2137,7 +2144,13 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onToggleArchivePersonalScriptTemplate={handleToggleArchivePersonalScriptTemplate}
           onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
-          onLoadMoreTemplates={undefined}
+          onLoadMoreTemplates={
+            props.onTemplatePageChange && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage
+              ? async () => {
+                  await props.onTemplatePageChange?.((props.templatePageInfo?.page || 1) + 1);
+                }
+              : undefined
+          }
           onCreateSpeechTask={props.onCreateSpeechTask}
           onRefreshSpeechTask={props.onRefreshSpeechTask}
           onApplyOriginalCopy={handleApplyOriginalCopy}

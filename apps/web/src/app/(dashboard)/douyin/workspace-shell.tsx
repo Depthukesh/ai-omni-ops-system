@@ -2341,6 +2341,8 @@ export function DouyinWorkspaceShell() {
                       id: item.id,
                       label: item.title,
                       videoUrl: item.videoUrl,
+                      coverUrl: item.coverUrl,
+                      workUrl: item.workUrl,
                     }))}
                     templatePageInfo={digitalHumanTemplatePageInfo}
                     activeTagId={digitalHumanTemplateTagId}

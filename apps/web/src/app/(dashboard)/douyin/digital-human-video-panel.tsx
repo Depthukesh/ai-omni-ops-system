@@ -46,12 +46,16 @@ type DigitalHumanVideoPanelDraftCard = {
   previewImageUrl?: string;
   previewVideoUrl?: string;
   materialPreviewVideoUrl?: string;
+  materialPreviewImageUrl?: string;
+  materialWorkUrl?: string;
 };
 
 type DigitalHumanVideoPanelMaterialItem = {
   id: string;
   label: string;
   videoUrl?: string;
+  coverUrl?: string;
+  workUrl?: string;
 };
 
 export interface DigitalHumanVideoPanelProps {
@@ -335,6 +339,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const handlePickTemplate = (templateId: string) => {
     const target = props.filteredTemplates.find((item) => item.id === templateId);
     props.onPersonSourceChange("COMMON");
+    props.onSelectedMaterialLibraryItemChange("");
     props.onSelectedTemplateChange(templateId);
     props.onSelectedFigureTypeChange(target?.figures[0]?.type || "sit_body");
     setIsPersonDialogOpen(false);
@@ -342,6 +347,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
   const handlePickCustomPerson = (customPersonId: string) => {
     props.onPersonSourceChange("CUSTOM");
+    props.onSelectedMaterialLibraryItemChange("");
     props.onSelectedCustomPersonChange(customPersonId);
     setIsPersonDialogOpen(false);
   };
@@ -430,8 +436,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
     const isActive = item.id === props.activeDraftCardId;
     const activeMaterialVideoUrl = isActive ? props.selectedMaterialLibraryItem?.videoUrl : undefined;
+    const activeMaterialCoverUrl = isActive ? props.selectedMaterialLibraryItem?.coverUrl : undefined;
+    const activeMaterialWorkUrl = isActive ? props.selectedMaterialLibraryItem?.workUrl : undefined;
     const isMaterialMode = isActive ? Boolean(props.selectedMaterialLibraryItemId && props.selectedMaterialLibraryItem) : Boolean(item.materialLabel);
     const previewVideoUrl = isMaterialMode ? (activeMaterialVideoUrl || item.materialPreviewVideoUrl) : item.previewVideoUrl;
+    const previewImageUrl = isMaterialMode ? (activeMaterialCoverUrl || item.materialPreviewImageUrl) : item.previewImageUrl;
+    const previewWorkUrl = isMaterialMode ? (activeMaterialWorkUrl || item.materialWorkUrl) : undefined;
     const previewTitle = isMaterialMode ? item.materialLabel || "素材片段" : item.personLabel;
     return (
       <article key={item.id} className={`digital-human-creator-v2-card ${isActive ? "is-active" : ""}`}>
@@ -458,10 +468,10 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               {isActive && !isMaterialMode ? <button type="button" className="digital-human-creator-v2-card__change-bg">更换背景</button> : null}
               {previewVideoUrl && isMaterialMode ? (
                 <video src={previewVideoUrl} className="digital-human-creator-v2-card__preview-video" controls preload="metadata" />
-              ) : item.previewImageUrl ? (
-                <img src={item.previewImageUrl} alt={item.personLabel} className="digital-human-creator-v2-card__preview-image" />
+              ) : previewImageUrl ? (
+                <img src={previewImageUrl} alt={previewTitle} className="digital-human-creator-v2-card__preview-image" />
               ) : (
-                <div className="digital-human-creator-v2-card__preview-empty">{isMaterialMode ? "未选择素材视频" : "未选择数字人"}</div>
+                <div className="digital-human-creator-v2-card__preview-empty">{isMaterialMode ? "所选素材暂时没有可直接播放的视频" : "未选择数字人"}</div>
               )}
               {isActive ? (
                 <button type="button" className="digital-human-creator-v2-card__replace" onClick={handleOpenPersonDialog}>
@@ -487,12 +497,21 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   <a href={props.selectedMaterialLibraryItem.videoUrl} target="_blank" rel="noreferrer" className="secondary-button">
                     预览素材
                   </a>
+                ) : props.selectedMaterialLibraryItem.workUrl ? (
+                  <a href={props.selectedMaterialLibraryItem.workUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    打开源视频
+                  </a>
                 ) : null}
               </div>
             ) : item.materialLabel ? (
               <div className="digital-human-creator-v2-card__material">
                 <strong>我的素材库</strong>
                 <p>{item.materialLabel}</p>
+                {item.materialWorkUrl ? (
+                  <a href={item.materialWorkUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    打开源视频
+                  </a>
+                ) : null}
               </div>
             ) : null}
 
@@ -811,12 +830,19 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               {personDialogTab === "MATERIAL"
                 ? props.materialLibraryItems.map((item) => (
                     <button key={item.id} type="button" className="digital-human-creator-v2-picker-card is-material" onClick={() => handlePickMaterial(item.id)}>
-                      <div className="digital-human-creator-v2-picker-card__empty">素材参考</div>
+                      {item.coverUrl ? <img src={item.coverUrl} alt={item.label} /> : <div className="digital-human-creator-v2-picker-card__empty">素材参考</div>}
                       <strong>{item.label}</strong>
                     </button>
                   ))
                 : null}
             </div>
+            {personDialogTab === "PUBLIC" && props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
+              <div className="digital-human-creator-v2-dialog__footer">
+                <button type="button" className="secondary-button" onClick={() => void props.onLoadMoreTemplates?.()} disabled={props.isTemplateLoading}>
+                  {props.isTemplateLoading ? "加载中..." : `加载更多公共数字人（第 ${props.templatePageInfo.page + 1} 页）`}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
