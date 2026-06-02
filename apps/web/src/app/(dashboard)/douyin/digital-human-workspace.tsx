@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { type DouyinOriginalCopyRecord, type DouyinRemixCopyRecord } from "../../../services/reports";
 import {
   type DigitalHumanFigureType,
   type DigitalHumanTemplatePageInfo,
@@ -226,6 +227,8 @@ export interface DouyinDigitalHumanWorkspaceProps {
   customVoiceLoadError?: string;
   currentSpeechTask?: DouyinSpeechTaskRecord | null;
   currentSpeechTaskId?: string;
+  originalCopyHistory: DouyinOriginalCopyRecord[];
+  remixCopyHistory: DouyinRemixCopyRecord[];
   templateTagGroups: DigitalHumanTemplateTagGroupRecord[];
   templates: DigitalHumanTemplateRecord[];
   favoriteTemplateIds: string[];
@@ -1714,6 +1717,50 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setEditorActionMessage("音频驱动任务已提交，可在作品中心继续查看进度。");
   };
 
+  const handleApplyOriginalCopy = (item: DouyinOriginalCopyRecord) => {
+    setScript(item.content || "");
+    if (!title.trim()) {
+      setTitle(item.title || "原创文案片段");
+    }
+    setShowScriptTemplateManager(false);
+    setEditorActionMessage(`已带入原创文案：${item.title}`);
+  };
+
+  const handleApplyRemixCopy = (item: DouyinRemixCopyRecord) => {
+    setScript(item.content || "");
+    if (!title.trim()) {
+      setTitle(item.title || "二创文案片段");
+    }
+    setShowScriptTemplateManager(false);
+    setEditorActionMessage(`已带入二创文案：${item.title}`);
+  };
+
+  useEffect(() => {
+    if (activeTab !== "videoStudio") {
+      return;
+    }
+    if (!props.currentSpeechTaskId) {
+      return;
+    }
+    if (props.currentSpeechTask?.full?.url) {
+      return;
+    }
+    if (props.currentSpeechTask?.errMsg || props.currentSpeechTask?.errReason) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void props.onRefreshSpeechTask(props.currentSpeechTaskId);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [
+    activeTab,
+    props.currentSpeechTask?.errMsg,
+    props.currentSpeechTask?.errReason,
+    props.currentSpeechTask?.full?.url,
+    props.currentSpeechTaskId,
+    props.onRefreshSpeechTask,
+  ]);
+
   return (
     <section className="workspace-panel strategy-page-card">
       <WorkspaceSectionHeader
@@ -1876,6 +1923,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           selectedPersonalScriptTemplateArchived={selectedPersonalScriptTemplateArchived}
           scriptTemplateSaveScopeLabel={scriptTemplateSaveScopeLabel}
           isReadonlySharedScriptTemplate={isReadonlySharedScriptTemplate}
+          currentSpeechTask={props.currentSpeechTask}
+          currentSpeechTaskId={props.currentSpeechTaskId}
+          originalCopyHistory={props.originalCopyHistory}
+          remixCopyHistory={props.remixCopyHistory}
           scriptActionMessage={scriptActionMessage}
           editorActionMessage={editorActionMessage}
           personalTemplateGovernanceSummary={personalTemplateGovernanceSummary}
@@ -1951,6 +2002,10 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
           onLoadMoreTemplates={undefined}
+          onCreateSpeechTask={props.onCreateSpeechTask}
+          onRefreshSpeechTask={props.onRefreshSpeechTask}
+          onApplyOriginalCopy={handleApplyOriginalCopy}
+          onApplyRemixCopy={handleApplyRemixCopy}
           onSubmitCurrentVideo={handleSubmitCurrentVideo}
           onSubmitCompleteVideo={handleSubmitCompleteVideo}
           onSubmitBatchVideos={handleSubmitBatchVideos}

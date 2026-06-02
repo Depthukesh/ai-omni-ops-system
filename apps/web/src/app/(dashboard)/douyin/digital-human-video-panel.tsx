@@ -9,9 +9,14 @@ import {
   type DouyinCustomVoiceRecord,
   type DouyinDigitalHumanCustomPersonRecord,
   type DouyinDigitalHumanScriptTemplateRecord,
+  type DouyinSpeechTaskRecord,
   type DouyinDigitalHumanVideoWorkRecord,
   type DouyinVoiceLibraryRecord,
 } from "../../../services/works";
+import {
+  type DouyinOriginalCopyRecord,
+  type DouyinRemixCopyRecord,
+} from "../../../services/reports";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
@@ -114,6 +119,10 @@ export interface DigitalHumanVideoPanelProps {
   selectedPersonalScriptTemplateArchived: boolean;
   scriptTemplateSaveScopeLabel: string;
   isReadonlySharedScriptTemplate: boolean;
+  currentSpeechTask?: DouyinSpeechTaskRecord | null;
+  currentSpeechTaskId?: string;
+  originalCopyHistory: DouyinOriginalCopyRecord[];
+  remixCopyHistory: DouyinRemixCopyRecord[];
   scriptActionMessage: string;
   editorActionMessage: string;
   personalTemplateGovernanceSummary: {
@@ -196,6 +205,16 @@ export interface DigitalHumanVideoPanelProps {
   onDuplicatePersonalScriptTemplate: () => Promise<void> | void;
   onDeletePersonalScriptTemplate: () => Promise<void> | void;
   onLoadMoreTemplates?: () => Promise<void>;
+  onCreateSpeechTask: (payload: {
+    audioManId?: string;
+    text?: string;
+    speed?: number;
+    pitch?: number;
+    dialect?: number;
+  }) => Promise<boolean>;
+  onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
+  onApplyOriginalCopy: (item: DouyinOriginalCopyRecord) => void;
+  onApplyRemixCopy: (item: DouyinRemixCopyRecord) => void;
   onSubmitCurrentVideo: () => void;
   onSubmitCompleteVideo: () => Promise<void> | void;
   onSubmitBatchVideos: () => Promise<void> | void;
@@ -210,6 +229,8 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const [personDialogTab, setPersonDialogTab] = useState<"MY" | "PUBLIC" | "MATERIAL">("PUBLIC");
   const [isVoiceDialogOpen, setIsVoiceDialogOpen] = useState(false);
   const [voiceDialogTab, setVoiceDialogTab] = useState<"CUSTOM" | "PUBLIC">("CUSTOM");
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [copyDialogTab, setCopyDialogTab] = useState<"ORIGINAL" | "REMIX">("ORIGINAL");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showScriptAssets, setShowScriptAssets] = useState(false);
 
@@ -249,6 +270,16 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         : props.selectedCustomVoice
           ? `已选择我的声音：${props.selectedCustomVoice.name}`
           : "当前没有可用我的声音。";
+  const currentSpeechStatus =
+    props.currentSpeechTask?.errMsg || props.currentSpeechTask?.errReason
+      ? "试听失败"
+      : props.currentSpeechTask?.status === 9
+        ? "试听已完成"
+        : props.currentSpeechTask?.status === 1
+          ? "试听生成中"
+          : props.currentSpeechTaskId
+            ? "试听等待中"
+            : "未试听";
 
   const handleOpenPersonDialog = () => {
     setPersonDialogTab(props.personSource === "CUSTOM" ? "MY" : "PUBLIC");
@@ -293,6 +324,31 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
   const handleInsertPause = () => {
     props.onScriptChange((current) => `${current.trim()} ...`.trim());
+  };
+
+  const recentOriginalCopies = useMemo(() => props.originalCopyHistory.slice(0, 8), [props.originalCopyHistory]);
+  const recentRemixCopies = useMemo(() => props.remixCopyHistory.slice(0, 8), [props.remixCopyHistory]);
+
+  const handleAudition = async () => {
+    const text = props.script.trim();
+    const audioManId =
+      props.selectedVoiceMode === "PUBLIC"
+        ? props.selectedPublicVoice?.id
+        : props.selectedVoiceMode === "CUSTOM"
+          ? props.selectedCustomVoice?.id
+          : props.personSource === "CUSTOM"
+            ? props.selectedCustomPerson?.audioManId
+            : props.selectedTemplate?.audioManId;
+    if (!audioManId || !text) {
+      return;
+    }
+    await props.onCreateSpeechTask({
+      audioManId,
+      text,
+      speed: Number(props.speechRate || 1),
+      pitch: Number(props.pitch || 1),
+      dialect: 0,
+    });
   };
 
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
@@ -364,8 +420,41 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
           <div className="digital-human-creator-v2-card__editor-column">
             <div className="digital-human-creator-v2-card__editor-tools">
-              <button type="button" className="secondary-button" disabled={!selectedAuditionUrl}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleAudition()}
+                disabled={!props.canEdit || props.isSubmitting || !props.script.trim() || !(
+                  props.selectedVoiceMode === "PUBLIC"
+                    ? props.selectedPublicVoice?.id
+                    : props.selectedVoiceMode === "CUSTOM"
+                      ? props.selectedCustomVoice?.id
+                      : props.personSource === "CUSTOM"
+                        ? props.selectedCustomPerson?.audioManId
+                        : props.selectedTemplate?.audioManId
+                )}
+              >
                 试听
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setCopyDialogTab("ORIGINAL");
+                  setIsCopyDialogOpen(true);
+                }}
+              >
+                原创文案
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setCopyDialogTab("REMIX");
+                  setIsCopyDialogOpen(true);
+                }}
+              >
+                二创文案
               </button>
               <button type="button" className="secondary-button" onClick={isActive ? handleInsertPause : () => props.onSelectCreatorDraftCard(item.id)} disabled={!isActive}>
                 插入停顿
@@ -385,6 +474,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                 />
                 <div className="digital-human-creator-v2-card__footer">
                   <span className="digital-human-creator-v2-card__duration">预计时长：{estimatedDurationLabel}</span>
+                  <span className="digital-human-creator-v2-card__duration">{currentSpeechStatus}</span>
                   <button type="button" className={`digital-human-creator-v2-card__toggle ${props.subtitleEnabled ? "is-active" : ""}`} onClick={() => props.onSubtitleEnabledChange(!props.subtitleEnabled)}>
                     显示字幕
                   </button>
@@ -396,6 +486,27 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             ) : (
               <div className="digital-human-creator-v2-card__readonly">{item.scriptPreview || "点击“编辑此片段”后输入台词"}</div>
             )}
+            {isActive && props.currentSpeechTask?.full?.url ? (
+              <div className="digital-human-creator-v2-card__material">
+                <strong>试听结果</strong>
+                <audio controls preload="metadata" src={props.currentSpeechTask.full.url} className="digital-human-creator-v2-card__audio" />
+                <div className="strategy-inline-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="secondary-button" onClick={() => void props.onRefreshSpeechTask(props.currentSpeechTaskId)}>
+                    刷新试听
+                  </button>
+                </div>
+              </div>
+            ) : isActive && props.currentSpeechTaskId ? (
+              <div className="digital-human-creator-v2-card__material">
+                <strong>试听任务</strong>
+                <p>{props.currentSpeechTaskId}</p>
+                <div className="strategy-inline-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="secondary-button" onClick={() => void props.onRefreshSpeechTask(props.currentSpeechTaskId)}>
+                    刷新试听
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -664,6 +775,70 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                       <span>{item.lang || "公共声音"}</span>
                     </button>
                   ))
+                : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isCopyDialogOpen ? (
+        <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsCopyDialogOpen(false)}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog digital-human-creator-v2-dialog--voice" onClick={(event) => event.stopPropagation()}>
+            <div className="digital-human-creator-v2-dialog__head">
+              <div>
+                <strong>选择文案</strong>
+                <p>把抖音工作台里最近生成的原创文案和二创文案，直接带入当前数字人片段。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setIsCopyDialogOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="digital-human-creator-v2-dialog__tabs">
+              <button type="button" className={`personal-reference-tab ${copyDialogTab === "ORIGINAL" ? "is-active" : ""}`} onClick={() => setCopyDialogTab("ORIGINAL")}>
+                原创文案
+              </button>
+              <button type="button" className={`personal-reference-tab ${copyDialogTab === "REMIX" ? "is-active" : ""}`} onClick={() => setCopyDialogTab("REMIX")}>
+                二创文案
+              </button>
+            </div>
+            <div className="digital-human-creator-v2-dialog__grid">
+              {copyDialogTab === "ORIGINAL"
+                ? recentOriginalCopies.length
+                  ? recentOriginalCopies.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="digital-human-creator-v2-picker-card is-material"
+                        onClick={() => {
+                          props.onApplyOriginalCopy(item);
+                          setIsCopyDialogOpen(false);
+                        }}
+                      >
+                        <div className="digital-human-creator-v2-picker-card__empty">{item.copyTypeLabel}</div>
+                        <strong>{item.title}</strong>
+                        <span>{item.topicContent}</span>
+                      </button>
+                    ))
+                  : <div className="empty-state">当前还没有可带入的原创文案，请先到“原创文案”板块生成。</div>
+                : null}
+              {copyDialogTab === "REMIX"
+                ? recentRemixCopies.length
+                  ? recentRemixCopies.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="digital-human-creator-v2-picker-card is-material"
+                        onClick={() => {
+                          props.onApplyRemixCopy(item);
+                          setIsCopyDialogOpen(false);
+                        }}
+                      >
+                        <div className="digital-human-creator-v2-picker-card__empty">二创素材</div>
+                        <strong>{item.title}</strong>
+                        <span>{item.sourceMaterialTitle}</span>
+                      </button>
+                    ))
+                  : <div className="empty-state">当前还没有可带入的二创文案，请先到“二创文案”板块生成。</div>
                 : null}
             </div>
           </div>

@@ -2324,6 +2324,8 @@ export function DouyinWorkspaceShell() {
                     customVoiceLoadError={digitalHumanCustomVoiceError}
                     currentSpeechTask={digitalHumanCurrentSpeechTask}
                     currentSpeechTaskId={digitalHumanCurrentSpeechTaskId}
+                    originalCopyHistory={originalCopyWorkspace.history}
+                    remixCopyHistory={remixCopyWorkspace.history}
                     templateTagGroups={digitalHumanTemplateTags}
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
