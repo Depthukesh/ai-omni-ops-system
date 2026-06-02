@@ -66,32 +66,177 @@ type DigitalHumanBackgroundPreset = {
   url: string;
 };
 
-const DIGITAL_HUMAN_BACKGROUND_PRESETS: DigitalHumanBackgroundPreset[] = [
+type DigitalHumanFontOption = {
+  label: string;
+  value: string;
+};
+
+type DigitalHumanSubtitlePreset = {
+  key: string;
+  tab: "COMMON" | "TREND";
+  name: string;
+  description: string;
+  previewTone: string;
+  fontId: string;
+  fontSize: string;
+  textColor: string;
+  strokeColor: string;
+  strokeWidth: string;
+};
+
+type DigitalHumanSubtitleOutlinePreset = {
+  key: string;
+  name: string;
+  strokeColor: string;
+  strokeWidth: string;
+};
+
+const SUBTITLE_FONT_OPTIONS: DigitalHumanFontOption[] = [
+  { label: "平台默认字体", value: "" },
+  { label: "抖音美好体", value: "douyin_meihao" },
+  { label: "思源黑体", value: "source_han_sans" },
+  { label: "优设标题黑", value: "youshe_title_hei" },
+  { label: "站酷快乐体", value: "zcool_happy" },
+  { label: "阿里妈妈东方大楷", value: "alimama_dongfang_dakai" },
+];
+
+const SUBTITLE_COLOR_SWATCHES = ["#FFFFFF", "#FCE7F3", "#FDE68A", "#F97316", "#A855F7", "#60A5FA", "#34D399", "#111827", "#000000"];
+const SUBTITLE_STROKE_SWATCHES = ["#000000", "#1F2937", "#7C2D12", "#7F1D1D", "#1E3A8A", "#14532D", "#6B21A8", "#FFFFFF"];
+const SUBTITLE_PRESETS: DigitalHumanSubtitlePreset[] = [
   {
-    key: "warm-studio",
-    name: "暖光演播室",
-    description: "适合品牌口播和产品讲解",
-    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=warm%20minimalist%20broadcast%20studio%20background%2C%20soft%20golden%20lighting%2C%20premium%20modern%20stage%2C%20clean%20floor%20reflection%2C%20cinematic%2C%20realistic&image_size=portrait_16_9",
+    key: "common-clean",
+    tab: "COMMON",
+    name: "清爽讲解",
+    description: "白字黑描边，适合知识口播",
+    previewTone: "linear-gradient(180deg, #d6d4ff 0%, #f1f0ff 100%)",
+    fontId: "",
+    fontSize: "48",
+    textColor: "#FFFFFF",
+    strokeColor: "#000000",
+    strokeWidth: "2",
   },
   {
-    key: "city-night",
-    name: "都市夜景",
-    description: "适合科技感和活动宣传",
-    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=modern%20city%20night%20background%2C%20soft%20bokeh%20lights%2C%20clean%20stage%20foreground%2C%20deep%20blue%20tone%2C%20realistic%20commercial%20visual&image_size=portrait_16_9",
+    key: "common-business",
+    tab: "COMMON",
+    name: "商务稳重",
+    description: "偏深描边，适合品牌介绍",
+    previewTone: "linear-gradient(180deg, #dce9ff 0%, #eef4ff 100%)",
+    fontId: "source_han_sans",
+    fontSize: "46",
+    textColor: "#F8FAFC",
+    strokeColor: "#1E293B",
+    strokeWidth: "3",
   },
   {
-    key: "office-window",
-    name: "落地窗办公室",
-    description: "适合商务分享和知识讲解",
-    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=bright%20modern%20office%20with%20large%20windows%2C%20city%20view%2C%20clean%20corporate%20background%2C%20natural%20daylight%2C%20realistic&image_size=portrait_16_9",
+    key: "common-warm",
+    tab: "COMMON",
+    name: "暖色种草",
+    description: "暖橙文字，适合生活内容",
+    previewTone: "linear-gradient(180deg, #ffe6cf 0%, #fff4e8 100%)",
+    fontId: "douyin_meihao",
+    fontSize: "50",
+    textColor: "#FDE68A",
+    strokeColor: "#7C2D12",
+    strokeWidth: "2",
   },
   {
-    key: "lifestyle-home",
-    name: "轻生活客厅",
-    description: "适合生活方式和种草内容",
-    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=stylish%20modern%20living%20room%20background%2C%20neutral%20colors%2C%20soft%20daylight%2C%20minimal%20decor%2C%20commercial%20realistic&image_size=portrait_16_9",
+    key: "trend-purple",
+    tab: "TREND",
+    name: "网感紫调",
+    description: "高饱和紫粉，适合网感表达",
+    previewTone: "linear-gradient(180deg, #d7c8ff 0%, #efe8ff 100%)",
+    fontId: "zcool_happy",
+    fontSize: "54",
+    textColor: "#F5D0FE",
+    strokeColor: "#6B21A8",
+    strokeWidth: "3",
+  },
+  {
+    key: "trend-neon",
+    tab: "TREND",
+    name: "霓虹高亮",
+    description: "亮色标题感，适合活动预热",
+    previewTone: "linear-gradient(180deg, #c4f7ff 0%, #eefcff 100%)",
+    fontId: "youshe_title_hei",
+    fontSize: "56",
+    textColor: "#67E8F9",
+    strokeColor: "#1E3A8A",
+    strokeWidth: "3",
+  },
+  {
+    key: "trend-strong",
+    tab: "TREND",
+    name: "冲击红橙",
+    description: "强视觉对比，适合爆点文案",
+    previewTone: "linear-gradient(180deg, #ffd6c9 0%, #fff0e8 100%)",
+    fontId: "alimama_dongfang_dakai",
+    fontSize: "58",
+    textColor: "#FDBA74",
+    strokeColor: "#7F1D1D",
+    strokeWidth: "4",
   },
 ];
+
+const SUBTITLE_OUTLINE_PRESETS: DigitalHumanSubtitleOutlinePreset[] = [
+  { key: "outline-soft", name: "轻描边", strokeColor: "#1F2937", strokeWidth: "2" },
+  { key: "outline-classic", name: "经典黑边", strokeColor: "#000000", strokeWidth: "3" },
+  { key: "outline-purple", name: "紫感描边", strokeColor: "#6B21A8", strokeWidth: "3" },
+  { key: "outline-warm", name: "暖色描边", strokeColor: "#7C2D12", strokeWidth: "4" },
+];
+
+const DIGITAL_HUMAN_BACKGROUND_PRESETS: DigitalHumanBackgroundPreset[] = [
+  {
+    key: "office-living",
+    name: "轻商务客厅",
+    description: "适合知识分享和品牌口播",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=photorealistic%20modern%20living%20room%20for%20video%20shooting%2C%20clean%20sofa%2C%20wooden%20floor%2C%20soft%20window%20light%2C%20premium%20home%20studio%2C%20vertical%20composition%2C%20real%20interior&image_size=portrait_16_9",
+  },
+  {
+    key: "meeting-room",
+    name: "会议室场景",
+    description: "适合企业宣传和商务表达",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=photorealistic%20modern%20conference%20room%20background%2C%20glass%20wall%2C%20city%20view%2C%20soft%20daylight%2C%20clean%20professional%20workspace%2C%20vertical%20composition&image_size=portrait_16_9",
+  },
+  {
+    key: "cafe-window",
+    name: "窗边咖啡馆",
+    description: "适合轻种草和生活化表达",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=photorealistic%20stylish%20cafe%20interior%20background%2C%20large%20window%2C%20sunlight%2C%20wood%20table%2C%20warm%20lifestyle%20scene%2C%20vertical%20composition&image_size=portrait_16_9",
+  },
+  {
+    key: "study-bookshelf",
+    name: "书架书房",
+    description: "适合课程讲解和干货输出",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=photorealistic%20elegant%20home%20office%20with%20bookshelf%2C%20desk%20lamp%2C%20warm%20light%2C%20educational%20video%20background%2C%20vertical%20composition&image_size=portrait_16_9",
+  },
+  {
+    key: "city-night-studio",
+    name: "城市夜景窗景",
+    description: "适合活动预热和科技感内容",
+    url: "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=photorealistic%20night%20city%20view%20from%20modern%20studio%2C%20glass%20window%2C%20soft%20indoor%20lighting%2C%20clean%20floor%2C%20vertical%20composition&image_size=portrait_16_9",
+  },
+];
+
+function estimateDurationSeconds(textLength: number) {
+  return textLength ? Math.max(6, Math.ceil(textLength / 6)) : 0;
+}
+
+function formatEstimatedDuration(seconds: number) {
+  if (!seconds) {
+    return "待输入文案";
+  }
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds % 60;
+  return minutes ? `${minutes}分${restSeconds}秒` : `${restSeconds}秒`;
+}
+
+function parseNumericValue(value: string, fallback: number) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return numeric;
+}
 
 export interface DigitalHumanVideoPanelProps {
   templateCountLabel: string;
@@ -313,6 +458,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [copyDialogTab, setCopyDialogTab] = useState<"ORIGINAL" | "REMIX">("ORIGINAL");
   const [isSubtitleDialogOpen, setIsSubtitleDialogOpen] = useState(false);
+  const [subtitleDialogTab, setSubtitleDialogTab] = useState<"COMMON" | "TREND">("COMMON");
   const [isBackgroundDialogOpen, setIsBackgroundDialogOpen] = useState(false);
   const [uploadedBackgroundPreviewUrl, setUploadedBackgroundPreviewUrl] = useState("");
   const [originalCopyType, setOriginalCopyType] = useState<"VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES">("KNOWLEDGE");
@@ -333,13 +479,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const hasTemplates = props.filteredTemplates.length > 0;
   const estimatedDurationLabel = useMemo(() => {
     const textLength = props.script.trim().length;
-    const durationSeconds = textLength ? Math.max(6, Math.ceil(textLength / 6)) : 0;
-    if (!durationSeconds) {
-      return "待输入文案";
-    }
-    const minutes = Math.floor(durationSeconds / 60);
-    const seconds = durationSeconds % 60;
-    return minutes ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+    return formatEstimatedDuration(estimateDurationSeconds(textLength));
   }, [props.script]);
   const selectedAuditionUrl =
     props.selectedVoiceMode === "PUBLIC"
@@ -441,6 +581,50 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     () => DIGITAL_HUMAN_BACKGROUND_PRESETS.find((item) => item.url === props.backgroundImageUrl),
     [props.backgroundImageUrl],
   );
+  const subtitlePreviewFigureUrl = props.selectedCustomPerson?.coverImageUrl || props.selectedTemplate?.figures[0]?.cover || currentBackgroundPreviewUrl || "";
+  const subtitlePreviewText = props.script.trim().slice(0, 18) || "预览字幕效果会显示在这里";
+  const screenWidthNumber = Math.max(1, parseNumericValue(props.screenWidth, 1080));
+  const screenHeightNumber = Math.max(1, parseNumericValue(props.screenHeight, 1920));
+  const subtitlePositionXNumber = Math.max(0, parseNumericValue(props.subtitlePositionX, 86));
+  const subtitlePositionYNumber = Math.max(0, parseNumericValue(props.subtitlePositionY, 1498));
+  const subtitleWidthNumber = Math.max(100, parseNumericValue(props.subtitleWidth, 907));
+  const subtitleHeightNumber = Math.max(60, parseNumericValue(props.subtitleHeight, 269));
+  const subtitleFontSizeNumber = Math.max(20, parseNumericValue(props.subtitleFontSize, 48));
+  const subtitleStrokeWidthNumber = Math.max(0, parseNumericValue(props.subtitleStrokeWidth, 2));
+  const subtitlePreviewStyle = {
+    left: `${Math.min(86, (subtitlePositionXNumber / screenWidthNumber) * 100)}%`,
+    top: `${Math.min(82, (subtitlePositionYNumber / screenHeightNumber) * 100)}%`,
+    width: `${Math.min(82, (subtitleWidthNumber / screenWidthNumber) * 100)}%`,
+    minHeight: `${Math.max(44, (subtitleHeightNumber / screenHeightNumber) * 320)}px`,
+    color: props.subtitleTextColor || "#FFFFFF",
+    fontSize: `${Math.max(16, Math.min(34, subtitleFontSizeNumber / 1.6))}px`,
+    WebkitTextStroke: `${Math.min(4, subtitleStrokeWidthNumber)}px ${props.subtitleStrokeColor || "#000000"}`,
+  };
+  const subtitleFontSelectValue = SUBTITLE_FONT_OPTIONS.some((item) => item.value === props.subtitleFontId) ? props.subtitleFontId : "__custom__";
+  const visibleSubtitlePresets = useMemo(
+    () => SUBTITLE_PRESETS.filter((item) => item.tab === subtitleDialogTab),
+    [subtitleDialogTab],
+  );
+  const completeVideoPreview = useMemo(() => {
+    const sequence = props.creatorDraftCards.map((item, index) => {
+      const textLength = item.id === props.activeDraftCardId ? props.script.trim().length : item.scriptLength;
+      const estimatedSeconds = estimateDurationSeconds(textLength);
+      return {
+        ...item,
+        order: index + 1,
+        estimatedSeconds,
+        estimatedDurationLabel: formatEstimatedDuration(estimatedSeconds),
+      };
+    });
+    const validSequenceCount = sequence.filter((item) => item.estimatedSeconds > 0).length;
+    const totalEstimatedSeconds = sequence.reduce((sum, item) => sum + item.estimatedSeconds, 0);
+    return {
+      sequence,
+      validSequenceCount,
+      totalEstimatedSeconds,
+      totalEstimatedLabel: formatEstimatedDuration(totalEstimatedSeconds),
+    };
+  }, [props.activeDraftCardId, props.creatorDraftCards, props.script]);
 
   useEffect(() => {
     if (!remixMaterialId && props.materialLibraryItems[0]?.id) {
@@ -512,6 +696,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   };
 
   const handleOpenSubtitleDialog = () => {
+    setSubtitleDialogTab("COMMON");
     setIsSubtitleDialogOpen(true);
   };
 
@@ -535,6 +720,21 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     props.onBackgroundImageFileChange(null);
     props.onBackgroundImageUrlChange("");
     props.onBackgroundImageNameChange("");
+  };
+
+  const handleApplySubtitlePreset = (preset: DigitalHumanSubtitlePreset) => {
+    props.onSubtitleFontIdChange(preset.fontId);
+    props.onSubtitleFontSizeChange(preset.fontSize);
+    props.onSubtitleTextColorChange(preset.textColor);
+    props.onSubtitleStrokeColorChange(preset.strokeColor);
+    props.onSubtitleStrokeWidthChange(preset.strokeWidth);
+    props.onSubtitleEnabledChange(true);
+  };
+
+  const handleApplyOutlinePreset = (preset: DigitalHumanSubtitleOutlinePreset) => {
+    props.onSubtitleStrokeColorChange(preset.strokeColor);
+    props.onSubtitleStrokeWidthChange(preset.strokeWidth);
+    props.onSubtitleEnabledChange(true);
   };
 
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
@@ -878,6 +1078,36 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         {props.editorActionMessage ? <p className="panel-subtext">{props.editorActionMessage}</p> : null}
       </div>
 
+      <section className="digital-human-creator-v2__sequence-preview entity-card personal-card">
+        <div className="digital-human-creator-v2__sequence-head">
+          <div>
+            <strong>完整作品顺序预览</strong>
+            <p className="panel-subtext">生成完整作品前，先确认片段顺序、人物来源和预计总时长。</p>
+          </div>
+          <div className="digital-human-creator-v2__sequence-meta">
+            <span className="archive-pill status-ready">{completeVideoPreview.sequence.length} 个片段</span>
+            <span className="archive-pill status-ready">预计总时长 {completeVideoPreview.totalEstimatedLabel}</span>
+          </div>
+        </div>
+        <div className="digital-human-creator-v2__sequence-list">
+          {completeVideoPreview.sequence.map((item) => (
+            <div key={item.id} className={`digital-human-creator-v2__sequence-item ${item.id === props.activeDraftCardId ? "is-active" : ""}`}>
+              <span className="digital-human-creator-v2__sequence-order">#{item.order}</span>
+              <div className="digital-human-creator-v2__sequence-content">
+                <strong>{item.title || item.name}</strong>
+                <p>
+                  {item.materialLabel ? `素材片段 / ${item.materialLabel}` : `${item.personLabel} / ${item.voiceLabel}`} / {item.subtitleEnabled ? "显示字幕" : "隐藏字幕"}
+                </p>
+              </div>
+              <span className="digital-human-creator-v2__sequence-duration">{item.estimatedDurationLabel}</span>
+            </div>
+          ))}
+        </div>
+        {completeVideoPreview.validSequenceCount < 2 ? (
+          <p className="panel-subtext">至少补齐 2 个有脚本内容的片段后，再生成完整作品会更稳妥。</p>
+        ) : null}
+      </section>
+
       <div className="digital-human-creator-v2__bottom-bar">
         <button type="button" className="secondary-button" onClick={() => void props.onSubmitCompleteVideo()} disabled={!props.canEdit || props.isSubmitting}>
           生成1个完整作品
@@ -1024,7 +1254,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
       {isSubtitleDialogOpen ? (
         <div className="digital-human-template-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsSubtitleDialogOpen(false)}>
-          <div className="digital-human-template-modal digital-human-creator-v2-dialog digital-human-creator-v2-dialog--voice" onClick={(event) => event.stopPropagation()}>
+          <div className="digital-human-template-modal digital-human-creator-v2-dialog digital-human-creator-v2-dialog--subtitle" onClick={(event) => event.stopPropagation()}>
             <div className="digital-human-creator-v2-dialog__head">
               <div>
                 <strong>字幕设置</strong>
@@ -1044,43 +1274,177 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   {props.subtitleEnabled ? "已开启" : "已关闭"}
                 </button>
               </div>
-              <div className="digital-human-creator-v2__settings-grid">
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>X 坐标</span>
-                  <input value={props.subtitlePositionX} onChange={(event) => props.onSubtitlePositionXChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>Y 坐标</span>
-                  <input value={props.subtitlePositionY} onChange={(event) => props.onSubtitlePositionYChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>宽度</span>
-                  <input value={props.subtitleWidth} onChange={(event) => props.onSubtitleWidthChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>高度</span>
-                  <input value={props.subtitleHeight} onChange={(event) => props.onSubtitleHeightChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>字号</span>
-                  <input value={props.subtitleFontSize} onChange={(event) => props.onSubtitleFontSizeChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>描边宽度</span>
-                  <input value={props.subtitleStrokeWidth} onChange={(event) => props.onSubtitleStrokeWidthChange(event.target.value)} />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>字体颜色</span>
-                  <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value)} placeholder="#FFFFFF" />
-                </label>
-                <label className="digital-human-creator-v2__mini-field">
-                  <span>描边颜色</span>
-                  <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value)} placeholder="#000000" />
-                </label>
-                <label className="digital-human-creator-v2__mini-field digital-human-creator-v2__mini-field--wide">
-                  <span>字体 ID</span>
-                  <input value={props.subtitleFontId} onChange={(event) => props.onSubtitleFontIdChange(event.target.value)} placeholder="后续接入蝉镜字体列表后可直接选择" />
-                </label>
+              <div className="digital-human-creator-v2__subtitle-layout">
+                <div className="digital-human-creator-v2__subtitle-preview">
+                  <div className="digital-human-creator-v2__subtitle-canvas" style={{ backgroundColor: props.backgroundColor || "#D9D6F8" }}>
+                    {subtitlePreviewFigureUrl ? <img src={subtitlePreviewFigureUrl} alt="字幕预览人物" className="digital-human-creator-v2__subtitle-figure" /> : null}
+                    {props.subtitleEnabled ? (
+                      <div className="digital-human-creator-v2__subtitle-preview-text" style={subtitlePreviewStyle}>
+                        {subtitlePreviewText}
+                      </div>
+                    ) : (
+                      <div className="digital-human-creator-v2__subtitle-preview-empty">当前已关闭字幕显示</div>
+                    )}
+                  </div>
+                </div>
+                <div className="digital-human-creator-v2__subtitle-controls">
+                  <div className="digital-human-creator-v2__subtitle-preset-head">
+                    <div className="digital-human-creator-v2-dialog__tabs">
+                      <button type="button" className={`personal-reference-tab ${subtitleDialogTab === "COMMON" ? "is-active" : ""}`} onClick={() => setSubtitleDialogTab("COMMON")}>
+                        常用样式
+                      </button>
+                      <button type="button" className={`personal-reference-tab ${subtitleDialogTab === "TREND" ? "is-active" : ""}`} onClick={() => setSubtitleDialogTab("TREND")}>
+                        网感模板
+                      </button>
+                    </div>
+                    <div className="digital-human-creator-v2__subtitle-preset-grid">
+                      {visibleSubtitlePresets.map((preset) => (
+                        <button key={preset.key} type="button" className="digital-human-creator-v2__subtitle-preset-card" onClick={() => handleApplySubtitlePreset(preset)}>
+                          <div className="digital-human-creator-v2__subtitle-preset-thumb" style={{ background: preset.previewTone }}>
+                            <span
+                              style={{
+                                color: preset.textColor,
+                                WebkitTextStroke: `${preset.strokeWidth}px ${preset.strokeColor}`,
+                                fontSize: `${Math.max(16, Math.min(24, Number(preset.fontSize) / 2.5))}px`,
+                              }}
+                            >
+                              字幕效果
+                            </span>
+                          </div>
+                          <strong>{preset.name}</strong>
+                          <span>{preset.description}</span>
+                          <div className="digital-human-creator-v2__subtitle-preset-preview">
+                            <i style={{ backgroundColor: preset.textColor }} />
+                            <i style={{ backgroundColor: preset.strokeColor }} />
+                            <em>{preset.fontSize}px / {preset.strokeWidth}px</em>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="digital-human-creator-v2__outline-presets">
+                      <strong>描边样式</strong>
+                      <div className="digital-human-creator-v2__outline-buttons">
+                        {SUBTITLE_OUTLINE_PRESETS.map((preset) => (
+                          <button key={preset.key} type="button" className="digital-human-creator-v2__outline-button" onClick={() => handleApplyOutlinePreset(preset)}>
+                            <span
+                              style={{
+                                color: props.subtitleTextColor || "#FFFFFF",
+                                WebkitTextStroke: `${preset.strokeWidth}px ${preset.strokeColor}`,
+                              }}
+                            >
+                              T
+                            </span>
+                            <em>{preset.name}</em>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <label className="digital-human-creator-v2__mini-field">
+                    <span>字体</span>
+                    <select
+                      value={subtitleFontSelectValue}
+                      onChange={(event) => props.onSubtitleFontIdChange(event.target.value === "__custom__" ? props.subtitleFontId : event.target.value)}
+                    >
+                      {SUBTITLE_FONT_OPTIONS.map((item) => (
+                        <option key={item.value || "__default__"} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                      <option value="__custom__">当前自定义字体 ID</option>
+                    </select>
+                  </label>
+                  {subtitleFontSelectValue === "__custom__" ? (
+                    <label className="digital-human-creator-v2__mini-field">
+                      <span>自定义字体 ID</span>
+                      <input value={props.subtitleFontId} onChange={(event) => props.onSubtitleFontIdChange(event.target.value)} placeholder="输入蝉镜返回的 font_id" />
+                    </label>
+                  ) : null}
+                  <div className="digital-human-creator-v2__slider-grid">
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>X 坐标</span>
+                      <div>
+                        <input type="range" min="0" max={String(screenWidthNumber)} value={props.subtitlePositionX} onChange={(event) => props.onSubtitlePositionXChange(event.target.value)} />
+                        <strong>{props.subtitlePositionX}</strong>
+                      </div>
+                    </label>
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>Y 坐标</span>
+                      <div>
+                        <input type="range" min="0" max={String(screenHeightNumber)} value={props.subtitlePositionY} onChange={(event) => props.onSubtitlePositionYChange(event.target.value)} />
+                        <strong>{props.subtitlePositionY}</strong>
+                      </div>
+                    </label>
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>宽度</span>
+                      <div>
+                        <input type="range" min="200" max={String(screenWidthNumber)} value={props.subtitleWidth} onChange={(event) => props.onSubtitleWidthChange(event.target.value)} />
+                        <strong>{props.subtitleWidth}</strong>
+                      </div>
+                    </label>
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>高度</span>
+                      <div>
+                        <input type="range" min="80" max={String(screenHeightNumber)} value={props.subtitleHeight} onChange={(event) => props.onSubtitleHeightChange(event.target.value)} />
+                        <strong>{props.subtitleHeight}</strong>
+                      </div>
+                    </label>
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>字号</span>
+                      <div>
+                        <input type="range" min="24" max="120" value={props.subtitleFontSize} onChange={(event) => props.onSubtitleFontSizeChange(event.target.value)} />
+                        <strong>{props.subtitleFontSize}</strong>
+                      </div>
+                    </label>
+                    <label className="digital-human-creator-v2__slider-field">
+                      <span>描边宽度</span>
+                      <div>
+                        <input type="range" min="0" max="8" value={props.subtitleStrokeWidth} onChange={(event) => props.onSubtitleStrokeWidthChange(event.target.value)} />
+                        <strong>{props.subtitleStrokeWidth}</strong>
+                      </div>
+                    </label>
+                  </div>
+                  <div className="digital-human-creator-v2__color-grid">
+                    <section className="digital-human-creator-v2__color-card">
+                      <div className="digital-human-creator-v2__color-card-head">
+                        <strong>字体颜色</strong>
+                        <input type="color" value={props.subtitleTextColor || "#ffffff"} onChange={(event) => props.onSubtitleTextColorChange(event.target.value.toUpperCase())} />
+                      </div>
+                      <input value={props.subtitleTextColor} onChange={(event) => props.onSubtitleTextColorChange(event.target.value.toUpperCase())} placeholder="#FFFFFF" />
+                      <div className="digital-human-creator-v2__swatches">
+                        {SUBTITLE_COLOR_SWATCHES.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            className={`digital-human-creator-v2__swatch ${props.subtitleTextColor.toUpperCase() === color ? "is-active" : ""}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => props.onSubtitleTextColorChange(color)}
+                            aria-label={`选择字体颜色 ${color}`}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                    <section className="digital-human-creator-v2__color-card">
+                      <div className="digital-human-creator-v2__color-card-head">
+                        <strong>描边颜色</strong>
+                        <input type="color" value={props.subtitleStrokeColor || "#000000"} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value.toUpperCase())} />
+                      </div>
+                      <input value={props.subtitleStrokeColor} onChange={(event) => props.onSubtitleStrokeColorChange(event.target.value.toUpperCase())} placeholder="#000000" />
+                      <div className="digital-human-creator-v2__swatches">
+                        {SUBTITLE_STROKE_SWATCHES.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            className={`digital-human-creator-v2__swatch ${props.subtitleStrokeColor.toUpperCase() === color ? "is-active" : ""}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => props.onSubtitleStrokeColorChange(color)}
+                            aria-label={`选择描边颜色 ${color}`}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
