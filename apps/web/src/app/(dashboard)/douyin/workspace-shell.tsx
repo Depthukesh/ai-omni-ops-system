@@ -2324,8 +2324,12 @@ export function DouyinWorkspaceShell() {
                     customVoiceLoadError={digitalHumanCustomVoiceError}
                     currentSpeechTask={digitalHumanCurrentSpeechTask}
                     currentSpeechTaskId={digitalHumanCurrentSpeechTaskId}
+                    originalCopyLatest={originalCopyWorkspace.latest}
                     originalCopyHistory={originalCopyWorkspace.history}
+                    originalCopyTaskStatus={originalCopyWorkspace.latestTask?.taskStatus}
+                    remixCopyLatest={remixCopyWorkspace.latest}
                     remixCopyHistory={remixCopyWorkspace.history}
+                    remixCopyTaskStatus={remixCopyWorkspace.latestTask?.taskStatus}
                     originalCopyCalendarOptions={originalCopyWorkspace.calendarOptions.map((item) => ({ id: item.id, label: item.label }))}
                     originalCopyTopicOptions={originalCopyWorkspace.topicOptions.map((item) => ({ id: item.id, label: item.topicContent }))}
                     remixCopyProductOptions={remixCopyWorkspace.productOptions.map((item) => ({ id: item.id, label: item.productName }))}

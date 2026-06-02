@@ -121,8 +121,12 @@ export interface DigitalHumanVideoPanelProps {
   isReadonlySharedScriptTemplate: boolean;
   currentSpeechTask?: DouyinSpeechTaskRecord | null;
   currentSpeechTaskId?: string;
+  originalCopyLatest?: DouyinOriginalCopyRecord;
   originalCopyHistory: DouyinOriginalCopyRecord[];
+  originalCopyTaskStatus?: string;
+  remixCopyLatest?: DouyinRemixCopyRecord;
   remixCopyHistory: DouyinRemixCopyRecord[];
+  remixCopyTaskStatus?: string;
   originalCopyCalendarOptions: Array<{ id: string; label: string }>;
   originalCopyTopicOptions: Array<{ id: string; label: string }>;
   remixCopyProductOptions: Array<{ id: string; label: string }>;

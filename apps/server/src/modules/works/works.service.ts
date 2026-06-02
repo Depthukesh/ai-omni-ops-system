@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
-import ffmpegPath from "ffmpeg-static";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
 import { AppConfigService } from "../../config/app-config.service";
@@ -44,6 +43,14 @@ const IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
+
+function resolveFfmpegBinary() {
+  const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
+  if (envBinary) {
+    return envBinary;
+  }
+  return "ffmpeg";
+}
 
 type UploadFilePayload = {
   fileName: string;
@@ -9207,10 +9214,7 @@ export class WorksService {
     if (params.segmentVideoUrls.length < 2) {
       throw new BadRequestException("完整作品至少需要 2 个已生成片段。");
     }
-    const binary = process.env.FFMPEG_BINARY || (typeof ffmpegPath === "string" ? ffmpegPath : "");
-    if (!binary) {
-      throw new ServiceUnavailableException("当前服务端未配置 ffmpeg，暂时无法拼接完整作品。");
-    }
+    const binary = resolveFfmpegBinary();
     const tempRoot = await mkdtemp(join(tmpdir(), "digital-human-compose-"));
     try {
       const localSegmentPaths: string[] = [];
@@ -9260,6 +9264,10 @@ export class WorksService {
           stderr += String(chunk || "");
         });
         command.on("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            rejectPromise(new ServiceUnavailableException("当前服务端未安装 ffmpeg，暂时无法拼接完整作品。"));
+            return;
+          }
           rejectPromise(error);
         });
         command.on("close", (code) => {
@@ -9366,7 +9374,7 @@ export class WorksService {
         title: `数字人完整视频 - ${payload.title}`,
         sourceUrl: merged.videoUrl,
         provider: "ffmpeg_concat",
-        modelName: "ffmpeg-static",
+        modelName: "ffmpeg",
         durationSec: merged.durationSec,
         videoAssetId: meta.videoAssetId,
       });
@@ -9392,7 +9400,7 @@ export class WorksService {
           videoUrl: nextMeta.videoUrl,
           segmentCount: payload.segments.length,
         },
-        { modelName: "ffmpeg-static" },
+        { modelName: "ffmpeg" },
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "完整作品生成失败";

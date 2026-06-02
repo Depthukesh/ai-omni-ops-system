@@ -110,6 +110,12 @@ type PersonalScriptTemplateArchiveFilter = "ACTIVE" | "ARCHIVED" | "ALL";
 type PersonalScriptTemplateGovernanceFilter = "ALL" | "NEED_NOTE" | "READONLY_SHARED" | "SHARED_ACTIVE" | "ARCHIVED";
 type ScriptTemplateCategory = "general" | "brand_promo" | "activity_promo" | "knowledge" | "live_warmup" | "selling";
 type DigitalHumanWorkspaceTab = "home" | "templateLibrary" | "voiceLibrary" | "videoStudio" | "worksCenter" | "customPerson" | "lipSync";
+type PendingAutoApplyCopy = {
+  source: "ORIGINAL" | "REMIX";
+  baselineId?: string;
+  scriptSnapshot: string;
+  titleSnapshot: string;
+};
 
 const DIGITAL_HUMAN_WORKSPACE_TABS: Array<{ key: DigitalHumanWorkspaceTab; label: string; description: string }> = [
   { key: "home", label: "首页", description: "先看我的数字人、公共数字人和最近作品，再进入创作主流程。" },
@@ -227,8 +233,12 @@ export interface DouyinDigitalHumanWorkspaceProps {
   customVoiceLoadError?: string;
   currentSpeechTask?: DouyinSpeechTaskRecord | null;
   currentSpeechTaskId?: string;
+  originalCopyLatest?: DouyinOriginalCopyRecord;
   originalCopyHistory: DouyinOriginalCopyRecord[];
+  originalCopyTaskStatus?: string;
+  remixCopyLatest?: DouyinRemixCopyRecord;
   remixCopyHistory: DouyinRemixCopyRecord[];
+  remixCopyTaskStatus?: string;
   originalCopyCalendarOptions: Array<{ id: string; label: string }>;
   originalCopyTopicOptions: Array<{ id: string; label: string }>;
   remixCopyProductOptions: Array<{ id: string; label: string }>;
@@ -455,6 +465,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [audioDriveAudioFile, setAudioDriveAudioFile] = useState<File | null>(null);
   const [audioDriveAudioPreviewUrl, setAudioDriveAudioPreviewUrl] = useState("");
   const [audioDriveAudioDurationLabel, setAudioDriveAudioDurationLabel] = useState("");
+  const [pendingAutoApplyCopy, setPendingAutoApplyCopy] = useState<PendingAutoApplyCopy | null>(null);
 
   const filteredTemplates = useMemo(() => {
     const keyword = templateSearch.trim().toLowerCase();
@@ -1761,6 +1772,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   }) => {
     const success = await props.onCreateOriginalCopy(payload);
     if (success) {
+      setPendingAutoApplyCopy({
+        source: "ORIGINAL",
+        baselineId: props.originalCopyLatest?.id,
+        scriptSnapshot: script,
+        titleSnapshot: title,
+      });
       setEditorActionMessage("原创文案任务已提交，稍后可在弹窗中一键带入结果。");
     }
     return success;
@@ -1775,10 +1792,75 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   }) => {
     const success = await props.onCreateRemixCopy(payload);
     if (success) {
+      setPendingAutoApplyCopy({
+        source: "REMIX",
+        baselineId: props.remixCopyLatest?.id,
+        scriptSnapshot: script,
+        titleSnapshot: title,
+      });
       setEditorActionMessage("二创文案任务已提交，稍后可在弹窗中一键带入结果。");
     }
     return success;
   };
+
+  useEffect(() => {
+    if (!pendingAutoApplyCopy) {
+      return;
+    }
+
+    if (pendingAutoApplyCopy.source === "ORIGINAL") {
+      const latest = props.originalCopyLatest;
+      if (latest?.id && latest.id !== pendingAutoApplyCopy.baselineId) {
+        const scriptChanged = script !== pendingAutoApplyCopy.scriptSnapshot;
+        const titleChanged = title !== pendingAutoApplyCopy.titleSnapshot;
+        if (!scriptChanged && !titleChanged) {
+          setScript(latest.content || "");
+          if (!title.trim()) {
+            setTitle(latest.title || "原创文案片段");
+          }
+          setEditorActionMessage(`原创文案已自动带入：${latest.title}`);
+        } else {
+          setEditorActionMessage(`原创文案已生成：${latest.title}。检测到当前片段已被修改，未自动覆盖，可在“原创文案”中手动带入。`);
+        }
+        setPendingAutoApplyCopy(null);
+        return;
+      }
+
+      if (props.originalCopyTaskStatus && !["RUNNING", "QUEUED", "PENDING"].includes(props.originalCopyTaskStatus)) {
+        setPendingAutoApplyCopy(null);
+      }
+      return;
+    }
+
+    const latest = props.remixCopyLatest;
+    if (latest?.id && latest.id !== pendingAutoApplyCopy.baselineId) {
+      const scriptChanged = script !== pendingAutoApplyCopy.scriptSnapshot;
+      const titleChanged = title !== pendingAutoApplyCopy.titleSnapshot;
+      if (!scriptChanged && !titleChanged) {
+        setScript(latest.content || "");
+        if (!title.trim()) {
+          setTitle(latest.title || "二创文案片段");
+        }
+        setEditorActionMessage(`二创文案已自动带入：${latest.title}`);
+      } else {
+        setEditorActionMessage(`二创文案已生成：${latest.title}。检测到当前片段已被修改，未自动覆盖，可在“二创文案”中手动带入。`);
+      }
+      setPendingAutoApplyCopy(null);
+      return;
+    }
+
+    if (props.remixCopyTaskStatus && !["RUNNING", "QUEUED", "PENDING"].includes(props.remixCopyTaskStatus)) {
+      setPendingAutoApplyCopy(null);
+    }
+  }, [
+    pendingAutoApplyCopy,
+    props.originalCopyLatest,
+    props.originalCopyTaskStatus,
+    props.remixCopyLatest,
+    props.remixCopyTaskStatus,
+    script,
+    title,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "videoStudio") {
@@ -1970,8 +2052,12 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           isReadonlySharedScriptTemplate={isReadonlySharedScriptTemplate}
           currentSpeechTask={props.currentSpeechTask}
           currentSpeechTaskId={props.currentSpeechTaskId}
+          originalCopyLatest={props.originalCopyLatest}
           originalCopyHistory={props.originalCopyHistory}
+          originalCopyTaskStatus={props.originalCopyTaskStatus}
+          remixCopyLatest={props.remixCopyLatest}
           remixCopyHistory={props.remixCopyHistory}
+          remixCopyTaskStatus={props.remixCopyTaskStatus}
           originalCopyCalendarOptions={props.originalCopyCalendarOptions}
           originalCopyTopicOptions={props.originalCopyTopicOptions}
           remixCopyProductOptions={props.remixCopyProductOptions}

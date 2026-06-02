@@ -106,6 +106,21 @@ jobs:
               echo "部署警告：GitHub Secret TIKHUB_API_KEY 为空，每日热点自动抓取会不可用。"
             fi
 
+            ensure_ffmpeg() {
+              if command -v ffmpeg >/dev/null 2>&1; then
+                echo "检测到系统 ffmpeg: $(command -v ffmpeg)"
+                ffmpeg -version | head -n 1 || true
+                return 0
+              fi
+              log_step "安装系统 ffmpeg"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y ffmpeg
+              ffmpeg -version | head -n 1
+            }
+
+            ensure_ffmpeg
+
             runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'RUNUSER_SCRIPT'
               set -Eeuo pipefail
 
