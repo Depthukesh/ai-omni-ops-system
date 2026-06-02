@@ -7031,6 +7031,7 @@ button {
 }
 
 .digital-human-creator-v2-card__preview-image,
+.digital-human-creator-v2-card__preview-video,
 .digital-human-creator-v2-card__preview-empty {
   display: block;
   width: 100%;
@@ -7039,6 +7040,11 @@ button {
 
 .digital-human-creator-v2-card__preview-image {
   object-fit: cover;
+}
+
+.digital-human-creator-v2-card__preview-video {
+  object-fit: cover;
+  background: #0f172a;
 }
 
 .digital-human-creator-v2-card__preview-empty {
@@ -7165,6 +7171,8 @@ button {
 }
 
 .digital-human-creator-v2-card__readonly {
+  height: 280px;
+  overflow: auto;
   white-space: pre-wrap;
   color: #657188;
 }

@@ -102,6 +102,7 @@ type DigitalHumanCreatorDraftCardSummary = {
   subtitleEnabled: boolean;
   previewImageUrl?: string;
   previewVideoUrl?: string;
+  materialPreviewVideoUrl?: string;
 };
 
 type PersonalScriptTemplateSort = "UPDATED_DESC" | "UPDATED_ASC" | "NAME_ASC" | "NAME_DESC";
@@ -1114,6 +1115,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           subtitleEnabled: item.subtitleEnabled,
           previewImageUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.coverImageUrl : matchedFigure?.cover,
           previewVideoUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.previewVideoUrl : matchedFigure?.previewVideoUrl,
+        materialPreviewVideoUrl: props.materialLibraryItems.find((entry) => entry.id === item.selectedMaterialLibraryItemId)?.videoUrl,
         };
       }),
     [creatorDraftCards, props.customPersons, props.customVoices, props.materialLibraryItems, props.publicVoices, props.templates],

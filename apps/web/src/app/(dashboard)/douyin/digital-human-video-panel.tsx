@@ -45,6 +45,7 @@ type DigitalHumanVideoPanelDraftCard = {
   subtitleEnabled: boolean;
   previewImageUrl?: string;
   previewVideoUrl?: string;
+  materialPreviewVideoUrl?: string;
 };
 
 type DigitalHumanVideoPanelMaterialItem = {
@@ -428,13 +429,17 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
 
   const renderSegmentCard = (item: DigitalHumanVideoPanelDraftCard, index: number) => {
     const isActive = item.id === props.activeDraftCardId;
+    const activeMaterialVideoUrl = isActive ? props.selectedMaterialLibraryItem?.videoUrl : undefined;
+    const isMaterialMode = isActive ? Boolean(props.selectedMaterialLibraryItemId && props.selectedMaterialLibraryItem) : Boolean(item.materialLabel);
+    const previewVideoUrl = isMaterialMode ? (activeMaterialVideoUrl || item.materialPreviewVideoUrl) : item.previewVideoUrl;
+    const previewTitle = isMaterialMode ? item.materialLabel || "素材片段" : item.personLabel;
     return (
       <article key={item.id} className={`digital-human-creator-v2-card ${isActive ? "is-active" : ""}`}>
         <div className="digital-human-creator-v2-card__topbar">
           <div>
             <strong>{item.title || item.name}</strong>
             <p>
-              {item.personLabel} / {item.voiceLabel} / {item.scriptLength} 字
+              {previewTitle} / {item.voiceLabel} / {item.scriptLength} 字
             </p>
           </div>
           <div className="digital-human-creator-v2-card__topbar-actions">
@@ -450,11 +455,13 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         <div className="digital-human-creator-v2-card__layout">
           <div className="digital-human-creator-v2-card__media-column">
             <div className="digital-human-creator-v2-card__preview">
-              {isActive ? <button type="button" className="digital-human-creator-v2-card__change-bg">更换背景</button> : null}
-              {item.previewImageUrl ? (
+              {isActive && !isMaterialMode ? <button type="button" className="digital-human-creator-v2-card__change-bg">更换背景</button> : null}
+              {previewVideoUrl && isMaterialMode ? (
+                <video src={previewVideoUrl} className="digital-human-creator-v2-card__preview-video" controls preload="metadata" />
+              ) : item.previewImageUrl ? (
                 <img src={item.previewImageUrl} alt={item.personLabel} className="digital-human-creator-v2-card__preview-image" />
               ) : (
-                <div className="digital-human-creator-v2-card__preview-empty">未选择数字人</div>
+                <div className="digital-human-creator-v2-card__preview-empty">{isMaterialMode ? "未选择素材视频" : "未选择数字人"}</div>
               )}
               {isActive ? (
                 <button type="button" className="digital-human-creator-v2-card__replace" onClick={handleOpenPersonDialog}>
@@ -490,7 +497,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
             ) : null}
 
             {isActive && selectedAuditionUrl ? <audio controls preload="metadata" src={selectedAuditionUrl} className="digital-human-creator-v2-card__audio" /> : null}
-            {isActive && item.previewVideoUrl ? <video controls preload="metadata" src={item.previewVideoUrl} className="digital-human-creator-v2-card__video" /> : null}
+            {isActive && !isMaterialMode && item.previewVideoUrl ? <video controls preload="metadata" src={item.previewVideoUrl} className="digital-human-creator-v2-card__video" /> : null}
           </div>
 
           <div className="digital-human-creator-v2-card__editor-column">
@@ -646,7 +653,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
         <div className="entity-card personal-card">
           <strong>当前素材说明</strong>
           <p className="personal-meta">{props.selectedMaterialLibraryItem?.label || "暂未关联素材"}</p>
-          <p className="panel-subtext">我的素材库继续作为参考视频入口，已并入“更换数字人”弹窗体系。</p>
+          <p className="panel-subtext">选中我的素材库后，当前片段左侧主预览会直接切换成素材视频，不再显示数字人预览。</p>
         </div>
       </div>
 
