@@ -7285,8 +7285,8 @@ button {
 }
 
 .digital-human-creator-v2-dialog__footer {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  justify-content: stretch;
   padding-top: 16px;
 }
 
@@ -7339,6 +7339,13 @@ button {
   color: #24324e;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.digital-human-creator-v2-picker-card__meta {
+  display: block;
+  padding: 0 14px 16px;
+  color: #738099;
+  font-size: 12px;
 }
 
 .digital-human-creator-v2-picker-card.is-material .digital-human-creator-v2-picker-card__empty {

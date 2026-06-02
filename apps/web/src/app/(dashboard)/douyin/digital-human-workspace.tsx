@@ -65,6 +65,7 @@ type DigitalHumanMaterialLibraryItem = {
   videoUrl?: string;
   coverUrl?: string;
   workUrl?: string;
+  sourceLabel?: string;
 };
 
 type DigitalHumanCreatorDraftCard = {
@@ -1013,7 +1014,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const selectedWorkIsRecoverable = Boolean(selectedWork && isRecoverableWork(selectedWork));
   const activeTabMeta = DIGITAL_HUMAN_WORKSPACE_TABS.find((item) => item.key === activeTab) || DIGITAL_HUMAN_WORKSPACE_TABS[0];
   const templateCountLabel = props.templatePageInfo?.totalCount
-    ? `已加载 ${props.templates.length}/${props.templatePageInfo.totalCount} 个模板`
+    ? `共 ${props.templatePageInfo.totalCount} 个模板，第 ${props.templatePageInfo.page}/${props.templatePageInfo.totalPage} 页`
     : props.templates.length
       ? `${props.templates.length} 个模板`
       : "暂无模板";
@@ -2144,13 +2145,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onToggleArchivePersonalScriptTemplate={handleToggleArchivePersonalScriptTemplate}
           onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
-          onLoadMoreTemplates={
-            props.onTemplatePageChange && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage
-              ? async () => {
-                  await props.onTemplatePageChange?.((props.templatePageInfo?.page || 1) + 1);
-                }
-              : undefined
-          }
+          onTemplatePageChange={props.onTemplatePageChange}
           onCreateSpeechTask={props.onCreateSpeechTask}
           onRefreshSpeechTask={props.onRefreshSpeechTask}
           onApplyOriginalCopy={handleApplyOriginalCopy}

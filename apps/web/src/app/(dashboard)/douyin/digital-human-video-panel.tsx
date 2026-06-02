@@ -56,6 +56,7 @@ type DigitalHumanVideoPanelMaterialItem = {
   videoUrl?: string;
   coverUrl?: string;
   workUrl?: string;
+  sourceLabel?: string;
 };
 
 export interface DigitalHumanVideoPanelProps {
@@ -216,7 +217,7 @@ export interface DigitalHumanVideoPanelProps {
   onToggleArchivePersonalScriptTemplate: () => Promise<void> | void;
   onDuplicatePersonalScriptTemplate: () => Promise<void> | void;
   onDeletePersonalScriptTemplate: () => Promise<void> | void;
-  onLoadMoreTemplates?: () => Promise<void>;
+  onTemplatePageChange?: (page: number) => Promise<void>;
   onCreateSpeechTask: (payload: {
     audioManId?: string;
     text?: string;
@@ -267,6 +268,10 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const [remixInjectBrandProfile, setRemixInjectBrandProfile] = useState(true);
   const [remixInjectPlan, setRemixInjectPlan] = useState(true);
   const [remixRequirement, setRemixRequirement] = useState("");
+  const publicTemplatePageNumbers = useMemo(
+    () => Array.from({ length: props.templatePageInfo?.totalPage || 0 }, (_, index) => index + 1),
+    [props.templatePageInfo?.totalPage],
+  );
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showScriptAssets, setShowScriptAssets] = useState(false);
 
@@ -832,15 +837,45 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                     <button key={item.id} type="button" className="digital-human-creator-v2-picker-card is-material" onClick={() => handlePickMaterial(item.id)}>
                       {item.coverUrl ? <img src={item.coverUrl} alt={item.label} /> : <div className="digital-human-creator-v2-picker-card__empty">素材参考</div>}
                       <strong>{item.label}</strong>
+                      {item.sourceLabel ? <span className="digital-human-creator-v2-picker-card__meta">{item.sourceLabel}</span> : null}
                     </button>
                   ))
                 : null}
             </div>
-            {personDialogTab === "PUBLIC" && props.onLoadMoreTemplates && props.templatePageInfo && props.templatePageInfo.page < props.templatePageInfo.totalPage ? (
-              <div className="digital-human-creator-v2-dialog__footer">
-                <button type="button" className="secondary-button" onClick={() => void props.onLoadMoreTemplates?.()} disabled={props.isTemplateLoading}>
-                  {props.isTemplateLoading ? "加载中..." : `加载更多公共数字人（第 ${props.templatePageInfo.page + 1} 页）`}
-                </button>
+            {personDialogTab === "PUBLIC" && props.onTemplatePageChange && props.templatePageInfo && props.templatePageInfo.totalPage > 1 ? (
+              <div className="digital-human-creator-v2-dialog__footer digital-human-template-pagination">
+                <span className="panel-subtext">
+                  共 {props.templatePageInfo.totalCount} 个公共数字人，当前第 {props.templatePageInfo.page}/{props.templatePageInfo.totalPage} 页
+                </span>
+                <div className="digital-human-template-pagination__buttons">
+                  <button
+                    type="button"
+                    className="filter-chip"
+                    disabled={props.isTemplateLoading || props.templatePageInfo.page <= 1}
+                    onClick={() => void props.onTemplatePageChange?.(props.templatePageInfo!.page - 1)}
+                  >
+                    上一页
+                  </button>
+                  {publicTemplatePageNumbers.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      className={`filter-chip ${props.templatePageInfo?.page === pageNumber ? "is-active" : ""}`}
+                      disabled={props.isTemplateLoading || props.templatePageInfo?.page === pageNumber}
+                      onClick={() => void props.onTemplatePageChange?.(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="filter-chip"
+                    disabled={props.isTemplateLoading || props.templatePageInfo.page >= props.templatePageInfo.totalPage}
+                    onClick={() => void props.onTemplatePageChange?.(props.templatePageInfo!.page + 1)}
+                  >
+                    下一页
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>

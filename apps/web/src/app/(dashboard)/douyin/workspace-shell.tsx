@@ -304,6 +304,66 @@ export function DouyinWorkspaceShell() {
       collectionWorkspace.highLikeRateWorks,
     ],
   );
+  const materialLibraryItems = useMemo(
+    () => {
+      const collectedItems = materialWorks.map((item) => ({
+        id: `collected:${item.id}`,
+        label: item.title,
+        videoUrl: item.videoUrl,
+        coverUrl: item.coverUrl,
+        workUrl: item.workUrl,
+        sourceLabel: "采集作品",
+      }));
+      const generatedVideoItems = videoWorks
+        .filter((item) => item.videoUrl || item.coverImageUrl)
+        .map((item) => ({
+          id: `video:${item.id}`,
+          label: item.title,
+          videoUrl: item.videoUrl,
+          coverUrl: item.coverImageUrl,
+          workUrl: item.videoUrl,
+          sourceLabel: "AI 生视频",
+        }));
+      const generatedDirectVideoItems = directVideoWorks
+        .filter((item) => item.videoUrl || item.coverImageUrl)
+        .map((item) => ({
+          id: `direct-video:${item.id}`,
+          label: item.title,
+          videoUrl: item.videoUrl,
+          coverUrl: item.coverImageUrl,
+          workUrl: item.videoUrl,
+          sourceLabel: "AI 生视频直出",
+        }));
+      const generatedDigitalHumanItems = digitalHumanWorks
+        .filter((item) => item.videoUrl || item.coverImageUrl)
+        .map((item) => ({
+          id: `digital-human:${item.id}`,
+          label: item.title,
+          videoUrl: item.videoUrl,
+          coverUrl: item.coverImageUrl,
+          workUrl: item.videoUrl,
+          sourceLabel: "数字人作品",
+        }));
+      const generatedLipSyncItems = digitalHumanLipSyncWorks
+        .filter((item) => item.videoUrl || item.coverImageUrl)
+        .map((item) => ({
+          id: `lip-sync:${item.id}`,
+          label: item.title,
+          videoUrl: item.videoUrl,
+          coverUrl: item.coverImageUrl,
+          workUrl: item.videoUrl,
+          sourceLabel: "口型驱动作品",
+        }));
+      return [
+        ...collectedItems,
+        ...generatedVideoItems,
+        ...generatedDirectVideoItems,
+        ...generatedDigitalHumanItems,
+        ...generatedLipSyncItems,
+      ];
+    },
+    [digitalHumanLipSyncWorks, digitalHumanWorks, directVideoWorks, materialWorks, videoWorks],
+  );
   const canGenerateMarketingPlan = Boolean(
     growthReportWorkspace.latest
     && annualPlanWorkspace.latest
@@ -2337,13 +2397,7 @@ export function DouyinWorkspaceShell() {
                     templates={digitalHumanTemplates}
                     favoriteTemplateIds={digitalHumanFavoriteTemplates.map((item) => item.templateId)}
                     personalScriptTemplates={digitalHumanScriptTemplates}
-                    materialLibraryItems={materialWorks.map((item) => ({
-                      id: item.id,
-                      label: item.title,
-                      videoUrl: item.videoUrl,
-                      coverUrl: item.coverUrl,
-                      workUrl: item.workUrl,
-                    }))}
+                    materialLibraryItems={materialLibraryItems}
                     templatePageInfo={digitalHumanTemplatePageInfo}
                     activeTagId={digitalHumanTemplateTagId}
                     templateLoadError={digitalHumanTemplateError}
