@@ -241,6 +241,22 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_xhs_original_image_generation"],
     promptScenes: ["小红书原创图片生成"],
   },
+  skill_wechat_article_compose: {
+    promptIds: ["prompt_wechat_article_compose"],
+    promptScenes: ["公众号创作文章"],
+  },
+  "wechat-article-composer": {
+    promptIds: ["prompt_wechat_article_compose"],
+    promptScenes: ["公众号创作文章"],
+  },
+  skill_wechat_image_compose: {
+    promptIds: ["prompt_wechat_image_compose"],
+    promptScenes: ["公众号制作图片"],
+  },
+  "wechat-image-designer": {
+    promptIds: ["prompt_wechat_image_compose"],
+    promptScenes: ["公众号制作图片"],
+  },
   skill_xhs_rewrite_copy: {
     promptIds: ["prompt_xhs_rewrite_copy"],
     promptScenes: ["小红书二创笔记文案"],

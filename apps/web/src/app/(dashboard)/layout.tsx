@@ -12,7 +12,7 @@ const primaryNavItems = [
   { href: "/xiaohongshu", label: "小红书", shortLabel: "红" },
   { href: "/douyin", label: "抖音", shortLabel: "抖" },
   { href: "/admin", label: "视频号", shortLabel: "视" },
-  { href: "/admin", label: "公众号", shortLabel: "公" },
+  { href: "/wechat", label: "公众号", shortLabel: "公" },
   { href: "/admin", label: "私域", shortLabel: "私" },
   { href: "/more-features", label: "更多功能", shortLabel: "更" },
   { href: "/personal-center", label: "个人中心", shortLabel: "我" },

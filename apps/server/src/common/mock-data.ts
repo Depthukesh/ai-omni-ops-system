@@ -399,12 +399,19 @@ const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
   "prompt_xhs_video_note",
   "基于商业短片方法论生成视频笔记文案、结构化视频提示词、分段方案和短视频调用链。",
 ).content;
+const wechatArticleComposeSkillContent = readPromptSourceBundle(
+  "prompt_wechat_article_compose",
+  "根据文章主题、营销日历、产品信息、品牌信息、主题颜色和用户要求，生成适合公众号草稿箱的 HTML 文章结构，包含标题、摘要、正文段落、小标题、引用块和结尾行动建议。",
+).content;
+const wechatImageComposeSkillContent = readPromptSourceBundle(
+  "prompt_wechat_image_compose",
+  "根据公众号文章主题、营销日历、产品信息、品牌信息和主题颜色，生成公众号头图、封面图和文中配图的出图提示词，并补充尺寸、版式和文字安全区要求。",
+).content;
 
 const douyinVideoBrandScriptSkillContent = readPromptSourceBundle(
   "prompt_douyin_video_brand_script",
   "根据用户输入的选题、产品信息、营销规划和要求，生成抖音品牌宣传视频创意剧本。",
 ).content;
-
 const douyinVideoSpokenScriptSkillContent = readPromptSourceBundle(
   "prompt_douyin_video_spoken_script",
   "根据用户输入的选题、产品信息、营销规划和要求，生成抖音口播带货视频创意剧本。",
@@ -1262,6 +1269,30 @@ export const database: MockDatabase = {
       updatedAt: "2026-05-06T09:10:00.000Z",
     },
     {
+      id: "skill_wechat_article_compose",
+      name: "公众号创作文章",
+      slug: "wechat-article-composer",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "Right Codes 文生文",
+      defaultModel: "provider_runtime_text_global::gpt-5.5",
+      pointsCost: 180,
+      description: "用于根据营销日历、产品信息、品牌信息和主题色生成适合公众号草稿箱的 HTML 文章。",
+      updatedAt: "2026-06-03T11:00:00.000Z",
+    },
+    {
+      id: "skill_wechat_image_compose",
+      name: "公众号制作图片",
+      slug: "wechat-image-designer",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "Right Codes · 文生图/图生图",
+      defaultModel: "provider_runtime_image_generation_right_codes::gpt-image-2",
+      pointsCost: 200,
+      description: "用于生成公众号头图、封面图和文中配图，并衔接第三方文生图模型。",
+      updatedAt: "2026-06-03T11:00:00.000Z",
+    },
+    {
       id: "skill_douyin_video_note",
       name: "抖音AI生视频（故事板）",
       slug: "douyin-video-storyboard-studio",
@@ -1574,6 +1605,30 @@ export const database: MockDatabase = {
       maxTokens: 4000,
       content: xiaohongshuRewriteImageGenerationSkillContent,
       updatedAt: "2026-05-15T16:20:00.000Z",
+    },
+    {
+      id: "prompt_wechat_article_compose",
+      name: "公众号创作文章提示词",
+      scene: "公众号创作文章",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "provider_runtime_text_global::gpt-5.5",
+      temperature: 0.4,
+      maxTokens: 8000,
+      content: wechatArticleComposeSkillContent,
+      updatedAt: "2026-06-03T11:00:00.000Z",
+    },
+    {
+      id: "prompt_wechat_image_compose",
+      name: "公众号制作图片提示词",
+      scene: "公众号制作图片",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
+      temperature: 0.3,
+      maxTokens: 5000,
+      content: wechatImageComposeSkillContent,
+      updatedAt: "2026-06-03T11:00:00.000Z",
     },
     {
       id: "prompt_xhs_video_note",
