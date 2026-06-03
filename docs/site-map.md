@@ -23,6 +23,8 @@
 - `/douyin`：抖音工作台
 - `/xiaohongshu`：小红书工作台
 - `/wechat`：公众号工作台
+- `/more-features`：更多功能入口，当前直接重定向到 `/more-features/design`
+- `/more-features/design`：设计工作台
 - `/personal-center`：个人中心
 - `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、`/wechat`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
 - `/admin`：后台管理台，仅管理员角色账号可进入
@@ -40,7 +42,8 @@
 4. 生成可视化报告/半年营销规划
 5. 进入小红书继续策划、排期和内容生产
 6. 进入公众号工作台完成账号配置、原创创作与发布
-7. 到个人中心查看任务、订单、作品
+7. 进入 `/more-features/design` 进行图片、HTML、PPT、视频等设计生成
+8. 到个人中心查看任务、订单、作品
 
 ### 2.3 部署与运行入口
 
@@ -293,6 +296,31 @@
   - 公众号工作台、配置保存、草稿生成、HTML 预览和一键发布入口已经独立落地
   - 当前“一键发布”仍以站内任务和状态流转为主，用于打通正式工作台链路；后续若继续推进，需要把内部发布执行替换为真实公众号官方 API
 - 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+
+### 3.3C 更多功能 `/more-features -> /more-features/design`
+
+- 当前 `/more-features` 已不再停留在旧占位页，入口会直接重定向到 `/more-features/design`
+- 设计工作台当前固定为 4 个横向二级模块：
+  - 图片设计
+  - HTML 设计
+  - PPT 设计
+  - 视频设计
+- 当前设计工作台创建弹窗已改为真实接口驱动：
+  - 营销日历下拉来自 `ReportsModule` 的小红书营销日历工作区
+  - 产品下拉来自 `BrandsModule` 的当前品牌产品档案，并保留 `不植入产品` 入口
+  - 品牌资料开关来自真实品牌档案上下文，不再使用前端硬编码文案
+  - 模型下拉来自 `WorksModule` 聚合的运行时 Provider 列表；图片模块读取图像生成 Provider，HTML/PPT/视频模块读取文本生成 Provider
+  - 模型值按 `providerId::modelName` 作用域值提交，确保同名模型能精确命中对应第三方接口
+- 当前设计工作台前端通过 `apps/web/src/services/design.ts` 调用：
+  - `GET /api/works/brands/:brandId/design/options`
+  - `POST /api/works/brands/:brandId/design/generate`
+- 当前设计工作台后端依赖：
+  - `BrandsModule`：品牌档案、产品信息、品牌资料摘要
+  - `ReportsModule`：营销日历选题
+  - `WorksModule`：设计参数聚合、设计产物生成、HTML/图片产物落盘
+  - `ApiProvidersModule + ThirdPartyPlatformsModule`：运行时模型配置与品牌级第三方接口密钥解析
+- 当前作品区已展示真实创建结果，并支持查看详情、标记完成和删除；但“历史设计作品列表”仍以本次会话内结果展示为主，尚未补单独查询接口
+- 参考变更：`docs/changes/2026-06-03-design-workspace-real-data-and-provider-integration.md`
 
 ### 3.4 个人中心 `/personal-center`
 
@@ -618,6 +646,11 @@
     - `PATCH /api/works/brands/:brandId/wechat/articles/:draftId`
   - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
   - 公众号配置当前按品牌维度保存 `AppID / AppSecret / IP 白名单 / 默认主题色`，数据库不可用时回退到 `mock-data` 内存存储
+  - 当前已新增设计工作台数据链路：
+    - `GET /api/works/brands/:brandId/design/options`
+    - `POST /api/works/brands/:brandId/design/generate`
+    - 设计工作台参数聚合会同时读取品牌档案、产品库、小红书营销日历和运行时 Provider 列表
+    - 设计生成会按模块类型分流到图像生成或文本生成链路，并继续复用品牌级第三方接口密钥解析与产物持久化能力
 - `PublishingModule`：小红书发布会话、公众号发布入口
   - 小红书继续承接手机扫码草稿与电脑端草稿接力链路
   - 当前已新增 `POST /api/publishing/brands/:brandId/wechat/articles/:draftId/publish`
@@ -779,12 +812,14 @@
 - `reports` HTML 产物已切到 OSS 持久化，站内报告资产接口可直接代理读取
 - 品牌产品图、品牌资料附件和用户头像已切到 OSS 持久化
 - `/wechat` 已独立落地正式工作台，支持公众号配置、原创文章草稿生成、HTML 预览和一键发布入口
+- `/more-features/design` 已接入真实品牌数据、营销日历和第三方模型配置，支持图片/HTML/PPT/视频四类设计创建
 
 ## 7. 当前仍属过渡或待完善部分
 
 - `/` 已改为统一认证入口，默认展示邀请码注册；`/login`、`/register` 作为兼容入口保留
 - 视频号/私域尚未独立落地
 - 公众号已独立落地正式工作台，但当前“一键发布”仍以内置任务与状态流转为主，尚未替换为真实公众号官方 API 发布执行
+- 设计工作台已接真实创建链路，但当前作品区仍以本次会话内生成结果为主，尚未补独立历史列表接口
 - 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
 - `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径

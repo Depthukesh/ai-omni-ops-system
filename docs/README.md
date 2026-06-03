@@ -94,6 +94,8 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-06-03-design-workspace-real-data-and-provider-integration.md`
+  - 设计工作台已接入真实品牌档案、营销日历和第三方模型配置，`/more-features` 入口重定向到 `/more-features/design` 后可直接创建图片/HTML/PPT/视频四类设计任务
 - `docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
   - 公众号工作台已独立落地正式 `/wechat` 入口，补齐配置页面、原创创作、HTML 草稿生成、一键发布入口，以及 `docs/site-map*` 中对应的结构说明
 - `docs/changes/2026-05-30-douyin-digital-human-workspace.md`

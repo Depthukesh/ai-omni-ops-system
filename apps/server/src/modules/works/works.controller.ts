@@ -8,6 +8,7 @@ import {
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
+  type GenerateDesignWorkPayload,
   type SaveWechatAccountConfigPayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
@@ -187,6 +188,28 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
     return this.worksService.listDouyinDirectVideoProviderOptions();
+  }
+
+  @Get("brands/:brandId/design/options")
+  async getDesignWorkspaceOptions(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getDesignWorkspaceOptions(brandId);
+  }
+
+  @Post("brands/:brandId/design/generate")
+  createDesignWork(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDesignWorkPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      return this.worksService.generateDesignWork(brandId, payload, auth);
+    });
   }
 
   @Get("brands/:brandId/douyin/digital-human/template-tags")

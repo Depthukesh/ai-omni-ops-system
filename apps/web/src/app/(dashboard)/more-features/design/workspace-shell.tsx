@@ -1,167 +1,115 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type DesignModuleKey = "image" | "html" | "deck" | "video";
+import { getStoredCurrentBrandId } from "../../../services/auth-session";
+import {
+  type DesignGeneratedWorkRecord,
+  type DesignModelOptionRecord,
+  type DesignModuleKey,
+  type DesignWorkspaceOptionsRecord,
+  generateDesignWork,
+  getDesignWorkspaceOptions,
+} from "../../../services/design";
 
-type DesignWork = {
-  title: string;
-  status: string;
-  updatedAt: string;
-  summary: string;
-  tags: string[];
-};
-
-type DesignModuleMeta = {
-  key: DesignModuleKey;
-  label: string;
-  description: string;
-  createLabel: string;
-  types: string[];
-  models: string[];
-  works: DesignWork[];
-};
+type DesignWork = DesignGeneratedWorkRecord;
 
 type DesignFormState = {
   title: string;
-  calendar: string;
-  product: string;
-  brand: string;
+  calendarItemId: string;
+  productId: string;
+  brandProfileMode: "inject" | "skip";
   type: string;
-  model: string;
+  modelSelection: string;
   spec: string;
   prompt: string;
 };
 
-const designModules: DesignModuleMeta[] = [
-  {
+type StaticDesignModuleMeta = {
+  key: DesignModuleKey;
+  label: string;
+  description: string;
+  createLabel: string;
+  modelLabel: string;
+};
+
+type DesignModuleMeta = StaticDesignModuleMeta & {
+  types: string[];
+  models: DesignModelOptionRecord[];
+};
+
+const DESIGN_MODULES: DesignModuleKey[] = ["image", "html", "deck", "video"];
+
+const DESIGN_MODULE_META_MAP: Record<DesignModuleKey, StaticDesignModuleMeta> = {
+  image: {
     key: "image",
     label: "图片设计",
     description: "面向活动海报、朋友圈海报、电商主图、电商详情图等静态视觉设计任务。",
     createLabel: "创建图片设计",
-    types: ["活动海报", "朋友圈海报", "电商主图", "电商详情图", "社媒配图", "图标视觉"],
-    models: ["Venice Image Generate", "Venice Image Edit", "Image-to-Image", "GPT Image 2"],
-    works: [
-      {
-        title: "夏季活动海报",
-        status: "已完成 4 版",
-        updatedAt: "2026/06/03 14:22",
-        summary: "用于品牌活动页和朋友圈传播，主视觉偏清爽明亮风格。",
-        tags: ["活动海报", "植入品牌资料", "参考图已上传"],
-      },
-      {
-        title: "电商主图方案 B",
-        status: "待确认",
-        updatedAt: "2026/06/03 10:05",
-        summary: "用于商城商品列表页，突出单品卖点和价格感知。",
-        tags: ["电商主图", "不植入品牌资料", "GPT Image 2"],
-      },
-    ],
+    modelLabel: "生图大模型",
   },
-  {
+  html: {
     key: "html",
     label: "HTML 设计",
     description: "面向 UI 界面、活动页、详情页、数据看板和移动端原型等 HTML 页面设计。",
     createLabel: "创建 HTML 设计",
-    types: ["UI 界面", "活动页", "落地页", "电商详情页", "数据看板", "移动端原型"],
-    models: ["R1 HTML Designer", "Web Artifacts Builder", "Landing Page Countdown", "Catalyst MUI Module"],
-    works: [
-      {
-        title: "会员增长活动页",
-        status: "已出首版",
-        updatedAt: "2026/06/03 15:18",
-        summary: "包含 Hero、权益说明、FAQ 和报名 CTA，可继续转正式页面。",
-        tags: ["活动页", "植入品牌资料", "HTML"],
-      },
-      {
-        title: "品牌后台看板",
-        status: "草稿中",
-        updatedAt: "2026/06/03 11:36",
-        summary: "以运营日报和内容分发指标为核心，适合继续接真实数据。",
-        tags: ["数据看板", "UI 界面", "MUI"],
-      },
-    ],
+    modelLabel: "页面生成引擎",
   },
-  {
+  deck: {
     key: "deck",
     label: "PPT 设计",
     description: "面向产品汇报、品牌提案、Pitch Deck、周报月报等演示文稿设计。",
     createLabel: "创建 PPT 设计",
-    types: ["Pitch Deck", "产品汇报", "品牌提案", "周报月报", "项目复盘", "招商方案"],
-    models: ["PPTX", "Slides Skills"],
-    works: [
-      {
-        title: "季度品牌提案 Deck",
-        status: "已导出 PPTX",
-        updatedAt: "2026/06/02 20:40",
-        summary: "包含封面、问题定义、方案页、案例页和落地建议。",
-        tags: ["品牌提案", "PPTX", "植入品牌资料"],
-      },
-      {
-        title: "新品发布汇报",
-        status: "待补图表",
-        updatedAt: "2026/06/02 18:12",
-        summary: "当前大纲和页面层次已完成，待补充数据图表和产品视觉。",
-        tags: ["产品汇报", "Slides", "图表"],
-      },
-    ],
+    modelLabel: "PPT 生成引擎",
   },
-  {
+  video: {
     key: "video",
     label: "视频设计",
     description: "面向营销短视频、产品展示视频、分镜板和旁白脚本等视频类设计任务。",
     createLabel: "创建视频设计",
-    types: ["营销短视频", "产品展示视频", "故事板", "分镜脚本", "年度回顾视频", "配音脚本"],
-    models: ["Venice Video", "Video Hyperframes", "YouTube Clipper", "Venice Audio Speech"],
-    works: [
-      {
-        title: "AI 视频（故事板）",
-        status: "累计 3 条任务",
-        updatedAt: "2026/06/03 16:05",
-        summary: "先生成故事板，再继续衍生最终成片和口播脚本。",
-        tags: ["故事板", "营销短视频", "品牌资料植入"],
-      },
-      {
-        title: "年度回顾视频模板",
-        status: "待继续生成",
-        updatedAt: "2026/06/03 09:30",
-        summary: "用于年度总结与品牌回顾，支持数据驱动的叙事视频结构。",
-        tags: ["年度回顾", "视频模板", "Venice Video"],
-      },
-    ],
+    modelLabel: "视频生成引擎",
   },
-];
+};
 
-const calendarOptions = ["2026-06-11 | 毕业季营销方案", "2026-06-18 | 618 电商活动", "2026-07-01 | 暑期品牌推广"];
-const productOptions = ["不植入产品", "品牌A 主推产品", "品牌B 新品系列", "品牌C 爆款单品"];
-const brandOptions = ["植入品牌资料", "不植入品牌资料"];
+const PRODUCT_SKIP_OPTION = {
+  id: "",
+  label: "不植入产品",
+  description: "仅使用营销日历、品牌资料与用户要求生成，不额外带入具体产品。",
+};
 
-function getDefaultSpec(module: DesignModuleMeta) {
-  if (module.key === "image") {
+function getDefaultSpec(moduleKey: DesignModuleKey) {
+  if (moduleKey === "image") {
     return "1242×1660";
   }
 
-  if (module.key === "html") {
+  if (moduleKey === "html") {
     return "桌面端优先";
   }
 
-  if (module.key === "deck") {
+  if (moduleKey === "deck") {
     return "10 页以内";
   }
 
   return "15 秒";
 }
 
-function createDefaultFormState(module: DesignModuleMeta): DesignFormState {
+function getDefaultModelSelection(models: DesignModelOptionRecord[]) {
+  return models.find((item) => item.recommended)?.selectionKey ?? models[0]?.selectionKey ?? "";
+}
+
+function createDefaultFormState(moduleKey: DesignModuleKey, options?: DesignWorkspaceOptionsRecord | null): DesignFormState {
+  const moduleOptions = options?.moduleOptions[moduleKey];
+  const moduleLabel = DESIGN_MODULE_META_MAP[moduleKey].label;
+
   return {
-    title: `${module.types[0]}方案`,
-    calendar: calendarOptions[0],
-    product: productOptions[0],
-    brand: brandOptions[0],
-    type: module.types[0],
-    model: module.models[0],
-    spec: getDefaultSpec(module),
-    prompt: `请基于营销日历、${module.label}类型、品牌资料和产品信息生成一版${module.label}，要求风格清晰、结构可继续编辑，并保留后续二次优化空间。`,
+    title: `${moduleOptions?.types[0] ?? moduleLabel}方案`,
+    calendarItemId: options?.calendarOptions[0]?.id ?? "",
+    productId: "",
+    brandProfileMode: options?.brandOptions[0]?.value ?? "inject",
+    type: moduleOptions?.types[0] ?? "",
+    modelSelection: getDefaultModelSelection(moduleOptions?.models ?? []),
+    spec: getDefaultSpec(moduleKey),
+    prompt: `请结合当前品牌营销日历、品牌资料、产品信息和用户要求，生成一版可继续迭代的${moduleLabel}方案。`,
   };
 }
 
@@ -176,33 +124,37 @@ function formatTimestamp(date: Date) {
   }).format(date).replace(/\//g, "/");
 }
 
-function createInitialWorksByModule() {
-  return designModules.reduce<Record<DesignModuleKey, DesignWork[]>>((accumulator, module) => {
-    accumulator[module.key] = module.works;
+function createEmptyWorksByModule() {
+  return DESIGN_MODULES.reduce<Record<DesignModuleKey, DesignWork[]>>((accumulator, moduleKey) => {
+    accumulator[moduleKey] = [];
     return accumulator;
   }, {} as Record<DesignModuleKey, DesignWork[]>);
 }
 
 function createInitialRefreshByModule() {
-  return designModules.reduce<Record<DesignModuleKey, string>>((accumulator, module) => {
-    accumulator[module.key] = module.works[0]?.updatedAt ?? "尚未刷新";
+  return DESIGN_MODULES.reduce<Record<DesignModuleKey, string>>((accumulator, moduleKey) => {
+    accumulator[moduleKey] = "尚未刷新";
     return accumulator;
   }, {} as Record<DesignModuleKey, string>);
 }
 
-function buildWorkSummary(module: DesignModuleMeta, form: DesignFormState, referenceFileName: string) {
-  const referenceSummary = referenceFileName ? `参考图“${referenceFileName}”已上传` : "未上传参考图";
-  return `基于${form.calendar}、${form.product}与${form.brand}生成${form.type}，规格为${form.spec}，当前使用${form.model}，${referenceSummary}。`;
+function createInitialSelectedByModule() {
+  return DESIGN_MODULES.reduce<Record<DesignModuleKey, string | null>>((accumulator, moduleKey) => {
+    accumulator[moduleKey] = null;
+    return accumulator;
+  }, {} as Record<DesignModuleKey, string | null>);
 }
 
-function buildCreatedWork(module: DesignModuleMeta, form: DesignFormState, referenceFileName: string): DesignWork {
-  return {
-    title: form.title.trim() || `${form.type}方案`,
-    status: "待生成",
-    updatedAt: formatTimestamp(new Date()),
-    summary: buildWorkSummary(module, form, referenceFileName),
-    tags: [form.type, form.brand, form.product, referenceFileName ? "参考图已上传" : "未上传参考图", form.model],
-  };
+function getWorkId(work: DesignWork) {
+  return work.id;
+}
+
+function normalizeErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "请求失败，请稍后重试。";
 }
 
 interface DesignWorkspaceShellProps {
@@ -212,9 +164,12 @@ interface DesignWorkspaceShellProps {
 function DesignCreateDialog({
   module,
   open,
+  loadingOptions,
+  options,
   form,
   referenceFileName,
   submitting,
+  submitError,
   onClose,
   onChange,
   onReferenceChange,
@@ -222,14 +177,22 @@ function DesignCreateDialog({
 }: {
   module: DesignModuleMeta;
   open: boolean;
+  loadingOptions: boolean;
+  options: DesignWorkspaceOptionsRecord | null;
   form: DesignFormState;
   referenceFileName: string;
   submitting: boolean;
+  submitError: string;
   onClose: () => void;
   onChange: (field: keyof DesignFormState, value: string) => void;
-  onReferenceChange: (fileName: string) => void;
+  onReferenceChange: (file: File | null) => void;
   onSubmit: () => void;
 }) {
+  const productOptions = useMemo(
+    () => [PRODUCT_SKIP_OPTION, ...(options?.productOptions ?? [])],
+    [options],
+  );
+
   if (!open) {
     return null;
   }
@@ -246,14 +209,20 @@ function DesignCreateDialog({
         <div className="design-v3-dialog__header">
           <div>
             <strong id="design-v3-dialog-title">{module.createLabel}</strong>
-            <p>先填写基础选项，再由 Agent 结合营销日历、产品与品牌资料生成当前板块作品。</p>
+            <p>选项来自当前品牌档案、营销日历和第三方模型配置，提交后直接调用真实生成链路。</p>
           </div>
-          <button type="button" className="design-v3-text-button" onClick={onClose}>
+          <button type="button" className="design-v3-text-button" onClick={onClose} disabled={submitting}>
             关闭
           </button>
         </div>
 
         <div className="design-v3-dialog__body">
+          {submitError ? (
+            <div className="empty-state" style={{ marginBottom: 16 }}>
+              {submitError}
+            </div>
+          ) : null}
+
           <div className="design-v3-form-grid">
             <label className="design-v3-field">
               <span>作品名称</span>
@@ -261,37 +230,46 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>营销日历</span>
-              <select value={form.calendar} onChange={(event) => onChange("calendar", event.target.value)}>
-                {calendarOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+              <select
+                value={form.calendarItemId}
+                onChange={(event) => onChange("calendarItemId", event.target.value)}
+                disabled={loadingOptions}
+              >
+                <option value="">不指定营销日历</option>
+                {(options?.calendarOptions ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
                   </option>
                 ))}
               </select>
             </label>
             <label className="design-v3-field">
               <span>产品</span>
-              <select value={form.product} onChange={(event) => onChange("product", event.target.value)}>
+              <select value={form.productId} onChange={(event) => onChange("productId", event.target.value)} disabled={loadingOptions}>
                 {productOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={`${item.id || "skip-product"}-${item.label}`} value={item.id}>
+                    {item.label}
                   </option>
                 ))}
               </select>
             </label>
             <label className="design-v3-field">
               <span>品牌资料</span>
-              <select value={form.brand} onChange={(event) => onChange("brand", event.target.value)}>
-                {brandOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+              <select
+                value={form.brandProfileMode}
+                onChange={(event) => onChange("brandProfileMode", event.target.value as DesignFormState["brandProfileMode"])}
+                disabled={loadingOptions}
+              >
+                {(options?.brandOptions ?? []).map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
                   </option>
                 ))}
               </select>
             </label>
             <label className="design-v3-field">
               <span>类型</span>
-              <select value={form.type} onChange={(event) => onChange("type", event.target.value)}>
+              <select value={form.type} onChange={(event) => onChange("type", event.target.value)} disabled={loadingOptions}>
                 {module.types.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -307,16 +285,20 @@ function DesignCreateDialog({
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(event) => onReferenceChange(event.target.files?.[0]?.name ?? "")}
+                  onChange={(event) => onReferenceChange(event.target.files?.[0] ?? null)}
                 />
               </div>
             </label>
             <label className="design-v3-field">
-              <span>{module.key === "html" ? "页面生成引擎" : module.key === "deck" ? "PPT 生成引擎" : module.key === "video" ? "视频生成引擎" : "生图大模型"}</span>
-              <select value={form.model} onChange={(event) => onChange("model", event.target.value)}>
+              <span>{module.modelLabel}</span>
+              <select
+                value={form.modelSelection}
+                onChange={(event) => onChange("modelSelection", event.target.value)}
+                disabled={loadingOptions}
+              >
                 {module.models.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={item.selectionKey} value={item.selectionKey}>
+                    {item.label}
                   </option>
                 ))}
               </select>
@@ -340,7 +322,7 @@ function DesignCreateDialog({
             type="button"
             className="primary-button"
             onClick={onSubmit}
-            disabled={submitting || !form.title.trim() || !form.prompt.trim()}
+            disabled={loadingOptions || submitting || !form.title.trim() || !form.type.trim() || !form.prompt.trim() || !form.modelSelection}
           >
             {submitting ? "创建中..." : "提交创建"}
           </button>
@@ -355,48 +337,76 @@ function ModuleStatusCard({
   works,
   lastCreatedWork,
   lastRefreshedAt,
+  brandName,
+  brandProfileSummary,
 }: {
   module: DesignModuleMeta;
   works: DesignWork[];
   lastCreatedWork: DesignWork | null;
   lastRefreshedAt: string;
+  brandName: string;
+  brandProfileSummary: string;
 }) {
   return (
     <article className="design-v3-status-card">
       <div>
         <h3>{module.label}任务状态</h3>
         <p>
-          {module.description} 点击右上角创建按钮后，先填写选项，再在下方查看作品结果。
+          {module.description} 当前品牌为“{brandName}”，弹窗中的营销日历、产品和模型列表均来自真实接口。
           {lastCreatedWork ? ` 最近一次创建为“${lastCreatedWork.title}”。` : ""}
         </p>
       </div>
       <div className="design-v3-status-pills">
         <span className="archive-pill status-ready">累计 {works.length} 个作品</span>
         <span className="archive-pill status-ready">最近刷新 {lastRefreshedAt}</span>
+        <span className="archive-pill status-pending">模型 {module.models.length} 个</span>
         <span className="archive-pill status-pending">支持品牌资料植入</span>
-        <span className="archive-pill status-pending">支持参考图</span>
       </div>
+      {brandProfileSummary ? (
+        <p style={{ marginTop: 12, color: "rgba(83, 88, 120, 0.88)" }}>
+          品牌资料摘要：{brandProfileSummary}
+        </p>
+      ) : null}
     </article>
   );
 }
 
-function ModuleWorks({ module, works }: { module: DesignModuleMeta; works: DesignWork[] }) {
+function ModuleWorks({
+  module,
+  works,
+  selectedWorkId,
+  selectedWork,
+  onSelectWork,
+  onCompleteWork,
+  onDeleteWork,
+}: {
+  module: DesignModuleMeta;
+  works: DesignWork[];
+  selectedWorkId: string | null;
+  selectedWork: DesignWork | null;
+  onSelectWork: (workId: string) => void;
+  onCompleteWork: (workId: string) => void;
+  onDeleteWork: (workId: string) => void;
+}) {
   return (
     <section className="design-v3-works">
       <div className="collection-result-head">
         <div>
           <h3>作品结果</h3>
-          <p>当前作品按卡片方式呈现，后续可继续扩展为图片预览、HTML 预览、PPT 页缩略图和视频分镜板。</p>
+          <p>创建动作已接真实生成接口；当前列表展示本次会话内生成的结果，并保留查看详情、标记完成和删除操作。</p>
         </div>
         <span className="archive-pill status-ready">已展示 {works.length} 个</span>
       </div>
 
       <div className="design-v3-work-grid">
         {works.map((work) => (
-          <article key={`${module.key}-${work.title}`} className="design-v3-work-card">
+          <article
+            key={`${module.key}-${getWorkId(work)}`}
+            className={`design-v3-work-card ${selectedWorkId === getWorkId(work) ? "is-selected" : ""}`}
+          >
             <div className="design-v3-work-thumb">
               <span>{module.label}</span>
-              <strong>{work.tags[0]}</strong>
+              <strong>{work.tags[0] ?? module.label}</strong>
             </div>
             <div className="design-v3-work-body">
               <div className="design-v3-work-head">
@@ -412,18 +422,100 @@ function ModuleWorks({ module, works }: { module: DesignModuleMeta; works: Desig
                 ))}
                 <span className="archive-pill status-ready">{work.status}</span>
               </div>
+              <div className="design-v3-work-actions">
+                <button type="button" className="tiny-action-button is-primary" onClick={() => onSelectWork(getWorkId(work))}>
+                  查看详情
+                </button>
+                <button type="button" className="tiny-action-button" onClick={() => onCompleteWork(getWorkId(work))}>
+                  标记完成
+                </button>
+                <button type="button" className="ghost-danger-button" onClick={() => onDeleteWork(getWorkId(work))}>
+                  删除
+                </button>
+              </div>
             </div>
           </article>
         ))}
       </div>
+
+      {works.length === 0 ? (
+        <div className="empty-state" style={{ marginTop: 16 }}>
+          当前模块暂无作品，点击右上角“{module.createLabel}”后会直接调用后端生成链路。
+        </div>
+      ) : null}
+
+      {selectedWork ? (
+        <article className="workspace-panel strategy-page-card" style={{ marginTop: 16 }}>
+          <div className="collection-result-head">
+            <div>
+              <h3>当前作品详情</h3>
+              <p>这里展示当前选中作品的摘要、标签和产物入口，HTML 结果可直接在当前页预览。</p>
+            </div>
+            <span className="archive-pill status-ready">{selectedWork.status}</span>
+          </div>
+
+          <div className="collection-sync-grid" style={{ marginTop: 16 }}>
+            <div className="collection-sync-item">
+              <span>作品名称</span>
+              <strong>{selectedWork.title}</strong>
+            </div>
+            <div className="collection-sync-item">
+              <span>最近更新时间</span>
+              <strong>{selectedWork.updatedAt}</strong>
+            </div>
+            <div className="collection-sync-item">
+              <span>当前类型</span>
+              <strong>{selectedWork.tags[0] ?? module.label}</strong>
+            </div>
+            <div className="collection-sync-item">
+              <span>当前模块</span>
+              <strong>{module.label}</strong>
+            </div>
+            <div className="collection-sync-item collection-sync-item--full">
+              <span>作品摘要</span>
+              <strong>{selectedWork.summary}</strong>
+            </div>
+            <div className="collection-sync-item collection-sync-item--full">
+              <span>标签</span>
+              <strong>{selectedWork.tags.join(" / ")}</strong>
+            </div>
+            {selectedWork.assetUrl ? (
+              <div className="collection-sync-item collection-sync-item--full">
+                <span>产物地址</span>
+                <strong>
+                  <a href={selectedWork.assetUrl} target="_blank" rel="noreferrer">
+                    打开生成结果
+                  </a>
+                </strong>
+              </div>
+            ) : null}
+            {selectedWork.htmlContent ? (
+              <div className="collection-sync-item collection-sync-item--full">
+                <span>HTML 预览</span>
+                <div style={{ marginTop: 12, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(110, 118, 160, 0.18)" }}>
+                  <iframe
+                    title={`${selectedWork.title} HTML 预览`}
+                    srcDoc={selectedWork.htmlContent}
+                    style={{ width: "100%", minHeight: 420, border: "none", background: "#fff" }}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ) : null}
     </section>
   );
 }
 
 export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
+  const brandId = getStoredCurrentBrandId();
   const [activeModule, setActiveModule] = useState<DesignModuleKey>("image");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [worksByModule, setWorksByModule] = useState<Record<DesignModuleKey, DesignWork[]>>(createInitialWorksByModule);
+  const [options, setOptions] = useState<DesignWorkspaceOptionsRecord | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [worksByModule, setWorksByModule] = useState<Record<DesignModuleKey, DesignWork[]>>(createEmptyWorksByModule);
   const [lastRefreshByModule, setLastRefreshByModule] = useState<Record<DesignModuleKey, string>>(createInitialRefreshByModule);
   const [lastCreatedByModule, setLastCreatedByModule] = useState<Record<DesignModuleKey, DesignWork | null>>({
     image: null,
@@ -431,19 +523,78 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
     deck: null,
     video: null,
   });
-  const [referenceFileName, setReferenceFileName] = useState("");
+  const [selectedWorkByModule, setSelectedWorkByModule] = useState<Record<DesignModuleKey, string | null>>(createInitialSelectedByModule);
+  const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState("image"));
 
-  const activeMeta = useMemo(
-    () => designModules.find((item) => item.key === activeModule) ?? designModules[0],
-    [activeModule],
-  );
-  const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState(activeMeta));
+  const activeMeta = useMemo<DesignModuleMeta>(() => {
+    const staticMeta = DESIGN_MODULE_META_MAP[activeModule];
+    const moduleOptions = options?.moduleOptions[activeModule];
+
+    return {
+      ...staticMeta,
+      types: moduleOptions?.types ?? [],
+      models: moduleOptions?.models ?? [],
+    };
+  }, [activeModule, options]);
+
   const activeWorks = worksByModule[activeModule] ?? [];
+  const selectedWork =
+    activeWorks.find((item) => getWorkId(item) === selectedWorkByModule[activeModule]) ?? activeWorks[0] ?? null;
+  const referenceFileName = referenceFile?.name ?? "";
+
+  useEffect(() => {
+    setForm(createDefaultFormState(activeModule, options));
+    setReferenceFile(null);
+    setSubmitError("");
+  }, [activeModule, options]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialOptions() {
+      setLoadingOptions(true);
+      setLoadError("");
+
+      try {
+        const nextOptions = await getDesignWorkspaceOptions(brandId);
+        if (cancelled) {
+          return;
+        }
+
+        const refreshedAt = formatTimestamp(new Date());
+        setOptions(nextOptions);
+        setLastRefreshByModule((current) => ({ ...current, image: refreshedAt }));
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setLoadError(normalizeErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setLoadingOptions(false);
+        }
+      }
+    }
+
+    void loadInitialOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [brandId]);
 
   const handleOpenDialog = () => {
-    setForm(createDefaultFormState(activeMeta));
-    setReferenceFileName("");
+    if (loadingOptions || !options) {
+      return;
+    }
+
+    setForm(createDefaultFormState(activeModule, options));
+    setReferenceFile(null);
+    setSubmitError("");
     setDialogOpen(true);
   };
 
@@ -456,38 +607,105 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   const handleModuleChange = (moduleKey: DesignModuleKey) => {
-    const nextMeta = designModules.find((item) => item.key === moduleKey) ?? designModules[0];
     setActiveModule(moduleKey);
     setDialogOpen(false);
-    setReferenceFileName("");
+    setReferenceFile(null);
     setSubmitting(false);
-    setForm(createDefaultFormState(nextMeta));
+    setSubmitError("");
   };
 
   const handleFormChange = (field: keyof DesignFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleRefresh = () => {
-    const refreshedAt = formatTimestamp(new Date());
-    setLastRefreshByModule((current) => ({ ...current, [activeModule]: refreshedAt }));
+  const handleRefresh = async () => {
+    setLoadingOptions(true);
+    setLoadError("");
+
+    try {
+      const nextOptions = await getDesignWorkspaceOptions(brandId);
+      const refreshedAt = formatTimestamp(new Date());
+      setOptions(nextOptions);
+      setLastRefreshByModule((current) => ({ ...current, [activeModule]: refreshedAt }));
+    } catch (error) {
+      setLoadError(normalizeErrorMessage(error));
+    } finally {
+      setLoadingOptions(false);
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError("");
 
-    const createdWork = buildCreatedWork(activeMeta, form, referenceFileName);
+    try {
+      const createdWork = await generateDesignWork(
+        {
+          module: activeModule,
+          title: form.title.trim(),
+          calendarItemId: form.calendarItemId || undefined,
+          productId: form.productId || undefined,
+          injectBrandProfile: form.brandProfileMode === "inject",
+          designType: form.type,
+          referenceImageFile: referenceFile,
+          modelSelection: form.modelSelection,
+          spec: form.spec.trim(),
+          additionalInstruction: form.prompt.trim(),
+        },
+        brandId,
+      );
+
+      setWorksByModule((current) => ({
+        ...current,
+        [activeModule]: [createdWork, ...(current[activeModule] ?? [])],
+      }));
+      setLastCreatedByModule((current) => ({ ...current, [activeModule]: createdWork }));
+      setLastRefreshByModule((current) => ({ ...current, [activeModule]: createdWork.updatedAt }));
+      setSelectedWorkByModule((current) => ({ ...current, [activeModule]: getWorkId(createdWork) }));
+      setDialogOpen(false);
+      setReferenceFile(null);
+      setForm(createDefaultFormState(activeModule, options));
+    } catch (error) {
+      setSubmitError(normalizeErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSelectWork = (workId: string) => {
+    setSelectedWorkByModule((current) => ({ ...current, [activeModule]: workId }));
+  };
+
+  const handleCompleteWork = (workId: string) => {
+    const completedAt = formatTimestamp(new Date());
 
     setWorksByModule((current) => ({
       ...current,
-      [activeModule]: [createdWork, ...(current[activeModule] ?? [])],
+      [activeModule]: (current[activeModule] ?? []).map((work) =>
+        getWorkId(work) === workId
+          ? {
+              ...work,
+              status: "已完成",
+              updatedAt: completedAt,
+            }
+          : work,
+      ),
     }));
-    setLastCreatedByModule((current) => ({ ...current, [activeModule]: createdWork }));
-    setLastRefreshByModule((current) => ({ ...current, [activeModule]: createdWork.updatedAt }));
-    setDialogOpen(false);
-    setReferenceFileName("");
-    setForm(createDefaultFormState(activeMeta));
-    setSubmitting(false);
+    setLastRefreshByModule((current) => ({ ...current, [activeModule]: completedAt }));
+  };
+
+  const handleDeleteWork = (workId: string) => {
+    const nextWorks = activeWorks.filter((work) => getWorkId(work) !== workId);
+
+    setWorksByModule((current) => ({
+      ...current,
+      [activeModule]: nextWorks,
+    }));
+    setSelectedWorkByModule((current) => ({
+      ...current,
+      [activeModule]: nextWorks[0] ? getWorkId(nextWorks[0]) : null,
+    }));
+    setLastRefreshByModule((current) => ({ ...current, [activeModule]: formatTimestamp(new Date()) }));
   };
 
   return (
@@ -499,13 +717,15 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
             <p>{section.description}</p>
             <div className="workspace-toolbar top-toolbar">
               <div className="workspace-status">
-                <span className="archive-pill status-ready">可直接创建</span>
-                <span className="archive-pill status-pending">横向二级模块</span>
-                <span className="status-text">当前设计模块已调整为类似抖音工作台的结构，上方切换不同设计类型，点击创建后弹出统一选项表单。</span>
+                <span className="archive-pill status-ready">真实数据驱动</span>
+                <span className="archive-pill status-pending">第三方模型配置</span>
+                <span className="status-text">
+                  当前设计模块会读取品牌档案、营销日历和后台启用的运行时模型；创建时直接调用后端生成接口。
+                </span>
               </div>
               <div className="personal-actions">
-                <button type="button" className="secondary-button">
-                  刷新数据
+                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
+                  {loadingOptions ? "刷新中..." : "刷新数据"}
                 </button>
               </div>
             </div>
@@ -514,16 +734,19 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
 
         <article className="workspace-panel strategy-page-card">
           <div className="design-v3-tab-row">
-            {designModules.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`design-v3-tab ${item.key === activeModule ? "is-active" : ""}`}
-                onClick={() => handleModuleChange(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
+            {DESIGN_MODULES.map((moduleKey) => {
+              const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];
+              return (
+                <button
+                  key={moduleKey}
+                  type="button"
+                  className={`design-v3-tab ${moduleKey === activeModule ? "is-active" : ""}`}
+                  onClick={() => handleModuleChange(moduleKey)}
+                >
+                  {tabMeta.label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="design-v3-module-head">
@@ -532,34 +755,53 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
               <p>{activeMeta.description}</p>
             </div>
             <div className="design-v3-module-actions">
-              <button type="button" className="secondary-button" onClick={handleRefresh}>
-                刷新列表
+              <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
+                {loadingOptions ? "刷新中..." : "刷新列表"}
               </button>
-              <button type="button" className="primary-button" onClick={handleOpenDialog}>
+              <button type="button" className="primary-button" onClick={handleOpenDialog} disabled={loadingOptions || !options}>
                 {activeMeta.createLabel}
               </button>
             </div>
           </div>
+
+          {loadError ? (
+            <div className="empty-state" style={{ marginBottom: 16 }}>
+              {loadError}
+            </div>
+          ) : null}
 
           <ModuleStatusCard
             module={activeMeta}
             works={activeWorks}
             lastCreatedWork={lastCreatedByModule[activeModule]}
             lastRefreshedAt={lastRefreshByModule[activeModule]}
+            brandName={options?.brandName ?? "当前品牌"}
+            brandProfileSummary={options?.brandProfileSummary ?? ""}
           />
-          <ModuleWorks module={activeMeta} works={activeWorks} />
+          <ModuleWorks
+            module={activeMeta}
+            works={activeWorks}
+            selectedWorkId={selectedWorkByModule[activeModule]}
+            selectedWork={selectedWork}
+            onSelectWork={handleSelectWork}
+            onCompleteWork={handleCompleteWork}
+            onDeleteWork={handleDeleteWork}
+          />
         </article>
       </div>
 
       <DesignCreateDialog
         module={activeMeta}
         open={dialogOpen}
+        loadingOptions={loadingOptions}
+        options={options}
         form={form}
         referenceFileName={referenceFileName}
         submitting={submitting}
+        submitError={submitError}
         onClose={handleCloseDialog}
         onChange={handleFormChange}
-        onReferenceChange={setReferenceFileName}
+        onReferenceChange={setReferenceFile}
         onSubmit={handleSubmit}
       />
     </>

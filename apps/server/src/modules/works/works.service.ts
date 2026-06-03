@@ -44,6 +44,13 @@ const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
+const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
+  image: ["活动海报", "朋友圈海报", "电商主图", "电商详情图", "社媒配图", "图标视觉"],
+  html: ["UI 界面", "活动页", "落地页", "电商详情页", "数据看板", "移动端原型"],
+  deck: ["Pitch Deck", "产品汇报", "品牌提案", "周报月报", "项目复盘", "招商方案"],
+  video: ["营销短视频", "产品展示视频", "故事板", "分镜脚本", "年度回顾视频", "配音脚本"],
+};
+
 function resolveFfmpegBinary() {
   const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
   if (envBinary) {
@@ -401,6 +408,70 @@ export type WechatArticleComposePayload = {
 };
 
 export type UpdateWechatArticleDraftPayload = Partial<WechatArticleComposePayload>;
+
+export type DesignWorkModuleKey = "image" | "html" | "deck" | "video";
+
+export type GenerateDesignWorkPayload = {
+  module: DesignWorkModuleKey;
+  title?: string;
+  calendarItemId?: string;
+  productId?: string;
+  injectBrandProfile?: boolean;
+  designType?: string;
+  referenceImage?: UploadFilePayload;
+  modelSelection?: string;
+  spec?: string;
+  additionalInstruction?: string;
+};
+
+export type DesignModelOptionRecord = {
+  selectionKey: string;
+  label: string;
+  providerName: string;
+  modelName: string;
+  recommended: boolean;
+};
+
+export type DesignWorkspaceOptionsRecord = {
+  brandId: string;
+  brandName: string;
+  brandProfileSummary: string;
+  calendarOptions: Array<{
+    id: string;
+    label: string;
+    topicName: string;
+    date: string;
+  }>;
+  productOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  brandOptions: Array<{
+    value: "inject" | "skip";
+    label: string;
+    description: string;
+  }>;
+  moduleOptions: Record<
+    DesignWorkModuleKey,
+    {
+      types: string[];
+      models: DesignModelOptionRecord[];
+    }
+  >;
+};
+
+export type DesignGeneratedWorkRecord = {
+  id: string;
+  module: DesignWorkModuleKey;
+  title: string;
+  status: string;
+  updatedAt: string;
+  summary: string;
+  tags: string[];
+  assetUrl?: string;
+  htmlContent?: string;
+};
 
 export type WechatAccountConfigRecord = {
   brandId: string;
@@ -1619,6 +1690,144 @@ export class WorksService {
     return this.listXiaohongshuVideoProviderOptions();
   }
 
+  async getDesignWorkspaceOptions(brandId: string): Promise<DesignWorkspaceOptionsRecord> {
+    const [archive, calendarWorkspace, imageModels, textModels] = await Promise.all([
+      this.brandsService.getArchive(brandId),
+      this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId),
+      this.listDesignImageModelOptions(brandId),
+      this.listDesignTextModelOptions(brandId),
+    ]);
+    const latestCalendar = calendarWorkspace.latest;
+
+    return {
+      brandId,
+      brandName: archive.brand.brandName || "当前品牌",
+      brandProfileSummary: this.buildDesignBrandProfileSummary(archive),
+      calendarOptions: (latestCalendar?.items || []).map((item) => ({
+        id: item.id,
+        label: `${item.date} | ${item.topicName}`,
+        topicName: item.topicName,
+        date: item.date,
+      })),
+      productOptions: archive.products.map((item) => ({
+        id: item.id,
+        label: item.productName,
+        description: item.detailDescription || item.usageScenario || item.productPositioning || "",
+      })),
+      brandOptions: [
+        {
+          value: "inject",
+          label: "植入品牌资料",
+          description: "会把品牌背景、品牌介绍、产品定位和已沉淀资料带入生成上下文。",
+        },
+        {
+          value: "skip",
+          label: "不植入品牌资料",
+          description: "只使用营销日历、产品与用户要求生成，避免引入品牌背景口径。",
+        },
+      ],
+      moduleOptions: {
+        image: {
+          types: DESIGN_MODULE_TYPES.image,
+          models: imageModels,
+        },
+        html: {
+          types: DESIGN_MODULE_TYPES.html,
+          models: textModels,
+        },
+        deck: {
+          types: DESIGN_MODULE_TYPES.deck,
+          models: textModels,
+        },
+        video: {
+          types: DESIGN_MODULE_TYPES.video,
+          models: textModels,
+        },
+      },
+    };
+  }
+
+  async generateDesignWork(
+    brandId: string,
+    payload: GenerateDesignWorkPayload,
+    auth: RequestAuthContext,
+  ): Promise<DesignGeneratedWorkRecord> {
+    const archive = await this.brandsService.getArchive(brandId);
+    const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const taskId = createId("tsk");
+    const selectedCalendarItem = calendarWorkspace.latest?.items.find((item) => item.id === payload.calendarItemId);
+    const selectedProduct = archive.products.find((item) => item.id === payload.productId);
+    const scopedSelection = this.parseScopedModelSelection(payload.modelSelection || "");
+    const title = String(payload.title || "").trim() || `${payload.designType || DESIGN_MODULE_TYPES[payload.module][0]}方案`;
+    const designContext = {
+      brandName: archive.brand.brandName || "当前品牌",
+      brandProfileSummary: payload.injectBrandProfile === false ? "" : this.buildDesignBrandProfileSummary(archive),
+      calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
+      productLabel: selectedProduct?.productName || "不植入产品",
+      designType: payload.designType || DESIGN_MODULE_TYPES[payload.module][0],
+      spec: String(payload.spec || "").trim(),
+      additionalInstruction: String(payload.additionalInstruction || "").trim(),
+    };
+
+    if (payload.module === "image") {
+      const providers = await this.loadImageGenerationProviders(
+        brandId,
+        undefined,
+        {
+          preferredModelName: scopedSelection.modelName,
+          preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : [],
+          usage: "general",
+        },
+      );
+      const imagePrompt = this.buildDesignImagePrompt(designContext);
+      const imageAsset = await this.generateImageAsset({
+        brandId,
+        taskId,
+        title,
+        workLabel: "设计工作台",
+        role: "COVER",
+        order: 0,
+        providers,
+        executionPrompt: "你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图。",
+        prompt: imagePrompt,
+        referenceImageUrls: [],
+        referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
+        promptMode: "social_graphic",
+        includeFallbackPrompt: true,
+      });
+
+      return {
+        id: createId("design"),
+        module: payload.module,
+        title,
+        status: "已完成",
+        updatedAt: new Date().toISOString(),
+        summary: this.buildDesignResultSummary(designContext, imageAsset.modelName),
+        tags: [designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, imageAsset.modelName],
+        assetUrl: imageAsset.url,
+      };
+    }
+
+    const textResult = await this.generateDesignTextArtifact(brandId, payload.module, {
+      title,
+      ...designContext,
+      preferredModelName: scopedSelection.modelName,
+      preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : [],
+    });
+
+    return {
+      id: createId("design"),
+      module: payload.module,
+      title: textResult.title,
+      status: payload.module === "video" ? "已生成方案" : "已完成",
+      updatedAt: new Date().toISOString(),
+      summary: this.buildDesignResultSummary(designContext, textResult.modelName),
+      tags: [designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, textResult.modelName],
+      assetUrl: textResult.assetUrl,
+      htmlContent: textResult.htmlContent,
+    };
+  }
+
   private resolveVideoProviderPlatformName(name: string, baseUrl?: string | null) {
     const normalizedName = name.trim();
     if (normalizedName.includes("·")) {
@@ -1632,6 +1841,237 @@ export class WorksService {
       }
     }
     return "未知平台";
+  }
+
+  private async listDesignImageModelOptions(brandId: string): Promise<DesignModelOptionRecord[]> {
+    const providers = await this.loadImageGenerationProviders(brandId, undefined, { usage: "general" });
+    return providers.flatMap((provider, providerIndex) =>
+      provider.models.map((modelName, modelIndex) => ({
+        selectionKey: `${provider.providerId}::${modelName}`,
+        label: `${provider.providerName} · ${modelName}`,
+        providerName: provider.providerName,
+        modelName,
+        recommended: providerIndex === 0 && modelIndex === 0,
+      })),
+    );
+  }
+
+  private async listDesignTextModelOptions(brandId: string): Promise<DesignModelOptionRecord[]> {
+    const preference: SkillModelPreference = {
+      preferredModelName: "gpt-5.5",
+      configuredModels: ["gpt-5.5", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+      preferredProviderIds: [],
+    };
+    const providers = await this.loadOriginalCopyProviders(brandId, preference);
+    return providers.flatMap((provider, providerIndex) =>
+      provider.models.map((modelName, modelIndex) => ({
+        selectionKey: `${provider.providerId || provider.provider}::${modelName}`,
+        label: `${provider.providerName || provider.provider} · ${modelName}`,
+        providerName: provider.providerName || provider.provider,
+        modelName,
+        recommended: providerIndex === 0 && modelIndex === 0,
+      })),
+    );
+  }
+
+  private buildDesignBrandProfileSummary(archive: Awaited<ReturnType<BrandsService["getArchive"]>>) {
+    const brand = archive.brand;
+    const productNames = archive.products.slice(0, 3).map((item) => item.productName).filter(Boolean).join("、");
+    const brandPieces = [
+      `品牌名：${brand.brandName || "未命名品牌"}`,
+      brand.industry ? `行业：${brand.industry}` : "",
+      brand.brandDescription ? `品牌介绍：${brand.brandDescription}` : "",
+      brand.enterpriseIntro ? `企业介绍：${brand.enterpriseIntro}` : "",
+      productNames ? `当前重点产品：${productNames}` : "",
+    ].filter(Boolean);
+    return brandPieces.join("\n");
+  }
+
+  private buildDesignImagePrompt(params: {
+    brandName: string;
+    brandProfileSummary: string;
+    calendarLabel: string;
+    productLabel: string;
+    designType: string;
+    spec: string;
+    additionalInstruction: string;
+  }) {
+    return [
+      `为品牌“${params.brandName}”生成一张${params.designType}。`,
+      params.calendarLabel ? `营销日历选题：${params.calendarLabel}。` : "",
+      params.productLabel ? `产品信息：${params.productLabel}。` : "",
+      params.brandProfileSummary ? `品牌资料：${params.brandProfileSummary}。` : "本次不要植入品牌资料。",
+      params.spec ? `作品规格：${params.spec}。` : "",
+      params.additionalInstruction ? `补充要求：${params.additionalInstruction}。` : "",
+      "要求画面完成度高，适合商业传播，中文排版清晰，主体突出，保留足够安全边距。",
+    ].filter(Boolean).join("");
+  }
+
+  private buildDesignResultSummary(params: {
+    calendarLabel: string;
+    productLabel: string;
+    designType: string;
+    spec: string;
+  }, modelName: string) {
+    return [
+      params.calendarLabel ? `已结合 ${params.calendarLabel}` : "未绑定营销日历",
+      `生成 ${params.designType}`,
+      params.productLabel ? `产品为 ${params.productLabel}` : "未植入产品",
+      params.spec ? `规格 ${params.spec}` : "",
+      `调用模型 ${modelName}`,
+    ].filter(Boolean).join("，");
+  }
+
+  private buildDesignTextSystemPrompt(module: DesignWorkModuleKey) {
+    const sceneLabel = module === "html"
+      ? "HTML 页面设计稿"
+      : module === "deck"
+        ? "PPT 方案预览稿"
+        : "视频故事板与脚本方案";
+    return [
+      `你是一名资深的${sceneLabel}生成助手。`,
+      "你需要基于品牌资料、营销日历、产品信息和用户要求，输出一份可继续编辑的设计方案。",
+      "只输出 JSON，不要输出 Markdown 代码块。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "作品标题",',
+      '  "summary": "80字以内摘要",',
+      '  "tags": ["标签1", "标签2"],',
+      '  "htmlContent": "<section>...</section>"',
+      "}",
+      module === "html"
+        ? "htmlContent 必须是结构完整的 HTML 片段，包含页面主视觉、内容区块、按钮或关键信息区。"
+        : module === "deck"
+          ? "htmlContent 必须输出适合 PPT 预览的分屏或分节结构，明确封面、目录、核心页和结尾页。"
+          : "htmlContent 必须输出适合视频设计的故事板/脚本预览结构，包含镜头段落、画面说明、口播或字幕建议。",
+    ].join("\n");
+  }
+
+  private wrapDesignHtmlDocument(title: string, summary: string, body: string) {
+    const normalizedBody = String(body || "").trim() || `<section><h1>${title}</h1><p>${summary}</p></section>`;
+    return [
+      "<!doctype html>",
+      "<html lang=\"zh-CN\">",
+      "<head>",
+      "  <meta charset=\"utf-8\" />",
+      "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+      `  <title>${title}</title>`,
+      "  <style>",
+      "    body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; margin: 0; padding: 32px; background: #f5f7fb; color: #20253a; }",
+      "    main { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid #e3e6f0; border-radius: 24px; padding: 28px; box-shadow: 0 18px 40px rgba(35, 52, 92, 0.08); }",
+      "    .summary { margin: 12px 0 24px; color: #66708a; line-height: 1.8; }",
+      "    section, article { margin-bottom: 20px; }",
+      "    .badge { display: inline-flex; min-height: 28px; align-items: center; padding: 0 12px; border-radius: 999px; background: #eef2ff; color: #4d64e8; font-weight: 700; font-size: 12px; }",
+      "  </style>",
+      "</head>",
+      "<body>",
+      "  <main>",
+      "    <span class=\"badge\">设计工作台生成结果</span>",
+      `    <h1>${title}</h1>`,
+      `    <p class=\"summary\">${summary}</p>`,
+      `    ${normalizedBody}`,
+      "  </main>",
+      "</body>",
+      "</html>",
+    ].join("\n");
+  }
+
+  private async generateDesignTextArtifact(
+    brandId: string,
+    module: Exclude<DesignWorkModuleKey, "image">,
+    params: {
+      title: string;
+      brandName: string;
+      brandProfileSummary: string;
+      calendarLabel: string;
+      productLabel: string;
+      designType: string;
+      spec: string;
+      additionalInstruction: string;
+      preferredModelName?: string;
+      preferredProviderIds?: string[];
+    },
+  ) {
+    const preference: SkillModelPreference = {
+      preferredModelName: params.preferredModelName || "gpt-5.5",
+      configuredModels: this.mergeModelPreferenceOrder(
+        params.preferredModelName || "",
+        "gpt-5.5",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
+        "doubao-seed-2-0-pro-260215",
+        "doubao-seed-2-0-mini-260215",
+        "kimi-k2.6",
+      ),
+      preferredProviderIds: params.preferredProviderIds || [],
+    };
+    const providers = await this.loadOriginalCopyProviders(brandId, preference);
+    const systemPrompt = this.buildDesignTextSystemPrompt(module);
+    const userPrompt = JSON.stringify({
+      title: params.title,
+      brandName: params.brandName,
+      brandProfileSummary: params.brandProfileSummary || "本次不植入品牌资料",
+      calendarLabel: params.calendarLabel || "未选择营销日历",
+      productLabel: params.productLabel || "不植入产品",
+      designType: params.designType,
+      spec: params.spec,
+      additionalInstruction: params.additionalInstruction,
+    }, null, 2);
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const title = String(parsed.title ?? params.title).trim() || params.title;
+              const summary = String(parsed.summary ?? "").trim() || `${params.designType}方案已生成`;
+              const htmlContent = this.wrapDesignHtmlDocument(title, summary, String(parsed.htmlContent ?? "").trim());
+              const file = await this.writeGeneratedTextFile(brandId, `${createId("design")}-${module}.html`, htmlContent);
+              return {
+                title,
+                summary,
+                htmlContent,
+                assetUrl: file.url,
+                modelName,
+                tags: this.normalizeStringArray(parsed.tags, [params.designType], 6),
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "设计文本生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("设计工作台文本生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   async listXiaohongshuOriginalWorks(brandId: string) {

@@ -35,6 +35,7 @@ flowchart TD
     B --> B25["抖音工作台 /douyin"]
     B --> B3["小红书工作台 /xiaohongshu"]
     B --> B26["公众号工作台 /wechat"]
+    B --> B27["设计工作台 /more-features/design"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
     B5 --> B51["接口供应商平台配置中心"]
@@ -110,6 +111,7 @@ flowchart LR
     Dash --> Douyin["/douyin"]
     Dash --> Xiaohongshu["/xiaohongshu"]
     Dash --> Wechat["/wechat"]
+    Dash --> MoreFeatures["/more-features -> /more-features/design"]
     Dash --> Personal["/personal-center"]
     Dash --> Admin["/admin"]
     Dash --> Membership["/membership-purchase"]
@@ -546,6 +548,44 @@ flowchart TD
     WM4 --> WT2
 ```
 
+## 6.3 设计工作台深度地图
+
+```mermaid
+flowchart TD
+    MF["/more-features page.tsx"]
+    MF --> MFD["redirect('/more-features/design')"]
+    MFD --> DWE["/more-features/design page.tsx"]
+    DWE --> DWS["workspace-shell.tsx 编排壳层"]
+    DWS --> DA["auth-session.ts 当前品牌解析"]
+    DWS --> DS1["design.ts 设计工作台 service"]
+
+    DWS --> DWC1["横向二级模块：图片 / HTML / PPT / 视频"]
+    DWS --> DWC2["统一创建弹窗"]
+    DWC2 --> DWC21["营销日历：真实品牌营销日历"]
+    DWC2 --> DWC22["产品：真实品牌产品 + 不植入产品"]
+    DWC2 --> DWC23["品牌资料：植入 / 不植入"]
+    DWC2 --> DWC24["模型：Provider 作用域模型值 providerId::modelName"]
+    DWC2 --> DWC25["上传参考图 + 用户要求"]
+    DWS --> DWC3["作品结果区：会话内真实创建结果"]
+    DWC3 --> DWC31["查看详情 / 标记完成 / 删除"]
+    DWC3 --> DWC32["HTML 结果支持当前页 iframe 预览"]
+
+    DA --> DS1
+    DS1 --> DAPI1["GET /works/brands/:brandId/design/options"]
+    DS1 --> DAPI2["POST /works/brands/:brandId/design/generate"]
+
+    DAPI1 --> DM1["WorksModule"]
+    DAPI2 --> DM1
+    DM1 --> DM11["BrandsModule 品牌档案/产品"]
+    DM1 --> DM12["ReportsModule 营销日历"]
+    DM1 --> DM13["ApiProvidersModule 运行时 Provider"]
+    DM1 --> DM14["ThirdPartyPlatformsModule 品牌级第三方密钥"]
+    DM1 --> DT1["Task"]
+    DM1 --> DT2["MediaAsset"]
+    DM1 --> DT3["Brand"]
+    DM1 --> DT4["Product"]
+```
+
 ## 7. 个人中心、支付和后台管理地图
 
 ```mermaid
@@ -651,6 +691,7 @@ flowchart LR
     S6["publishing.ts"] --> A6["PublishingController"]
     S7["personal-center.ts"] --> A7["AuthController + OrdersController + TasksController + MediaController"]
     S8["admin.ts"] --> A8["Admin Controllers"]
+    S10["design.ts"] --> A5
     S9["http.ts"] --> A9["统一 request/jsonRequest 基座"]
 ```
 
@@ -693,6 +734,7 @@ flowchart TD
     M5 --> M57["原创/二创/视频三类作品创建都默认要求账号角色并写入主记录元数据"]
     M5 --> M58["历史 seedance 兼容值自动映射到 volcengine_seedance_20，避免落到已下线平台"]
     M5 --> M59["公众号工作台已接配置保存、HTML 草稿生成、发布状态回写与图片任务记录"]
+    M5 --> M510["设计工作台已接真实选项聚合与生成链路，按模块分流到图像或文本 Provider"]
     M6 --> M5
     M6 --> M7
     M6 --> M8

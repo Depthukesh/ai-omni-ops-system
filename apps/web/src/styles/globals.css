@@ -8793,6 +8793,11 @@ button {
   box-shadow: 0 16px 32px rgba(49, 61, 95, 0.08);
 }
 
+.design-v3-work-card.is-selected {
+  border-color: rgba(95, 118, 255, 0.42);
+  box-shadow: 0 18px 34px rgba(84, 105, 235, 0.16);
+}
+
 .design-v3-work-thumb {
   min-height: 148px;
   padding: 18px;
@@ -8846,6 +8851,13 @@ button {
 }
 
 .design-v3-work-tags {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.design-v3-work-actions {
   margin-top: 14px;
   display: flex;
   gap: 8px;
