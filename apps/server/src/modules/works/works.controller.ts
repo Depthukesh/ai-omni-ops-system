@@ -201,15 +201,14 @@ export class WorksController {
   }
 
   @Post("brands/:brandId/design/generate")
-  createDesignWork(
+  async createDesignWork(
     @Param("brandId") brandId: string,
     @Body() payload: GenerateDesignWorkPayload,
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
-      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
-      return this.worksService.generateDesignWork(brandId, payload, auth);
-    });
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.generateDesignWork(brandId, payload, auth!);
   }
 
   @Get("brands/:brandId/douyin/digital-human/template-tags")
