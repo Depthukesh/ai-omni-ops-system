@@ -1,7 +1,5 @@
-"use client";
-
-import { MoreFeaturesWorkspaceShell } from "./workspace-shell";
+import { redirect } from "next/navigation";
 
 export default function MoreFeaturesPage() {
-  return <MoreFeaturesWorkspaceShell />;
+  redirect("/more-features/design");
 }

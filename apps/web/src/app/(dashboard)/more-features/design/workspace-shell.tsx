@@ -4,6 +4,14 @@ import { useMemo, useState } from "react";
 
 type DesignModuleKey = "image" | "html" | "deck" | "video";
 
+type DesignWork = {
+  title: string;
+  status: string;
+  updatedAt: string;
+  summary: string;
+  tags: string[];
+};
+
 type DesignModuleMeta = {
   key: DesignModuleKey;
   label: string;
@@ -11,13 +19,18 @@ type DesignModuleMeta = {
   createLabel: string;
   types: string[];
   models: string[];
-  works: {
-    title: string;
-    status: string;
-    updatedAt: string;
-    summary: string;
-    tags: string[];
-  }[];
+  works: DesignWork[];
+};
+
+type DesignFormState = {
+  title: string;
+  calendar: string;
+  product: string;
+  brand: string;
+  type: string;
+  model: string;
+  spec: string;
+  prompt: string;
 };
 
 const designModules: DesignModuleMeta[] = [
@@ -123,6 +136,75 @@ const calendarOptions = ["2026-06-11 | 毕业季营销方案", "2026-06-18 | 618
 const productOptions = ["不植入产品", "品牌A 主推产品", "品牌B 新品系列", "品牌C 爆款单品"];
 const brandOptions = ["植入品牌资料", "不植入品牌资料"];
 
+function getDefaultSpec(module: DesignModuleMeta) {
+  if (module.key === "image") {
+    return "1242×1660";
+  }
+
+  if (module.key === "html") {
+    return "桌面端优先";
+  }
+
+  if (module.key === "deck") {
+    return "10 页以内";
+  }
+
+  return "15 秒";
+}
+
+function createDefaultFormState(module: DesignModuleMeta): DesignFormState {
+  return {
+    title: `${module.types[0]}方案`,
+    calendar: calendarOptions[0],
+    product: productOptions[0],
+    brand: brandOptions[0],
+    type: module.types[0],
+    model: module.models[0],
+    spec: getDefaultSpec(module),
+    prompt: `请基于营销日历、${module.label}类型、品牌资料和产品信息生成一版${module.label}，要求风格清晰、结构可继续编辑，并保留后续二次优化空间。`,
+  };
+}
+
+function formatTimestamp(date: Date) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date).replace(/\//g, "/");
+}
+
+function createInitialWorksByModule() {
+  return designModules.reduce<Record<DesignModuleKey, DesignWork[]>>((accumulator, module) => {
+    accumulator[module.key] = module.works;
+    return accumulator;
+  }, {} as Record<DesignModuleKey, DesignWork[]>);
+}
+
+function createInitialRefreshByModule() {
+  return designModules.reduce<Record<DesignModuleKey, string>>((accumulator, module) => {
+    accumulator[module.key] = module.works[0]?.updatedAt ?? "尚未刷新";
+    return accumulator;
+  }, {} as Record<DesignModuleKey, string>);
+}
+
+function buildWorkSummary(module: DesignModuleMeta, form: DesignFormState, referenceFileName: string) {
+  const referenceSummary = referenceFileName ? `参考图“${referenceFileName}”已上传` : "未上传参考图";
+  return `基于${form.calendar}、${form.product}与${form.brand}生成${form.type}，规格为${form.spec}，当前使用${form.model}，${referenceSummary}。`;
+}
+
+function buildCreatedWork(module: DesignModuleMeta, form: DesignFormState, referenceFileName: string): DesignWork {
+  return {
+    title: form.title.trim() || `${form.type}方案`,
+    status: "待生成",
+    updatedAt: formatTimestamp(new Date()),
+    summary: buildWorkSummary(module, form, referenceFileName),
+    tags: [form.type, form.brand, form.product, referenceFileName ? "参考图已上传" : "未上传参考图", form.model],
+  };
+}
+
 interface DesignWorkspaceShellProps {
   section: { label: string; description: string };
 }
@@ -130,11 +212,23 @@ interface DesignWorkspaceShellProps {
 function DesignCreateDialog({
   module,
   open,
+  form,
+  referenceFileName,
+  submitting,
   onClose,
+  onChange,
+  onReferenceChange,
+  onSubmit,
 }: {
   module: DesignModuleMeta;
   open: boolean;
+  form: DesignFormState;
+  referenceFileName: string;
+  submitting: boolean;
   onClose: () => void;
+  onChange: (field: keyof DesignFormState, value: string) => void;
+  onReferenceChange: (fileName: string) => void;
+  onSubmit: () => void;
 }) {
   if (!open) {
     return null;
@@ -162,8 +256,12 @@ function DesignCreateDialog({
         <div className="design-v3-dialog__body">
           <div className="design-v3-form-grid">
             <label className="design-v3-field">
+              <span>作品名称</span>
+              <input type="text" value={form.title} onChange={(event) => onChange("title", event.target.value)} />
+            </label>
+            <label className="design-v3-field">
               <span>营销日历</span>
-              <select defaultValue={calendarOptions[0]}>
+              <select value={form.calendar} onChange={(event) => onChange("calendar", event.target.value)}>
                 {calendarOptions.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -173,7 +271,7 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>产品</span>
-              <select defaultValue={productOptions[0]}>
+              <select value={form.product} onChange={(event) => onChange("product", event.target.value)}>
                 {productOptions.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -183,7 +281,7 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>品牌资料</span>
-              <select defaultValue={brandOptions[0]}>
+              <select value={form.brand} onChange={(event) => onChange("brand", event.target.value)}>
                 {brandOptions.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -193,7 +291,7 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>类型</span>
-              <select defaultValue={module.types[0]}>
+              <select value={form.type} onChange={(event) => onChange("type", event.target.value)}>
                 {module.types.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -205,12 +303,17 @@ function DesignCreateDialog({
               <span>上传参考图</span>
               <div className="design-v3-upload-box">
                 <strong>选择文件</strong>
-                <p>支持上传品牌参考图、版式示意图或竞品参考图，可为空。</p>
+                <p>{referenceFileName ? `当前文件：${referenceFileName}` : "支持上传品牌参考图、版式示意图或竞品参考图，可为空。"}</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => onReferenceChange(event.target.files?.[0]?.name ?? "")}
+                />
               </div>
             </label>
             <label className="design-v3-field">
               <span>{module.key === "html" ? "页面生成引擎" : module.key === "deck" ? "PPT 生成引擎" : module.key === "video" ? "视频生成引擎" : "生图大模型"}</span>
-              <select defaultValue={module.models[0]}>
+              <select value={form.model} onChange={(event) => onChange("model", event.target.value)}>
                 {module.models.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -220,27 +323,26 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>作品规格</span>
-              <input
-                type="text"
-                defaultValue={module.key === "image" ? "1242×1660" : module.key === "html" ? "桌面端优先" : module.key === "deck" ? "10 页以内" : "15 秒"}
-              />
+              <input type="text" value={form.spec} onChange={(event) => onChange("spec", event.target.value)} />
             </label>
             <label className="design-v3-field design-v3-field--full">
               <span>用户要求</span>
-              <textarea
-                rows={5}
-                defaultValue={`请基于营销日历、${module.label}类型、品牌资料和产品信息生成一版${module.label}，要求风格清晰、结构可继续编辑，并保留后续二次优化空间。`}
-              />
+              <textarea rows={5} value={form.prompt} onChange={(event) => onChange("prompt", event.target.value)} />
             </label>
           </div>
         </div>
 
         <div className="design-v3-dialog__footer">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={submitting}>
             取消
           </button>
-          <button type="button" className="primary-button">
-            提交创建
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onSubmit}
+            disabled={submitting || !form.title.trim() || !form.prompt.trim()}
+          >
+            {submitting ? "创建中..." : "提交创建"}
           </button>
         </div>
       </div>
@@ -248,15 +350,29 @@ function DesignCreateDialog({
   );
 }
 
-function ModuleStatusCard({ module }: { module: DesignModuleMeta }) {
+function ModuleStatusCard({
+  module,
+  works,
+  lastCreatedWork,
+  lastRefreshedAt,
+}: {
+  module: DesignModuleMeta;
+  works: DesignWork[];
+  lastCreatedWork: DesignWork | null;
+  lastRefreshedAt: string;
+}) {
   return (
     <article className="design-v3-status-card">
       <div>
         <h3>{module.label}任务状态</h3>
-        <p>{module.description} 点击右上角创建按钮后，先填写选项，再在下方查看作品结果。</p>
+        <p>
+          {module.description} 点击右上角创建按钮后，先填写选项，再在下方查看作品结果。
+          {lastCreatedWork ? ` 最近一次创建为“${lastCreatedWork.title}”。` : ""}
+        </p>
       </div>
       <div className="design-v3-status-pills">
-        <span className="archive-pill status-ready">累计 {module.works.length} 个作品</span>
+        <span className="archive-pill status-ready">累计 {works.length} 个作品</span>
+        <span className="archive-pill status-ready">最近刷新 {lastRefreshedAt}</span>
         <span className="archive-pill status-pending">支持品牌资料植入</span>
         <span className="archive-pill status-pending">支持参考图</span>
       </div>
@@ -264,7 +380,7 @@ function ModuleStatusCard({ module }: { module: DesignModuleMeta }) {
   );
 }
 
-function ModuleWorks({ module }: { module: DesignModuleMeta }) {
+function ModuleWorks({ module, works }: { module: DesignModuleMeta; works: DesignWork[] }) {
   return (
     <section className="design-v3-works">
       <div className="collection-result-head">
@@ -272,11 +388,11 @@ function ModuleWorks({ module }: { module: DesignModuleMeta }) {
           <h3>作品结果</h3>
           <p>当前作品按卡片方式呈现，后续可继续扩展为图片预览、HTML 预览、PPT 页缩略图和视频分镜板。</p>
         </div>
-        <span className="archive-pill status-ready">已展示 {module.works.length} 个</span>
+        <span className="archive-pill status-ready">已展示 {works.length} 个</span>
       </div>
 
       <div className="design-v3-work-grid">
-        {module.works.map((work) => (
+        {works.map((work) => (
           <article key={`${module.key}-${work.title}`} className="design-v3-work-card">
             <div className="design-v3-work-thumb">
               <span>{module.label}</span>
@@ -307,11 +423,72 @@ function ModuleWorks({ module }: { module: DesignModuleMeta }) {
 export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const [activeModule, setActiveModule] = useState<DesignModuleKey>("image");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [worksByModule, setWorksByModule] = useState<Record<DesignModuleKey, DesignWork[]>>(createInitialWorksByModule);
+  const [lastRefreshByModule, setLastRefreshByModule] = useState<Record<DesignModuleKey, string>>(createInitialRefreshByModule);
+  const [lastCreatedByModule, setLastCreatedByModule] = useState<Record<DesignModuleKey, DesignWork | null>>({
+    image: null,
+    html: null,
+    deck: null,
+    video: null,
+  });
+  const [referenceFileName, setReferenceFileName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const activeMeta = useMemo(
     () => designModules.find((item) => item.key === activeModule) ?? designModules[0],
     [activeModule],
   );
+  const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState(activeMeta));
+  const activeWorks = worksByModule[activeModule] ?? [];
+
+  const handleOpenDialog = () => {
+    setForm(createDefaultFormState(activeMeta));
+    setReferenceFileName("");
+    setDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    if (submitting) {
+      return;
+    }
+
+    setDialogOpen(false);
+  };
+
+  const handleModuleChange = (moduleKey: DesignModuleKey) => {
+    const nextMeta = designModules.find((item) => item.key === moduleKey) ?? designModules[0];
+    setActiveModule(moduleKey);
+    setDialogOpen(false);
+    setReferenceFileName("");
+    setSubmitting(false);
+    setForm(createDefaultFormState(nextMeta));
+  };
+
+  const handleFormChange = (field: keyof DesignFormState, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleRefresh = () => {
+    const refreshedAt = formatTimestamp(new Date());
+    setLastRefreshByModule((current) => ({ ...current, [activeModule]: refreshedAt }));
+  };
+
+  const handleSubmit = () => {
+    setSubmitting(true);
+
+    const createdWork = buildCreatedWork(activeMeta, form, referenceFileName);
+
+    setWorksByModule((current) => ({
+      ...current,
+      [activeModule]: [createdWork, ...(current[activeModule] ?? [])],
+    }));
+    setLastCreatedByModule((current) => ({ ...current, [activeModule]: createdWork }));
+    setLastRefreshByModule((current) => ({ ...current, [activeModule]: createdWork.updatedAt }));
+    setDialogOpen(false);
+    setReferenceFileName("");
+    setForm(createDefaultFormState(activeMeta));
+    setSubmitting(false);
+  };
 
   return (
     <>
@@ -342,7 +519,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
                 key={item.key}
                 type="button"
                 className={`design-v3-tab ${item.key === activeModule ? "is-active" : ""}`}
-                onClick={() => setActiveModule(item.key)}
+                onClick={() => handleModuleChange(item.key)}
               >
                 {item.label}
               </button>
@@ -355,21 +532,36 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
               <p>{activeMeta.description}</p>
             </div>
             <div className="design-v3-module-actions">
-              <button type="button" className="secondary-button">
+              <button type="button" className="secondary-button" onClick={handleRefresh}>
                 刷新列表
               </button>
-              <button type="button" className="primary-button" onClick={() => setDialogOpen(true)}>
+              <button type="button" className="primary-button" onClick={handleOpenDialog}>
                 {activeMeta.createLabel}
               </button>
             </div>
           </div>
 
-          <ModuleStatusCard module={activeMeta} />
-          <ModuleWorks module={activeMeta} />
+          <ModuleStatusCard
+            module={activeMeta}
+            works={activeWorks}
+            lastCreatedWork={lastCreatedByModule[activeModule]}
+            lastRefreshedAt={lastRefreshByModule[activeModule]}
+          />
+          <ModuleWorks module={activeMeta} works={activeWorks} />
         </article>
       </div>
 
-      <DesignCreateDialog module={activeMeta} open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <DesignCreateDialog
+        module={activeMeta}
+        open={dialogOpen}
+        form={form}
+        referenceFileName={referenceFileName}
+        submitting={submitting}
+        onClose={handleCloseDialog}
+        onChange={handleFormChange}
+        onReferenceChange={setReferenceFileName}
+        onSubmit={handleSubmit}
+      />
     </>
   );
 }
