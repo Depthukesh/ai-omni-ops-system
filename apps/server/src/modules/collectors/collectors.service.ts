@@ -3607,7 +3607,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       brandId,
     );
     const detail = this.extractWechatArticleDetail(raw);
-    const content = this.extractWechatArticleContent(detail);
+    const htmlContent = this.extractWechatArticleHtml(detail);
+    const content = this.extractWechatArticleContent(detail, htmlContent);
     const title = this.pickString(detail, ["title", "msg_title", "article_title", "name"]) || "公众号文章详情";
     const metadata = {
       kind: "WECHAT_MP_ARTICLE_DETAIL" as const,
@@ -3616,7 +3617,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         this.pickString(detail, ["url", "article_url", "articleUrl", "link", "share_url"]) || articleUrl,
       ) || articleUrl,
       author: this.pickString(detail, ["author", "nickname", "bizname", "account_name", "source"]) || undefined,
-      imageList: this.extractWechatImageList(detail, content),
+      imageList: this.extractWechatImageList(detail, htmlContent, content),
       collectedAt: new Date().toISOString(),
       rawFields: detail,
     };
@@ -5081,6 +5082,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private extractWechatArticleDetail(raw: unknown) {
     const queue: unknown[] = [raw];
+    let bestRecord: Record<string, unknown> | null = null;
+    let bestScore = -1;
     while (queue.length) {
       const current = queue.shift();
       if (!current || typeof current !== "object") {
@@ -5091,16 +5094,65 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       const record = current as Record<string, unknown>;
-      if (this.pickString(record, ["title", "msg_title", "article_title"]) || this.pickString(record, ["author", "nickname", "bizname"])) {
-        return record;
+      const score = this.scoreWechatArticleDetailRecord(record);
+      if (score > bestScore) {
+        bestScore = score;
+        bestRecord = record;
       }
       queue.push(...Object.values(record));
     }
-    return this.asMeta(raw);
+    return bestRecord ?? this.asMeta(raw);
   }
 
-  private extractWechatArticleContent(raw: unknown) {
-    return this.pickString(raw, ["content", "content_text", "article_content", "desc", "description", "body", "text"]);
+  private scoreWechatArticleDetailRecord(record: Record<string, unknown>) {
+    let score = 0;
+    if (this.pickString(record, ["title", "msg_title", "article_title", "name"])) {
+      score += 4;
+    }
+    if (this.pickString(record, ["author", "nickname", "bizname", "account_name", "source"])) {
+      score += 2;
+    }
+    if (this.extractWechatArticleHtml(record)) {
+      score += 6;
+    }
+    if (this.pickString(record, ["content_text", "article_content", "desc", "description", "body", "text"])) {
+      score += 5;
+    }
+    if (this.extractWechatImageList(record).length) {
+      score += 3;
+    }
+    return score;
+  }
+
+  private extractWechatArticleHtml(raw: unknown) {
+    const candidate = this.pickString(raw, [
+      "content_html",
+      "article_content_html",
+      "article_html",
+      "html_content",
+      "rich_content",
+      "rich_text",
+      "content",
+      "body",
+    ]);
+    return this.looksLikeHtml(candidate) ? candidate : "";
+  }
+
+  private extractWechatArticleContent(raw: unknown, htmlContent?: string) {
+    const plainText = this.pickString(raw, [
+      "content_text",
+      "article_content",
+      "desc",
+      "description",
+      "body_text",
+      "text",
+      "content",
+      "body",
+    ]);
+    if (plainText) {
+      return this.looksLikeHtml(plainText) ? this.convertHtmlToPlainText(plainText) : this.normalizeWechatPlainText(plainText);
+    }
+    return htmlContent ? this.convertHtmlToPlainText(htmlContent) : "";
   }
 
   private extractWechatSearchItems(raw: unknown): Record<string, unknown>[] {
@@ -5129,21 +5181,26 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return bestCandidates;
   }
 
-  private extractWechatImageList(raw: unknown, content?: string) {
+  private extractWechatImageList(raw: unknown, htmlContent?: string, content?: string) {
     const fromPayload = Array.from(
       new Set(
         [
-          ...this.pickStringArray(raw, ["image_list", "images", "img_list", "pictures"]),
-          ...this.extractUrlList(raw, ["cdn_url", "url", "src", "image_url", "picture_url"]),
+          ...this.pickStringArray(raw, ["image_list", "images", "img_list", "pictures", "image_urls", "cdn_url_list"]),
+          ...this.extractUrlList(raw, ["cdn_url", "src", "image_url", "picture_url", "data_src", "dataSrc", "ori_url"]),
         ]
           .map((item) => this.normalizeHttpUrl(item))
-          .filter((item): item is string => Boolean(item)),
+          .filter((item): item is string => this.isLikelyWechatImageUrl(item)),
       ),
     );
-    const fromContent = content
-      ? Array.from(content.matchAll(/https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp)/gi)).map((item) => item[0])
+    const fromHtml = htmlContent
+      ? this.extractWechatImageUrlsFromHtml(htmlContent)
       : [];
-    return Array.from(new Set([...fromPayload, ...fromContent]));
+    const fromContent = content
+      ? Array.from(content.matchAll(/https?:\/\/[^\s"'<>]+/gi))
+        .map((item) => this.normalizeHttpUrl(item[0]))
+        .filter((item): item is string => this.isLikelyWechatImageUrl(item))
+      : [];
+    return Array.from(new Set([...fromPayload, ...fromHtml, ...fromContent]));
   }
 
   private extractUrlList(raw: unknown, keys: string[]) {
@@ -5196,6 +5253,82 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return `https:${text}`;
     }
     return "";
+  }
+
+  private looksLikeHtml(value: string) {
+    return /<[^>]+>/.test(String(value || ""));
+  }
+
+  private convertHtmlToPlainText(value: string) {
+    const text = String(value || "");
+    if (!text) {
+      return "";
+    }
+    return this.normalizeWechatPlainText(
+      text
+        .replace(/<\s*br\s*\/?>/gi, "\n")
+        .replace(/<\s*\/p\s*>/gi, "\n")
+        .replace(/<\s*\/div\s*>/gi, "\n")
+        .replace(/<\s*\/li\s*>/gi, "\n")
+        .replace(/<\s*\/h[1-6]\s*>/gi, "\n")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, "\"")
+        .replace(/&#39;/gi, "'"),
+    );
+  }
+
+  private normalizeWechatPlainText(value: string) {
+    return String(value || "")
+      .replace(/\r/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
+  }
+
+  private extractWechatImageUrlsFromHtml(value: string) {
+    const html = String(value || "");
+    if (!html) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        Array.from(html.matchAll(/<(?:img|image)\b[^>]+(?:data-src|data-original|src)=["']([^"'<>]+)["']/gi))
+          .map((item) => this.normalizeHttpUrl(item[1] || ""))
+          .filter((item): item is string => this.isLikelyWechatImageUrl(item)),
+      ),
+    );
+  }
+
+  private isLikelyWechatImageUrl(value: string) {
+    const text = this.normalizeHttpUrl(value);
+    if (!text || /batch_get_tmp_download_url/i.test(text)) {
+      return false;
+    }
+    if (/\.(?:png|jpg|jpeg|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(text)) {
+      return true;
+    }
+    try {
+      const parsed = new URL(text);
+      if (/mp\.weixin\.qq\.com/i.test(parsed.hostname)) {
+        return false;
+      }
+      if (/qpic\.cn$/i.test(parsed.hostname) || /mmbiz/i.test(parsed.pathname)) {
+        return true;
+      }
+      if (parsed.searchParams.has("wx_fmt") || parsed.searchParams.has("tp")) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
   }
 
   private normalizeDouyinAccountLocator(value: string) {
