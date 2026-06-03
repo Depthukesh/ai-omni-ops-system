@@ -202,6 +202,42 @@ export type DouyinCollectionWorkspace = {
   cityOptions: DouyinCityOption[];
 };
 
+export type WechatArticleDetailRecord = {
+  id: string;
+  kind: "WECHAT_MP_ARTICLE_DETAIL";
+  queryUrl: string;
+  articleUrl: string;
+  title: string;
+  content?: string;
+  author?: string;
+  imageList: string[];
+  collectedAt: string;
+};
+
+export type WechatOfficialAccountRecord = {
+  id: string;
+  kind: "WECHAT_OFFICIAL_ACCOUNT";
+  keyword: string;
+  accountName: string;
+  accountLink?: string;
+  collectedAt: string;
+};
+
+export type WechatArticleSearchRecord = {
+  id: string;
+  kind: "WECHAT_ARTICLE_SEARCH";
+  keyword: string;
+  title: string;
+  articleLink?: string;
+  collectedAt: string;
+};
+
+export type WechatCollectionWorkspace = {
+  articleDetails: WechatArticleDetailRecord[];
+  officialAccounts: WechatOfficialAccountRecord[];
+  articles: WechatArticleSearchRecord[];
+};
+
 export type DouyinSyncPayload = {
   scope?:
     | "brandAccount"
@@ -220,6 +256,17 @@ export type DouyinSyncPayload = {
     secondaryTagId?: number;
   };
   cityCode?: number;
+};
+
+export type WechatSyncPayload = {
+  scope?: "articleDetail" | "officialAccountSearch" | "articleSearch";
+  articleDetailUrl?: string;
+  officialAccountKeyword?: string;
+  officialAccountOffset?: number;
+  officialAccountSortType?: "_0" | "_2" | "_4";
+  articleKeyword?: string;
+  articleOffset?: number;
+  articleSortType?: "_0" | "_2" | "_4";
 };
 
 export const xhsCollectionSeed: XhsCollectionWorkspace = {
@@ -418,6 +465,27 @@ export async function syncDouyinCollectionWorkspace(payload: DouyinSyncPayload =
     workspace: DouyinCollectionWorkspace;
   }>(
     `/collectors/douyin/brands/${resolveBrandId(brandId)}/sync`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getWechatCollectionWorkspace(brandId?: string) {
+  return request<WechatCollectionWorkspace>(`/collectors/wechat/brands/${resolveBrandId(brandId)}/workspace`);
+}
+
+export async function syncWechatCollectionWorkspace(payload: WechatSyncPayload = {}, brandId?: string) {
+  return jsonRequest<{
+    syncedCount: number;
+    breakdown: {
+      articleDetails: number;
+      officialAccounts: number;
+      articles: number;
+    };
+    warnings?: string[];
+    workspace: WechatCollectionWorkspace;
+  }>(
+    `/collectors/wechat/brands/${resolveBrandId(brandId)}/sync`,
     "POST",
     payload,
   );

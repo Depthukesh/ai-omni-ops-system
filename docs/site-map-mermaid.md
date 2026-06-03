@@ -126,6 +126,11 @@ flowchart TD
     BGW --> BA["auth.ts /auth/me 校正当前品牌"]
 
     BGW --> BGW1["collection-workspace.tsx 收集数据"]
+    BGW1 --> BGWC1["飞书配置"]
+    BGW1 --> BGWC2["小红书收集"]
+    BGW1 --> BGWC3["抖音收集"]
+    BGW1 --> BGWC4["公众号收集"]
+    BGW1 --> BGWC5["每日热点"]
     BGW --> BGW2["library-workspace.tsx 品牌资料库"]
     BGW --> BGW3["report-workspace.tsx 品牌增长报告"]
     BGW --> BGW4["shared-types.ts"]

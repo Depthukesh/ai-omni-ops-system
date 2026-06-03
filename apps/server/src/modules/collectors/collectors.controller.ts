@@ -167,3 +167,39 @@ export class DouyinCollectorsController {
     return this.collectorsService.removeDouyinBenchmarkWorkFromMaterialLibrary(brandId, assetId);
   }
 }
+
+@Controller("collectors/wechat")
+export class WechatCollectorsController {
+  constructor(
+    @Inject(CollectorsService) private readonly collectorsService: CollectorsService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
+
+  @Get("brands/:brandId/workspace")
+  async workspace(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.getWechatWorkspace(brandId);
+  }
+
+  @Post("brands/:brandId/sync")
+  async syncWorkspace(
+    @Param("brandId") brandId: string,
+    @Body()
+    payload: {
+      scope?: "articleDetail" | "officialAccountSearch" | "articleSearch";
+      articleDetailUrl?: string;
+      officialAccountKeyword?: string;
+      officialAccountOffset?: number;
+      officialAccountSortType?: "_0" | "_2" | "_4";
+      articleKeyword?: string;
+      articleOffset?: number;
+      articleSortType?: "_0" | "_2" | "_4";
+    },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncWechatWorkspace(brandId, payload ?? {});
+  }
+}

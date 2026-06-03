@@ -95,6 +95,12 @@
   - 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
   - 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
   - 参考变更：`docs/changes/2026-05-24-douyin-billboards-and-collection-container.md`
+- 公众号平台
+  - 当前入口位于“抖音”下方，页面容器与小红书/抖音板块保持一致
+  - 当前包含 3 个子卡片：文章详情 JSON、搜索微信公众号、搜索公众号文章
+  - 文章详情结果仅展示标题、正文、作者和文中图片列表；搜索结果仅展示公众号名称/页面链接或文章标题/文章链接
+  - 结果来自 `collectors/wechat` 独立接口，并在工作台内按采集时间倒序展示
+  - 参考变更：`docs/changes/2026-06-03-brand-growth-wechat-collection.md`
 - 每日热点
 
 #### 品牌增长报告
@@ -468,7 +474,7 @@
   - 当前已接入的权限键覆盖品牌资料库、收集数据、品牌增长报告三组目录
  - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
   - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
-  - 当前“收集数据”子页已去掉页面顶部重复头部，标题、刷新、提交和状态提示统一收口到各自板块内容容器内；抖音收集页已在手动对标作品后补入 3 个榜单卡片与二级分类下拉提交流程
+  - 当前“收集数据”子页已去掉页面顶部重复头部，标题、刷新、提交和状态提示统一收口到各自板块内容容器内；抖音收集页已在手动对标作品后补入 3 个榜单卡片与二级分类下拉提交流程，公众号收集页新增 3 个独立采集卡片
 - `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
   - 当前已收成薄入口文件，仅负责挂载 `XiaohongshuWorkspaceShell`
 - `apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`

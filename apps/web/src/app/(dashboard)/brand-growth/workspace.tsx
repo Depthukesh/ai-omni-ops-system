@@ -15,6 +15,7 @@ import { CalendarWorkspace } from "../xiaohongshu/calendar-workspace";
 import {
   BrandGrowthCollectionWorkspace,
   type DouyinCollectionCardKey,
+  type WechatCollectionCardKey,
   type XiaohongshuCollectionCardKey,
 } from "./collection-workspace";
 import {
@@ -43,12 +44,16 @@ import {
   addDouyinBenchmarkWorkToMaterialLibrary,
   addBenchmarkNoteToMaterialLibrary,
   getDouyinCollectionWorkspace,
+  getWechatCollectionWorkspace,
   getXiaohongshuCollectionWorkspace,
   removeDouyinBenchmarkWorkFromMaterialLibrary,
   syncDouyinCollectionWorkspace,
+  syncWechatCollectionWorkspace,
   type DouyinSyncPayload,
   syncXiaohongshuFromFeishu,
   type DouyinCollectionWorkspace,
+  type WechatCollectionWorkspace,
+  type WechatSyncPayload,
   type XhsCollectionWorkspace,
 } from "../../../services/collectors";
 import { API_BASE_URL } from "../../../services/http";
@@ -126,6 +131,7 @@ type StrategyPageKey =
   | "feishuCollection"
   | "xiaohongshuCollection"
   | "douyinCollection"
+  | "wechatCollection"
   | "dailyHotspot"
   | "growthReport"
   | "visualGrowthReport"
@@ -155,6 +161,7 @@ const strategySections: Array<{
       { key: "feishuCollection", label: "飞书配置", description: "配置飞书应用、副本绑定与同步前置。" },
       { key: "xiaohongshuCollection", label: "小红书", description: "查看小红书同步结果并执行数据同步。" },
       { key: "douyinCollection", label: "抖音", description: "查看抖音采集结果并执行 Tikhub 数据同步。" },
+      { key: "wechatCollection", label: "公众号", description: "查看公众号采集结果并执行文章与账号搜索。" },
       { key: "dailyHotspot", label: "每日热点", description: "查看热点主题、平台趋势和当天建议动作。" },
     ],
   },
@@ -181,7 +188,8 @@ const strategyPagePermissionMap: Record<StrategyPageKey, BrandPermissionKey> = {
   businessAssets: "brandGrowth.library.businessAssets",
   feishuCollection: "brandGrowth.collection.xiaohongshuCollection",
   xiaohongshuCollection: "brandGrowth.collection.xiaohongshuCollection",
-  douyinCollection: "brandGrowth.collection.xiaohongshuCollection",
+  douyinCollection: "brandGrowth.collection.douyinCollection",
+  wechatCollection: "brandGrowth.collection.wechatCollection",
   dailyHotspot: "brandGrowth.collection.dailyHotspot",
   growthReport: "brandGrowth.report.growthReport",
   visualGrowthReport: "brandGrowth.report.visualGrowthReport",
@@ -248,6 +256,14 @@ function createEmptyDouyinCollectionWorkspace(): DouyinCollectionWorkspace {
     cityHotspots: [],
     contentTags: [],
     cityOptions: [],
+  };
+}
+
+function createEmptyWechatCollectionWorkspace(): WechatCollectionWorkspace {
+  return {
+    articleDetails: [],
+    officialAccounts: [],
+    articles: [],
   };
 }
 
@@ -387,6 +403,16 @@ type DouyinSyncForm = {
   };
 };
 
+type WechatSyncForm = {
+  articleDetailUrl: string;
+  officialAccountKeyword: string;
+  officialAccountOffset: string;
+  officialAccountSortType: "_0" | "_2" | "_4";
+  articleKeyword: string;
+  articleOffset: string;
+  articleSortType: "_0" | "_2" | "_4";
+};
+
 function createEmptyDouyinSyncForm(): DouyinSyncForm {
   return {
     brandAccountLinks: "",
@@ -410,6 +436,18 @@ function createEmptyDouyinSyncForm(): DouyinSyncForm {
   };
 }
 
+function createEmptyWechatSyncForm(): WechatSyncForm {
+  return {
+    articleDetailUrl: "",
+    officialAccountKeyword: "",
+    officialAccountOffset: "0",
+    officialAccountSortType: "_0",
+    articleKeyword: "",
+    articleOffset: "0",
+    articleSortType: "_0",
+  };
+}
+
 function parseDouyinSyncLines(value: string) {
   return Array.from(
     new Set(
@@ -426,10 +464,16 @@ function parseOptionalNumericTagId(value: string) {
   return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined;
 }
 
+function parseOptionalOffset(value: string) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) && normalized >= 0 ? Math.trunc(normalized) : undefined;
+}
+
 export function BrandGrowthWorkspace() {
   const [archive, setArchive] = useState<BrandArchiveBundle>(createEmptyArchiveBundle);
   const [collectionWorkspace, setCollectionWorkspace] = useState<XhsCollectionWorkspace>(createEmptyCollectionWorkspace);
   const [douyinCollectionWorkspace, setDouyinCollectionWorkspace] = useState<DouyinCollectionWorkspace>(createEmptyDouyinCollectionWorkspace);
+  const [wechatCollectionWorkspace, setWechatCollectionWorkspace] = useState<WechatCollectionWorkspace>(createEmptyWechatCollectionWorkspace);
   const [dailyHotspotWorkspace, setDailyHotspotWorkspace] = useState<DailyHotspotWorkspace>(createEmptyDailyHotspotWorkspace);
   const [reportWorkspace, setReportWorkspace] = useState<GrowthReportWorkspace>(createEmptyGrowthReportWorkspace);
   const [visualReportWorkspace, setVisualReportWorkspace] = useState<VisualGrowthReportWorkspace>(createEmptyVisualGrowthReportWorkspace);
@@ -448,6 +492,7 @@ export function BrandGrowthWorkspace() {
   const [feishuBindingForm, setFeishuBindingForm] = useState(createEmptyFeishuBindingForm);
   const [feishuAppConfigForm, setFeishuAppConfigForm] = useState(createEmptyFeishuAppConfigForm);
   const [douyinSyncForm, setDouyinSyncForm] = useState<DouyinSyncForm>(createEmptyDouyinSyncForm);
+  const [wechatSyncForm, setWechatSyncForm] = useState<WechatSyncForm>(createEmptyWechatSyncForm);
   const [brandNotesPage, setBrandNotesPage] = useState(1);
   const [brandNotesPageSize, setBrandNotesPageSize] = useState(10);
   const [hotspotPage, setHotspotPage] = useState(1);
@@ -456,6 +501,7 @@ export function BrandGrowthWorkspace() {
   const [activePage, setActivePage] = useState<StrategyPageKey>("background");
   const [activeXhsCollectionCard, setActiveXhsCollectionCard] = useState<XiaohongshuCollectionCardKey>("brandAccount");
   const [activeDouyinCollectionCard, setActiveDouyinCollectionCard] = useState<DouyinCollectionCardKey>("brandAccount");
+  const [activeWechatCollectionCard, setActiveWechatCollectionCard] = useState<WechatCollectionCardKey>("articleDetail");
   const [selectedHotspotDate, setSelectedHotspotDate] = useState(getDefaultHotspotDate);
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -463,6 +509,7 @@ export function BrandGrowthWorkspace() {
   const [isSavingFeishuBinding, setIsSavingFeishuBinding] = useState(false);
   const [isSyncingFeishuWorkspace, setIsSyncingFeishuWorkspace] = useState(false);
   const [isSyncingDouyinWorkspace, setIsSyncingDouyinWorkspace] = useState(false);
+  const [isSyncingWechatWorkspace, setIsSyncingWechatWorkspace] = useState(false);
   const [isSyncingDailyHotspots, setIsSyncingDailyHotspots] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
@@ -561,6 +608,18 @@ export function BrandGrowthWorkspace() {
       (left, right) => left.rank - right.rank || Date.parse(right.collectedAt) - Date.parse(left.collectedAt),
     ),
     [douyinCollectionWorkspace.cityHotspots],
+  );
+  const sortedWechatArticleDetails = useMemo(
+    () => sortByCollectedAtDesc(wechatCollectionWorkspace.articleDetails),
+    [wechatCollectionWorkspace.articleDetails],
+  );
+  const sortedWechatOfficialAccounts = useMemo(
+    () => sortByCollectedAtDesc(wechatCollectionWorkspace.officialAccounts),
+    [wechatCollectionWorkspace.officialAccounts],
+  );
+  const sortedWechatArticles = useMemo(
+    () => sortByCollectedAtDesc(wechatCollectionWorkspace.articles),
+    [wechatCollectionWorkspace.articles],
   );
   const brandNotesPageCount = Math.max(1, Math.ceil(sortedBrandNotes.length / brandNotesPageSize));
   const paginatedBrandNotes = useMemo(() => {
@@ -772,6 +831,7 @@ export function BrandGrowthWorkspace() {
         archiveResult,
         collectionResult,
         douyinCollectionResult,
+        wechatCollectionResult,
         dailyHotspotResult,
         reportResult,
         visualReportResult,
@@ -785,6 +845,7 @@ export function BrandGrowthWorkspace() {
         getBrandArchive(activeBrandId),
         getXiaohongshuCollectionWorkspace(activeBrandId),
         getDouyinCollectionWorkspace(activeBrandId),
+        getWechatCollectionWorkspace(activeBrandId),
         getDailyHotspotWorkspace(activeBrandId),
         getGrowthReportWorkspace(activeBrandId),
         getVisualGrowthReportWorkspace(activeBrandId),
@@ -814,6 +875,12 @@ export function BrandGrowthWorkspace() {
         setDouyinCollectionWorkspace(douyinCollectionResult.value);
       } else {
         partialFailures.push("抖音采集数据");
+      }
+
+      if (wechatCollectionResult.status === "fulfilled") {
+        setWechatCollectionWorkspace(wechatCollectionResult.value);
+      } else {
+        partialFailures.push("公众号采集数据");
       }
 
       if (dailyHotspotResult.status === "fulfilled") {
@@ -1399,7 +1466,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleToggleDouyinBenchmarkWorkMaterial(item: DouyinCollectionWorkspace["benchmarkWorks"][number]) {
-    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
       setErrorMessage("当前账号没有编辑抖音收集数据的权限。");
       return;
     }
@@ -1425,7 +1492,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   async function handleSyncDouyinWorkspace() {
-    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
       setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
       return;
     }
@@ -1487,6 +1554,65 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setErrorMessage(`抖音同步失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncWechatWorkspace() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.wechatCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步公众号采集数据的编辑权限。");
+      return;
+    }
+
+    setIsSyncingWechatWorkspace(true);
+    clearMessages();
+
+    try {
+      const payload: WechatSyncPayload = {
+        scope: activeWechatCollectionCard,
+      };
+
+      if (activeWechatCollectionCard === "articleDetail") {
+        if (!wechatSyncForm.articleDetailUrl.trim()) {
+          setErrorMessage("请先输入公众号文章链接。");
+          setIsSyncingWechatWorkspace(false);
+          return;
+        }
+        payload.articleDetailUrl = wechatSyncForm.articleDetailUrl.trim();
+      }
+
+      if (activeWechatCollectionCard === "officialAccountSearch") {
+        if (!wechatSyncForm.officialAccountKeyword.trim()) {
+          setErrorMessage("请先输入公众号搜索关键词。");
+          setIsSyncingWechatWorkspace(false);
+          return;
+        }
+        payload.officialAccountKeyword = wechatSyncForm.officialAccountKeyword.trim();
+        payload.officialAccountOffset = parseOptionalOffset(wechatSyncForm.officialAccountOffset);
+        payload.officialAccountSortType = wechatSyncForm.officialAccountSortType;
+      }
+
+      if (activeWechatCollectionCard === "articleSearch") {
+        if (!wechatSyncForm.articleKeyword.trim()) {
+          setErrorMessage("请先输入公众号文章搜索关键词。");
+          setIsSyncingWechatWorkspace(false);
+          return;
+        }
+        payload.articleKeyword = wechatSyncForm.articleKeyword.trim();
+        payload.articleOffset = parseOptionalOffset(wechatSyncForm.articleOffset);
+        payload.articleSortType = wechatSyncForm.articleSortType;
+      }
+
+      const response = await syncWechatCollectionWorkspace(payload, activeBrandId || archive.brand.id);
+      setWechatCollectionWorkspace(response.workspace);
+      const summary =
+        `公众号同步完成：文章详情 ${response.breakdown.articleDetails} 条，公众号 ${response.breakdown.officialAccounts} 条，文章 ${response.breakdown.articles} 条。`;
+      const warningText = response.warnings?.filter(Boolean).join("；");
+      setNotice(warningText ? `${summary} 部分请求未完全成功：${warningText}` : summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`公众号同步失败：${message}`);
+    } finally {
+      setIsSyncingWechatWorkspace(false);
     }
   }
 
@@ -1632,6 +1758,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     setActiveSection(targetSection.key);
     setActivePage(targetSection.pages[0]?.key ?? "background");
     setActiveXhsCollectionCard("brandAccount");
+    setActiveDouyinCollectionCard("brandAccount");
+    setActiveWechatCollectionCard("articleDetail");
   }
 
   function switchPage(pageKey: StrategyPageKey) {
@@ -1641,6 +1769,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
     if (pageKey !== "douyinCollection") {
       setActiveDouyinCollectionCard("brandAccount");
+    }
+    if (pageKey !== "wechatCollection") {
+      setActiveWechatCollectionCard("articleDetail");
     }
   }
 
@@ -1774,6 +1905,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         activePage={
           activePage === "dailyHotspot"
             ? "dailyHotspot"
+            : activePage === "wechatCollection"
+              ? "wechatCollection"
             : activePage === "douyinCollection"
               ? "douyinCollection"
               : activePage === "xiaohongshuCollection"
@@ -1791,6 +1924,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onXhsCollectionCardChange={setActiveXhsCollectionCard}
         activeDouyinCollectionCard={activeDouyinCollectionCard}
         onDouyinCollectionCardChange={setActiveDouyinCollectionCard}
+        activeWechatCollectionCard={activeWechatCollectionCard}
+        onWechatCollectionCardChange={setActiveWechatCollectionCard}
         feishuBinding={feishuBinding}
         feishuAppConfig={feishuAppConfig}
         feishuAuthStatus={feishuAuthStatus}
@@ -1805,13 +1940,18 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         isSyncingFeishuWorkspace={isSyncingFeishuWorkspace}
         douyinWorkspace={douyinCollectionWorkspace}
         isSyncingDouyinWorkspace={isSyncingDouyinWorkspace}
+        wechatWorkspace={wechatCollectionWorkspace}
+        isSyncingWechatWorkspace={isSyncingWechatWorkspace}
         douyinSyncForm={douyinSyncForm}
         setDouyinSyncForm={setDouyinSyncForm}
+        wechatSyncForm={wechatSyncForm}
+        setWechatSyncForm={setWechatSyncForm}
         onSaveFeishuAppConfig={handleSaveFeishuAppConfig}
         onStartFeishuAuth={handleStartFeishuAuth}
         onSaveFeishuBinding={handleSaveFeishuBinding}
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
+        onSyncWechatWorkspace={handleSyncWechatWorkspace}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
@@ -1824,6 +1964,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedDouyinHighCompletionRateWorks={sortedDouyinHighCompletionRateWorks}
         sortedDouyinHighLikeRateWorks={sortedDouyinHighLikeRateWorks}
         sortedDouyinCityHotspots={sortedDouyinCityHotspots}
+        sortedWechatArticleDetails={sortedWechatArticleDetails}
+        sortedWechatOfficialAccounts={sortedWechatOfficialAccounts}
+        sortedWechatArticles={sortedWechatArticles}
         brandNotesPage={brandNotesPage}
         setBrandNotesPage={setBrandNotesPage}
         brandNotesPageCount={brandNotesPageCount}
