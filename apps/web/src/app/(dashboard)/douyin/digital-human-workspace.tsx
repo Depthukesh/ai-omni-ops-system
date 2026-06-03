@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { type DouyinOriginalCopyRecord, type DouyinRemixCopyRecord } from "../../../services/reports";
 import {
   type DigitalHumanFigureType,
+  type GenerateDouyinDigitalHumanCompleteVideoForm,
+  type GenerateDouyinDigitalHumanVideoForm,
   type DigitalHumanTemplatePageInfo,
   type DigitalHumanTemplateRecord,
   type DigitalHumanTemplateTagGroupRecord,
@@ -98,6 +100,7 @@ type DigitalHumanCreatorDraftCard = {
   subtitleStrokeColor: string;
   subtitleStrokeWidth: string;
   subtitleFontId: string;
+  addComplianceWatermark: boolean;
   screenWidth: string;
   screenHeight: string;
 };
@@ -113,6 +116,7 @@ type DigitalHumanCreatorDraftCardSummary = {
   scriptPreview: string;
   scriptLength: number;
   subtitleEnabled: boolean;
+  addComplianceWatermark: boolean;
   previewImageUrl?: string;
   previewVideoUrl?: string;
   materialPreviewVideoUrl?: string;
@@ -279,85 +283,8 @@ export interface DouyinDigitalHumanWorkspaceProps {
   ) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
   onDeleteScriptTemplate: (templateId: string) => Promise<boolean>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
-  onCreate: (payload: {
-    title?: string;
-    personId?: string;
-    personName?: string;
-    personSource?: "COMMON" | "CUSTOM";
-    figureType?: DigitalHumanFigureType;
-    figureCoverUrl?: string;
-    figurePreviewVideoUrl?: string;
-    figureWidth?: number;
-    figureHeight?: number;
-    audioManId?: string;
-    audioName?: string;
-    script?: string;
-    speechRate?: number;
-    pitch?: number;
-    volume?: number;
-    language?: string;
-    backgroundColor?: string;
-    backgroundImageFile?: File | null;
-    backgroundImageUrl?: string;
-    backgroundImageName?: string;
-    subtitleEnabled?: boolean;
-    subtitlePositionX?: number;
-    subtitlePositionY?: number;
-    subtitleWidth?: number;
-    subtitleHeight?: number;
-    subtitleFontSize?: number;
-    subtitleTextColor?: string;
-    subtitleStrokeColor?: string;
-    subtitleStrokeWidth?: number;
-    subtitleFontId?: string;
-    screenWidth?: number;
-    screenHeight?: number;
-    customPersonTrainType?: "figure" | "both";
-    customPersonSupport4k?: boolean;
-    customPersonWidth4k?: number;
-    customPersonHeight4k?: number;
-  }) => Promise<boolean>;
-  onCreateCompleteVideo: (payload: {
-    title?: string;
-    segments: Array<{
-      title?: string;
-      personId?: string;
-      personName?: string;
-      personSource?: "COMMON" | "CUSTOM";
-      figureType?: DigitalHumanFigureType;
-      figureCoverUrl?: string;
-      figurePreviewVideoUrl?: string;
-      figureWidth?: number;
-      figureHeight?: number;
-      audioManId?: string;
-      audioName?: string;
-      script?: string;
-      speechRate?: number;
-      pitch?: number;
-      volume?: number;
-      language?: string;
-      backgroundColor?: string;
-      backgroundImageFile?: File | null;
-      backgroundImageUrl?: string;
-      backgroundImageName?: string;
-      subtitleEnabled?: boolean;
-      subtitlePositionX?: number;
-      subtitlePositionY?: number;
-      subtitleWidth?: number;
-      subtitleHeight?: number;
-      subtitleFontSize?: number;
-      subtitleTextColor?: string;
-      subtitleStrokeColor?: string;
-      subtitleStrokeWidth?: number;
-      subtitleFontId?: string;
-      screenWidth?: number;
-      screenHeight?: number;
-      customPersonTrainType?: "figure" | "both";
-      customPersonSupport4k?: boolean;
-      customPersonWidth4k?: number;
-      customPersonHeight4k?: number;
-    }>;
-  }) => Promise<boolean>;
+  onCreate: (payload: GenerateDouyinDigitalHumanVideoForm) => Promise<boolean>;
+  onCreateCompleteVideo: (payload: GenerateDouyinDigitalHumanCompleteVideoForm) => Promise<boolean>;
   onCreateCustomPerson: (payload: {
     name?: string;
     trainingVideoFile?: File | null;
@@ -460,6 +387,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
   const [subtitleStrokeColor, setSubtitleStrokeColor] = useState("#000000");
   const [subtitleStrokeWidth, setSubtitleStrokeWidth] = useState("2");
   const [subtitleFontId, setSubtitleFontId] = useState("");
+  const [addComplianceWatermark, setAddComplianceWatermark] = useState(true);
   const [screenWidth, setScreenWidth] = useState("1080");
   const [screenHeight, setScreenHeight] = useState("1920");
   const [selectedWorkId, setSelectedWorkId] = useState("");
@@ -510,6 +438,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitleStrokeColor: "#000000",
       subtitleStrokeWidth: "2",
       subtitleFontId: "",
+      addComplianceWatermark: true,
       screenWidth: "1080",
       screenHeight: "1920",
     },
@@ -956,6 +885,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
               subtitleStrokeColor,
               subtitleStrokeWidth,
               subtitleFontId,
+              addComplianceWatermark,
               screenWidth,
               screenHeight,
             }
@@ -991,6 +921,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     subtitleStrokeWidth,
     subtitleTextColor,
     subtitleWidth,
+    addComplianceWatermark,
     title,
     volume,
   ]);
@@ -1144,6 +1075,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     subtitleStrokeColor,
     subtitleStrokeWidth,
     subtitleFontId,
+    addComplianceWatermark,
     screenWidth,
     screenHeight,
   });
@@ -1176,6 +1108,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setSubtitleStrokeColor(draft.subtitleStrokeColor);
     setSubtitleStrokeWidth(draft.subtitleStrokeWidth);
     setSubtitleFontId(draft.subtitleFontId);
+    setAddComplianceWatermark(draft.addComplianceWatermark);
     setScreenWidth(draft.screenWidth);
     setScreenHeight(draft.screenHeight);
   };
@@ -1209,6 +1142,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           scriptPreview: item.script.trim(),
           scriptLength: item.script.trim().length,
           subtitleEnabled: item.subtitleEnabled,
+          addComplianceWatermark: item.addComplianceWatermark,
           previewImageUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.coverImageUrl : matchedFigure?.cover,
           previewVideoUrl: item.personSource === "CUSTOM" ? matchedCustomPerson?.previewVideoUrl : matchedFigure?.previewVideoUrl,
           materialPreviewVideoUrl: matchedMaterial?.videoUrl,
@@ -1387,6 +1321,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitleStrokeColor: selectedWork.subtitleStrokeColor,
       subtitleStrokeWidth: selectedWork.subtitleStrokeWidth,
       subtitleFontId: selectedWork.subtitleFontId,
+      addComplianceWatermark: selectedWork.addComplianceWatermark !== false,
       screenWidth: selectedWork.screenWidth,
       screenHeight: selectedWork.screenHeight,
     });
@@ -1673,6 +1608,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
     setSubtitleStrokeColor(selectedWork.subtitleStrokeColor || "#000000");
     setSubtitleStrokeWidth(String(selectedWork.subtitleStrokeWidth ?? 2));
     setSubtitleFontId(selectedWork.subtitleFontId || "");
+    setAddComplianceWatermark(selectedWork.addComplianceWatermark !== false);
     setScreenWidth(String(selectedWork.screenWidth || 1080));
     setScreenHeight(String(selectedWork.screenHeight || 1920));
     setSelectedMaterialLibraryItemId("");
@@ -1759,6 +1695,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitleStrokeColor: draft.subtitleStrokeColor,
       subtitleStrokeWidth: Number(draft.subtitleStrokeWidth || 0),
       subtitleFontId: draft.subtitleFontId || undefined,
+      addComplianceWatermark: draft.addComplianceWatermark !== false,
       screenWidth: Number(draft.screenWidth || 1080),
       screenHeight: Number(draft.screenHeight || 1920),
       customPersonTrainType: currentCustomSource?.trainType,
@@ -1802,6 +1739,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
       subtitleStrokeColor,
       subtitleStrokeWidth,
       subtitleFontId,
+      addComplianceWatermark,
       screenWidth,
       screenHeight,
     });
@@ -2179,6 +2117,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           subtitleStrokeColor={subtitleStrokeColor}
           subtitleStrokeWidth={subtitleStrokeWidth}
           subtitleFontId={subtitleFontId}
+          addComplianceWatermark={addComplianceWatermark}
           screenWidth={screenWidth}
           screenHeight={screenHeight}
           scriptTemplateVisibility={scriptTemplateVisibility}
@@ -2267,6 +2206,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onSubtitleStrokeColorChange={setSubtitleStrokeColor}
           onSubtitleStrokeWidthChange={setSubtitleStrokeWidth}
           onSubtitleFontIdChange={setSubtitleFontId}
+          onAddComplianceWatermarkChange={setAddComplianceWatermark}
           onScreenWidthChange={setScreenWidth}
           onScreenHeightChange={setScreenHeight}
           onScriptTemplateVisibilityChange={setScriptTemplateVisibility}

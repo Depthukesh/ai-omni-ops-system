@@ -43,6 +43,7 @@ type DigitalHumanVideoPanelDraftCard = {
   scriptPreview: string;
   scriptLength: number;
   subtitleEnabled: boolean;
+  addComplianceWatermark: boolean;
   previewImageUrl?: string;
   previewVideoUrl?: string;
   materialPreviewVideoUrl?: string;
@@ -294,6 +295,7 @@ export interface DigitalHumanVideoPanelProps {
   subtitleStrokeColor: string;
   subtitleStrokeWidth: string;
   subtitleFontId: string;
+  addComplianceWatermark: boolean;
   screenWidth: string;
   screenHeight: string;
   scriptTemplateVisibility: "SELF" | "SHARED";
@@ -389,6 +391,7 @@ export interface DigitalHumanVideoPanelProps {
   onSubtitleStrokeColorChange: (value: string) => void;
   onSubtitleStrokeWidthChange: (value: string) => void;
   onSubtitleFontIdChange: (value: string) => void;
+  onAddComplianceWatermarkChange: (value: boolean) => void;
   onScreenWidthChange: (value: string) => void;
   onScreenHeightChange: (value: string) => void;
   onScriptTemplateVisibilityChange: (value: "SELF" | "SHARED") => void;
@@ -582,6 +585,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     [props.backgroundImageUrl],
   );
   const subtitlePreviewFigureUrl = props.selectedCustomPerson?.coverImageUrl || props.selectedTemplate?.figures[0]?.cover || currentBackgroundPreviewUrl || "";
+  const subtitlePreviewBackdropUrl = currentBackgroundPreviewUrl || subtitlePreviewFigureUrl;
   const subtitlePreviewText = props.script.trim().slice(0, 18) || "预览字幕效果会显示在这里";
   const screenWidthNumber = Math.max(1, parseNumericValue(props.screenWidth, 1080));
   const screenHeightNumber = Math.max(1, parseNumericValue(props.screenHeight, 1920));
@@ -747,6 +751,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     const previewImageUrl = isMaterialMode ? (activeMaterialCoverUrl || item.materialPreviewImageUrl) : item.previewImageUrl;
     const previewWorkUrl = isMaterialMode ? (activeMaterialWorkUrl || item.materialWorkUrl) : undefined;
     const previewTitle = isMaterialMode ? item.materialLabel || "素材片段" : item.personLabel;
+    const shouldShowWatermark = !isMaterialMode && (isActive ? props.addComplianceWatermark : item.addComplianceWatermark);
     return (
       <article key={item.id} className={`digital-human-creator-v2-card ${isActive ? "is-active" : ""}`}>
         <div className="digital-human-creator-v2-card__topbar">
@@ -781,6 +786,7 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               ) : (
                 <div className="digital-human-creator-v2-card__preview-empty">{isMaterialMode ? "所选素材暂时没有可直接播放的视频" : "未选择数字人"}</div>
               )}
+              {shouldShowWatermark ? <span className="digital-human-creator-v2-card__watermark" style={{ top: isActive ? 56 : 14 }}>AI生成</span> : null}
               {isActive ? (
                 <button type="button" className="digital-human-creator-v2-card__replace" onClick={handleOpenPersonDialog}>
                   更换
@@ -1014,6 +1020,12 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               <span>高度</span>
               <input value={props.screenHeight} onChange={(event) => props.onScreenHeightChange(event.target.value)} />
             </label>
+            <div className="digital-human-creator-v2__mini-field digital-human-creator-v2__mini-field--switch">
+              <span>AI 水印</span>
+              <button type="button" className={`digital-human-creator-v2-card__toggle ${props.addComplianceWatermark ? "is-active" : ""}`} onClick={() => props.onAddComplianceWatermarkChange(!props.addComplianceWatermark)}>
+                {props.addComplianceWatermark ? "生成时带水印" : "不生成水印"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1276,8 +1288,14 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
               </div>
               <div className="digital-human-creator-v2__subtitle-layout">
                 <div className="digital-human-creator-v2__subtitle-preview">
-                  <div className="digital-human-creator-v2__subtitle-canvas" style={{ backgroundColor: props.backgroundColor || "#D9D6F8" }}>
-                    {subtitlePreviewFigureUrl ? <img src={subtitlePreviewFigureUrl} alt="字幕预览人物" className="digital-human-creator-v2__subtitle-figure" /> : null}
+                  <div
+                    className="digital-human-creator-v2__subtitle-canvas"
+                    style={{
+                      backgroundColor: props.backgroundColor || "#D9D6F8",
+                      ...(subtitlePreviewBackdropUrl ? { backgroundImage: `url(${subtitlePreviewBackdropUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+                    }}
+                  >
+                    {props.addComplianceWatermark ? <span className="digital-human-creator-v2-card__watermark">AI生成</span> : null}
                     {props.subtitleEnabled ? (
                       <div className="digital-human-creator-v2__subtitle-preview-text" style={subtitlePreviewStyle}>
                         {subtitlePreviewText}

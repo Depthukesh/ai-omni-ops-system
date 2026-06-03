@@ -153,6 +153,11 @@ function readRequestErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function formatFailedInterfaceNames(labels: string[]) {
+  const unique = labels.filter((item, index) => item && labels.indexOf(item) === index);
+  return unique.join("、");
+}
+
 function getTaskStatusClass(status?: DouyinMarketingPlanTaskRecord["taskStatus"]) {
   if (status === "SUCCESS") {
     return "status-ready";
@@ -498,10 +503,16 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId, digitalHumanTemplatePageInfo?.size, digitalHumanTemplateTagId]);
 
   const refreshDigitalHumanWorkspace = useCallback(async () => {
-    const [items, customPersons, lipSyncWorks, tagGroups, favorites, scriptTemplates, publicVoices, customVoices, speechTask] = await Promise.allSettled([
+    const [items, customPersons, lipSyncWorks, templates, tagGroups, favorites, scriptTemplates, publicVoices, customVoices, speechTask] = await Promise.allSettled([
       getDouyinDigitalHumanVideoWorks(activeBrandId),
       getDouyinDigitalHumanCustomPersons(activeBrandId),
       getDouyinLipSyncWorks(activeBrandId),
+      getDouyinDigitalHumanTemplates(activeBrandId, {
+        page: 1,
+        size: digitalHumanTemplatePageInfo?.size || 24,
+        sort: "hottest",
+        tagIds: digitalHumanTemplateTagId ? [Number(digitalHumanTemplateTagId)] : [],
+      }),
       getDouyinDigitalHumanTemplateTags(activeBrandId),
       getDouyinDigitalHumanFavoriteTemplates(activeBrandId),
       getDouyinDigitalHumanScriptTemplates(activeBrandId),
@@ -531,6 +542,15 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanLipSyncWorks(lipSyncWorks.value.items || []);
     } else {
       setDigitalHumanLipSyncWorks([]);
+    }
+    if (templates.status === "fulfilled") {
+      setDigitalHumanTemplates(templates.value.list || []);
+      setDigitalHumanTemplatePageInfo(templates.value.pageInfo);
+      setDigitalHumanTemplateError("");
+    } else {
+      setDigitalHumanTemplates([]);
+      setDigitalHumanTemplatePageInfo(undefined);
+      setDigitalHumanTemplateError(readRequestErrorMessage(templates.reason, "数字人模板读取失败，请检查蝉镜配置或稍后重试。"));
     }
     if (tagGroups.status === "fulfilled") {
       setDigitalHumanTemplateTags(tagGroups.value.list || []);
@@ -570,11 +590,6 @@ export function DouyinWorkspaceShell() {
     if (speechTask.status === "fulfilled") {
       setDigitalHumanCurrentSpeechTask(speechTask.value.item || null);
     }
-    await loadDigitalHumanTemplates({
-      page: 1,
-      size: digitalHumanTemplatePageInfo?.size || 24,
-      tagId: digitalHumanTemplateTagId,
-    });
     return items.status === "fulfilled" ? (items.value.items || []) : [];
   }, [
     activeBrandId,
@@ -586,13 +601,13 @@ export function DouyinWorkspaceShell() {
     digitalHumanPublicVoicePageInfo?.size,
     digitalHumanTemplatePageInfo?.size,
     digitalHumanTemplateTagId,
-    loadDigitalHumanTemplates,
   ]);
 
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
     setNotice("");
+    const failedInterfaceNames: string[] = [];
 
     const [permissionResult, collectionResult, growthResult, annualResult] = await Promise.allSettled([
       getBrandPermissionSettings(activeBrandId),
@@ -607,6 +622,7 @@ export function DouyinWorkspaceShell() {
       setBrandPermissionSettings(permissionResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("品牌权限设置");
       setBrandPermissionSettings(null);
     }
 
@@ -649,6 +665,7 @@ export function DouyinWorkspaceShell() {
       setCollectionWorkspace(collectionResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("素材库工作台");
       setCollectionWorkspace(douyinCollectionSeed);
     }
 
@@ -656,6 +673,7 @@ export function DouyinWorkspaceShell() {
       setGrowthReportWorkspace(growthResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("品牌增长报告");
       setGrowthReportWorkspace(growthReportSeed);
     }
 
@@ -663,6 +681,7 @@ export function DouyinWorkspaceShell() {
       setAnnualPlanWorkspace(annualResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("年度营销计划");
       setAnnualPlanWorkspace(annualMarketingPlanSeed);
     }
 
@@ -670,6 +689,7 @@ export function DouyinWorkspaceShell() {
       setMarketingPlanWorkspace(planResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("营销策划方案");
       setMarketingPlanWorkspace(douyinMarketingPlanSeed);
     }
 
@@ -678,6 +698,7 @@ export function DouyinWorkspaceShell() {
       setSelectedHotTopicDate(hotTopicResult.value.selectedDate || hotTopicResult.value.availableDates[0] || "");
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("热点找选题");
       setHotTopicWorkspace(douyinHotTopicCandidatesSeed);
       setSelectedHotTopicDate("");
     }
@@ -686,6 +707,7 @@ export function DouyinWorkspaceShell() {
       setOriginalCopyWorkspace(originalCopyResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("原创文案");
       setOriginalCopyWorkspace(douyinOriginalCopySeed);
     }
 
@@ -693,6 +715,7 @@ export function DouyinWorkspaceShell() {
       setRemixCopyWorkspace(remixCopyResult.value);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("二创文案");
       setRemixCopyWorkspace(douyinRemixCopySeed);
     }
 
@@ -700,6 +723,7 @@ export function DouyinWorkspaceShell() {
       setVideoWorks(videoResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("AI 生视频作品");
       setVideoWorks([]);
     }
 
@@ -707,6 +731,7 @@ export function DouyinWorkspaceShell() {
       setVideoProviderOptions(videoProvidersResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("AI 生视频服务商");
       setVideoProviderOptions([]);
     }
 
@@ -714,6 +739,7 @@ export function DouyinWorkspaceShell() {
       setStoryboardImageModelOptions(storyboardModelsResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("故事板模型");
       setStoryboardImageModelOptions([]);
     }
 
@@ -721,6 +747,7 @@ export function DouyinWorkspaceShell() {
       setDirectVideoWorks(directVideoResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("AI 生视频直出作品");
       setDirectVideoWorks([]);
     }
 
@@ -728,6 +755,7 @@ export function DouyinWorkspaceShell() {
       setDirectVideoProviderOptions(directVideoProvidersResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("AI 生视频直出服务商");
       setDirectVideoProviderOptions([]);
     }
 
@@ -735,6 +763,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanWorks(digitalHumanResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("数字人作品列表");
       setDigitalHumanWorks([]);
     }
 
@@ -742,6 +771,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanCustomPersons(digitalHumanCustomPersonsResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("我的数字人");
       setDigitalHumanCustomPersons([]);
     }
 
@@ -749,6 +779,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanLipSyncWorks(digitalHumanLipSyncResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("口型驱动作品");
       setDigitalHumanLipSyncWorks([]);
     }
 
@@ -757,6 +788,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanTemplatePageInfo(digitalHumanTemplatesResult.value.pageInfo);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("公共数字人模板");
       setDigitalHumanTemplates([]);
       setDigitalHumanTemplatePageInfo(undefined);
     }
@@ -766,6 +798,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanTemplateTagError("");
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("数字人模板标签");
       setDigitalHumanTemplateTags([]);
       setDigitalHumanTemplateTagError(readRequestErrorMessage(digitalHumanTagGroupsResult.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
     }
@@ -780,6 +813,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanFavoriteTemplates(digitalHumanFavoritesResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("数字人收藏模板");
       setDigitalHumanFavoriteTemplates([]);
     }
 
@@ -787,6 +821,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanScriptTemplates(digitalHumanScriptTemplatesResult.value.items || []);
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("数字人脚本模板");
       setDigitalHumanScriptTemplates([]);
     }
 
@@ -796,6 +831,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanPublicVoiceError("");
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("公共声音列表");
       setDigitalHumanPublicVoices([]);
       setDigitalHumanPublicVoicePageInfo(undefined);
       setDigitalHumanPublicVoiceError(readRequestErrorMessage(digitalHumanVoiceLibraryResult.reason, "公共声音读取失败，请检查蝉镜配置或稍后重试。"));
@@ -807,6 +843,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanCustomVoiceError("");
     } else {
       hasFallback = true;
+      failedInterfaceNames.push("我的声音列表");
       setDigitalHumanCustomVoices([]);
       setDigitalHumanCustomVoicePageInfo(undefined);
       setDigitalHumanCustomVoiceError(readRequestErrorMessage(digitalHumanCustomVoicesResult.reason, "我的声音读取失败，请检查蝉镜配置或稍后重试。"));
@@ -816,11 +853,13 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanCurrentSpeechTask(digitalHumanSpeechTaskResult.value.item || null);
     } else if (digitalHumanCurrentSpeechTaskId) {
       hasFallback = true;
+      failedInterfaceNames.push("数字人试听任务");
     }
 
     setLoadState(hasFallback ? "partial" : "api");
     if (hasFallback) {
-      setErrorMessage("部分抖音工作台接口读取失败，当前仅保留已成功加载的数据；失败板块请按需刷新重试。");
+      const failedText = formatFailedInterfaceNames(failedInterfaceNames);
+      setErrorMessage(`部分抖音工作台接口读取失败：${failedText || "请按需刷新重试"}。当前仅保留已成功加载的数据。`);
     }
     setIsLoading(false);
   }, [activeBrandId, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);

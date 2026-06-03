@@ -218,6 +218,7 @@ export type GenerateDouyinDigitalHumanVideoPayload = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth?: number;
   screenHeight?: number;
   customPersonTrainType?: "figure" | "both";
@@ -735,6 +736,7 @@ type DigitalHumanVideoWorkAssetMeta = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -861,6 +863,7 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -908,6 +911,7 @@ type NormalizedDigitalHumanCreatePayload = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth: number;
   screenHeight: number;
   customPersonTrainType?: "figure" | "both";
@@ -3157,6 +3161,7 @@ export class WorksService {
       subtitleStrokeColor: normalized.subtitleStrokeColor,
       subtitleStrokeWidth: normalized.subtitleStrokeWidth,
       subtitleFontId: normalized.subtitleFontId,
+      addComplianceWatermark: normalized.addComplianceWatermark !== false,
       screenWidth: normalized.screenWidth,
       screenHeight: normalized.screenHeight,
       coverImageUrl: normalized.figureCoverUrl,
@@ -3241,6 +3246,7 @@ export class WorksService {
       subtitleStrokeColor: firstSegment?.subtitleStrokeColor,
       subtitleStrokeWidth: firstSegment?.subtitleStrokeWidth,
       subtitleFontId: firstSegment?.subtitleFontId,
+      addComplianceWatermark: firstSegment?.addComplianceWatermark !== false,
       screenWidth: firstSegment?.screenWidth || 1080,
       screenHeight: firstSegment?.screenHeight || 1920,
       coverImageUrl: firstSegment?.figureCoverUrl,
@@ -8370,6 +8376,7 @@ export class WorksService {
       subtitleStrokeColor: this.readOptionalString(meta.subtitleStrokeColor),
       subtitleStrokeWidth: typeof meta.subtitleStrokeWidth === "number" ? Math.max(0, Math.trunc(meta.subtitleStrokeWidth)) : undefined,
       subtitleFontId: this.readOptionalString(meta.subtitleFontId),
+      addComplianceWatermark: meta.addComplianceWatermark !== false,
       screenWidth: this.readPositiveInteger(meta.screenWidth, 1080),
       screenHeight: this.readPositiveInteger(meta.screenHeight, 1920),
       providerTaskId: this.readOptionalString(meta.providerTaskId),
@@ -8513,6 +8520,7 @@ export class WorksService {
       subtitleStrokeColor: this.readOptionalString(payload.subtitleStrokeColor) || "#000000",
       subtitleStrokeWidth: this.readPositiveInteger(payload.subtitleStrokeWidth, 2),
       subtitleFontId: this.readOptionalString(payload.subtitleFontId),
+      addComplianceWatermark: payload.addComplianceWatermark !== false,
       screenWidth,
       screenHeight,
       customPersonTrainType,
@@ -8598,7 +8606,7 @@ export class WorksService {
           },
       screen_width: meta.screenWidth,
       screen_height: meta.screenHeight,
-      add_compliance_watermark: true,
+      add_compliance_watermark: meta.addComplianceWatermark !== false,
     };
   }
 
@@ -9740,6 +9748,7 @@ export class WorksService {
       subtitleStrokeColor: meta.subtitleStrokeColor,
       subtitleStrokeWidth: meta.subtitleStrokeWidth,
       subtitleFontId: meta.subtitleFontId,
+      addComplianceWatermark: meta.addComplianceWatermark !== false,
       screenWidth: meta.screenWidth,
       screenHeight: meta.screenHeight,
       providerTaskId: meta.providerTaskId,

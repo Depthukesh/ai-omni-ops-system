@@ -412,6 +412,7 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth: number;
   screenHeight: number;
   providerTaskId?: string;
@@ -532,6 +533,7 @@ export type GenerateDouyinDigitalHumanVideoForm = {
   subtitleStrokeColor?: string;
   subtitleStrokeWidth?: number;
   subtitleFontId?: string;
+  addComplianceWatermark?: boolean;
   screenWidth?: number;
   screenHeight?: number;
   customPersonTrainType?: "figure" | "both";
