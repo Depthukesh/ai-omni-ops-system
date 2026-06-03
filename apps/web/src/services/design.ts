@@ -42,6 +42,7 @@ export type DesignWorkspaceOptionsRecord = {
 
 export type GenerateDesignWorkPayload = {
   module: DesignModuleKey;
+  skillSlug?: string;
   title?: string;
   calendarItemId?: string;
   productId?: string;
@@ -59,7 +60,11 @@ export type GenerateDesignWorkPayload = {
 
 export type DesignGeneratedWorkRecord = {
   id: string;
+  taskId?: string;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   module: DesignModuleKey;
+  skillSlug?: string;
+  skillLabel?: string;
   title: string;
   status: string;
   updatedAt: string;

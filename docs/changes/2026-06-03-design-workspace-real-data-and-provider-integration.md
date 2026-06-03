@@ -36,10 +36,33 @@
 - `docs/site-map-mermaid.md`
   - 补齐设计工作台的页面、service、API、模块与数据模型关系图
 
+### 4. 设计技能中心映射
+
+- `apps/server/src/common/mock-data.ts`
+  - 新增设计工作台基线技能：
+    - `design-web-prototype`
+    - `design-dashboard`
+    - `design-mobile-onboarding`
+    - `design-social-carousel`
+    - `design-magazine-poster`
+    - `design-pitch-deck`
+    - `design-video-storyboard`
+  - 同步新增对应提示词模板，作为后台技能中心和个人中心技能中心的基线来源
+- `apps/server/src/modules/admin/skills-prompts.service.ts`
+  - 补齐上述设计技能与提示词的绑定关系，保证技能中心可正确读取关联 prompt
+- `apps/web/src/app/(dashboard)/skill-center-config.ts`
+  - 前端技能树新增“设计”主分类，并按图片 / HTML / PPT / 视频四个分组挂载设计技能叶子项
+- `apps/web/src/app/(dashboard)/more-features/design/workspace-shell.tsx`
+  - 设计工作台开始展示当前模块对应的设计技能，不再只保留四类静态模块文案
+  - 提交设计任务时先进入前端“执行中”状态卡，成功后回填真实结果，失败时保留失败卡片与错误摘要
+- `apps/server/src/modules/works/works.service.ts`
+  - 设计生成开始写入真实任务记录，按具体设计 skill 选择默认 prompt 和模型偏好
+
 ## 影响范围
 
 - 前端设计工作台
 - `WorksModule` 设计生成链路
+- 前后台技能中心的设计类基线技能
 - 站点地图与变更记录
 
 ## 当前边界

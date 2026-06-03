@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { flattenSkillCenterLeaves } from "../../skill-center-config";
 import { getStoredCurrentBrandId } from "../../../../services/auth-session";
 import {
   type DesignGeneratedWorkRecord,
@@ -16,6 +17,7 @@ type DesignWork = DesignGeneratedWorkRecord;
 
 type DesignFormState = {
   title: string;
+  skillSlug: string;
   calendarItemId: string;
   productId: string;
   brandProfileMode: "inject" | "skip";
@@ -36,6 +38,12 @@ type StaticDesignModuleMeta = {
 type DesignModuleMeta = StaticDesignModuleMeta & {
   types: string[];
   models: DesignModelOptionRecord[];
+  skillLeaves: Array<{
+    id: string;
+    label: string;
+    description: string;
+    skillSlug?: string;
+  }>;
 };
 
 const DESIGN_MODULES: DesignModuleKey[] = ["image", "html", "deck", "video"];
@@ -44,32 +52,41 @@ const DESIGN_MODULE_META_MAP: Record<DesignModuleKey, StaticDesignModuleMeta> = 
   image: {
     key: "image",
     label: "图片设计",
-    description: "面向活动海报、朋友圈海报、电商主图、电商详情图等静态视觉设计任务。",
+    description: "按 Open Design 的图片技能组织，当前聚焦社媒轮播图、杂志风海报、品牌封面图等静态视觉设计。",
     createLabel: "创建图片设计",
     modelLabel: "生图大模型",
   },
   html: {
     key: "html",
     label: "HTML 设计",
-    description: "面向 UI 界面、活动页、详情页、数据看板和移动端原型等 HTML 页面设计。",
+    description: "按 Open Design 的 HTML 技能组织，当前覆盖单页原型、数据看板、移动端引导和品牌展示页。",
     createLabel: "创建 HTML 设计",
     modelLabel: "页面生成引擎",
   },
   deck: {
     key: "deck",
     label: "PPT 设计",
-    description: "面向产品汇报、品牌提案、Pitch Deck、周报月报等演示文稿设计。",
+    description: "按 Open Design 的 deck 技能组织，当前聚焦 Pitch Deck、品牌提案和周报汇报等演示稿设计。",
     createLabel: "创建 PPT 设计",
     modelLabel: "PPT 生成引擎",
   },
   video: {
     key: "video",
     label: "视频设计",
-    description: "面向营销短视频、产品展示视频、分镜板和旁白脚本等视频类设计任务。",
+    description: "按 Open Design 的视频技能组织，当前聚焦视频故事板、分镜脚本和动效脚本方案。",
     createLabel: "创建视频设计",
     modelLabel: "视频生成引擎",
   },
 };
+
+const DESIGN_SKILL_SLUGS_BY_MODULE: Record<DesignModuleKey, string[]> = {
+  image: ["design-social-carousel", "design-magazine-poster"],
+  html: ["design-web-prototype", "design-dashboard", "design-mobile-onboarding"],
+  deck: ["design-pitch-deck"],
+  video: ["design-video-storyboard"],
+};
+
+const DESIGN_SKILL_LEAVES = flattenSkillCenterLeaves().filter((item) => item.primaryId === "design-workspace");
 
 const PRODUCT_SKIP_OPTION = {
   id: "",
@@ -95,9 +112,11 @@ function getDefaultModelSelection(models: DesignModelOptionRecord[]) {
 function createDefaultFormState(moduleKey: DesignModuleKey, options?: DesignWorkspaceOptionsRecord | null): DesignFormState {
   const moduleOptions = options?.moduleOptions[moduleKey];
   const moduleLabel = DESIGN_MODULE_META_MAP[moduleKey].label;
+  const defaultSkillSlug = DESIGN_SKILL_SLUGS_BY_MODULE[moduleKey][0] ?? "";
 
   return {
     title: `${moduleOptions?.types[0] ?? moduleLabel}方案`,
+    skillSlug: defaultSkillSlug,
     calendarItemId: options?.calendarOptions[0]?.id ?? "",
     productId: "",
     brandProfileMode: options?.brandOptions[0]?.value ?? "inject",
@@ -117,6 +136,27 @@ function formatTimestamp(date: Date) {
     minute: "2-digit",
     hour12: false,
   }).format(date).replace(/\//g, "/");
+}
+
+function buildPendingDesignWork(params: {
+  module: DesignModuleKey;
+  title: string;
+  designType: string;
+  skillLabel: string;
+  productLabel: string;
+}) {
+  const updatedAt = new Date().toISOString();
+  return {
+    id: `pending-${updatedAt}-${Math.random().toString(36).slice(2, 8)}`,
+    taskStatus: "RUNNING" as const,
+    module: params.module,
+    skillLabel: params.skillLabel,
+    title: params.title,
+    status: "执行中",
+    updatedAt,
+    summary: `正在调用 ${params.skillLabel}，生成${params.designType}，请等待本次任务返回。`,
+    tags: [params.skillLabel, params.designType, params.productLabel || "不植入产品", "执行中"],
+  };
 }
 
 function createEmptyWorksByModule() {
@@ -206,6 +246,11 @@ function DesignCreateDialog({
           <div>
             <strong id="design-v3-dialog-title">{module.createLabel}</strong>
             <p>选项来自当前品牌档案、营销日历和第三方模型配置，提交后直接调用真实生成链路。</p>
+            {module.skillLeaves.length ? (
+              <p style={{ marginTop: 6, color: "rgba(83, 88, 120, 0.82)" }}>
+                当前模块对应技能：{module.skillLeaves.map((item) => item.label).join(" / ")}
+              </p>
+            ) : null}
           </div>
           <button type="button" className="design-v3-text-button" onClick={onClose}>
             关闭
@@ -258,6 +303,16 @@ function DesignCreateDialog({
               >
                 {(options?.brandOptions ?? []).map((item) => (
                   <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="design-v3-field">
+              <span>设计技能</span>
+              <select value={form.skillSlug} onChange={(event) => onChange("skillSlug", event.target.value)} disabled={loadingOptions}>
+                {module.skillLeaves.map((item) => (
+                  <option key={item.id} value={item.skillSlug}>
                     {item.label}
                   </option>
                 ))}
@@ -362,8 +417,18 @@ function ModuleStatusCard({
         <span className="archive-pill status-ready">累计 {works.length} 个作品</span>
         <span className="archive-pill status-ready">最近刷新 {lastRefreshedAt}</span>
         <span className="archive-pill status-pending">模型 {module.models.length} 个</span>
+        <span className="archive-pill status-pending">技能 {module.skillLeaves.length} 个</span>
         <span className="archive-pill status-pending">支持品牌资料植入</span>
       </div>
+      {module.skillLeaves.length ? (
+        <div className="design-v3-work-tags" style={{ marginTop: 12 }}>
+          {module.skillLeaves.map((item) => (
+            <span key={item.id} className="archive-pill status-pending" title={item.description}>
+              {item.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {brandProfileSummary ? (
         <p style={{ marginTop: 12, color: "rgba(83, 88, 120, 0.88)" }}>
           品牌资料摘要：{brandProfileSummary}
@@ -469,10 +534,28 @@ function ModuleWorks({
               <span>当前类型</span>
               <strong>{selectedWork.tags[0] ?? module.label}</strong>
             </div>
+            {selectedWork.skillLabel ? (
+              <div className="collection-sync-item">
+                <span>设计技能</span>
+                <strong>{selectedWork.skillLabel}</strong>
+              </div>
+            ) : null}
             <div className="collection-sync-item">
               <span>当前模块</span>
               <strong>{module.label}</strong>
             </div>
+            {selectedWork.taskId ? (
+              <div className="collection-sync-item">
+                <span>任务 ID</span>
+                <strong>{selectedWork.taskId}</strong>
+              </div>
+            ) : null}
+            {selectedWork.taskStatus ? (
+              <div className="collection-sync-item">
+                <span>任务状态</span>
+                <strong>{selectedWork.taskStatus}</strong>
+              </div>
+            ) : null}
             <div className="collection-sync-item collection-sync-item--full">
               <span>作品摘要</span>
               <strong>{selectedWork.summary}</strong>
@@ -534,11 +617,18 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const activeMeta = useMemo<DesignModuleMeta>(() => {
     const staticMeta = DESIGN_MODULE_META_MAP[activeModule];
     const moduleOptions = options?.moduleOptions[activeModule];
+    const allowedSkillSlugs = new Set(DESIGN_SKILL_SLUGS_BY_MODULE[activeModule]);
 
     return {
       ...staticMeta,
       types: moduleOptions?.types ?? [],
       models: moduleOptions?.models ?? [],
+      skillLeaves: DESIGN_SKILL_LEAVES.filter((item) => allowedSkillSlugs.has(item.skillSlug || "")).map((item) => ({
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        skillSlug: item.skillSlug,
+      })),
     };
   }, [activeModule, options]);
 
@@ -633,6 +723,24 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   const handleSubmit = async () => {
+    const selectedSkill = activeMeta.skillLeaves.find((item) => item.skillSlug === form.skillSlug) ?? activeMeta.skillLeaves[0];
+    const selectedProductLabel =
+      (options?.productOptions ?? []).find((item) => item.id === form.productId)?.label
+      || PRODUCT_SKIP_OPTION.label;
+    const pendingWork = buildPendingDesignWork({
+      module: activeModule,
+      title: form.title.trim(),
+      designType: form.type,
+      skillLabel: selectedSkill?.label || activeMeta.label,
+      productLabel: selectedProductLabel,
+    });
+
+    setWorksByModule((current) => ({
+      ...current,
+      [activeModule]: [pendingWork, ...(current[activeModule] ?? [])],
+    }));
+    setSelectedWorkByModule((current) => ({ ...current, [activeModule]: getWorkId(pendingWork) }));
+    setLastRefreshByModule((current) => ({ ...current, [activeModule]: formatTimestamp(new Date()) }));
     setSubmitting(true);
     setSubmitError("");
 
@@ -640,6 +748,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       const createdWork = await generateDesignWork(
         {
           module: activeModule,
+          skillSlug: form.skillSlug || selectedSkill?.skillSlug,
           title: form.title.trim(),
           calendarItemId: form.calendarItemId || undefined,
           productId: form.productId || undefined,
@@ -655,7 +764,9 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
 
       setWorksByModule((current) => ({
         ...current,
-        [activeModule]: [createdWork, ...(current[activeModule] ?? [])],
+        [activeModule]: (current[activeModule] ?? []).map((item) => (
+          getWorkId(item) === getWorkId(pendingWork) ? createdWork : item
+        )),
       }));
       setLastCreatedByModule((current) => ({ ...current, [activeModule]: createdWork }));
       setLastRefreshByModule((current) => ({ ...current, [activeModule]: createdWork.updatedAt }));
@@ -664,7 +775,23 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       setReferenceFile(null);
       setForm(createDefaultFormState(activeModule, options));
     } catch (error) {
-      setSubmitError(normalizeErrorMessage(error));
+      const message = normalizeErrorMessage(error);
+      setSubmitError(message);
+      setWorksByModule((current) => ({
+        ...current,
+        [activeModule]: (current[activeModule] ?? []).map((item) => (
+          getWorkId(item) === getWorkId(pendingWork)
+            ? {
+                ...item,
+                taskStatus: "FAILED",
+                status: "执行失败",
+                summary: message,
+                tags: [selectedSkill?.label || activeMeta.label, form.type, selectedProductLabel, "失败"],
+                updatedAt: new Date().toISOString(),
+              }
+            : item
+        )),
+      }));
     } finally {
       setSubmitting(false);
     }

@@ -305,6 +305,12 @@
   - HTML 设计
   - PPT 设计
   - 视频设计
+- 当前前后台技能中心已补入设计类技能映射，覆盖：
+  - 图片设计：`design-social-carousel`、`design-magazine-poster`
+  - HTML 设计：`design-web-prototype`、`design-dashboard`、`design-mobile-onboarding`
+  - PPT 设计：`design-pitch-deck`
+  - 视频设计：`design-video-storyboard`
+- 设计工作台当前类型与技能中心能力已开始对齐为 Open Design 风格的设计项，例如社媒轮播图、杂志风海报、单页 HTML 原型、数据看板、Pitch Deck、视频故事板
 - 当前设计工作台创建弹窗已改为真实接口驱动：
   - 营销日历下拉来自 `ReportsModule` 的小红书营销日历工作区
   - 产品下拉来自 `BrandsModule` 的当前品牌产品档案，并保留 `不植入产品` 入口

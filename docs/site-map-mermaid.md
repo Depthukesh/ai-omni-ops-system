@@ -560,6 +560,7 @@ flowchart TD
     DWS --> DS1["design.ts 设计工作台 service"]
 
     DWS --> DWC1["横向二级模块：图片 / HTML / PPT / 视频"]
+    DWS --> DSK1["设计技能映射：社媒轮播 / 杂志风海报 / 单页原型 / 数据看板 / Pitch Deck / 视频故事板"]
     DWS --> DWC2["统一创建弹窗"]
     DWC2 --> DWC21["营销日历：真实品牌营销日历"]
     DWC2 --> DWC22["产品：真实品牌产品 + 不植入产品"]
@@ -569,6 +570,9 @@ flowchart TD
     DWS --> DWC3["作品结果区：会话内真实创建结果"]
     DWC3 --> DWC31["查看详情 / 标记完成 / 删除"]
     DWC3 --> DWC32["HTML 结果支持当前页 iframe 预览"]
+
+    DSK1 --> DSC1["前端技能树：skill-center-config.ts"]
+    DSK1 --> DSC2["后台技能注册：mock-data.ts + skills-prompts.service.ts"]
 
     DA --> DS1
     DS1 --> DAPI1["GET /works/brands/:brandId/design/options"]

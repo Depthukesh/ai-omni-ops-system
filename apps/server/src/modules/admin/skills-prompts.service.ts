@@ -257,6 +257,62 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_wechat_image_compose"],
     promptScenes: ["公众号制作图片"],
   },
+  skill_design_web_prototype: {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  "design-web-prototype": {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  skill_design_dashboard: {
+    promptIds: ["prompt_design_dashboard"],
+    promptScenes: ["设计工作台-数据看板设计"],
+  },
+  "design-dashboard": {
+    promptIds: ["prompt_design_dashboard"],
+    promptScenes: ["设计工作台-数据看板设计"],
+  },
+  skill_design_mobile_onboarding: {
+    promptIds: ["prompt_design_mobile_onboarding"],
+    promptScenes: ["设计工作台-移动端引导设计"],
+  },
+  "design-mobile-onboarding": {
+    promptIds: ["prompt_design_mobile_onboarding"],
+    promptScenes: ["设计工作台-移动端引导设计"],
+  },
+  skill_design_social_carousel: {
+    promptIds: ["prompt_design_social_carousel"],
+    promptScenes: ["设计工作台-社媒轮播图设计"],
+  },
+  "design-social-carousel": {
+    promptIds: ["prompt_design_social_carousel"],
+    promptScenes: ["设计工作台-社媒轮播图设计"],
+  },
+  skill_design_magazine_poster: {
+    promptIds: ["prompt_design_magazine_poster"],
+    promptScenes: ["设计工作台-杂志风海报设计"],
+  },
+  "design-magazine-poster": {
+    promptIds: ["prompt_design_magazine_poster"],
+    promptScenes: ["设计工作台-杂志风海报设计"],
+  },
+  skill_design_pitch_deck: {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
+  "design-pitch-deck": {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
+  skill_design_video_storyboard: {
+    promptIds: ["prompt_design_video_storyboard"],
+    promptScenes: ["设计工作台-视频故事板设计"],
+  },
+  "design-video-storyboard": {
+    promptIds: ["prompt_design_video_storyboard"],
+    promptScenes: ["设计工作台-视频故事板设计"],
+  },
   skill_xhs_rewrite_copy: {
     promptIds: ["prompt_xhs_rewrite_copy"],
     promptScenes: ["小红书二创笔记文案"],

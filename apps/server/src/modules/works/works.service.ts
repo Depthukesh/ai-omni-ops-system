@@ -45,11 +45,49 @@ const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
-  image: ["活动海报", "朋友圈海报", "电商主图", "电商详情图", "社媒配图", "图标视觉"],
-  html: ["UI 界面", "活动页", "落地页", "电商详情页", "数据看板", "移动端原型"],
-  deck: ["Pitch Deck", "产品汇报", "品牌提案", "周报月报", "项目复盘", "招商方案"],
-  video: ["营销短视频", "产品展示视频", "故事板", "分镜脚本", "年度回顾视频", "配音脚本"],
+  image: ["社媒轮播图", "杂志风海报", "电商主视觉", "品牌封面图", "信息图海报"],
+  html: ["单页 HTML 原型", "营销落地页", "数据看板", "移动端引导页", "品牌展示页"],
+  deck: ["Pitch Deck", "品牌提案", "周报汇报", "产品发布 Deck", "招商方案"],
+  video: ["视频故事板", "分镜脚本", "动效脚本", "旁白字幕方案"],
 };
+
+const DESIGN_SKILL_PROFILES = {
+  "design-social-carousel": {
+    module: "image" as const,
+    label: "社媒轮播图",
+    promptId: "prompt_design_social_carousel",
+  },
+  "design-magazine-poster": {
+    module: "image" as const,
+    label: "杂志风海报",
+    promptId: "prompt_design_magazine_poster",
+  },
+  "design-web-prototype": {
+    module: "html" as const,
+    label: "单页 HTML 原型",
+    promptId: "prompt_design_web_prototype",
+  },
+  "design-dashboard": {
+    module: "html" as const,
+    label: "数据看板",
+    promptId: "prompt_design_dashboard",
+  },
+  "design-mobile-onboarding": {
+    module: "html" as const,
+    label: "移动端引导",
+    promptId: "prompt_design_mobile_onboarding",
+  },
+  "design-pitch-deck": {
+    module: "deck" as const,
+    label: "Pitch Deck",
+    promptId: "prompt_design_pitch_deck",
+  },
+  "design-video-storyboard": {
+    module: "video" as const,
+    label: "视频故事板",
+    promptId: "prompt_design_video_storyboard",
+  },
+} satisfies Record<string, { module: DesignWorkModuleKey; label: string; promptId: string }>;
 
 function resolveFfmpegBinary() {
   const envBinary = String(process.env.FFMPEG_BINARY || "").trim();
@@ -413,6 +451,7 @@ export type DesignWorkModuleKey = "image" | "html" | "deck" | "video";
 
 export type GenerateDesignWorkPayload = {
   module: DesignWorkModuleKey;
+  skillSlug?: string;
   title?: string;
   calendarItemId?: string;
   productId?: string;
@@ -463,7 +502,11 @@ export type DesignWorkspaceOptionsRecord = {
 
 export type DesignGeneratedWorkRecord = {
   id: string;
+  taskId?: string;
+  taskStatus?: WorkTaskStatus;
   module: DesignWorkModuleKey;
+  skillSlug?: string;
+  skillLabel?: string;
   title: string;
   status: string;
   updatedAt: string;
@@ -1754,78 +1797,125 @@ export class WorksService {
   ): Promise<DesignGeneratedWorkRecord> {
     const archive = await this.brandsService.getArchive(brandId);
     const calendarWorkspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
-    const taskId = createId("tsk");
+    const skillProfile = this.resolveDesignSkillProfile(payload.module, payload.skillSlug);
     const selectedCalendarItem = calendarWorkspace.latest?.items.find((item) => item.id === payload.calendarItemId);
     const selectedProduct = archive.products.find((item) => item.id === payload.productId);
     const scopedSelection = this.parseScopedModelSelection(payload.modelSelection || "");
     const title = String(payload.title || "").trim() || `${payload.designType || DESIGN_MODULE_TYPES[payload.module][0]}方案`;
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createDesignTask({
+      userId,
+      brandId,
+      taskTitle: title,
+      taskType: `DESIGN_${payload.module.toUpperCase()}`,
+      modelName: scopedSelection.modelName,
+    });
     const designContext = {
       brandName: archive.brand.brandName || "当前品牌",
       brandProfileSummary: payload.injectBrandProfile === false ? "" : this.buildDesignBrandProfileSummary(archive),
       calendarLabel: selectedCalendarItem ? `${selectedCalendarItem.date} | ${selectedCalendarItem.topicName}` : "",
       productLabel: selectedProduct?.productName || "不植入产品",
-      designType: payload.designType || DESIGN_MODULE_TYPES[payload.module][0],
+      designType: payload.designType || skillProfile.label,
       spec: String(payload.spec || "").trim(),
       additionalInstruction: String(payload.additionalInstruction || "").trim(),
     };
 
-    if (payload.module === "image") {
-      const providers = await this.loadImageGenerationProviders(
-        brandId,
-        undefined,
-        {
-          preferredModelName: scopedSelection.modelName,
-          preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : [],
-          usage: "general",
-        },
-      );
-      const imagePrompt = this.buildDesignImagePrompt(designContext);
-      const imageAsset = await this.generateImageAsset({
-        brandId,
-        taskId,
+    try {
+      await this.markTaskRunning(task.id);
+      await this.updateTaskOutputJson(task.id, {
+        module: payload.module,
+        skillSlug: skillProfile.skillSlug,
+        stage: "RUNNING",
         title,
-        workLabel: "设计工作台",
-        role: "COVER",
-        order: 0,
-        providers,
-        executionPrompt: "你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图。",
-        prompt: imagePrompt,
-        referenceImageUrls: [],
-        referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
-        promptMode: "social_graphic",
-        includeFallbackPrompt: true,
       });
 
-      return {
-        id: createId("design"),
-        module: payload.module,
+      if (payload.module === "image") {
+        const skillPreference = await this.loadSkillModelPreference(skillProfile.skillSlug, skillProfile.promptId, ["gpt-image-2"]);
+        const providers = await this.loadImageGenerationProviders(
+          brandId,
+          undefined,
+          {
+            preferredModelName: scopedSelection.modelName || skillPreference.preferredModelName,
+            preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : skillPreference.preferredProviderIds,
+            usage: "general",
+          },
+        );
+        const imagePrompt = await this.buildDesignImagePrompt(brandId, skillProfile.promptId, designContext);
+        const imageAsset = await this.generateImageAsset({
+          brandId,
+          taskId: task.id,
+          title,
+          workLabel: `设计工作台 · ${skillProfile.label}`,
+          role: "COVER",
+          order: 0,
+          providers,
+          executionPrompt: `你是一名商业设计视觉生成助手，需要产出可直接用于营销和品牌传播的高完成度设计图，当前设计技能为：${skillProfile.label}。`,
+          prompt: imagePrompt,
+          referenceImageUrls: [],
+          referenceImagePayloads: payload.referenceImage ? [payload.referenceImage] : [],
+          promptMode: "social_graphic",
+          includeFallbackPrompt: true,
+        });
+        const result: DesignGeneratedWorkRecord = {
+          id: createId("design"),
+          taskId: task.id,
+          taskStatus: "SUCCESS",
+          module: payload.module,
+          skillSlug: skillProfile.skillSlug,
+          skillLabel: skillProfile.label,
+          title,
+          status: "已完成",
+          updatedAt: new Date().toISOString(),
+          summary: this.buildDesignResultSummary(designContext, imageAsset.modelName),
+          tags: [skillProfile.label, designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, imageAsset.modelName],
+          assetUrl: imageAsset.url,
+        };
+        await this.markTaskSuccess(task.id, {
+          module: payload.module,
+          skillSlug: skillProfile.skillSlug,
+          stage: "SUCCESS",
+          title,
+          assetUrl: imageAsset.url,
+        }, { modelName: imageAsset.modelName });
+        return result;
+      }
+
+      const textResult = await this.generateDesignTextArtifact(brandId, payload.module, {
         title,
-        status: "已完成",
+        ...designContext,
+        skillSlug: skillProfile.skillSlug,
+        promptId: skillProfile.promptId,
+        preferredModelName: scopedSelection.modelName,
+        preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : [],
+      });
+
+      const result: DesignGeneratedWorkRecord = {
+        id: createId("design"),
+        taskId: task.id,
+        taskStatus: "SUCCESS",
+        module: payload.module,
+        skillSlug: skillProfile.skillSlug,
+        skillLabel: skillProfile.label,
+        title: textResult.title,
+        status: payload.module === "video" ? "已生成方案" : "已完成",
         updatedAt: new Date().toISOString(),
-        summary: this.buildDesignResultSummary(designContext, imageAsset.modelName),
-        tags: [designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, imageAsset.modelName],
-        assetUrl: imageAsset.url,
+        summary: this.buildDesignResultSummary(designContext, textResult.modelName),
+        tags: [skillProfile.label, designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, textResult.modelName],
+        assetUrl: textResult.assetUrl,
+        htmlContent: textResult.htmlContent,
       };
+      await this.markTaskSuccess(task.id, {
+        module: payload.module,
+        skillSlug: skillProfile.skillSlug,
+        stage: "SUCCESS",
+        title: textResult.title,
+        assetUrl: textResult.assetUrl,
+      }, { modelName: textResult.modelName });
+      return result;
+    } catch (error) {
+      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "设计任务执行失败");
+      throw error;
     }
-
-    const textResult = await this.generateDesignTextArtifact(brandId, payload.module, {
-      title,
-      ...designContext,
-      preferredModelName: scopedSelection.modelName,
-      preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : [],
-    });
-
-    return {
-      id: createId("design"),
-      module: payload.module,
-      title: textResult.title,
-      status: payload.module === "video" ? "已生成方案" : "已完成",
-      updatedAt: new Date().toISOString(),
-      summary: this.buildDesignResultSummary(designContext, textResult.modelName),
-      tags: [designContext.designType, payload.injectBrandProfile === false ? "不植入品牌资料" : "植入品牌资料", designContext.productLabel, textResult.modelName],
-      assetUrl: textResult.assetUrl,
-      htmlContent: textResult.htmlContent,
-    };
   }
 
   private resolveVideoProviderPlatformName(name: string, baseUrl?: string | null) {
@@ -1887,7 +1977,7 @@ export class WorksService {
     return brandPieces.join("\n");
   }
 
-  private buildDesignImagePrompt(params: {
+  private async buildDesignImagePrompt(brandId: string, promptId: string, params: {
     brandName: string;
     brandProfileSummary: string;
     calendarLabel: string;
@@ -1896,7 +1986,10 @@ export class WorksService {
     spec: string;
     additionalInstruction: string;
   }) {
+    const promptTemplate = await this.skillsPromptsService.getActivePromptById(promptId);
+    const skillPrompt = String(promptTemplate?.content || "").trim();
     return [
+      skillPrompt,
       `为品牌“${params.brandName}”生成一张${params.designType}。`,
       params.calendarLabel ? `营销日历选题：${params.calendarLabel}。` : "",
       params.productLabel ? `产品信息：${params.productLabel}。` : "",
@@ -1922,13 +2015,14 @@ export class WorksService {
     ].filter(Boolean).join("，");
   }
 
-  private buildDesignTextSystemPrompt(module: DesignWorkModuleKey) {
+  private buildDesignTextSystemPrompt(module: DesignWorkModuleKey, skillPrompt?: string) {
     const sceneLabel = module === "html"
       ? "HTML 页面设计稿"
       : module === "deck"
         ? "PPT 方案预览稿"
         : "视频故事板与脚本方案";
     return [
+      skillPrompt || "",
       `你是一名资深的${sceneLabel}生成助手。`,
       "你需要基于品牌资料、营销日历、产品信息和用户要求，输出一份可继续编辑的设计方案。",
       "只输出 JSON，不要输出 Markdown 代码块。",
@@ -1988,14 +2082,22 @@ export class WorksService {
       designType: string;
       spec: string;
       additionalInstruction: string;
+      skillSlug: string;
+      promptId: string;
       preferredModelName?: string;
       preferredProviderIds?: string[];
     },
   ) {
+    const basePreference = await this.loadSkillModelPreference(
+      params.skillSlug,
+      params.promptId,
+      ["gpt-5.5", "deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
     const preference: SkillModelPreference = {
-      preferredModelName: params.preferredModelName || "gpt-5.5",
+      preferredModelName: params.preferredModelName || basePreference.preferredModelName || "gpt-5.5",
       configuredModels: this.mergeModelPreferenceOrder(
         params.preferredModelName || "",
+        ...basePreference.configuredModels,
         "gpt-5.5",
         "deepseek-v4-pro",
         "deepseek-v4-flash",
@@ -2003,10 +2105,11 @@ export class WorksService {
         "doubao-seed-2-0-mini-260215",
         "kimi-k2.6",
       ),
-      preferredProviderIds: params.preferredProviderIds || [],
+      preferredProviderIds: params.preferredProviderIds?.length ? params.preferredProviderIds : basePreference.preferredProviderIds,
     };
     const providers = await this.loadOriginalCopyProviders(brandId, preference);
-    const systemPrompt = this.buildDesignTextSystemPrompt(module);
+    const promptTemplate = await this.skillsPromptsService.getActivePromptById(params.promptId);
+    const systemPrompt = this.buildDesignTextSystemPrompt(module, String(promptTemplate?.content || "").trim());
     const userPrompt = JSON.stringify({
       title: params.title,
       brandName: params.brandName,
@@ -2072,6 +2175,34 @@ export class WorksService {
     throw new ServiceUnavailableException(
       this.buildModelAttemptFailureMessage("设计工作台文本生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
     );
+  }
+
+  private resolveDesignSkillProfile(module: DesignWorkModuleKey, skillSlug?: string) {
+    const normalizedSkillSlug = String(skillSlug || "").trim();
+    const profile = DESIGN_SKILL_PROFILES[normalizedSkillSlug as keyof typeof DESIGN_SKILL_PROFILES];
+    if (!profile || profile.module !== module) {
+      return {
+        skillSlug: this.getDefaultDesignSkillSlug(module),
+        ...DESIGN_SKILL_PROFILES[this.getDefaultDesignSkillSlug(module)],
+      };
+    }
+    return {
+      skillSlug: normalizedSkillSlug,
+      ...profile,
+    };
+  }
+
+  private getDefaultDesignSkillSlug(module: DesignWorkModuleKey) {
+    if (module === "image") {
+      return "design-social-carousel";
+    }
+    if (module === "html") {
+      return "design-web-prototype";
+    }
+    if (module === "deck") {
+      return "design-pitch-deck";
+    }
+    return "design-video-storyboard";
   }
 
   async listXiaohongshuOriginalWorks(brandId: string) {
@@ -5708,6 +5839,45 @@ export class WorksService {
       taskStatus: "QUEUED" as const,
       modelName,
       pointsCost: 260,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return task;
+  }
+
+  private async createDesignTask(params: {
+    userId: string;
+    brandId: string;
+    taskTitle: string;
+    taskType: string;
+    modelName?: string;
+  }) {
+    const modelName = params.modelName || "gpt-5.5";
+    if (await this.prismaService.canUseDatabase()) {
+      return this.prismaService.task.create({
+        data: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskType: params.taskType,
+          taskTitle: params.taskTitle,
+          taskStatus: TaskStatus.QUEUED,
+          modelName,
+          pointsCost: 220,
+        },
+      });
+    }
+
+    const now = new Date().toISOString();
+    const task = {
+      id: createId("tsk"),
+      userId: params.userId,
+      brandId: params.brandId,
+      taskType: params.taskType,
+      taskTitle: params.taskTitle,
+      taskStatus: "QUEUED" as const,
+      modelName,
+      pointsCost: 220,
       createdAt: now,
       updatedAt: now,
     };

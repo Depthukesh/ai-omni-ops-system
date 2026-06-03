@@ -387,6 +387,85 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
       },
     ],
   },
+  {
+    id: "design-workspace",
+    label: "设计",
+    sections: [
+      {
+        id: "design-image",
+        label: "图片设计",
+        items: [
+          {
+            id: "design-social-carousel",
+            label: "图片设计-社媒轮播图",
+            description: "对应 Open Design 的 social-carousel 能力，用于生成社媒轮播图、方版卡片和品牌传播视觉。",
+            skillSlug: "design-social-carousel",
+            promptScene: "设计工作台-社媒轮播图设计",
+          },
+          {
+            id: "design-magazine-poster",
+            label: "图片设计-杂志风海报",
+            description: "对应 Open Design 的 magazine-poster / editorial 能力，用于生成杂志风海报、封面图和主视觉。",
+            skillSlug: "design-magazine-poster",
+            promptScene: "设计工作台-杂志风海报设计",
+          },
+        ],
+      },
+      {
+        id: "design-html",
+        label: "HTML 设计",
+        items: [
+          {
+            id: "design-web-prototype",
+            label: "HTML设计-单页原型",
+            description: "对应 Open Design 的 web-prototype 能力，用于生成 landing、活动页和品牌展示页。",
+            skillSlug: "design-web-prototype",
+            promptScene: "设计工作台-HTML 原型设计",
+          },
+          {
+            id: "design-dashboard",
+            label: "HTML设计-数据看板",
+            description: "对应 Open Design 的 dashboard 能力，用于生成后台看板、经营分析页和运营监控页。",
+            skillSlug: "design-dashboard",
+            promptScene: "设计工作台-数据看板设计",
+          },
+          {
+            id: "design-mobile-onboarding",
+            label: "HTML设计-移动端引导",
+            description: "对应 Open Design 的 mobile onboarding / mobile app 能力，用于生成多屏移动端原型。",
+            skillSlug: "design-mobile-onboarding",
+            promptScene: "设计工作台-移动端引导设计",
+          },
+        ],
+      },
+      {
+        id: "design-deck",
+        label: "PPT 设计",
+        items: [
+          {
+            id: "design-pitch-deck",
+            label: "PPT设计-Pitch Deck",
+            description: "对应 Open Design 的 guizang-ppt / deck 能力，用于生成品牌提案、融资 deck 和汇报结构。",
+            skillSlug: "design-pitch-deck",
+            promptScene: "设计工作台-Pitch Deck 设计",
+          },
+        ],
+      },
+      {
+        id: "design-video",
+        label: "视频设计",
+        items: [
+          {
+            id: "design-video-storyboard",
+            label: "视频设计-视频故事板",
+            description: "对应 Open Design 的 motion / storyboard 能力，用于生成镜头脚本、画面分镜和字幕口播建议。",
+            skillSlug: "design-video-storyboard",
+            promptScene: "设计工作台-视频故事板设计",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export function flattenSkillCenterLeaves(tree: SkillCenterPrimaryConfig[] = SKILL_CENTER_TREE) {
