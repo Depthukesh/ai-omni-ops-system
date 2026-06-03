@@ -77,20 +77,15 @@ const PRODUCT_SKIP_OPTION = {
   description: "仅使用营销日历、品牌资料与用户要求生成，不额外带入具体产品。",
 };
 
+const DESIGN_SPEC_PRESETS: Record<DesignModuleKey, string[]> = {
+  image: ["1080x1920", "1242x1660", "1080x1080", "750x1334", "800x800"],
+  html: ["PC 1440x1024", "H5 390x844", "落地页 1920x1080", "数据看板 1920x1080", "平板 1024x1366"],
+  deck: ["16:9 标准版式", "4:3 传统版式", "宽屏提案版式", "10 页以内", "20 页以内"],
+  video: ["9:16 竖版 1080x1920", "16:9 横版 1920x1080", "1:1 方版 1080x1080", "15 秒", "30 秒"],
+};
+
 function getDefaultSpec(moduleKey: DesignModuleKey) {
-  if (moduleKey === "image") {
-    return "1242×1660";
-  }
-
-  if (moduleKey === "html") {
-    return "桌面端优先";
-  }
-
-  if (moduleKey === "deck") {
-    return "10 页以内";
-  }
-
-  return "15 秒";
+  return DESIGN_SPEC_PRESETS[moduleKey][0] ?? "";
 }
 
 function getDefaultModelSelection(models: DesignModelOptionRecord[]) {
@@ -192,6 +187,7 @@ function DesignCreateDialog({
     () => [PRODUCT_SKIP_OPTION, ...(options?.productOptions ?? [])],
     [options],
   );
+  const specOptions = DESIGN_SPEC_PRESETS[module.key] ?? [];
 
   if (!open) {
     return null;
@@ -211,7 +207,7 @@ function DesignCreateDialog({
             <strong id="design-v3-dialog-title">{module.createLabel}</strong>
             <p>选项来自当前品牌档案、营销日历和第三方模型配置，提交后直接调用真实生成链路。</p>
           </div>
-          <button type="button" className="design-v3-text-button" onClick={onClose} disabled={submitting}>
+          <button type="button" className="design-v3-text-button" onClick={onClose}>
             关闭
           </button>
         </div>
@@ -305,7 +301,13 @@ function DesignCreateDialog({
             </label>
             <label className="design-v3-field">
               <span>作品规格</span>
-              <input type="text" value={form.spec} onChange={(event) => onChange("spec", event.target.value)} />
+              <select value={form.spec} onChange={(event) => onChange("spec", event.target.value)}>
+                {specOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="design-v3-field design-v3-field--full">
               <span>用户要求</span>
@@ -315,7 +317,7 @@ function DesignCreateDialog({
         </div>
 
         <div className="design-v3-dialog__footer">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={submitting}>
+          <button type="button" className="secondary-button" onClick={onClose}>
             取消
           </button>
           <button
@@ -599,10 +601,6 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   const handleCloseDialog = () => {
-    if (submitting) {
-      return;
-    }
-
     setDialogOpen(false);
   };
 
