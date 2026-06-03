@@ -557,7 +557,7 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanTemplateTagError("");
     } else {
       setDigitalHumanTemplateTags([]);
-      setDigitalHumanTemplateTagError(readRequestErrorMessage(tagGroups.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
+      setDigitalHumanTemplateTagError("");
     }
     if (favorites.status === "fulfilled") {
       setDigitalHumanFavoriteTemplates(favorites.value.items || []);
@@ -797,10 +797,8 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanTemplateTags(digitalHumanTagGroupsResult.value.list || []);
       setDigitalHumanTemplateTagError("");
     } else {
-      hasFallback = true;
-      failedInterfaceNames.push("数字人模板标签");
       setDigitalHumanTemplateTags([]);
-      setDigitalHumanTemplateTagError(readRequestErrorMessage(digitalHumanTagGroupsResult.reason, "数字人模板标签读取失败，请检查蝉镜配置。"));
+      setDigitalHumanTemplateTagError("");
     }
 
     if (digitalHumanTemplatesResult.status === "fulfilled") {

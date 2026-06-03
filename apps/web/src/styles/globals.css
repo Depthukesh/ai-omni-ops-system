@@ -7204,6 +7204,89 @@ button {
   align-items: center;
 }
 
+.digital-human-creator-v2-card__settings {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid #e7ecf6;
+  background: linear-gradient(180deg, #fbfcff 0%, #f5f8ff 100%);
+}
+
+.digital-human-creator-v2-card__settings-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.digital-human-creator-v2-card__settings-head strong {
+  color: #22304a;
+  font-size: 14px;
+}
+
+.digital-human-creator-v2-card__settings-head p {
+  margin: 4px 0 0;
+  color: #748097;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.digital-human-creator-v2-card__settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.digital-human-creator-v2-card__slider-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.digital-human-creator-v2-card__slider-field > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.digital-human-creator-v2-card__slider-field span {
+  color: #5d6781;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.digital-human-creator-v2-card__slider-field strong {
+  color: #24324e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.digital-human-creator-v2-card__slider-field input[type="range"] {
+  width: 100%;
+  accent-color: #6c6ff6;
+}
+
+.digital-human-creator-v2-card__background-inline {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.digital-human-creator-v2-card__background-inline strong {
+  color: #24324e;
+  font-size: 14px;
+}
+
+.digital-human-creator-v2-card__background-inline p {
+  margin: 6px 0 0;
+  color: #6f7990;
+  line-height: 1.7;
+}
+
 .digital-human-creator-v2-card__duration {
   color: #63708a;
   font-size: 13px;
@@ -7975,7 +8058,6 @@ button {
   .digital-human-home-v2-dialog__requirements,
   .digital-human-home-v2-dialog__examples-grid,
   .digital-human-creator-v2-card__layout,
-  .digital-human-creator-v2__summary,
   .digital-human-creator-v2__subtitle-layout,
   .digital-human-creator-v2__background-layout,
   .digital-human-creator-v2-dialog__grid,
@@ -7990,7 +8072,7 @@ button {
   .digital-human-creator-v2__title-row,
   .digital-human-creator-v2-card__topbar,
   .digital-human-creator-v2-card__footer,
-  .digital-human-creator-v2__script-actions-head,
+  .digital-human-creator-v2-card__settings-head,
   .digital-human-creator-v2__dialog-switch,
   .digital-human-creator-v2__bottom-bar,
   .digital-human-creator-v2-dialog__head {
@@ -8014,6 +8096,10 @@ button {
 
   .digital-human-creator-v2__outline-buttons {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .digital-human-creator-v2-card__background-inline {
+    grid-template-columns: 1fr;
   }
 
 
