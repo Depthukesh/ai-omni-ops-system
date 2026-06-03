@@ -12,6 +12,7 @@ import {
   type DouyinSpeechTaskRecord,
   type DouyinDigitalHumanVideoWorkRecord,
   type DouyinVoiceLibraryRecord,
+  type VoiceLibraryPageInfo,
 } from "../../../services/works";
 import {
   type DouyinOriginalCopyRecord,
@@ -355,6 +356,8 @@ export interface DigitalHumanVideoPanelProps {
   scriptPresets: ReadonlyArray<{ key: string; label: string; content: string }>;
   scriptTemplateCategories: Array<{ value: ScriptTemplateCategory; label: string }>;
   templatePageInfo?: DigitalHumanTemplatePageInfo;
+  publicVoicePageInfo?: VoiceLibraryPageInfo;
+  customVoicePageInfo?: VoiceLibraryPageInfo;
   formatDateTime: OptionalDateFormatter;
   onPersonSourceChange: (value: "COMMON" | "CUSTOM") => void;
   onTemplateTagChange: (tagId: string) => Promise<void>;
@@ -428,6 +431,8 @@ export interface DigitalHumanVideoPanelProps {
   onDuplicatePersonalScriptTemplate: () => Promise<void> | void;
   onDeletePersonalScriptTemplate: () => Promise<void> | void;
   onTemplatePageChange?: (page: number) => Promise<void>;
+  onPublicVoicePageChange?: (page: number) => Promise<void>;
+  onCustomVoicePageChange?: (page: number) => Promise<void>;
   onCreateSpeechTask: (payload: {
     audioManId?: string;
     text?: string;
@@ -485,6 +490,10 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
   const publicTemplatePageNumbers = useMemo(
     () => Array.from({ length: props.templatePageInfo?.totalPage || 0 }, (_, index) => index + 1),
     [props.templatePageInfo?.totalPage],
+  );
+  const publicVoicePageNumbers = useMemo(
+    () => Array.from({ length: props.publicVoicePageInfo?.totalPage || 0 }, (_, index) => index + 1),
+    [props.publicVoicePageInfo?.totalPage],
   );
 
   const hasTemplates = props.filteredTemplates.length > 0;
@@ -1216,6 +1225,42 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                   ))
                 : null}
             </div>
+            {voiceDialogTab === "PUBLIC" && props.onPublicVoicePageChange && props.publicVoicePageInfo && props.publicVoicePageInfo.totalPage > 1 ? (
+              <div className="digital-human-creator-v2-dialog__footer digital-human-template-pagination">
+                <span className="panel-subtext">
+                  共 {props.publicVoicePageInfo.totalCount} 个公共声音，当前第 {props.publicVoicePageInfo.page}/{props.publicVoicePageInfo.totalPage} 页
+                </span>
+                <div className="digital-human-template-pagination__buttons">
+                  <button
+                    type="button"
+                    className="filter-chip"
+                    disabled={props.publicVoicePageInfo.page <= 1}
+                    onClick={() => void props.onPublicVoicePageChange?.(props.publicVoicePageInfo!.page - 1)}
+                  >
+                    上一页
+                  </button>
+                  {publicVoicePageNumbers.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      className={`filter-chip ${props.publicVoicePageInfo?.page === pageNumber ? "is-active" : ""}`}
+                      disabled={props.publicVoicePageInfo?.page === pageNumber}
+                      onClick={() => void props.onPublicVoicePageChange?.(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="filter-chip"
+                    disabled={props.publicVoicePageInfo.page >= props.publicVoicePageInfo.totalPage}
+                    onClick={() => void props.onPublicVoicePageChange?.(props.publicVoicePageInfo!.page + 1)}
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

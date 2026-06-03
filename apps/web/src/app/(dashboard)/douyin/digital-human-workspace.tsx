@@ -2162,6 +2162,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           scriptPresets={DIGITAL_HUMAN_SCRIPT_PRESETS}
           scriptTemplateCategories={DIGITAL_HUMAN_SCRIPT_TEMPLATE_CATEGORIES}
           templatePageInfo={props.templatePageInfo}
+          publicVoicePageInfo={props.publicVoicePageInfo}
+          customVoicePageInfo={props.customVoicePageInfo}
           formatDateTime={props.formatDateTime}
           onPersonSourceChange={setSelectedPersonSource}
           onTemplateTagChange={props.onTemplateTagChange}
@@ -2235,6 +2237,8 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onDuplicatePersonalScriptTemplate={handleDuplicatePersonalScriptTemplate}
           onDeletePersonalScriptTemplate={handleDeletePersonalScriptTemplate}
           onTemplatePageChange={props.onTemplatePageChange}
+          onPublicVoicePageChange={props.onRefreshPublicVoices}
+          onCustomVoicePageChange={props.onRefreshCustomVoices}
           onCreateSpeechTask={props.onCreateSpeechTask}
           onRefreshSpeechTask={props.onRefreshSpeechTask}
           onApplyOriginalCopy={handleApplyOriginalCopy}
