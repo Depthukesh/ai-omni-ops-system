@@ -273,11 +273,51 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_design_dashboard"],
     promptScenes: ["设计工作台-数据看板设计"],
   },
+  skill_design_saas_landing: {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  "design-saas-landing": {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  skill_design_email_marketing: {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  "design-email-marketing": {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  skill_design_docs_page: {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  "design-docs-page": {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  skill_design_blog_post: {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
+  "design-blog-post": {
+    promptIds: ["prompt_design_web_prototype"],
+    promptScenes: ["设计工作台-HTML 原型设计"],
+  },
   skill_design_mobile_onboarding: {
     promptIds: ["prompt_design_mobile_onboarding"],
     promptScenes: ["设计工作台-移动端引导设计"],
   },
   "design-mobile-onboarding": {
+    promptIds: ["prompt_design_mobile_onboarding"],
+    promptScenes: ["设计工作台-移动端引导设计"],
+  },
+  skill_design_gamified_app: {
+    promptIds: ["prompt_design_mobile_onboarding"],
+    promptScenes: ["设计工作台-移动端引导设计"],
+  },
+  "design-gamified-app": {
     promptIds: ["prompt_design_mobile_onboarding"],
     promptScenes: ["设计工作台-移动端引导设计"],
   },
@@ -297,6 +337,22 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_design_magazine_poster"],
     promptScenes: ["设计工作台-杂志风海报设计"],
   },
+  skill_design_motion_frames: {
+    promptIds: ["prompt_design_magazine_poster"],
+    promptScenes: ["设计工作台-杂志风海报设计"],
+  },
+  "design-motion-frames": {
+    promptIds: ["prompt_design_magazine_poster"],
+    promptScenes: ["设计工作台-杂志风海报设计"],
+  },
+  skill_design_sprite_animation: {
+    promptIds: ["prompt_design_social_carousel"],
+    promptScenes: ["设计工作台-社媒轮播图设计"],
+  },
+  "design-sprite-animation": {
+    promptIds: ["prompt_design_social_carousel"],
+    promptScenes: ["设计工作台-社媒轮播图设计"],
+  },
   skill_design_pitch_deck: {
     promptIds: ["prompt_design_pitch_deck"],
     promptScenes: ["设计工作台-Pitch Deck 设计"],
@@ -305,11 +361,35 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_design_pitch_deck"],
     promptScenes: ["设计工作台-Pitch Deck 设计"],
   },
+  skill_design_weekly_update: {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
+  "design-weekly-update": {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
+  skill_design_simple_deck: {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
+  "design-simple-deck": {
+    promptIds: ["prompt_design_pitch_deck"],
+    promptScenes: ["设计工作台-Pitch Deck 设计"],
+  },
   skill_design_video_storyboard: {
     promptIds: ["prompt_design_video_storyboard"],
     promptScenes: ["设计工作台-视频故事板设计"],
   },
   "design-video-storyboard": {
+    promptIds: ["prompt_design_video_storyboard"],
+    promptScenes: ["设计工作台-视频故事板设计"],
+  },
+  skill_design_motion_storyboard: {
+    promptIds: ["prompt_design_video_storyboard"],
+    promptScenes: ["设计工作台-视频故事板设计"],
+  },
+  "design-motion-storyboard": {
     promptIds: ["prompt_design_video_storyboard"],
     promptScenes: ["设计工作台-视频故事板设计"],
   },

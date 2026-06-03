@@ -80,10 +80,19 @@ const DESIGN_MODULE_META_MAP: Record<DesignModuleKey, StaticDesignModuleMeta> = 
 };
 
 const DESIGN_SKILL_SLUGS_BY_MODULE: Record<DesignModuleKey, string[]> = {
-  image: ["design-social-carousel", "design-magazine-poster"],
-  html: ["design-web-prototype", "design-dashboard", "design-mobile-onboarding"],
-  deck: ["design-pitch-deck"],
-  video: ["design-video-storyboard"],
+  image: ["design-social-carousel", "design-magazine-poster", "design-motion-frames", "design-sprite-animation"],
+  html: [
+    "design-web-prototype",
+    "design-saas-landing",
+    "design-dashboard",
+    "design-email-marketing",
+    "design-docs-page",
+    "design-blog-post",
+    "design-mobile-onboarding",
+    "design-gamified-app",
+  ],
+  deck: ["design-pitch-deck", "design-weekly-update", "design-simple-deck"],
+  video: ["design-video-storyboard", "design-motion-storyboard"],
 };
 
 const DESIGN_SKILL_LEAVES = flattenSkillCenterLeaves().filter((item) => item.primaryId === "design-workspace");
@@ -95,10 +104,10 @@ const PRODUCT_SKIP_OPTION = {
 };
 
 const DESIGN_SPEC_PRESETS: Record<DesignModuleKey, string[]> = {
-  image: ["1080x1920", "1242x1660", "1080x1080", "750x1334", "800x800"],
-  html: ["PC 1440x1024", "H5 390x844", "落地页 1920x1080", "数据看板 1920x1080", "平板 1024x1366"],
-  deck: ["16:9 标准版式", "4:3 传统版式", "宽屏提案版式", "10 页以内", "20 页以内"],
-  video: ["9:16 竖版 1080x1920", "16:9 横版 1920x1080", "1:1 方版 1080x1080", "15 秒", "30 秒"],
+  image: ["1080x1920", "1242x1660", "1080x1080", "750x1334", "800x800", "1920x1080"],
+  html: ["PC 1440x1024", "H5 390x844", "落地页 1920x1080", "数据看板 1920x1080", "邮件宽度 600px", "平板 1024x1366"],
+  deck: ["16:9 标准版式", "4:3 传统版式", "宽屏提案版式", "10 页以内", "20 页以内", "单主题 6 页以内"],
+  video: ["9:16 竖版 1080x1920", "16:9 横版 1920x1080", "1:1 方版 1080x1080", "15 秒", "30 秒", "45 秒"],
 };
 
 function getDefaultSpec(moduleKey: DesignModuleKey) {

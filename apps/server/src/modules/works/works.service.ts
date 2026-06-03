@@ -45,10 +45,10 @@ const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
-  image: ["社媒轮播图", "杂志风海报", "电商主视觉", "品牌封面图", "信息图海报"],
-  html: ["单页 HTML 原型", "营销落地页", "数据看板", "移动端引导页", "品牌展示页"],
-  deck: ["Pitch Deck", "品牌提案", "周报汇报", "产品发布 Deck", "招商方案"],
-  video: ["视频故事板", "分镜脚本", "动效脚本", "旁白字幕方案"],
+  image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
+  html: ["单页 HTML 原型", "SaaS 落地页", "数据看板", "邮件营销页", "文档展示页", "博客长页", "移动端引导页", "游戏化活动页", "品牌展示页"],
+  deck: ["Pitch Deck", "周报更新", "极简 Deck", "品牌提案", "产品发布 Deck", "招商方案"],
+  video: ["视频故事板", "动效脚本", "分镜脚本", "旁白字幕方案"],
 };
 
 const DESIGN_SKILL_PROFILES = {
@@ -62,9 +62,39 @@ const DESIGN_SKILL_PROFILES = {
     label: "杂志风海报",
     promptId: "prompt_design_magazine_poster",
   },
+  "design-motion-frames": {
+    module: "image" as const,
+    label: "动效首帧",
+    promptId: "prompt_design_magazine_poster",
+  },
+  "design-sprite-animation": {
+    module: "image" as const,
+    label: "像素动画首帧",
+    promptId: "prompt_design_social_carousel",
+  },
   "design-web-prototype": {
     module: "html" as const,
     label: "单页 HTML 原型",
+    promptId: "prompt_design_web_prototype",
+  },
+  "design-saas-landing": {
+    module: "html" as const,
+    label: "SaaS 落地页",
+    promptId: "prompt_design_web_prototype",
+  },
+  "design-email-marketing": {
+    module: "html" as const,
+    label: "邮件营销页",
+    promptId: "prompt_design_web_prototype",
+  },
+  "design-docs-page": {
+    module: "html" as const,
+    label: "文档展示页",
+    promptId: "prompt_design_web_prototype",
+  },
+  "design-blog-post": {
+    module: "html" as const,
+    label: "博客长页",
     promptId: "prompt_design_web_prototype",
   },
   "design-dashboard": {
@@ -77,14 +107,34 @@ const DESIGN_SKILL_PROFILES = {
     label: "移动端引导",
     promptId: "prompt_design_mobile_onboarding",
   },
+  "design-gamified-app": {
+    module: "html" as const,
+    label: "游戏化活动页",
+    promptId: "prompt_design_mobile_onboarding",
+  },
   "design-pitch-deck": {
     module: "deck" as const,
     label: "Pitch Deck",
     promptId: "prompt_design_pitch_deck",
   },
+  "design-weekly-update": {
+    module: "deck" as const,
+    label: "周报更新",
+    promptId: "prompt_design_pitch_deck",
+  },
+  "design-simple-deck": {
+    module: "deck" as const,
+    label: "极简 Deck",
+    promptId: "prompt_design_pitch_deck",
+  },
   "design-video-storyboard": {
     module: "video" as const,
     label: "视频故事板",
+    promptId: "prompt_design_video_storyboard",
+  },
+  "design-motion-storyboard": {
+    module: "video" as const,
+    label: "动效脚本",
     promptId: "prompt_design_video_storyboard",
   },
 } satisfies Record<string, { module: DesignWorkModuleKey; label: string; promptId: string }>;
@@ -12038,6 +12088,15 @@ export class WorksService {
     const normalized = String(message || "").trim();
     if (!normalized) {
       return "未获取到有效图片";
+    }
+    if (/\b502\b/.test(normalized) || /bad gateway/i.test(normalized)) {
+      return `上游图片接口暂时不可用（502 Bad Gateway），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
+    }
+    if (/\b503\b/.test(normalized) || /service unavailable/i.test(normalized)) {
+      return `上游图片接口当前不可用（503 Service Unavailable），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
+    }
+    if (/\b504\b/.test(normalized) || /gateway timeout/i.test(normalized)) {
+      return `上游图片接口网关超时（504 Gateway Timeout），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
     }
     if (/\b524\b/.test(normalized) || /timeout occurred/i.test(normalized) || /cloudflare/i.test(normalized)) {
       return `上游图片接口超时（524），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
