@@ -82,7 +82,7 @@ function buildDraftContent(params: {
 
 export function WechatWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<WechatSectionKey>("config");
-  const [brandId, setBrandId] = useState(DEMO_BRAND_ID);
+  const [brandId] = useState(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID);
   const [archive, setArchive] = useState<BrandArchiveBundle | null>(null);
   const [calendarWorkspace, setCalendarWorkspace] = useState<XiaohongshuMarketingCalendarWorkspace>({ history: [] });
   const [config, setConfig] = useState<WechatAccountConfigRecord | null>(null);
@@ -133,10 +133,6 @@ export function WechatWorkspaceShell() {
   );
 
   useEffect(() => {
-    setBrandId(getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID);
-  }, []);
-
-  useEffect(() => {
     if (!selectedCalendarId && calendarItems[0]?.id) {
       setSelectedCalendarId(calendarItems[0].id);
     }
@@ -155,32 +151,54 @@ export function WechatWorkspaceShell() {
   }, [draftTitle, selectedCalendar, selectedProduct]);
 
   useEffect(() => {
+    let disposed = false;
+
     async function loadWorkspace() {
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const [archiveResult, calendarResult, configResult, draftsResult] = await Promise.all([
+        const [archiveResult, calendarResult, configResult, draftsResult] = await Promise.allSettled([
           getBrandArchive(brandId),
           getXiaohongshuMarketingCalendarWorkspace(brandId),
           getWechatAccountConfig(brandId),
           getWechatArticleDrafts(brandId),
         ]);
-        setArchive(archiveResult);
-        setCalendarWorkspace(calendarResult);
-        setConfig(configResult.item);
-        setDrafts(draftsResult.items);
-        setAppId(configResult.item.appId || "");
+
+        if (disposed) {
+          return;
+        }
+
+        if (configResult.status !== "fulfilled") {
+          throw configResult.reason;
+        }
+        if (draftsResult.status !== "fulfilled") {
+          throw draftsResult.reason;
+        }
+
+        setArchive(archiveResult.status === "fulfilled" ? archiveResult.value : null);
+        setCalendarWorkspace(calendarResult.status === "fulfilled" ? calendarResult.value : { history: [] });
+        setConfig(configResult.value.item);
+        setDrafts(draftsResult.value.items);
+        setAppId(configResult.value.item.appId || "");
         setAppSecret("");
-        setWhitelistText(buildWhitelistText(configResult.item.whitelistIps || []));
-        setSelectedTheme(configResult.item.defaultThemeColor || themeOptions[0]?.color || "#25554a");
+        setWhitelistText(buildWhitelistText(configResult.value.item.whitelistIps || []));
+        setSelectedTheme(configResult.value.item.defaultThemeColor || themeOptions[0]?.color || "#25554a");
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "公众号工作台加载失败。");
+        if (!disposed) {
+          setErrorMessage(error instanceof Error ? error.message : "公众号工作台加载失败。");
+        }
       } finally {
-        setIsLoading(false);
+        if (!disposed) {
+          setIsLoading(false);
+        }
       }
     }
 
     void loadWorkspace();
+
+    return () => {
+      disposed = true;
+    };
   }, [brandId]);
 
   function openDraftPreview(htmlContent: string) {

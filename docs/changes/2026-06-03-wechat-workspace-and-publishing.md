@@ -101,6 +101,8 @@
   - 选中后会按“无具体产品植入”生成文章内容
   - 作品卡片也会明确显示 `不植入产品`
 - 发布接口补权限校验后，`PublishingController` 新增了 `AuthService` 依赖；本次同步修正 `PublishingModule` 的模块导入，补齐 `AuthModule`，避免生产环境启动时报 `Nest can't resolve dependencies of the PublishingController`。
+- 公众号工作台初始加载曾先用默认 `DEMO_BRAND_ID` 发起一次请求，再切换到当前品牌重新加载，导致旧请求失败后把“当前账号无权访问该品牌”残留到页面顶部；本次已改为直接用登录态当前品牌初始化，并在加载 effect 中增加过期请求保护。
+- 公众号配置页当前不会再因为品牌档案或小红书营销日历这些辅助数据读取失败而阻塞主页面配置加载。
 
 ## 影响范围
 
