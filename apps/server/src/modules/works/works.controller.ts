@@ -128,7 +128,7 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
     return this.worksService.listWechatArticleDrafts(brandId);
   }
 
@@ -138,7 +138,7 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
-    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.config", "view", auth);
     return this.worksService.getWechatAccountConfig(brandId);
   }
 
@@ -149,7 +149,7 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
-      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
       return this.worksService.saveWechatAccountConfig(brandId, payload);
     });
   }
@@ -161,7 +161,7 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
-      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
       return this.worksService.generateWechatArticleDraft(brandId, payload, auth);
     });
   }
@@ -174,7 +174,7 @@ export class WorksController {
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
-      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
       return this.worksService.updateWechatArticleDraft(brandId, draftId, payload);
     });
   }

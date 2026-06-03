@@ -34,6 +34,7 @@ flowchart TD
     B --> B2["品牌增长策略 /brand-growth"]
     B --> B25["抖音工作台 /douyin"]
     B --> B3["小红书工作台 /xiaohongshu"]
+    B --> B26["公众号工作台 /wechat"]
     B --> B4["个人中心 /personal-center"]
     B --> B5["后台管理 /admin"]
     B5 --> B51["接口供应商平台配置中心"]
@@ -108,6 +109,7 @@ flowchart LR
     Dash --> BrandGrowth["/brand-growth"]
     Dash --> Douyin["/douyin"]
     Dash --> Xiaohongshu["/xiaohongshu"]
+    Dash --> Wechat["/wechat"]
     Dash --> Personal["/personal-center"]
     Dash --> Admin["/admin"]
     Dash --> Membership["/membership-purchase"]
@@ -488,6 +490,58 @@ flowchart LR
     F --> F5["视频模型下拉动态读取后台 Provider"]
 ```
 
+## 6.2 公众号工作台深度地图
+
+```mermaid
+flowchart TD
+    WE["/wechat page.tsx"]
+    WE --> WES["workspace-shell.tsx 编排壳层"]
+    WES --> WA["auth-session.ts 当前品牌解析"]
+    WES --> WS1["brand-growth.ts 品牌档案"]
+    WES --> WS2["reports.ts 小红书营销日历工作区"]
+    WES --> WS3["works.ts 公众号配置/草稿"]
+    WES --> WS4["publishing.ts 公众号一键发布"]
+
+    WES --> WEC1["配置页面"]
+    WES --> WEC2["原创创作"]
+    WEC1 --> WEC11["AppID / AppSecret / IP 白名单"]
+    WEC1 --> WEC12["AppSecret 掩码回显 + 旧密钥沿用"]
+    WEC2 --> WEC21["营销日历下拉"]
+    WEC2 --> WEC22["产品信息下拉"]
+    WEC2 --> WEC23["品牌资料是否植入"]
+    WEC2 --> WEC24["图片生成策略 + 主题颜色"]
+    WEC2 --> WEC25["作品卡片 + HTML 预览 + 一键发布"]
+
+    WA --> WS1
+    WA --> WS2
+    WA --> WS3
+    WA --> WS4
+
+    WS1 --> WAPI1["/brands/*"]
+    WS2 --> WAPI2["/reports/brands/:brandId/xiaohongshu-marketing-calendar*"]
+    WS3 --> WAPI3["/works/brands/:brandId/wechat/config"]
+    WS3 --> WAPI31["/works/brands/:brandId/wechat/articles"]
+    WS3 --> WAPI32["/works/brands/:brandId/wechat/articles/generate"]
+    WS3 --> WAPI33["/works/brands/:brandId/wechat/articles/:draftId"]
+    WS4 --> WAPI4["/publishing/brands/:brandId/wechat/articles/:draftId/publish"]
+
+    WAPI1 --> WM1["BrandsModule"]
+    WAPI2 --> WM2["ReportsModule"]
+    WAPI3 --> WM3["WorksModule"]
+    WAPI31 --> WM3
+    WAPI32 --> WM3
+    WAPI33 --> WM3
+    WAPI4 --> WM4["PublishingModule"]
+
+    WM3 --> WT1["Task"]
+    WM3 --> WT2["MediaAsset"]
+    WM3 --> WT3["Brand"]
+    WM3 --> WT4["Product"]
+    WM3 --> WT5["SkillConfig / PromptTemplate"]
+    WM4 --> WT1
+    WM4 --> WT2
+```
+
 ## 7. 个人中心、支付和后台管理地图
 
 ```mermaid
@@ -634,9 +688,11 @@ flowchart TD
     M5 --> M55["原创图片生成 / 二创图片生成 已拆成独立技能，默认模型切到 Right Codes images-generations"]
     M5 --> M57["原创/二创/视频三类作品创建都默认要求账号角色并写入主记录元数据"]
     M5 --> M58["历史 seedance 兼容值自动映射到 volcengine_seedance_20，避免落到已下线平台"]
+    M5 --> M59["公众号工作台已接配置保存、HTML 草稿生成、发布状态回写与图片任务记录"]
     M6 --> M5
     M6 --> M7
     M6 --> M8
+    M6 --> M61["新增公众号发布入口：PublishingModule -> WorksModule.publishWechatArticleDraft()"]
     M10 --> M9
     M10 --> M1
     M10 --> M7
@@ -738,6 +794,8 @@ flowchart LR
 - 抖音工作台壳层：`apps/web/src/app/(dashboard)/douyin/workspace-shell.tsx`
 - 小红书工作台：`apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
 - 小红书工作台壳层：`apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
+- 公众号工作台：`apps/web/src/app/(dashboard)/wechat/page.tsx`
+- 公众号工作台壳层：`apps/web/src/app/(dashboard)/wechat/workspace-shell.tsx`
 - 个人中心：`apps/web/src/app/(dashboard)/personal-center/page.tsx`
 - 个人中心订单中心：`apps/web/src/app/(dashboard)/personal-center/orders/page.tsx`
 - 个人中心作品中心：`apps/web/src/app/(dashboard)/personal-center/works/page.tsx`
@@ -830,6 +888,7 @@ flowchart LR
 - 小红书聚合工作区：`apps/web/src/services/xiaohongshu.ts`
 - 作品生成与 CRUD：`apps/web/src/services/works.ts`
 - 发布会话：`apps/web/src/services/publishing.ts`
+- 公众号工作台当前通过 `works.ts + publishing.ts` 分别承接配置/草稿生成与一键发布
 - 个人中心/订单/任务/媒体：`apps/web/src/services/personal-center.ts`
 - 后台管理：`apps/web/src/services/admin.ts`
 

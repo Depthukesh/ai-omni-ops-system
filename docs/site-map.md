@@ -22,8 +22,9 @@
 - `/brand-growth`：品牌增长策略工作台
 - `/douyin`：抖音工作台
 - `/xiaohongshu`：小红书工作台
+- `/wechat`：公众号工作台
 - `/personal-center`：个人中心
-- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
+- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、`/wechat`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
 - `/admin`：后台管理台，仅管理员角色账号可进入
 - `/help/xhs-draft-publisher`：小红书电脑端一键发布扩展的下载与安装帮助页
 - `/login`：兼容登录页，已接入账号密码登录，并提供回流根页注册入口
@@ -38,7 +39,8 @@
 3. 生成品牌增长报告
 4. 生成可视化报告/半年营销规划
 5. 进入小红书继续策划、排期和内容生产
-6. 到个人中心查看任务、订单、作品
+6. 进入公众号工作台完成账号配置、原创创作与发布
+7. 到个人中心查看任务、订单、作品
 
 ### 2.3 部署与运行入口
 
@@ -258,6 +260,39 @@
 - 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
 - 参考变更：`docs/changes/2026-05-30-douyin-remix-copy-and-ai-video-workspace.md`
 - 参考变更：`docs/changes/2026-05-30-douyin-digital-human-workspace.md`
+
+### 3.3B 公众号 `/wechat`
+
+- 当前页面已作为独立工作台存在，入口为 `apps/web/src/app/(dashboard)/wechat/page.tsx`，业务编排壳层为 `workspace-shell.tsx`
+- 顶部导航：已进入前台统一浅底导航，导航中已有独立 `公众号` 入口
+- 左侧导航：当前固定收口为两个正式板块：
+  - 配置页面
+  - 原创创作
+- 配置页面
+  - 当前只保留 `AppID / AppSecret / IP 白名单`
+  - 前端通过 `getWechatAccountConfig / saveWechatAccountConfig` 读取和保存配置
+  - 后端返回 `appSecretMasked` 供页面回显掩码；若本次保存未重新填写 `AppSecret`，服务端会沿用已有密钥，不强制用户每次重填
+  - 当前发布前会校验是否已完成 `AppID / AppSecret / IP 白名单` 配置
+- 原创创作
+  - 页面会并行读取当前品牌档案与同一份小红书营销日历工作区，作为公众号创作的资料来源
+  - 当前“添加原创文章”弹窗已收口为：
+    - 营销日历下拉
+    - 产品信息下拉
+    - 品牌资料是否植入
+    - 图片生成策略
+    - 主题颜色
+    - 创作要求
+  - 生成后按作品卡片展示公众号文章草稿，支持查看 HTML 预览
+  - 作品记录当前固定输出 `HTML`，并保存营销日历、产品、品牌资料、主题色、配图策略和技能执行信息
+- 技能与发布接线
+  - 后台技能中心与前台技能中心已补入 `公众号-创作文章 / 公众号-制作图片` 两个技能叶子项
+  - 文章草稿当前记录 `wechat-article-composer`，图片任务当前记录 `wechat-image-designer`
+  - 前端通过 `publishWechatArticleToOfficialAccount()` 命中 `POST /publishing/brands/:brandId/wechat/articles/:draftId/publish`
+  - 后端发布入口当前已接入 `PublishingModule -> WorksModule`，会创建发布任务并把草稿状态回写为 `PUBLISHED`
+- 当前边界
+  - 公众号工作台、配置保存、草稿生成、HTML 预览和一键发布入口已经独立落地
+  - 当前“一键发布”仍以站内任务和状态流转为主，用于打通正式工作台链路；后续若继续推进，需要把内部发布执行替换为真实公众号官方 API
+- 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
 
 ### 3.4 个人中心 `/personal-center`
 
@@ -575,6 +610,18 @@
   - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
   - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-timeout-hardening-and-recovery-entry.md`
   - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-provider-taskid-early-persist.md`
+  - 当前已新增公众号工作台数据链路：
+    - `GET /api/works/brands/:brandId/wechat/config`
+    - `POST /api/works/brands/:brandId/wechat/config`
+    - `GET /api/works/brands/:brandId/wechat/articles`
+    - `POST /api/works/brands/:brandId/wechat/articles/generate`
+    - `PATCH /api/works/brands/:brandId/wechat/articles/:draftId`
+  - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
+  - 公众号配置当前按品牌维度保存 `AppID / AppSecret / IP 白名单 / 默认主题色`，数据库不可用时回退到 `mock-data` 内存存储
+- `PublishingModule`：小红书发布会话、公众号发布入口
+  - 小红书继续承接手机扫码草稿与电脑端草稿接力链路
+  - 当前已新增 `POST /api/publishing/brands/:brandId/wechat/articles/:draftId/publish`
+  - 公众号发布当前通过 `PublishingModule -> WorksModule.publishWechatArticleDraft()` 统一执行发布前校验、任务创建和发布状态回写
 - `TasksModule`：任务记录与重试
 - `TasksModule`
   - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
@@ -693,6 +740,19 @@
 8. 第 3 阶段直接使用固定视频生成提示词结合故事板图片，调用用户选择的视频模型生成最终短视频，不再额外生成“短视频提示词”
 9. 成品视频、中间剧本、故事板提示词、故事板图片与阶段状态都保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
 
+### 5.5B 公众号原创文章链路
+
+1. 用户进入 `/wechat` 后，工作台先读取当前品牌档案、小红书营销日历工作区、公众号配置和公众号文章草稿列表
+2. 用户在“配置页面”填写 `AppID / AppSecret / IP 白名单`，前端通过 `saveWechatAccountConfig()` 提交到 `WorksModule`
+3. 用户在“原创创作”中打开添加弹窗，按需选择营销日历、产品信息、品牌资料是否植入、图片生成策略、主题颜色和创作要求
+4. 前端通过 `generateWechatArticleDraft()` 提交到 `POST /api/works/brands/:brandId/wechat/articles/generate`
+5. 后端 `WorksModule` 会基于营销节点、产品信息和品牌资料组装公众号文章内容，生成固定 `HTML` 草稿，并回写文章技能、图片任务和作品状态信息
+6. 草稿生成后，前端按作品卡片展示，可直接查看 HTML 预览
+7. 用户点击“一键发布”后，前端通过 `publishWechatArticleToOfficialAccount()` 命中 `PublishingModule`
+8. 后端发布入口会先校验当前品牌是否已配置 `AppID / AppSecret / IP 白名单`，再创建发布任务并把草稿状态更新为 `PUBLISHED`
+9. 当前发布链路已完成正式工作台接线，但内部仍以站内状态流转为主；后续若继续推进，需要替换为真实公众号官方 API 发布执行
+10. 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+
 ### 5.6 技能与提示词注册链路
 
 1. 后台 `/admin` 的技能中心通过 `admin/skills-prompts` 读取技能配置与提示词模板
@@ -718,11 +778,13 @@
 - `works` 作品文件已切到纯 OSS 持久化，站内资产接口可直接代理读取
 - `reports` HTML 产物已切到 OSS 持久化，站内报告资产接口可直接代理读取
 - 品牌产品图、品牌资料附件和用户头像已切到 OSS 持久化
+- `/wechat` 已独立落地正式工作台，支持公众号配置、原创文章草稿生成、HTML 预览和一键发布入口
 
 ## 7. 当前仍属过渡或待完善部分
 
 - `/` 已改为统一认证入口，默认展示邀请码注册；`/login`、`/register` 作为兼容入口保留
-- 抖音/视频号/公众号/私域尚未独立落地
+- 视频号/私域尚未独立落地
+- 公众号已独立落地正式工作台，但当前“一键发布”仍以内置任务与状态流转为主，尚未替换为真实公众号官方 API 发布执行
 - 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
 - 部分后端仍存在过渡性 DI 写法，需要继续收敛
 - `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径

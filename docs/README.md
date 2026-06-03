@@ -94,6 +94,8 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+  - 公众号工作台已独立落地正式 `/wechat` 入口，补齐配置页面、原创创作、HTML 草稿生成、一键发布入口，以及 `docs/site-map*` 中对应的结构说明
 - `docs/changes/2026-05-30-douyin-digital-human-workspace.md`
   - 抖音工作台新增数字人独立板块，接通蝉镜 OpenAPI 公共模板库、数字人口播视频生成、结果找回、技能中心注册和第三方平台凭证入口
 - `docs/changes/2026-05-26-video-note-direct-video-and-storyboard-image-model.md`

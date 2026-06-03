@@ -21,6 +21,7 @@ import {
 
 type WechatSectionKey = "config" | "original";
 type ThemeOption = { label: string; color: string };
+const NO_PRODUCT_VALUE = "__no_product__";
 
 const themeOptions: ThemeOption[] = [
   { label: "墨绿", color: "#25554a" },
@@ -49,14 +50,13 @@ function parseWhitelistText(value: string) {
 
 function buildDraftTitle(calendarItem?: XiaohongshuMarketingCalendarItem, product?: BrandProduct) {
   const topic = calendarItem?.topicName || "公众号原创文章";
-  const productName = product?.productName || "品牌主推产品";
-  return `${topic}：${productName}内容发布稿`;
+  return product ? `${topic}：${product.productName}内容发布稿` : `${topic}：品牌内容发布稿`;
 }
 
 function buildDraftSummary(calendarItem?: XiaohongshuMarketingCalendarItem, product?: BrandProduct, includeBrand?: boolean) {
   const topic = calendarItem?.topicName || "当前营销节点";
-  const productName = product?.productName || "品牌主推产品";
-  return `围绕${topic}与${productName}生成公众号原创文章${includeBrand ? "，并植入品牌资料" : ""}。`;
+  const productPart = product ? `与${product.productName}` : "";
+  return `围绕${topic}${productPart}生成公众号原创文章${includeBrand ? "，并植入品牌资料" : ""}。`;
 }
 
 function buildDraftContent(params: {
@@ -67,11 +67,13 @@ function buildDraftContent(params: {
 }) {
   const { calendarItem, product, includeBrandProfile, instruction } = params;
   const sections = [
-    `围绕营销主题「${calendarItem?.topicName || "当前营销节点"}」撰写公众号文章，重点突出${product?.productName || "品牌主推产品"}。`,
+    product
+      ? `围绕营销主题「${calendarItem?.topicName || "当前营销节点"}」撰写公众号文章，重点突出${product.productName}。`
+      : `围绕营销主题「${calendarItem?.topicName || "当前营销节点"}」撰写公众号文章，本次不植入具体产品，只突出活动信息、品牌内容和转化动作。`,
     product
       ? `产品资料：定位为${product.productPositioning}，适用场景是${product.usageScenario}，核心差异化为${product.differentiators}。`
-      : "产品资料：请结合当前品牌主推产品卖点展开内容。",
-    includeBrandProfile ? "本次文章需要自然植入品牌资料、品牌故事和服务承诺。" : "本次文章不植入品牌资料，只突出活动与产品信息。",
+      : "产品资料：本次不植入具体产品，请避免输出具体产品卖点或单品推荐。",
+    includeBrandProfile ? "本次文章需要自然植入品牌资料、品牌故事和服务承诺。" : "本次文章不植入品牌资料，只突出活动信息。",
     calendarItem?.topicContent ? `营销日历参考：${calendarItem.topicContent}` : "营销日历参考：请结合当前营销节点做节奏安排。",
     instruction || "请输出适合公众号后台的 HTML 结构文章，并预留一键发布到公众号后台。",
   ];
@@ -141,8 +143,8 @@ export function WechatWorkspaceShell() {
   }, [calendarItems, selectedCalendarId]);
 
   useEffect(() => {
-    if (!selectedProductId && products[0]?.id) {
-      setSelectedProductId(products[0].id);
+    if (!selectedProductId) {
+      setSelectedProductId(NO_PRODUCT_VALUE);
     }
   }, [products, selectedProductId]);
 
@@ -375,7 +377,7 @@ export function WechatWorkspaceShell() {
                           <p>{draft.summary}</p>
                           <div className="wechat-meta-list">
                             <span>营销日历：{draft.selectedMarketingLabels[0] || "未选择"}</span>
-                            <span>产品：{draft.selectedProductLabels[0] || "未选择"}</span>
+                            <span>产品：{draft.injectProducts ? draft.selectedProductLabels[0] || "未选择" : "不植入产品"}</span>
                             <span>品牌资料：{draft.injectBrandProfile ? "是" : "否"}</span>
                           </div>
                           <div className="wechat-card-actions">
@@ -438,6 +440,7 @@ export function WechatWorkspaceShell() {
                 <label className="wechat-field">
                   <span>产品信息</span>
                   <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
+                    <option value={NO_PRODUCT_VALUE}>不植入产品</option>
                     {products.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.productName}

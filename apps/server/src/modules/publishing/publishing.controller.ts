@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Inject, Param, Post } from "@nestjs/common";
+import { AuthService } from "../auth/auth.service";
 import {
   PublishingService,
   type CompleteMobileDraftSessionPayload,
@@ -8,7 +9,10 @@ import {
 
 @Controller("publishing")
 export class PublishingController {
-  constructor(@Inject(PublishingService) private readonly publishingService: PublishingService) {}
+  constructor(
+    @Inject(PublishingService) private readonly publishingService: PublishingService,
+    @Inject(AuthService) private readonly authService: AuthService,
+  ) {}
 
   @Post("brands/:brandId/xiaohongshu/works/:workId/mobile-draft-session")
   createXiaohongshuMobileDraftSession(
@@ -59,7 +63,11 @@ export class PublishingController {
     @Param("brandId") brandId: string,
     @Param("draftId") draftId: string,
     @Body() payload: PublishWechatArticlePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    return this.publishingService.publishWechatArticleToOfficialAccount(brandId, draftId, payload);
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.publishingService.publishWechatArticleToOfficialAccount(brandId, draftId, payload);
+    });
   }
 }
