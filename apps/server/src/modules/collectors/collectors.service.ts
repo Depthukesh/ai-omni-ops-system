@@ -18,8 +18,7 @@ type CollectorAccountKind =
   | "XHS_BRAND_ACCOUNT"
   | "XHS_COMPETITOR_ACCOUNT"
   | "DOUYIN_BRAND_ACCOUNT"
-  | "DOUYIN_COMPETITOR_ACCOUNT"
-  | "WECHAT_OFFICIAL_ACCOUNT";
+  | "DOUYIN_COMPETITOR_ACCOUNT";
 type DouyinWorkKind =
   | "DOUYIN_BRAND_WORK"
   | "DOUYIN_BENCHMARK_WORK"
@@ -27,20 +26,14 @@ type DouyinWorkKind =
   | "DOUYIN_HIGH_COMPLETION_RATE_WORK"
   | "DOUYIN_HIGH_LIKE_RATE_WORK";
 type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
-type WechatArticleDetailKind = "WECHAT_MP_ARTICLE_DETAIL";
-type WechatArticleSearchKind = "WECHAT_ARTICLE_SEARCH";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
-  | DouyinWorkKind
-  | WechatArticleDetailKind
-  | WechatArticleSearchKind;
+  | DouyinWorkKind;
 type CollectorTargetKind = "XHS_TARGET_USER";
 type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTargetKind | DouyinCityHotspotKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
-type WechatSortType = "_0" | "_2" | "_4";
-type WechatSyncScope = "articleDetail" | "officialAccountSearch" | "articleSearch";
 type DouyinBillboardScopeKey =
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
@@ -57,16 +50,6 @@ type DouyinSyncInput = {
   benchmarkAwemeIds?: string[];
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
-};
-type WechatSyncInput = {
-  scope?: WechatSyncScope;
-  articleDetailUrl?: string;
-  officialAccountKeyword?: string;
-  officialAccountOffset?: number;
-  officialAccountSortType?: WechatSortType;
-  articleKeyword?: string;
-  articleOffset?: number;
-  articleSortType?: WechatSortType;
 };
 export type DouyinContentTagOption = {
   label: string;
@@ -316,41 +299,6 @@ export type DouyinCollectionWorkspace = {
   cityOptions: DouyinCityOption[];
 };
 
-export type WechatArticleDetailRecord = {
-  id: string;
-  kind: WechatArticleDetailKind;
-  queryUrl: string;
-  articleUrl: string;
-  title: string;
-  author?: string;
-  htmlContent?: string;
-  collectedAt: string;
-};
-
-export type WechatOfficialAccountRecord = {
-  id: string;
-  kind: "WECHAT_OFFICIAL_ACCOUNT";
-  keyword: string;
-  accountName: string;
-  accountLink?: string;
-  collectedAt: string;
-};
-
-export type WechatArticleSearchRecord = {
-  id: string;
-  kind: "WECHAT_ARTICLE_SEARCH";
-  keyword: string;
-  title: string;
-  articleLink?: string;
-  collectedAt: string;
-};
-
-export type WechatCollectionWorkspace = {
-  articleDetails: WechatArticleDetailRecord[];
-  officialAccounts: WechatOfficialAccountRecord[];
-  articles: WechatArticleSearchRecord[];
-};
-
 type FeishuMatchedTableMap = {
   brandAccounts: FeishuTableRecord | null;
   competitorAccounts: FeishuTableRecord | null;
@@ -465,14 +413,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions);
-  }
-
-  async getWechatWorkspace(brandId: string): Promise<WechatCollectionWorkspace> {
-    if (await this.prismaService.canUseDatabase()) {
-      return this.buildWechatWorkspaceFromAssets(await this.listCollectorAssets(brandId));
-    }
-
-    return this.getWechatWorkspaceFromMock(brandId);
   }
 
   async syncBrandAccounts(brandId: string) {
@@ -627,43 +567,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       },
       warnings: [...benchmarkFailures, ...billboardWarnings],
       workspace: await this.getDouyinWorkspace(brandId),
-    };
-  }
-
-  async syncWechatWorkspace(brandId: string, input: WechatSyncInput = {}) {
-    this.ensureBrandExistsInMockOrDatabase(brandId);
-    const scope = input.scope;
-    const articleDetailRows =
-      scope === "articleDetail" && input.articleDetailUrl
-        ? [await this.collectAndStoreWechatArticleDetail(brandId, input.articleDetailUrl)]
-        : [];
-    const officialAccountRows =
-      scope === "officialAccountSearch" && input.officialAccountKeyword
-        ? await this.collectAndStoreWechatOfficialAccounts(
-            brandId,
-            input.officialAccountKeyword,
-            input.officialAccountOffset,
-            input.officialAccountSortType,
-          )
-        : [];
-    const articleRows =
-      scope === "articleSearch" && input.articleKeyword
-        ? await this.collectAndStoreWechatArticles(brandId, input.articleKeyword, input.articleOffset, input.articleSortType)
-        : [];
-    const warnings = [
-      scope === "officialAccountSearch" && !officialAccountRows.length ? "公众号搜索当前关键词暂无返回结果" : "",
-      scope === "articleSearch" && !articleRows.length ? "文章搜索当前关键词暂无返回结果" : "",
-    ].filter(Boolean);
-
-    return {
-      syncedCount: articleDetailRows.length + officialAccountRows.length + articleRows.length,
-      breakdown: {
-        articleDetails: articleDetailRows.length,
-        officialAccounts: officialAccountRows.length,
-        articles: articleRows.length,
-      },
-      warnings,
-      workspace: await this.getWechatWorkspace(brandId),
     };
   }
 
@@ -1054,12 +957,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.buildDouyinWorkspaceFromAssets(assets, contentTags, cityOptions);
   }
 
-  private getWechatWorkspaceFromMock(brandId: string): WechatCollectionWorkspace {
-    this.ensureBrandExistsInMock(brandId);
-    const assets = database.assets.filter((item) => item.brandId === brandId && item.category === "PLATFORM_EXPORT");
-    return this.buildWechatWorkspaceFromAssets(assets);
-  }
-
   private buildWorkspaceFromAssets(assets: AssetRecord[]): XhsCollectionWorkspace {
     const brandAccounts = assets
       .filter((item) => item.metadataJson?.kind === "XHS_BRAND_ACCOUNT")
@@ -1122,24 +1019,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       cityHotspots,
       contentTags,
       cityOptions,
-    };
-  }
-
-  private buildWechatWorkspaceFromAssets(assets: AssetRecord[]): WechatCollectionWorkspace {
-    const articleDetails = assets
-      .filter((item) => item.metadataJson?.kind === "WECHAT_MP_ARTICLE_DETAIL")
-      .map((item) => this.mapWechatArticleDetail(item));
-    const officialAccounts = assets
-      .filter((item) => item.metadataJson?.kind === "WECHAT_OFFICIAL_ACCOUNT")
-      .map((item) => this.mapWechatOfficialAccount(item));
-    const articles = assets
-      .filter((item) => item.metadataJson?.kind === "WECHAT_ARTICLE_SEARCH")
-      .map((item) => this.mapWechatArticleSearch(item));
-
-    return {
-      articleDetails,
-      officialAccounts,
-      articles,
     };
   }
 
@@ -1286,44 +1165,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       primaryTagLabel: this.readMetaString(meta, "primaryTagLabel") || undefined,
       secondaryTagLabel: this.readMetaString(meta, "secondaryTagLabel") || undefined,
       score: this.readMetaNumber(meta, "score"),
-    };
-  }
-
-  private mapWechatArticleDetail(asset: AssetRecord): WechatArticleDetailRecord {
-    const meta = this.asMeta(asset.metadataJson);
-    return {
-      id: asset.id,
-      kind: "WECHAT_MP_ARTICLE_DETAIL",
-      queryUrl: this.readMetaString(meta, "queryUrl") || asset.fileUrl || "",
-      articleUrl: this.readMetaString(meta, "articleUrl") || asset.fileUrl || "",
-      title: asset.title,
-      author: this.readMetaString(meta, "author") || undefined,
-      htmlContent: this.readMetaString(meta, "htmlContent") || undefined,
-      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
-    };
-  }
-
-  private mapWechatOfficialAccount(asset: AssetRecord): WechatOfficialAccountRecord {
-    const meta = this.asMeta(asset.metadataJson);
-    return {
-      id: asset.id,
-      kind: "WECHAT_OFFICIAL_ACCOUNT",
-      keyword: this.readMetaString(meta, "keyword"),
-      accountName: asset.title,
-      accountLink: this.readMetaString(meta, "accountLink") || asset.fileUrl || undefined,
-      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
-    };
-  }
-
-  private mapWechatArticleSearch(asset: AssetRecord): WechatArticleSearchRecord {
-    const meta = this.asMeta(asset.metadataJson);
-    return {
-      id: asset.id,
-      kind: "WECHAT_ARTICLE_SEARCH",
-      keyword: this.readMetaString(meta, "keyword"),
-      title: asset.title,
-      articleLink: this.readMetaString(meta, "articleLink") || asset.fileUrl || undefined,
-      collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
 
@@ -3590,169 +3431,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.mapDouyinCollectedWork(asset, "DOUYIN_BENCHMARK_WORK");
   }
 
-  private async collectAndStoreWechatArticleDetail(
-    brandId: string,
-    sourceUrl: string,
-  ): Promise<WechatArticleDetailRecord> {
-    const articleUrl = this.normalizeHttpUrl(sourceUrl);
-    if (!articleUrl) {
-      throw new BadRequestException("请先输入有效的公众号文章链接");
-    }
-
-    const raw = await this.fetchTikHub(
-      "/api/v1/wechat_mp/web/fetch_mp_article_detail_json",
-      { url: articleUrl },
-      brandId,
-    );
-    const detail = this.extractWechatArticleDetail(raw);
-    const htmlContent = this.extractWechatArticleHtml(detail);
-    const content = this.extractWechatArticleContent(detail, htmlContent);
-    const title = this.pickString(detail, ["title", "msg_title", "article_title", "name"]) || "公众号文章详情";
-    const metadata = {
-      kind: "WECHAT_MP_ARTICLE_DETAIL" as const,
-      queryUrl: articleUrl,
-      articleUrl: this.normalizeHttpUrl(
-        this.pickString(detail, ["url", "article_url", "articleUrl", "link", "share_url"]) || articleUrl,
-      ) || articleUrl,
-      author: this.pickString(detail, ["author", "nickname", "bizname", "account_name", "source"]) || undefined,
-      htmlContent: htmlContent || undefined,
-      collectedAt: new Date().toISOString(),
-      rawFields: detail,
-    };
-    const asset = await this.upsertCollectorAsset({
-      brandId,
-      kind: "WECHAT_MP_ARTICLE_DETAIL",
-      matchValue: articleUrl,
-      title,
-      description: content || "公众号文章详情",
-      fileUrl: metadata.articleUrl,
-      metadata,
-    });
-    return this.mapWechatArticleDetail(asset);
-  }
-
-  private async collectAndStoreWechatOfficialAccounts(
-    brandId: string,
-    keyword: string,
-    offset?: number,
-    sortType?: WechatSortType,
-  ): Promise<WechatOfficialAccountRecord[]> {
-    const normalizedKeyword = keyword.trim();
-    if (!normalizedKeyword) {
-      throw new BadRequestException("请先输入公众号搜索关键词");
-    }
-
-    const safeOffset = Math.max(0, Math.trunc(offset ?? 0));
-    const safeSortType = this.normalizeWechatSortType(sortType);
-    const raw = await this.fetchTikHubWithRetries(
-      "/api/v1/wechat_mp/web/fetch_search_official_account",
-      {
-        keyword: normalizedKeyword,
-        offset: String(safeOffset),
-        sort_type: safeSortType,
-      },
-      brandId,
-    );
-    const items = this.extractWechatSearchItems(raw).slice(0, 20);
-    const collectedAt = new Date().toISOString();
-    const rows: WechatOfficialAccountRecord[] = [];
-
-    for (const item of items) {
-      const accountName = this.pickString(item, ["nickname", "account_name", "bizname", "user_name", "title", "name"]);
-      if (!accountName) {
-        continue;
-      }
-      const accountLink = this.normalizeHttpUrl(
-        this.pickString(item, ["url", "link", "page_url", "account_url", "profile_url", "wechat_url"]),
-      ) || undefined;
-      const identity =
-        this.pickString(item, ["biz", "fakeid", "alias", "username", "id"])
-        || accountLink
-        || accountName;
-      const asset = await this.upsertCollectorAsset({
-        brandId,
-        kind: "WECHAT_OFFICIAL_ACCOUNT",
-        matchValue: `${normalizedKeyword}:${safeOffset}:${safeSortType}:${identity}`,
-        title: accountName,
-        description: `公众号搜索结果：${normalizedKeyword}`,
-        fileUrl: accountLink,
-        metadata: {
-          kind: "WECHAT_OFFICIAL_ACCOUNT" as const,
-          keyword: normalizedKeyword,
-          accountLink,
-          offset: safeOffset,
-          sortType: safeSortType,
-          collectedAt,
-          rawFields: item,
-        },
-      });
-      rows.push(this.mapWechatOfficialAccount(asset));
-    }
-
-    return rows;
-  }
-
-  private async collectAndStoreWechatArticles(
-    brandId: string,
-    keyword: string,
-    offset?: number,
-    sortType?: WechatSortType,
-  ): Promise<WechatArticleSearchRecord[]> {
-    const normalizedKeyword = keyword.trim();
-    if (!normalizedKeyword) {
-      throw new BadRequestException("请先输入文章搜索关键词");
-    }
-
-    const safeOffset = Math.max(0, Math.trunc(offset ?? 0));
-    const safeSortType = this.normalizeWechatSortType(sortType);
-    const raw = await this.fetchTikHubWithRetries(
-      "/api/v1/wechat_mp/web/fetch_search_article",
-      {
-        keyword: normalizedKeyword,
-        offset: String(safeOffset),
-        sort_type: safeSortType,
-      },
-      brandId,
-    );
-    const items = this.extractWechatSearchItems(raw).slice(0, 20);
-    const collectedAt = new Date().toISOString();
-    const rows: WechatArticleSearchRecord[] = [];
-
-    for (const item of items) {
-      const title = this.pickString(item, ["title", "article_title", "name", "msg_title"]);
-      if (!title) {
-        continue;
-      }
-      const articleLink = this.normalizeHttpUrl(
-        this.pickString(item, ["url", "link", "article_url", "content_url", "share_url", "articleUrl"]),
-      ) || undefined;
-      const identity =
-        articleLink
-        || this.pickString(item, ["id", "mid", "aid", "sn"])
-        || title;
-      const asset = await this.upsertCollectorAsset({
-        brandId,
-        kind: "WECHAT_ARTICLE_SEARCH",
-        matchValue: `${normalizedKeyword}:${safeOffset}:${safeSortType}:${identity}`,
-        title,
-        description: `公众号文章搜索结果：${normalizedKeyword}`,
-        fileUrl: articleLink,
-        metadata: {
-          kind: "WECHAT_ARTICLE_SEARCH" as const,
-          keyword: normalizedKeyword,
-          articleLink,
-          offset: safeOffset,
-          sortType: safeSortType,
-          collectedAt,
-          rawFields: item,
-        },
-      });
-      rows.push(this.mapWechatArticleSearch(asset));
-    }
-
-    return rows;
-  }
-
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
     const nextRetryAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
@@ -4527,31 +4205,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return payload;
   }
 
-  private async fetchTikHubWithRetries(
-    path: string,
-    params: Record<string, string | undefined>,
-    brandId?: string,
-    retries = 4,
-  ) {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < retries; attempt += 1) {
-      try {
-        return await this.fetchTikHub(path, params, brandId);
-      } catch (error) {
-        lastError = error;
-        if (attempt >= retries - 1) {
-          break;
-        }
-        await this.sleep(300 + Math.floor(Math.random() * 500) + attempt * 250);
-      }
-    }
-    throw lastError instanceof Error ? lastError : new ServiceUnavailableException("Tikhub 接口重试后仍然失败");
-  }
-
-  private sleep(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   private logTikHubBillboardFailure(input: {
     path: string;
     method: "GET" | "POST";
@@ -5078,154 +4731,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return "短视频";
   }
 
-  private extractWechatArticleDetail(raw: unknown) {
-    const queue: unknown[] = [raw];
-    let bestRecord: Record<string, unknown> | null = null;
-    let bestScore = -1;
-    while (queue.length) {
-      const current = queue.shift();
-      if (!current || typeof current !== "object") {
-        continue;
-      }
-      if (Array.isArray(current)) {
-        queue.push(...current);
-        continue;
-      }
-      const record = current as Record<string, unknown>;
-      const score = this.scoreWechatArticleDetailRecord(record);
-      if (score > bestScore) {
-        bestScore = score;
-        bestRecord = record;
-      }
-      queue.push(...Object.values(record));
-    }
-    return bestRecord ?? this.asMeta(raw);
-  }
-
-  private scoreWechatArticleDetailRecord(record: Record<string, unknown>) {
-    let score = 0;
-    if (this.pickString(record, ["title", "msg_title", "article_title", "name"])) {
-      score += 4;
-    }
-    if (this.pickString(record, ["author", "nickname", "bizname", "account_name", "source"])) {
-      score += 2;
-    }
-    if (this.extractWechatArticleHtml(record)) {
-      score += 6;
-    }
-    if (this.pickString(record, ["content_text", "article_content", "desc", "description", "body", "text"])) {
-      score += 5;
-    }
-    if (this.extractWechatImageList(record).length) {
-      score += 3;
-    }
-    return score;
-  }
-
-  private extractWechatArticleHtml(raw: unknown) {
-    const candidate = this.pickString(raw, [
-      "content_html",
-      "article_content_html",
-      "article_html",
-      "html_content",
-      "rich_content",
-      "rich_text",
-      "content",
-      "body",
-    ]);
-    return this.looksLikeHtml(candidate) ? candidate : "";
-  }
-
-  private extractWechatArticleContent(raw: unknown, htmlContent?: string) {
-    const plainText = this.pickString(raw, [
-      "content_text",
-      "article_content",
-      "desc",
-      "description",
-      "body_text",
-      "text",
-      "content",
-      "body",
-    ]);
-    if (plainText) {
-      return this.looksLikeHtml(plainText) ? this.convertHtmlToPlainText(plainText) : this.normalizeWechatPlainText(plainText);
-    }
-    return htmlContent ? this.convertHtmlToPlainText(htmlContent) : "";
-  }
-
-  private extractWechatSearchItems(raw: unknown): Record<string, unknown>[] {
-    const queue: unknown[] = [raw];
-    let bestCandidates: Record<string, unknown>[] = [];
-    while (queue.length) {
-      const current = queue.shift();
-      if (Array.isArray(current)) {
-        const candidates = current
-          .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
-          .filter((item) =>
-            Boolean(
-              this.pickString(item, ["nickname", "account_name", "bizname", "user_name", "title", "article_title", "msg_title"]),
-            ),
-          );
-        if (candidates.length > bestCandidates.length) {
-          bestCandidates = candidates;
-        }
-        queue.push(...current);
-        continue;
-      }
-      if (current && typeof current === "object") {
-        queue.push(...Object.values(current));
-      }
-    }
-    return bestCandidates;
-  }
-
-  private extractWechatImageList(raw: unknown, htmlContent?: string, content?: string) {
-    const fromPayload = Array.from(
-      new Set(
-        [
-          ...this.pickStringArray(raw, ["image_list", "images", "img_list", "pictures", "image_urls", "cdn_url_list"]),
-          ...this.extractUrlList(raw, ["cdn_url", "src", "image_url", "picture_url", "data_src", "dataSrc", "ori_url"]),
-        ]
-          .map((item) => this.normalizeHttpUrl(item))
-          .filter((item): item is string => this.isLikelyWechatImageUrl(item)),
-      ),
-    );
-    const fromHtml = htmlContent
-      ? this.extractWechatImageUrlsFromHtml(htmlContent)
-      : [];
-    const fromContent = content
-      ? Array.from(content.matchAll(/https?:\/\/[^\s"'<>]+/gi))
-        .map((item) => this.normalizeHttpUrl(item[0]))
-        .filter((item): item is string => this.isLikelyWechatImageUrl(item))
-      : [];
-    return Array.from(new Set([...fromPayload, ...fromHtml, ...fromContent]));
-  }
-
-  private extractUrlList(raw: unknown, keys: string[]) {
-    const targetKeys = new Set(keys);
-    const queue: unknown[] = [raw];
-    const urls: string[] = [];
-    let visited = 0;
-    while (queue.length && visited < 400) {
-      visited += 1;
-      const current = queue.shift();
-      if (!current || typeof current !== "object") {
-        continue;
-      }
-      if (Array.isArray(current)) {
-        queue.push(...current);
-        continue;
-      }
-      for (const [key, value] of Object.entries(current)) {
-        if (targetKeys.has(key) && typeof value === "string" && /^https?:\/\//i.test(value)) {
-          urls.push(value);
-        }
-        queue.push(value);
-      }
-    }
-    return urls;
-  }
-
   private normalizeDouyinShareUrl(value: string) {
     if (!value) {
       return "";
@@ -5290,45 +4795,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       .trim();
   }
 
-  private extractWechatImageUrlsFromHtml(value: string) {
-    const html = String(value || "");
-    if (!html) {
-      return [];
-    }
-    return Array.from(
-      new Set(
-        Array.from(html.matchAll(/<(?:img|image)\b[^>]+(?:data-src|data-original|src)=["']([^"'<>]+)["']/gi))
-          .map((item) => this.normalizeHttpUrl(item[1] || ""))
-          .filter((item): item is string => this.isLikelyWechatImageUrl(item)),
-      ),
-    );
-  }
-
-  private isLikelyWechatImageUrl(value: string) {
-    const text = this.normalizeHttpUrl(value);
-    if (!text || /batch_get_tmp_download_url/i.test(text)) {
-      return false;
-    }
-    if (/\.(?:png|jpg|jpeg|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(text)) {
-      return true;
-    }
-    try {
-      const parsed = new URL(text);
-      if (/mp\.weixin\.qq\.com/i.test(parsed.hostname)) {
-        return false;
-      }
-      if (/qpic\.cn$/i.test(parsed.hostname) || /mmbiz/i.test(parsed.pathname)) {
-        return true;
-      }
-      if (parsed.searchParams.has("wx_fmt") || parsed.searchParams.has("tp")) {
-        return true;
-      }
-    } catch {
-      return false;
-    }
-    return false;
-  }
-
   private normalizeDouyinAccountLocator(value: string) {
     const secUserId = this.extractDouyinSecUserId(String(value || "").trim());
     return this.buildDouyinUserUrl(secUserId);
@@ -5366,10 +4832,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return undefined;
     }
     return Number((numerator / denominator).toFixed(4));
-  }
-
-  private normalizeWechatSortType(value?: string): WechatSortType {
-    return value === "_2" || value === "_4" ? value : "_0";
   }
 
   private formatUnixTimestampText(value?: number) {

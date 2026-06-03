@@ -17,10 +17,6 @@ import type {
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
   DouyinCollectedWorkRecord,
-  WechatArticleDetailRecord,
-  WechatArticleSearchRecord,
-  WechatCollectionWorkspace,
-  WechatOfficialAccountRecord,
   XhsCollectedAccountRecord,
   XhsCollectedNoteRecord,
 } from "../../../services/collectors";
@@ -70,20 +66,6 @@ export const douyinCollectionCards: Array<{
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
   { key: "cityHotspots", label: "同城热点榜" },
-];
-
-export type WechatCollectionCardKey =
-  | "articleDetail"
-  | "officialAccountSearch"
-  | "articleSearch";
-
-export const wechatCollectionCards: Array<{
-  key: WechatCollectionCardKey;
-  label: string;
-}> = [
-  { key: "articleDetail", label: "文章详情 JSON" },
-  { key: "officialAccountSearch", label: "搜索微信公众号" },
-  { key: "articleSearch", label: "搜索公众号文章" },
 ];
 
 type DouyinFieldPreviewRow = {
@@ -207,7 +189,7 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
 };
 
 export interface BrandGrowthCollectionWorkspaceProps {
-  activePage: "feishuCollection" | "xiaohongshuCollection" | "douyinCollection" | "wechatCollection" | "dailyHotspot";
+  activePage: "feishuCollection" | "xiaohongshuCollection" | "douyinCollection" | "dailyHotspot";
   pageTitle: string;
   pageDescription: string;
   dataSource: "api" | "error" | "loading";
@@ -219,8 +201,6 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
   activeDouyinCollectionCard: DouyinCollectionCardKey;
   onDouyinCollectionCardChange: ValueAction<DouyinCollectionCardKey>;
-  activeWechatCollectionCard: WechatCollectionCardKey;
-  onWechatCollectionCardChange: ValueAction<WechatCollectionCardKey>;
   feishuBinding: FeishuBindingRecord | null;
   feishuAppConfig: FeishuAppConfigRecord | null;
   feishuAuthStatus: FeishuAuthStatusRecord | null;
@@ -235,8 +215,6 @@ export interface BrandGrowthCollectionWorkspaceProps {
   isSyncingFeishuWorkspace: boolean;
   douyinWorkspace: DouyinCollectionWorkspace;
   isSyncingDouyinWorkspace: boolean;
-  wechatWorkspace: WechatCollectionWorkspace;
-  isSyncingWechatWorkspace: boolean;
   douyinSyncForm: {
     brandAccountLinks: string;
     competitorAccountLinks: string;
@@ -277,30 +255,11 @@ export interface BrandGrowthCollectionWorkspaceProps {
       cityCode: string;
     };
   }>>;
-  wechatSyncForm: {
-    articleDetailUrl: string;
-    officialAccountKeyword: string;
-    officialAccountOffset: string;
-    officialAccountSortType: "_0" | "_2" | "_4";
-    articleKeyword: string;
-    articleOffset: string;
-    articleSortType: "_0" | "_2" | "_4";
-  };
-  setWechatSyncForm: Dispatch<SetStateAction<{
-    articleDetailUrl: string;
-    officialAccountKeyword: string;
-    officialAccountOffset: string;
-    officialAccountSortType: "_0" | "_2" | "_4";
-    articleKeyword: string;
-    articleOffset: string;
-    articleSortType: "_0" | "_2" | "_4";
-  }>>;
   onSaveFeishuAppConfig: AsyncAction;
   onStartFeishuAuth: AsyncAction;
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
   onSyncDouyinWorkspace: AsyncAction;
-  onSyncWechatWorkspace: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
@@ -313,9 +272,6 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedDouyinHighCompletionRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinHighLikeRateWorks: DouyinCollectedWorkRecord[];
   sortedDouyinCityHotspots: DouyinCityHotspotRecord[];
-  sortedWechatArticleDetails: WechatArticleDetailRecord[];
-  sortedWechatOfficialAccounts: WechatOfficialAccountRecord[];
-  sortedWechatArticles: WechatArticleSearchRecord[];
   brandNotesPage: number;
   setBrandNotesPage: Dispatch<SetStateAction<number>>;
   brandNotesPageCount: number;
@@ -917,78 +873,6 @@ function DouyinCitySubmitPanel(props: {
   );
 }
 
-const wechatSortTypeOptions: Array<{
-  value: "_0" | "_2" | "_4";
-  label: string;
-}> = [
-  { value: "_0", label: "默认排序" },
-  { value: "_2", label: "最新优先" },
-  { value: "_4", label: "最热优先" },
-];
-
-function WechatSubmitPanel(props: {
-  title: string;
-  description: string;
-  isSubmitting: boolean;
-  onSubmit: AsyncAction;
-  children: ReactNode;
-}) {
-  return (
-    <article className="light-data-panel" style={{ marginBottom: 16 }}>
-      <div className="collection-result-head">
-        <div>
-          <h3>{props.title}</h3>
-          <p>{props.description}</p>
-        </div>
-        <button type="button" className="primary-button" onClick={() => void props.onSubmit()} disabled={props.isSubmitting}>
-          {props.isSubmitting ? "提交中..." : "提交"}
-        </button>
-      </div>
-      <div className="form-grid two-column">
-        {props.children}
-      </div>
-    </article>
-  );
-}
-
-function WechatHtmlPreviewDialog(props: {
-  detail: WechatArticleDetailRecord;
-  onClose: () => void;
-}) {
-  return (
-    <div className="wechat-html-preview-overlay" role="dialog" aria-modal="true" aria-label="HTML 页面预览" onClick={props.onClose}>
-      <div className="wechat-html-preview-dialog" onClick={(event) => event.stopPropagation()}>
-        <div className="wechat-html-preview-head">
-          <div>
-            <strong>{props.detail.title || "HTML 页面预览"}</strong>
-            <p>{props.detail.author || "未提供作者"}</p>
-          </div>
-          <div className="strategy-inline-actions">
-            {props.detail.articleUrl ? (
-              <a href={props.detail.articleUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                打开原文
-              </a>
-            ) : null}
-            <button type="button" className="secondary-button" onClick={props.onClose}>
-              关闭
-            </button>
-          </div>
-        </div>
-        {props.detail.htmlContent ? (
-          <iframe
-            title={`${props.detail.title || "公众号文章"} HTML 页面`}
-            className="wechat-html-preview-frame"
-            sandbox=""
-            srcDoc={props.detail.htmlContent}
-          />
-        ) : (
-          <div className="note-empty-state">当前记录没有 HTML 页面内容，请重新提交采集。</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ScrollableTableShell(props: {
   children: ReactNode;
 }) {
@@ -1487,7 +1371,6 @@ function DouyinCityHotspotTable(props: {
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
-  const [wechatHtmlPreview, setWechatHtmlPreview] = useState<WechatArticleDetailRecord | null>(null);
   const xiaohongshuSyncedCount =
     props.sortedBrandAccounts.length +
     props.sortedCompetitorAccounts.length +
@@ -1502,18 +1385,10 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinHighCompletionRateWorks.length +
     props.sortedDouyinHighLikeRateWorks.length +
     props.sortedDouyinCityHotspots.length;
-  const wechatSyncedCount =
-    props.sortedWechatArticleDetails.length +
-    props.sortedWechatOfficialAccounts.length +
-    props.sortedWechatArticles.length;
   const feishuConfigReady = Boolean(props.feishuAppConfig?.appId || props.feishuAppConfigForm.appId.trim());
   const feishuBindingReady = Boolean(props.feishuBinding?.wikiUrl || props.feishuBindingForm.wikiUrl.trim());
   const douyinContentTags = props.douyinWorkspace.contentTags ?? [];
   const douyinCityOptions = props.douyinWorkspace.cityOptions ?? [];
-  const wechatWorkspaceReady =
-    props.wechatWorkspace.articleDetails.length
-    + props.wechatWorkspace.officialAccounts.length
-    + props.wechatWorkspace.articles.length;
   const douyinPreviewItems =
     props.activeDouyinCollectionCard === "brandAccount"
       ? props.sortedDouyinBrandAccounts
@@ -1528,11 +1403,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
               : props.activeDouyinCollectionCard === "highCompletionRateWorks"
                 ? props.sortedDouyinHighCompletionRateWorks
                 : props.sortedDouyinHighLikeRateWorks;
-  const wechatSortType =
-    props.activeWechatCollectionCard === "articleSearch"
-      ? props.wechatSyncForm.articleSortType
-      : props.wechatSyncForm.officialAccountSortType;
-
   if (props.activePage === "dailyHotspot") {
     return (
       <article className="workspace-panel strategy-page-card hotspot-page-card">
@@ -2321,324 +2191,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 )}
               </div>
             </article>
-          ) : null}
-        </article>
-      ) : null}
-
-      {props.activePage === "wechatCollection" ? (
-        <article className="workspace-panel strategy-page-card strategy-collection-page-card">
-          <div className="strategy-card-toolbar">
-            <div>
-              <strong>{props.pageTitle}</strong>
-              <p>公众号板块提供文章详情、公众号搜索和文章搜索 3 组采集能力，结果按文章和账号字段直接展示。</p>
-            </div>
-            <div className="strategy-inline-actions">
-              <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
-                刷新数据
-              </button>
-            </div>
-          </div>
-          <CollectionPageStatus
-            dataSource={props.dataSource}
-            notice={props.notice}
-            errorMessage={props.errorMessage}
-            isHydrating={props.isHydrating}
-          />
-          <div className="strategy-chip-row">
-            <span className="archive-pill status-ready">数据源：Tikhub</span>
-            <span className={`archive-pill ${wechatWorkspaceReady ? "status-ready" : "status-pending"}`}>
-              已同步 {wechatSyncedCount} 条
-            </span>
-            <span className="archive-pill status-ready">
-              当前排序：{wechatSortTypeOptions.find((item) => item.value === wechatSortType)?.label || "默认排序"}
-            </span>
-          </div>
-          <div className="strategy-chip-row">
-            {wechatCollectionCards.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`filter-chip ${props.activeWechatCollectionCard === item.key ? "is-active" : ""}`}
-                onClick={() => props.onWechatCollectionCardChange(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          {props.activeWechatCollectionCard === "articleDetail" ? (
-            <>
-              <WechatSubmitPanel
-                title="获取微信公众号文章详情的 JSON"
-                description="输入公众号文章链接，展示标题、作者和 HTML 页面。"
-                isSubmitting={props.isHydrating || props.isSyncingWechatWorkspace}
-                onSubmit={props.onSyncWechatWorkspace}
-              >
-                <label className="field field-full">
-                  <span>文章链接</span>
-                  <input
-                    value={props.wechatSyncForm.articleDetailUrl}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({ ...current, articleDetailUrl: event.target.value }))
-                    }
-                    placeholder="粘贴公众号文章 URL"
-                  />
-                </label>
-              </WechatSubmitPanel>
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>文章详情结果</h3>
-                    <p>按最近采集时间倒序展示，每篇文章占一行，仅展示标题、作者和 HTML 页面按钮。</p>
-                  </div>
-                  <span className={`archive-pill ${props.sortedWechatArticleDetails.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {props.sortedWechatArticleDetails.length} 条
-                  </span>
-                </div>
-                <div className="table-scroll-shell">
-                  {props.sortedWechatArticleDetails.length ? (
-                    <ScrollableTableShell>
-                      <table className="soft-table">
-                        <thead>
-                          <tr>
-                            <th>标题</th>
-                            <th>作者</th>
-                            <th>HTML 页面</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {props.sortedWechatArticleDetails.map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <div className="table-cell-stack">
-                                  <strong>{item.title || "未命名文章"}</strong>
-                                  {item.articleUrl ? (
-                                    <a href={item.articleUrl} target="_blank" rel="noreferrer">
-                                      {item.articleUrl}
-                                    </a>
-                                  ) : item.queryUrl ? (
-                                    <span>{item.queryUrl}</span>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td>{item.author || "-"}</td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="tiny-action-button is-primary"
-                                  onClick={() => setWechatHtmlPreview(item)}
-                                  disabled={!item.htmlContent}
-                                >
-                                  {item.htmlContent ? "查看 HTML" : "暂无 HTML"}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </ScrollableTableShell>
-                  ) : (
-                    <div className="note-empty-state">当前还没有采集到公众号文章详情，请先输入文章链接并提交。</div>
-                  )}
-                </div>
-              </article>
-              {wechatHtmlPreview ? (
-                <WechatHtmlPreviewDialog detail={wechatHtmlPreview} onClose={() => setWechatHtmlPreview(null)} />
-              ) : null}
-            </>
-          ) : null}
-          {props.activeWechatCollectionCard === "officialAccountSearch" ? (
-            <>
-              <WechatSubmitPanel
-                title="搜索微信公众号"
-                description="输入关键词后返回公众号名称和可用的公众号页面链接。"
-                isSubmitting={props.isHydrating || props.isSyncingWechatWorkspace}
-                onSubmit={props.onSyncWechatWorkspace}
-              >
-                <label className="field">
-                  <span>搜索关键词</span>
-                  <input
-                    value={props.wechatSyncForm.officialAccountKeyword}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({ ...current, officialAccountKeyword: event.target.value }))
-                    }
-                    placeholder="例如：品牌名、行业词"
-                  />
-                </label>
-                <label className="field">
-                  <span>偏移量</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={props.wechatSyncForm.officialAccountOffset}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({ ...current, officialAccountOffset: event.target.value }))
-                    }
-                    placeholder="默认 0"
-                  />
-                </label>
-                <label className="field">
-                  <span>排序方式</span>
-                  <select
-                    value={props.wechatSyncForm.officialAccountSortType}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({
-                        ...current,
-                        officialAccountSortType: event.target.value as "_0" | "_2" | "_4",
-                      }))
-                    }
-                  >
-                    {wechatSortTypeOptions.map((item) => (
-                      <option key={`wechat-account-sort-${item.value}`} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </WechatSubmitPanel>
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>公众号搜索结果</h3>
-                    <p>仅展示公众号名称和可访问链接。</p>
-                  </div>
-                  <span className={`archive-pill ${props.sortedWechatOfficialAccounts.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {props.sortedWechatOfficialAccounts.length} 条
-                  </span>
-                </div>
-                <div className="collection-card-list">
-                  {props.sortedWechatOfficialAccounts.length ? (
-                    props.sortedWechatOfficialAccounts.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.accountName || "-"}</strong>
-                            <span>关键词：{item.keyword || "-"}</span>
-                          </div>
-                          <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>公众号名称</span>
-                            <strong>{item.accountName || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>公众号页面链接</span>
-                            <strong>
-                              {item.accountLink ? (
-                                <a href={item.accountLink} target="_blank" rel="noreferrer">
-                                  {item.accountLink}
-                                </a>
-                              ) : (
-                                "当前结果未返回页面链接"
-                              )}
-                            </strong>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有公众号搜索结果，请先输入关键词并提交。</div>
-                  )}
-                </div>
-              </article>
-            </>
-          ) : null}
-          {props.activeWechatCollectionCard === "articleSearch" ? (
-            <>
-              <WechatSubmitPanel
-                title="搜索微信公众号文章"
-                description="输入关键词后返回文章标题和文章链接。"
-                isSubmitting={props.isHydrating || props.isSyncingWechatWorkspace}
-                onSubmit={props.onSyncWechatWorkspace}
-              >
-                <label className="field">
-                  <span>搜索关键词</span>
-                  <input
-                    value={props.wechatSyncForm.articleKeyword}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({ ...current, articleKeyword: event.target.value }))
-                    }
-                    placeholder="例如：品牌活动、行业热点"
-                  />
-                </label>
-                <label className="field">
-                  <span>偏移量</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={props.wechatSyncForm.articleOffset}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({ ...current, articleOffset: event.target.value }))
-                    }
-                    placeholder="默认 0"
-                  />
-                </label>
-                <label className="field">
-                  <span>排序方式</span>
-                  <select
-                    value={props.wechatSyncForm.articleSortType}
-                    onChange={(event) =>
-                      props.setWechatSyncForm((current) => ({
-                        ...current,
-                        articleSortType: event.target.value as "_0" | "_2" | "_4",
-                      }))
-                    }
-                  >
-                    {wechatSortTypeOptions.map((item) => (
-                      <option key={`wechat-article-sort-${item.value}`} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </WechatSubmitPanel>
-              <article className="light-data-panel">
-                <div className="collection-result-head">
-                  <div>
-                    <h3>文章搜索结果</h3>
-                    <p>仅展示文章标题和链接。</p>
-                  </div>
-                  <span className={`archive-pill ${props.sortedWechatArticles.length ? "status-ready" : "status-pending"}`}>
-                    已同步 {props.sortedWechatArticles.length} 条
-                  </span>
-                </div>
-                <div className="collection-card-list">
-                  {props.sortedWechatArticles.length ? (
-                    props.sortedWechatArticles.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.title || "-"}</strong>
-                            <span>关键词：{item.keyword || "-"}</span>
-                          </div>
-                          <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>文章标题</span>
-                            <strong>{item.title || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>文章链接</span>
-                            <strong>
-                              {item.articleLink ? (
-                                <a href={item.articleLink} target="_blank" rel="noreferrer">
-                                  {item.articleLink}
-                                </a>
-                              ) : (
-                                "当前结果未返回文章链接"
-                              )}
-                            </strong>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="note-empty-state">当前还没有公众号文章搜索结果，请先输入关键词并提交。</div>
-                  )}
-                </div>
-              </article>
-            </>
           ) : null}
         </article>
       ) : null}

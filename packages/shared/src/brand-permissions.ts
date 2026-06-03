@@ -16,7 +16,6 @@ export const BRAND_PERMISSION_KEYS = [
   "brandGrowth.library.businessAssets",
   "brandGrowth.collection.xiaohongshuCollection",
   "brandGrowth.collection.douyinCollection",
-  "brandGrowth.collection.wechatCollection",
   "brandGrowth.collection.dailyHotspot",
   "brandGrowth.report.growthReport",
   "brandGrowth.report.visualGrowthReport",
@@ -72,7 +71,6 @@ export const BRAND_PERMISSION_TREE = [
         items: [
           { key: "brandGrowth.collection.xiaohongshuCollection", label: "小红书平台" },
           { key: "brandGrowth.collection.douyinCollection", label: "抖音平台" },
-          { key: "brandGrowth.collection.wechatCollection", label: "公众号平台" },
           { key: "brandGrowth.collection.dailyHotspot", label: "每日热点" },
         ],
       },
@@ -214,7 +212,6 @@ export function buildDefaultBrandPermissionConfig(): BrandPermissionConfig {
   const staff = withPermissions(empty, {
     "brandGrowth.collection.xiaohongshuCollection": { view: true, edit: true },
     "brandGrowth.collection.douyinCollection": { view: true, edit: true },
-    "brandGrowth.collection.wechatCollection": { view: true, edit: true },
     "brandGrowth.collection.dailyHotspot": { view: true, edit: true },
     "xiaohongshu.plan": { view: true, edit: true },
     "douyin.plan": { view: true, edit: true },
@@ -243,7 +240,6 @@ export function buildDefaultBrandPermissionConfig(): BrandPermissionConfig {
   const talent = withPermissions(empty, {
     "brandGrowth.collection.xiaohongshuCollection": { view: true, edit: true },
     "brandGrowth.collection.douyinCollection": { view: true, edit: true },
-    "brandGrowth.collection.wechatCollection": { view: true, edit: true },
     "brandGrowth.collection.dailyHotspot": { view: true, edit: true },
     "xiaohongshu.plan": { view: true, edit: true },
     "douyin.plan": { view: true, edit: true },
