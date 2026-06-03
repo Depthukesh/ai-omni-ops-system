@@ -6,7 +6,7 @@ const defaultSection = {
   key: "design" as const,
   label: "设计",
   icon: "🎨",
-  description: "AI 驱动的品牌视觉内容设计工作台，支持图片生成、视频设计、品牌素材管理和模板市场。",
+  description: "设计工作台采用横向二级模块结构，支持图片设计、HTML 设计、PPT 设计、视频设计，并通过统一弹窗完成创建与作品展示。",
 };
 
 export default function DesignPage() {
