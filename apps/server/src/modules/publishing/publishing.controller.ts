@@ -3,6 +3,7 @@ import {
   PublishingService,
   type CompleteMobileDraftSessionPayload,
   type CreateMobileDraftSessionPayload,
+  type PublishWechatArticlePayload,
 } from "./publishing.service";
 
 @Controller("publishing")
@@ -51,5 +52,14 @@ export class PublishingController {
     @Body() payload: CompleteMobileDraftSessionPayload,
   ) {
     return this.publishingService.completeXiaohongshuDesktopDraftSession(token, payload);
+  }
+
+  @Post("brands/:brandId/wechat/articles/:draftId/publish")
+  publishWechatArticle(
+    @Param("brandId") brandId: string,
+    @Param("draftId") draftId: string,
+    @Body() payload: PublishWechatArticlePayload,
+  ) {
+    return this.publishingService.publishWechatArticleToOfficialAccount(brandId, draftId, payload);
   }
 }

@@ -433,6 +433,71 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   updatedAt: string;
 };
 
+export type WechatCommentMode = "open" | "fans" | "close";
+export type WechatCoverMode = "ai" | "upload" | "asset";
+export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+
+export type WechatAccountConfigRecord = {
+  brandId: string;
+  configured: boolean;
+  appId: string;
+  appSecretMasked: string;
+  whitelistIps: string[];
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode: WechatCommentMode;
+  updatedAt: string;
+};
+
+export type WechatImageTaskRecord = {
+  id: string;
+  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
+  skillSlug: "wechat-image-designer";
+  promptScene: "公众号制作图片";
+  provider: string;
+  runtimeKey: string;
+  modelName: string;
+  imageMode: WechatImageMode;
+  prompt: string;
+  coverImageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WechatArticleDraftRecord = {
+  id: string;
+  taskId: string;
+  brandId: string;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  outputFormat: "HTML";
+  coverMode: WechatCoverMode;
+  commentMode: WechatCommentMode;
+  imageMode: WechatImageMode;
+  themeColor: string;
+  injectMarketingCalendar: boolean;
+  injectProducts: boolean;
+  injectBrandProfile: boolean;
+  selectedMarketingLabels: string[];
+  selectedProductLabels: string[];
+  selectedBrandLabels: string[];
+  articleSkillSlug: "wechat-article-composer";
+  articlePromptScene: "公众号创作文章";
+  articleProvider: string;
+  articleRuntimeKey: string;
+  articleModelName: string;
+  imageTask?: WechatImageTaskRecord;
+  publishStatus: "DRAFT" | "PUBLISHED";
+  publishedAt?: string;
+  publishTaskId?: string;
+  taskStatus: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GenerateXiaohongshuOriginalNoteForm = {
   calendarItemId?: string;
   customTopicName?: string;
@@ -443,6 +508,32 @@ export type GenerateXiaohongshuOriginalNoteForm = {
   additionalInstruction?: string;
   coverReferenceFile?: File | null;
   galleryReferenceFiles?: File[];
+};
+
+export type SaveWechatAccountConfigForm = {
+  appId: string;
+  appSecret: string;
+  whitelistIps?: string[];
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode?: WechatCommentMode;
+};
+
+export type GenerateWechatArticleDraftForm = {
+  title?: string;
+  summary?: string;
+  author?: string;
+  content?: string;
+  coverMode?: WechatCoverMode;
+  commentMode?: WechatCommentMode;
+  imageMode?: WechatImageMode;
+  themeColor?: string;
+  injectMarketingCalendar?: boolean;
+  injectProducts?: boolean;
+  injectBrandProfile?: boolean;
+  selectedMarketingLabels?: string[];
+  selectedProductLabels?: string[];
+  selectedBrandLabels?: string[];
 };
 
 export type GenerateXiaohongshuRewriteNoteForm = {
@@ -962,6 +1053,34 @@ export async function deleteDouyinDirectVideoWork(brandId: string, workId: strin
   return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/direct-video/${workId}`, {
     method: "DELETE",
   });
+}
+
+export async function getWechatArticleDrafts(brandId: string) {
+  return request<{ items: WechatArticleDraftRecord[] }>(`/works/brands/${brandId}/wechat/articles`);
+}
+
+export async function getWechatAccountConfig(brandId: string) {
+  return request<{ item: WechatAccountConfigRecord }>(`/works/brands/${brandId}/wechat/config`);
+}
+
+export async function saveWechatAccountConfig(brandId: string, form: SaveWechatAccountConfigForm) {
+  return jsonRequest<{ item: WechatAccountConfigRecord }>(`/works/brands/${brandId}/wechat/config`, "POST", form);
+}
+
+export async function generateWechatArticleDraft(brandId: string, form: GenerateWechatArticleDraftForm) {
+  return jsonRequest<{ item: WechatArticleDraftRecord }>(`/works/brands/${brandId}/wechat/articles/generate`, "POST", form);
+}
+
+export async function updateWechatArticleDraft(
+  brandId: string,
+  draftId: string,
+  payload: Partial<GenerateWechatArticleDraftForm>,
+) {
+  return jsonRequest<{ item: WechatArticleDraftRecord }>(
+    `/works/brands/${brandId}/wechat/articles/${draftId}`,
+    "PATCH",
+    payload,
+  );
 }
 
 export async function getDouyinDigitalHumanTemplateTags(brandId: string) {

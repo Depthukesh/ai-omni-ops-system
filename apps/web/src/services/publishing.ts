@@ -1,4 +1,5 @@
 import { jsonRequest, request } from "./http";
+import { type WechatArticleDraftRecord } from "./works";
 
 export type XiaohongshuMobileDraftSession = {
   taskId: string;
@@ -59,6 +60,11 @@ export type XiaohongshuDesktopDraftSession = {
   accessHint?: string;
 };
 
+export type WechatOfficialArticlePublishResult = {
+  task: { id: string; taskStatus: string; taskTitle: string };
+  item: WechatArticleDraftRecord;
+};
+
 export async function createXiaohongshuMobileDraftSession(
   brandId: string,
   workId: string,
@@ -108,6 +114,18 @@ export async function completeXiaohongshuDesktopDraftSession(
 ) {
   return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuDesktopDraftSession }>(
     `/publishing/xiaohongshu/desktop-sessions/${token}/complete`,
+    "POST",
+    payload,
+  );
+}
+
+export async function publishWechatArticleToOfficialAccount(
+  brandId: string,
+  draftId: string,
+  payload: { mode?: "PUBLISH_ARTICLE" } = {},
+) {
+  return jsonRequest<WechatOfficialArticlePublishResult>(
+    `/publishing/brands/${brandId}/wechat/articles/${draftId}/publish`,
     "POST",
     payload,
   );

@@ -8,6 +8,7 @@ import {
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
+  type SaveWechatAccountConfigPayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
@@ -21,6 +22,8 @@ import {
   type RegenerateXiaohongshuVideoStoryboardPayload,
   type RegenerateDouyinVideoStoryboardPayload,
   type RecoverXiaohongshuVideoGenerationPayload,
+  type UpdateWechatArticleDraftPayload,
+  type WechatArticleComposePayload,
   type UpdateDouyinDigitalHumanScriptTemplatePayload,
   WorksService,
   type UpdateDouyinDirectVideoPayload,
@@ -117,6 +120,63 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
     return this.worksService.listDouyinDirectVideoWorks(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/articles")
+  async listWechatArticleDrafts(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.listWechatArticleDrafts(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/config")
+  async getWechatAccountConfig(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.getWechatAccountConfig(brandId);
+  }
+
+  @Post("brands/:brandId/wechat/config")
+  saveWechatAccountConfig(
+    @Param("brandId") brandId: string,
+    @Body() payload: SaveWechatAccountConfigPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      return this.worksService.saveWechatAccountConfig(brandId, payload);
+    });
+  }
+
+  @Post("brands/:brandId/wechat/articles/generate")
+  createWechatArticleDraft(
+    @Param("brandId") brandId: string,
+    @Body() payload: WechatArticleComposePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      return this.worksService.generateWechatArticleDraft(brandId, payload, auth);
+    });
+  }
+
+  @Patch("brands/:brandId/wechat/articles/:draftId")
+  updateWechatArticleDraft(
+    @Param("brandId") brandId: string,
+    @Param("draftId") draftId: string,
+    @Body() payload: UpdateWechatArticleDraftPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+      return this.worksService.updateWechatArticleDraft(brandId, draftId, payload);
+    });
   }
 
   @Get("brands/:brandId/douyin/direct-video/providers")

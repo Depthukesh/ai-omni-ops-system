@@ -370,6 +370,110 @@ export type DouyinLipSyncWorkRecord = {
 
 type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
+export type WechatCommentMode = "open" | "fans" | "close";
+export type WechatCoverMode = "ai" | "upload" | "asset";
+export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+
+export type SaveWechatAccountConfigPayload = {
+  appId: string;
+  appSecret: string;
+  whitelistIps?: string[];
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode?: WechatCommentMode;
+};
+
+export type WechatArticleComposePayload = {
+  title?: string;
+  summary?: string;
+  author?: string;
+  content?: string;
+  coverMode?: WechatCoverMode;
+  commentMode?: WechatCommentMode;
+  imageMode?: WechatImageMode;
+  themeColor?: string;
+  injectMarketingCalendar?: boolean;
+  injectProducts?: boolean;
+  injectBrandProfile?: boolean;
+  selectedMarketingLabels?: string[];
+  selectedProductLabels?: string[];
+  selectedBrandLabels?: string[];
+};
+
+export type UpdateWechatArticleDraftPayload = Partial<WechatArticleComposePayload>;
+
+export type WechatAccountConfigRecord = {
+  brandId: string;
+  configured: boolean;
+  appId: string;
+  appSecretMasked: string;
+  whitelistIps: string[];
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode: WechatCommentMode;
+  updatedAt: string;
+};
+
+export type WechatImageTaskRecord = {
+  id: string;
+  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
+  skillSlug: "wechat-image-designer";
+  promptScene: "公众号制作图片";
+  provider: string;
+  runtimeKey: string;
+  modelName: string;
+  imageMode: WechatImageMode;
+  prompt: string;
+  coverImageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WechatArticleDraftRecord = {
+  id: string;
+  taskId: string;
+  brandId: string;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  outputFormat: "HTML";
+  coverMode: WechatCoverMode;
+  commentMode: WechatCommentMode;
+  imageMode: WechatImageMode;
+  themeColor: string;
+  injectMarketingCalendar: boolean;
+  injectProducts: boolean;
+  injectBrandProfile: boolean;
+  selectedMarketingLabels: string[];
+  selectedProductLabels: string[];
+  selectedBrandLabels: string[];
+  articleSkillSlug: "wechat-article-composer";
+  articlePromptScene: "公众号创作文章";
+  articleProvider: string;
+  articleRuntimeKey: string;
+  articleModelName: string;
+  imageTask?: WechatImageTaskRecord;
+  publishStatus: "DRAFT" | "PUBLISHED";
+  publishedAt?: string;
+  publishTaskId?: string;
+  taskStatus: WorkTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type WechatAccountConfigStoreItem = {
+  brandId: string;
+  appId: string;
+  appSecret: string;
+  whitelistIps: string[];
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode: WechatCommentMode;
+  updatedAt: string;
+};
+
 type DigitalHumanFavoriteTemplateStoreItem = {
   id: string;
   userId: string;
@@ -395,6 +499,95 @@ type DigitalHumanScriptTemplateStoreItem = {
 
 const digitalHumanFavoriteTemplateMockStore: DigitalHumanFavoriteTemplateStoreItem[] = [];
 const digitalHumanScriptTemplateMockStore: DigitalHumanScriptTemplateStoreItem[] = [];
+const wechatAccountConfigMockStore: WechatAccountConfigStoreItem[] = [
+  {
+    brandId: "br_demo_001",
+    appId: "wx7d1f83c1a2e429c",
+    appSecret: "af42m3w8x-secret-demo-2938",
+    whitelistIps: ["47.97.12.20", "47.97.12.21"],
+    defaultAuthor: "品牌内容中心",
+    defaultThemeColor: "#25554a",
+    commentMode: "open",
+    updatedAt: "2026-06-03T11:00:00.000Z",
+  },
+];
+const wechatArticleDraftMockStore: WechatArticleDraftRecord[] = [
+  {
+    id: "wechat_draft_demo_001",
+    taskId: "tsk_wechat_demo_001",
+    brandId: "br_demo_001",
+    title: "夏季会员日预告：门店福利、主推商品与品牌故事一次看完",
+    summary: "围绕门店活动、新品权益和品牌故事生成固定 HTML 的公众号草稿。",
+    author: "品牌内容中心",
+    content: "这是一篇围绕会员日和夏季新品活动的公众号文章草稿，正文会串联门店福利、推荐商品和品牌故事。",
+    htmlContent: "",
+    outputFormat: "HTML",
+    coverMode: "ai",
+    commentMode: "open",
+    imageMode: "cover-and-body",
+    themeColor: "#25554a",
+    injectMarketingCalendar: true,
+    injectProducts: true,
+    injectBrandProfile: true,
+    selectedMarketingLabels: ["夏季会员周", "新品试吃活动"],
+    selectedProductLabels: ["爆浆提拉米苏蛋糕", "现烤牛角包"],
+    selectedBrandLabels: ["品牌故事", "门店服务承诺"],
+    articleSkillSlug: "wechat-article-composer",
+    articlePromptScene: "公众号创作文章",
+    articleProvider: "Right Codes 文生文",
+    articleRuntimeKey: "text-global",
+    articleModelName: "provider_runtime_text_global::gpt-5.5",
+    imageTask: {
+      id: "wechat_image_task_demo_001",
+      status: "QUEUED",
+      skillSlug: "wechat-image-designer",
+      promptScene: "公众号制作图片",
+      provider: "Right Codes 文生图",
+      runtimeKey: "image-generation",
+      modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
+      imageMode: "cover-and-body",
+      prompt: "为夏季会员日公众号文章生成头图和文中配图，整体风格温暖、烘焙门店感明显。",
+      createdAt: "2026-06-03T11:00:00.000Z",
+      updatedAt: "2026-06-03T11:00:00.000Z",
+    },
+    publishStatus: "DRAFT",
+    taskStatus: "SUCCESS",
+    createdAt: "2026-06-03T11:00:00.000Z",
+    updatedAt: "2026-06-03T11:00:00.000Z",
+  },
+];
+wechatArticleDraftMockStore[0]!.htmlContent = buildInitialWechatArticleHtml(wechatArticleDraftMockStore[0]!);
+
+function escapeWechatHtml(value: string) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildInitialWechatArticleHtml(params: WechatArticleDraftRecord) {
+  const paragraphs = params.content
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${escapeWechatHtml(item)}</p>`)
+    .join("");
+  return [
+    "<!DOCTYPE html>",
+    `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeWechatHtml(params.title)}</title></head>`,
+    `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
+    '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
+    '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+    `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${escapeWechatHtml(params.themeColor)}18;color:${escapeWechatHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号 HTML 草稿</div>`,
+    `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${escapeWechatHtml(params.title)}</h1>`,
+    `<div style="color:#63708a;font-size:13px;">${escapeWechatHtml(params.author)} · 固定输出 HTML</div>`,
+    `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${escapeWechatHtml(params.themeColor)}12;border:1px solid ${escapeWechatHtml(params.themeColor)}33;"><div style="font-size:13px;color:${escapeWechatHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${escapeWechatHtml(params.summary)}</p></section>`,
+    `<section style="margin-top:24px;">${paragraphs}</section>`,
+    "</section></main></body></html>",
+  ].join("");
+}
 
 type ImageTextPlanEntry = {
   title: string;
@@ -1630,6 +1823,212 @@ export class WorksService {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
+  }
+
+  async listWechatArticleDrafts(brandId: string) {
+    const items = wechatArticleDraftMockStore
+      .filter((item) => item.brandId === brandId)
+      .map((item) => this.hydrateWechatDraftTaskStatus(item))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    return { items };
+  }
+
+  async getWechatAccountConfig(brandId: string) {
+    return {
+      item: this.toWechatAccountConfigRecord(this.getWechatAccountConfigStoreItem(brandId)),
+    };
+  }
+
+  async saveWechatAccountConfig(brandId: string, payload: SaveWechatAccountConfigPayload) {
+    const normalizedAppId = String(payload.appId || "").trim();
+    const normalizedAppSecret = String(payload.appSecret || "").trim();
+    const existing = this.getWechatAccountConfigStoreItem(brandId);
+    if (!normalizedAppId) {
+      throw new BadRequestException("请填写公众号 AppID。");
+    }
+    if (!normalizedAppSecret && !existing?.appSecret) {
+      throw new BadRequestException("请填写公众号 AppSecret。");
+    }
+
+    const now = new Date().toISOString();
+    const next: WechatAccountConfigStoreItem = {
+      brandId,
+      appId: normalizedAppId,
+      appSecret: normalizedAppSecret || existing?.appSecret || "",
+      whitelistIps: this.normalizeWechatLabels(payload.whitelistIps, existing?.whitelistIps || []),
+      defaultAuthor: String(payload.defaultAuthor || "").trim() || existing?.defaultAuthor || "品牌内容中心",
+      defaultThemeColor: String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || "#25554a",
+      commentMode: payload.commentMode || existing?.commentMode || "open",
+      updatedAt: now,
+    };
+    if (existing) {
+      Object.assign(existing, next);
+    } else {
+      wechatAccountConfigMockStore.unshift(next);
+    }
+
+    return {
+      item: this.toWechatAccountConfigRecord(next),
+    };
+  }
+
+  async generateWechatArticleDraft(brandId: string, payload: WechatArticleComposePayload, auth?: RequestAuthContext) {
+    const title = String(payload.title || "").trim() || "公众号文章草稿";
+    const summary = String(payload.summary || "").trim() || "围绕营销节点、产品信息和品牌信息生成公众号文章摘要。";
+    const author = String(payload.author || "").trim() || this.getWechatAccountConfigStoreItem(brandId)?.defaultAuthor || "品牌内容中心";
+    const content = String(payload.content || "").trim() || "请输入公众号文章正文内容。";
+    const themeColor = String(payload.themeColor || "").trim() || this.getWechatAccountConfigStoreItem(brandId)?.defaultThemeColor || "#25554a";
+    const commentMode = payload.commentMode || this.getWechatAccountConfigStoreItem(brandId)?.commentMode || "open";
+    const coverMode = payload.coverMode || "ai";
+    const imageMode = payload.imageMode || "cover-and-body";
+    const articleRuntime = await this.resolveWechatTextRuntimeMeta();
+    const imageRuntime = await this.resolveWechatImageRuntimeMeta();
+    const now = new Date().toISOString();
+    const userId = await this.resolveTaskUserId(brandId, auth);
+    const task = await this.createOriginalTask({
+      userId,
+      brandId,
+      taskTitle: `生成公众号文章：${title}`,
+      modelName: articleRuntime.modelName,
+    });
+
+    await this.markTaskRunning(task.id);
+
+    const record: WechatArticleDraftRecord = {
+      id: createId("wechat_draft"),
+      taskId: task.id,
+      brandId,
+      title,
+      summary,
+      author,
+      content,
+      htmlContent: "",
+      outputFormat: "HTML",
+      coverMode,
+      commentMode,
+      imageMode,
+      themeColor,
+      injectMarketingCalendar: payload.injectMarketingCalendar !== false,
+      injectProducts: payload.injectProducts !== false,
+      injectBrandProfile: payload.injectBrandProfile === true,
+      selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, [
+        "夏季会员周",
+        "节庆活动预热",
+      ]),
+      selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, ["主推商品信息", "到店权益"]),
+      selectedBrandLabels: this.normalizeWechatLabels(payload.selectedBrandLabels, ["品牌故事", "服务承诺"]),
+      articleSkillSlug: "wechat-article-composer",
+      articlePromptScene: "公众号创作文章",
+      articleProvider: articleRuntime.provider,
+      articleRuntimeKey: articleRuntime.runtimeKey,
+      articleModelName: articleRuntime.modelName,
+      imageTask: {
+        id: createId("wechat_image_task"),
+        status: "QUEUED",
+        skillSlug: "wechat-image-designer",
+        promptScene: "公众号制作图片",
+        provider: imageRuntime.provider,
+        runtimeKey: imageRuntime.runtimeKey,
+        modelName: imageRuntime.modelName,
+        imageMode,
+        prompt: this.buildWechatImagePrompt(title, summary, themeColor, imageMode),
+        createdAt: now,
+        updatedAt: now,
+      },
+      publishStatus: "DRAFT",
+      taskStatus: "SUCCESS",
+      createdAt: now,
+      updatedAt: now,
+    };
+    record.htmlContent = this.renderWechatArticleHtml(record);
+    wechatArticleDraftMockStore.unshift(record);
+
+    await this.markTaskSuccess(
+      task.id,
+      {
+        workId: record.id,
+        title: record.title,
+        outputFormat: record.outputFormat,
+        articleRuntimeKey: record.articleRuntimeKey,
+        imageRuntimeKey: record.imageTask?.runtimeKey,
+      },
+      { modelName: articleRuntime.modelName },
+    );
+
+    return {
+      item: this.hydrateWechatDraftTaskStatus(record),
+    };
+  }
+
+  async updateWechatArticleDraft(brandId: string, draftId: string, payload: UpdateWechatArticleDraftPayload) {
+    const target = wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === draftId);
+    if (!target) {
+      throw new NotFoundException("公众号文章草稿不存在。");
+    }
+    target.title = String(payload.title || "").trim() || target.title;
+    target.summary = String(payload.summary || "").trim() || target.summary;
+    target.author = String(payload.author || "").trim() || target.author;
+    target.content = String(payload.content || "").trim() || target.content;
+    target.coverMode = payload.coverMode || target.coverMode;
+    target.commentMode = payload.commentMode || target.commentMode;
+    target.imageMode = payload.imageMode || target.imageMode;
+    target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
+    target.injectMarketingCalendar = payload.injectMarketingCalendar ?? target.injectMarketingCalendar;
+    target.injectProducts = payload.injectProducts ?? target.injectProducts;
+    target.injectBrandProfile = payload.injectBrandProfile ?? target.injectBrandProfile;
+    target.selectedMarketingLabels = this.normalizeWechatLabels(payload.selectedMarketingLabels, target.selectedMarketingLabels);
+    target.selectedProductLabels = this.normalizeWechatLabels(payload.selectedProductLabels, target.selectedProductLabels);
+    target.selectedBrandLabels = this.normalizeWechatLabels(payload.selectedBrandLabels, target.selectedBrandLabels);
+    if (target.imageTask) {
+      target.imageTask.imageMode = target.imageMode;
+      target.imageTask.prompt = this.buildWechatImagePrompt(target.title, target.summary, target.themeColor, target.imageMode);
+      target.imageTask.updatedAt = new Date().toISOString();
+    }
+    target.updatedAt = new Date().toISOString();
+    target.htmlContent = this.renderWechatArticleHtml(target);
+    return {
+      item: this.hydrateWechatDraftTaskStatus(target),
+    };
+  }
+
+  async publishWechatArticleDraft(brandId: string, draftId: string, auth?: RequestAuthContext) {
+    const target = wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === draftId);
+    if (!target) {
+      throw new NotFoundException("公众号文章草稿不存在。");
+    }
+    const config = this.getWechatAccountConfigStoreItem(brandId);
+    if (!config?.appId || !config?.appSecret) {
+      throw new BadRequestException("请先在配置页面完成 AppID 和 AppSecret 配置。");
+    }
+    if (!config.whitelistIps.length) {
+      throw new BadRequestException("请先在配置页面填写并保存 IP 白名单。");
+    }
+    const task = await this.createOriginalTask({
+      userId: await this.resolveTaskUserId(brandId, auth),
+      brandId,
+      taskTitle: `发布公众号文章：${target.title}`,
+      modelName: "wechat-official-account-publish",
+    });
+    await this.markTaskRunning(task.id);
+    const now = new Date().toISOString();
+    target.publishStatus = "PUBLISHED";
+    target.publishedAt = now;
+    target.publishTaskId = task.id;
+    target.updatedAt = now;
+    await this.markTaskSuccess(
+      task.id,
+      {
+        draftId: target.id,
+        publishStatus: target.publishStatus,
+        publishedAt: now,
+        destination: "WECHAT_OFFICIAL_ACCOUNT",
+      },
+      { modelName: "wechat-official-account-publish" },
+    );
+    return {
+      item: this.hydrateWechatDraftTaskStatus(target),
+    };
   }
 
   async listDouyinDigitalHumanTemplateTags(brandId: string) {
@@ -5460,6 +5859,87 @@ export class WorksService {
     return this.getBrandOwnerUserId(brandId);
   }
 
+  private getWechatAccountConfigStoreItem(brandId: string) {
+    return wechatAccountConfigMockStore.find((item) => item.brandId === brandId);
+  }
+
+  private toWechatAccountConfigRecord(item?: WechatAccountConfigStoreItem): WechatAccountConfigRecord {
+    return {
+      brandId: item?.brandId || "",
+      configured: Boolean(item),
+      appId: item?.appId || "",
+      appSecretMasked: item ? this.maskWechatSecret(item.appSecret) : "",
+      whitelistIps: item?.whitelistIps || [],
+      defaultAuthor: item?.defaultAuthor,
+      defaultThemeColor: item?.defaultThemeColor,
+      commentMode: item?.commentMode || "open",
+      updatedAt: item?.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  private hydrateWechatDraftTaskStatus(item: WechatArticleDraftRecord): WechatArticleDraftRecord {
+    const task = database.tasks.find((entry) => entry.id === item.taskId);
+    return {
+      ...item,
+      taskStatus: (task?.taskStatus as WorkTaskStatus | undefined) || item.taskStatus,
+    };
+  }
+
+  private async resolveWechatTextRuntimeMeta() {
+    const preference = await this.loadSkillModelPreference(
+      "wechat-article-composer",
+      "prompt_wechat_article_compose",
+      ["provider_runtime_text_global::gpt-5.5", "deepseek-v4-pro"],
+    );
+    const candidates = [
+      ...(await this.apiProvidersService.listActiveProvidersByRuntimeKey("text-global")),
+      ...(await this.apiProvidersService.listActiveProvidersByRuntimeKey("text-domestic-deepseek")),
+      ...(await this.apiProvidersService.listActiveProvidersByRuntimeKey("text-domestic-doubao")),
+    ];
+    const provider = candidates[0];
+    return {
+      provider: provider?.name || "Right Codes 文生文",
+      runtimeKey: provider ? this.apiProvidersService.getRuntimeKey(provider) || "text-global" : "text-global",
+      modelName: preference.preferredModelName || "provider_runtime_text_global::gpt-5.5",
+    };
+  }
+
+  private async resolveWechatImageRuntimeMeta() {
+    const preference = await this.loadSkillModelPreference(
+      "wechat-image-designer",
+      "prompt_wechat_image_compose",
+      ["provider_runtime_image_generation_right_codes::gpt-image-2", "gpt-image-2"],
+    );
+    const provider = (await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation"))[0];
+    return {
+      provider: provider?.name || "Right Codes 文生图",
+      runtimeKey: provider ? this.apiProvidersService.getRuntimeKey(provider) || "image-generation" : "image-generation",
+      modelName: preference.preferredModelName || "provider_runtime_image_generation_right_codes::gpt-image-2",
+    };
+  }
+
+  private normalizeWechatLabels(values: string[] | undefined, fallback: string[]) {
+    const normalized = Array.isArray(values)
+      ? values.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    return normalized.length ? normalized : fallback;
+  }
+
+  private buildWechatImagePrompt(title: string, summary: string, themeColor: string, imageMode: WechatImageMode) {
+    return `为公众号文章《${title}》生成${imageMode === "cover-and-body" ? "头图和文中配图" : imageMode === "cover-only" ? "头图" : "文中配图"}，主题色 ${themeColor}，重点摘要：${summary}`;
+  }
+
+  private maskWechatSecret(value: string) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (trimmed.length <= 8) {
+      return `${trimmed.slice(0, 1)}***${trimmed.slice(-1)}`;
+    }
+    return `${trimmed.slice(0, 3)}***${trimmed.slice(-4)}`;
+  }
+
   private async ensureTaskNotCancelled(taskId: string) {
     if (await this.isTaskCancelled(taskId)) {
       throw new BadRequestException("任务已取消，已停止继续执行。");
@@ -5677,6 +6157,38 @@ export class WorksService {
       paragraphs,
       tags,
       gallery,
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private renderWechatArticleHtml(params: WechatArticleDraftRecord) {
+    const paragraphs = params.content
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
+      .join("");
+    const buildBadgeRow = (title: string, values: string[]) =>
+      values.length
+        ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}14;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
+        : "";
+    const summary = params.summary
+      ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
+      : "";
+    return [
+      "<!DOCTYPE html>",
+      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
+      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
+      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号 HTML 草稿</div>`,
+      `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · 固定输出 HTML · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
+      summary,
+      `<section style="margin-top:24px;">${paragraphs}</section>`,
+      params.injectMarketingCalendar ? buildBadgeRow("营销日历植入", params.selectedMarketingLabels) : "",
+      params.injectProducts ? buildBadgeRow("产品信息植入", params.selectedProductLabels) : "",
+      params.injectBrandProfile ? buildBadgeRow("品牌信息植入", params.selectedBrandLabels) : "",
       "</section></main></body></html>",
     ].join("");
   }

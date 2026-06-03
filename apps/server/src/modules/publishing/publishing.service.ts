@@ -19,6 +19,10 @@ export type CompleteMobileDraftSessionPayload = {
   note?: string;
 };
 
+export type PublishWechatArticlePayload = {
+  mode?: "PUBLISH_ARTICLE";
+};
+
 type BaseDraftTaskInput = {
   sessionToken: string;
   platform: "XIAOHONGSHU";
@@ -197,6 +201,18 @@ export class PublishingService {
     return this.completeDraftTask(task, payload, DESKTOP_DRAFT_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
       this.buildDesktopSessionResponse(taskId, this.readDesktopDraftTaskInput(taskInput), taskStatus, outputJson),
     );
+  }
+
+  async publishWechatArticleToOfficialAccount(brandId: string, draftId: string, _payload: PublishWechatArticlePayload = {}) {
+    const result = await this.worksService.publishWechatArticleDraft(brandId, draftId);
+    return {
+      task: {
+        id: result.item.publishTaskId || "",
+        taskStatus: result.item.publishStatus === "PUBLISHED" ? "SUCCESS" : "FAILED",
+        taskTitle: `发布公众号文章：${result.item.title}`,
+      },
+      item: result.item,
+    };
   }
 
   private async completeDraftTask(
