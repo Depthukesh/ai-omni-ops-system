@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { getStoredCurrentBrandId } from "../../../services/auth-session";
+import { getStoredCurrentBrandId } from "../../../../services/auth-session";
 import {
   type DesignGeneratedWorkRecord,
   type DesignModelOptionRecord,
@@ -10,7 +10,7 @@ import {
   type DesignWorkspaceOptionsRecord,
   generateDesignWork,
   getDesignWorkspaceOptions,
-} from "../../../services/design";
+} from "../../../../services/design";
 
 type DesignWork = DesignGeneratedWorkRecord;
 
