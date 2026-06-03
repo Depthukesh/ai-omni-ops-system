@@ -100,6 +100,7 @@
 - 原创创作弹窗中的“产品信息”当前已补充 `不植入产品` 选项：
   - 选中后会按“无具体产品植入”生成文章内容
   - 作品卡片也会明确显示 `不植入产品`
+- 发布接口补权限校验后，`PublishingController` 新增了 `AuthService` 依赖；本次同步修正 `PublishingModule` 的模块导入，补齐 `AuthModule`，避免生产环境启动时报 `Nest can't resolve dependencies of the PublishingController`。
 
 ## 影响范围
 
@@ -115,6 +116,7 @@
   - `apps/server/src/modules/works/works.controller.ts`
   - `apps/server/src/modules/works/works.service.ts`
   - `apps/server/src/modules/publishing/publishing.controller.ts`
+  - `apps/server/src/modules/publishing/publishing.module.ts`
   - `apps/server/src/modules/publishing/publishing.service.ts`
   - `apps/server/src/modules/admin/skills-prompts.service.ts`
   - `packages/shared/src/brand-permissions.ts`
