@@ -208,9 +208,8 @@ export type WechatArticleDetailRecord = {
   queryUrl: string;
   articleUrl: string;
   title: string;
-  content?: string;
   author?: string;
-  imageList: string[];
+  htmlContent?: string;
   collectedAt: string;
 };
 

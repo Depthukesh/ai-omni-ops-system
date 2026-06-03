@@ -322,9 +322,8 @@ export type WechatArticleDetailRecord = {
   queryUrl: string;
   articleUrl: string;
   title: string;
-  content?: string;
   author?: string;
-  imageList: string[];
+  htmlContent?: string;
   collectedAt: string;
 };
 
@@ -1298,9 +1297,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       queryUrl: this.readMetaString(meta, "queryUrl") || asset.fileUrl || "",
       articleUrl: this.readMetaString(meta, "articleUrl") || asset.fileUrl || "",
       title: asset.title,
-      content: asset.description || undefined,
       author: this.readMetaString(meta, "author") || undefined,
-      imageList: this.readMetaStringArray(meta, "imageList"),
+      htmlContent: this.readMetaString(meta, "htmlContent") || undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
     };
   }
@@ -3617,7 +3615,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         this.pickString(detail, ["url", "article_url", "articleUrl", "link", "share_url"]) || articleUrl,
       ) || articleUrl,
       author: this.pickString(detail, ["author", "nickname", "bizname", "account_name", "source"]) || undefined,
-      imageList: this.extractWechatImageList(detail, htmlContent, content),
+      htmlContent: htmlContent || undefined,
       collectedAt: new Date().toISOString(),
       rawFields: detail,
     };

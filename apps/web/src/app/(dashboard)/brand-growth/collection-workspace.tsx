@@ -951,30 +951,40 @@ function WechatSubmitPanel(props: {
   );
 }
 
-function WechatImageGrid(props: {
-  imageList: string[];
+function WechatHtmlPreviewDialog(props: {
+  detail: WechatArticleDetailRecord;
+  onClose: () => void;
 }) {
-  if (!props.imageList.length) {
-    return <div className="note-empty-media">暂无图片</div>;
-  }
-
   return (
-    <div className="note-image-grid">
-      {props.imageList.map((imageUrl, index) => (
-        <a
-          key={`${imageUrl}-${index}`}
-          href={imageUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="note-image-card"
-          title={`查看图片 ${index + 1}`}
-        >
-          <div className="note-image-thumb">
-            <img src={imageUrl} alt={`公众号图片 ${index + 1}`} />
+    <div className="wechat-html-preview-overlay" role="dialog" aria-modal="true" aria-label="HTML 页面预览" onClick={props.onClose}>
+      <div className="wechat-html-preview-dialog" onClick={(event) => event.stopPropagation()}>
+        <div className="wechat-html-preview-head">
+          <div>
+            <strong>{props.detail.title || "HTML 页面预览"}</strong>
+            <p>{props.detail.author || "未提供作者"}</p>
           </div>
-          <span className="note-data-link">查看原图</span>
-        </a>
-      ))}
+          <div className="strategy-inline-actions">
+            {props.detail.articleUrl ? (
+              <a href={props.detail.articleUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                打开原文
+              </a>
+            ) : null}
+            <button type="button" className="secondary-button" onClick={props.onClose}>
+              关闭
+            </button>
+          </div>
+        </div>
+        {props.detail.htmlContent ? (
+          <iframe
+            title={`${props.detail.title || "公众号文章"} HTML 页面`}
+            className="wechat-html-preview-frame"
+            sandbox=""
+            srcDoc={props.detail.htmlContent}
+          />
+        ) : (
+          <div className="note-empty-state">当前记录没有 HTML 页面内容，请重新提交采集。</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1477,6 +1487,7 @@ function DouyinCityHotspotTable(props: {
 }
 
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
+  const [wechatHtmlPreview, setWechatHtmlPreview] = useState<WechatArticleDetailRecord | null>(null);
   const xiaohongshuSyncedCount =
     props.sortedBrandAccounts.length +
     props.sortedCompetitorAccounts.length +
@@ -2358,7 +2369,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <>
               <WechatSubmitPanel
                 title="获取微信公众号文章详情的 JSON"
-                description="输入公众号文章链接，展示标题、正文、作者和文中图片列表。"
+                description="输入公众号文章链接，展示标题、作者和 HTML 页面。"
                 isSubmitting={props.isHydrating || props.isSyncingWechatWorkspace}
                 onSubmit={props.onSyncWechatWorkspace}
               >
@@ -2377,56 +2388,62 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 <div className="collection-result-head">
                   <div>
                     <h3>文章详情结果</h3>
-                    <p>按最近采集时间倒序展示。</p>
+                    <p>按最近采集时间倒序展示，每篇文章占一行，仅展示标题、作者和 HTML 页面按钮。</p>
                   </div>
                   <span className={`archive-pill ${props.sortedWechatArticleDetails.length ? "status-ready" : "status-pending"}`}>
                     已同步 {props.sortedWechatArticleDetails.length} 条
                   </span>
                 </div>
-                <div className="collection-card-list">
+                <div className="table-scroll-shell">
                   {props.sortedWechatArticleDetails.length ? (
-                    props.sortedWechatArticleDetails.map((item) => (
-                      <article key={item.id} className="collection-sync-card">
-                        <div className="collection-sync-head">
-                          <div className="collection-sync-title">
-                            <strong>{item.title || "未命名文章"}</strong>
-                            <span>
-                              {item.articleUrl ? (
-                                <a href={item.articleUrl} target="_blank" rel="noreferrer">
-                                  {item.articleUrl}
-                                </a>
-                              ) : (
-                                item.queryUrl || "未提供文章链接"
-                              )}
-                            </span>
-                          </div>
-                          <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                        </div>
-                        <div className="collection-sync-grid">
-                          <div className="collection-sync-item">
-                            <span>作者</span>
-                            <strong>{item.author || "-"}</strong>
-                          </div>
-                          <div className="collection-sync-item">
-                            <span>图片数</span>
-                            <strong>{item.imageList.length}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>正文</span>
-                            <strong>{item.content || "暂无正文内容"}</strong>
-                          </div>
-                          <div className="collection-sync-item collection-sync-item--full">
-                            <span>文中图片列表</span>
-                            <WechatImageGrid imageList={item.imageList} />
-                          </div>
-                        </div>
-                      </article>
-                    ))
+                    <ScrollableTableShell>
+                      <table className="soft-table">
+                        <thead>
+                          <tr>
+                            <th>标题</th>
+                            <th>作者</th>
+                            <th>HTML 页面</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {props.sortedWechatArticleDetails.map((item) => (
+                            <tr key={item.id}>
+                              <td>
+                                <div className="table-cell-stack">
+                                  <strong>{item.title || "未命名文章"}</strong>
+                                  {item.articleUrl ? (
+                                    <a href={item.articleUrl} target="_blank" rel="noreferrer">
+                                      {item.articleUrl}
+                                    </a>
+                                  ) : item.queryUrl ? (
+                                    <span>{item.queryUrl}</span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td>{item.author || "-"}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="tiny-action-button is-primary"
+                                  onClick={() => setWechatHtmlPreview(item)}
+                                  disabled={!item.htmlContent}
+                                >
+                                  {item.htmlContent ? "查看 HTML" : "暂无 HTML"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </ScrollableTableShell>
                   ) : (
                     <div className="note-empty-state">当前还没有采集到公众号文章详情，请先输入文章链接并提交。</div>
                   )}
                 </div>
               </article>
+              {wechatHtmlPreview ? (
+                <WechatHtmlPreviewDialog detail={wechatHtmlPreview} onClose={() => setWechatHtmlPreview(null)} />
+              ) : null}
             </>
           ) : null}
           {props.activeWechatCollectionCard === "officialAccountSearch" ? (
