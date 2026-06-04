@@ -902,76 +902,85 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
 
   return (
     <>
-      <div className="design-v3-shell">
-        <section className="dashboard-hero xiaohongshu-hero">
-          <div>
-            <h1>{section.label}</h1>
-            <p>{section.description}</p>
-            <div className="workspace-toolbar top-toolbar">
-              <div className="workspace-status">
-                <span className="archive-pill status-ready">真实数据驱动</span>
-                <span className="archive-pill status-pending">第三方模型配置</span>
-                <span className="status-text">
-                  当前设计模块会读取品牌档案、营销日历和后台启用的运行时模型；创建时直接调用后端生成接口。
-                </span>
+      <section className="workspace-card workspace-card--bleed strategy-page-card">
+        <div className="strategy-layout xiaohongshu-layout">
+          <aside className="strategy-level-panel strategy-level-panel--directory">
+            <div className="design-v3-nav-group">
+              <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
+              <div className="design-v3-subnav-list">
+                {DESIGN_MODULES.map((moduleKey) => {
+                  const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];
+                  return (
+                    <button
+                      key={moduleKey}
+                      type="button"
+                      className={`strategy-level-button design-v3-subnav-button ${moduleKey === activeModule ? "is-active" : ""}`}
+                      onClick={() => handleModuleChange(moduleKey)}
+                    >
+                      {tabMeta.label}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="personal-actions">
-                <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
-                  {loadingOptions ? "刷新中..." : "刷新数据"}
-                </button>
+            </div>
+          </aside>
+
+          <div className="strategy-content-panel xiaohongshu-content-panel">
+            <section className="dashboard-hero xiaohongshu-hero">
+              <div>
+                <h1>{section.label}</h1>
+                <p>{section.description}</p>
+                <div className="workspace-toolbar top-toolbar">
+                  <div className="workspace-status">
+                    <span className="archive-pill status-ready">真实数据驱动</span>
+                    <span className="archive-pill status-pending">第三方模型配置</span>
+                    <span className="status-text">
+                      当前设计模块会读取品牌档案、营销日历和后台启用的运行时模型；创建时直接调用后端生成接口。
+                    </span>
+                  </div>
+                  <div className="personal-actions">
+                    <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
+                      {loadingOptions ? "刷新中..." : "刷新数据"}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
+
+            <article className="workspace-panel strategy-page-card">
+              <div className="design-v3-module-head">
+                <div>
+                  <strong>{activeMeta.label}</strong>
+                  <p>{activeMeta.description}</p>
+                </div>
+                <div className="design-v3-module-actions">
+                  <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
+                    {loadingOptions ? "刷新中..." : "刷新列表"}
+                  </button>
+                  <button type="button" className="primary-button" onClick={handleOpenDialog} disabled={loadingOptions || !options}>
+                    {activeMeta.createLabel}
+                  </button>
+                </div>
+              </div>
+
+              {loadError ? (
+                <div className="empty-state" style={{ marginBottom: 16 }}>
+                  {loadError}
+                </div>
+              ) : null}
+
+              <ModuleWorks
+                module={activeMeta}
+                works={activeWorks}
+                selectedWorkId={selectedWorkByModule[activeModule]}
+                onDeleteWork={handleDeleteWork}
+                deletingWorkId={deletingWorkId}
+                onViewWork={handleViewWork}
+              />
+            </article>
           </div>
-        </section>
-
-        <article className="workspace-panel strategy-page-card">
-          <div className="design-v3-tab-row">
-            {DESIGN_MODULES.map((moduleKey) => {
-              const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];
-              return (
-                <button
-                  key={moduleKey}
-                  type="button"
-                  className={`design-v3-tab ${moduleKey === activeModule ? "is-active" : ""}`}
-                  onClick={() => handleModuleChange(moduleKey)}
-                >
-                  {tabMeta.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="design-v3-module-head">
-            <div>
-              <strong>{activeMeta.label}</strong>
-              <p>{activeMeta.description}</p>
-            </div>
-            <div className="design-v3-module-actions">
-              <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
-                {loadingOptions ? "刷新中..." : "刷新列表"}
-              </button>
-              <button type="button" className="primary-button" onClick={handleOpenDialog} disabled={loadingOptions || !options}>
-                {activeMeta.createLabel}
-              </button>
-            </div>
-          </div>
-
-          {loadError ? (
-            <div className="empty-state" style={{ marginBottom: 16 }}>
-              {loadError}
-            </div>
-          ) : null}
-
-          <ModuleWorks
-            module={activeMeta}
-            works={activeWorks}
-            selectedWorkId={selectedWorkByModule[activeModule]}
-            onDeleteWork={handleDeleteWork}
-            deletingWorkId={deletingWorkId}
-            onViewWork={handleViewWork}
-          />
-        </article>
-      </div>
+        </div>
+      </section>
 
       <DesignCreateDialog
         module={activeMeta}

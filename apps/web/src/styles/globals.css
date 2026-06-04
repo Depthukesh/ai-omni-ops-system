@@ -8767,6 +8767,29 @@ button {
   gap: 16px;
 }
 
+.design-v3-nav-group {
+  display: grid;
+  gap: 8px;
+}
+
+.design-v3-parent-button {
+  justify-content: center;
+  cursor: default;
+}
+
+.design-v3-subnav-list {
+  display: grid;
+  gap: 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(124, 141, 181, 0.2);
+}
+
+.design-v3-subnav-button {
+  min-height: 38px;
+  padding-left: 10px;
+  font-size: 12px;
+}
+
 .design-v3-status-card h3 {
   margin: 0;
   color: #21304d;
