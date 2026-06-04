@@ -274,36 +274,36 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["设计工作台-数据看板设计"],
   },
   skill_design_saas_landing: {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_saas_landing"],
+    promptScenes: ["设计工作台-SaaS 落地页设计"],
   },
   "design-saas-landing": {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_saas_landing"],
+    promptScenes: ["设计工作台-SaaS 落地页设计"],
   },
   skill_design_email_marketing: {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_email_marketing"],
+    promptScenes: ["设计工作台-邮件营销页设计"],
   },
   "design-email-marketing": {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_email_marketing"],
+    promptScenes: ["设计工作台-邮件营销页设计"],
   },
   skill_design_docs_page: {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_docs_page"],
+    promptScenes: ["设计工作台-文档展示页设计"],
   },
   "design-docs-page": {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_docs_page"],
+    promptScenes: ["设计工作台-文档展示页设计"],
   },
   skill_design_blog_post: {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_blog_post"],
+    promptScenes: ["设计工作台-博客长页设计"],
   },
   "design-blog-post": {
-    promptIds: ["prompt_design_web_prototype"],
-    promptScenes: ["设计工作台-HTML 原型设计"],
+    promptIds: ["prompt_design_blog_post"],
+    promptScenes: ["设计工作台-博客长页设计"],
   },
   skill_design_mobile_onboarding: {
     promptIds: ["prompt_design_mobile_onboarding"],
@@ -314,12 +314,12 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["设计工作台-移动端引导设计"],
   },
   skill_design_gamified_app: {
-    promptIds: ["prompt_design_mobile_onboarding"],
-    promptScenes: ["设计工作台-移动端引导设计"],
+    promptIds: ["prompt_design_gamified_app"],
+    promptScenes: ["设计工作台-游戏化活动页设计"],
   },
   "design-gamified-app": {
-    promptIds: ["prompt_design_mobile_onboarding"],
-    promptScenes: ["设计工作台-移动端引导设计"],
+    promptIds: ["prompt_design_gamified_app"],
+    promptScenes: ["设计工作台-游戏化活动页设计"],
   },
   skill_design_social_carousel: {
     promptIds: ["prompt_design_social_carousel"],
@@ -338,20 +338,20 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["设计工作台-杂志风海报设计"],
   },
   skill_design_motion_frames: {
-    promptIds: ["prompt_design_magazine_poster"],
-    promptScenes: ["设计工作台-杂志风海报设计"],
+    promptIds: ["prompt_design_motion_frames"],
+    promptScenes: ["设计工作台-动效首帧设计"],
   },
   "design-motion-frames": {
-    promptIds: ["prompt_design_magazine_poster"],
-    promptScenes: ["设计工作台-杂志风海报设计"],
+    promptIds: ["prompt_design_motion_frames"],
+    promptScenes: ["设计工作台-动效首帧设计"],
   },
   skill_design_sprite_animation: {
-    promptIds: ["prompt_design_social_carousel"],
-    promptScenes: ["设计工作台-社媒轮播图设计"],
+    promptIds: ["prompt_design_sprite_animation"],
+    promptScenes: ["设计工作台-像素动画首帧设计"],
   },
   "design-sprite-animation": {
-    promptIds: ["prompt_design_social_carousel"],
-    promptScenes: ["设计工作台-社媒轮播图设计"],
+    promptIds: ["prompt_design_sprite_animation"],
+    promptScenes: ["设计工作台-像素动画首帧设计"],
   },
   skill_design_pitch_deck: {
     promptIds: ["prompt_design_pitch_deck"],
@@ -362,20 +362,20 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["设计工作台-Pitch Deck 设计"],
   },
   skill_design_weekly_update: {
-    promptIds: ["prompt_design_pitch_deck"],
-    promptScenes: ["设计工作台-Pitch Deck 设计"],
+    promptIds: ["prompt_design_weekly_update"],
+    promptScenes: ["设计工作台-周报更新 Deck"],
   },
   "design-weekly-update": {
-    promptIds: ["prompt_design_pitch_deck"],
-    promptScenes: ["设计工作台-Pitch Deck 设计"],
+    promptIds: ["prompt_design_weekly_update"],
+    promptScenes: ["设计工作台-周报更新 Deck"],
   },
   skill_design_simple_deck: {
-    promptIds: ["prompt_design_pitch_deck"],
-    promptScenes: ["设计工作台-Pitch Deck 设计"],
+    promptIds: ["prompt_design_simple_deck"],
+    promptScenes: ["设计工作台-极简 Deck"],
   },
   "design-simple-deck": {
-    promptIds: ["prompt_design_pitch_deck"],
-    promptScenes: ["设计工作台-Pitch Deck 设计"],
+    promptIds: ["prompt_design_simple_deck"],
+    promptScenes: ["设计工作台-极简 Deck"],
   },
   skill_design_video_storyboard: {
     promptIds: ["prompt_design_video_storyboard"],
@@ -386,12 +386,180 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["设计工作台-视频故事板设计"],
   },
   skill_design_motion_storyboard: {
-    promptIds: ["prompt_design_video_storyboard"],
-    promptScenes: ["设计工作台-视频故事板设计"],
+    promptIds: ["prompt_design_motion_storyboard"],
+    promptScenes: ["设计工作台-动效脚本设计"],
   },
   "design-motion-storyboard": {
-    promptIds: ["prompt_design_video_storyboard"],
-    promptScenes: ["设计工作台-视频故事板设计"],
+    promptIds: ["prompt_design_motion_storyboard"],
+    promptScenes: ["设计工作台-动效脚本设计"],
+  },
+  skill_open_design_critique: {
+    promptIds: ["prompt_open_design_critique"],
+    promptScenes: ["Open Design-设计评审"],
+  },
+  critique: {
+    promptIds: ["prompt_open_design_critique"],
+    promptScenes: ["Open Design-设计评审"],
+  },
+  skill_open_design_tweaks: {
+    promptIds: ["prompt_open_design_tweaks"],
+    promptScenes: ["Open Design-定向微调"],
+  },
+  tweaks: {
+    promptIds: ["prompt_open_design_tweaks"],
+    promptScenes: ["Open Design-定向微调"],
+  },
+  skill_open_design_wireframe_sketch: {
+    promptIds: ["prompt_open_design_wireframe_sketch"],
+    promptScenes: ["Open Design-线框草图"],
+  },
+  "wireframe-sketch": {
+    promptIds: ["prompt_open_design_wireframe_sketch"],
+    promptScenes: ["Open Design-线框草图"],
+  },
+  skill_open_design_design_brief: {
+    promptIds: ["prompt_open_design_design_brief"],
+    promptScenes: ["Open Design-设计简报"],
+  },
+  "design-brief": {
+    promptIds: ["prompt_open_design_design_brief"],
+    promptScenes: ["Open Design-设计简报"],
+  },
+  skill_open_design_dating_web: {
+    promptIds: ["prompt_open_design_dating_web"],
+    promptScenes: ["Open Design-约会产品网页"],
+  },
+  "dating-web": {
+    promptIds: ["prompt_open_design_dating_web"],
+    promptScenes: ["Open Design-约会产品网页"],
+  },
+  skill_open_design_digital_eguide: {
+    promptIds: ["prompt_open_design_digital_eguide"],
+    promptScenes: ["Open Design-数字指南"],
+  },
+  "digital-eguide": {
+    promptIds: ["prompt_open_design_digital_eguide"],
+    promptScenes: ["Open Design-数字指南"],
+  },
+  skill_open_design_hatch_pet: {
+    promptIds: ["prompt_open_design_hatch_pet"],
+    promptScenes: ["Open Design-宠物孵化互动页"],
+  },
+  "hatch-pet": {
+    promptIds: ["prompt_open_design_hatch_pet"],
+    promptScenes: ["Open Design-宠物孵化互动页"],
+  },
+  skill_open_design_audio_jingle: {
+    promptIds: ["prompt_open_design_audio_jingle"],
+    promptScenes: ["Open Design-音频 Jingle"],
+  },
+  "audio-jingle": {
+    promptIds: ["prompt_open_design_audio_jingle"],
+    promptScenes: ["Open Design-音频 Jingle"],
+  },
+  skill_open_design_pm_spec: {
+    promptIds: ["prompt_open_design_pm_spec"],
+    promptScenes: ["Open Design-PM 规格说明"],
+  },
+  "pm-spec": {
+    promptIds: ["prompt_open_design_pm_spec"],
+    promptScenes: ["Open Design-PM 规格说明"],
+  },
+  skill_open_design_eng_runbook: {
+    promptIds: ["prompt_open_design_eng_runbook"],
+    promptScenes: ["Open Design-工程 Runbook"],
+  },
+  "eng-runbook": {
+    promptIds: ["prompt_open_design_eng_runbook"],
+    promptScenes: ["Open Design-工程 Runbook"],
+  },
+  skill_open_design_finance_report: {
+    promptIds: ["prompt_open_design_finance_report"],
+    promptScenes: ["Open Design-财务报告"],
+  },
+  "finance-report": {
+    promptIds: ["prompt_open_design_finance_report"],
+    promptScenes: ["Open Design-财务报告"],
+  },
+  skill_open_design_hr_onboarding: {
+    promptIds: ["prompt_open_design_hr_onboarding"],
+    promptScenes: ["Open Design-HR 入职引导"],
+  },
+  "hr-onboarding": {
+    promptIds: ["prompt_open_design_hr_onboarding"],
+    promptScenes: ["Open Design-HR 入职引导"],
+  },
+  skill_open_design_invoice: {
+    promptIds: ["prompt_open_design_invoice"],
+    promptScenes: ["Open Design-发票模板"],
+  },
+  invoice: {
+    promptIds: ["prompt_open_design_invoice"],
+    promptScenes: ["Open Design-发票模板"],
+  },
+  skill_open_design_kanban_board: {
+    promptIds: ["prompt_open_design_kanban_board"],
+    promptScenes: ["Open Design-看板面板"],
+  },
+  "kanban-board": {
+    promptIds: ["prompt_open_design_kanban_board"],
+    promptScenes: ["Open Design-看板面板"],
+  },
+  skill_open_design_team_okrs: {
+    promptIds: ["prompt_open_design_team_okrs"],
+    promptScenes: ["Open Design-团队 OKR"],
+  },
+  "team-okrs": {
+    promptIds: ["prompt_open_design_team_okrs"],
+    promptScenes: ["Open Design-团队 OKR"],
+  },
+  skill_open_design_replit_deck: {
+    promptIds: ["prompt_open_design_replit_deck"],
+    promptScenes: ["Open Design-Replit Deck"],
+  },
+  "replit-deck": {
+    promptIds: ["prompt_open_design_replit_deck"],
+    promptScenes: ["Open Design-Replit Deck"],
+  },
+  skill_open_design_html_ppt_course_module: {
+    promptIds: ["prompt_open_design_html_ppt_course_module"],
+    promptScenes: ["Open Design-课程模块 Deck"],
+  },
+  "html-ppt-course-module": {
+    promptIds: ["prompt_open_design_html_ppt_course_module"],
+    promptScenes: ["Open Design-课程模块 Deck"],
+  },
+  skill_open_design_html_ppt_dir_key_nav_minimal: {
+    promptIds: ["prompt_open_design_html_ppt_dir_key_nav_minimal"],
+    promptScenes: ["Open Design-极简目录 Deck"],
+  },
+  "html-ppt-dir-key-nav-minimal": {
+    promptIds: ["prompt_open_design_html_ppt_dir_key_nav_minimal"],
+    promptScenes: ["Open Design-极简目录 Deck"],
+  },
+  skill_open_design_html_ppt_graphify_dark_graph: {
+    promptIds: ["prompt_open_design_html_ppt_graphify_dark_graph"],
+    promptScenes: ["Open Design-深色图表 Deck"],
+  },
+  "html-ppt-graphify-dark-graph": {
+    promptIds: ["prompt_open_design_html_ppt_graphify_dark_graph"],
+    promptScenes: ["Open Design-深色图表 Deck"],
+  },
+  skill_open_design_html_ppt_hermes_cyber_terminal: {
+    promptIds: ["prompt_open_design_html_ppt_hermes_cyber_terminal"],
+    promptScenes: ["Open Design-赛博终端 Deck"],
+  },
+  "html-ppt-hermes-cyber-terminal": {
+    promptIds: ["prompt_open_design_html_ppt_hermes_cyber_terminal"],
+    promptScenes: ["Open Design-赛博终端 Deck"],
+  },
+  skill_open_design_html_ppt_knowledge_arch_blueprint: {
+    promptIds: ["prompt_open_design_html_ppt_knowledge_arch_blueprint"],
+    promptScenes: ["Open Design-知识架构蓝图 Deck"],
+  },
+  "html-ppt-knowledge-arch-blueprint": {
+    promptIds: ["prompt_open_design_html_ppt_knowledge_arch_blueprint"],
+    promptScenes: ["Open Design-知识架构蓝图 Deck"],
   },
   skill_xhs_rewrite_copy: {
     promptIds: ["prompt_xhs_rewrite_copy"],

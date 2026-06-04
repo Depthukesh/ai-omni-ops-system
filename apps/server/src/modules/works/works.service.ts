@@ -65,12 +65,12 @@ const DESIGN_SKILL_PROFILES = {
   "design-motion-frames": {
     module: "image" as const,
     label: "动效首帧",
-    promptId: "prompt_design_magazine_poster",
+    promptId: "prompt_design_motion_frames",
   },
   "design-sprite-animation": {
     module: "image" as const,
     label: "像素动画首帧",
-    promptId: "prompt_design_social_carousel",
+    promptId: "prompt_design_sprite_animation",
   },
   "design-web-prototype": {
     module: "html" as const,
@@ -80,22 +80,22 @@ const DESIGN_SKILL_PROFILES = {
   "design-saas-landing": {
     module: "html" as const,
     label: "SaaS 落地页",
-    promptId: "prompt_design_web_prototype",
+    promptId: "prompt_design_saas_landing",
   },
   "design-email-marketing": {
     module: "html" as const,
     label: "邮件营销页",
-    promptId: "prompt_design_web_prototype",
+    promptId: "prompt_design_email_marketing",
   },
   "design-docs-page": {
     module: "html" as const,
     label: "文档展示页",
-    promptId: "prompt_design_web_prototype",
+    promptId: "prompt_design_docs_page",
   },
   "design-blog-post": {
     module: "html" as const,
     label: "博客长页",
-    promptId: "prompt_design_web_prototype",
+    promptId: "prompt_design_blog_post",
   },
   "design-dashboard": {
     module: "html" as const,
@@ -110,7 +110,7 @@ const DESIGN_SKILL_PROFILES = {
   "design-gamified-app": {
     module: "html" as const,
     label: "游戏化活动页",
-    promptId: "prompt_design_mobile_onboarding",
+    promptId: "prompt_design_gamified_app",
   },
   "design-pitch-deck": {
     module: "deck" as const,
@@ -120,12 +120,12 @@ const DESIGN_SKILL_PROFILES = {
   "design-weekly-update": {
     module: "deck" as const,
     label: "周报更新",
-    promptId: "prompt_design_pitch_deck",
+    promptId: "prompt_design_weekly_update",
   },
   "design-simple-deck": {
     module: "deck" as const,
     label: "极简 Deck",
-    promptId: "prompt_design_pitch_deck",
+    promptId: "prompt_design_simple_deck",
   },
   "design-video-storyboard": {
     module: "video" as const,
@@ -135,7 +135,7 @@ const DESIGN_SKILL_PROFILES = {
   "design-motion-storyboard": {
     module: "video" as const,
     label: "动效脚本",
-    promptId: "prompt_design_video_storyboard",
+    promptId: "prompt_design_motion_storyboard",
   },
 } satisfies Record<string, { module: DesignWorkModuleKey; label: string; promptId: string }>;
 
