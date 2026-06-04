@@ -268,6 +268,44 @@ function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
   );
 }
 
+function ImagePreviewDialog({
+  open,
+  title,
+  imageUrl,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  imageUrl: string;
+  onClose: () => void;
+}) {
+  if (!open || !imageUrl) {
+    return null;
+  }
+
+  return (
+    <div className="design-v3-dialog-backdrop design-v3-preview-backdrop" onClick={onClose}>
+      <div
+        className="design-v3-preview-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="design-v3-preview-header">
+          <strong>{title}</strong>
+          <button type="button" className="secondary-button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+        <div className="design-v3-preview-body">
+          <img src={imageUrl} alt={title} className="design-v3-preview-image" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface DesignWorkspaceShellProps {
   section: { label: string; description: string };
 }
@@ -394,16 +432,18 @@ function DesignCreateDialog({
                 ))}
               </select>
             </label>
-            <label className="design-v3-field">
-              <span>类型</span>
-              <select value={form.type} onChange={(event) => onChange("type", event.target.value)} disabled={loadingOptions}>
-                {module.types.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {module.key !== "image" ? (
+              <label className="design-v3-field">
+                <span>类型</span>
+                <select value={form.type} onChange={(event) => onChange("type", event.target.value)} disabled={loadingOptions}>
+                  {module.types.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="design-v3-field design-v3-field--full">
               <span>上传参考图</span>
               <div className="design-v3-upload-box">
@@ -455,7 +495,7 @@ function DesignCreateDialog({
             type="button"
             className="primary-button"
             onClick={onSubmit}
-            disabled={loadingOptions || submitting || !form.title.trim() || !form.type.trim() || !form.prompt.trim() || !form.modelSelection}
+            disabled={loadingOptions || submitting || !form.title.trim() || !form.prompt.trim() || !form.modelSelection}
           >
             {submitting ? "创建中..." : "提交创建"}
           </button>
@@ -465,61 +505,20 @@ function DesignCreateDialog({
   );
 }
 
-function ModuleStatusCard({
-  module,
-  works,
-  lastCreatedWork,
-  lastRefreshedAt,
-  brandName,
-  brandProfileSummary,
-}: {
-  module: DesignModuleMeta;
-  works: DesignWork[];
-  lastCreatedWork: DesignWork | null;
-  lastRefreshedAt: string;
-  brandName: string;
-  brandProfileSummary: string;
-}) {
-  return (
-    <article className="design-v3-status-card design-v3-status-card--compact">
-      <div className="design-v3-status-main">
-        <div>
-          <h3>{module.label}</h3>
-          <p>
-            当前品牌“{brandName}”使用真实营销日历、产品资料与模型配置。
-            {lastCreatedWork ? ` 最近生成：${lastCreatedWork.title}` : " 当前还没有生成记录。"}
-          </p>
-        </div>
-        <div className="design-v3-status-pills">
-          <span className="archive-pill status-ready">作品 {works.length}</span>
-          <span className="archive-pill status-pending">技能 {module.skillLeaves.length}</span>
-          <span className="archive-pill status-pending">模型 {module.models.length}</span>
-          <span className="archive-pill status-pending">刷新于 {lastRefreshedAt}</span>
-        </div>
-      </div>
-      {brandProfileSummary ? <p className="design-v3-status-note">{brandProfileSummary}</p> : null}
-    </article>
-  );
-}
-
 function ModuleWorks({
   module,
   works,
   selectedWorkId,
-  selectedWork,
-  onSelectWork,
-  onCompleteWork,
   onDeleteWork,
   deletingWorkId,
+  onViewWork,
 }: {
   module: DesignModuleMeta;
   works: DesignWork[];
   selectedWorkId: string | null;
-  selectedWork: DesignWork | null;
-  onSelectWork: (workId: string) => void;
-  onCompleteWork: (workId: string) => void;
   onDeleteWork: (workId: string) => void | Promise<void>;
   deletingWorkId: string | null;
+  onViewWork: (work: DesignWork) => void;
 }) {
   return (
     <section className="design-v3-works">
@@ -531,33 +530,23 @@ function ModuleWorks({
         <span className="archive-pill status-ready">已展示 {works.length} 个</span>
       </div>
 
-      {selectedWork ? (
-        <div className="design-v3-focus-strip">
-          <div>
-            <strong>当前聚焦作品</strong>
-            <p>{selectedWork.title}</p>
-          </div>
-          <div className="design-v3-work-tags">
-            <span className={`archive-pill ${getWorkStatusTone(selectedWork.status)}`}>{selectedWork.status}</span>
-            {selectedWork.skillLabel ? <span className="archive-pill status-pending">{selectedWork.skillLabel}</span> : null}
-            <span className="archive-pill status-pending">{selectedWork.updatedAt}</span>
-          </div>
-        </div>
-      ) : null}
-
       <div className="design-v3-work-grid">
         {works.map((work) => (
           <article
             key={`${module.key}-${getWorkId(work)}`}
             className={`design-v3-work-card ${selectedWorkId === getWorkId(work) ? "is-selected" : ""}`}
           >
-            <div className="design-v3-work-preview">
+            <button
+              type="button"
+              className="design-v3-work-preview design-v3-work-preview-button"
+              onClick={() => onViewWork(work)}
+            >
               {renderWorkPreview(module, work)}
               <div className="design-v3-work-floating-tags">
                 <span className="archive-pill status-pending">{module.label}</span>
                 <span className={`archive-pill ${getWorkStatusTone(work.status)}`}>{work.status}</span>
               </div>
-            </div>
+            </button>
             <div className="design-v3-work-body">
               <div className="design-v3-work-meta">
                 <span>{work.updatedAt}</span>
@@ -574,16 +563,8 @@ function ModuleWorks({
               </div>
               {work.errorDetail ? <div className="design-v3-work-error">{work.errorDetail}</div> : null}
               <div className="design-v3-work-actions">
-                <button type="button" className="tiny-action-button is-primary" onClick={() => onSelectWork(getWorkId(work))}>
-                  设为主看
-                </button>
-                {work.assetUrl ? (
-                  <a className="tiny-action-button" href={work.assetUrl} target="_blank" rel="noreferrer">
-                    打开结果
-                  </a>
-                ) : null}
-                <button type="button" className="tiny-action-button" onClick={() => onCompleteWork(getWorkId(work))}>
-                  标记完成
+                <button type="button" className="tiny-action-button is-primary" onClick={() => onViewWork(work)}>
+                  查看
                 </button>
                 <button
                   type="button"
@@ -627,6 +608,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingWorkId, setDeletingWorkId] = useState<string | null>(null);
+  const [previewWork, setPreviewWork] = useState<DesignWork | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState("image"));
 
@@ -753,7 +735,18 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   const handleFormChange = (field: keyof DesignFormState, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => {
+      if (field === "skillSlug" && activeModule === "image") {
+        const selectedSkill = activeMeta.skillLeaves.find((item) => item.skillSlug === value);
+        return {
+          ...current,
+          skillSlug: value,
+          type: selectedSkill?.label || current.type || activeMeta.types[0] || "",
+        };
+      }
+
+      return { ...current, [field]: value };
+    });
   };
 
   const handleRefresh = async () => {
@@ -862,22 +855,11 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
     setSelectedWorkByModule((current) => ({ ...current, [activeModule]: workId }));
   };
 
-  const handleCompleteWork = (workId: string) => {
-    const completedAt = formatTimestamp(new Date());
-
-    setWorksByModule((current) => ({
-      ...current,
-      [activeModule]: (current[activeModule] ?? []).map((work) =>
-        getWorkId(work) === workId
-          ? {
-              ...work,
-              status: "已完成",
-              updatedAt: completedAt,
-            }
-          : work,
-      ),
-    }));
-    setLastRefreshByModule((current) => ({ ...current, [activeModule]: completedAt }));
+  const handleViewWork = (work: DesignWork) => {
+    handleSelectWork(getWorkId(work));
+    if (work.assetUrl) {
+      setPreviewWork(work);
+    }
   };
 
   const handleDeleteWork = async (workId: string) => {
@@ -886,6 +868,9 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
 
     setSubmitError("");
     setDeletingWorkId(workId);
+    if (previewWork && getWorkId(previewWork) === workId) {
+      setPreviewWork(null);
+    }
     setWorksByModule((current) => ({
       ...current,
       [activeModule]: nextWorks,
@@ -977,23 +962,13 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
             </div>
           ) : null}
 
-          <ModuleStatusCard
-            module={activeMeta}
-            works={activeWorks}
-            lastCreatedWork={lastCreatedByModule[activeModule]}
-            lastRefreshedAt={lastRefreshByModule[activeModule]}
-            brandName={options?.brandName ?? "当前品牌"}
-            brandProfileSummary={options?.brandProfileSummary ?? ""}
-          />
           <ModuleWorks
             module={activeMeta}
             works={activeWorks}
             selectedWorkId={selectedWorkByModule[activeModule]}
-            selectedWork={selectedWork}
-            onSelectWork={handleSelectWork}
-            onCompleteWork={handleCompleteWork}
             onDeleteWork={handleDeleteWork}
             deletingWorkId={deletingWorkId}
+            onViewWork={handleViewWork}
           />
         </article>
       </div>
@@ -1011,6 +986,12 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
         onChange={handleFormChange}
         onReferenceChange={setReferenceFile}
         onSubmit={handleSubmit}
+      />
+      <ImagePreviewDialog
+        open={Boolean(previewWork?.assetUrl)}
+        title={previewWork?.title ?? "设计预览"}
+        imageUrl={previewWork?.assetUrl ?? ""}
+        onClose={() => setPreviewWork(null)}
       />
     </>
   );
