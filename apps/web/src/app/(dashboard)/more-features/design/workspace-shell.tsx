@@ -219,6 +219,44 @@ function normalizeErrorMessage(error: unknown) {
   return "请求失败，请稍后重试。";
 }
 
+function getWorkStatusTone(status: string) {
+  if (status.includes("失败")) {
+    return "status-danger";
+  }
+  if (status.includes("完成") || status.includes("成功")) {
+    return "status-ready";
+  }
+  if (status.includes("执行")) {
+    return "status-pending";
+  }
+
+  return "status-pending";
+}
+
+function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
+  if (module.key === "image" && work.assetUrl) {
+    return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media" />;
+  }
+
+  if (module.key === "html" && work.htmlContent) {
+    return (
+      <iframe
+        title={`${work.title} 预览`}
+        srcDoc={work.htmlContent}
+        className="design-v3-card-iframe"
+      />
+    );
+  }
+
+  return (
+    <div className="design-v3-card-placeholder">
+      <span>{work.skillLabel || module.label}</span>
+      <strong>{work.tags[0] ?? work.title}</strong>
+      <p>{work.summary}</p>
+    </div>
+  );
+}
+
 interface DesignWorkspaceShellProps {
   section: { label: string; description: string };
 }
@@ -432,35 +470,23 @@ function ModuleStatusCard({
   brandProfileSummary: string;
 }) {
   return (
-    <article className="design-v3-status-card">
-      <div>
-        <h3>{module.label}任务状态</h3>
-        <p>
-          {module.description} 当前品牌为“{brandName}”，弹窗中的营销日历、产品和模型列表均来自真实接口。
-          {lastCreatedWork ? ` 最近一次创建为“${lastCreatedWork.title}”。` : ""}
-        </p>
-      </div>
-      <div className="design-v3-status-pills">
-        <span className="archive-pill status-ready">累计 {works.length} 个作品</span>
-        <span className="archive-pill status-ready">最近刷新 {lastRefreshedAt}</span>
-        <span className="archive-pill status-pending">模型 {module.models.length} 个</span>
-        <span className="archive-pill status-pending">技能 {module.skillLeaves.length} 个</span>
-        <span className="archive-pill status-pending">支持品牌资料植入</span>
-      </div>
-      {module.skillLeaves.length ? (
-        <div className="design-v3-work-tags" style={{ marginTop: 12 }}>
-          {module.skillLeaves.map((item) => (
-            <span key={item.id} className="archive-pill status-pending" title={item.description}>
-              {item.label}
-            </span>
-          ))}
+    <article className="design-v3-status-card design-v3-status-card--compact">
+      <div className="design-v3-status-main">
+        <div>
+          <h3>{module.label}</h3>
+          <p>
+            当前品牌“{brandName}”使用真实营销日历、产品资料与模型配置。
+            {lastCreatedWork ? ` 最近生成：${lastCreatedWork.title}` : " 当前还没有生成记录。"}
+          </p>
         </div>
-      ) : null}
-      {brandProfileSummary ? (
-        <p style={{ marginTop: 12, color: "rgba(83, 88, 120, 0.88)" }}>
-          品牌资料摘要：{brandProfileSummary}
-        </p>
-      ) : null}
+        <div className="design-v3-status-pills">
+          <span className="archive-pill status-ready">作品 {works.length}</span>
+          <span className="archive-pill status-pending">技能 {module.skillLeaves.length}</span>
+          <span className="archive-pill status-pending">模型 {module.models.length}</span>
+          <span className="archive-pill status-pending">刷新于 {lastRefreshedAt}</span>
+        </div>
+      </div>
+      {brandProfileSummary ? <p className="design-v3-status-note">{brandProfileSummary}</p> : null}
     </article>
   );
 }
@@ -487,24 +513,22 @@ function ModuleWorks({
       <div className="collection-result-head">
         <div>
           <h3>作品结果</h3>
-          <p>创建动作已接真实生成接口；当前列表展示本次会话内生成的结果，并保留查看详情、标记完成和删除操作。</p>
+          <p>按作品卡片直接浏览结果、状态和操作，尽量减少中间说明区块。</p>
         </div>
         <span className="archive-pill status-ready">已展示 {works.length} 个</span>
       </div>
 
-      {module.models.length ? (
-        <div className="workspace-panel" style={{ marginTop: 16, padding: "14px 18px" }}>
-          <strong style={{ display: "block", color: "#1d2452" }}>
-            当前可用 Provider：{module.providerCount} 个
-          </strong>
-          <p style={{ marginTop: 8, color: "rgba(83, 88, 120, 0.88)" }}>
-            {module.providerLabels.join(" / ")}
-          </p>
-          {module.providerCount <= 1 ? (
-            <p style={{ marginTop: 8, color: "#b26a00" }}>
-              当前模块只有 1 个可用供应商，若上游接口 502/503/504，会直接导致本次任务失败。
-            </p>
-          ) : null}
+      {selectedWork ? (
+        <div className="design-v3-focus-strip">
+          <div>
+            <strong>当前聚焦作品</strong>
+            <p>{selectedWork.title}</p>
+          </div>
+          <div className="design-v3-work-tags">
+            <span className={`archive-pill ${getWorkStatusTone(selectedWork.status)}`}>{selectedWork.status}</span>
+            {selectedWork.skillLabel ? <span className="archive-pill status-pending">{selectedWork.skillLabel}</span> : null}
+            <span className="archive-pill status-pending">{selectedWork.updatedAt}</span>
+          </div>
         </div>
       ) : null}
 
@@ -514,28 +538,37 @@ function ModuleWorks({
             key={`${module.key}-${getWorkId(work)}`}
             className={`design-v3-work-card ${selectedWorkId === getWorkId(work) ? "is-selected" : ""}`}
           >
-            <div className="design-v3-work-thumb">
-              <span>{module.label}</span>
-              <strong>{work.tags[0] ?? module.label}</strong>
+            <div className="design-v3-work-preview">
+              {renderWorkPreview(module, work)}
+              <div className="design-v3-work-floating-tags">
+                <span className="archive-pill status-pending">{module.label}</span>
+                <span className={`archive-pill ${getWorkStatusTone(work.status)}`}>{work.status}</span>
+              </div>
             </div>
             <div className="design-v3-work-body">
-              <div className="design-v3-work-head">
-                <strong>{work.title}</strong>
+              <div className="design-v3-work-meta">
                 <span>{work.updatedAt}</span>
+                {work.skillLabel ? <span>{work.skillLabel}</span> : null}
               </div>
+              <strong className="design-v3-work-title">{work.title}</strong>
               <p>{work.summary}</p>
               <div className="design-v3-work-tags">
-                {work.tags.map((tag) => (
+                {work.tags.slice(0, 4).map((tag) => (
                   <span key={tag} className="archive-pill status-pending">
                     {tag}
                   </span>
                 ))}
-                <span className="archive-pill status-ready">{work.status}</span>
               </div>
+              {work.errorDetail ? <div className="design-v3-work-error">{work.errorDetail}</div> : null}
               <div className="design-v3-work-actions">
                 <button type="button" className="tiny-action-button is-primary" onClick={() => onSelectWork(getWorkId(work))}>
-                  查看详情
+                  设为主看
                 </button>
+                {work.assetUrl ? (
+                  <a className="tiny-action-button" href={work.assetUrl} target="_blank" rel="noreferrer">
+                    打开结果
+                  </a>
+                ) : null}
                 <button type="button" className="tiny-action-button" onClick={() => onCompleteWork(getWorkId(work))}>
                   标记完成
                 </button>
@@ -552,93 +585,6 @@ function ModuleWorks({
         <div className="empty-state" style={{ marginTop: 16 }}>
           当前模块暂无作品，点击右上角“{module.createLabel}”后会直接调用后端生成链路。
         </div>
-      ) : null}
-
-      {selectedWork ? (
-        <article className="workspace-panel strategy-page-card" style={{ marginTop: 16 }}>
-          <div className="collection-result-head">
-            <div>
-              <h3>当前作品详情</h3>
-              <p>这里展示当前选中作品的摘要、标签和产物入口，HTML 结果可直接在当前页预览。</p>
-            </div>
-            <span className="archive-pill status-ready">{selectedWork.status}</span>
-          </div>
-
-          <div className="collection-sync-grid" style={{ marginTop: 16 }}>
-            <div className="collection-sync-item">
-              <span>作品名称</span>
-              <strong>{selectedWork.title}</strong>
-            </div>
-            <div className="collection-sync-item">
-              <span>最近更新时间</span>
-              <strong>{selectedWork.updatedAt}</strong>
-            </div>
-            <div className="collection-sync-item">
-              <span>当前类型</span>
-              <strong>{selectedWork.tags[0] ?? module.label}</strong>
-            </div>
-            {selectedWork.skillLabel ? (
-              <div className="collection-sync-item">
-                <span>设计技能</span>
-                <strong>{selectedWork.skillLabel}</strong>
-              </div>
-            ) : null}
-            <div className="collection-sync-item">
-              <span>当前模块</span>
-              <strong>{module.label}</strong>
-            </div>
-            {selectedWork.taskId ? (
-              <div className="collection-sync-item">
-                <span>任务 ID</span>
-                <strong>{selectedWork.taskId}</strong>
-              </div>
-            ) : null}
-            {selectedWork.taskStatus ? (
-              <div className="collection-sync-item">
-                <span>任务状态</span>
-                <strong>{selectedWork.taskStatus}</strong>
-              </div>
-            ) : null}
-            <div className="collection-sync-item collection-sync-item--full">
-              <span>作品摘要</span>
-              <strong>{selectedWork.summary}</strong>
-            </div>
-            {selectedWork.errorDetail ? (
-              <div className="collection-sync-item collection-sync-item--full">
-                <span>失败详情</span>
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", color: "rgba(59, 64, 96, 0.92)" }}>
-                  {selectedWork.errorDetail}
-                </pre>
-              </div>
-            ) : null}
-            <div className="collection-sync-item collection-sync-item--full">
-              <span>标签</span>
-              <strong>{selectedWork.tags.join(" / ")}</strong>
-            </div>
-            {selectedWork.assetUrl ? (
-              <div className="collection-sync-item collection-sync-item--full">
-                <span>产物地址</span>
-                <strong>
-                  <a href={selectedWork.assetUrl} target="_blank" rel="noreferrer">
-                    打开生成结果
-                  </a>
-                </strong>
-              </div>
-            ) : null}
-            {selectedWork.htmlContent ? (
-              <div className="collection-sync-item collection-sync-item--full">
-                <span>HTML 预览</span>
-                <div style={{ marginTop: 12, borderRadius: 20, overflow: "hidden", border: "1px solid rgba(110, 118, 160, 0.18)" }}>
-                  <iframe
-                    title={`${selectedWork.title} HTML 预览`}
-                    srcDoc={selectedWork.htmlContent}
-                    style={{ width: "100%", minHeight: 420, border: "none", background: "#fff" }}
-                  />
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </article>
       ) : null}
     </section>
   );
