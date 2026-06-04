@@ -81,6 +81,10 @@ export type DesignWorkspaceHistoryRecord = {
   items: DesignGeneratedWorkRecord[];
 };
 
+export type DeleteDesignWorkResponse = {
+  success: boolean;
+};
+
 const DEMO_BRAND_ID = "br_demo_001";
 
 function resolveBrandId(brandId?: string) {
@@ -115,6 +119,12 @@ export async function getDesignWorkspaceOptions(brandId?: string) {
 
 export async function getDesignWorkspaceHistory(brandId?: string) {
   return request<DesignWorkspaceHistoryRecord>(`/works/brands/${resolveBrandId(brandId)}/design/history`);
+}
+
+export async function deleteDesignHistoryWork(workId: string, brandId?: string) {
+  return request<DeleteDesignWorkResponse>(`/works/brands/${resolveBrandId(brandId)}/design/history/${encodeURIComponent(workId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function generateDesignWork(

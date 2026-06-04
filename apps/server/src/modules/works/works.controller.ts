@@ -210,6 +210,17 @@ export class WorksController {
     return this.worksService.listDesignHistory(brandId);
   }
 
+  @Delete("brands/:brandId/design/history/:workId")
+  async deleteDesignHistoryItem(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+    return this.worksService.deleteDesignHistoryItem(brandId, workId);
+  }
+
   @Post("brands/:brandId/design/generate")
   async createDesignWork(
     @Param("brandId") brandId: string,

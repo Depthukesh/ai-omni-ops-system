@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { flattenSkillCenterLeaves } from "../../skill-center-config";
 import { getStoredCurrentBrandId } from "../../../../services/auth-session";
 import {
+  deleteDesignHistoryWork,
   type DesignGeneratedWorkRecord,
   type DesignModelOptionRecord,
   type DesignModuleKey,
@@ -509,6 +510,7 @@ function ModuleWorks({
   onSelectWork,
   onCompleteWork,
   onDeleteWork,
+  deletingWorkId,
 }: {
   module: DesignModuleMeta;
   works: DesignWork[];
@@ -516,7 +518,8 @@ function ModuleWorks({
   selectedWork: DesignWork | null;
   onSelectWork: (workId: string) => void;
   onCompleteWork: (workId: string) => void;
-  onDeleteWork: (workId: string) => void;
+  onDeleteWork: (workId: string) => void | Promise<void>;
+  deletingWorkId: string | null;
 }) {
   return (
     <section className="design-v3-works">
@@ -582,8 +585,13 @@ function ModuleWorks({
                 <button type="button" className="tiny-action-button" onClick={() => onCompleteWork(getWorkId(work))}>
                   标记完成
                 </button>
-                <button type="button" className="ghost-danger-button" onClick={() => onDeleteWork(getWorkId(work))}>
-                  删除
+                <button
+                  type="button"
+                  className="ghost-danger-button"
+                  onClick={() => void onDeleteWork(getWorkId(work))}
+                  disabled={deletingWorkId === getWorkId(work)}
+                >
+                  {deletingWorkId === getWorkId(work) ? "删除中..." : "删除"}
                 </button>
               </div>
             </div>
@@ -618,6 +626,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const [selectedWorkByModule, setSelectedWorkByModule] = useState<Record<DesignModuleKey, string | null>>(createInitialSelectedByModule);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingWorkId, setDeletingWorkId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState("image"));
 
@@ -871,9 +880,12 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
     setLastRefreshByModule((current) => ({ ...current, [activeModule]: completedAt }));
   };
 
-  const handleDeleteWork = (workId: string) => {
-    const nextWorks = activeWorks.filter((work) => getWorkId(work) !== workId);
+  const handleDeleteWork = async (workId: string) => {
+    const previousWorks = activeWorks;
+    const nextWorks = previousWorks.filter((work) => getWorkId(work) !== workId);
 
+    setSubmitError("");
+    setDeletingWorkId(workId);
     setWorksByModule((current) => ({
       ...current,
       [activeModule]: nextWorks,
@@ -882,7 +894,25 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       ...current,
       [activeModule]: nextWorks[0] ? getWorkId(nextWorks[0]) : null,
     }));
-    setLastRefreshByModule((current) => ({ ...current, [activeModule]: formatTimestamp(new Date()) }));
+
+    try {
+      await deleteDesignHistoryWork(workId, brandId);
+      const history = await getDesignWorkspaceHistory(brandId);
+      applyHistorySnapshot(history.items);
+      setLastRefreshByModule((current) => ({ ...current, [activeModule]: formatTimestamp(new Date()) }));
+    } catch (error) {
+      setSubmitError(normalizeErrorMessage(error));
+      setWorksByModule((current) => ({
+        ...current,
+        [activeModule]: previousWorks,
+      }));
+      setSelectedWorkByModule((current) => ({
+        ...current,
+        [activeModule]: previousWorks[0] ? getWorkId(previousWorks[0]) : null,
+      }));
+    } finally {
+      setDeletingWorkId(null);
+    }
   };
 
   return (
@@ -963,6 +993,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
             onSelectWork={handleSelectWork}
             onCompleteWork={handleCompleteWork}
             onDeleteWork={handleDeleteWork}
+            deletingWorkId={deletingWorkId}
           />
         </article>
       </div>

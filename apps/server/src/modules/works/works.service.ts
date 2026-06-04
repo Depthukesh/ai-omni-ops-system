@@ -1895,6 +1895,47 @@ export class WorksService {
     };
   }
 
+  async deleteDesignHistoryItem(brandId: string, workId: string) {
+    const normalizedWorkId = String(workId || "").trim();
+    if (!normalizedWorkId) {
+      throw new NotFoundException("设计记录不存在");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      const task = await this.prismaService.task.findFirst({
+        where: {
+          id: normalizedWorkId,
+          brandId,
+          taskType: {
+            startsWith: "DESIGN_",
+          },
+        },
+      });
+      if (!task) {
+        throw new NotFoundException("设计记录不存在");
+      }
+
+      await this.deleteDesignGeneratedAssetForTask(brandId, task.outputJson);
+      await this.prismaService.task.deleteMany({
+        where: { id: task.id },
+      });
+      return { success: true };
+    }
+
+    const task = database.tasks.find((item) =>
+      item.id === normalizedWorkId
+      && item.brandId === brandId
+      && String(item.taskType || "").startsWith("DESIGN_")
+    );
+    if (!task) {
+      throw new NotFoundException("设计记录不存在");
+    }
+
+    await this.deleteDesignGeneratedAssetForTask(brandId, task.outputJson);
+    database.tasks = database.tasks.filter((item) => item.id !== normalizedWorkId);
+    return { success: true };
+  }
+
   async generateDesignWork(
     brandId: string,
     payload: GenerateDesignWorkPayload,
@@ -2106,6 +2147,13 @@ export class WorksService {
       assetUrl: this.readOptionalString(output?.assetUrl),
       htmlContent: this.readOptionalString(output?.htmlContent),
     };
+  }
+
+  private async deleteDesignGeneratedAssetForTask(brandId: string, outputJson: unknown) {
+    const output = this.asRecord(outputJson);
+    const assetUrl = this.readOptionalString(output?.assetUrl);
+    const localAssetFileName = assetUrl ? this.extractLocalAssetFileName(assetUrl, brandId) : "";
+    await this.deleteGeneratedFileIfExists(brandId, localAssetFileName);
   }
 
   private resolveDesignModuleFromTaskType(taskType: string): DesignWorkModuleKey | null {
