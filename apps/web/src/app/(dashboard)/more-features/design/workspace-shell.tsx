@@ -38,6 +38,8 @@ type StaticDesignModuleMeta = {
 type DesignModuleMeta = StaticDesignModuleMeta & {
   types: string[];
   models: DesignModelOptionRecord[];
+  providerCount: number;
+  providerLabels: string[];
   skillLeaves: Array<{
     id: string;
     label: string;
@@ -145,6 +147,22 @@ function formatTimestamp(date: Date) {
     minute: "2-digit",
     hour12: false,
   }).format(date).replace(/\//g, "/");
+}
+
+function splitFailureDetail(message: string) {
+  const normalized = String(message || "").trim();
+  const marker = "；实际尝试顺序：";
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex === -1) {
+    return {
+      summary: normalized,
+      detail: normalized,
+    };
+  }
+  return {
+    summary: normalized.slice(0, markerIndex),
+    detail: normalized,
+  };
 }
 
 function buildPendingDesignWork(params: {
@@ -474,6 +492,22 @@ function ModuleWorks({
         <span className="archive-pill status-ready">已展示 {works.length} 个</span>
       </div>
 
+      {module.models.length ? (
+        <div className="workspace-panel" style={{ marginTop: 16, padding: "14px 18px" }}>
+          <strong style={{ display: "block", color: "#1d2452" }}>
+            当前可用 Provider：{module.providerCount} 个
+          </strong>
+          <p style={{ marginTop: 8, color: "rgba(83, 88, 120, 0.88)" }}>
+            {module.providerLabels.join(" / ")}
+          </p>
+          {module.providerCount <= 1 ? (
+            <p style={{ marginTop: 8, color: "#b26a00" }}>
+              当前模块只有 1 个可用供应商，若上游接口 502/503/504，会直接导致本次任务失败。
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="design-v3-work-grid">
         {works.map((work) => (
           <article
@@ -569,6 +603,14 @@ function ModuleWorks({
               <span>作品摘要</span>
               <strong>{selectedWork.summary}</strong>
             </div>
+            {selectedWork.errorDetail ? (
+              <div className="collection-sync-item collection-sync-item--full">
+                <span>失败详情</span>
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", color: "rgba(59, 64, 96, 0.92)" }}>
+                  {selectedWork.errorDetail}
+                </pre>
+              </div>
+            ) : null}
             <div className="collection-sync-item collection-sync-item--full">
               <span>标签</span>
               <strong>{selectedWork.tags.join(" / ")}</strong>
@@ -632,6 +674,8 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       ...staticMeta,
       types: moduleOptions?.types ?? [],
       models: moduleOptions?.models ?? [],
+      providerCount: moduleOptions?.providerCount ?? 0,
+      providerLabels: moduleOptions?.providerLabels ?? [],
       skillLeaves: DESIGN_SKILL_LEAVES.filter((item) => allowedSkillSlugs.has(item.skillSlug || "")).map((item) => ({
         id: item.id,
         label: item.label,
@@ -785,6 +829,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       setForm(createDefaultFormState(activeModule, options));
     } catch (error) {
       const message = normalizeErrorMessage(error);
+      const failureDetail = splitFailureDetail(message);
       setSubmitError(message);
       setWorksByModule((current) => ({
         ...current,
@@ -794,7 +839,8 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
                 ...item,
                 taskStatus: "FAILED",
                 status: "执行失败",
-                summary: message,
+                summary: failureDetail.summary,
+                errorDetail: failureDetail.detail,
                 tags: [selectedSkill?.label || activeMeta.label, form.type, selectedProductLabel, "失败"],
                 updatedAt: new Date().toISOString(),
               }

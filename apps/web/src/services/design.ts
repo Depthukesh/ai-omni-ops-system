@@ -36,6 +36,8 @@ export type DesignWorkspaceOptionsRecord = {
     {
       types: string[];
       models: DesignModelOptionRecord[];
+      providerCount: number;
+      providerLabels: string[];
     }
   >;
 };
@@ -69,6 +71,7 @@ export type DesignGeneratedWorkRecord = {
   status: string;
   updatedAt: string;
   summary: string;
+  errorDetail?: string;
   tags: string[];
   assetUrl?: string;
   htmlContent?: string;

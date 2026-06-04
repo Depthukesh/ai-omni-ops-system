@@ -546,6 +546,8 @@ export type DesignWorkspaceOptionsRecord = {
     {
       types: string[];
       models: DesignModelOptionRecord[];
+      providerCount: number;
+      providerLabels: string[];
     }
   >;
 };
@@ -1823,18 +1825,26 @@ export class WorksService {
         image: {
           types: DESIGN_MODULE_TYPES.image,
           models: imageModels,
+          providerCount: Array.from(new Set(imageModels.map((item) => item.providerName))).length,
+          providerLabels: Array.from(new Set(imageModels.map((item) => item.providerName))),
         },
         html: {
           types: DESIGN_MODULE_TYPES.html,
           models: textModels,
+          providerCount: Array.from(new Set(textModels.map((item) => item.providerName))).length,
+          providerLabels: Array.from(new Set(textModels.map((item) => item.providerName))),
         },
         deck: {
           types: DESIGN_MODULE_TYPES.deck,
           models: textModels,
+          providerCount: Array.from(new Set(textModels.map((item) => item.providerName))).length,
+          providerLabels: Array.from(new Set(textModels.map((item) => item.providerName))),
         },
         video: {
           types: DESIGN_MODULE_TYPES.video,
           models: textModels,
+          providerCount: Array.from(new Set(textModels.map((item) => item.providerName))).length,
+          providerLabels: Array.from(new Set(textModels.map((item) => item.providerName))),
         },
       },
     };
