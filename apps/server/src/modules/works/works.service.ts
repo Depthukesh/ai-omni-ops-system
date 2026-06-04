@@ -1898,6 +1898,7 @@ export class WorksService {
             preferredModelName: scopedSelection.modelName || skillPreference.preferredModelName,
             preferredProviderIds: scopedSelection.providerId ? [scopedSelection.providerId] : skillPreference.preferredProviderIds,
             usage: "general",
+            strictPreferredProvider: Boolean(scopedSelection.providerId),
           },
         );
         const imagePrompt = await this.buildDesignImagePrompt(brandId, skillProfile.promptId, designContext);
@@ -13017,7 +13018,12 @@ export class WorksService {
   private async loadImageGenerationProviders(
     brandId?: string,
     preference?: SkillModelPreference,
-    overridePreference?: { preferredModelName?: string; preferredProviderIds?: string[]; usage?: "general" | "storyboard-text-only" },
+    overridePreference?: {
+      preferredModelName?: string;
+      preferredProviderIds?: string[];
+      usage?: "general" | "storyboard-text-only";
+      strictPreferredProvider?: boolean;
+    },
   ): Promise<ImageProviderConfig[]> {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation");
     if (!providers.length) {
@@ -13029,19 +13035,39 @@ export class WorksService {
       ? preference.configuredModels
       : ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k", "gemini-3-pro-image-preview-2k"];
     const configs: ImageProviderConfig[] = [];
-    const skippedReasons: string[] = [];
+    const skippedReasons: Array<{ providerId: string; providerName: string; reason: string }> = [];
     for (const provider of providers) {
       if (overridePreference?.usage === "storyboard-text-only" && !this.supportsStoryboardTextOnlyImageGeneration(provider)) {
-        skippedReasons.push(`${provider.name}：当前故事板场景只允许纯文生图模型`);
+        skippedReasons.push({
+          providerId: provider.id,
+          providerName: provider.name,
+          reason: "当前故事板场景只允许纯文生图模型",
+        });
         continue;
       }
       const baseUrls = this.dedupeStringList(this.apiProvidersService.getBaseUrls(provider));
+      const requestMode = this.apiProvidersService.getStringExtra(provider, "requestMode") === "images-generations"
+        ? "images-generations"
+        : this.apiProvidersService.getStringExtra(provider, "requestMode") === "apiz-task"
+          ? "apiz-task"
+          : "chat-completions";
+      const createPath = this.apiProvidersService.getStringExtra(provider, "createPath") || undefined;
+      const queryPath = this.apiProvidersService.getStringExtra(provider, "queryPath") || undefined;
+      const queryBodyMode = this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
+        ? "task_id-json"
+        : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
+          ? "taskId-json"
+          : undefined;
       let apiKeys: string[] = [];
       try {
         apiKeys = this.dedupeStringList(await this.resolveBrandAwareApiKeys(brandId, provider, { sceneLabel: "文生图" }));
       } catch (error) {
         const message = error instanceof Error ? error.message : "当前 Provider 不可用";
-        skippedReasons.push(`${provider.name}：${message}`);
+        skippedReasons.push({
+          providerId: provider.id,
+          providerName: provider.name,
+          reason: message,
+        });
         continue;
       }
       const models = this.dedupeStringList(this.pickProviderModels(
@@ -13060,7 +13086,38 @@ export class WorksService {
         if (!models.length) {
           reasonParts.push("未匹配到可用模型");
         }
-        skippedReasons.push(`${provider.name}：${reasonParts.join("，")}`);
+        if (requestMode === "apiz-task" && !createPath) {
+          reasonParts.push("未配置 createPath");
+        }
+        if (requestMode === "apiz-task" && !queryPath) {
+          reasonParts.push("未配置 queryPath");
+        }
+        if (requestMode === "apiz-task" && !queryBodyMode) {
+          reasonParts.push("未配置 queryBodyMode");
+        }
+        skippedReasons.push({
+          providerId: provider.id,
+          providerName: provider.name,
+          reason: reasonParts.join("，"),
+        });
+        continue;
+      }
+      if (requestMode === "apiz-task" && (!createPath || !queryPath || !queryBodyMode)) {
+        const reasonParts: string[] = [];
+        if (!createPath) {
+          reasonParts.push("未配置 createPath");
+        }
+        if (!queryPath) {
+          reasonParts.push("未配置 queryPath");
+        }
+        if (!queryBodyMode) {
+          reasonParts.push("未配置 queryBodyMode");
+        }
+        skippedReasons.push({
+          providerId: provider.id,
+          providerName: provider.name,
+          reason: reasonParts.join("，"),
+        });
         continue;
       }
       const capability = this.resolveImageProviderCapabilities(provider);
@@ -13072,19 +13129,11 @@ export class WorksService {
         completionPath: this.apiProvidersService.getStringExtra(provider, "completionPath") || "/v1/chat/completions",
         apiKeys,
         models,
-        requestMode: this.apiProvidersService.getStringExtra(provider, "requestMode") === "images-generations"
-          ? "images-generations"
-          : this.apiProvidersService.getStringExtra(provider, "requestMode") === "apiz-task"
-            ? "apiz-task"
-            : "chat-completions",
-        createPath: this.apiProvidersService.getStringExtra(provider, "createPath") || undefined,
-        queryPath: this.apiProvidersService.getStringExtra(provider, "queryPath") || undefined,
+        requestMode,
+        createPath,
+        queryPath,
         queryMethod: this.apiProvidersService.getStringExtra(provider, "queryMethod") === "POST" ? "POST" : "GET",
-        queryBodyMode: this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "task_id-json"
-          ? "task_id-json"
-          : this.apiProvidersService.getStringExtra(provider, "queryBodyMode") === "taskId-json"
-            ? "taskId-json"
-            : undefined,
+        queryBodyMode,
         supportsTextToImage: capability.supportsTextToImage,
         supportsReferenceImages: capability.supportsReferenceImages,
         requiresReferenceImages: capability.requiresReferenceImages,
@@ -13093,13 +13142,32 @@ export class WorksService {
     }
     if (!configs.length) {
       const reasonText = skippedReasons.length
-        ? `当前排查结果：${skippedReasons.join("；")}。`
+        ? `当前排查结果：${skippedReasons.map((item) => `${item.providerName}：${item.reason}`).join("；")}。`
         : "";
       throw new ServiceUnavailableException(
         `文生图 Provider 已激活，但当前没有可用的执行配置。请检查 Provider 的 baseUrl、API Key 和模型白名单是否完整。${reasonText}`,
       );
     }
     const normalizedConfigs = this.dedupeImageProviderConfigs(configs);
+    if (overridePreference?.strictPreferredProvider && overridePreference.preferredProviderIds?.length) {
+      const preferredConfigs = normalizedConfigs.filter((item) => overridePreference.preferredProviderIds?.includes(item.providerId));
+      if (!preferredConfigs.length) {
+        const preferredReasonText = skippedReasons
+          .filter((item) => overridePreference.preferredProviderIds?.includes(item.providerId))
+          .map((item) => `${item.providerName}：${item.reason}`)
+          .join("；");
+        throw new ServiceUnavailableException(
+          preferredReasonText
+            ? `已显式选择指定文生图供应商，但当前不可执行。${preferredReasonText}`
+            : "已显式选择指定文生图供应商，但当前不可执行，请检查该 Provider 的 baseUrl、API Key、createPath、queryPath 和模型白名单。",
+        );
+      }
+      return this.reorderImageProvidersByPrimaryModel(
+        preferredConfigs,
+        overridePreference.preferredModelName || preference?.preferredModelName || "",
+        overridePreference.preferredProviderIds,
+      );
+    }
     if (!preference) {
       return normalizedConfigs;
     }
