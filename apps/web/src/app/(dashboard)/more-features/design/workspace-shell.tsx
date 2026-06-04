@@ -905,24 +905,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       <section className="workspace-card workspace-card--bleed strategy-page-card">
         <div className="strategy-layout xiaohongshu-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
-            <div className="design-v3-nav-group">
-              <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
-              <div className="design-v3-subnav-list">
-                {DESIGN_MODULES.map((moduleKey) => {
-                  const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];
-                  return (
-                    <button
-                      key={moduleKey}
-                      type="button"
-                      className={`strategy-level-button design-v3-subnav-button ${moduleKey === activeModule ? "is-active" : ""}`}
-                      onClick={() => handleModuleChange(moduleKey)}
-                    >
-                      {tabMeta.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
           </aside>
 
           <div className="strategy-content-panel xiaohongshu-content-panel">
@@ -948,6 +931,22 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
             </section>
 
             <article className="workspace-panel strategy-page-card">
+              <div className="design-v3-tab-row" aria-label="设计子板块切换">
+                {DESIGN_MODULES.map((moduleKey) => {
+                  const tabMeta = DESIGN_MODULE_META_MAP[moduleKey];
+                  return (
+                    <button
+                      key={moduleKey}
+                      type="button"
+                      className={`design-v3-tab ${moduleKey === activeModule ? "is-active" : ""}`}
+                      onClick={() => handleModuleChange(moduleKey)}
+                    >
+                      {tabMeta.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="design-v3-module-head">
                 <div>
                   <strong>{activeMeta.label}</strong>
