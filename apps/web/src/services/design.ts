@@ -77,6 +77,10 @@ export type DesignGeneratedWorkRecord = {
   htmlContent?: string;
 };
 
+export type DesignWorkspaceHistoryRecord = {
+  items: DesignGeneratedWorkRecord[];
+};
+
 const DEMO_BRAND_ID = "br_demo_001";
 
 function resolveBrandId(brandId?: string) {
@@ -107,6 +111,10 @@ function readFileAsBase64(file: File) {
 
 export async function getDesignWorkspaceOptions(brandId?: string) {
   return request<DesignWorkspaceOptionsRecord>(`/works/brands/${resolveBrandId(brandId)}/design/options`);
+}
+
+export async function getDesignWorkspaceHistory(brandId?: string) {
+  return request<DesignWorkspaceHistoryRecord>(`/works/brands/${resolveBrandId(brandId)}/design/history`);
 }
 
 export async function generateDesignWork(

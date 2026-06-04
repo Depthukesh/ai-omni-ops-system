@@ -568,6 +568,10 @@ export type DesignGeneratedWorkRecord = {
   htmlContent?: string;
 };
 
+export type DesignWorkspaceHistoryRecord = {
+  items: DesignGeneratedWorkRecord[];
+};
+
 export type WechatAccountConfigRecord = {
   brandId: string;
   configured: boolean;
@@ -1792,18 +1796,28 @@ export class WorksService {
       this.listDesignImageModelOptions(brandId),
       this.listDesignTextModelOptions(brandId),
     ]);
-    const latestCalendar = calendarWorkspace.latest;
+    const calendarOptions = Array.from(
+      new Map(
+        [calendarWorkspace.latest, ...calendarWorkspace.history]
+          .filter((record): record is NonNullable<typeof calendarWorkspace.latest> => Boolean(record))
+          .flatMap((record) => record.items)
+          .map((item) => [
+            item.id || `${item.date}-${item.topicName}`,
+            {
+              id: item.id,
+              label: `${item.date} | ${item.topicName}`,
+              topicName: item.topicName,
+              date: item.date,
+            },
+          ]),
+      ).values(),
+    ).sort((left, right) => right.date.localeCompare(left.date, "zh-CN"));
 
     return {
       brandId,
       brandName: archive.brand.brandName || "当前品牌",
       brandProfileSummary: this.buildDesignBrandProfileSummary(archive),
-      calendarOptions: (latestCalendar?.items || []).map((item) => ({
-        id: item.id,
-        label: `${item.date} | ${item.topicName}`,
-        topicName: item.topicName,
-        date: item.date,
-      })),
+      calendarOptions,
       productOptions: archive.products.map((item) => ({
         id: item.id,
         label: item.productName,
@@ -1850,6 +1864,36 @@ export class WorksService {
     };
   }
 
+  async listDesignHistory(brandId: string): Promise<DesignWorkspaceHistoryRecord> {
+    if (await this.prismaService.canUseDatabase()) {
+      const tasks = await this.prismaService.task.findMany({
+        where: {
+          brandId,
+          taskType: {
+            startsWith: "DESIGN_",
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 80,
+      });
+
+      return {
+        items: tasks
+          .map((task) => this.mapDesignTaskToHistoryRecord(task))
+          .filter((item): item is DesignGeneratedWorkRecord => Boolean(item)),
+      };
+    }
+
+    return {
+      items: database.tasks
+        .filter((task) => task.brandId === brandId && String(task.taskType || "").startsWith("DESIGN_"))
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+        .slice(0, 80)
+        .map((task) => this.mapDesignTaskToHistoryRecord(task))
+        .filter((item): item is DesignGeneratedWorkRecord => Boolean(item)),
+    };
+  }
+
   async generateDesignWork(
     brandId: string,
     payload: GenerateDesignWorkPayload,
@@ -1885,8 +1929,18 @@ export class WorksService {
       await this.updateTaskOutputJson(task.id, {
         module: payload.module,
         skillSlug: skillProfile.skillSlug,
+        skillLabel: skillProfile.label,
         stage: "RUNNING",
         title,
+        designType: designContext.designType,
+        productLabel: designContext.productLabel,
+        summary: `正在调用 ${skillProfile.label}，生成${designContext.designType}，请等待本次任务返回。`,
+        tags: [
+          skillProfile.label,
+          designContext.designType,
+          designContext.productLabel || "不植入产品",
+          "执行中",
+        ],
       });
 
       if (payload.module === "image") {
@@ -1934,8 +1988,12 @@ export class WorksService {
         await this.markTaskSuccess(task.id, {
           module: payload.module,
           skillSlug: skillProfile.skillSlug,
+          skillLabel: skillProfile.label,
           stage: "SUCCESS",
           title,
+          status: result.status,
+          summary: result.summary,
+          tags: result.tags,
           assetUrl: imageAsset.url,
         }, { modelName: imageAsset.modelName });
         return result;
@@ -1968,15 +2026,140 @@ export class WorksService {
       await this.markTaskSuccess(task.id, {
         module: payload.module,
         skillSlug: skillProfile.skillSlug,
+        skillLabel: skillProfile.label,
         stage: "SUCCESS",
         title: textResult.title,
+        status: result.status,
+        summary: result.summary,
+        tags: result.tags,
         assetUrl: textResult.assetUrl,
       }, { modelName: textResult.modelName });
       return result;
     } catch (error) {
-      await this.markTaskFailed(task.id, error instanceof Error ? error.message : "设计任务执行失败");
+      const errorMessage = error instanceof Error ? error.message : "设计任务执行失败";
+      await this.markTaskFailed(task.id, errorMessage);
+      await this.updateTaskOutputJson(task.id, {
+        module: payload.module,
+        skillSlug: skillProfile.skillSlug,
+        skillLabel: skillProfile.label,
+        stage: "FAILED",
+        title,
+        summary: errorMessage,
+        errorDetail: errorMessage,
+      });
       throw error;
     }
+  }
+
+  private mapDesignTaskToHistoryRecord(task: {
+    id: string;
+    taskType: string;
+    taskTitle: string;
+    taskStatus: WorkTaskStatus | TaskStatus;
+    modelName?: string | null;
+    errorMessage?: string | null;
+    outputJson?: unknown;
+    updatedAt?: string | Date | null;
+    finishedAt?: string | Date | null;
+    createdAt?: string | Date | null;
+  }): DesignGeneratedWorkRecord | null {
+    const module = this.resolveDesignModuleFromTaskType(task.taskType);
+    if (!module) {
+      return null;
+    }
+
+    const output = this.asRecord(task.outputJson);
+    const skillSlug = this.readOptionalString(output?.skillSlug);
+    const profile = this.resolveDesignSkillProfile(module, skillSlug);
+    const skillLabel = this.readOptionalString(output?.skillLabel) || profile.label;
+    const summary = this.readOptionalString(output?.summary)
+      || (task.taskStatus === "FAILED"
+        ? String(task.errorMessage || "设计任务执行失败")
+        : task.taskStatus === "SUCCESS"
+          ? `${skillLabel} 已生成，可继续查看结果。`
+          : `正在调用 ${skillLabel}，请稍后刷新查看最新结果。`);
+    const errorDetail = this.readOptionalString(output?.errorDetail)
+      || (task.taskStatus === "FAILED" ? this.readOptionalString(task.errorMessage) : undefined);
+    const updatedAt = this.normalizeHistoryTimestamp(task.updatedAt)
+      || this.normalizeHistoryTimestamp(task.finishedAt)
+      || this.normalizeHistoryTimestamp(task.createdAt)
+      || new Date().toISOString();
+
+    return {
+      id: task.id,
+      taskId: task.id,
+      taskStatus: String(task.taskStatus || "QUEUED") as WorkTaskStatus,
+      module,
+      skillSlug: skillSlug || profile.skillSlug,
+      skillLabel,
+      title: this.readOptionalString(output?.title) || String(task.taskTitle || "").trim() || `${skillLabel} 任务`,
+      status: this.getDesignTaskStatusLabel(module, String(task.taskStatus || "QUEUED") as WorkTaskStatus),
+      updatedAt,
+      summary,
+      errorDetail,
+      tags: this.readStringArray(output?.tags, [
+        skillLabel,
+        this.readOptionalString(output?.designType) || DESIGN_MODULE_TYPES[module][0],
+        this.readOptionalString(output?.productLabel) || "不植入产品",
+      ]),
+      assetUrl: this.readOptionalString(output?.assetUrl),
+      htmlContent: this.readOptionalString(output?.htmlContent),
+    };
+  }
+
+  private resolveDesignModuleFromTaskType(taskType: string): DesignWorkModuleKey | null {
+    switch (String(taskType || "").trim()) {
+      case "DESIGN_IMAGE":
+        return "image";
+      case "DESIGN_HTML":
+        return "html";
+      case "DESIGN_DECK":
+        return "deck";
+      case "DESIGN_VIDEO":
+        return "video";
+      default:
+        return null;
+    }
+  }
+
+  private getDesignTaskStatusLabel(module: DesignWorkModuleKey, status: WorkTaskStatus) {
+    switch (status) {
+      case "SUCCESS":
+        return module === "video" ? "已生成方案" : "已完成";
+      case "FAILED":
+        return "执行失败";
+      case "CANCELLED":
+        return "已取消";
+      case "RUNNING":
+        return "执行中";
+      default:
+        return "排队中";
+    }
+  }
+
+  private normalizeHistoryTimestamp(value: string | Date | null | undefined) {
+    if (!value) {
+      return "";
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    const normalized = String(value).trim();
+    if (!normalized) {
+      return "";
+    }
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? normalized : parsed.toISOString();
+  }
+
+  private readStringArray(value: unknown, fallback: string[] = []) {
+    if (!Array.isArray(value)) {
+      return fallback.filter(Boolean);
+    }
+    const normalized = value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    return normalized.length ? normalized : fallback.filter(Boolean);
   }
 
   private resolveVideoProviderPlatformName(name: string, baseUrl?: string | null) {

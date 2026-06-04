@@ -10,6 +10,7 @@ import {
   type DesignModuleKey,
   type DesignWorkspaceOptionsRecord,
   generateDesignWork,
+  getDesignWorkspaceHistory,
   getDesignWorkspaceOptions,
 } from "../../../../services/design";
 
@@ -207,6 +208,14 @@ function createInitialSelectedByModule() {
   }, {} as Record<DesignModuleKey, string | null>);
 }
 
+function groupWorksByModule(works: DesignWork[]) {
+  const grouped = createEmptyWorksByModule();
+  for (const work of works) {
+    grouped[work.module] = [...grouped[work.module], work];
+  }
+  return grouped;
+}
+
 function getWorkId(work: DesignWork) {
   return work.id;
 }
@@ -238,11 +247,12 @@ function renderWorkPreview(module: DesignModuleMeta, work: DesignWork) {
     return <img src={work.assetUrl} alt={work.title} className="design-v3-card-media" />;
   }
 
-  if (module.key === "html" && work.htmlContent) {
+  if (module.key === "html" && (work.htmlContent || work.assetUrl)) {
     return (
       <iframe
         title={`${work.title} 预览`}
         srcDoc={work.htmlContent}
+        src={work.htmlContent ? undefined : work.assetUrl}
         className="design-v3-card-iframe"
       />
     );
@@ -611,6 +621,29 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   const [submitError, setSubmitError] = useState("");
   const [form, setForm] = useState<DesignFormState>(() => createDefaultFormState("image"));
 
+  const applyHistorySnapshot = (historyWorks: DesignWork[]) => {
+    const groupedWorks = groupWorksByModule(historyWorks);
+
+    setWorksByModule(groupedWorks);
+    setSelectedWorkByModule((current) => DESIGN_MODULES.reduce<Record<DesignModuleKey, string | null>>((accumulator, moduleKey) => {
+      const selectedId = current[moduleKey];
+      const nextWorks = groupedWorks[moduleKey] ?? [];
+      accumulator[moduleKey] = nextWorks.some((item) => getWorkId(item) === selectedId)
+        ? selectedId
+        : (nextWorks[0] ? getWorkId(nextWorks[0]) : null);
+      return accumulator;
+    }, {} as Record<DesignModuleKey, string | null>));
+    setLastCreatedByModule(DESIGN_MODULES.reduce<Record<DesignModuleKey, DesignWork | null>>((accumulator, moduleKey) => {
+      accumulator[moduleKey] = groupedWorks[moduleKey]?.[0] ?? null;
+      return accumulator;
+    }, {
+      image: null,
+      html: null,
+      deck: null,
+      video: null,
+    }));
+  };
+
   const activeMeta = useMemo<DesignModuleMeta>(() => {
     const staticMeta = DESIGN_MODULE_META_MAP[activeModule];
     const moduleOptions = options?.moduleOptions[activeModule];
@@ -650,14 +683,23 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
       setLoadError("");
 
       try {
-        const nextOptions = await getDesignWorkspaceOptions(brandId);
+        const [nextOptions, history] = await Promise.all([
+          getDesignWorkspaceOptions(brandId),
+          getDesignWorkspaceHistory(brandId),
+        ]);
         if (cancelled) {
           return;
         }
 
         const refreshedAt = formatTimestamp(new Date());
         setOptions(nextOptions);
-        setLastRefreshByModule((current) => ({ ...current, image: refreshedAt }));
+        applyHistorySnapshot(history.items);
+        setLastRefreshByModule({
+          image: refreshedAt,
+          html: refreshedAt,
+          deck: refreshedAt,
+          video: refreshedAt,
+        });
       } catch (error) {
         if (cancelled) {
           return;
@@ -710,10 +752,19 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
     setLoadError("");
 
     try {
-      const nextOptions = await getDesignWorkspaceOptions(brandId);
+      const [nextOptions, history] = await Promise.all([
+        getDesignWorkspaceOptions(brandId),
+        getDesignWorkspaceHistory(brandId),
+      ]);
       const refreshedAt = formatTimestamp(new Date());
       setOptions(nextOptions);
-      setLastRefreshByModule((current) => ({ ...current, [activeModule]: refreshedAt }));
+      applyHistorySnapshot(history.items);
+      setLastRefreshByModule({
+        image: refreshedAt,
+        html: refreshedAt,
+        deck: refreshedAt,
+        video: refreshedAt,
+      });
     } catch (error) {
       setLoadError(normalizeErrorMessage(error));
     } finally {

@@ -200,6 +200,16 @@ export class WorksController {
     return this.worksService.getDesignWorkspaceOptions(brandId);
   }
 
+  @Get("brands/:brandId/design/history")
+  async listDesignHistory(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+    return this.worksService.listDesignHistory(brandId);
+  }
+
   @Post("brands/:brandId/design/generate")
   async createDesignWork(
     @Param("brandId") brandId: string,
