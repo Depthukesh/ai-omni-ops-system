@@ -563,6 +563,7 @@ export type DesignGeneratedWorkRecord = {
   status: string;
   updatedAt: string;
   summary: string;
+  errorDetail?: string;
   tags: string[];
   assetUrl?: string;
   htmlContent?: string;
@@ -2054,7 +2055,7 @@ export class WorksService {
   private mapDesignTaskToHistoryRecord(task: {
     id: string;
     taskType: string;
-    taskTitle: string;
+    taskTitle: string | null;
     taskStatus: WorkTaskStatus | TaskStatus;
     modelName?: string | null;
     errorMessage?: string | null;
