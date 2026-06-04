@@ -171,6 +171,18 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
   ],
 };
 
+function buildDerivedPromptCandidates(promptId: string) {
+  if (!/^prompt_(design|open_design)_/.test(promptId)) {
+    return [];
+  }
+
+  return [
+    `提示词/open-design/${promptId}/SKILL.md`,
+    `../../../提示词/open-design/${promptId}/SKILL.md`,
+    `../提示词/open-design/${promptId}/SKILL.md`,
+  ];
+}
+
 const IGNORED_DIRECTORIES = new Set(["__pycache__", "outputs", "scripts"]);
 const READABLE_REFERENCE_EXTENSIONS = new Set([".md", ".txt"]);
 
@@ -287,7 +299,7 @@ function formatPromptSourceBundle(entryContent: string, references: PromptRefere
 }
 
 export function resolvePromptSourceEntryPath(promptId: string) {
-  const candidates = PROMPT_SOURCE_CANDIDATES[promptId];
+  const candidates = [...(PROMPT_SOURCE_CANDIDATES[promptId] || []), ...buildDerivedPromptCandidates(promptId)];
   if (!candidates?.length) {
     return undefined;
   }
