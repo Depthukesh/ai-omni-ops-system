@@ -724,7 +724,8 @@ export class SkillsPromptsService {
   }
 
   async listPrompts() {
-    return this.listPromptRows();
+    const prompts = await this.listPromptRows();
+    return prompts.map((item) => this.hydratePromptTemplateRecord(item));
   }
 
   async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
@@ -756,7 +757,9 @@ export class SkillsPromptsService {
         WHERE "id" = ${id}
         RETURNING *
       `;
-      return this.normalizePromptTemplateRow(updatedRows[0] ?? { ...current, content: nextContent });
+      return this.hydratePromptTemplateRecord(
+        this.normalizePromptTemplateRow(updatedRows[0] ?? { ...current, content: nextContent }),
+      );
     }
 
     const prompt = database.promptTemplates.find((item) => item.id === id);
@@ -818,7 +821,7 @@ export class SkillsPromptsService {
       await this.ensureRegistryTablesReady();
       const row = await this.findPromptByIdFromDatabase(id);
       if (row) {
-        return this.normalizePromptTemplateRow(row);
+        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(row));
       }
     }
     const prompt = database.promptTemplates.find((item) => item.id === id);
@@ -845,7 +848,7 @@ export class SkillsPromptsService {
       `;
       const row = rows[0];
       if (row) {
-        return this.normalizePromptTemplateRow(row);
+        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(row));
       }
     }
 
