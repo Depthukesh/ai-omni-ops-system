@@ -1864,195 +1864,180 @@ export default function AdminPage() {
 
   return (
     <main className="dashboard-shell admin-console-shell">
-      <section className="admin-console-layout">
-        <aside className="admin-console-sidebar">
-          <div className="admin-sidebar-brand">
-            <div>
-              <span className="admin-sidebar-brand-kicker">AI 全域运营</span>
-              <strong>后台导航</strong>
-              <p>按栏目快速进入后台模块</p>
-            </div>
+      <section className="admin-console-stack">
+        <section className="admin-console-topbar">
+          <div className="admin-console-topbar-copy">
+            <span className="hero-badge">后台管理台</span>
+            <h1>后台管理台</h1>
+            <p>后台主导航已上移到页面顶部，按模块切换管理订单、规则、用户、技能、知识库与第三方平台配置。</p>
           </div>
-          <nav className="admin-sidebar-nav" aria-label="后台导航">
-            {tabs.map((tab) => (
-              <button
-                type="button"
-                key={tab.key}
-                className={`admin-sidebar-link ${activeTab === tab.key ? "active" : ""}`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                <span className="admin-sidebar-link-badge">{tab.shortLabel}</span>
-                <span className="admin-sidebar-link-copy">
-                  <strong>{tab.label}</strong>
-                </span>
-                <span className="admin-sidebar-link-arrow">{activeTab === tab.key ? "⌄" : "›"}</span>
+          <div className="admin-console-topbar-side">
+            <div className="workspace-status">
+              <span className="archive-pill status-ready">{dataSource === "api" ? "真实接口" : "演示数据"}</span>
+              <span className="status-text">{adminName ? `当前管理员：${adminName}` : "后台身份已验证"}</span>
+              <span className="status-text">当前栏目：{activeTabMeta.label}</span>
+            </div>
+            <div className="admin-console-actions">
+              <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
+                {isLoading ? "刷新中..." : "刷新后台数据"}
               </button>
-            ))}
-          </nav>
-          <div className="admin-sidebar-foot">
-            <span className={`status-pill ${dataSource === "api" ? "" : "status-pill-muted"}`}>{dataSource === "api" ? "接口数据" : "演示数据"}</span>
-            <p>当前后台以简洁目录为主，后续继续补筛选和图表。</p>
+              <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
+                {isLoggingOut ? "退出中..." : "退出登录"}
+              </button>
+            </div>
           </div>
-        </aside>
+        </section>
 
-        <div className="admin-console-main">
-          <section className="admin-console-hero">
-            <div className="admin-console-hero-copy">
-              <span className="hero-badge">后台运营中台</span>
-              <h1>{activeTabMeta.label}</h1>
-              <p>{activeTab === "dashboard" ? "先把后台做成真正的中文管理台：左侧栏目清晰，中间聚焦主任务，右侧总览帮助快速判断系统状态。" : activeTabMeta.description}</p>
-            </div>
-            <div className="admin-console-toolbar">
-              <div className="admin-console-status-card">
-                <span>当前数据源</span>
-                <strong>{dataSource === "api" ? "实时接口" : "本地演示"}</strong>
-                <p>{dataSource === "api" ? "当前页面读取接口结果，可直接用于后台联调。" : "接口异常时自动回退为演示数据，方便先看界面和流程。"}</p>
-                <p>{adminName ? `当前管理员：${adminName}` : "当前管理员身份已验证"}</p>
-              </div>
-              <div className="admin-console-actions">
-                <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
-                  {isLoading ? "刷新中..." : "刷新后台数据"}
-                </button>
-                <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
-                  {isLoggingOut ? "退出中..." : "退出登录"}
-                </button>
-              </div>
-            </div>
-          </section>
+        <nav className="admin-console-nav" aria-label="后台导航">
+          {accessibleTabs.map((tab) => (
+            <button
+              type="button"
+              key={tab.key}
+              className={`admin-console-tab ${activeTab === tab.key ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              <span className="admin-console-tab-badge">{tab.shortLabel}</span>
+              <span className="admin-console-tab-copy">
+                <strong>{tab.label}</strong>
+                <small>{tab.description}</small>
+              </span>
+            </button>
+          ))}
+        </nav>
 
-          {notice ? <div className="admin-console-message success">{notice}</div> : null}
-          {errorMessage ? <div className="admin-console-message error">{errorMessage}</div> : null}
+        {notice ? <div className="admin-console-message success">{notice}</div> : null}
+        {errorMessage ? <div className="admin-console-message error">{errorMessage}</div> : null}
 
-          {activeTab === "dashboard" ? (
-            <div className="admin-dashboard-stack">
-              <section className="admin-overview-grid">
-                {overviewCards.map((item) => (
-                  <article className="admin-overview-card" key={item.label}>
-                    <span>{item.label}</span>
-                    <strong>{item.value}</strong>
-                    <p>{item.detail}</p>
-                  </article>
-                ))}
-              </section>
-
-              <section className="admin-dashboard-split">
-                <article className="admin-dashboard-panel">
-                  <div className="admin-panel-heading">
-                    <div>
-                      <strong>运营脉冲</strong>
-                      <p>用最短时间看出后台是否在健康运转。</p>
-                    </div>
-                    <span>总览</span>
-                  </div>
-                  <div className="admin-pulse-bars">
-                    {operationPulse.map((item) => (
-                      <div className="admin-pulse-item" key={item.label}>
-                        <div className="admin-pulse-track">
-                          <div className="admin-pulse-fill" style={{ width: `${item.value}%` }} />
-                        </div>
-                        <div className="admin-pulse-copy">
-                          <span>{item.label}</span>
-                          <strong>{item.value}%</strong>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+        {activeTab === "dashboard" ? (
+          <div className="admin-dashboard-stack">
+            <section className="admin-overview-grid">
+              {overviewCards.map((item) => (
+                <article className="admin-overview-card" key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.detail}</p>
                 </article>
+              ))}
+            </section>
 
-                <article className="admin-dashboard-panel">
-                  <div className="admin-panel-heading">
-                    <div>
-                      <strong>栏目速览</strong>
-                      <p>每个后台项目单独成栏目，方便逐块进入。</p>
-                    </div>
-                    <span>模块</span>
+            <section className="admin-dashboard-split">
+              <article className="admin-dashboard-panel">
+                <div className="admin-panel-heading">
+                  <div>
+                    <strong>运营脉冲</strong>
+                    <p>用最短时间看出后台是否在健康运转。</p>
                   </div>
-                  <div className="admin-spotlight-list">
-                    {moduleHighlights.map((item) => {
-                      const tab = tabs.find((entry) => entry.key === item.key);
-                      return (
-                        <button
-                          type="button"
-                          key={item.key}
-                          className="admin-spotlight-item"
-                          onClick={() => setActiveTab(item.key)}
-                        >
-                          <span>{tab?.label}</span>
-                          <strong>{item.count}</strong>
-                          <small>{item.note}</small>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </article>
-              </section>
-
-              <section className="admin-dashboard-split">
-                <article className="admin-dashboard-panel">
-                  <div className="admin-panel-heading">
-                    <div>
-                      <strong>今日摘要</strong>
-                      <p>保留管理台应有的商务感和一眼可读性。</p>
-                    </div>
-                    <span>摘要</span>
-                  </div>
-                  <div className="admin-summary-list">
-                    <div>
-                      <span>待支付订单</span>
-                      <strong>{summary.pendingCount}</strong>
-                    </div>
-                    <div>
-                      <span>在线知识库</span>
-                      <strong>{knowledgeBases.filter((item) => item.status === "ACTIVE").length}</strong>
-                    </div>
-                    <div>
-                      <span>启用技能</span>
-                      <strong>{skills.filter((item) => item.status === "ACTIVE").length}</strong>
-                    </div>
-                    <div>
-                      <span>活跃供应商</span>
-                      <strong>{providers.filter((item) => item.status === "ACTIVE").length}</strong>
-                    </div>
-                  </div>
-                </article>
-
-                <article className="admin-dashboard-panel">
-                  <div className="admin-panel-heading">
-                    <div>
-                      <strong>最近动态</strong>
-                      <p>把知识库同步和模型调用的最新情况放到首页。</p>
-                    </div>
-                    <span>动态</span>
-                  </div>
-                  <div className="admin-recent-feed">
-                    <div>
-                      <span>最近同步</span>
-                      <strong>{latestKnowledgeRun ? getSyncRunTitle(latestKnowledgeRun) : "暂无同步记录"}</strong>
-                      <small>{latestKnowledgeRun ? formatDateTime(latestKnowledgeRun.startedAt) : "等首次触发后展示"}</small>
-                    </div>
-                    <div>
-                      <span>最近模型调用</span>
-                      <strong>{usage[0]?.modelName || "暂无模型数据"}</strong>
-                      <small>{usage[0]?.lastCalledAt ? formatDateTime(usage[0].lastCalledAt) : "未记录"}</small>
-                    </div>
-                    <div>
-                      <span>当前建议</span>
-                      <strong>{summary.pendingCount > 0 ? "优先处理待支付订单" : "继续打磨各栏目细节"}</strong>
-                      <small>下一轮可继续补图表、筛选和批量操作。</small>
-                    </div>
-                  </div>
-                </article>
-              </section>
-            </div>
-          ) : (
-            <section className="panel personal-center-panel admin-module-panel">
-              <div className="admin-module-heading">
-                <div>
-                  <span className="admin-module-tag">{activeTabMeta.shortLabel}</span>
-                  <h2>{activeTabMeta.label}</h2>
-                  <p>{activeTabMeta.description}</p>
+                  <span>总览</span>
                 </div>
+                <div className="admin-pulse-bars">
+                  {operationPulse.map((item) => (
+                    <div className="admin-pulse-item" key={item.label}>
+                      <div className="admin-pulse-track">
+                        <div className="admin-pulse-fill" style={{ width: `${item.value}%` }} />
+                      </div>
+                      <div className="admin-pulse-copy">
+                        <span>{item.label}</span>
+                        <strong>{item.value}%</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="admin-dashboard-panel">
+                <div className="admin-panel-heading">
+                  <div>
+                    <strong>栏目速览</strong>
+                    <p>每个后台项目单独成栏目，方便逐块进入。</p>
+                  </div>
+                  <span>模块</span>
+                </div>
+                <div className="admin-spotlight-list">
+                  {moduleHighlights.map((item) => {
+                    const tab = tabs.find((entry) => entry.key === item.key);
+                    return (
+                      <button
+                        type="button"
+                        key={item.key}
+                        className="admin-spotlight-item"
+                        onClick={() => setActiveTab(item.key)}
+                      >
+                        <span>{tab?.label}</span>
+                        <strong>{item.count}</strong>
+                        <small>{item.note}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            </section>
+
+            <section className="admin-dashboard-split">
+              <article className="admin-dashboard-panel">
+                <div className="admin-panel-heading">
+                  <div>
+                    <strong>今日摘要</strong>
+                    <p>保留管理台应有的商务感和一眼可读性。</p>
+                  </div>
+                  <span>摘要</span>
+                </div>
+                <div className="admin-summary-list">
+                  <div>
+                    <span>待支付订单</span>
+                    <strong>{summary.pendingCount}</strong>
+                  </div>
+                  <div>
+                    <span>在线知识库</span>
+                    <strong>{knowledgeBases.filter((item) => item.status === "ACTIVE").length}</strong>
+                  </div>
+                  <div>
+                    <span>启用技能</span>
+                    <strong>{skills.filter((item) => item.status === "ACTIVE").length}</strong>
+                  </div>
+                  <div>
+                    <span>活跃供应商</span>
+                    <strong>{providers.filter((item) => item.status === "ACTIVE").length}</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article className="admin-dashboard-panel">
+                <div className="admin-panel-heading">
+                  <div>
+                    <strong>最近动态</strong>
+                    <p>把知识库同步和模型调用的最新情况放到首页。</p>
+                  </div>
+                  <span>动态</span>
+                </div>
+                <div className="admin-recent-feed">
+                  <div>
+                    <span>最近同步</span>
+                    <strong>{latestKnowledgeRun ? getSyncRunTitle(latestKnowledgeRun) : "暂无同步记录"}</strong>
+                    <small>{latestKnowledgeRun ? formatDateTime(latestKnowledgeRun.startedAt) : "等首次触发后展示"}</small>
+                  </div>
+                  <div>
+                    <span>最近模型调用</span>
+                    <strong>{usage[0]?.modelName || "暂无模型数据"}</strong>
+                    <small>{usage[0]?.lastCalledAt ? formatDateTime(usage[0].lastCalledAt) : "未记录"}</small>
+                  </div>
+                  <div>
+                    <span>当前建议</span>
+                    <strong>{summary.pendingCount > 0 ? "优先处理待支付订单" : "继续打磨各栏目细节"}</strong>
+                    <small>下一轮可继续补图表、筛选和批量操作。</small>
+                  </div>
+                </div>
+              </article>
+            </section>
+          </div>
+        ) : (
+          <section className="panel personal-center-panel admin-module-panel">
+            <div className="admin-module-heading">
+              <div>
+                <span className="admin-module-tag">{activeTabMeta.shortLabel}</span>
+                <h2>{activeTabMeta.label}</h2>
+                <p>{activeTabMeta.description}</p>
               </div>
+            </div>
 
         {activeTab === "orders" ? (
           <div className="personal-list">
@@ -3350,8 +3335,7 @@ export default function AdminPage() {
         )}
             </section>
           )}
-        </div>
-      </section>
+        </section>
     </main>
   );
 }
