@@ -257,6 +257,30 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_wechat_image_compose"],
     promptScenes: ["公众号制作图片"],
   },
+  skill_wechat_cover_image_compose: {
+    promptIds: ["prompt_wechat_cover_image_compose"],
+    promptScenes: ["公众号封面图生成"],
+  },
+  "wechat-cover-image-designer": {
+    promptIds: ["prompt_wechat_cover_image_compose"],
+    promptScenes: ["公众号封面图生成"],
+  },
+  skill_wechat_body_image_compose: {
+    promptIds: ["prompt_wechat_body_image_compose"],
+    promptScenes: ["公众号正文配图生成"],
+  },
+  "wechat-body-image-designer": {
+    promptIds: ["prompt_wechat_body_image_compose"],
+    promptScenes: ["公众号正文配图生成"],
+  },
+  skill_wechat_api_publish: {
+    promptIds: ["prompt_wechat_api_publish"],
+    promptScenes: ["公众号API发布"],
+  },
+  "wechat-api-publisher": {
+    promptIds: ["prompt_wechat_api_publish"],
+    promptScenes: ["公众号API发布"],
+  },
   skill_design_web_prototype: {
     promptIds: ["prompt_design_web_prototype"],
     promptScenes: ["设计工作台-HTML 原型设计"],

@@ -373,21 +373,35 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
     sections: [
       {
         id: "wechat-compose",
-        label: "创作与发布",
+        label: "创作工作流",
         items: [
           {
             id: "wechat-article-compose",
             label: "公众号-创作文章",
-            description: "对应前台公众号创作弹窗，基于营销日历、产品信息、品牌信息和主题色生成 HTML 文章草稿。",
+            description: "对应公众号工作流的文章阶段，用于生成标题、摘要、正文结构与 HTML 草稿。",
             skillSlug: "wechat-article-composer",
             promptScene: "公众号创作文章",
           },
           {
-            id: "wechat-image-compose",
-            label: "公众号-制作图片",
-            description: "对应前台公众号创作弹窗，生成公众号头图、封面图和文中配图，并对接第三方文生图模型。",
-            skillSlug: "wechat-image-designer",
-            promptScene: "公众号制作图片",
+            id: "wechat-cover-image-compose",
+            label: "公众号-封面图生成",
+            description: "对应公众号工作流的生图阶段，用于生成公众号封面图、头图与发布封面主视觉。",
+            skillSlug: "wechat-cover-image-designer",
+            promptScene: "公众号封面图生成",
+          },
+          {
+            id: "wechat-body-image-compose",
+            label: "公众号-正文配图生成",
+            description: "对应公众号工作流的生图阶段，用于生成正文插图、场景图和产品辅助图。",
+            skillSlug: "wechat-body-image-designer",
+            promptScene: "公众号正文配图生成",
+          },
+          {
+            id: "wechat-api-publish",
+            label: "公众号-API发布",
+            description: "对应公众号工作流的 API 发布确认阶段，用于整理发布参数、封面、评论策略和草稿箱发布动作。",
+            skillSlug: "wechat-api-publisher",
+            promptScene: "公众号API发布",
           },
         ],
       },

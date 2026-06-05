@@ -65,12 +65,16 @@
 
 ### 4. 技能中心与发布入口同步补齐
 
-- 后台技能中心和前台技能中心当前已补入两个公众号技能叶子项：
+- 后台技能中心和前台技能中心当前已升级为按工作流阶段拆分公众号技能叶子项：
   - `公众号-创作文章`
-  - `公众号-制作图片`
+  - `公众号-封面图生成`
+  - `公众号-正文配图生成`
+  - `公众号-API发布`
 - 对应技能 slug：
   - `wechat-article-composer`
-  - `wechat-image-designer`
+  - `wechat-cover-image-designer`
+  - `wechat-body-image-designer`
+  - `wechat-api-publisher`
 - 前端发布服务新增：
   - `publishWechatArticleToOfficialAccount`
 - 后端发布接口新增：
