@@ -436,6 +436,17 @@ export type DouyinDigitalHumanVideoWorkRecord = {
 export type WechatCommentMode = "open" | "fans" | "close";
 export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
+export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
+export type WechatWorkflowStatus =
+  | "INIT_REQUIRED"
+  | "INPUT_PENDING"
+  | "ARTICLE_PENDING"
+  | "IMAGE_PENDING"
+  | "PUBLISH_CONFIRM_PENDING"
+  | "PUBLISHING"
+  | "PUBLISHED"
+  | "FAILED";
 
 export type WechatAccountConfigRecord = {
   brandId: string;
@@ -446,6 +457,54 @@ export type WechatAccountConfigRecord = {
   defaultAuthor?: string;
   defaultThemeColor?: string;
   commentMode: WechatCommentMode;
+  updatedAt: string;
+};
+
+export type WechatWorkflowPreferenceRecord = {
+  brandId: string;
+  initialized: boolean;
+  defaultAuthor: string;
+  defaultThemeColor: string;
+  commentMode: WechatCommentMode;
+  fanCommentsOnly: boolean;
+  defaultInputType: WechatWorkflowInputType;
+  defaultAccountId?: string;
+  updatedAt: string;
+};
+
+export type WechatOfficialAccountRecord = {
+  id: string;
+  brandId: string;
+  accountName: string;
+  configured: boolean;
+  isDefault: boolean;
+  appId: string;
+  appSecretMasked: string;
+  whitelistIps: string[];
+  updatedAt: string;
+};
+
+export type WechatWorkflowSessionRecord = {
+  id: string;
+  brandId: string;
+  accountId?: string;
+  accountName?: string;
+  status: WechatWorkflowStatus;
+  currentStep: WechatWorkflowStep;
+  inputType: WechatWorkflowInputType;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  themeColor: string;
+  commentMode: WechatCommentMode;
+  imageMode: WechatImageMode;
+  injectBrandProfile: boolean;
+  selectedMarketingLabels: string[];
+  selectedProductLabels: string[];
+  selectedBrandLabels: string[];
+  createdAt: string;
   updatedAt: string;
 };
 
@@ -519,6 +578,15 @@ export type SaveWechatAccountConfigForm = {
   commentMode?: WechatCommentMode;
 };
 
+export type SaveWechatWorkflowPreferenceForm = {
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode?: WechatCommentMode;
+  fanCommentsOnly?: boolean;
+  defaultInputType?: WechatWorkflowInputType;
+  defaultAccountId?: string;
+};
+
 export type GenerateWechatArticleDraftForm = {
   title?: string;
   summary?: string;
@@ -534,6 +602,30 @@ export type GenerateWechatArticleDraftForm = {
   selectedMarketingLabels?: string[];
   selectedProductLabels?: string[];
   selectedBrandLabels?: string[];
+};
+
+export type CreateWechatWorkflowForm = {
+  inputType?: WechatWorkflowInputType;
+  accountId?: string;
+  title?: string;
+  content?: string;
+  themeColor?: string;
+  imageMode?: WechatImageMode;
+  injectBrandProfile?: boolean;
+  selectedMarketingLabels?: string[];
+  selectedProductLabels?: string[];
+  selectedBrandLabels?: string[];
+};
+
+export type UpdateWechatWorkflowInputForm = Partial<CreateWechatWorkflowForm>;
+
+export type UpdateWechatWorkflowArticleForm = {
+  title?: string;
+  summary?: string;
+  author?: string;
+  content?: string;
+  commentMode?: WechatCommentMode;
+  themeColor?: string;
 };
 
 export type GenerateXiaohongshuRewriteNoteForm = {
@@ -1059,6 +1151,26 @@ export async function getWechatArticleDrafts(brandId: string) {
   return request<{ items: WechatArticleDraftRecord[] }>(`/works/brands/${brandId}/wechat/articles`);
 }
 
+export async function getWechatWorkflowPreferences(brandId: string) {
+  return request<{ item: WechatWorkflowPreferenceRecord }>(`/works/brands/${brandId}/wechat/preferences`);
+}
+
+export async function saveWechatWorkflowPreferences(brandId: string, form: SaveWechatWorkflowPreferenceForm) {
+  return jsonRequest<{ item: WechatWorkflowPreferenceRecord }>(`/works/brands/${brandId}/wechat/preferences`, "PATCH", form);
+}
+
+export async function getWechatOfficialAccounts(brandId: string) {
+  return request<{ items: WechatOfficialAccountRecord[] }>(`/works/brands/${brandId}/wechat/accounts`);
+}
+
+export async function getWechatWorkflowSessions(brandId: string) {
+  return request<{ items: WechatWorkflowSessionRecord[] }>(`/works/brands/${brandId}/wechat/workflows`);
+}
+
+export async function getWechatWorkflowSession(brandId: string, workflowId: string) {
+  return request<{ item: WechatWorkflowSessionRecord }>(`/works/brands/${brandId}/wechat/workflows/${workflowId}`);
+}
+
 export async function getWechatAccountConfig(brandId: string) {
   return request<{ item: WechatAccountConfigRecord }>(`/works/brands/${brandId}/wechat/config`);
 }
@@ -1069,6 +1181,30 @@ export async function saveWechatAccountConfig(brandId: string, form: SaveWechatA
 
 export async function generateWechatArticleDraft(brandId: string, form: GenerateWechatArticleDraftForm) {
   return jsonRequest<{ item: WechatArticleDraftRecord }>(`/works/brands/${brandId}/wechat/articles/generate`, "POST", form);
+}
+
+export async function createWechatWorkflow(brandId: string, form: CreateWechatWorkflowForm) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(`/works/brands/${brandId}/wechat/workflows`, "POST", form);
+}
+
+export async function updateWechatWorkflowInput(brandId: string, workflowId: string, payload: UpdateWechatWorkflowInputForm) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/input`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function updateWechatWorkflowArticle(
+  brandId: string,
+  workflowId: string,
+  payload: UpdateWechatWorkflowArticleForm,
+) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/article`,
+    "PATCH",
+    payload,
+  );
 }
 
 export async function updateWechatArticleDraft(

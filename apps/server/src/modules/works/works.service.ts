@@ -468,6 +468,17 @@ type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | 
 export type WechatCommentMode = "open" | "fans" | "close";
 export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
+export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
+export type WechatWorkflowStatus =
+  | "INIT_REQUIRED"
+  | "INPUT_PENDING"
+  | "ARTICLE_PENDING"
+  | "IMAGE_PENDING"
+  | "PUBLISH_CONFIRM_PENDING"
+  | "PUBLISHING"
+  | "PUBLISHED"
+  | "FAILED";
 
 export type SaveWechatAccountConfigPayload = {
   appId: string;
@@ -476,6 +487,15 @@ export type SaveWechatAccountConfigPayload = {
   defaultAuthor?: string;
   defaultThemeColor?: string;
   commentMode?: WechatCommentMode;
+};
+
+export type SaveWechatWorkflowPreferencePayload = {
+  defaultAuthor?: string;
+  defaultThemeColor?: string;
+  commentMode?: WechatCommentMode;
+  fanCommentsOnly?: boolean;
+  defaultInputType?: WechatWorkflowInputType;
+  defaultAccountId?: string;
 };
 
 export type WechatArticleComposePayload = {
@@ -496,6 +516,30 @@ export type WechatArticleComposePayload = {
 };
 
 export type UpdateWechatArticleDraftPayload = Partial<WechatArticleComposePayload>;
+
+export type CreateWechatWorkflowPayload = {
+  inputType?: WechatWorkflowInputType;
+  accountId?: string;
+  title?: string;
+  content?: string;
+  themeColor?: string;
+  imageMode?: WechatImageMode;
+  injectBrandProfile?: boolean;
+  selectedMarketingLabels?: string[];
+  selectedProductLabels?: string[];
+  selectedBrandLabels?: string[];
+};
+
+export type UpdateWechatWorkflowInputPayload = Partial<CreateWechatWorkflowPayload>;
+
+export type UpdateWechatWorkflowArticlePayload = {
+  title?: string;
+  summary?: string;
+  author?: string;
+  content?: string;
+  commentMode?: WechatCommentMode;
+  themeColor?: string;
+};
 
 export type DesignWorkModuleKey = "image" | "html" | "deck" | "video";
 
@@ -634,6 +678,54 @@ export type WechatArticleDraftRecord = {
   updatedAt: string;
 };
 
+export type WechatWorkflowPreferenceRecord = {
+  brandId: string;
+  initialized: boolean;
+  defaultAuthor: string;
+  defaultThemeColor: string;
+  commentMode: WechatCommentMode;
+  fanCommentsOnly: boolean;
+  defaultInputType: WechatWorkflowInputType;
+  defaultAccountId?: string;
+  updatedAt: string;
+};
+
+export type WechatOfficialAccountRecord = {
+  id: string;
+  brandId: string;
+  accountName: string;
+  configured: boolean;
+  isDefault: boolean;
+  appId: string;
+  appSecretMasked: string;
+  whitelistIps: string[];
+  updatedAt: string;
+};
+
+export type WechatWorkflowSessionRecord = {
+  id: string;
+  brandId: string;
+  accountId?: string;
+  accountName?: string;
+  status: WechatWorkflowStatus;
+  currentStep: WechatWorkflowStep;
+  inputType: WechatWorkflowInputType;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  themeColor: string;
+  commentMode: WechatCommentMode;
+  imageMode: WechatImageMode;
+  injectBrandProfile: boolean;
+  selectedMarketingLabels: string[];
+  selectedProductLabels: string[];
+  selectedBrandLabels: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 type WechatAccountConfigStoreItem = {
   brandId: string;
   appId: string;
@@ -644,6 +736,30 @@ type WechatAccountConfigStoreItem = {
   commentMode: WechatCommentMode;
   updatedAt: string;
 };
+
+type WechatWorkflowPreferenceStoreItem = {
+  brandId: string;
+  defaultAuthor: string;
+  defaultThemeColor: string;
+  commentMode: WechatCommentMode;
+  fanCommentsOnly: boolean;
+  defaultInputType: WechatWorkflowInputType;
+  defaultAccountId?: string;
+  updatedAt: string;
+};
+
+type WechatOfficialAccountStoreItem = {
+  id: string;
+  brandId: string;
+  accountName: string;
+  appId: string;
+  appSecret: string;
+  whitelistIps: string[];
+  isDefault: boolean;
+  updatedAt: string;
+};
+
+type WechatWorkflowSessionStoreItem = WechatWorkflowSessionRecord;
 
 type DigitalHumanFavoriteTemplateStoreItem = {
   id: string;
@@ -680,6 +796,30 @@ const wechatAccountConfigMockStore: WechatAccountConfigStoreItem[] = [
     defaultThemeColor: "#25554a",
     commentMode: "open",
     updatedAt: "2026-06-03T11:00:00.000Z",
+  },
+];
+const wechatWorkflowPreferenceMockStore: WechatWorkflowPreferenceStoreItem[] = [
+  {
+    brandId: "br_demo_001",
+    defaultAuthor: "品牌内容中心",
+    defaultThemeColor: "#25554a",
+    commentMode: "open",
+    fanCommentsOnly: false,
+    defaultInputType: "calendar",
+    defaultAccountId: "wechat_account_demo_001",
+    updatedAt: "2026-06-05T10:00:00.000Z",
+  },
+];
+const wechatOfficialAccountMockStore: WechatOfficialAccountStoreItem[] = [
+  {
+    id: "wechat_account_demo_001",
+    brandId: "br_demo_001",
+    accountName: "淘货猫公众号",
+    appId: "wx7d1f83c1a2e429c",
+    appSecret: "af42m3w8x-secret-demo-2938",
+    whitelistIps: ["47.97.12.20", "47.97.12.21"],
+    isDefault: true,
+    updatedAt: "2026-06-05T10:00:00.000Z",
   },
 ];
 const wechatArticleDraftMockStore: WechatArticleDraftRecord[] = [
@@ -727,7 +867,47 @@ const wechatArticleDraftMockStore: WechatArticleDraftRecord[] = [
     updatedAt: "2026-06-03T11:00:00.000Z",
   },
 ];
+const wechatWorkflowSessionMockStore: WechatWorkflowSessionStoreItem[] = [
+  {
+    id: "wechat_workflow_demo_001",
+    brandId: "br_demo_001",
+    accountId: "wechat_account_demo_001",
+    accountName: "淘货猫公众号",
+    status: "ARTICLE_PENDING",
+    currentStep: "article",
+    inputType: "calendar",
+    title: "会员日内容排期：公众号文章策划草稿",
+    summary: "围绕会员日节点输出一篇可继续编辑的公众号文章草稿。",
+    author: "品牌内容中心",
+    content:
+      "围绕下周会员日节点，先梳理活动主张、门店权益和爆品推荐。\n\n正文需保留品牌资料植入空间，并为后续封面图与正文插图生成预留结构。",
+    htmlContent: "",
+    themeColor: "#25554a",
+    commentMode: "open",
+    imageMode: "cover-and-body",
+    injectBrandProfile: true,
+    selectedMarketingLabels: ["夏季会员周"],
+    selectedProductLabels: ["爆浆提拉米苏蛋糕"],
+    selectedBrandLabels: ["品牌故事"],
+    createdAt: "2026-06-05T10:00:00.000Z",
+    updatedAt: "2026-06-05T10:00:00.000Z",
+  },
+];
 wechatArticleDraftMockStore[0]!.htmlContent = buildInitialWechatArticleHtml(wechatArticleDraftMockStore[0]!);
+wechatWorkflowSessionMockStore[0]!.htmlContent = buildInitialWechatArticleHtml({
+  ...wechatArticleDraftMockStore[0]!,
+  title: wechatWorkflowSessionMockStore[0]!.title,
+  summary: wechatWorkflowSessionMockStore[0]!.summary,
+  author: wechatWorkflowSessionMockStore[0]!.author,
+  content: wechatWorkflowSessionMockStore[0]!.content,
+  themeColor: wechatWorkflowSessionMockStore[0]!.themeColor,
+  commentMode: wechatWorkflowSessionMockStore[0]!.commentMode,
+  imageMode: wechatWorkflowSessionMockStore[0]!.imageMode,
+  injectBrandProfile: wechatWorkflowSessionMockStore[0]!.injectBrandProfile,
+  selectedMarketingLabels: wechatWorkflowSessionMockStore[0]!.selectedMarketingLabels,
+  selectedProductLabels: wechatWorkflowSessionMockStore[0]!.selectedProductLabels,
+  selectedBrandLabels: wechatWorkflowSessionMockStore[0]!.selectedBrandLabels,
+});
 
 function escapeWechatHtml(value: string) {
   return String(value || "")
@@ -2698,6 +2878,65 @@ export class WorksService {
     return { items };
   }
 
+  async getWechatWorkflowPreferences(brandId: string) {
+    const item = this.getWechatWorkflowPreferenceStoreItem(brandId);
+    return {
+      item: this.toWechatWorkflowPreferenceRecord(brandId, item),
+    };
+  }
+
+  async saveWechatWorkflowPreferences(brandId: string, payload: SaveWechatWorkflowPreferencePayload) {
+    const existing = this.getWechatWorkflowPreferenceStoreItem(brandId);
+    const config = this.getWechatAccountConfigStoreItem(brandId);
+    const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
+    const normalizedDefaultAccountId = String(payload.defaultAccountId || "").trim() || existing?.defaultAccountId || accounts[0]?.id;
+    const now = new Date().toISOString();
+    const next: WechatWorkflowPreferenceStoreItem = {
+      brandId,
+      defaultAuthor: String(payload.defaultAuthor || "").trim() || existing?.defaultAuthor || config?.defaultAuthor || "品牌内容中心",
+      defaultThemeColor:
+        String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
+      commentMode: payload.commentMode || existing?.commentMode || config?.commentMode || "open",
+      fanCommentsOnly: payload.fanCommentsOnly ?? existing?.fanCommentsOnly ?? false,
+      defaultInputType: payload.defaultInputType || existing?.defaultInputType || "calendar",
+      defaultAccountId: normalizedDefaultAccountId,
+      updatedAt: now,
+    };
+    if (existing) {
+      Object.assign(existing, next);
+    } else {
+      wechatWorkflowPreferenceMockStore.unshift(next);
+    }
+    return {
+      item: this.toWechatWorkflowPreferenceRecord(brandId, next),
+    };
+  }
+
+  async listWechatOfficialAccounts(brandId: string) {
+    const items = wechatOfficialAccountMockStore
+      .filter((item) => item.brandId === brandId)
+      .map((item) => this.toWechatOfficialAccountRecord(item));
+    return { items };
+  }
+
+  async listWechatWorkflowSessions(brandId: string) {
+    const items = wechatWorkflowSessionMockStore
+      .filter((item) => item.brandId === brandId)
+      .map((item) => this.toWechatWorkflowSessionRecord(item))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return { items };
+  }
+
+  async getWechatWorkflowSession(brandId: string, workflowId: string) {
+    const target = wechatWorkflowSessionMockStore.find((item) => item.brandId === brandId && item.id === workflowId);
+    if (!target) {
+      throw new NotFoundException("公众号工作流不存在。");
+    }
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
+  }
+
   async getWechatAccountConfig(brandId: string) {
     return {
       item: this.toWechatAccountConfigRecord(this.getWechatAccountConfigStoreItem(brandId)),
@@ -2731,9 +2970,114 @@ export class WorksService {
     } else {
       wechatAccountConfigMockStore.unshift(next);
     }
+    const existingAccount = wechatOfficialAccountMockStore.find((item) => item.brandId === brandId && item.isDefault);
+    const nextAccount: WechatOfficialAccountStoreItem = {
+      id: existingAccount?.id || createId("wechat_account"),
+      brandId,
+      accountName: existingAccount?.accountName || "默认公众号账号",
+      appId: next.appId,
+      appSecret: next.appSecret,
+      whitelistIps: next.whitelistIps,
+      isDefault: true,
+      updatedAt: now,
+    };
+    if (existingAccount) {
+      Object.assign(existingAccount, nextAccount);
+    } else {
+      wechatOfficialAccountMockStore.unshift(nextAccount);
+    }
 
     return {
       item: this.toWechatAccountConfigRecord(next),
+    };
+  }
+
+  async createWechatWorkflow(brandId: string, payload: CreateWechatWorkflowPayload) {
+    const preferences = this.getWechatWorkflowPreferenceStoreItem(brandId);
+    const config = this.getWechatAccountConfigStoreItem(brandId);
+    if (!preferences && !config) {
+      throw new BadRequestException("请先完成公众号初始化配置。");
+    }
+    const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
+    const selectedAccount =
+      accounts.find((item) => item.id === String(payload.accountId || "").trim()) ||
+      accounts.find((item) => item.id === preferences?.defaultAccountId) ||
+      accounts[0];
+    const title = String(payload.title || "").trim() || this.buildWechatWorkflowDefaultTitle(payload.selectedMarketingLabels);
+    const content = String(payload.content || "").trim() || "请输入创作意图、资料来源或 Markdown / HTML 内容。";
+    const now = new Date().toISOString();
+    const record: WechatWorkflowSessionStoreItem = {
+      id: createId("wechat_workflow"),
+      brandId,
+      accountId: selectedAccount?.id,
+      accountName: selectedAccount?.accountName,
+      status: "INPUT_PENDING",
+      currentStep: "input",
+      inputType: payload.inputType || preferences?.defaultInputType || "calendar",
+      title,
+      summary: "",
+      author: preferences?.defaultAuthor || config?.defaultAuthor || "品牌内容中心",
+      content,
+      htmlContent: "",
+      themeColor: String(payload.themeColor || "").trim() || preferences?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
+      commentMode: preferences?.commentMode || config?.commentMode || "open",
+      imageMode: payload.imageMode || "cover-and-body",
+      injectBrandProfile: payload.injectBrandProfile === true,
+      selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, []),
+      selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, []),
+      selectedBrandLabels: this.normalizeWechatLabels(payload.selectedBrandLabels, payload.injectBrandProfile ? ["品牌资料"] : []),
+      createdAt: now,
+      updatedAt: now,
+    };
+    wechatWorkflowSessionMockStore.unshift(record);
+    return {
+      item: this.toWechatWorkflowSessionRecord(record),
+    };
+  }
+
+  async updateWechatWorkflowInput(brandId: string, workflowId: string, payload: UpdateWechatWorkflowInputPayload) {
+    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
+    const selectedAccount =
+      accounts.find((item) => item.id === String(payload.accountId || "").trim()) ||
+      accounts.find((item) => item.id === target.accountId) ||
+      accounts[0];
+    target.accountId = selectedAccount?.id;
+    target.accountName = selectedAccount?.accountName;
+    target.inputType = payload.inputType || target.inputType;
+    target.title = String(payload.title || "").trim() || target.title;
+    target.content = String(payload.content || "").trim() || target.content;
+    target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
+    target.imageMode = payload.imageMode || target.imageMode;
+    target.injectBrandProfile = payload.injectBrandProfile ?? target.injectBrandProfile;
+    target.selectedMarketingLabels = this.normalizeWechatLabels(payload.selectedMarketingLabels, target.selectedMarketingLabels);
+    target.selectedProductLabels = this.normalizeWechatLabels(payload.selectedProductLabels, target.selectedProductLabels);
+    target.selectedBrandLabels = this.normalizeWechatLabels(
+      payload.selectedBrandLabels,
+      target.injectBrandProfile ? target.selectedBrandLabels.length ? target.selectedBrandLabels : ["品牌资料"] : [],
+    );
+    target.status = "ARTICLE_PENDING";
+    target.currentStep = "article";
+    target.updatedAt = new Date().toISOString();
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
+  }
+
+  async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
+    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    target.title = String(payload.title || "").trim() || target.title;
+    target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
+    target.author = String(payload.author || "").trim() || target.author;
+    target.content = String(payload.content || "").trim() || target.content;
+    target.commentMode = payload.commentMode || target.commentMode;
+    target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
+    target.htmlContent = this.renderWechatWorkflowArticleHtml(target);
+    target.status = "IMAGE_PENDING";
+    target.currentStep = "image";
+    target.updatedAt = new Date().toISOString();
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
     };
   }
 
@@ -6766,6 +7110,18 @@ export class WorksService {
     return wechatAccountConfigMockStore.find((item) => item.brandId === brandId);
   }
 
+  private getWechatWorkflowPreferenceStoreItem(brandId: string) {
+    return wechatWorkflowPreferenceMockStore.find((item) => item.brandId === brandId);
+  }
+
+  private getWechatWorkflowSessionStoreItem(brandId: string, workflowId: string) {
+    const target = wechatWorkflowSessionMockStore.find((item) => item.brandId === brandId && item.id === workflowId);
+    if (!target) {
+      throw new NotFoundException("公众号工作流不存在。");
+    }
+    return target;
+  }
+
   private toWechatAccountConfigRecord(item?: WechatAccountConfigStoreItem): WechatAccountConfigRecord {
     return {
       brandId: item?.brandId || "",
@@ -6778,6 +7134,42 @@ export class WorksService {
       commentMode: item?.commentMode || "open",
       updatedAt: item?.updatedAt || new Date().toISOString(),
     };
+  }
+
+  private toWechatWorkflowPreferenceRecord(
+    brandId: string,
+    item?: WechatWorkflowPreferenceStoreItem,
+  ): WechatWorkflowPreferenceRecord {
+    const config = this.getWechatAccountConfigStoreItem(brandId);
+    return {
+      brandId,
+      initialized: Boolean(item || config),
+      defaultAuthor: item?.defaultAuthor || config?.defaultAuthor || "品牌内容中心",
+      defaultThemeColor: item?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
+      commentMode: item?.commentMode || config?.commentMode || "open",
+      fanCommentsOnly: item?.fanCommentsOnly ?? false,
+      defaultInputType: item?.defaultInputType || "calendar",
+      defaultAccountId: item?.defaultAccountId || wechatOfficialAccountMockStore.find((entry) => entry.brandId === brandId && entry.isDefault)?.id,
+      updatedAt: item?.updatedAt || config?.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  private toWechatOfficialAccountRecord(item: WechatOfficialAccountStoreItem): WechatOfficialAccountRecord {
+    return {
+      id: item.id,
+      brandId: item.brandId,
+      accountName: item.accountName,
+      configured: Boolean(item.appId && item.appSecret),
+      isDefault: item.isDefault,
+      appId: item.appId,
+      appSecretMasked: this.maskWechatSecret(item.appSecret),
+      whitelistIps: item.whitelistIps,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private toWechatWorkflowSessionRecord(item: WechatWorkflowSessionStoreItem): WechatWorkflowSessionRecord {
+    return { ...item };
   }
 
   private hydrateWechatDraftTaskStatus(item: WechatArticleDraftRecord): WechatArticleDraftRecord {
@@ -6826,6 +7218,18 @@ export class WorksService {
       ? values.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
     return normalized.length ? normalized : fallback;
+  }
+
+  private buildWechatWorkflowDefaultTitle(labels?: string[]) {
+    const normalized = this.normalizeWechatLabels(labels, []);
+    return normalized[0] ? `${normalized[0]}：公众号创作工作流` : "公众号创作工作流";
+  }
+
+  private buildWechatWorkflowSummary(params: Pick<WechatWorkflowSessionRecord, "selectedMarketingLabels" | "selectedProductLabels" | "injectBrandProfile">) {
+    const marketing = params.selectedMarketingLabels[0] || "当前营销主题";
+    const product = params.selectedProductLabels[0] ? `，并结合${params.selectedProductLabels[0]}` : "";
+    const brand = params.injectBrandProfile ? "，同步植入品牌资料" : "";
+    return `围绕${marketing}${product}生成公众号文章草稿${brand}。`;
   }
 
   private buildWechatImagePrompt(title: string, summary: string, themeColor: string, imageMode: WechatImageMode) {
@@ -7092,6 +7496,38 @@ export class WorksService {
       params.injectMarketingCalendar ? buildBadgeRow("营销日历植入", params.selectedMarketingLabels) : "",
       params.injectProducts ? buildBadgeRow("产品信息植入", params.selectedProductLabels) : "",
       params.injectBrandProfile ? buildBadgeRow("品牌信息植入", params.selectedBrandLabels) : "",
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private renderWechatWorkflowArticleHtml(params: WechatWorkflowSessionRecord) {
+    const paragraphs = params.content
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
+      .join("");
+    const buildBadgeRow = (title: string, values: string[]) =>
+      values.length
+        ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}14;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
+        : "";
+    const summary = params.summary
+      ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
+      : "";
+    return [
+      "<!DOCTYPE html>",
+      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
+      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;">`,
+      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号工作流文章稿</div>`,
+      `<h1 style="margin:18px 0 8px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · API 发布准备中 · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
+      summary,
+      `<section style="margin-top:24px;">${paragraphs}</section>`,
+      buildBadgeRow("营销日历资料", params.selectedMarketingLabels),
+      buildBadgeRow("产品资料", params.selectedProductLabels),
+      params.injectBrandProfile ? buildBadgeRow("品牌资料", params.selectedBrandLabels) : "",
       "</section></main></body></html>",
     ].join("");
   }

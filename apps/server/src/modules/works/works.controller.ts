@@ -9,7 +9,9 @@ import {
   type ContinueDouyinVideoGenerationPayload,
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateDesignWorkPayload,
+  type CreateWechatWorkflowPayload,
   type SaveWechatAccountConfigPayload,
+  type SaveWechatWorkflowPreferencePayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
@@ -24,6 +26,8 @@ import {
   type RegenerateDouyinVideoStoryboardPayload,
   type RecoverXiaohongshuVideoGenerationPayload,
   type UpdateWechatArticleDraftPayload,
+  type UpdateWechatWorkflowArticlePayload,
+  type UpdateWechatWorkflowInputPayload,
   type WechatArticleComposePayload,
   type UpdateDouyinDigitalHumanScriptTemplatePayload,
   WorksService,
@@ -131,6 +135,97 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
     return this.worksService.listWechatArticleDrafts(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/preferences")
+  async getWechatWorkflowPreferences(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.config", "view", auth);
+    return this.worksService.getWechatWorkflowPreferences(brandId);
+  }
+
+  @Patch("brands/:brandId/wechat/preferences")
+  saveWechatWorkflowPreferences(
+    @Param("brandId") brandId: string,
+    @Body() payload: SaveWechatWorkflowPreferencePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.config", "edit", auth);
+      return this.worksService.saveWechatWorkflowPreferences(brandId, payload);
+    });
+  }
+
+  @Get("brands/:brandId/wechat/accounts")
+  async listWechatOfficialAccounts(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.config", "view", auth);
+    return this.worksService.listWechatOfficialAccounts(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/workflows")
+  async listWechatWorkflowSessions(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+    return this.worksService.listWechatWorkflowSessions(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/workflows/:workflowId")
+  async getWechatWorkflowSession(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+    return this.worksService.getWechatWorkflowSession(brandId, workflowId);
+  }
+
+  @Post("brands/:brandId/wechat/workflows")
+  createWechatWorkflow(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateWechatWorkflowPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.createWechatWorkflow(brandId, payload);
+    });
+  }
+
+  @Patch("brands/:brandId/wechat/workflows/:workflowId/input")
+  updateWechatWorkflowInput(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() payload: UpdateWechatWorkflowInputPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.updateWechatWorkflowInput(brandId, workflowId, payload);
+    });
+  }
+
+  @Patch("brands/:brandId/wechat/workflows/:workflowId/article")
+  updateWechatWorkflowArticle(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() payload: UpdateWechatWorkflowArticlePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.updateWechatWorkflowArticle(brandId, workflowId, payload);
+    });
   }
 
   @Get("brands/:brandId/wechat/config")
