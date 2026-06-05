@@ -1686,6 +1686,23 @@ export default function AdminPage() {
   });
   const resolvedActiveTab = accessibleTabs.some((item) => item.key === activeTab) ? activeTab : accessibleTabs[0]?.key || "dashboard";
   const activeTabMeta = accessibleTabs.find((item) => item.key === resolvedActiveTab) || accessibleTabs[0] || tabs[0];
+  const adminPanelTools = (
+    <div className="admin-panel-tools">
+      <div className="workspace-status">
+        <span className="archive-pill status-ready">{dataSource === "api" ? "真实接口" : "演示数据"}</span>
+        <span className="status-text">{adminName ? `当前管理员：${adminName}` : "后台身份已验证"}</span>
+        <span className="status-text">当前栏目：{activeTabMeta.label}</span>
+      </div>
+      <div className="admin-console-actions">
+        <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
+          {isLoading ? "刷新中..." : "刷新后台数据"}
+        </button>
+        <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
+          {isLoggingOut ? "退出中..." : "退出登录"}
+        </button>
+      </div>
+    </div>
+  );
   const overviewCards = [
     { label: "订单池", value: summary.orderCount, detail: `${summary.pendingCount} 个待支付 / ${summary.paidCount} 个已完成` },
     { label: "平台用户", value: summary.userCount, detail: `共覆盖 ${summary.userCount} 个可运营账户` },
@@ -1865,42 +1882,15 @@ export default function AdminPage() {
   return (
     <main className="dashboard-shell admin-console-shell">
       <section className="admin-console-stack">
-        <section className="admin-console-topbar">
-          <div className="admin-console-topbar-copy">
-            <span className="hero-badge">后台管理台</span>
-            <h1>后台管理台</h1>
-            <p>后台主导航已上移到页面顶部，按模块切换管理订单、规则、用户、技能、知识库与第三方平台配置。</p>
-          </div>
-          <div className="admin-console-topbar-side">
-            <div className="workspace-status">
-              <span className="archive-pill status-ready">{dataSource === "api" ? "真实接口" : "演示数据"}</span>
-              <span className="status-text">{adminName ? `当前管理员：${adminName}` : "后台身份已验证"}</span>
-              <span className="status-text">当前栏目：{activeTabMeta.label}</span>
-            </div>
-            <div className="admin-console-actions">
-              <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
-                {isLoading ? "刷新中..." : "刷新后台数据"}
-              </button>
-              <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
-                {isLoggingOut ? "退出中..." : "退出登录"}
-              </button>
-            </div>
-          </div>
-        </section>
-
         <nav className="admin-console-nav" aria-label="后台导航">
           {accessibleTabs.map((tab) => (
             <button
               type="button"
               key={tab.key}
-              className={`admin-console-tab ${activeTab === tab.key ? "active" : ""}`}
+              className={`admin-console-tab ${resolvedActiveTab === tab.key ? "active" : ""}`}
               onClick={() => setActiveTab(tab.key)}
             >
-              <span className="admin-console-tab-badge">{tab.shortLabel}</span>
-              <span className="admin-console-tab-copy">
-                <strong>{tab.label}</strong>
-                <small>{tab.description}</small>
-              </span>
+              <span className="admin-console-tab-title">{tab.label}</span>
             </button>
           ))}
         </nav>
@@ -1910,6 +1900,15 @@ export default function AdminPage() {
 
         {activeTab === "dashboard" ? (
           <div className="admin-dashboard-stack">
+            <section className="panel personal-center-panel admin-module-panel">
+              <div className="admin-module-heading">
+                <div>
+                  <span className="admin-module-tag">{activeTabMeta.shortLabel}</span>
+                  <h2>{activeTabMeta.label}</h2>
+                </div>
+                {adminPanelTools}
+              </div>
+            </section>
             <section className="admin-overview-grid">
               {overviewCards.map((item) => (
                 <article className="admin-overview-card" key={item.label}>
@@ -2037,6 +2036,7 @@ export default function AdminPage() {
                 <h2>{activeTabMeta.label}</h2>
                 <p>{activeTabMeta.description}</p>
               </div>
+              {adminPanelTools}
             </div>
 
         {activeTab === "orders" ? (
