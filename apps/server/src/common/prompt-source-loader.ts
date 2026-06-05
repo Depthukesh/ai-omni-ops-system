@@ -170,20 +170,20 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../提示词/营销日历提示词.txt",
   ],
   prompt_wechat_article_compose: [
-    "../../../提示词/wechat/prompt_wechat_article_compose.md",
-    "../提示词/wechat/prompt_wechat_article_compose.md",
+    "../../../提示词/wechat/baoyu-post-to-wechat-article/SKILL.md",
+    "../提示词/wechat/baoyu-post-to-wechat-article/SKILL.md",
   ],
   prompt_wechat_cover_image_compose: [
-    "../../../提示词/wechat/prompt_wechat_cover_image_compose.md",
-    "../提示词/wechat/prompt_wechat_cover_image_compose.md",
+    "../../../提示词/wechat/baoyu-post-to-wechat-cover-image/SKILL.md",
+    "../提示词/wechat/baoyu-post-to-wechat-cover-image/SKILL.md",
   ],
   prompt_wechat_body_image_compose: [
-    "../../../提示词/wechat/prompt_wechat_body_image_compose.md",
-    "../提示词/wechat/prompt_wechat_body_image_compose.md",
+    "../../../提示词/wechat/baoyu-post-to-wechat-body-image/SKILL.md",
+    "../提示词/wechat/baoyu-post-to-wechat-body-image/SKILL.md",
   ],
   prompt_wechat_api_publish: [
-    "../../../提示词/wechat/prompt_wechat_api_publish.md",
-    "../提示词/wechat/prompt_wechat_api_publish.md",
+    "../../../提示词/wechat/baoyu-post-to-wechat-api-publish/SKILL.md",
+    "../提示词/wechat/baoyu-post-to-wechat-api-publish/SKILL.md",
   ],
 };
 
@@ -269,19 +269,40 @@ function compareReferenceFileNames(left: string, right: string) {
 
 function listReadableReferenceEntries(entryFilePath: string): PromptReferenceEntry[] {
   const entryDirectory = dirname(entryFilePath);
-  const entryFileName = basename(entryFilePath);
-  const directoryEntries = readdirSync(entryDirectory, { withFileTypes: true });
+  const entries: PromptReferenceEntry[] = [];
 
-  return directoryEntries
-    .filter((entry) => entry.isFile())
-    .filter((entry) => entry.name !== entryFileName)
-    .filter((entry) => READABLE_REFERENCE_EXTENSIONS.has(extname(entry.name).toLowerCase()))
-    .sort((left, right) => compareReferenceFileNames(left.name, right.name))
-    .map((entry) => ({
-      fileName: entry.name,
-      content: readTextFile(resolve(entryDirectory, entry.name)),
-    }))
-    .filter((entry) => entry.content);
+  function walk(directoryPath: string, relativePrefix = "") {
+    const directoryEntries = readdirSync(directoryPath, { withFileTypes: true });
+    for (const entry of directoryEntries) {
+      const absolutePath = resolve(directoryPath, entry.name);
+      const relativePath = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (IGNORED_DIRECTORIES.has(entry.name)) {
+          continue;
+        }
+        walk(absolutePath, relativePath);
+        continue;
+      }
+      if (resolve(absolutePath) === resolve(entryFilePath)) {
+        continue;
+      }
+      if (!READABLE_REFERENCE_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
+        continue;
+      }
+      const content = readTextFile(absolutePath);
+      if (!content) {
+        continue;
+      }
+      entries.push({
+        fileName: relativePath,
+        content,
+      });
+    }
+  }
+
+  walk(entryDirectory);
+
+  return entries.sort((left, right) => compareReferenceFileNames(left.fileName, right.fileName));
 }
 
 function shouldAggregateReferenceFiles(entryFilePath: string) {
