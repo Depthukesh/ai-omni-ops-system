@@ -531,6 +531,27 @@ export type WechatWorkflowSessionRecord = {
   updatedAt: string;
 };
 
+export type WechatPublishHistoryRecord = {
+  id: string;
+  brandId: string;
+  workflowId: string;
+  workflowTitle: string;
+  accountId?: string;
+  accountName?: string;
+  status: "SUCCESS" | "FAILED";
+  summary: string;
+  coverImageUrl?: string;
+  mediaId?: string;
+  publishTaskId?: string;
+  sourceDraftId?: string;
+  commentMode: WechatCommentMode;
+  fanCommentsOnly: boolean;
+  retryCount: number;
+  errorDetail?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type WechatImageTaskRecord = {
   id: string;
   status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
@@ -1197,6 +1218,14 @@ export async function getWechatOfficialAccounts(brandId: string) {
 
 export async function getWechatWorkflowSessions(brandId: string) {
   return request<{ items: WechatWorkflowSessionRecord[] }>(`/works/brands/${brandId}/wechat/workflows`);
+}
+
+export async function getWechatPublishHistory(brandId: string) {
+  return request<{ items: WechatPublishHistoryRecord[] }>(`/works/brands/${brandId}/wechat/publish-history`);
+}
+
+export async function getWechatPublishHistoryItem(brandId: string, historyId: string) {
+  return request<{ item: WechatPublishHistoryRecord }>(`/works/brands/${brandId}/wechat/publish-history/${historyId}`);
 }
 
 export async function getWechatWorkflowSession(brandId: string, workflowId: string) {

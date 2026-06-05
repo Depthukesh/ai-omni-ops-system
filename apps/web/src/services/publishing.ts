@@ -148,3 +148,15 @@ export async function publishWechatWorkflowToOfficialAccount(
     payload,
   );
 }
+
+export async function retryWechatWorkflowPublishToOfficialAccount(
+  brandId: string,
+  historyId: string,
+  payload: { mode?: "RETRY_PUBLISH_WORKFLOW" } = {},
+) {
+  return jsonRequest<WechatWorkflowPublishResult>(
+    `/publishing/brands/${brandId}/wechat/publish-history/${historyId}/retry`,
+    "POST",
+    payload,
+  );
+}

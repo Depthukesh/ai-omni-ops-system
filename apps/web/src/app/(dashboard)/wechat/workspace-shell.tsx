@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { DEMO_BRAND_ID, getBrandArchive, type BrandArchiveBundle, type BrandProduct } from "../../../services/brand-growth";
-import { publishWechatArticleToOfficialAccount, publishWechatWorkflowToOfficialAccount } from "../../../services/publishing";
+import {
+  publishWechatArticleToOfficialAccount,
+  publishWechatWorkflowToOfficialAccount,
+  retryWechatWorkflowPublishToOfficialAccount,
+} from "../../../services/publishing";
 import {
   getXiaohongshuMarketingCalendarWorkspace,
   type XiaohongshuMarketingCalendarItem,
@@ -15,6 +19,8 @@ import {
   getWechatAccountConfig,
   getWechatArticleDrafts,
   getWechatOfficialAccounts,
+  getWechatPublishHistory,
+  getWechatPublishHistoryItem,
   getWechatWorkflowPreferences,
   getWechatWorkflowSessions,
   saveWechatAccountConfig,
@@ -27,6 +33,7 @@ import {
   type WechatCommentMode,
   type WechatImageMode,
   type WechatOfficialAccountRecord,
+  type WechatPublishHistoryRecord,
   type WechatWorkflowInputType,
   type WechatWorkflowPreferenceRecord,
   type WechatWorkflowSessionRecord,
@@ -124,7 +131,10 @@ export function WechatWorkspaceShell() {
   const [accounts, setAccounts] = useState<WechatOfficialAccountRecord[]>([]);
   const [sessions, setSessions] = useState<WechatWorkflowSessionRecord[]>([]);
   const [drafts, setDrafts] = useState<WechatArticleDraftRecord[]>([]);
+  const [publishHistory, setPublishHistory] = useState<WechatPublishHistoryRecord[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [selectedPublishHistoryId, setSelectedPublishHistoryId] = useState("");
+  const [selectedPublishHistory, setSelectedPublishHistory] = useState<WechatPublishHistoryRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
@@ -134,6 +144,8 @@ export function WechatWorkspaceShell() {
   const [isGeneratingWorkflowImages, setIsGeneratingWorkflowImages] = useState(false);
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
+  const [isLoadingPublishHistoryDetail, setIsLoadingPublishHistoryDetail] = useState(false);
+  const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
@@ -197,6 +209,12 @@ export function WechatWorkspaceShell() {
     [sessions, selectedWorkflowId],
   );
 
+  async function reloadPublishHistory(nextBrandId: string) {
+    const response = await getWechatPublishHistory(nextBrandId);
+    setPublishHistory(response.items);
+    return response.items;
+  }
+
   useEffect(() => {
     let disposed = false;
 
@@ -204,7 +222,7 @@ export function WechatWorkspaceShell() {
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const [archiveResult, calendarResult, configResult, preferencesResult, accountsResult, sessionsResult, draftsResult] =
+        const [archiveResult, calendarResult, configResult, preferencesResult, accountsResult, sessionsResult, draftsResult, historyResult] =
           await Promise.allSettled([
             getBrandArchive(brandId),
             getXiaohongshuMarketingCalendarWorkspace(brandId),
@@ -213,6 +231,7 @@ export function WechatWorkspaceShell() {
             getWechatOfficialAccounts(brandId),
             getWechatWorkflowSessions(brandId),
             getWechatArticleDrafts(brandId),
+            getWechatPublishHistory(brandId),
           ]);
 
         if (disposed) {
@@ -234,6 +253,9 @@ export function WechatWorkspaceShell() {
         if (draftsResult.status !== "fulfilled") {
           throw draftsResult.reason;
         }
+        if (historyResult.status !== "fulfilled") {
+          throw historyResult.reason;
+        }
 
         setArchive(archiveResult.status === "fulfilled" ? archiveResult.value : null);
         setCalendarWorkspace(calendarResult.status === "fulfilled" ? calendarResult.value : { history: [] });
@@ -242,6 +264,7 @@ export function WechatWorkspaceShell() {
         setAccounts(accountsResult.value.items);
         setSessions(sessionsResult.value.items);
         setDrafts(draftsResult.value.items);
+        setPublishHistory(historyResult.value.items);
 
         setAppId(configResult.value.item.appId || "");
         setAppSecret("");
@@ -282,6 +305,12 @@ export function WechatWorkspaceShell() {
       setSelectedWorkflowId(sessions[0].id);
     }
   }, [sessions, selectedWorkflowId]);
+
+  useEffect(() => {
+    if (!selectedPublishHistoryId && publishHistory[0]?.id) {
+      setSelectedPublishHistoryId(publishHistory[0].id);
+    }
+  }, [publishHistory, selectedPublishHistoryId]);
 
   useEffect(() => {
     if (!createCalendarId && calendarItems[0]?.id) {
@@ -326,6 +355,35 @@ export function WechatWorkspaceShell() {
     setPublishCoverImageUrl(selectedWorkflow.publishConfig?.coverImageUrl || selectedWorkflow.imageBundle?.coverImageUrl || "");
     setPublishFanCommentsOnly(selectedWorkflow.publishConfig?.fanCommentsOnly || false);
   }, [accounts, calendarItems, products, selectedWorkflow]);
+
+  useEffect(() => {
+    if (!selectedPublishHistoryId) {
+      setSelectedPublishHistory(null);
+      return;
+    }
+    let disposed = false;
+    async function loadPublishHistoryDetail() {
+      setIsLoadingPublishHistoryDetail(true);
+      try {
+        const response = await getWechatPublishHistoryItem(brandId, selectedPublishHistoryId);
+        if (!disposed) {
+          setSelectedPublishHistory(response.item);
+        }
+      } catch (error) {
+        if (!disposed) {
+          setErrorMessage(error instanceof Error ? error.message : "读取发布历史详情失败。");
+        }
+      } finally {
+        if (!disposed) {
+          setIsLoadingPublishHistoryDetail(false);
+        }
+      }
+    }
+    void loadPublishHistoryDetail();
+    return () => {
+      disposed = true;
+    };
+  }, [brandId, selectedPublishHistoryId]);
 
   function openDraftPreview(htmlContent: string) {
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
@@ -534,12 +592,31 @@ export function WechatWorkspaceShell() {
       const response = await publishWechatWorkflowToOfficialAccount(brandId, selectedWorkflow.id, { mode: "PUBLISH_WORKFLOW" });
       upsertSession(response.item);
       setDrafts((current) => [response.draft, ...current.filter((item) => item.id !== response.draft.id)]);
+      const items = await reloadPublishHistory(brandId);
+      setSelectedPublishHistoryId(items[0]?.id || "");
       setNotice(`公众号工作流已通过 API 发布，media_id：${response.item.publishConfig?.mediaId || "已生成"}`);
       setActiveSection("history");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "发布公众号工作流失败。");
     } finally {
       setIsPublishingWorkflow(false);
+    }
+  }
+
+  async function handleRetryPublishHistory(historyId: string) {
+    setRetryingPublishHistoryId(historyId);
+    setErrorMessage("");
+    try {
+      const response = await retryWechatWorkflowPublishToOfficialAccount(brandId, historyId, { mode: "RETRY_PUBLISH_WORKFLOW" });
+      upsertSession(response.item);
+      setDrafts((current) => [response.draft, ...current.filter((item) => item.id !== response.draft.id)]);
+      const items = await reloadPublishHistory(brandId);
+      setSelectedPublishHistoryId(items[0]?.id || historyId);
+      setNotice(`已发起重试发布，新的 media_id：${response.item.publishConfig?.mediaId || "已生成"}`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "重试公众号发布失败。");
+    } finally {
+      setRetryingPublishHistoryId("");
     }
   }
 
@@ -1215,81 +1292,140 @@ export function WechatWorkspaceShell() {
                 <div className="workspace-toolbar top-toolbar">
                   <div>
                     <strong>发布历史</strong>
-                    <p className="wechat-description">当前已同时展示工作流发布结果和历史草稿，后续会继续沉淀为正式发布历史与重试中心。</p>
+                    <p className="wechat-description">当前已升级为正式历史记录面板，支持查看发布详情、失败原因和重试发布。</p>
                   </div>
                 </div>
-                {!isLoading && sessions.some((item) => item.publishConfig?.mediaId) ? (
-                  <section className="light-data-panel">
-                    <div className="wechat-panel-head">
-                      <div>
-                        <strong>工作流发布结果</strong>
-                        <p className="wechat-inline-tip">优先展示新工作流发布的 API 结果。</p>
-                      </div>
-                    </div>
-                    <div className="wechat-session-result-grid">
-                      {sessions
-                        .filter((item) => item.publishConfig?.mediaId)
-                        .map((item) => (
-                          <article key={item.id} className="wechat-session-result-card">
-                            <div className="wechat-pill-row">
-                              <span className="archive-pill status-ready">{item.status}</span>
-                              <span className="archive-pill status-ready">media_id：{item.publishConfig?.mediaId}</span>
-                            </div>
-                            <strong>{item.title}</strong>
-                            <p>{item.summary || "已完成 API 发布，可继续回查封面图、评论策略与草稿记录。"}</p>
-                            <div className="wechat-meta-list">
-                              <span>账号：{item.accountName || "默认账号"}</span>
-                              <span>封面：{item.publishConfig?.coverImageUrl ? "已生成" : "未生成"}</span>
-                              <span>发布时间：{item.publishConfig?.publishedAt || "刚刚"}</span>
-                            </div>
-                          </article>
-                        ))}
-                    </div>
-                  </section>
-                ) : null}
                 {isLoading ? (
                   <div className="empty-state">历史记录加载中...</div>
-                ) : !drafts.length ? (
-                  <div className="empty-state">当前还没有历史草稿。</div>
+                ) : !publishHistory.length && !drafts.length ? (
+                  <div className="empty-state">当前还没有发布历史或历史草稿。</div>
                 ) : (
-                  <div className="wechat-history-grid">
-                    {drafts.map((draft) => (
-                      <article key={draft.id} className="wechat-history-card">
-                        <div className="wechat-history-cover" style={{ background: `linear-gradient(135deg, ${draft.themeColor} 0%, #e9d2a8 100%)` }} />
-                        <div className="wechat-history-body">
-                          <div className="wechat-pill-row">
-                            <span className={`archive-pill ${draft.publishStatus === "PUBLISHED" ? "status-ready" : "status-pending"}`}>
-                              {draft.publishStatus === "PUBLISHED" ? "已发布" : "待发布"}
-                            </span>
-                            <span className="archive-pill status-ready">{draft.imageTask ? "带图片任务" : "纯文章"}</span>
+                  <div className="wechat-history-shell">
+                    <aside className="wechat-history-sidebar">
+                      <section className="light-data-panel">
+                        <div className="wechat-panel-head">
+                          <div>
+                            <strong>工作流发布记录</strong>
+                            <p className="wechat-inline-tip">{publishHistory.length} 条记录</p>
                           </div>
-                          <strong>{draft.title}</strong>
-                          <p>{draft.summary}</p>
-                          <div className="wechat-meta-list">
-                            <span>营销：{draft.selectedMarketingLabels[0] || "未选择"}</span>
-                            <span>产品：{draft.injectProducts ? draft.selectedProductLabels[0] || "未选择" : "不植入产品"}</span>
-                            <span>品牌：{draft.injectBrandProfile ? "已植入" : "未植入"}</span>
+                        </div>
+                        <div className="wechat-session-list">
+                          {publishHistory.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className={`wechat-session-item ${item.id === selectedPublishHistoryId ? "is-active" : ""}`}
+                              onClick={() => setSelectedPublishHistoryId(item.id)}
+                            >
+                              <strong>{item.workflowTitle}</strong>
+                              <span>{item.status === "SUCCESS" ? "发布成功" : "发布失败"}</span>
+                              <small>{item.mediaId || item.updatedAt}</small>
+                            </button>
+                          ))}
+                          {!publishHistory.length ? <div className="empty-state">当前还没有工作流发布记录。</div> : null}
+                        </div>
+                      </section>
+
+                      <section className="light-data-panel">
+                        <div className="wechat-panel-head">
+                          <div>
+                            <strong>历史草稿</strong>
+                            <p className="wechat-inline-tip">保留旧草稿与直接发布入口。</p>
                           </div>
-                          <div className="wechat-card-actions">
+                        </div>
+                        <div className="wechat-session-list">
+                          {drafts.map((draft) => (
+                            <article key={draft.id} className="wechat-session-result-card">
+                              <div className="wechat-pill-row">
+                                <span className={`archive-pill ${draft.publishStatus === "PUBLISHED" ? "status-ready" : "status-pending"}`}>
+                                  {draft.publishStatus === "PUBLISHED" ? "已发布" : "待发布"}
+                                </span>
+                                <span className="archive-pill status-ready">{draft.imageTask ? "带图片任务" : "纯文章"}</span>
+                              </div>
+                              <strong>{draft.title}</strong>
+                              <p>{draft.summary}</p>
+                              <div className="wechat-card-actions">
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  onClick={() => void handlePublishDraft(draft.id)}
+                                  disabled={publishingDraftId === draft.id || draft.publishStatus === "PUBLISHED"}
+                                >
+                                  {draft.publishStatus === "PUBLISHED"
+                                    ? "已发布"
+                                    : publishingDraftId === draft.id
+                                      ? "发布中..."
+                                      : "一键发布"}
+                                </button>
+                                <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft.htmlContent)}>
+                                  查看 HTML
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    </aside>
+
+                    <div className="wechat-history-main">
+                      <section className="light-data-panel">
+                        <div className="wechat-panel-head">
+                          <div>
+                            <strong>发布详情</strong>
+                            <p className="wechat-inline-tip">展示 media_id、账号、封面、评论策略与失败原因。</p>
+                          </div>
+                          {selectedPublishHistory ? (
                             <button
                               type="button"
                               className="primary-button"
-                              onClick={() => void handlePublishDraft(draft.id)}
-                              disabled={publishingDraftId === draft.id || draft.publishStatus === "PUBLISHED"}
+                              onClick={() => void handleRetryPublishHistory(selectedPublishHistory.id)}
+                              disabled={retryingPublishHistoryId === selectedPublishHistory.id}
                             >
-                              {draft.publishStatus === "PUBLISHED"
-                                ? "已发布"
-                                : publishingDraftId === draft.id
-                                  ? "发布中..."
-                                  : "一键发布"}
+                              {retryingPublishHistoryId === selectedPublishHistory.id ? "重试中..." : "重试发布"}
                             </button>
-                            <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft.htmlContent)}>
-                              查看 HTML
-                            </button>
-                          </div>
+                          ) : null}
                         </div>
-                      </article>
-                    ))}
+                        {isLoadingPublishHistoryDetail ? (
+                          <div className="empty-state">发布详情加载中...</div>
+                        ) : selectedPublishHistory ? (
+                          <div className="wechat-history-detail-grid">
+                            {selectedPublishHistory.coverImageUrl ? (
+                              <img
+                                src={selectedPublishHistory.coverImageUrl}
+                                alt={selectedPublishHistory.workflowTitle}
+                                className="wechat-generated-cover"
+                              />
+                            ) : (
+                              <div className="empty-state">当前记录没有封面图。</div>
+                            )}
+                            <div className="wechat-publish-summary">
+                              <div className="wechat-pill-row">
+                                <span className={`archive-pill ${selectedPublishHistory.status === "SUCCESS" ? "status-ready" : "status-pending"}`}>
+                                  {selectedPublishHistory.status === "SUCCESS" ? "发布成功" : "发布失败"}
+                                </span>
+                                {selectedPublishHistory.mediaId ? (
+                                  <span className="archive-pill status-ready">media_id：{selectedPublishHistory.mediaId}</span>
+                                ) : null}
+                                <span className="archive-pill status-ready">重试次数：{selectedPublishHistory.retryCount}</span>
+                              </div>
+                              <strong>{selectedPublishHistory.workflowTitle}</strong>
+                              <p>{selectedPublishHistory.summary}</p>
+                              <div className="wechat-meta-list">
+                                <span>账号：{selectedPublishHistory.accountName || "默认账号"}</span>
+                                <span>评论：{selectedPublishHistory.commentMode}</span>
+                                <span>{selectedPublishHistory.fanCommentsOnly ? "仅粉丝评论" : "评论不限制粉丝"}</span>
+                                <span>发布时间：{selectedPublishHistory.updatedAt}</span>
+                              </div>
+                              {selectedPublishHistory.errorDetail ? (
+                                <div className="wechat-banner wechat-banner--error">{selectedPublishHistory.errorDetail}</div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="empty-state">请选择一条发布记录查看详情。</div>
+                        )}
+                      </section>
+                    </div>
                   </div>
                 )}
               </article>
@@ -1389,7 +1525,20 @@ export function WechatWorkspaceShell() {
           gap: 18px;
         }
 
+        .wechat-history-shell {
+          display: grid;
+          grid-template-columns: 320px minmax(0, 1fr);
+          gap: 18px;
+        }
+
         .wechat-workflow-sidebar {
+          display: grid;
+          align-content: start;
+          gap: 14px;
+        }
+
+        .wechat-history-sidebar,
+        .wechat-history-main {
           display: grid;
           align-content: start;
           gap: 14px;
@@ -1473,7 +1622,8 @@ export function WechatWorkspaceShell() {
 
         .wechat-image-stage,
         .wechat-publish-summary,
-        .wechat-checklist {
+        .wechat-checklist,
+        .wechat-history-detail-grid {
           display: grid;
           gap: 12px;
         }
@@ -1591,6 +1741,7 @@ export function WechatWorkspaceShell() {
 
         @media (max-width: 1280px) {
           .wechat-workflow-layout,
+          .wechat-history-shell,
           .wechat-step-grid {
             grid-template-columns: 1fr;
           }

@@ -758,6 +758,27 @@ export type WechatWorkflowSessionRecord = {
   updatedAt: string;
 };
 
+export type WechatPublishHistoryRecord = {
+  id: string;
+  brandId: string;
+  workflowId: string;
+  workflowTitle: string;
+  accountId?: string;
+  accountName?: string;
+  status: "SUCCESS" | "FAILED";
+  summary: string;
+  coverImageUrl?: string;
+  mediaId?: string;
+  publishTaskId?: string;
+  sourceDraftId?: string;
+  commentMode: WechatCommentMode;
+  fanCommentsOnly: boolean;
+  retryCount: number;
+  errorDetail?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type WechatAccountConfigStoreItem = {
   brandId: string;
   appId: string;
@@ -792,6 +813,7 @@ type WechatOfficialAccountStoreItem = {
 };
 
 type WechatWorkflowSessionStoreItem = WechatWorkflowSessionRecord;
+type WechatPublishHistoryStoreItem = WechatPublishHistoryRecord;
 
 type DigitalHumanFavoriteTemplateStoreItem = {
   id: string;
@@ -953,6 +975,30 @@ const wechatWorkflowSessionMockStore: WechatWorkflowSessionStoreItem[] = [
     },
     createdAt: "2026-06-05T10:00:00.000Z",
     updatedAt: "2026-06-05T10:00:00.000Z",
+  },
+];
+const wechatPublishHistoryMockStore: WechatPublishHistoryStoreItem[] = [
+  {
+    id: "wechat_publish_history_demo_001",
+    brandId: "br_demo_001",
+    workflowId: "wechat_workflow_demo_001",
+    workflowTitle: "会员日内容排期：公众号文章策划草稿",
+    accountId: "wechat_account_demo_001",
+    accountName: "淘货猫公众号",
+    status: "SUCCESS",
+    summary: "会员日主题工作流已通过公众号 API 发布到草稿箱。",
+    coverImageUrl:
+      "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=" +
+      encodeURIComponent("wechat official account cover for summer member day bakery campaign, warm green and gold, premium pastry store, poster style") +
+      "&image_size=portrait_16_9",
+    mediaId: "wechat_media_demo001",
+    publishTaskId: "tsk_wechat_publish_demo_001",
+    sourceDraftId: "wechat_draft_demo_001",
+    commentMode: "open",
+    fanCommentsOnly: false,
+    retryCount: 0,
+    createdAt: "2026-06-05T10:05:00.000Z",
+    updatedAt: "2026-06-05T10:05:00.000Z",
   },
 ];
 wechatArticleDraftMockStore[0]!.htmlContent = buildInitialWechatArticleHtml(wechatArticleDraftMockStore[0]!);
@@ -2989,6 +3035,21 @@ export class WorksService {
     return { items };
   }
 
+  async listWechatPublishHistory(brandId: string) {
+    const items = wechatPublishHistoryMockStore
+      .filter((item) => item.brandId === brandId)
+      .map((item) => this.toWechatPublishHistoryRecord(item))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return { items };
+  }
+
+  async getWechatPublishHistoryItem(brandId: string, historyId: string) {
+    const target = this.getWechatPublishHistoryStoreItem(brandId, historyId);
+    return {
+      item: this.toWechatPublishHistoryRecord(target),
+    };
+  }
+
   async getWechatWorkflowSession(brandId: string, workflowId: string) {
     const target = wechatWorkflowSessionMockStore.find((item) => item.brandId === brandId && item.id === workflowId);
     if (!target) {
@@ -2997,6 +3058,27 @@ export class WorksService {
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
+  }
+
+  async retryWechatPublishHistoryItem(brandId: string, historyId: string, auth?: RequestAuthContext) {
+    const history = this.getWechatPublishHistoryStoreItem(brandId, historyId);
+    const session = this.getWechatWorkflowSessionStoreItem(brandId, history.workflowId);
+    session.publishConfig = {
+      ready: true,
+      accountId: session.accountId,
+      accountName: session.accountName,
+      coverImageUrl: session.publishConfig?.coverImageUrl || session.imageBundle?.coverImageUrl,
+      commentMode: session.commentMode,
+      fanCommentsOnly: history.fanCommentsOnly,
+      checklist: session.publishConfig?.checklist || ["已选择重试发布"],
+      mediaId: undefined,
+      publishedAt: undefined,
+      publishTaskId: undefined,
+    };
+    session.status = "PUBLISH_CONFIRM_PENDING";
+    session.currentStep = "publish";
+    session.updatedAt = new Date().toISOString();
+    return this.publishWechatWorkflow(brandId, session.id, auth, history.retryCount + 1);
   }
 
   async getWechatAccountConfig(brandId: string) {
@@ -3221,131 +3303,155 @@ export class WorksService {
     };
   }
 
-  async publishWechatWorkflow(brandId: string, workflowId: string, auth?: RequestAuthContext) {
+  async publishWechatWorkflow(brandId: string, workflowId: string, auth?: RequestAuthContext, retryCount = 0) {
     const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
     const config = this.getWechatAccountConfigStoreItem(brandId);
-    if (!target.publishConfig?.ready) {
-      throw new BadRequestException("请先完成发布确认。");
-    }
-    if (!config?.appId || !config?.appSecret) {
-      throw new BadRequestException("请先在配置初始化中完成 AppID 和 AppSecret 配置。");
-    }
-    if (!config.whitelistIps.length) {
-      throw new BadRequestException("请先在配置初始化中填写 IP 白名单。");
-    }
-    const task = await this.createOriginalTask({
-      userId: await this.resolveTaskUserId(brandId, auth),
-      brandId,
-      taskTitle: `发布公众号工作流：${target.title}`,
-      modelName: "wechat-official-account-api-publish",
-    });
-    await this.markTaskRunning(task.id);
-    target.status = "PUBLISHING";
-    target.updatedAt = new Date().toISOString();
-    const mediaId = `wechat_media_${task.id.slice(-8)}`;
-    const now = new Date().toISOString();
-    const existingDraft = target.linkedDraftId
-      ? wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === target.linkedDraftId)
-      : undefined;
-    const nextDraft: WechatArticleDraftRecord = existingDraft || {
-      id: createId("wechat_draft"),
-      taskId: task.id,
-      brandId,
-      title: target.title,
-      summary: target.summary,
-      author: target.author,
-      content: target.content,
-      htmlContent: target.htmlContent,
-      outputFormat: "HTML",
-      coverMode: "ai",
-      commentMode: target.commentMode,
-      imageMode: target.imageMode,
-      themeColor: target.themeColor,
-      injectMarketingCalendar: Boolean(target.selectedMarketingLabels.length),
-      injectProducts: Boolean(target.selectedProductLabels.length),
-      injectBrandProfile: target.injectBrandProfile,
-      selectedMarketingLabels: target.selectedMarketingLabels,
-      selectedProductLabels: target.selectedProductLabels,
-      selectedBrandLabels: target.selectedBrandLabels,
-      articleSkillSlug: "wechat-article-composer",
-      articlePromptScene: "公众号创作文章",
-      articleProvider: "Right Codes 文生文",
-      articleRuntimeKey: "text-global",
-      articleModelName: "provider_runtime_text_global::gpt-5.5",
-      imageTask: target.imageBundle
-        ? {
-            id: createId("wechat_image_task"),
-            status: "SUCCESS",
-            skillSlug: "wechat-image-designer",
-            promptScene: "公众号制作图片",
-            provider: "Right Codes 文生图",
-            runtimeKey: "image-generation",
-            modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
-            imageMode: target.imageMode,
-            prompt: target.imageBundle.promptSummary,
-            coverImageUrl: target.imageBundle.coverImageUrl,
-            createdAt: target.imageBundle.generatedAt || now,
-            updatedAt: now,
-          }
-        : undefined,
-      publishStatus: "DRAFT",
-      taskStatus: "SUCCESS",
-      createdAt: now,
-      updatedAt: now,
-    };
-    nextDraft.title = target.title;
-    nextDraft.summary = target.summary;
-    nextDraft.author = target.author;
-    nextDraft.content = target.content;
-    nextDraft.htmlContent = target.htmlContent;
-    nextDraft.commentMode = target.commentMode;
-    nextDraft.imageMode = target.imageMode;
-    nextDraft.themeColor = target.themeColor;
-    nextDraft.injectMarketingCalendar = Boolean(target.selectedMarketingLabels.length);
-    nextDraft.injectProducts = Boolean(target.selectedProductLabels.length);
-    nextDraft.injectBrandProfile = target.injectBrandProfile;
-    nextDraft.selectedMarketingLabels = target.selectedMarketingLabels;
-    nextDraft.selectedProductLabels = target.selectedProductLabels;
-    nextDraft.selectedBrandLabels = target.selectedBrandLabels;
-    nextDraft.publishStatus = "PUBLISHED";
-    nextDraft.publishedAt = now;
-    nextDraft.publishTaskId = task.id;
-    nextDraft.updatedAt = now;
-    if (!existingDraft) {
-      wechatArticleDraftMockStore.unshift(nextDraft);
-    }
-    target.linkedDraftId = nextDraft.id;
-    target.status = "PUBLISHED";
-    target.currentStep = "result";
-    target.publishConfig = {
-      ready: true,
-      accountId: target.accountId,
-      accountName: target.accountName,
-      coverImageUrl: target.publishConfig.coverImageUrl,
-      commentMode: target.commentMode,
-      fanCommentsOnly: target.publishConfig.fanCommentsOnly,
-      checklist: target.publishConfig.checklist,
-      mediaId,
-      publishedAt: now,
-      publishTaskId: task.id,
-    };
-    target.updatedAt = now;
-    target.errorDetail = undefined;
-    await this.markTaskSuccess(
-      task.id,
-      {
-        workflowId: target.id,
+    try {
+      if (!target.publishConfig?.ready) {
+        throw new BadRequestException("请先完成发布确认。");
+      }
+      if (!config?.appId || !config?.appSecret) {
+        throw new BadRequestException("请先在配置初始化中完成 AppID 和 AppSecret 配置。");
+      }
+      if (!config.whitelistIps.length) {
+        throw new BadRequestException("请先在配置初始化中填写 IP 白名单。");
+      }
+      const task = await this.createOriginalTask({
+        userId: await this.resolveTaskUserId(brandId, auth),
+        brandId,
+        taskTitle: `发布公众号工作流：${target.title}`,
+        modelName: "wechat-official-account-api-publish",
+      });
+      await this.markTaskRunning(task.id);
+      target.status = "PUBLISHING";
+      target.updatedAt = new Date().toISOString();
+      const mediaId = `wechat_media_${task.id.slice(-8)}`;
+      const now = new Date().toISOString();
+      const existingDraft = target.linkedDraftId
+        ? wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === target.linkedDraftId)
+        : undefined;
+      const nextDraft: WechatArticleDraftRecord = existingDraft || {
+        id: createId("wechat_draft"),
+        taskId: task.id,
+        brandId,
+        title: target.title,
+        summary: target.summary,
+        author: target.author,
+        content: target.content,
+        htmlContent: target.htmlContent,
+        outputFormat: "HTML",
+        coverMode: "ai",
+        commentMode: target.commentMode,
+        imageMode: target.imageMode,
+        themeColor: target.themeColor,
+        injectMarketingCalendar: Boolean(target.selectedMarketingLabels.length),
+        injectProducts: Boolean(target.selectedProductLabels.length),
+        injectBrandProfile: target.injectBrandProfile,
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        articleSkillSlug: "wechat-article-composer",
+        articlePromptScene: "公众号创作文章",
+        articleProvider: "Right Codes 文生文",
+        articleRuntimeKey: "text-global",
+        articleModelName: "provider_runtime_text_global::gpt-5.5",
+        imageTask: target.imageBundle
+          ? {
+              id: createId("wechat_image_task"),
+              status: "SUCCESS",
+              skillSlug: "wechat-image-designer",
+              promptScene: "公众号制作图片",
+              provider: "Right Codes 文生图",
+              runtimeKey: "image-generation",
+              modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
+              imageMode: target.imageMode,
+              prompt: target.imageBundle.promptSummary,
+              coverImageUrl: target.imageBundle.coverImageUrl,
+              createdAt: target.imageBundle.generatedAt || now,
+              updatedAt: now,
+            }
+          : undefined,
+        publishStatus: "DRAFT",
+        taskStatus: "SUCCESS",
+        createdAt: now,
+        updatedAt: now,
+      };
+      nextDraft.title = target.title;
+      nextDraft.summary = target.summary;
+      nextDraft.author = target.author;
+      nextDraft.content = target.content;
+      nextDraft.htmlContent = target.htmlContent;
+      nextDraft.commentMode = target.commentMode;
+      nextDraft.imageMode = target.imageMode;
+      nextDraft.themeColor = target.themeColor;
+      nextDraft.injectMarketingCalendar = Boolean(target.selectedMarketingLabels.length);
+      nextDraft.injectProducts = Boolean(target.selectedProductLabels.length);
+      nextDraft.injectBrandProfile = target.injectBrandProfile;
+      nextDraft.selectedMarketingLabels = target.selectedMarketingLabels;
+      nextDraft.selectedProductLabels = target.selectedProductLabels;
+      nextDraft.selectedBrandLabels = target.selectedBrandLabels;
+      nextDraft.publishStatus = "PUBLISHED";
+      nextDraft.publishedAt = now;
+      nextDraft.publishTaskId = task.id;
+      nextDraft.updatedAt = now;
+      if (!existingDraft) {
+        wechatArticleDraftMockStore.unshift(nextDraft);
+      }
+      target.linkedDraftId = nextDraft.id;
+      target.status = "PUBLISHED";
+      target.currentStep = "result";
+      target.publishConfig = {
+        ready: true,
+        accountId: target.accountId,
+        accountName: target.accountName,
+        coverImageUrl: target.publishConfig.coverImageUrl,
+        commentMode: target.commentMode,
+        fanCommentsOnly: target.publishConfig.fanCommentsOnly,
+        checklist: target.publishConfig.checklist,
         mediaId,
-        publishStatus: "PUBLISHED",
         publishedAt: now,
-        destination: "WECHAT_OFFICIAL_ACCOUNT_API",
-      },
-      { modelName: "wechat-official-account-api-publish" },
-    );
-    return {
-      item: this.toWechatWorkflowSessionRecord(target),
-      draft: this.hydrateWechatDraftTaskStatus(nextDraft),
-    };
+        publishTaskId: task.id,
+      };
+      target.updatedAt = now;
+      target.errorDetail = undefined;
+      await this.markTaskSuccess(
+        task.id,
+        {
+          workflowId: target.id,
+          mediaId,
+          publishStatus: "PUBLISHED",
+          publishedAt: now,
+          destination: "WECHAT_OFFICIAL_ACCOUNT_API",
+        },
+        { modelName: "wechat-official-account-api-publish" },
+      );
+      this.appendWechatPublishHistoryRecord(target, {
+        status: "SUCCESS",
+        mediaId,
+        publishTaskId: task.id,
+        sourceDraftId: nextDraft.id,
+        retryCount,
+        publishedAt: now,
+      });
+      return {
+        item: this.toWechatWorkflowSessionRecord(target),
+        draft: this.hydrateWechatDraftTaskStatus(nextDraft),
+      };
+    } catch (error) {
+      const now = new Date().toISOString();
+      const message = error instanceof Error ? error.message : "公众号发布失败。";
+      target.status = "FAILED";
+      target.currentStep = "result";
+      target.updatedAt = now;
+      target.errorDetail = message;
+      this.appendWechatPublishHistoryRecord(target, {
+        status: "FAILED",
+        retryCount,
+        publishedAt: now,
+        errorDetail: message,
+      });
+      throw error;
+    }
   }
 
   async generateWechatArticleDraft(brandId: string, payload: WechatArticleComposePayload, auth?: RequestAuthContext) {
@@ -7389,6 +7495,14 @@ export class WorksService {
     return target;
   }
 
+  private getWechatPublishHistoryStoreItem(brandId: string, historyId: string) {
+    const target = wechatPublishHistoryMockStore.find((item) => item.brandId === brandId && item.id === historyId);
+    if (!target) {
+      throw new NotFoundException("公众号发布历史不存在。");
+    }
+    return target;
+  }
+
   private toWechatAccountConfigRecord(item?: WechatAccountConfigStoreItem): WechatAccountConfigRecord {
     return {
       brandId: item?.brandId || "",
@@ -7437,6 +7551,56 @@ export class WorksService {
 
   private toWechatWorkflowSessionRecord(item: WechatWorkflowSessionStoreItem): WechatWorkflowSessionRecord {
     return { ...item };
+  }
+
+  private toWechatPublishHistoryRecord(item: WechatPublishHistoryStoreItem): WechatPublishHistoryRecord {
+    return { ...item };
+  }
+
+  private appendWechatPublishHistoryRecord(
+    target: WechatWorkflowSessionRecord,
+    payload: {
+      status: "SUCCESS" | "FAILED";
+      mediaId?: string;
+      publishTaskId?: string;
+      sourceDraftId?: string;
+      retryCount: number;
+      publishedAt: string;
+      errorDetail?: string;
+    },
+  ) {
+    const now = payload.publishedAt;
+    const existing = payload.publishTaskId
+      ? wechatPublishHistoryMockStore.find((item) => item.brandId === target.brandId && item.publishTaskId === payload.publishTaskId)
+      : undefined;
+    const next: WechatPublishHistoryStoreItem = {
+      id: existing?.id || createId("wechat_publish_history"),
+      brandId: target.brandId,
+      workflowId: target.id,
+      workflowTitle: target.title,
+      accountId: target.accountId,
+      accountName: target.accountName,
+      status: payload.status,
+      summary:
+        payload.status === "SUCCESS"
+          ? `${target.title} 已通过公众号 API 发布到草稿箱。`
+          : `${target.title} 发布失败，请检查 API 配置、白名单与封面图。`,
+      coverImageUrl: target.publishConfig?.coverImageUrl || target.imageBundle?.coverImageUrl,
+      mediaId: payload.mediaId,
+      publishTaskId: payload.publishTaskId,
+      sourceDraftId: payload.sourceDraftId || target.linkedDraftId,
+      commentMode: target.commentMode,
+      fanCommentsOnly: target.publishConfig?.fanCommentsOnly ?? false,
+      retryCount: payload.retryCount,
+      errorDetail: payload.errorDetail,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    if (existing) {
+      Object.assign(existing, next);
+    } else {
+      wechatPublishHistoryMockStore.unshift(next);
+    }
   }
 
   private hydrateWechatDraftTaskStatus(item: WechatArticleDraftRecord): WechatArticleDraftRecord {

@@ -180,6 +180,27 @@ export class WorksController {
     return this.worksService.listWechatWorkflowSessions(brandId);
   }
 
+  @Get("brands/:brandId/wechat/publish-history")
+  async listWechatPublishHistory(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+    return this.worksService.listWechatPublishHistory(brandId);
+  }
+
+  @Get("brands/:brandId/wechat/publish-history/:historyId")
+  async getWechatPublishHistoryItem(
+    @Param("brandId") brandId: string,
+    @Param("historyId") historyId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+    return this.worksService.getWechatPublishHistoryItem(brandId, historyId);
+  }
+
   @Get("brands/:brandId/wechat/workflows/:workflowId")
   async getWechatWorkflowSession(
     @Param("brandId") brandId: string,

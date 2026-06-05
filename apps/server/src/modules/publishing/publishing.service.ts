@@ -27,6 +27,10 @@ export type PublishWechatWorkflowPayload = {
   mode?: "PUBLISH_WORKFLOW";
 };
 
+export type RetryWechatWorkflowPublishPayload = {
+  mode?: "RETRY_PUBLISH_WORKFLOW";
+};
+
 type BaseDraftTaskInput = {
   sessionToken: string;
   platform: "XIAOHONGSHU";
@@ -230,6 +234,23 @@ export class PublishingService {
         id: result.item.publishConfig?.publishTaskId || "",
         taskStatus: result.item.status === "PUBLISHED" ? "SUCCESS" : "FAILED",
         taskTitle: `发布公众号工作流：${result.item.title}`,
+      },
+      item: result.item,
+      draft: result.draft,
+    };
+  }
+
+  async retryWechatWorkflowPublishToOfficialAccount(
+    brandId: string,
+    historyId: string,
+    _payload: RetryWechatWorkflowPublishPayload = {},
+  ) {
+    const result = await this.worksService.retryWechatPublishHistoryItem(brandId, historyId);
+    return {
+      task: {
+        id: result.item.publishConfig?.publishTaskId || "",
+        taskStatus: result.item.status === "PUBLISHED" ? "SUCCESS" : "FAILED",
+        taskTitle: `重试发布公众号工作流：${result.item.title}`,
       },
       item: result.item,
       draft: result.draft,
