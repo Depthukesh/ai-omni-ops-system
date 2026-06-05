@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { DEMO_BRAND_ID, getBrandArchive, type BrandArchiveBundle, type BrandProduct } from "../../../services/brand-growth";
-import { publishWechatArticleToOfficialAccount } from "../../../services/publishing";
+import { publishWechatArticleToOfficialAccount, publishWechatWorkflowToOfficialAccount } from "../../../services/publishing";
 import {
   getXiaohongshuMarketingCalendarWorkspace,
   type XiaohongshuMarketingCalendarItem,
@@ -11,6 +11,7 @@ import {
 } from "../../../services/reports";
 import {
   createWechatWorkflow,
+  generateWechatWorkflowImages,
   getWechatAccountConfig,
   getWechatArticleDrafts,
   getWechatOfficialAccounts,
@@ -20,6 +21,7 @@ import {
   saveWechatWorkflowPreferences,
   updateWechatWorkflowArticle,
   updateWechatWorkflowInput,
+  updateWechatWorkflowPublishConfirm,
   type WechatAccountConfigRecord,
   type WechatArticleDraftRecord,
   type WechatCommentMode,
@@ -129,6 +131,9 @@ export function WechatWorkspaceShell() {
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   const [isSavingWorkflowInput, setIsSavingWorkflowInput] = useState(false);
   const [isSavingWorkflowArticle, setIsSavingWorkflowArticle] = useState(false);
+  const [isGeneratingWorkflowImages, setIsGeneratingWorkflowImages] = useState(false);
+  const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
+  const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
   const [publishingDraftId, setPublishingDraftId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
@@ -168,6 +173,8 @@ export function WechatWorkspaceShell() {
   const [articleAuthor, setArticleAuthor] = useState("");
   const [articleContent, setArticleContent] = useState("");
   const [articleCommentMode, setArticleCommentMode] = useState<WechatCommentMode>("open");
+  const [publishCoverImageUrl, setPublishCoverImageUrl] = useState("");
+  const [publishFanCommentsOnly, setPublishFanCommentsOnly] = useState(false);
 
   const calendarItems = useMemo(() => {
     const merged = [
@@ -316,6 +323,8 @@ export function WechatWorkspaceShell() {
     setArticleAuthor(selectedWorkflow.author);
     setArticleContent(selectedWorkflow.content);
     setArticleCommentMode(selectedWorkflow.commentMode);
+    setPublishCoverImageUrl(selectedWorkflow.publishConfig?.coverImageUrl || selectedWorkflow.imageBundle?.coverImageUrl || "");
+    setPublishFanCommentsOnly(selectedWorkflow.publishConfig?.fanCommentsOnly || false);
   }, [accounts, calendarItems, products, selectedWorkflow]);
 
   function openDraftPreview(htmlContent: string) {
@@ -470,6 +479,67 @@ export function WechatWorkspaceShell() {
       setErrorMessage(error instanceof Error ? error.message : "保存文章阶段失败。");
     } finally {
       setIsSavingWorkflowArticle(false);
+    }
+  }
+
+  async function handleGenerateWorkflowImages() {
+    if (!selectedWorkflow) {
+      return;
+    }
+    setIsGeneratingWorkflowImages(true);
+    setErrorMessage("");
+    try {
+      const response = await generateWechatWorkflowImages(brandId, selectedWorkflow.id);
+      upsertSession(response.item);
+      setPublishCoverImageUrl(response.item.publishConfig?.coverImageUrl || response.item.imageBundle?.coverImageUrl || "");
+      setNotice("生图阶段已完成，已生成封面图与正文配图，可继续进入发布确认。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "生成公众号配图失败。");
+    } finally {
+      setIsGeneratingWorkflowImages(false);
+    }
+  }
+
+  async function handleSavePublishConfirm() {
+    if (!selectedWorkflow) {
+      return;
+    }
+    setIsSavingPublishConfirm(true);
+    setErrorMessage("");
+    try {
+      const response = await updateWechatWorkflowPublishConfirm(brandId, selectedWorkflow.id, {
+        title: articleTitle,
+        summary: articleSummary,
+        author: articleAuthor,
+        commentMode: articleCommentMode,
+        fanCommentsOnly: publishFanCommentsOnly,
+        coverImageUrl: publishCoverImageUrl,
+      });
+      upsertSession(response.item);
+      setNotice(response.item.publishConfig?.ready ? "发布确认已完成，可以执行 API 发布。" : "发布确认未完成，请检查封面图与 API 配置。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "保存发布确认失败。");
+    } finally {
+      setIsSavingPublishConfirm(false);
+    }
+  }
+
+  async function handlePublishWorkflow() {
+    if (!selectedWorkflow) {
+      return;
+    }
+    setIsPublishingWorkflow(true);
+    setErrorMessage("");
+    try {
+      const response = await publishWechatWorkflowToOfficialAccount(brandId, selectedWorkflow.id, { mode: "PUBLISH_WORKFLOW" });
+      upsertSession(response.item);
+      setDrafts((current) => [response.draft, ...current.filter((item) => item.id !== response.draft.id)]);
+      setNotice(`公众号工作流已通过 API 发布，media_id：${response.item.publishConfig?.mediaId || "已生成"}`);
+      setActiveSection("history");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "发布公众号工作流失败。");
+    } finally {
+      setIsPublishingWorkflow(false);
     }
   }
 
@@ -1001,21 +1071,136 @@ export function WechatWorkspaceShell() {
                             <div className="wechat-panel-head">
                               <div>
                                 <strong>Step 3. 生图</strong>
-                                <p className="wechat-inline-tip">本轮先预留独立阶段，下一步接封面图与正文配图任务。</p>
+                                <p className="wechat-inline-tip">已接入封面图和正文配图的 mock 生成结果，可作为后续真实图片任务模型的前置闭环。</p>
                               </div>
+                              <button
+                                type="button"
+                                className="primary-button"
+                                onClick={() => void handleGenerateWorkflowImages()}
+                                disabled={isGeneratingWorkflowImages}
+                              >
+                                {isGeneratingWorkflowImages ? "生图中..." : "生成封面图与正文配图"}
+                              </button>
                             </div>
-                            <div className="empty-state">已预留封面图与正文配图入口，后续会接入独立图片任务模型与结果回填。</div>
+                            {selectedWorkflow.imageBundle ? (
+                              <div className="wechat-image-stage">
+                                <div className="wechat-pill-row">
+                                  <span className="archive-pill status-ready">状态：{selectedWorkflow.imageBundle.status}</span>
+                                  <span className="archive-pill status-ready">
+                                    {selectedWorkflow.imageBundle.bodyImageUrls.length ? `正文配图 ${selectedWorkflow.imageBundle.bodyImageUrls.length} 张` : "仅封面图"}
+                                  </span>
+                                </div>
+                                <p className="wechat-inline-tip">{selectedWorkflow.imageBundle.promptSummary}</p>
+                                {selectedWorkflow.imageBundle.coverImageUrl ? (
+                                  <img src={selectedWorkflow.imageBundle.coverImageUrl} alt="公众号封面图" className="wechat-generated-cover" />
+                                ) : null}
+                                {selectedWorkflow.imageBundle.bodyImageUrls.length ? (
+                                  <div className="wechat-generated-gallery">
+                                    {selectedWorkflow.imageBundle.bodyImageUrls.map((imageUrl) => (
+                                      <img key={imageUrl} src={imageUrl} alt="公众号正文配图" className="wechat-generated-thumb" />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="empty-state">当前图片策略未生成正文配图。</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="empty-state">先完成文章阶段，再为当前工作流生成封面图与正文配图。</div>
+                            )}
                           </article>
                           <article className="light-data-panel">
                             <div className="wechat-panel-head">
                               <div>
                                 <strong>Step 4. API 发布确认</strong>
-                                <p className="wechat-inline-tip">固定 API-only，后续将在这里校验 AppID、AppSecret、白名单和封面图。</p>
+                                <p className="wechat-inline-tip">固定 API-only，这里会校验 AppID、AppSecret、白名单和封面图，并执行工作流发布。</p>
+                              </div>
+                              <div className="strategy-inline-actions">
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => void handleSavePublishConfirm()}
+                                  disabled={isSavingPublishConfirm}
+                                >
+                                  {isSavingPublishConfirm ? "确认中..." : "保存发布确认"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  onClick={() => void handlePublishWorkflow()}
+                                  disabled={isPublishingWorkflow || !selectedWorkflow.publishConfig?.ready}
+                                >
+                                  {isPublishingWorkflow ? "发布中..." : "执行 API 发布"}
+                                </button>
                               </div>
                             </div>
-                            <div className="empty-state">本轮先保留确认阶段卡位，下一步接入真实公众号 API 发布链路。</div>
+                            <div className="wechat-form-grid">
+                              <label className="wechat-field wechat-field--full">
+                                <span>封面图 URL</span>
+                                <input value={publishCoverImageUrl} onChange={(event) => setPublishCoverImageUrl(event.target.value)} />
+                              </label>
+                              <label className="wechat-field">
+                                <span>评论策略</span>
+                                <select value={articleCommentMode} onChange={(event) => setArticleCommentMode(event.target.value as WechatCommentMode)}>
+                                  {commentModeOptions.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                      {item.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="wechat-checkbox-row">
+                                <input
+                                  type="checkbox"
+                                  checked={publishFanCommentsOnly}
+                                  onChange={(event) => setPublishFanCommentsOnly(event.target.checked)}
+                                />
+                                <span>仅粉丝评论</span>
+                              </label>
+                            </div>
+                            {selectedWorkflow.publishConfig ? (
+                              <div className="wechat-publish-summary">
+                                <div className="wechat-pill-row">
+                                  <span className={`archive-pill ${selectedWorkflow.publishConfig.ready ? "status-ready" : "status-pending"}`}>
+                                    {selectedWorkflow.publishConfig.ready ? "可发布" : "待补齐"}
+                                  </span>
+                                  {selectedWorkflow.publishConfig.mediaId ? (
+                                    <span className="archive-pill status-ready">media_id：{selectedWorkflow.publishConfig.mediaId}</span>
+                                  ) : null}
+                                </div>
+                                <div className="wechat-checklist">
+                                  {selectedWorkflow.publishConfig.checklist.map((item) => (
+                                    <span key={item} className="archive-pill status-ready">
+                                      {item}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="empty-state">先完成生图阶段，再保存发布确认。</div>
+                            )}
                           </article>
                         </section>
+                        {selectedWorkflow.status === "PUBLISHED" ? (
+                          <section className="light-data-panel">
+                            <div className="wechat-panel-head">
+                              <div>
+                                <strong>Step 5. 发布结果</strong>
+                                <p className="wechat-inline-tip">当前工作流已经发布完成，可在历史记录中继续查看对应草稿。</p>
+                              </div>
+                            </div>
+                            <div className="wechat-publish-summary">
+                              <div className="wechat-pill-row">
+                                <span className="archive-pill status-ready">已发布</span>
+                                {selectedWorkflow.publishConfig?.mediaId ? (
+                                  <span className="archive-pill status-ready">media_id：{selectedWorkflow.publishConfig.mediaId}</span>
+                                ) : null}
+                              </div>
+                              <p className="wechat-inline-tip">
+                                发布时间：{selectedWorkflow.publishConfig?.publishedAt || "刚刚"}，绑定草稿：{selectedWorkflow.linkedDraftId || "未生成"}
+                              </p>
+                            </div>
+                          </section>
+                        ) : null}
                       </>
                     ) : (
                       <div className="empty-state">先在左侧创建一个公众号工作流。</div>
@@ -1030,9 +1215,38 @@ export function WechatWorkspaceShell() {
                 <div className="workspace-toolbar top-toolbar">
                   <div>
                     <strong>发布历史</strong>
-                    <p className="wechat-description">这里继续展示当前已存在的公众号草稿与发布结果，后续会升级为工作流执行历史。</p>
+                    <p className="wechat-description">当前已同时展示工作流发布结果和历史草稿，后续会继续沉淀为正式发布历史与重试中心。</p>
                   </div>
                 </div>
+                {!isLoading && sessions.some((item) => item.publishConfig?.mediaId) ? (
+                  <section className="light-data-panel">
+                    <div className="wechat-panel-head">
+                      <div>
+                        <strong>工作流发布结果</strong>
+                        <p className="wechat-inline-tip">优先展示新工作流发布的 API 结果。</p>
+                      </div>
+                    </div>
+                    <div className="wechat-session-result-grid">
+                      {sessions
+                        .filter((item) => item.publishConfig?.mediaId)
+                        .map((item) => (
+                          <article key={item.id} className="wechat-session-result-card">
+                            <div className="wechat-pill-row">
+                              <span className="archive-pill status-ready">{item.status}</span>
+                              <span className="archive-pill status-ready">media_id：{item.publishConfig?.mediaId}</span>
+                            </div>
+                            <strong>{item.title}</strong>
+                            <p>{item.summary || "已完成 API 发布，可继续回查封面图、评论策略与草稿记录。"}</p>
+                            <div className="wechat-meta-list">
+                              <span>账号：{item.accountName || "默认账号"}</span>
+                              <span>封面：{item.publishConfig?.coverImageUrl ? "已生成" : "未生成"}</span>
+                              <span>发布时间：{item.publishConfig?.publishedAt || "刚刚"}</span>
+                            </div>
+                          </article>
+                        ))}
+                    </div>
+                  </section>
+                ) : null}
                 {isLoading ? (
                   <div className="empty-state">历史记录加载中...</div>
                 ) : !drafts.length ? (
@@ -1162,7 +1376,8 @@ export function WechatWorkspaceShell() {
         .wechat-form-grid,
         .wechat-account-grid,
         .wechat-history-grid,
-        .wechat-placeholder-grid {
+        .wechat-placeholder-grid,
+        .wechat-session-result-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 14px;
@@ -1256,10 +1471,42 @@ export function WechatWorkspaceShell() {
           outline: 2px solid rgba(53, 86, 232, 0.28);
         }
 
+        .wechat-image-stage,
+        .wechat-publish-summary,
+        .wechat-checklist {
+          display: grid;
+          gap: 12px;
+        }
+
+        .wechat-generated-cover,
+        .wechat-generated-thumb {
+          width: 100%;
+          border-radius: 18px;
+          border: 1px solid #e4e8f0;
+          background: #ffffff;
+          object-fit: cover;
+        }
+
+        .wechat-generated-cover {
+          aspect-ratio: 16 / 9;
+          box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        .wechat-generated-gallery {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .wechat-generated-thumb {
+          aspect-ratio: 16 / 9;
+        }
+
         .wechat-account-card,
         .wechat-history-card,
         .wechat-session-item,
-        .wechat-step-card {
+        .wechat-step-card,
+        .wechat-session-result-card {
           border: 1px solid #e4e8f0;
           border-radius: 18px;
           background: #ffffff;
@@ -1267,13 +1514,15 @@ export function WechatWorkspaceShell() {
 
         .wechat-account-card,
         .wechat-session-item,
-        .wechat-step-card {
+        .wechat-step-card,
+        .wechat-session-result-card {
           padding: 14px;
         }
 
         .wechat-account-card p,
         .wechat-step-card p,
-        .wechat-history-body p {
+        .wechat-history-body p,
+        .wechat-session-result-card p {
           margin: 0;
           color: #607089;
           font-size: 13px;
@@ -1353,7 +1602,9 @@ export function WechatWorkspaceShell() {
           .wechat-form-grid,
           .wechat-account-grid,
           .wechat-history-grid,
-          .wechat-placeholder-grid {
+          .wechat-placeholder-grid,
+          .wechat-session-result-grid,
+          .wechat-generated-gallery {
             grid-template-columns: 1fr;
           }
 

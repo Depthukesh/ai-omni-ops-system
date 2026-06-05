@@ -23,6 +23,10 @@ export type PublishWechatArticlePayload = {
   mode?: "PUBLISH_ARTICLE";
 };
 
+export type PublishWechatWorkflowPayload = {
+  mode?: "PUBLISH_WORKFLOW";
+};
+
 type BaseDraftTaskInput = {
   sessionToken: string;
   platform: "XIAOHONGSHU";
@@ -212,6 +216,23 @@ export class PublishingService {
         taskTitle: `发布公众号文章：${result.item.title}`,
       },
       item: result.item,
+    };
+  }
+
+  async publishWechatWorkflowToOfficialAccount(
+    brandId: string,
+    workflowId: string,
+    _payload: PublishWechatWorkflowPayload = {},
+  ) {
+    const result = await this.worksService.publishWechatWorkflow(brandId, workflowId);
+    return {
+      task: {
+        id: result.item.publishConfig?.publishTaskId || "",
+        taskStatus: result.item.status === "PUBLISHED" ? "SUCCESS" : "FAILED",
+        taskTitle: `发布公众号工作流：${result.item.title}`,
+      },
+      item: result.item,
+      draft: result.draft,
     };
   }
 

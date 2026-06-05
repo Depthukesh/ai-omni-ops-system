@@ -5,6 +5,7 @@ import {
   type CompleteMobileDraftSessionPayload,
   type CreateMobileDraftSessionPayload,
   type PublishWechatArticlePayload,
+  type PublishWechatWorkflowPayload,
 } from "./publishing.service";
 
 @Controller("publishing")
@@ -68,6 +69,19 @@ export class PublishingController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
       return this.publishingService.publishWechatArticleToOfficialAccount(brandId, draftId, payload);
+    });
+  }
+
+  @Post("brands/:brandId/wechat/workflows/:workflowId/publish")
+  publishWechatWorkflow(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() payload: PublishWechatWorkflowPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.publishingService.publishWechatWorkflowToOfficialAccount(brandId, workflowId, payload);
     });
   }
 }

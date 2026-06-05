@@ -504,6 +504,29 @@ export type WechatWorkflowSessionRecord = {
   selectedMarketingLabels: string[];
   selectedProductLabels: string[];
   selectedBrandLabels: string[];
+  imageBundle?: {
+    status: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+    promptSummary: string;
+    generatedAt?: string;
+    coverImageUrl?: string;
+    bodyImageUrls: string[];
+    prompts: string[];
+    errorDetail?: string;
+  };
+  publishConfig?: {
+    ready: boolean;
+    accountId?: string;
+    accountName?: string;
+    coverImageUrl?: string;
+    commentMode: WechatCommentMode;
+    fanCommentsOnly: boolean;
+    checklist: string[];
+    mediaId?: string;
+    publishedAt?: string;
+    publishTaskId?: string;
+  };
+  linkedDraftId?: string;
+  errorDetail?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -626,6 +649,15 @@ export type UpdateWechatWorkflowArticleForm = {
   content?: string;
   commentMode?: WechatCommentMode;
   themeColor?: string;
+};
+
+export type UpdateWechatWorkflowPublishForm = {
+  title?: string;
+  summary?: string;
+  author?: string;
+  commentMode?: WechatCommentMode;
+  fanCommentsOnly?: boolean;
+  coverImageUrl?: string;
 };
 
 export type GenerateXiaohongshuRewriteNoteForm = {
@@ -1202,6 +1234,26 @@ export async function updateWechatWorkflowArticle(
 ) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/article`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function generateWechatWorkflowImages(brandId: string, workflowId: string) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/images/generate`,
+    "POST",
+    {},
+  );
+}
+
+export async function updateWechatWorkflowPublishConfirm(
+  brandId: string,
+  workflowId: string,
+  payload: UpdateWechatWorkflowPublishForm,
+) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/publish-confirm`,
     "PATCH",
     payload,
   );
