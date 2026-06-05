@@ -288,8 +288,8 @@
   - 生成后按作品卡片展示公众号文章草稿，支持查看 HTML 预览
   - 作品记录当前固定输出 `HTML`，并保存营销日历、产品、品牌资料、主题色、配图策略和技能执行信息
 - 技能与发布接线
-  - 后台技能中心与前台技能中心已补入 `公众号-创作文章 / 公众号-制作图片` 两个技能叶子项
-  - 文章草稿当前记录 `wechat-article-composer`，图片任务当前记录 `wechat-image-designer`
+  - 后台技能中心与前台技能中心已补入 `公众号-创作文章 / 公众号-封面图生成 / 公众号-正文配图生成 / 公众号-API发布` 四个技能叶子项
+  - 文章草稿当前记录 `wechat-article-composer`，图片任务按封面图 `wechat-cover-image-designer` 与正文配图 `wechat-body-image-designer` 分开记录
   - 前端通过 `publishWechatArticleToOfficialAccount()` 命中 `POST /publishing/brands/:brandId/wechat/articles/:draftId/publish`
   - 后端发布入口当前已接入 `PublishingModule -> WorksModule`，会创建发布任务并把草稿状态回写为 `PUBLISHED`
 - 当前边界

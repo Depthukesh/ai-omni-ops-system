@@ -1340,7 +1340,9 @@ export function WechatWorkspaceShell() {
                                 <span className={`archive-pill ${draft.publishStatus === "PUBLISHED" ? "status-ready" : "status-pending"}`}>
                                   {draft.publishStatus === "PUBLISHED" ? "已发布" : "待发布"}
                                 </span>
-                                <span className="archive-pill status-ready">{draft.imageTask ? "带图片任务" : "纯文章"}</span>
+                                <span className="archive-pill status-ready">
+                                  {draft.imageTasks?.length ? `带 ${draft.imageTasks.length} 个图片任务` : "纯文章"}
+                                </span>
                               </div>
                               <strong>{draft.title}</strong>
                               <p>{draft.summary}</p>

@@ -743,14 +743,14 @@
             <span class="eyebrow">公众号工作台</span>
             <h2 style="margin-top: 12px">创作与发布改成弹窗式主链路，技能中心负责接模型。</h2>
             <p class="section-note">
-              文章内容固定生成 HTML；用户在弹窗里选择营销日历、产品信息、品牌信息和主题颜色。前后台技能中心同步两项技能：
-              `公众号创作文章` 与 `公众号制作图片`。
+              文章内容固定生成 HTML；用户在弹窗里选择营销日历、产品信息、品牌信息和主题颜色。前后台技能中心同步四项技能：
+              `公众号创作文章`、`公众号封面图生成`、`公众号正文配图生成` 与 `公众号API发布`。
             </p>
             <div class="tags">
               <span class="tag">添加公众号文章弹窗</span>
               <span class="tag">固定 HTML 输出</span>
               <span class="tag">创作文章 → 第三方文生文</span>
-              <span class="tag">制作图片 → 第三方文生图</span>
+              <span class="tag">封面图/正文配图 → 第三方文生图</span>
             </div>
           </div>
           <div class="status-panel">
@@ -773,7 +773,7 @@
               </div>
               <div class="status-mini">
                 <span>图片技能</span>
-                <strong>wechat-image-designer</strong>
+                <strong>wechat-cover-image-designer / wechat-body-image-designer</strong>
               </div>
             </div>
           </div>
@@ -870,10 +870,18 @@
                 </div>
                 <div class="skill-card">
                   <div class="row">
-                    <strong>公众号制作图片</strong>
+                    <strong>公众号封面图生成</strong>
                     <span class="pill">文生图</span>
                   </div>
-                  <p>slug：`wechat-image-designer`，用于生成公众号头图、封面图和文中配图，直接接第三方文生图模型。</p>
+                  <p>slug：`wechat-cover-image-designer`，用于生成公众号封面图、头图与发布主视觉，直接接第三方文生图模型。</p>
+                  <div class="runtime-box">默认运行时：`image-generation`，可沿用 Right Codes 文生图/图生图配置。</div>
+                </div>
+                <div class="skill-card">
+                  <div class="row">
+                    <strong>公众号正文配图生成</strong>
+                    <span class="pill">文生图</span>
+                  </div>
+                  <p>slug：`wechat-body-image-designer`，用于生成公众号正文插图、产品辅助图和场景图，直接接第三方文生图模型。</p>
                   <div class="runtime-box">默认运行时：`image-generation`，可沿用 Right Codes 文生图/图生图配置。</div>
                 </div>
               </div>
@@ -1060,9 +1068,15 @@
                   <div class="muted">模型链路：第三方文生文运行时</div>
                 </div>
                 <div class="runtime-box">
-                  <strong>公众号制作图片</strong>
-                  <div class="muted">skillSlug：`wechat-image-designer`</div>
-                  <div class="muted">promptScene：`公众号制作图片`</div>
+                  <strong>公众号封面图生成</strong>
+                  <div class="muted">skillSlug：`wechat-cover-image-designer`</div>
+                  <div class="muted">promptScene：`公众号封面图生成`</div>
+                  <div class="muted">模型链路：第三方文生图运行时</div>
+                </div>
+                <div class="runtime-box">
+                  <strong>公众号正文配图生成</strong>
+                  <div class="muted">skillSlug：`wechat-body-image-designer`</div>
+                  <div class="muted">promptScene：`公众号正文配图生成`</div>
                   <div class="muted">模型链路：第三方文生图运行时</div>
                 </div>
               </div>

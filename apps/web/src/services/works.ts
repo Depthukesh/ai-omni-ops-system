@@ -552,17 +552,19 @@ export type WechatPublishHistoryRecord = {
   updatedAt: string;
 };
 
+export type WechatImageTaskKind = "cover" | "body";
+
 export type WechatImageTaskRecord = {
   id: string;
+  kind: WechatImageTaskKind;
   status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
-  skillSlug: "wechat-image-designer";
-  promptScene: "公众号制作图片";
+  skillSlug: "wechat-cover-image-designer" | "wechat-body-image-designer";
+  promptScene: "公众号封面图生成" | "公众号正文配图生成";
   provider: string;
   runtimeKey: string;
   modelName: string;
-  imageMode: WechatImageMode;
   prompt: string;
-  coverImageUrl?: string;
+  generatedImageUrls: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -592,7 +594,7 @@ export type WechatArticleDraftRecord = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
-  imageTask?: WechatImageTaskRecord;
+  imageTasks?: WechatImageTaskRecord[];
   publishStatus: "DRAFT" | "PUBLISHED";
   publishedAt?: string;
   publishTaskId?: string;

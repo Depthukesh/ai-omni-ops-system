@@ -249,14 +249,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_wechat_article_compose"],
     promptScenes: ["公众号创作文章"],
   },
-  skill_wechat_image_compose: {
-    promptIds: ["prompt_wechat_image_compose"],
-    promptScenes: ["公众号制作图片"],
-  },
-  "wechat-image-designer": {
-    promptIds: ["prompt_wechat_image_compose"],
-    promptScenes: ["公众号制作图片"],
-  },
   skill_wechat_cover_image_compose: {
     promptIds: ["prompt_wechat_cover_image_compose"],
     promptScenes: ["公众号封面图生成"],

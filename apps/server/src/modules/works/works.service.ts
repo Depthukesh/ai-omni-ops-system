@@ -638,17 +638,19 @@ export type WechatAccountConfigRecord = {
   updatedAt: string;
 };
 
+export type WechatImageTaskKind = "cover" | "body";
+
 export type WechatImageTaskRecord = {
   id: string;
+  kind: WechatImageTaskKind;
   status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
-  skillSlug: "wechat-image-designer";
-  promptScene: "公众号制作图片";
+  skillSlug: "wechat-cover-image-designer" | "wechat-body-image-designer";
+  promptScene: "公众号封面图生成" | "公众号正文配图生成";
   provider: string;
   runtimeKey: string;
   modelName: string;
-  imageMode: WechatImageMode;
   prompt: string;
-  coverImageUrl?: string;
+  generatedImageUrls: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -678,7 +680,7 @@ export type WechatArticleDraftRecord = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
-  imageTask?: WechatImageTaskRecord;
+  imageTasks?: WechatImageTaskRecord[];
   publishStatus: "DRAFT" | "PUBLISHED";
   publishedAt?: string;
   publishTaskId?: string;
@@ -902,19 +904,36 @@ const wechatArticleDraftMockStore: WechatArticleDraftRecord[] = [
     articleProvider: "Right Codes 文生文",
     articleRuntimeKey: "text-global",
     articleModelName: "provider_runtime_text_global::gpt-5.5",
-    imageTask: {
-      id: "wechat_image_task_demo_001",
-      status: "QUEUED",
-      skillSlug: "wechat-image-designer",
-      promptScene: "公众号制作图片",
-      provider: "Right Codes 文生图",
-      runtimeKey: "image-generation",
-      modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
-      imageMode: "cover-and-body",
-      prompt: "为夏季会员日公众号文章生成头图和文中配图，整体风格温暖、烘焙门店感明显。",
-      createdAt: "2026-06-03T11:00:00.000Z",
-      updatedAt: "2026-06-03T11:00:00.000Z",
-    },
+    imageTasks: [
+      {
+        id: "wechat_image_task_demo_001",
+        kind: "cover",
+        status: "QUEUED",
+        skillSlug: "wechat-cover-image-designer",
+        promptScene: "公众号封面图生成",
+        provider: "Right Codes 文生图",
+        runtimeKey: "image-generation",
+        modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
+        prompt: "为夏季会员日公众号文章生成封面图和头图，整体风格温暖、烘焙门店感明显。",
+        generatedImageUrls: [],
+        createdAt: "2026-06-03T11:00:00.000Z",
+        updatedAt: "2026-06-03T11:00:00.000Z",
+      },
+      {
+        id: "wechat_image_task_demo_002",
+        kind: "body",
+        status: "QUEUED",
+        skillSlug: "wechat-body-image-designer",
+        promptScene: "公众号正文配图生成",
+        provider: "Right Codes 文生图",
+        runtimeKey: "image-generation",
+        modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
+        prompt: "为夏季会员日公众号文章生成正文插图和产品辅助图，保持温暖、真实、门店场景一致。",
+        generatedImageUrls: [],
+        createdAt: "2026-06-03T11:00:00.000Z",
+        updatedAt: "2026-06-03T11:00:00.000Z",
+      },
+    ],
     publishStatus: "DRAFT",
     taskStatus: "SUCCESS",
     createdAt: "2026-06-03T11:00:00.000Z",
@@ -3327,6 +3346,11 @@ export class WorksService {
       target.updatedAt = new Date().toISOString();
       const mediaId = `wechat_media_${task.id.slice(-8)}`;
       const now = new Date().toISOString();
+      const [articleRuntime, coverImageRuntime, bodyImageRuntime] = await Promise.all([
+        this.resolveWechatTextRuntimeMeta(),
+        this.resolveWechatImageRuntimeMeta("cover"),
+        this.resolveWechatImageRuntimeMeta("body"),
+      ]);
       const existingDraft = target.linkedDraftId
         ? wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === target.linkedDraftId)
         : undefined;
@@ -3352,25 +3376,10 @@ export class WorksService {
         selectedBrandLabels: target.selectedBrandLabels,
         articleSkillSlug: "wechat-article-composer",
         articlePromptScene: "公众号创作文章",
-        articleProvider: "Right Codes 文生文",
-        articleRuntimeKey: "text-global",
-        articleModelName: "provider_runtime_text_global::gpt-5.5",
-        imageTask: target.imageBundle
-          ? {
-              id: createId("wechat_image_task"),
-              status: "SUCCESS",
-              skillSlug: "wechat-image-designer",
-              promptScene: "公众号制作图片",
-              provider: "Right Codes 文生图",
-              runtimeKey: "image-generation",
-              modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
-              imageMode: target.imageMode,
-              prompt: target.imageBundle.promptSummary,
-              coverImageUrl: target.imageBundle.coverImageUrl,
-              createdAt: target.imageBundle.generatedAt || now,
-              updatedAt: now,
-            }
-          : undefined,
+        articleProvider: articleRuntime.provider,
+        articleRuntimeKey: articleRuntime.runtimeKey,
+        articleModelName: articleRuntime.modelName,
+        imageTasks: undefined,
         publishStatus: "DRAFT",
         taskStatus: "SUCCESS",
         createdAt: now,
@@ -3390,6 +3399,40 @@ export class WorksService {
       nextDraft.selectedMarketingLabels = target.selectedMarketingLabels;
       nextDraft.selectedProductLabels = target.selectedProductLabels;
       nextDraft.selectedBrandLabels = target.selectedBrandLabels;
+      nextDraft.articleProvider = articleRuntime.provider;
+      nextDraft.articleRuntimeKey = articleRuntime.runtimeKey;
+      nextDraft.articleModelName = articleRuntime.modelName;
+      nextDraft.imageTasks = target.imageBundle
+        ? this.buildWechatDraftImageTasks({
+            title: target.title,
+            summary: target.summary,
+            themeColor: target.themeColor,
+            imageMode: target.imageMode,
+            coverTaskMeta: {
+              provider: coverImageRuntime.provider,
+              runtimeKey: coverImageRuntime.runtimeKey,
+              modelName: coverImageRuntime.modelName,
+              status: "SUCCESS",
+              prompt: target.imageBundle.prompts[0] || target.imageBundle.promptSummary,
+              generatedImageUrls: target.imageBundle.coverImageUrl ? [target.imageBundle.coverImageUrl] : [],
+              createdAt: target.imageBundle.generatedAt || now,
+            },
+            bodyTaskMeta: {
+              provider: bodyImageRuntime.provider,
+              runtimeKey: bodyImageRuntime.runtimeKey,
+              modelName: bodyImageRuntime.modelName,
+              status: "SUCCESS",
+              prompt:
+                target.imageBundle.bodyImageUrls.length > 0
+                  ? target.imageBundle.prompts.slice(1).join("\n")
+                  : this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor),
+              generatedImageUrls: target.imageBundle.bodyImageUrls,
+              createdAt: target.imageBundle.generatedAt || now,
+            },
+            existingTasks: nextDraft.imageTasks,
+            updatedAt: now,
+          })
+        : undefined;
       nextDraft.publishStatus = "PUBLISHED";
       nextDraft.publishedAt = now;
       nextDraft.publishTaskId = task.id;
@@ -3463,8 +3506,11 @@ export class WorksService {
     const commentMode = payload.commentMode || this.getWechatAccountConfigStoreItem(brandId)?.commentMode || "open";
     const coverMode = payload.coverMode || "ai";
     const imageMode = payload.imageMode || "cover-and-body";
-    const articleRuntime = await this.resolveWechatTextRuntimeMeta();
-    const imageRuntime = await this.resolveWechatImageRuntimeMeta();
+    const [articleRuntime, coverImageRuntime, bodyImageRuntime] = await Promise.all([
+      this.resolveWechatTextRuntimeMeta(),
+      this.resolveWechatImageRuntimeMeta("cover"),
+      this.resolveWechatImageRuntimeMeta("body"),
+    ]);
     const now = new Date().toISOString();
     const userId = await this.resolveTaskUserId(brandId, auth);
     const task = await this.createOriginalTask({
@@ -3504,19 +3550,31 @@ export class WorksService {
       articleProvider: articleRuntime.provider,
       articleRuntimeKey: articleRuntime.runtimeKey,
       articleModelName: articleRuntime.modelName,
-      imageTask: {
-        id: createId("wechat_image_task"),
-        status: "QUEUED",
-        skillSlug: "wechat-image-designer",
-        promptScene: "公众号制作图片",
-        provider: imageRuntime.provider,
-        runtimeKey: imageRuntime.runtimeKey,
-        modelName: imageRuntime.modelName,
+      imageTasks: this.buildWechatDraftImageTasks({
+        title,
+        summary,
+        themeColor,
         imageMode,
-        prompt: this.buildWechatImagePrompt(title, summary, themeColor, imageMode),
-        createdAt: now,
+        coverTaskMeta: {
+          provider: coverImageRuntime.provider,
+          runtimeKey: coverImageRuntime.runtimeKey,
+          modelName: coverImageRuntime.modelName,
+          status: "QUEUED",
+          prompt: this.buildWechatCoverImagePrompt(title, summary, themeColor),
+          generatedImageUrls: [],
+          createdAt: now,
+        },
+        bodyTaskMeta: {
+          provider: bodyImageRuntime.provider,
+          runtimeKey: bodyImageRuntime.runtimeKey,
+          modelName: bodyImageRuntime.modelName,
+          status: "QUEUED",
+          prompt: this.buildWechatBodyImagePrompt(title, summary, themeColor),
+          generatedImageUrls: [],
+          createdAt: now,
+        },
         updatedAt: now,
-      },
+      }),
       publishStatus: "DRAFT",
       taskStatus: "SUCCESS",
       createdAt: now,
@@ -3532,7 +3590,7 @@ export class WorksService {
         title: record.title,
         outputFormat: record.outputFormat,
         articleRuntimeKey: record.articleRuntimeKey,
-        imageRuntimeKey: record.imageTask?.runtimeKey,
+        imageRuntimeKey: record.imageTasks?.map((item) => item.runtimeKey).filter(Boolean).join(",") || undefined,
       },
       { modelName: articleRuntime.modelName },
     );
@@ -3561,12 +3619,40 @@ export class WorksService {
     target.selectedMarketingLabels = this.normalizeWechatLabels(payload.selectedMarketingLabels, target.selectedMarketingLabels);
     target.selectedProductLabels = this.normalizeWechatLabels(payload.selectedProductLabels, target.selectedProductLabels);
     target.selectedBrandLabels = this.normalizeWechatLabels(payload.selectedBrandLabels, target.selectedBrandLabels);
-    if (target.imageTask) {
-      target.imageTask.imageMode = target.imageMode;
-      target.imageTask.prompt = this.buildWechatImagePrompt(target.title, target.summary, target.themeColor, target.imageMode);
-      target.imageTask.updatedAt = new Date().toISOString();
-    }
-    target.updatedAt = new Date().toISOString();
+    const [coverImageRuntime, bodyImageRuntime] = await Promise.all([
+      this.resolveWechatImageRuntimeMeta("cover"),
+      this.resolveWechatImageRuntimeMeta("body"),
+    ]);
+    const existingCoverTask = target.imageTasks?.find((item) => item.kind === "cover");
+    const existingBodyTask = target.imageTasks?.find((item) => item.kind === "body");
+    const now = new Date().toISOString();
+    target.imageTasks = this.buildWechatDraftImageTasks({
+      title: target.title,
+      summary: target.summary,
+      themeColor: target.themeColor,
+      imageMode: target.imageMode,
+      coverTaskMeta: {
+        provider: existingCoverTask?.provider || coverImageRuntime.provider,
+        runtimeKey: existingCoverTask?.runtimeKey || coverImageRuntime.runtimeKey,
+        modelName: existingCoverTask?.modelName || coverImageRuntime.modelName,
+        status: existingCoverTask?.status || "QUEUED",
+        prompt: this.buildWechatCoverImagePrompt(target.title, target.summary, target.themeColor),
+        generatedImageUrls: existingCoverTask?.generatedImageUrls || [],
+        createdAt: existingCoverTask?.createdAt || now,
+      },
+      bodyTaskMeta: {
+        provider: existingBodyTask?.provider || bodyImageRuntime.provider,
+        runtimeKey: existingBodyTask?.runtimeKey || bodyImageRuntime.runtimeKey,
+        modelName: existingBodyTask?.modelName || bodyImageRuntime.modelName,
+        status: existingBodyTask?.status || "QUEUED",
+        prompt: this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor),
+        generatedImageUrls: existingBodyTask?.generatedImageUrls || [],
+        createdAt: existingBodyTask?.createdAt || now,
+      },
+      existingTasks: target.imageTasks,
+      updatedAt: now,
+    });
+    target.updatedAt = now;
     target.htmlContent = this.renderWechatArticleHtml(target);
     return {
       item: this.hydrateWechatDraftTaskStatus(target),
@@ -7630,10 +7716,12 @@ export class WorksService {
     };
   }
 
-  private async resolveWechatImageRuntimeMeta() {
+  private async resolveWechatImageRuntimeMeta(kind: WechatImageTaskKind) {
+    const skillSlug = kind === "cover" ? "wechat-cover-image-designer" : "wechat-body-image-designer";
+    const promptId = kind === "cover" ? "prompt_wechat_cover_image_compose" : "prompt_wechat_body_image_compose";
     const preference = await this.loadSkillModelPreference(
-      "wechat-image-designer",
-      "prompt_wechat_image_compose",
+      skillSlug,
+      promptId,
       ["provider_runtime_image_generation_right_codes::gpt-image-2", "gpt-image-2"],
     );
     const provider = (await this.apiProvidersService.listActiveProvidersByRuntimeKey("image-generation"))[0];
@@ -7664,23 +7752,109 @@ export class WorksService {
   }
 
   private buildWechatWorkflowImagePrompts(session: WechatWorkflowSessionRecord) {
-    const coverPrompt = `wechat official account cover image for ${session.title}, ${session.summary || session.content}, brand theme color ${session.themeColor}, polished editorial poster, realistic marketing visual`;
-    const bodyPrompts = [
-      `wechat article inline illustration for ${session.selectedMarketingLabels[0] || session.title}, cozy retail scene, realistic and bright`,
-      `wechat article product supporting image for ${session.selectedProductLabels[0] || "brand offering"}, premium composition, clean light`,
-      `wechat article brand story image for ${session.selectedBrandLabels[0] || "brand story"}, editorial style, warm tone`,
-    ];
+    const coverPrompt = this.buildWechatCoverImagePrompt(
+      session.title,
+      session.summary || session.content,
+      session.themeColor,
+    );
+    const bodyPrompts = this.buildWechatBodyImagePrompts(session);
     if (session.imageMode === "cover-only") {
       return [coverPrompt];
     }
     if (session.imageMode === "body-only") {
-      return [`wechat article visual summary for ${session.title}, collage cover alternative`, ...bodyPrompts.slice(0, 2)];
+      return [this.buildWechatBodyOnlyCoverPrompt(session.title, session.summary || session.content), ...bodyPrompts.slice(0, 2)];
     }
     return [coverPrompt, ...bodyPrompts];
   }
 
   private buildWechatWorkflowGeneratedImageUrl(prompt: string, imageSize: "portrait_16_9" | "landscape_16_9") {
     return `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${encodeURIComponent(prompt)}&image_size=${imageSize}`;
+  }
+
+  private buildWechatDraftImageTasks(params: {
+    title: string;
+    summary: string;
+    themeColor: string;
+    imageMode: WechatImageMode;
+    coverTaskMeta: {
+      provider: string;
+      runtimeKey: string;
+      modelName: string;
+      status: WechatImageTaskRecord["status"];
+      prompt: string;
+      generatedImageUrls: string[];
+      createdAt: string;
+    };
+    bodyTaskMeta: {
+      provider: string;
+      runtimeKey: string;
+      modelName: string;
+      status: WechatImageTaskRecord["status"];
+      prompt: string;
+      generatedImageUrls: string[];
+      createdAt: string;
+    };
+    existingTasks?: WechatImageTaskRecord[];
+    updatedAt: string;
+  }) {
+    const tasks: WechatImageTaskRecord[] = [];
+    const existingCoverTask = params.existingTasks?.find((item) => item.kind === "cover");
+    const existingBodyTask = params.existingTasks?.find((item) => item.kind === "body");
+    const shouldIncludeCover = params.imageMode !== "body-only" || params.coverTaskMeta.generatedImageUrls.length > 0;
+    const shouldIncludeBody = params.imageMode !== "cover-only" || params.bodyTaskMeta.generatedImageUrls.length > 0;
+    if (shouldIncludeCover) {
+      tasks.push({
+        id: existingCoverTask?.id || createId("wechat_image_task"),
+        kind: "cover",
+        status: params.coverTaskMeta.status,
+        skillSlug: "wechat-cover-image-designer",
+        promptScene: "公众号封面图生成",
+        provider: params.coverTaskMeta.provider,
+        runtimeKey: params.coverTaskMeta.runtimeKey,
+        modelName: params.coverTaskMeta.modelName,
+        prompt: params.coverTaskMeta.prompt || this.buildWechatCoverImagePrompt(params.title, params.summary, params.themeColor),
+        generatedImageUrls: params.coverTaskMeta.generatedImageUrls,
+        createdAt: existingCoverTask?.createdAt || params.coverTaskMeta.createdAt,
+        updatedAt: params.updatedAt,
+      });
+    }
+    if (shouldIncludeBody) {
+      tasks.push({
+        id: existingBodyTask?.id || createId("wechat_image_task"),
+        kind: "body",
+        status: params.bodyTaskMeta.status,
+        skillSlug: "wechat-body-image-designer",
+        promptScene: "公众号正文配图生成",
+        provider: params.bodyTaskMeta.provider,
+        runtimeKey: params.bodyTaskMeta.runtimeKey,
+        modelName: params.bodyTaskMeta.modelName,
+        prompt: params.bodyTaskMeta.prompt || this.buildWechatBodyImagePrompt(params.title, params.summary, params.themeColor),
+        generatedImageUrls: params.bodyTaskMeta.generatedImageUrls,
+        createdAt: existingBodyTask?.createdAt || params.bodyTaskMeta.createdAt,
+        updatedAt: params.updatedAt,
+      });
+    }
+    return tasks.length ? tasks : undefined;
+  }
+
+  private buildWechatCoverImagePrompt(title: string, summary: string, themeColor: string) {
+    return `wechat official account cover image for ${title}, ${summary}, brand theme color ${themeColor}, polished editorial poster, realistic marketing visual`;
+  }
+
+  private buildWechatBodyImagePrompts(session: WechatWorkflowSessionRecord) {
+    return [
+      `wechat article inline illustration for ${session.selectedMarketingLabels[0] || session.title}, cozy retail scene, realistic and bright`,
+      `wechat article product supporting image for ${session.selectedProductLabels[0] || "brand offering"}, premium composition, clean light`,
+      `wechat article brand story image for ${session.selectedBrandLabels[0] || "brand story"}, editorial style, warm tone`,
+    ];
+  }
+
+  private buildWechatBodyOnlyCoverPrompt(title: string, summary: string) {
+    return `wechat article visual summary for ${title}, ${summary}, collage cover alternative`;
+  }
+
+  private buildWechatBodyImagePrompt(title: string, summary: string, themeColor: string) {
+    return `wechat article inline and supporting images for ${title}, ${summary}, brand theme color ${themeColor}, realistic editorial scenes`;
   }
 
   private buildWechatImagePrompt(title: string, summary: string, themeColor: string, imageMode: WechatImageMode) {

@@ -403,10 +403,6 @@ const wechatArticleComposeSkillContent = readPromptSourceBundle(
   "prompt_wechat_article_compose",
   "根据文章主题、营销日历、产品信息、品牌信息、主题颜色和用户要求，生成适合公众号草稿箱的 HTML 文章结构，包含标题、摘要、正文段落、小标题、引用块和结尾行动建议。",
 ).content;
-const wechatImageComposeSkillContent = readPromptSourceBundle(
-  "prompt_wechat_image_compose",
-  "根据公众号文章主题、营销日历、产品信息、品牌信息和主题颜色，生成公众号头图、封面图和文中配图的出图提示词，并补充尺寸、版式和文字安全区要求。",
-).content;
 const wechatCoverImageComposeSkillContent = readPromptSourceBundle(
   "prompt_wechat_cover_image_compose",
   "根据公众号文章标题、摘要、主题色、品牌资料和营销节点，生成适合公众号封面图与头图的高质量提示词，补充版式、文案安全区与标题落点要求。",
@@ -1445,18 +1441,6 @@ export const database: MockDatabase = {
       updatedAt: "2026-06-03T11:00:00.000Z",
     },
     {
-      id: "skill_wechat_image_compose",
-      name: "公众号制作图片",
-      slug: "wechat-image-designer",
-      category: "内容生产",
-      status: "ACTIVE",
-      provider: "Right Codes · 文生图/图生图",
-      defaultModel: "provider_runtime_image_generation_right_codes::gpt-image-2",
-      pointsCost: 200,
-      description: "用于生成公众号头图、封面图和文中配图，并衔接第三方文生图模型。",
-      updatedAt: "2026-06-03T11:00:00.000Z",
-    },
-    {
       id: "skill_wechat_cover_image_compose",
       name: "公众号封面图生成",
       slug: "wechat-cover-image-designer",
@@ -2272,18 +2256,6 @@ export const database: MockDatabase = {
       temperature: 0.4,
       maxTokens: 8000,
       content: wechatArticleComposeSkillContent,
-      updatedAt: "2026-06-03T11:00:00.000Z",
-    },
-    {
-      id: "prompt_wechat_image_compose",
-      name: "公众号制作图片提示词",
-      scene: "公众号制作图片",
-      version: "v1.0",
-      status: "ACTIVE",
-      modelName: "provider_runtime_image_generation_right_codes::gpt-image-2",
-      temperature: 0.3,
-      maxTokens: 5000,
-      content: wechatImageComposeSkillContent,
       updatedAt: "2026-06-03T11:00:00.000Z",
     },
     {
