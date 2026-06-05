@@ -33,6 +33,7 @@ import {
   type ChanjingUploadUrlRecord,
   type ChanjingVideoDetail,
 } from "./chanjing-open-api.service";
+import { WechatOfficialAccountApiService } from "./wechat-official-account-api.service";
 
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 180 * 1000;
@@ -1983,6 +1984,8 @@ export class WorksService {
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
     @Inject(ChanjingOpenApiService)
     private readonly chanjingOpenApiService: ChanjingOpenApiService,
+    @Inject(WechatOfficialAccountApiService)
+    private readonly wechatOfficialAccountApiService: WechatOfficialAccountApiService,
   ) {}
 
   private async resolveBrandAwareApiKeys(
@@ -3325,6 +3328,7 @@ export class WorksService {
   async publishWechatWorkflow(brandId: string, workflowId: string, auth?: RequestAuthContext, retryCount = 0) {
     const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
     const config = this.getWechatAccountConfigStoreItem(brandId);
+    let publishTaskId = "";
     try {
       if (!target.publishConfig?.ready) {
         throw new BadRequestException("请先完成发布确认。");
@@ -3341,10 +3345,27 @@ export class WorksService {
         taskTitle: `发布公众号工作流：${target.title}`,
         modelName: "wechat-official-account-api-publish",
       });
+      publishTaskId = task.id;
       await this.markTaskRunning(task.id);
       target.status = "PUBLISHING";
       target.updatedAt = new Date().toISOString();
-      const mediaId = `wechat_media_${task.id.slice(-8)}`;
+      const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
+        {
+          appId: config.appId,
+          appSecret: config.appSecret,
+        },
+        {
+          title: target.title,
+          author: target.author,
+          summary: target.summary,
+          htmlContent: target.htmlContent || this.renderWechatWorkflowArticleHtml(target),
+          coverImageUrl: target.publishConfig.coverImageUrl || "",
+          needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
+          onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.publishConfig.fanCommentsOnly),
+          contentSourceUrl: this.appConfigService.getWebPublicBaseUrl(),
+        },
+      );
+      const mediaId = publishResult.mediaId;
       const now = new Date().toISOString();
       const [articleRuntime, coverImageRuntime, bodyImageRuntime] = await Promise.all([
         this.resolveWechatTextRuntimeMeta(),
@@ -3462,6 +3483,7 @@ export class WorksService {
         {
           workflowId: target.id,
           mediaId,
+          thumbMediaId: publishResult.thumbMediaId,
           publishStatus: "PUBLISHED",
           publishedAt: now,
           destination: "WECHAT_OFFICIAL_ACCOUNT_API",
@@ -3487,8 +3509,12 @@ export class WorksService {
       target.currentStep = "result";
       target.updatedAt = now;
       target.errorDetail = message;
+      if (publishTaskId) {
+        await this.markTaskFailed(publishTaskId, message);
+      }
       this.appendWechatPublishHistoryRecord(target, {
         status: "FAILED",
+        publishTaskId: publishTaskId || undefined,
         retryCount,
         publishedAt: now,
         errorDetail: message,
@@ -3675,27 +3701,51 @@ export class WorksService {
       userId: await this.resolveTaskUserId(brandId, auth),
       brandId,
       taskTitle: `发布公众号文章：${target.title}`,
-      modelName: "wechat-official-account-publish",
+      modelName: "wechat-official-account-api-publish",
     });
-    await this.markTaskRunning(task.id);
-    const now = new Date().toISOString();
-    target.publishStatus = "PUBLISHED";
-    target.publishedAt = now;
-    target.publishTaskId = task.id;
-    target.updatedAt = now;
-    await this.markTaskSuccess(
-      task.id,
-      {
-        draftId: target.id,
-        publishStatus: target.publishStatus,
-        publishedAt: now,
-        destination: "WECHAT_OFFICIAL_ACCOUNT",
-      },
-      { modelName: "wechat-official-account-publish" },
-    );
-    return {
-      item: this.hydrateWechatDraftTaskStatus(target),
-    };
+    try {
+      await this.markTaskRunning(task.id);
+      const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
+        {
+          appId: config.appId,
+          appSecret: config.appSecret,
+        },
+        {
+          title: target.title,
+          author: target.author,
+          summary: target.summary,
+          htmlContent: target.htmlContent || this.renderWechatArticleHtml(target),
+          coverImageUrl: this.resolveWechatDraftCoverImageUrl(target),
+          needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
+          onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.commentMode === "fans"),
+          contentSourceUrl: this.appConfigService.getWebPublicBaseUrl(),
+        },
+      );
+      const now = new Date().toISOString();
+      target.publishStatus = "PUBLISHED";
+      target.publishedAt = now;
+      target.publishTaskId = task.id;
+      target.updatedAt = now;
+      await this.markTaskSuccess(
+        task.id,
+        {
+          draftId: target.id,
+          mediaId: publishResult.mediaId,
+          thumbMediaId: publishResult.thumbMediaId,
+          publishStatus: target.publishStatus,
+          publishedAt: now,
+          destination: "WECHAT_OFFICIAL_ACCOUNT_API",
+        },
+        { modelName: "wechat-official-account-api-publish" },
+      );
+      return {
+        item: this.hydrateWechatDraftTaskStatus(target),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号文章发布失败。";
+      await this.markTaskFailed(task.id, message);
+      throw error;
+    }
   }
 
   async listDouyinDigitalHumanTemplateTags(brandId: string) {
@@ -7737,6 +7787,29 @@ export class WorksService {
       ? values.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
     return normalized.length ? normalized : fallback;
+  }
+
+  private resolveWechatNeedOpenComment(commentMode: WechatCommentMode) {
+    return commentMode !== "close";
+  }
+
+  private resolveWechatOnlyFansCanComment(commentMode: WechatCommentMode, fanCommentsOnly: boolean) {
+    if (commentMode === "close") {
+      return false;
+    }
+    if (commentMode === "fans") {
+      return true;
+    }
+    return fanCommentsOnly;
+  }
+
+  private resolveWechatDraftCoverImageUrl(draft: WechatArticleDraftRecord) {
+    const coverTask = draft.imageTasks?.find((item) => item.kind === "cover");
+    const coverImageUrl = coverTask?.generatedImageUrls.find((item) => Boolean(String(item || "").trim()));
+    if (!coverImageUrl) {
+      throw new BadRequestException("请先为公众号文章生成封面图，再执行 API 发布。");
+    }
+    return coverImageUrl;
   }
 
   private buildWechatWorkflowDefaultTitle(labels?: string[]) {

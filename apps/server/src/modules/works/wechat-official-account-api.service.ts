@@ -1,0 +1,280 @@
+import { Buffer } from "node:buffer";
+import { extname } from "node:path";
+import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { AppConfigService } from "../../config/app-config.service";
+
+type WechatCredential = {
+  appId: string;
+  appSecret: string;
+};
+
+type PublishWechatDraftPayload = {
+  title: string;
+  author?: string;
+  summary?: string;
+  htmlContent: string;
+  coverImageUrl: string;
+  needOpenComment: boolean;
+  onlyFansCanComment: boolean;
+  contentSourceUrl?: string;
+};
+
+type WechatTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  errcode?: number;
+  errmsg?: string;
+};
+
+type WechatMaterialUploadResponse = {
+  media_id?: string;
+  url?: string;
+  errcode?: number;
+  errmsg?: string;
+};
+
+type WechatDraftAddResponse = {
+  media_id?: string;
+  errcode?: number;
+  errmsg?: string;
+};
+
+type CachedToken = {
+  accessToken: string;
+  expireAtMs: number;
+};
+
+const WECHAT_API_BASE_URL = "https://api.weixin.qq.com";
+
+@Injectable()
+export class WechatOfficialAccountApiService {
+  private readonly tokenCache = new Map<string, CachedToken>();
+
+  constructor(
+    @Inject(AppConfigService)
+    private readonly appConfigService: AppConfigService,
+  ) {}
+
+  async publishDraft(credential: WechatCredential, payload: PublishWechatDraftPayload) {
+    return this.withAccessTokenRetry(credential, async (accessToken) => {
+      const thumbMediaId = await this.uploadCoverImage(accessToken, payload.coverImageUrl);
+      const response = await this.requestJson<WechatDraftAddResponse>(
+        `/cgi-bin/draft/add?access_token=${encodeURIComponent(accessToken)}`,
+        {
+          method: "POST",
+          body: {
+            articles: [
+              {
+                title: payload.title,
+                author: payload.author || "",
+                digest: payload.summary || "",
+                content: payload.htmlContent,
+                content_source_url: this.normalizeContentSourceUrl(payload.contentSourceUrl),
+                thumb_media_id: thumbMediaId,
+                need_open_comment: payload.needOpenComment ? 1 : 0,
+                only_fans_can_comment: payload.onlyFansCanComment ? 1 : 0,
+              },
+            ],
+          },
+        },
+      );
+      const mediaId = String(response.media_id || "").trim();
+      if (!mediaId) {
+        throw new ServiceUnavailableException("微信公众号 draft/add 发布失败：未返回 media_id");
+      }
+      return {
+        mediaId,
+        thumbMediaId,
+      };
+    });
+  }
+
+  private async uploadCoverImage(accessToken: string, coverImageUrl: string) {
+    const file = await this.downloadRemoteFile(coverImageUrl);
+    const form = new FormData();
+    form.set("media", new Blob([file.buffer], { type: file.contentType }), file.fileName);
+    const response = await this.requestJson<WechatMaterialUploadResponse>(
+      `/cgi-bin/material/add_material?access_token=${encodeURIComponent(accessToken)}&type=image`,
+      {
+        method: "POST",
+        body: form,
+        contentType: "multipart/form-data",
+      },
+    );
+    const mediaId = String(response.media_id || "").trim();
+    if (!mediaId) {
+      throw new ServiceUnavailableException("微信公众号素材上传失败：未返回 media_id");
+    }
+    return mediaId;
+  }
+
+  private async withAccessTokenRetry<T>(credential: WechatCredential, run: (accessToken: string) => Promise<T>) {
+    try {
+      return await run(await this.getAccessToken(credential));
+    } catch (error) {
+      if (!this.isExpiredAccessTokenError(error)) {
+        throw error;
+      }
+      this.clearAccessTokenCache(credential);
+      return run(await this.getAccessToken(credential));
+    }
+  }
+
+  private async getAccessToken(credential: WechatCredential) {
+    const cacheKey = `${credential.appId}::${credential.appSecret}`;
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && cached.expireAtMs > Date.now() + 60_000) {
+      return cached.accessToken;
+    }
+    const response = await this.requestJson<WechatTokenResponse>(
+      `/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(credential.appId)}&secret=${encodeURIComponent(credential.appSecret)}`,
+      {
+        method: "GET",
+      },
+    );
+    const accessToken = String(response.access_token || "").trim();
+    if (!accessToken) {
+      throw new ServiceUnavailableException("微信公众号 Access Token 获取失败：未返回 access_token");
+    }
+    const expireAtMs = Date.now() + Math.max(300, Number(response.expires_in || 7200)) * 1000;
+    this.tokenCache.set(cacheKey, {
+      accessToken,
+      expireAtMs,
+    });
+    return accessToken;
+  }
+
+  private clearAccessTokenCache(credential: WechatCredential) {
+    this.tokenCache.delete(`${credential.appId}::${credential.appSecret}`);
+  }
+
+  private isExpiredAccessTokenError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return /\b(40001|40014|42001)\b/.test(message);
+  }
+
+  private async downloadRemoteFile(url: string) {
+    const normalizedUrl = String(url || "").trim();
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+      throw new ServiceUnavailableException("公众号封面图地址无效，必须是可访问的 http/https URL。");
+    }
+    const response = await fetch(normalizedUrl, {
+      method: "GET",
+      headers: {
+        Accept: "image/*,application/octet-stream;q=0.8,*/*;q=0.2",
+      },
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`下载公众号封面图失败：${response.status} ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (!buffer.length) {
+      throw new ServiceUnavailableException("下载公众号封面图失败：返回内容为空");
+    }
+    const contentType = this.normalizeContentType(response.headers.get("content-type"));
+    return {
+      buffer,
+      contentType,
+      fileName: this.resolveFileName(normalizedUrl, contentType),
+    };
+  }
+
+  private normalizeContentType(value: string | null) {
+    const text = String(value || "").split(";")[0].trim().toLowerCase();
+    if (text.startsWith("image/")) {
+      return text;
+    }
+    return "image/jpeg";
+  }
+
+  private resolveFileName(url: string, contentType: string) {
+    try {
+      const pathname = new URL(url).pathname;
+      const rawExtension = extname(pathname).toLowerCase();
+      const extension = rawExtension || this.extensionFromContentType(contentType);
+      return `wechat-cover${extension || ".jpg"}`;
+    } catch {
+      return `wechat-cover${this.extensionFromContentType(contentType) || ".jpg"}`;
+    }
+  }
+
+  private extensionFromContentType(contentType: string) {
+    switch (contentType) {
+      case "image/png":
+        return ".png";
+      case "image/webp":
+        return ".webp";
+      case "image/gif":
+        return ".gif";
+      default:
+        return ".jpg";
+    }
+  }
+
+  private normalizeContentSourceUrl(value: string | undefined) {
+    const explicit = String(value || "").trim();
+    if (explicit && /^https?:\/\//i.test(explicit)) {
+      return explicit;
+    }
+    return this.appConfigService.getWebPublicBaseUrl();
+  }
+
+  private async requestJson<T>(
+    requestPath: string,
+    options: {
+      method: "GET" | "POST";
+      body?: Record<string, unknown> | FormData;
+      contentType?: "application/json" | "multipart/form-data";
+    },
+  ) {
+    const response = await fetch(`${WECHAT_API_BASE_URL}${requestPath}`, {
+      method: options.method,
+      headers: {
+        Accept: "application/json",
+        ...(options.method === "POST" && options.contentType !== "multipart/form-data"
+          ? { "Content-Type": "application/json" }
+          : {}),
+      },
+      body:
+        options.method === "POST"
+          ? options.contentType === "multipart/form-data"
+            ? options.body as FormData
+            : JSON.stringify(options.body || {})
+          : undefined,
+    });
+    const rawText = await response.text();
+    const payload = this.tryParseJson<T & { errcode?: number; errmsg?: string }>(rawText);
+    if (!response.ok) {
+      throw new ServiceUnavailableException(
+        `微信公众号接口请求失败：${options.method} ${requestPath} ${response.status}${this.buildApiErrorSuffix(payload?.errmsg, rawText)}`,
+      );
+    }
+    if (!payload) {
+      throw new ServiceUnavailableException(`微信公众号接口返回非 JSON：${options.method} ${requestPath}`);
+    }
+    if (Number(payload.errcode || 0) !== 0) {
+      throw new ServiceUnavailableException(
+        `微信公众号接口返回异常：${payload.errcode || "UNKNOWN"} ${String(payload.errmsg || "未知错误").trim()}`,
+      );
+    }
+    return payload as T;
+  }
+
+  private tryParseJson<T>(rawText: string) {
+    const normalized = String(rawText || "").trim();
+    if (!normalized) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(normalized) as T;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private buildApiErrorSuffix(apiMessage: string | undefined, rawText: string) {
+    const detail = String(apiMessage || "").trim() || String(rawText || "").replace(/\s+/g, " ").trim();
+    return detail ? `，${detail.slice(0, 180)}` : "";
+  }
+}
