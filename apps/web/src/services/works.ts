@@ -501,6 +501,8 @@ export type WechatWorkflowSessionRecord = {
   articleProvider?: string;
   articleRuntimeKey?: string;
   articleModelName?: string;
+  coverImageBrief?: string;
+  bodyImageBriefs?: string[];
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
@@ -604,6 +606,8 @@ export type WechatArticleDraftRecord = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
+  coverImageBrief?: string;
+  bodyImageBriefs?: string[];
   imageTasks?: WechatImageTaskRecord[];
   publishStatus: "DRAFT" | "PUBLISHED";
   publishedAt?: string;

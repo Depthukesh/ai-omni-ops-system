@@ -191,6 +191,23 @@
   - 调用 `draft/add`
 - 公众号草稿生成接口 `POST /works/brands/:brandId/wechat/articles/generate` 也已切到真实第三方文本模型生成文章正文与 HTML 草稿，不再只做本地模板包装。
 
+### 2026-06-06 第二轮收口
+
+- 公众号文章生成协议已从“`content` 纯文本”调整为更贴近技能文档的结构：
+  - `title`
+  - `summary`
+  - `author`
+  - `htmlContent`
+  - `coverImageBrief`
+  - `bodyImageBriefs`
+- 工作流与草稿生成现在会保留模型产出的 `htmlContent`，预览与发布优先使用该 HTML，而不是再次强制降级成简单 `<p>` 拼装。
+- 页面中的正文输入框仍保留纯文本编辑体验，但增加说明：该区域主要用于人工修订内容文本，真正预览与发布以 HTML 排版结果为准。
+- 生图阶段已改为优先使用文章阶段产出的：
+  - `coverImageBrief`
+  - `bodyImageBriefs`
+  作为封面图和正文配图提示词来源，不再完全依赖固定英文模板 prompt。
+- 当前如果第三方图片接口返回 `502/503/504/524`，系统会明确显示为上游图片接口异常，提示用户稍后重试或切换图片模型/供应商。
+
 ### 代码落点
 
 - 后端：

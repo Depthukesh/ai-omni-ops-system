@@ -1165,6 +1165,9 @@ export function WechatWorkspaceShell() {
                               <div className="wechat-pill-row" style={{ marginBottom: 8 }}>
                                 <span className="archive-pill status-ready">文本模型：{selectedWorkflow.articleModelName}</span>
                                 <span className="archive-pill status-ready">Provider：{selectedWorkflow.articleProvider || selectedWorkflow.articleRuntimeKey || "未知"}</span>
+                                {selectedWorkflow.bodyImageBriefs?.length ? (
+                                  <span className="archive-pill status-ready">正文配图 briefs：{selectedWorkflow.bodyImageBriefs.length} 条</span>
+                                ) : null}
                               </div>
                             ) : null}
                             <label className="wechat-field wechat-field--full">
@@ -1193,6 +1196,9 @@ export function WechatWorkspaceShell() {
                               <span>正文</span>
                               <textarea value={articleContent} onChange={(event) => setArticleContent(event.target.value)} />
                             </label>
+                            <div className="wechat-inline-tip">
+                              这里展示的是便于编辑的正文纯文本，实际预览与发布会优先使用文章 AI 生成的 HTML 排版结果。
+                            </div>
                           </div>
                         </section>
 

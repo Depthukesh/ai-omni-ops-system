@@ -681,6 +681,8 @@ export type WechatArticleDraftRecord = {
   articleProvider: string;
   articleRuntimeKey: string;
   articleModelName: string;
+  coverImageBrief?: string;
+  bodyImageBriefs?: string[];
   imageTasks?: WechatImageTaskRecord[];
   publishStatus: "DRAFT" | "PUBLISHED";
   publishedAt?: string;
@@ -731,6 +733,8 @@ export type WechatWorkflowSessionRecord = {
   articleProvider?: string;
   articleRuntimeKey?: string;
   articleModelName?: string;
+  coverImageBrief?: string;
+  bodyImageBriefs?: string[];
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
@@ -1902,6 +1906,8 @@ type WechatArticleGenerationModelResult = {
   author: string;
   content: string;
   htmlContent: string;
+  coverImageBrief: string;
+  bodyImageBriefs: string[];
   provider: string;
   runtimeKey: string;
   modelName: string;
@@ -3285,6 +3291,8 @@ export class WorksService {
     target.articleProvider = articleResult.provider;
     target.articleRuntimeKey = articleResult.runtimeKey;
     target.articleModelName = articleResult.modelName;
+    target.coverImageBrief = articleResult.coverImageBrief;
+    target.bodyImageBriefs = articleResult.bodyImageBriefs;
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
     target.errorDetail = undefined;
@@ -3296,13 +3304,16 @@ export class WorksService {
 
   async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
     const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const previousContent = target.content;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
     target.content = String(payload.content || "").trim() || target.content;
     target.commentMode = payload.commentMode || target.commentMode;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
-    target.htmlContent = this.renderWechatWorkflowArticleHtml(target);
+    target.htmlContent = target.htmlContent && target.content === previousContent
+      ? target.htmlContent
+      : this.renderWechatWorkflowArticleHtml(target);
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
     target.updatedAt = new Date().toISOString();
@@ -3551,6 +3562,8 @@ export class WorksService {
         articleProvider: articleRuntime.provider,
         articleRuntimeKey: articleRuntime.runtimeKey,
         articleModelName: articleRuntime.modelName,
+        coverImageBrief: target.coverImageBrief,
+        bodyImageBriefs: target.bodyImageBriefs,
         imageTasks: undefined,
         publishStatus: "DRAFT",
         taskStatus: "SUCCESS",
@@ -3574,6 +3587,8 @@ export class WorksService {
       nextDraft.articleProvider = articleRuntime.provider;
       nextDraft.articleRuntimeKey = articleRuntime.runtimeKey;
       nextDraft.articleModelName = articleRuntime.modelName;
+      nextDraft.coverImageBrief = target.coverImageBrief;
+      nextDraft.bodyImageBriefs = target.bodyImageBriefs;
       nextDraft.imageTasks = target.imageBundle
         ? this.buildWechatDraftImageTasks({
             title: target.title,
@@ -3597,7 +3612,7 @@ export class WorksService {
               prompt:
                 target.imageBundle.bodyImageUrls.length > 0
                   ? target.imageBundle.prompts.slice(1).join("\n")
-                  : this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor),
+                  : this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor, target.bodyImageBriefs),
               generatedImageUrls: target.imageBundle.bodyImageUrls,
               createdAt: target.imageBundle.generatedAt || now,
             },
@@ -3744,6 +3759,8 @@ export class WorksService {
         articleProvider: articleResult.provider,
         articleRuntimeKey: articleResult.runtimeKey,
         articleModelName: articleResult.modelName,
+        coverImageBrief: articleResult.coverImageBrief,
+        bodyImageBriefs: articleResult.bodyImageBriefs,
         imageTasks: this.buildWechatDraftImageTasks({
           title: articleResult.title,
           summary: articleResult.summary,
@@ -3754,7 +3771,7 @@ export class WorksService {
             runtimeKey: coverImageRuntime.runtimeKey,
             modelName: coverImageRuntime.modelName,
             status: "QUEUED",
-            prompt: this.buildWechatCoverImagePrompt(articleResult.title, articleResult.summary, themeColor),
+            prompt: this.buildWechatCoverImagePrompt(articleResult.title, articleResult.summary, themeColor, articleResult.coverImageBrief),
             generatedImageUrls: [],
             createdAt: now,
           },
@@ -3763,7 +3780,7 @@ export class WorksService {
             runtimeKey: bodyImageRuntime.runtimeKey,
             modelName: bodyImageRuntime.modelName,
             status: "QUEUED",
-            prompt: this.buildWechatBodyImagePrompt(articleResult.title, articleResult.summary, themeColor),
+            prompt: this.buildWechatBodyImagePrompt(articleResult.title, articleResult.summary, themeColor, articleResult.bodyImageBriefs),
             generatedImageUrls: [],
             createdAt: now,
           },
@@ -3803,6 +3820,7 @@ export class WorksService {
     if (!target) {
       throw new NotFoundException("公众号文章草稿不存在。");
     }
+    const previousContent = target.content;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary;
     target.author = String(payload.author || "").trim() || target.author;
@@ -3834,7 +3852,7 @@ export class WorksService {
         runtimeKey: existingCoverTask?.runtimeKey || coverImageRuntime.runtimeKey,
         modelName: existingCoverTask?.modelName || coverImageRuntime.modelName,
         status: existingCoverTask?.status || "QUEUED",
-        prompt: this.buildWechatCoverImagePrompt(target.title, target.summary, target.themeColor),
+        prompt: this.buildWechatCoverImagePrompt(target.title, target.summary, target.themeColor, target.coverImageBrief),
         generatedImageUrls: existingCoverTask?.generatedImageUrls || [],
         createdAt: existingCoverTask?.createdAt || now,
       },
@@ -3843,7 +3861,7 @@ export class WorksService {
         runtimeKey: existingBodyTask?.runtimeKey || bodyImageRuntime.runtimeKey,
         modelName: existingBodyTask?.modelName || bodyImageRuntime.modelName,
         status: existingBodyTask?.status || "QUEUED",
-        prompt: this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor),
+        prompt: this.buildWechatBodyImagePrompt(target.title, target.summary, target.themeColor, target.bodyImageBriefs),
         generatedImageUrls: existingBodyTask?.generatedImageUrls || [],
         createdAt: existingBodyTask?.createdAt || now,
       },
@@ -3851,7 +3869,9 @@ export class WorksService {
       updatedAt: now,
     });
     target.updatedAt = now;
-    target.htmlContent = this.renderWechatArticleHtml(target);
+    target.htmlContent = target.htmlContent && target.content === previousContent
+      ? target.htmlContent
+      : this.renderWechatArticleHtml(target);
     return {
       item: this.hydrateWechatDraftTaskStatus(target),
     };
@@ -8058,8 +8078,13 @@ export class WorksService {
       '  "title": "公众号标题，建议 12-24 字",',
       '  "summary": "120 字以内摘要",',
       '  "author": "作者名，可沿用输入作者",',
-      '  "content": "正文纯文本，按自然段换行，不要输出 HTML 标签"',
+      '  "htmlContent": "<section>...</section>，输出适合公众号排版的 HTML 结构，至少包含导语、2-4 个主体章节、总结或行动建议，并在合适位置预留正文配图锚点"', 
+      '  "coverImageBrief": "用于生成公众号封面图的详细中文提示词，包含主视觉、标题安全区、主题色、构图和禁忌元素"',
+      '  "bodyImageBriefs": ["用于生成正文配图 1 的详细中文提示词", "用于生成正文配图 2 的详细中文提示词"]',
       "}",
+      "不要返回 Markdown。",
+      "htmlContent 可以是 HTML 片段或完整 HTML 文档，但必须包含清晰的标题层级、摘要块、章节标题、强调块、列表或引用等适合公众号阅读的排版结构。",
+      "bodyImageBriefs 数量控制在 2-4 条，必须与正文章节主题对应。",
     ].join("\n");
     const userPrompt = ["以下是公众号文章生成输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
 
@@ -8096,12 +8121,31 @@ export class WorksService {
               const title = String(parsed.title ?? "").trim() || params.titleSeed || "公众号文章";
               const summary = String(parsed.summary ?? "").trim();
               const author = String(parsed.author ?? "").trim() || params.author || "品牌内容中心";
-              const body = String(parsed.content ?? "").trim();
-              if (!body) {
-                lastError = `${provider.provider}/${modelName} 返回正文为空`;
-                attemptTrail.push(`${attemptLabel} -> 返回正文为空`);
+              const rawHtmlContent = String(parsed.htmlContent ?? "").trim();
+              const coverImageBrief = this.normalizeWechatImageBrief(
+                parsed.coverImageBrief,
+                this.buildWechatCoverImagePrompt(title, summary || params.inputContent, params.themeColor),
+              );
+              const bodyImageBriefs = this.normalizeWechatBodyImageBriefs(
+                parsed.bodyImageBriefs,
+                params,
+              );
+              if (!rawHtmlContent) {
+                lastError = `${provider.provider}/${modelName} 返回 htmlContent 为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回 htmlContent 为空`);
                 continue;
               }
+              const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
+                title,
+                author,
+                summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
+                themeColor: params.themeColor,
+                htmlContent: rawHtmlContent,
+                selectedMarketingLabels: params.selectedMarketingLabels,
+                selectedProductLabels: params.selectedProductLabels,
+                selectedBrandLabels: params.selectedBrandLabels,
+              });
+              const body = this.extractWechatPlainTextFromHtml(htmlContent);
               const sessionLikeRecord: WechatWorkflowSessionRecord = {
                 id: createId("wechat_workflow_preview"),
                 brandId: params.brandId,
@@ -8114,10 +8158,12 @@ export class WorksService {
                 summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
                 author,
                 content: body,
-                htmlContent: "",
+                htmlContent,
                 articleProvider: provider.providerName || provider.provider,
                 articleRuntimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 articleModelName: modelName,
+                coverImageBrief,
+                bodyImageBriefs,
                 themeColor: params.themeColor,
                 commentMode: params.commentMode,
                 imageMode: "cover-and-body",
@@ -8128,13 +8174,14 @@ export class WorksService {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               };
-              const htmlContent = this.renderWechatWorkflowArticleHtml(sessionLikeRecord);
               return {
                 title,
                 summary: sessionLikeRecord.summary,
                 author,
                 content: body,
-                htmlContent,
+                htmlContent: sessionLikeRecord.htmlContent,
+                coverImageBrief,
+                bodyImageBriefs,
                 provider: provider.providerName || provider.provider,
                 runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 modelName,
@@ -8160,11 +8207,102 @@ export class WorksService {
     return `围绕${marketing}${product}生成公众号文章草稿${brand}。`;
   }
 
+  private normalizeWechatImageBrief(value: unknown, fallback: string) {
+    const normalized = String(value ?? "").trim();
+    return normalized || fallback;
+  }
+
+  private normalizeWechatBodyImageBriefs(
+    value: unknown,
+    params: {
+      titleSeed: string;
+      selectedMarketingLabels: string[];
+      selectedProductLabels: string[];
+      selectedBrandLabels: string[];
+      themeColor: string;
+    },
+  ) {
+    const list = Array.isArray(value)
+      ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : String(value ?? "")
+        .split(/\r?\n|[;；]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    if (list.length) {
+      return list.slice(0, 4);
+    }
+    return [
+      `公众号正文配图，章节主题：${params.selectedMarketingLabels[0] || params.titleSeed}，主题色 ${params.themeColor}，用于文章导语后第一张配图。`,
+      `公众号正文配图，突出${params.selectedProductLabels[0] || "产品亮点"}与使用场景，画面干净克制，适合正文中段。`,
+      `公众号正文配图，围绕${params.selectedBrandLabels[0] || "品牌故事"}与信任感展开，适合作为文章后段或结尾配图。`,
+    ];
+  }
+
+  private normalizeWechatGeneratedHtmlDocument(params: {
+    title: string;
+    author: string;
+    summary: string;
+    themeColor: string;
+    htmlContent: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+  }) {
+    const htmlContent = String(params.htmlContent || "").trim();
+    if (/<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)) {
+      return htmlContent;
+    }
+    return [
+      "<!DOCTYPE html>",
+      `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
+      `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#24314a;">`,
+      '<main style="max-width:900px;margin:0 auto;padding:28px 16px 48px;">',
+      '<section style="padding:26px;border-radius:30px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,250,0.9);box-shadow:0 20px 56px rgba(52,68,118,0.12);">',
+      `<div style="display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}18;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">公众号工作流文章稿</div>`,
+      `<h1 style="margin:18px 0 10px;font-size:34px;line-height:1.25;color:#17233f;">${this.escapeHtml(params.title)}</h1>`,
+      `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · API 发布准备中</div>`,
+      `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`,
+      '<section style="margin-top:24px;">',
+      htmlContent,
+      "</section>",
+      this.buildWechatMetaBadgeRow("营销日历资料", params.selectedMarketingLabels, params.themeColor),
+      this.buildWechatMetaBadgeRow("产品资料", params.selectedProductLabels, params.themeColor),
+      this.buildWechatMetaBadgeRow("品牌资料", params.selectedBrandLabels, params.themeColor),
+      "</section></main></body></html>",
+    ].join("");
+  }
+
+  private extractWechatPlainTextFromHtml(htmlContent: string) {
+    return String(htmlContent || "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "\n")
+      .replace(/<script[\s\S]*?<\/script>/gi, "\n")
+      .replace(/<\/(p|div|section|article|li|h1|h2|h3|h4|blockquote|pre)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
+  }
+
+  private buildWechatMetaBadgeRow(title: string, values: string[], themeColor: string) {
+    return values.length
+      ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(themeColor)}14;color:${this.escapeHtml(themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
+      : "";
+  }
+
   private buildWechatWorkflowImagePrompts(session: WechatWorkflowSessionRecord) {
     const coverPrompt = this.buildWechatCoverImagePrompt(
       session.title,
       session.summary || session.content,
       session.themeColor,
+      session.coverImageBrief,
     );
     const bodyPrompts = this.buildWechatBodyImagePrompts(session);
     if (session.imageMode === "cover-only") {
@@ -8246,15 +8384,22 @@ export class WorksService {
     return tasks.length ? tasks : undefined;
   }
 
-  private buildWechatCoverImagePrompt(title: string, summary: string, themeColor: string) {
-    return `wechat official account cover image for ${title}, ${summary}, brand theme color ${themeColor}, polished editorial poster, realistic marketing visual`;
+  private buildWechatCoverImagePrompt(title: string, summary: string, themeColor: string, brief?: string) {
+    const normalizedBrief = String(brief || "").trim();
+    if (normalizedBrief) {
+      return normalizedBrief;
+    }
+    return `公众号封面图，标题《${title}》，摘要重点：${summary}，主题色 ${themeColor}，需要适合公众号头图排版，保留标题安全区、品牌感和营销视觉，避免杂乱文字与低质拼贴。`;
   }
 
   private buildWechatBodyImagePrompts(session: WechatWorkflowSessionRecord) {
+    if (session.bodyImageBriefs?.length) {
+      return session.bodyImageBriefs;
+    }
     return [
-      `wechat article inline illustration for ${session.selectedMarketingLabels[0] || session.title}, cozy retail scene, realistic and bright`,
-      `wechat article product supporting image for ${session.selectedProductLabels[0] || "brand offering"}, premium composition, clean light`,
-      `wechat article brand story image for ${session.selectedBrandLabels[0] || "brand story"}, editorial style, warm tone`,
+      `公众号正文配图，章节主题：${session.selectedMarketingLabels[0] || session.title}，场景真实、明亮、适合长文阅读插图，保留人物或环境叙事感。`,
+      `公众号正文配图，重点突出${session.selectedProductLabels[0] || "产品卖点"}，构图干净克制，适合放在正文中段作为辅助说明。`,
+      `公众号正文配图，围绕${session.selectedBrandLabels[0] || "品牌故事"}展开，偏编辑感和暖色调，用于正文情绪收束或品牌段落。`,
     ];
   }
 
@@ -8262,8 +8407,11 @@ export class WorksService {
     return `wechat article visual summary for ${title}, ${summary}, collage cover alternative`;
   }
 
-  private buildWechatBodyImagePrompt(title: string, summary: string, themeColor: string) {
-    return `wechat article inline and supporting images for ${title}, ${summary}, brand theme color ${themeColor}, realistic editorial scenes`;
+  private buildWechatBodyImagePrompt(title: string, summary: string, themeColor: string, briefs?: string[]) {
+    if (briefs?.length) {
+      return briefs.join("\n");
+    }
+    return `公众号正文配图，文章标题《${title}》，摘要重点：${summary}，主题色 ${themeColor}，需要生成适合公众号文章章节的配图，风格统一、真实、编辑感强。`;
   }
 
   private buildWechatImagePrompt(title: string, summary: string, themeColor: string, imageMode: WechatImageMode) {
