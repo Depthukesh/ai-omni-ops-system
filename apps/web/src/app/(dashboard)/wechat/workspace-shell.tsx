@@ -828,7 +828,7 @@ export function WechatWorkspaceShell() {
                   </div>
                 </div>
 
-                <div className="wechat-config-grid">
+                <div className="wechat-config-grid wechat-config-grid--single">
                   <section className="light-data-panel">
                     <div className="wechat-panel-head">
                       <div>
@@ -1600,6 +1600,10 @@ export function WechatWorkspaceShell() {
           display: grid;
           grid-template-columns: 320px minmax(0, 1fr);
           gap: 18px;
+        }
+
+        .wechat-config-grid--single {
+          grid-template-columns: minmax(0, 1fr);
         }
 
         .wechat-history-shell {

@@ -9242,7 +9242,22 @@ export class WorksService {
 
   private async loadWechatTextProviders(brandId: string | undefined, preference?: SkillModelPreference) {
     try {
-      return await this.loadOriginalCopyProviders(brandId, preference);
+      const providers = await this.loadOriginalCopyProviders(brandId, preference);
+      const preferredModelName = String(preference?.preferredModelName || "").trim();
+      const preferredProviderIds = preference?.preferredProviderIds || [];
+      if (preferredProviderIds.length) {
+        const scopedProviders = providers.filter((item) => item.providerId && preferredProviderIds.includes(item.providerId));
+        if (scopedProviders.length) {
+          return this.reorderTextProvidersByPrimaryModel(scopedProviders, preferredModelName, preferredProviderIds);
+        }
+      }
+      if (preferredModelName) {
+        const exactModelProviders = providers.filter((item) => item.models.includes(preferredModelName));
+        if (exactModelProviders.length) {
+          return this.reorderTextProvidersByPrimaryModel(exactModelProviders, preferredModelName, preferredProviderIds);
+        }
+      }
+      return providers;
     } catch (error) {
       const message = error instanceof Error ? error.message : "公众号文章生成模型配置读取失败";
       throw new ServiceUnavailableException(message.replace("原创笔记文案", "公众号文章"));
