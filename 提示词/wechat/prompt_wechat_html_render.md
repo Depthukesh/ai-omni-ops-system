@@ -25,6 +25,9 @@
 - `htmlContent` 必须是单行字符串，不能在 JSON 字符串里直接输出原始换行
 - HTML 属性统一使用单引号，避免破坏 JSON
 - 如果已给出 `coverImageUrl` 和 `bodyImageUrls`，必须直接使用真实图片 URL
+- 图片必须紧跟对应正文段落或章节出现，图文之间只允许紧凑留白，常规上下间距控制在 `12px-20px`
+- 禁止为图片额外创建大面积空白容器、占位块或超高 section / figure
+- 禁止使用过大的 `margin-top`、`margin-bottom`、`padding-top`、`padding-bottom`、`min-height` 来制造图片区留白
 - 禁止附加“营销日历资料 / 产品资料 / 品牌资料 / 原文链接 / 创作来源 / 素材说明 / 附录”等尾部区块
 
 ## 推荐输出格式

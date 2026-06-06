@@ -10131,9 +10131,9 @@ export class WorksService {
   }) {
     const htmlContent = String(params.htmlContent || "").trim();
     if (/<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)) {
-      return htmlContent;
+      return this.normalizeWechatHtmlSpacing(htmlContent);
     }
-    return [
+    return this.normalizeWechatHtmlSpacing([
       "<!DOCTYPE html>",
       `<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${this.escapeHtml(params.title)}</title></head>`,
       `<body style="margin:0;background:linear-gradient(180deg,#f7f8fc 0%,#eef2ff 100%);font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#24314a;">`,
@@ -10147,7 +10147,7 @@ export class WorksService {
       htmlContent,
       "</section>",
       "</section></main></body></html>",
-    ].join("");
+    ].join(""));
   }
 
   private extractWechatPlainTextFromHtml(htmlContent: string) {
@@ -10604,7 +10604,7 @@ export class WorksService {
     });
     const remainingUrls = imageQueue.slice(cursor);
     if (!remainingUrls.length) {
-      return replacedHtml;
+      return this.normalizeWechatHtmlSpacing(replacedHtml);
     }
 
     const appendedBlock = this.buildWechatGeneratedImageAppendBlock({
@@ -10616,12 +10616,67 @@ export class WorksService {
       return replacedHtml;
     }
     if (/<\/main>/i.test(replacedHtml)) {
-      return replacedHtml.replace(/<\/main>/i, `${appendedBlock}</main>`);
+      return this.normalizeWechatHtmlSpacing(replacedHtml.replace(/<\/main>/i, `${appendedBlock}</main>`));
     }
     if (/<\/body>/i.test(replacedHtml)) {
-      return replacedHtml.replace(/<\/body>/i, `${appendedBlock}</body>`);
+      return this.normalizeWechatHtmlSpacing(replacedHtml.replace(/<\/body>/i, `${appendedBlock}</body>`));
     }
-    return `${replacedHtml}${appendedBlock}`;
+    return this.normalizeWechatHtmlSpacing(`${replacedHtml}${appendedBlock}`);
+  }
+
+  private normalizeWechatHtmlSpacing(htmlContent: string) {
+    let normalized = String(htmlContent || "").trim();
+    if (!normalized) {
+      return normalized;
+    }
+    normalized = normalized
+      .replace(/<(p|div|section|figure)[^>]*>\s*(?:&nbsp;|\s|<br\s*\/?>)*\s*<\/\1>/gi, "")
+      .replace(/\bmin-height\s*:\s*\d+px/gi, "min-height:auto")
+      .replace(/\bpadding-top\s*:\s*(\d+)px/gi, (_match, value) => `padding-top:${Math.min(Number(value) || 0, 18)}px`)
+      .replace(/\bpadding-bottom\s*:\s*(\d+)px/gi, (_match, value) => `padding-bottom:${Math.min(Number(value) || 0, 18)}px`)
+      .replace(/\bmargin-top\s*:\s*(\d+)px/gi, (_match, value) => `margin-top:${Math.min(Number(value) || 0, 18)}px`)
+      .replace(/\bmargin-bottom\s*:\s*(\d+)px/gi, (_match, value) => `margin-bottom:${Math.min(Number(value) || 0, 18)}px`)
+      .replace(/\bgap\s*:\s*(\d+)px/gi, (_match, value) => `gap:${Math.min(Number(value) || 0, 14)}px`);
+    normalized = normalized.replace(/<img\b([^>]*)>/gi, (_match, attrs) => {
+      const nextAttrs = this.normalizeWechatHtmlInlineStyle(attrs, (style) => {
+        const parts = String(style || "")
+          .split(";")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .filter((item) => !/^margin\s*:/i.test(item))
+          .filter((item) => !/^margin-top\s*:/i.test(item))
+          .filter((item) => !/^margin-bottom\s*:/i.test(item))
+          .filter((item) => !/^display\s*:/i.test(item))
+          .filter((item) => !/^height\s*:/i.test(item));
+        parts.push("display:block");
+        parts.push("margin:12px auto");
+        parts.push("height:auto");
+        if (!parts.some((item) => /^max-width\s*:/i.test(item))) {
+          parts.push("max-width:100%");
+        }
+        return parts.join(";");
+      });
+      return `<img${nextAttrs}>`;
+    });
+    return normalized
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/>\s+</g, "><")
+      .trim();
+  }
+
+  private normalizeWechatHtmlInlineStyle(
+    attrs: string,
+    transform: (style: string) => string,
+  ) {
+    const rawAttrs = String(attrs || "");
+    if (/\bstyle\s*=\s*"/i.test(rawAttrs)) {
+      return rawAttrs.replace(/\bstyle\s*=\s*"([^"]*)"/i, (_match, style) => ` style="${transform(style)}"`);
+    }
+    if (/\bstyle\s*=\s*'/i.test(rawAttrs)) {
+      return rawAttrs.replace(/\bstyle\s*=\s*'([^']*)'/i, (_match, style) => ` style="${transform(style)}"`);
+    }
+    const trimmed = rawAttrs.trimEnd();
+    return `${trimmed}${trimmed ? " " : ""}style="${transform("")}"`;
   }
 
   private replaceWechatImageTag(tag: string, url: string, alt: string) {
@@ -10653,10 +10708,10 @@ export class WorksService {
       return "";
     }
     const coverBlock = coverImageUrl
-      ? `<section style="margin-top:24px;"><img src="${this.escapeHtml(coverImageUrl)}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
+      ? `<section style="margin-top:16px;"><img src="${this.escapeHtml(coverImageUrl)}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
       : "";
     const galleryBlock = bodyImageUrls.length
-      ? `<section style="margin-top:24px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${bodyImageUrls.map((item, index) => `<img src="${this.escapeHtml(item)}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:${this.escapeHtml(bodyImageAspectRatio)};object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
+      ? `<section style="margin-top:16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">${bodyImageUrls.map((item, index) => `<img src="${this.escapeHtml(item)}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:${this.escapeHtml(bodyImageAspectRatio)};object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
       : "";
     return `${coverBlock}${galleryBlock}`;
   }
