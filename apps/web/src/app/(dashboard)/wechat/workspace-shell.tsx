@@ -16,6 +16,7 @@ import {
 import {
   createWechatWorkflow,
   generateWechatWorkflowImages,
+  generateWechatWorkflowArticle,
   getWechatAccountConfig,
   getWechatArticleDrafts,
   getWechatOfficialAccounts,
@@ -140,6 +141,7 @@ export function WechatWorkspaceShell() {
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   const [isSavingWorkflowInput, setIsSavingWorkflowInput] = useState(false);
+  const [isGeneratingWorkflowArticle, setIsGeneratingWorkflowArticle] = useState(false);
   const [isSavingWorkflowArticle, setIsSavingWorkflowArticle] = useState(false);
   const [isGeneratingWorkflowImages, setIsGeneratingWorkflowImages] = useState(false);
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
@@ -508,11 +510,48 @@ export function WechatWorkspaceShell() {
         selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
       });
       upsertSession(response.item);
-      setNotice("输入阶段已保存，并已调用所选文本大模型生成文章稿。");
+      setNotice("输入阶段已保存，请在文章阶段执行文章 AI。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存输入阶段失败。");
     } finally {
       setIsSavingWorkflowInput(false);
+    }
+  }
+
+  async function handleGenerateWorkflowArticle() {
+    if (!selectedWorkflow) {
+      return;
+    }
+    setIsGeneratingWorkflowArticle(true);
+    setErrorMessage("");
+    try {
+      await updateWechatWorkflowInput(brandId, selectedWorkflow.id, {
+        inputType: workflowInputType,
+        accountId: workflowAccountId || undefined,
+        title: workflowTitle,
+        content: workflowInstruction,
+        themeColor: workflowThemeColor,
+        imageMode: workflowImageMode,
+        injectBrandProfile: workflowInjectBrandProfile,
+        selectedMarketingLabels: workflowCalendarId
+          ? [calendarItems.find((item) => item.id === workflowCalendarId)?.topicName || ""].filter(Boolean)
+          : [],
+        selectedProductLabels: workflowProductId && workflowProductId !== NO_PRODUCT_VALUE
+          ? [products.find((item) => item.id === workflowProductId)?.productName || ""].filter(Boolean)
+          : [],
+        selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
+      });
+      const response = await generateWechatWorkflowArticle(brandId, selectedWorkflow.id);
+      upsertSession(response.item);
+      setArticleTitle(response.item.title);
+      setArticleSummary(response.item.summary);
+      setArticleAuthor(response.item.author);
+      setArticleContent(response.item.content);
+      setNotice(`文章 AI 已完成，当前模型：${response.item.articleModelName || "未返回"}。`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "执行文章 AI 失败。");
+    } finally {
+      setIsGeneratingWorkflowArticle(false);
     }
   }
 
@@ -1095,7 +1134,7 @@ export function WechatWorkspaceShell() {
                           <div className="wechat-panel-head">
                             <div>
                               <strong>Step 2. 文章阶段</strong>
-                              <p className="wechat-inline-tip">保存后会更新 HTML 预览，并把工作流推进到生图阶段。</p>
+                              <p className="wechat-inline-tip">先执行文章 AI 调用技能中心所选文本模型生成稿件，确认后再保存进入生图阶段。</p>
                             </div>
                             <div className="strategy-inline-actions">
                               {selectedWorkflow.htmlContent ? (
@@ -1103,6 +1142,14 @@ export function WechatWorkspaceShell() {
                                   预览 HTML
                                 </button>
                               ) : null}
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => void handleGenerateWorkflowArticle()}
+                                disabled={isGeneratingWorkflowArticle}
+                              >
+                                {isGeneratingWorkflowArticle ? "执行中..." : "执行文章AI"}
+                              </button>
                               <button
                                 type="button"
                                 className="primary-button"
@@ -1114,6 +1161,12 @@ export function WechatWorkspaceShell() {
                             </div>
                           </div>
                           <div className="wechat-form-grid">
+                            {selectedWorkflow.articleModelName ? (
+                              <div className="wechat-pill-row" style={{ marginBottom: 8 }}>
+                                <span className="archive-pill status-ready">文本模型：{selectedWorkflow.articleModelName}</span>
+                                <span className="archive-pill status-ready">Provider：{selectedWorkflow.articleProvider || selectedWorkflow.articleRuntimeKey || "未知"}</span>
+                              </div>
+                            ) : null}
                             <label className="wechat-field wechat-field--full">
                               <span>文章标题</span>
                               <input value={articleTitle} onChange={(event) => setArticleTitle(event.target.value)} />
@@ -1148,7 +1201,7 @@ export function WechatWorkspaceShell() {
                             <div className="wechat-panel-head">
                               <div>
                                 <strong>Step 3. 生图</strong>
-                                <p className="wechat-inline-tip">已接入封面图和正文配图的 mock 生成结果，可作为后续真实图片任务模型的前置闭环。</p>
+                                <p className="wechat-inline-tip">调用封面图和正文配图技能所选图片模型，生成真实封面图与正文配图。</p>
                               </div>
                               <button
                                 type="button"
@@ -1166,6 +1219,12 @@ export function WechatWorkspaceShell() {
                                   <span className="archive-pill status-ready">
                                     {selectedWorkflow.imageBundle.bodyImageUrls.length ? `正文配图 ${selectedWorkflow.imageBundle.bodyImageUrls.length} 张` : "仅封面图"}
                                   </span>
+                                  {selectedWorkflow.imageBundle.coverModelName ? (
+                                    <span className="archive-pill status-ready">封面模型：{selectedWorkflow.imageBundle.coverModelName}</span>
+                                  ) : null}
+                                  {selectedWorkflow.imageBundle.bodyModelName ? (
+                                    <span className="archive-pill status-ready">正文模型：{selectedWorkflow.imageBundle.bodyModelName}</span>
+                                  ) : null}
                                 </div>
                                 <p className="wechat-inline-tip">{selectedWorkflow.imageBundle.promptSummary}</p>
                                 {selectedWorkflow.imageBundle.coverImageUrl ? (

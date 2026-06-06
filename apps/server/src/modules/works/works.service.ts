@@ -3244,6 +3244,25 @@ export class WorksService {
       payload.selectedBrandLabels,
       target.injectBrandProfile ? target.selectedBrandLabels.length ? target.selectedBrandLabels : ["品牌资料"] : [],
     );
+    target.summary = "";
+    target.content = "";
+    target.htmlContent = "";
+    target.articleProvider = undefined;
+    target.articleRuntimeKey = undefined;
+    target.articleModelName = undefined;
+    target.imageBundle = undefined;
+    target.publishConfig = undefined;
+    target.status = "ARTICLE_PENDING";
+    target.currentStep = "article";
+    target.errorDetail = undefined;
+    target.updatedAt = new Date().toISOString();
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
+  }
+
+  async generateWechatWorkflowArticle(brandId: string, workflowId: string) {
+    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
     const articleResult = await this.generateWechatArticleByModel({
       brandId,
       inputType: target.inputType,
@@ -3266,8 +3285,8 @@ export class WorksService {
     target.articleProvider = articleResult.provider;
     target.articleRuntimeKey = articleResult.runtimeKey;
     target.articleModelName = articleResult.modelName;
-    target.status = "ARTICLE_PENDING";
-    target.currentStep = "article";
+    target.status = "IMAGE_PENDING";
+    target.currentStep = "image";
     target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
     return {

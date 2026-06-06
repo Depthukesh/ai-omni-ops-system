@@ -1280,6 +1280,14 @@ export async function updateWechatWorkflowArticle(
   );
 }
 
+export async function generateWechatWorkflowArticle(brandId: string, workflowId: string) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/article/generate`,
+    "POST",
+    {},
+  );
+}
+
 export async function generateWechatWorkflowImages(brandId: string, workflowId: string) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/images/generate`,

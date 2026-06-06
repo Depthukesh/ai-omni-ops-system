@@ -250,6 +250,18 @@ export class WorksController {
     });
   }
 
+  @Post("brands/:brandId/wechat/workflows/:workflowId/article/generate")
+  generateWechatWorkflowArticle(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.generateWechatWorkflowArticle(brandId, workflowId);
+    });
+  }
+
   @Post("brands/:brandId/wechat/workflows/:workflowId/images/generate")
   generateWechatWorkflowImages(
     @Param("brandId") brandId: string,
