@@ -1,6 +1,6 @@
 ﻿---
-name: baoyu-post-to-wechat-body-image
-source: baoyu-post-to-wechat
+name: wechat-body-image-designer
+source: wechat-workflow
 mode: api-only
 ---
 # 公众号正文配图生成
@@ -26,3 +26,4 @@ mode: api-only
 ## 参考资料
 
 系统会自动聚合 references，用于补充文章结构、图文节奏和输入约束。
+

@@ -1,6 +1,6 @@
 # 公众号封面图生成
 
-基于 `baoyu-post-to-wechat` 的文章发布链路拆分，用于公众号工作流中的“封面图 / 头图”提示词生成阶段。
+基于公众号封面图工作流能力拆分，用于公众号工作流中的“封面图 / 头图”提示词生成阶段。
 
 ## 目标
 
@@ -74,7 +74,6 @@
 
 ## 参考依据
 
-- `baoyu-post-to-wechat/SKILL.md`
+- `wechat-cover-image-designer/SKILL.md`
 - 文章发布链路中对 cover image 的要求
 - `draft/add` 中 `news` 类型文章需要封面图的约束
-

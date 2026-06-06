@@ -1,6 +1,6 @@
 # 公众号创作文章
 
-基于 `baoyu-post-to-wechat` 技能中的文章工作流拆分而来，当前平台限定为 `API-only` 公众号文章链路，不允许走 browser 发布。
+基于公众号工作流文章能力拆分而来，当前平台限定为 `API-only` 公众号文章链路，不允许走 browser 发布。
 
 ## 适用范围
 
@@ -118,8 +118,7 @@
 
 ## 参考依据
 
-- `baoyu-post-to-wechat/SKILL.md`
+- `wechat-article-composer/SKILL.md`
 - `references/article-posting.md`
 - `references/multi-account.md`
 - `references/config/first-time-setup.md`
-

@@ -170,20 +170,20 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../提示词/营销日历提示词.txt",
   ],
   prompt_wechat_article_compose: [
-    "../../../提示词/wechat/baoyu-post-to-wechat-article/SKILL.md",
-    "../提示词/wechat/baoyu-post-to-wechat-article/SKILL.md",
+    "../../../提示词/wechat/wechat-article-composer/SKILL.md",
+    "../提示词/wechat/wechat-article-composer/SKILL.md",
   ],
   prompt_wechat_cover_image_compose: [
-    "../../../提示词/wechat/baoyu-post-to-wechat-cover-image/SKILL.md",
-    "../提示词/wechat/baoyu-post-to-wechat-cover-image/SKILL.md",
+    "../../../提示词/wechat/wechat-cover-image-designer/SKILL.md",
+    "../提示词/wechat/wechat-cover-image-designer/SKILL.md",
   ],
   prompt_wechat_body_image_compose: [
-    "../../../提示词/wechat/baoyu-post-to-wechat-body-image/SKILL.md",
-    "../提示词/wechat/baoyu-post-to-wechat-body-image/SKILL.md",
+    "../../../提示词/wechat/wechat-body-image-designer/SKILL.md",
+    "../提示词/wechat/wechat-body-image-designer/SKILL.md",
   ],
   prompt_wechat_api_publish: [
-    "../../../提示词/wechat/baoyu-post-to-wechat-api-publish/SKILL.md",
-    "../提示词/wechat/baoyu-post-to-wechat-api-publish/SKILL.md",
+    "../../../提示词/wechat/wechat-api-publisher/SKILL.md",
+    "../提示词/wechat/wechat-api-publisher/SKILL.md",
   ],
 };
 

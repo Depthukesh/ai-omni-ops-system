@@ -1,6 +1,6 @@
 ﻿---
-name: baoyu-post-to-wechat-api-publish
-source: baoyu-post-to-wechat
+name: wechat-api-publisher
+source: wechat-workflow
 mode: api-only
 ---
 # 公众号 API 发布
@@ -29,3 +29,4 @@ mode: api-only
 - 多账号规则
 - 首次初始化
 - 文章发布参数要求
+

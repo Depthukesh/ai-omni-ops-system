@@ -1,6 +1,6 @@
 ﻿---
-name: baoyu-post-to-wechat-article
-source: baoyu-post-to-wechat
+name: wechat-article-composer
+source: wechat-workflow
 mode: api-only
 ---
 # 公众号创作文章
@@ -38,3 +38,4 @@ mode: api-only
 - 多账号规则
 - 首次配置规则
 - API 凭证准备
+

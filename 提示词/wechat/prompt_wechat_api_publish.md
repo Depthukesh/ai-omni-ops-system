@@ -1,6 +1,6 @@
 # 公众号 API 发布
 
-基于 `baoyu-post-to-wechat` 的 API 文章发布链路整理，当前项目强制采用 `API-only`，禁止 browser / CDP 发布。
+基于公众号 API 文章发布链路整理，当前项目强制采用 `API-only`，禁止 browser / CDP 发布。
 
 ## 目标
 
@@ -29,8 +29,8 @@
 
 1. 账号级 `app_id` / `app_secret`
 2. 环境变量 `WECHAT_{ALIAS}_APP_ID` / `WECHAT_{ALIAS}_APP_SECRET`
-3. 项目级 `.baoyu-skills/.env`
-4. 用户级 `~/.baoyu-skills/.env`
+3. 项目级 `.wechat-skills/.env`
+4. 用户级 `~/.wechat-skills/.env`
 5. 最后回退到无前缀 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`
 
 如果都不存在，必须返回“先完成 API Credential Setup”，而不是继续发布。
@@ -114,8 +114,7 @@
 
 ## 参考依据
 
-- `baoyu-post-to-wechat/SKILL.md`
+- `wechat-api-publisher/SKILL.md`
 - `references/api-setup.md`
 - `references/multi-account.md`
 - `references/config/first-time-setup.md`
-

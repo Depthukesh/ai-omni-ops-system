@@ -1,6 +1,6 @@
 # 公众号正文配图生成
 
-基于 `baoyu-post-to-wechat` 的文章发布链路拆分，用于公众号长文中的正文插图、场景图、产品辅助图提示词生成。
+基于公众号正文配图工作流能力拆分，用于公众号长文中的正文插图、场景图、产品辅助图提示词生成。
 
 ## 目标
 
@@ -78,7 +78,6 @@
 
 ## 参考依据
 
-- `baoyu-post-to-wechat/SKILL.md`
+- `wechat-body-image-designer/SKILL.md`
 - `references/article-posting.md`
 - markdown 转公众号内容时的内文插图处理逻辑
-

@@ -1,6 +1,6 @@
 ﻿---
-name: baoyu-post-to-wechat-cover-image
-source: baoyu-post-to-wechat
+name: wechat-cover-image-designer
+source: wechat-workflow
 mode: api-only
 ---
 # 公众号封面图生成
@@ -27,3 +27,4 @@ mode: api-only
 
 - 文章封面规则
 - 首次配置与多账号上下文
+

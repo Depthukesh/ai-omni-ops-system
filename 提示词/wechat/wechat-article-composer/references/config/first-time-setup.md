@@ -1,4 +1,4 @@
-﻿# First-Time Setup
+# First-Time Setup
 When no EXTEND.md exists, complete setup before asking any content questions.
 ## Required Fields
 - default_theme
@@ -8,5 +8,6 @@ When no EXTEND.md exists, complete setup before asking any content questions.
 - need_open_comment
 - only_fans_can_comment
 ## Save Paths
-- Project: `.baoyu-skills/baoyu-post-to-wechat/EXTEND.md`
-- User: `~/.baoyu-skills/baoyu-post-to-wechat/EXTEND.md`
+- Project: `.wechat-skills/wechat-workflow/EXTEND.md`
+- User: `~/.wechat-skills/wechat-workflow/EXTEND.md`
+

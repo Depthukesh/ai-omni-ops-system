@@ -757,7 +757,7 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     temperature: 0.4,
     maxTokens: 8000,
     content:
-      "基于 baoyu-post-to-wechat 的文章工作流生成公众号 API-only 草稿内容：先综合营销节点、品牌资料、产品信息、主题色、作者和用户要求，输出标题、摘要、作者、适配公众号草稿箱的 HTML 正文；正文需包含导语、2-4 个主体章节、品牌/产品植入段和结尾行动建议，并为后续封面图与正文配图阶段提炼 coverImageBrief 与 bodyImageBriefs。禁止输出 browser 发布步骤，禁止省略摘要、作者和章节结构。",
+      "基于公众号工作流文章能力生成公众号 API-only 草稿内容：先综合营销节点、品牌资料、产品信息、主题色、作者和用户要求，输出标题、摘要、作者、适配公众号草稿箱的 HTML 正文；正文需包含导语、2-4 个主体章节、品牌/产品植入段和结尾行动建议，并为后续封面图与正文配图阶段提炼 coverImageBrief 与 bodyImageBriefs。禁止输出 browser 发布步骤，禁止省略摘要、作者和章节结构。",
     updatedAt: "2026-06-03T11:00:00.000Z",
   },
   {
@@ -770,7 +770,7 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     temperature: 0.3,
     maxTokens: 5000,
     content:
-      "基于 baoyu-post-to-wechat 的 article/news 发布链路，为公众号封面图和头图生成高质量提示词。必须结合标题、摘要、品牌调性、营销节点、产品卖点和主题色，输出适合公众号封面图的主视觉 prompt、版式安全区说明、标题放置建议和 negativePrompt；强调编辑感、品牌一致性与可读性，禁止把封面做成满版小字海报，也不要混入正文配图任务。",
+      "基于公众号封面图工作流链路，为公众号封面图和头图生成高质量提示词。必须结合标题、摘要、品牌调性、营销节点、产品卖点和主题色，输出适合公众号封面图的主视觉 prompt、版式安全区说明、标题放置建议和 negativePrompt；强调编辑感、品牌一致性与可读性，禁止把封面做成满版小字海报，也不要混入正文配图任务。",
     updatedAt: "2026-06-06T12:00:00.000Z",
   },
   {
@@ -783,7 +783,7 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     temperature: 0.3,
     maxTokens: 5000,
     content:
-      "基于 baoyu-post-to-wechat 的长文链路，为公众号正文插图、场景图和产品辅助图生成 prompt。需要读取文章章节结构、段落主题、品牌调性、产品卖点和主题色，输出 2-4 条 bodyImagePrompts，每条都要绑定 sectionTitle、imagePurpose、prompt 和 negativePrompt，保证与封面图风格统一、与正文阅读节奏匹配，禁止写成封面海报式大字主视觉。",
+      "基于公众号长文配图工作流链路，为公众号正文插图、场景图和产品辅助图生成 prompt。需要读取文章章节结构、段落主题、品牌调性、产品卖点和主题色，输出 2-4 条 bodyImagePrompts，每条都要绑定 sectionTitle、imagePurpose、prompt 和 negativePrompt，保证与封面图风格统一、与正文阅读节奏匹配，禁止写成封面海报式大字主视觉。",
     updatedAt: "2026-06-06T12:00:00.000Z",
   },
   {
@@ -796,7 +796,7 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     temperature: 0.2,
     maxTokens: 5000,
     content:
-      "基于 baoyu-post-to-wechat 的 API 发布工作流整理公众号 draft/add 发布检查。必须按 EXTEND.md、多账号、API 凭证、封面图、标题、摘要、作者、评论策略和 IP 白名单顺序做校验，输出 ready、checklist、publishPayloadSummary、riskHints 和 retryAdvice；只允许 API-only，禁止 browser/CDP，且不得泄露 AppSecret。",
+      "基于公众号 API 发布工作流整理公众号 draft/add 发布检查。必须按 EXTEND.md、多账号、API 凭证、封面图、标题、摘要、作者、评论策略和 IP 白名单顺序做校验，输出 ready、checklist、publishPayloadSummary、riskHints 和 retryAdvice；只允许 API-only，禁止 browser/CDP，且不得泄露 AppSecret。",
     updatedAt: "2026-06-06T12:00:00.000Z",
   },
   {
