@@ -515,11 +515,17 @@ export type WechatWorkflowSessionRecord = {
   selectedBrandLabels: string[];
   imageBundle?: {
     status: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+    taskId?: string;
     promptSummary: string;
+    startedAt?: string;
     generatedAt?: string;
+    lastGeneratedAt?: string;
     coverImageUrl?: string;
     bodyImageUrls: string[];
     prompts: string[];
+    generatedCount?: number;
+    totalCount?: number;
+    failedCount?: number;
     coverProvider?: string;
     coverRuntimeKey?: string;
     coverModelName?: string;

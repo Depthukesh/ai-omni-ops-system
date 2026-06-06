@@ -38,12 +38,14 @@ import { WechatOfficialAccountApiService } from "./wechat-official-account-api.s
 
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 180 * 1000;
+const WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS = 240 * 1000;
 const VIDEO_STAGE_MODEL_ATTEMPT_TIMEOUT_MS = 300 * 1000;
 const IMAGE_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const IMAGE_TASK_POLL_INTERVAL_MS = 15 * 1000;
 const IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const IMAGE_RESULT_FETCH_TIMEOUT_MS = 30 * 1000;
-const WECHAT_IMAGE_REQUEST_STAGGER_MS = 2 * 1000;
+const WECHAT_IMAGE_REQUEST_STAGGER_MS = 10 * 1000;
+const WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
@@ -750,11 +752,17 @@ export type WechatWorkflowSessionRecord = {
   selectedBrandLabels: string[];
   imageBundle?: {
     status: "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
+    taskId?: string;
     promptSummary: string;
+    startedAt?: string;
     generatedAt?: string;
+    lastGeneratedAt?: string;
     coverImageUrl?: string;
     bodyImageUrls: string[];
     prompts: string[];
+    generatedCount?: number;
+    totalCount?: number;
+    failedCount?: number;
     coverProvider?: string;
     coverRuntimeKey?: string;
     coverModelName?: string;
@@ -3739,8 +3747,11 @@ export class WorksService {
     };
   }
 
-  async generateWechatWorkflowImages(brandId: string, workflowId: string) {
+  async generateWechatWorkflowImages(brandId: string, workflowId: string, auth?: RequestAuthContext) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    if (target.imageBundle?.status === "RUNNING") {
+      throw new BadRequestException("当前工作流生图仍在进行中，请等待本轮完成后再重试。");
+    }
     const promptSummary = this.buildWechatImagePrompt(target.title, target.summary || target.content, target.themeColor, target.imageMode);
     const prompts = this.buildWechatWorkflowImagePrompts(target);
     const [coverImageConfig, bodyImageConfig] = await Promise.all([
@@ -3757,108 +3768,52 @@ export class WorksService {
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k"],
       }),
     ]);
+    const task = await this.createOriginalTask({
+      userId: await this.resolveTaskUserId(brandId, auth),
+      brandId,
+      taskType: "WECHAT_IMAGE_AI",
+      taskTitle: `生成公众号工作流图片：${target.title}`,
+      modelName: coverImageConfig.providers[0]?.models[0] || bodyImageConfig.providers[0]?.models[0] || "gpt-image-2",
+    });
+    const startedAt = new Date().toISOString();
     target.imageBundle = {
       status: "RUNNING",
+      taskId: task.id,
       promptSummary,
+      startedAt,
       bodyImageUrls: [],
       prompts,
+      generatedCount: 0,
+      totalCount: prompts.length,
+      failedCount: 0,
     };
+    target.publishConfig = undefined;
+    target.currentStep = "image";
+    target.status = "IMAGE_PENDING";
+    target.errorDetail = undefined;
+    target.updatedAt = startedAt;
     await this.persistWechatWorkflowSessionStoreItem(target);
-    try {
-      const coverPrompt = prompts[0] || promptSummary;
-      let coverAsset: Awaited<ReturnType<WorksService["generateImageAsset"]>> | null = null;
-      const bodyPrompts = target.imageMode === "cover-only" ? [] : prompts.slice(1);
-      const bodyAssets: Array<Awaited<ReturnType<WorksService["generateImageAsset"]>>> = [];
-      const imageFailures: string[] = [];
-      const coverImageSize = this.resolveWechatCoverImageGenerationSize();
-      const bodyImageSize = this.resolveWechatBodyImageGenerationSize(target.bodyImageSize);
-      try {
-        coverAsset = await this.generateImageAsset({
-          brandId,
-          taskId: target.id,
-          title: target.title,
-          workLabel: "公众号封面图",
-          role: "COVER",
-          order: 0,
-          providers: coverImageConfig.providers,
-          executionPrompt: coverImageConfig.executionPrompt,
-          prompt: coverPrompt,
-          referenceImageUrls: [],
-          promptMode: "social_graphic",
-          imageSizeOverride: coverImageSize,
-        });
-      } catch (error) {
-        imageFailures.push(`封面图：${error instanceof Error ? error.message : "生成失败"}`);
-      }
-      for (let index = 0; index < bodyPrompts.length; index += 1) {
-        await this.pauseWechatImageGenerationBetweenRequests();
-        try {
-          const bodyAsset = await this.generateImageAsset({
-            brandId,
-            taskId: target.id,
-            title: target.title,
-            workLabel: `公众号正文配图 ${index + 1}`,
-            role: "GALLERY",
-            order: index,
-            providers: bodyImageConfig.providers,
-            executionPrompt: bodyImageConfig.executionPrompt,
-            prompt: bodyPrompts[index] || "",
-            referenceImageUrls: [],
-            promptMode: "social_graphic",
-            imageSizeOverride: bodyImageSize,
-          });
-          bodyAssets.push(bodyAsset);
-        } catch (error) {
-          imageFailures.push(`正文配图 ${index + 1}：${error instanceof Error ? error.message : "生成失败"}`);
-        }
-      }
-      const generatedImageCount = (coverAsset ? 1 : 0) + bodyAssets.length;
-      if (!generatedImageCount) {
-        throw new ServiceUnavailableException(imageFailures.join("；") || "公众号生图失败。");
-      }
-      const now = new Date().toISOString();
-      const imageErrorDetail = imageFailures.length
-        ? this.buildWechatPartialImageGenerationNotice(prompts.length, generatedImageCount, imageFailures)
-        : undefined;
-      target.imageBundle = {
-        status: "SUCCESS",
-        promptSummary,
-        generatedAt: now,
-        coverImageUrl: coverAsset?.url,
-        bodyImageUrls: bodyAssets.map((item) => item.url),
-        prompts,
-        coverProvider: coverAsset?.providerName,
-        coverRuntimeKey: coverAsset ? "image-generation" : undefined,
-        coverModelName: coverAsset?.modelName,
-        bodyProvider: bodyAssets[0]?.providerName,
-        bodyRuntimeKey: bodyAssets.length ? "image-generation" : undefined,
-        bodyModelName: bodyAssets[0]?.modelName,
-        errorDetail: imageErrorDetail,
-      };
-      const allRequestedImagesReady = generatedImageCount >= prompts.length;
-      target.publishConfig = undefined;
-      target.status = allRequestedImagesReady ? "HTML_PENDING" : "IMAGE_PENDING";
-      target.currentStep = allRequestedImagesReady ? "html" : "image";
-      target.errorDetail = allRequestedImagesReady ? undefined : imageErrorDetail;
-      target.updatedAt = now;
-      await this.persistWechatWorkflowSessionStoreItem(target);
-      return {
-        item: this.toWechatWorkflowSessionRecord(target),
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "公众号生图失败。";
-      target.imageBundle = {
-        status: "FAILED",
-        promptSummary,
-        bodyImageUrls: [],
-        prompts,
-        errorDetail: message,
-      };
-      target.errorDetail = message;
-      target.updatedAt = new Date().toISOString();
-      await this.persistWechatWorkflowSessionStoreItem(target);
-      throw error;
-    }
+    await this.markTaskRunning(task.id);
+    await this.updateTaskRunningOutput(task.id, {
+      workflowId: target.id,
+      title: target.title,
+      currentStep: "image",
+      stage: "GENERATING_IMAGES",
+      promptSummary,
+      generatedCount: 0,
+      totalCount: prompts.length,
+      failedCount: 0,
+      coverModelName: coverImageConfig.providers[0]?.models[0] || "",
+      bodyModelName: bodyImageConfig.providers[0]?.models[0] || "",
+    }, {
+      modelName: coverImageConfig.providers[0]?.models[0] || bodyImageConfig.providers[0]?.models[0] || "gpt-image-2",
+    });
+    setTimeout(() => {
+      void this.runWechatWorkflowImagesTask(brandId, workflowId, task.id, promptSummary, prompts, coverImageConfig, bodyImageConfig);
+    }, 0);
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
   }
 
   private async pauseWechatImageGenerationBetweenRequests(delayMs = WECHAT_IMAGE_REQUEST_STAGGER_MS) {
@@ -3874,6 +3829,334 @@ export class WorksService {
       return generatedCount >= safeTotalCount ? undefined : `已成功生成 ${generatedCount}/${safeTotalCount} 张图片。`;
     }
     return `已成功生成 ${generatedCount}/${safeTotalCount} 张图片，可继续重试补齐。${failureMessages.join("；")}`;
+  }
+
+  private async runWechatWorkflowImagesTask(
+    brandId: string,
+    workflowId: string,
+    taskId: string,
+    promptSummary: string,
+    prompts: string[],
+    coverImageConfig: Awaited<ReturnType<WorksService["loadImageGenerationExecutionConfig"]>>,
+    bodyImageConfig: Awaited<ReturnType<WorksService["loadImageGenerationExecutionConfig"]>>,
+  ) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const deadlineMs = Date.now() + WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS;
+    const coverPrompt = prompts[0] || promptSummary;
+    const bodyPrompts = target.imageMode === "cover-only" ? [] : prompts.slice(1);
+    const coverImageSize = this.resolveWechatCoverImageGenerationSize();
+    const bodyImageSize = this.resolveWechatBodyImageGenerationSize(target.bodyImageSize);
+    let coverAsset: Awaited<ReturnType<WorksService["generateImageAsset"]>> | null = null;
+    const bodyAssets: Array<Awaited<ReturnType<WorksService["generateImageAsset"]>>> = [];
+    const imageFailures: string[] = [];
+    let latestModelName = "";
+
+    try {
+      this.assertWechatImageTaskWithinDeadline(deadlineMs);
+      try {
+        coverAsset = await this.generateImageAsset({
+          brandId,
+          taskId: target.id,
+          title: target.title,
+          workLabel: "公众号封面图",
+          role: "COVER",
+          order: 0,
+          providers: coverImageConfig.providers,
+          executionPrompt: coverImageConfig.executionPrompt,
+          prompt: coverPrompt,
+          referenceImageUrls: [],
+          promptMode: "social_graphic",
+          imageSizeOverride: coverImageSize,
+          attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+        });
+        latestModelName = coverAsset.modelName;
+        await this.persistWechatWorkflowImageProgress(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          taskId,
+        });
+        await this.updateTaskRunningOutput(taskId, this.buildWechatImageTaskOutput(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          stage: "GENERATING_IMAGES",
+        }), { modelName: latestModelName });
+      } catch (error) {
+        imageFailures.push(`封面图：${error instanceof Error ? error.message : "生成失败"}`);
+        await this.persistWechatWorkflowImageProgress(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          taskId,
+        });
+        await this.updateTaskRunningOutput(taskId, this.buildWechatImageTaskOutput(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          stage: "GENERATING_IMAGES",
+        }), { modelName: latestModelName || coverImageConfig.providers[0]?.models[0] || "gpt-image-2" });
+      }
+
+      for (let index = 0; index < bodyPrompts.length; index += 1) {
+        this.assertWechatImageTaskWithinDeadline(deadlineMs);
+        await this.pauseWechatImageGenerationBetweenRequests();
+        this.assertWechatImageTaskWithinDeadline(deadlineMs);
+        try {
+          const bodyAsset = await this.generateImageAsset({
+            brandId,
+            taskId: target.id,
+            title: target.title,
+            workLabel: `公众号正文配图 ${index + 1}`,
+            role: "GALLERY",
+            order: index,
+            providers: bodyImageConfig.providers,
+            executionPrompt: bodyImageConfig.executionPrompt,
+            prompt: bodyPrompts[index] || "",
+            referenceImageUrls: [],
+            promptMode: "social_graphic",
+            imageSizeOverride: bodyImageSize,
+            attemptTimeoutMs: WECHAT_IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
+          });
+          bodyAssets.push(bodyAsset);
+          latestModelName = bodyAsset.modelName;
+        } catch (error) {
+          imageFailures.push(`正文配图 ${index + 1}：${error instanceof Error ? error.message : "生成失败"}`);
+        }
+        await this.persistWechatWorkflowImageProgress(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          taskId,
+        });
+        await this.updateTaskRunningOutput(taskId, this.buildWechatImageTaskOutput(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures,
+          stage: "GENERATING_IMAGES",
+        }), { modelName: latestModelName || bodyImageConfig.providers[0]?.models[0] || coverImageConfig.providers[0]?.models[0] || "gpt-image-2" });
+      }
+
+      const generatedImageCount = (coverAsset ? 1 : 0) + bodyAssets.length;
+      if (!generatedImageCount) {
+        throw new ServiceUnavailableException(imageFailures.join("；") || "公众号生图失败。");
+      }
+      const now = new Date().toISOString();
+      const imageErrorDetail = imageFailures.length
+        ? this.buildWechatPartialImageGenerationNotice(prompts.length, generatedImageCount, imageFailures)
+        : undefined;
+      target.imageBundle = {
+        status: "SUCCESS",
+        taskId,
+        promptSummary,
+        startedAt: target.imageBundle?.startedAt,
+        generatedAt: now,
+        lastGeneratedAt: now,
+        coverImageUrl: coverAsset?.url,
+        bodyImageUrls: bodyAssets.map((item) => item.url),
+        prompts,
+        generatedCount: generatedImageCount,
+        totalCount: prompts.length,
+        failedCount: imageFailures.length,
+        coverProvider: coverAsset?.providerName,
+        coverRuntimeKey: coverAsset ? "image-generation" : undefined,
+        coverModelName: coverAsset?.modelName,
+        bodyProvider: bodyAssets[0]?.providerName,
+        bodyRuntimeKey: bodyAssets.length ? "image-generation" : undefined,
+        bodyModelName: bodyAssets[0]?.modelName,
+        errorDetail: imageErrorDetail,
+      };
+      const allRequestedImagesReady = generatedImageCount >= prompts.length;
+      target.publishConfig = undefined;
+      target.status = allRequestedImagesReady ? "HTML_PENDING" : "IMAGE_PENDING";
+      target.currentStep = allRequestedImagesReady ? "html" : "image";
+      target.errorDetail = allRequestedImagesReady ? undefined : imageErrorDetail;
+      target.updatedAt = now;
+      await this.persistWechatWorkflowSessionStoreItem(target);
+      await this.markTaskSuccess(taskId, this.buildWechatImageTaskOutput(target, {
+        promptSummary,
+        prompts,
+        coverAsset,
+        bodyAssets,
+        imageFailures,
+        stage: "GENERATED_IMAGES",
+      }), {
+        modelName: latestModelName || coverAsset?.modelName || bodyAssets[0]?.modelName || coverImageConfig.providers[0]?.models[0] || "gpt-image-2",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号生图失败。";
+      const generatedImageCount = (coverAsset ? 1 : 0) + bodyAssets.length;
+      if (generatedImageCount > 0) {
+        const now = new Date().toISOString();
+        const partialDetail = this.buildWechatPartialImageGenerationNotice(
+          prompts.length,
+          generatedImageCount,
+          [...imageFailures, message],
+        );
+        target.imageBundle = {
+          status: "SUCCESS",
+          taskId,
+          promptSummary,
+          startedAt: target.imageBundle?.startedAt,
+          generatedAt: now,
+          lastGeneratedAt: now,
+          coverImageUrl: coverAsset?.url,
+          bodyImageUrls: bodyAssets.map((item) => item.url),
+          prompts,
+          generatedCount: generatedImageCount,
+          totalCount: prompts.length,
+          failedCount: imageFailures.length + 1,
+          coverProvider: coverAsset?.providerName,
+          coverRuntimeKey: coverAsset ? "image-generation" : undefined,
+          coverModelName: coverAsset?.modelName,
+          bodyProvider: bodyAssets[0]?.providerName,
+          bodyRuntimeKey: bodyAssets.length ? "image-generation" : undefined,
+          bodyModelName: bodyAssets[0]?.modelName,
+          errorDetail: partialDetail,
+        };
+        target.publishConfig = undefined;
+        target.status = "IMAGE_PENDING";
+        target.currentStep = "image";
+        target.errorDetail = partialDetail;
+        target.updatedAt = now;
+        await this.persistWechatWorkflowSessionStoreItem(target);
+        await this.markTaskSuccess(taskId, this.buildWechatImageTaskOutput(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures: [...imageFailures, message],
+          stage: "GENERATING_IMAGES_PARTIAL",
+        }), {
+          modelName: latestModelName || coverAsset?.modelName || bodyAssets[0]?.modelName || coverImageConfig.providers[0]?.models[0] || "gpt-image-2",
+        });
+        return;
+      }
+      target.imageBundle = {
+        status: "FAILED",
+        taskId,
+        promptSummary,
+        startedAt: target.imageBundle?.startedAt,
+        bodyImageUrls: [],
+        prompts,
+        generatedCount: 0,
+        totalCount: prompts.length,
+        failedCount: imageFailures.length || prompts.length,
+        errorDetail: message,
+      };
+      target.errorDetail = message;
+      target.updatedAt = new Date().toISOString();
+      await this.persistWechatWorkflowSessionStoreItem(target);
+      await this.markTaskFailed(taskId, message, {
+        modelName: latestModelName || coverImageConfig.providers[0]?.models[0] || bodyImageConfig.providers[0]?.models[0] || "gpt-image-2",
+        outputJson: this.buildWechatImageTaskOutput(target, {
+          promptSummary,
+          prompts,
+          coverAsset,
+          bodyAssets,
+          imageFailures: imageFailures.length ? imageFailures : [message],
+          stage: "GENERATING_IMAGES_FAILED",
+        }),
+      });
+    }
+  }
+
+  private assertWechatImageTaskWithinDeadline(deadlineMs: number) {
+    if (Date.now() > deadlineMs) {
+      throw new ServiceUnavailableException(`公众号生图总耗时超过 ${Math.round(WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS / 60000)} 分钟，请重试或切换兜底模型。`);
+    }
+  }
+
+  private async persistWechatWorkflowImageProgress(
+    target: WechatWorkflowSessionStoreItem,
+    params: {
+      promptSummary: string;
+      prompts: string[];
+      coverAsset: Awaited<ReturnType<WorksService["generateImageAsset"]>> | null;
+      bodyAssets: Array<Awaited<ReturnType<WorksService["generateImageAsset"]>>>;
+      imageFailures: string[];
+      taskId: string;
+    },
+  ) {
+    const generatedCount = (params.coverAsset ? 1 : 0) + params.bodyAssets.length;
+    const now = new Date().toISOString();
+    target.imageBundle = {
+      status: "RUNNING",
+      taskId: params.taskId,
+      promptSummary: params.promptSummary,
+      startedAt: target.imageBundle?.startedAt || now,
+      lastGeneratedAt: generatedCount ? now : target.imageBundle?.lastGeneratedAt,
+      coverImageUrl: params.coverAsset?.url,
+      bodyImageUrls: params.bodyAssets.map((item) => item.url),
+      prompts: params.prompts,
+      generatedCount,
+      totalCount: params.prompts.length,
+      failedCount: params.imageFailures.length,
+      coverProvider: params.coverAsset?.providerName,
+      coverRuntimeKey: params.coverAsset ? "image-generation" : undefined,
+      coverModelName: params.coverAsset?.modelName,
+      bodyProvider: params.bodyAssets[0]?.providerName,
+      bodyRuntimeKey: params.bodyAssets.length ? "image-generation" : undefined,
+      bodyModelName: params.bodyAssets[0]?.modelName,
+      errorDetail: params.imageFailures.length
+        ? this.buildWechatPartialImageGenerationNotice(params.prompts.length, generatedCount, params.imageFailures)
+        : undefined,
+    };
+    target.publishConfig = undefined;
+    target.status = "IMAGE_PENDING";
+    target.currentStep = "image";
+    target.errorDetail = target.imageBundle.errorDetail;
+    target.updatedAt = now;
+    await this.persistWechatWorkflowSessionStoreItem(target);
+  }
+
+  private buildWechatImageTaskOutput(
+    target: WechatWorkflowSessionStoreItem,
+    params: {
+      promptSummary: string;
+      prompts: string[];
+      coverAsset: Awaited<ReturnType<WorksService["generateImageAsset"]>> | null;
+      bodyAssets: Array<Awaited<ReturnType<WorksService["generateImageAsset"]>>>;
+      imageFailures: string[];
+      stage: string;
+    },
+  ) {
+    return {
+      workflowId: target.id,
+      title: target.title,
+      currentStep: target.currentStep,
+      stage: params.stage,
+      promptSummary: params.promptSummary,
+      totalCount: params.prompts.length,
+      generatedCount: (params.coverAsset ? 1 : 0) + params.bodyAssets.length,
+      failedCount: params.imageFailures.length,
+      coverImageUrl: params.coverAsset?.url || "",
+      bodyImageUrls: params.bodyAssets.map((item) => item.url),
+      coverModelName: params.coverAsset?.modelName || "",
+      bodyModelName: params.bodyAssets[0]?.modelName || "",
+      coverProvider: params.coverAsset?.providerName || "",
+      bodyProvider: params.bodyAssets[0]?.providerName || "",
+      imageFailures: params.imageFailures,
+      errorDetail: params.imageFailures.length
+        ? this.buildWechatPartialImageGenerationNotice(
+          params.prompts.length,
+          (params.coverAsset ? 1 : 0) + params.bodyAssets.length,
+          params.imageFailures,
+        )
+        : undefined,
+    };
   }
 
   async generateWechatWorkflowHtml(brandId: string, workflowId: string, auth?: RequestAuthContext) {
@@ -7906,6 +8189,38 @@ export class WorksService {
     if (task) {
       task.taskStatus = "RUNNING";
       task.startedAt = new Date().toISOString();
+      task.updatedAt = new Date().toISOString();
+    }
+  }
+
+  private async updateTaskRunningOutput(
+    taskId: string,
+    outputJson: Record<string, unknown>,
+    options?: { modelName?: string },
+  ) {
+    if (await this.isTaskCancelled(taskId)) {
+      return;
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.prismaService.task.update({
+        where: { id: taskId },
+        data: {
+          taskStatus: TaskStatus.RUNNING,
+          outputJson: outputJson as Prisma.InputJsonValue,
+          ...(options?.modelName ? { modelName: options.modelName } : {}),
+        },
+      });
+      return;
+    }
+
+    const task = database.tasks.find((item) => item.id === taskId);
+    if (task) {
+      task.taskStatus = "RUNNING";
+      task.outputJson = outputJson;
+      if (options?.modelName) {
+        task.modelName = options.modelName;
+      }
       task.updatedAt = new Date().toISOString();
     }
   }

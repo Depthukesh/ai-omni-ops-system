@@ -329,6 +329,10 @@ export function WechatWorkspaceShell() {
     () => sessions.find((item) => item.id === selectedWorkflowId) || null,
     [sessions, selectedWorkflowId],
   );
+  const hasRunningWechatImageTask = useMemo(
+    () => sessions.some((item) => item.imageBundle?.status === "RUNNING"),
+    [sessions],
+  );
 
   async function reloadPublishHistory(nextBrandId: string) {
     const response = await getWechatPublishHistory(nextBrandId);
@@ -420,6 +424,31 @@ export function WechatWorkspaceShell() {
       disposed = true;
     };
   }, [brandId]);
+
+  useEffect(() => {
+    if (!hasRunningWechatImageTask) {
+      return undefined;
+    }
+    let disposed = false;
+    const refresh = async () => {
+      try {
+        const response = await getWechatWorkflowSessions(brandId);
+        if (!disposed) {
+          setSessions(response.items);
+        }
+      } catch {
+        // Ignore polling noise and keep the current UI state.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => {
+      void refresh();
+    }, 5000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [brandId, hasRunningWechatImageTask]);
 
   useEffect(() => {
     if (!selectedWorkflowId && sessions[0]?.id) {
@@ -708,7 +737,7 @@ export function WechatWorkspaceShell() {
       const response = await generateWechatWorkflowImages(brandId, selectedWorkflow.id);
       upsertSession(response.item);
       setPublishCoverImageUrl(response.item.imageBundle?.coverImageUrl || "");
-      setNotice("生图阶段已完成，已生成封面图与正文配图，可继续进入 HTML 阶段。");
+      setNotice("生图任务已启动，系统会按 10 秒错峰逐张生成并自动刷新展示；单张最长 240 秒，总任务最长 20 分钟。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "生成公众号配图失败。");
     } finally {
@@ -1270,15 +1299,20 @@ export function WechatWorkspaceShell() {
                                 type="button"
                                 className="primary-button"
                                 onClick={() => void handleGenerateWorkflowImages()}
-                                disabled={isGeneratingWorkflowImages}
+                                disabled={isGeneratingWorkflowImages || selectedWorkflow.imageBundle?.status === "RUNNING"}
                               >
-                                {isGeneratingWorkflowImages ? "生图中..." : "生成封面图与正文配图"}
+                                {isGeneratingWorkflowImages || selectedWorkflow.imageBundle?.status === "RUNNING" ? "生图中..." : "生成封面图与正文配图"}
                               </button>
                             </div>
                             {selectedWorkflow.imageBundle ? (
                               <div className="wechat-image-stage">
                                 <div className="wechat-pill-row">
                                   <span className="archive-pill status-ready">状态：{selectedWorkflow.imageBundle.status}</span>
+                                  {typeof selectedWorkflow.imageBundle.generatedCount === "number" && typeof selectedWorkflow.imageBundle.totalCount === "number" ? (
+                                    <span className="archive-pill status-ready">
+                                      进度：{selectedWorkflow.imageBundle.generatedCount}/{selectedWorkflow.imageBundle.totalCount}
+                                    </span>
+                                  ) : null}
                                   <span className="archive-pill status-ready">
                                     {selectedWorkflow.imageBundle.bodyImageUrls.length ? `正文配图 ${selectedWorkflow.imageBundle.bodyImageUrls.length} 张` : "仅封面图"}
                                   </span>
@@ -1290,6 +1324,11 @@ export function WechatWorkspaceShell() {
                                   ) : null}
                                 </div>
                                 <p className="wechat-inline-tip">{selectedWorkflow.imageBundle.promptSummary}</p>
+                                {selectedWorkflow.imageBundle.status === "RUNNING" ? (
+                                  <div className="wechat-inline-tip">
+                                    当前按 10 秒错峰逐张生成；每张最长 240 秒，系统会自动刷新，生成一张就显示一张。
+                                  </div>
+                                ) : null}
                                 {selectedWorkflow.imageBundle.errorDetail ? (
                                   <div className="wechat-banner wechat-banner--warning">{selectedWorkflow.imageBundle.errorDetail}</div>
                                 ) : null}
