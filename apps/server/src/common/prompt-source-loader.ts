@@ -181,6 +181,10 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
     "../../../提示词/wechat/wechat-body-image-designer/SKILL.md",
     "../提示词/wechat/wechat-body-image-designer/SKILL.md",
   ],
+  prompt_wechat_html_render: [
+    "../../../提示词/wechat/wechat-html-renderer/SKILL.md",
+    "../提示词/wechat/wechat-html-renderer/SKILL.md",
+  ],
   prompt_wechat_api_publish: [
     "../../../提示词/wechat/wechat-api-publisher/SKILL.md",
     "../提示词/wechat/wechat-api-publisher/SKILL.md",

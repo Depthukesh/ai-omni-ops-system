@@ -17,6 +17,7 @@ import {
   createWechatWorkflow,
   generateWechatWorkflowImages,
   generateWechatWorkflowArticle,
+  generateWechatWorkflowHtml,
   getWechatAccountConfig,
   getWechatArticleDrafts,
   getWechatOfficialAccounts,
@@ -76,8 +77,9 @@ const workflowSteps: Array<{ key: WechatWorkflowStep; label: string; description
   { key: "input", label: "1. 输入", description: "选择输入来源、资料与账号。" },
   { key: "article", label: "2. 文章", description: "生成并编辑标题、摘要与正文。" },
   { key: "image", label: "3. 生图", description: "调用封面图与正文配图技能对应的第三方模型生成图片。" },
-  { key: "publish", label: "4. 发布确认", description: "固定 API 模式，校验凭证与封面。" },
-  { key: "result", label: "5. 结果", description: "展示发布结果、media_id 与重试。" },
+  { key: "html", label: "4. HTML", description: "使用独立 HTML 技能渲染最终公众号排版。" },
+  { key: "publish", label: "5. 发布确认", description: "固定 API 模式，校验凭证、封面与 HTML。" },
+  { key: "result", label: "6. 结果", description: "展示发布结果、media_id 与重试。" },
 ];
 
 function buildWhitelistText(ips: string[]) {
@@ -260,6 +262,7 @@ export function WechatWorkspaceShell() {
   const [isGeneratingWorkflowArticle, setIsGeneratingWorkflowArticle] = useState(false);
   const [isSavingWorkflowArticle, setIsSavingWorkflowArticle] = useState(false);
   const [isGeneratingWorkflowImages, setIsGeneratingWorkflowImages] = useState(false);
+  const [isGeneratingWorkflowHtml, setIsGeneratingWorkflowHtml] = useState(false);
   const [isSavingPublishConfirm, setIsSavingPublishConfirm] = useState(false);
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false);
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
@@ -636,21 +639,25 @@ export function WechatWorkspaceShell() {
     }
     setIsGeneratingWorkflowArticle(true);
     setErrorMessage("");
+    const calendarItem = calendarItems.find((item) => item.id === workflowCalendarId);
+    const product = products.find((item) => item.id === workflowProductId);
     try {
       await updateWechatWorkflowInput(brandId, selectedWorkflow.id, {
         inputType: workflowInputType,
         accountId: workflowAccountId || undefined,
         title: workflowTitle,
-        content: workflowInstruction,
+        content: buildWorkflowContent({
+          inputType: workflowInputType,
+          calendarItem,
+          product,
+          injectBrandProfile: workflowInjectBrandProfile,
+          instruction: workflowInstruction,
+        }),
         themeColor: workflowThemeColor,
         imageMode: workflowImageMode,
         injectBrandProfile: workflowInjectBrandProfile,
-        selectedMarketingLabels: workflowCalendarId
-          ? [calendarItems.find((item) => item.id === workflowCalendarId)?.topicName || ""].filter(Boolean)
-          : [],
-        selectedProductLabels: workflowProductId && workflowProductId !== NO_PRODUCT_VALUE
-          ? [products.find((item) => item.id === workflowProductId)?.productName || ""].filter(Boolean)
-          : [],
+        selectedMarketingLabels: calendarItem ? [calendarItem.topicName] : [],
+        selectedProductLabels: product && product.id !== NO_PRODUCT_VALUE ? [product.productName] : [],
         selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
       });
       const response = await generateWechatWorkflowArticle(brandId, selectedWorkflow.id);
@@ -659,7 +666,7 @@ export function WechatWorkspaceShell() {
       setArticleSummary(response.item.summary);
       setArticleAuthor(response.item.author);
       setArticleContent(response.item.content);
-      setNotice(`文章 AI 已完成，当前模型：${response.item.articleModelName || "未返回"}。`);
+      setNotice(`文章 AI 已完成，当前模型：${response.item.articleModelName || "未返回"}，请继续进入生图阶段。`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "执行文章 AI 失败。");
     } finally {
@@ -700,12 +707,30 @@ export function WechatWorkspaceShell() {
     try {
       const response = await generateWechatWorkflowImages(brandId, selectedWorkflow.id);
       upsertSession(response.item);
-      setPublishCoverImageUrl(response.item.publishConfig?.coverImageUrl || response.item.imageBundle?.coverImageUrl || "");
-      setNotice("生图阶段已完成，已生成封面图与正文配图，可继续进入发布确认。");
+      setPublishCoverImageUrl(response.item.imageBundle?.coverImageUrl || "");
+      setNotice("生图阶段已完成，已生成封面图与正文配图，可继续进入 HTML 阶段。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "生成公众号配图失败。");
     } finally {
       setIsGeneratingWorkflowImages(false);
+    }
+  }
+
+  async function handleGenerateWorkflowHtml() {
+    if (!selectedWorkflow) {
+      return;
+    }
+    setIsGeneratingWorkflowHtml(true);
+    setErrorMessage("");
+    try {
+      const response = await generateWechatWorkflowHtml(brandId, selectedWorkflow.id);
+      upsertSession(response.item);
+      setPublishCoverImageUrl(response.item.publishConfig?.coverImageUrl || response.item.imageBundle?.coverImageUrl || "");
+      setNotice("HTML 阶段已完成，可继续进入发布确认。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "生成公众号 HTML 失败。");
+    } finally {
+      setIsGeneratingWorkflowHtml(false);
     }
   }
 
@@ -725,7 +750,7 @@ export function WechatWorkspaceShell() {
         coverImageUrl: publishCoverImageUrl,
       });
       upsertSession(response.item);
-      setNotice(response.item.publishConfig?.ready ? "发布确认已完成，可以执行 API 发布。" : "发布确认未完成，请检查封面图与 API 配置。");
+      setNotice(response.item.publishConfig?.ready ? "发布确认已完成，可以执行 API 发布。" : "发布确认未完成，请检查封面图、HTML 与 API 配置。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存发布确认失败。");
     } finally {
@@ -1171,14 +1196,9 @@ export function WechatWorkspaceShell() {
                           <div className="wechat-panel-head">
                             <div>
                               <strong>Step 2. 文章阶段</strong>
-                              <p className="wechat-inline-tip">先执行文章 AI 调用技能中心所选文本模型生成稿件，确认后再保存进入生图阶段。</p>
+                              <p className="wechat-inline-tip">先执行文章 AI 生成标题、摘要、作者、正文和图片 brief，确认后再保存进入生图阶段。</p>
                             </div>
                             <div className="strategy-inline-actions">
-                              {selectedWorkflow.htmlContent ? (
-                                <button type="button" className="secondary-button" onClick={() => openWorkflowPreview(selectedWorkflow)}>
-                                  预览 HTML
-                                </button>
-                              ) : null}
                               <button
                                 type="button"
                                 className="secondary-button"
@@ -1234,7 +1254,7 @@ export function WechatWorkspaceShell() {
                               <textarea value={articleContent} onChange={(event) => setArticleContent(event.target.value)} />
                             </label>
                             <div className="wechat-inline-tip">
-                              这里展示的是便于编辑的正文纯文本，实际预览与发布会优先使用文章 AI 生成的 HTML 排版结果。
+                              这里展示的是便于编辑的正文纯文本；最终排版 HTML 会在后续独立 HTML 阶段生成。
                             </div>
                           </div>
                         </section>
@@ -1306,8 +1326,45 @@ export function WechatWorkspaceShell() {
                           <article className="light-data-panel">
                             <div className="wechat-panel-head">
                               <div>
-                                <strong>Step 4. API 发布确认</strong>
-                                <p className="wechat-inline-tip">固定 API-only，这里会校验 AppID、AppSecret、白名单和封面图，并执行工作流发布。</p>
+                                <strong>Step 4. HTML 阶段</strong>
+                                <p className="wechat-inline-tip">使用独立 HTML 技能把文章正文、封面图和正文配图渲染为最终公众号 HTML。</p>
+                              </div>
+                              <div className="strategy-inline-actions">
+                                {selectedWorkflow.htmlContent ? (
+                                  <button type="button" className="secondary-button" onClick={() => openWorkflowPreview(selectedWorkflow)}>
+                                    预览 HTML
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  onClick={() => void handleGenerateWorkflowHtml()}
+                                  disabled={isGeneratingWorkflowHtml}
+                                >
+                                  {isGeneratingWorkflowHtml ? "生成中..." : "生成 HTML"}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="wechat-form-grid">
+                              {selectedWorkflow.htmlContent ? (
+                                <>
+                                  <div className="wechat-pill-row">
+                                    <span className="archive-pill status-ready">HTML 已生成</span>
+                                  </div>
+                                  <div className="wechat-inline-tip">
+                                    当前 HTML 已写回工作流，可先预览再进入发布确认。
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="empty-state">先完成生图阶段，再调用独立 HTML 技能生成最终排版。</div>
+                              )}
+                            </div>
+                          </article>
+                          <article className="light-data-panel">
+                            <div className="wechat-panel-head">
+                              <div>
+                                <strong>Step 5. API 发布确认</strong>
+                                <p className="wechat-inline-tip">固定 API-only，这里会校验 AppID、AppSecret、白名单、封面图和最终 HTML，并执行工作流发布。</p>
                               </div>
                               <div className="strategy-inline-actions">
                                 <button
@@ -1371,7 +1428,7 @@ export function WechatWorkspaceShell() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="empty-state">先完成生图阶段，再保存发布确认。</div>
+                              <div className="empty-state">先完成 HTML 阶段，再保存发布确认。</div>
                             )}
                           </article>
                         </section>
@@ -1379,7 +1436,7 @@ export function WechatWorkspaceShell() {
                           <section className="light-data-panel">
                             <div className="wechat-panel-head">
                               <div>
-                                <strong>Step 5. 发布结果</strong>
+                                <strong>Step 6. 发布结果</strong>
                                 <p className="wechat-inline-tip">当前工作流已经发布完成，可在历史记录中继续查看对应草稿。</p>
                               </div>
                             </div>

@@ -274,6 +274,18 @@ export class WorksController {
     });
   }
 
+  @Post("brands/:brandId/wechat/workflows/:workflowId/html/generate")
+  generateWechatWorkflowHtml(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.generateWechatWorkflowHtml(brandId, workflowId, auth);
+    });
+  }
+
   @Patch("brands/:brandId/wechat/workflows/:workflowId/publish-confirm")
   updateWechatWorkflowPublishConfirm(
     @Param("brandId") brandId: string,

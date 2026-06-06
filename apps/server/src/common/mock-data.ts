@@ -401,7 +401,7 @@ const xiaohongshuVideoNoteSkillContent = readPromptSourceBundle(
 ).content;
 const wechatArticleComposeSkillContent = readPromptSourceBundle(
   "prompt_wechat_article_compose",
-  "根据文章主题、营销日历、产品信息、品牌信息、主题颜色和用户要求，生成适合公众号草稿箱的 HTML 文章结构，包含标题、摘要、正文段落、小标题、引用块和结尾行动建议。",
+  "根据文章主题、营销日历、产品信息、品牌信息、主题颜色和用户要求，生成适合公众号工作流的结构化文章，包含标题、摘要、作者、正文纯文本段落，以及封面图和正文配图提示词。",
 ).content;
 const wechatCoverImageComposeSkillContent = readPromptSourceBundle(
   "prompt_wechat_cover_image_compose",
@@ -410,6 +410,10 @@ const wechatCoverImageComposeSkillContent = readPromptSourceBundle(
 const wechatBodyImageComposeSkillContent = readPromptSourceBundle(
   "prompt_wechat_body_image_compose",
   "根据公众号文章正文结构、段落主题、产品信息和品牌调性，生成正文插图、场景图与产品辅助图的提示词，要求适合公众号长文阅读节奏。",
+).content;
+const wechatHtmlRenderSkillContent = readPromptSourceBundle(
+  "prompt_wechat_html_render",
+  "根据已确认的公众号文章正文、封面图、正文配图和主题色，生成最终可发布的公众号 HTML，保持图片植入位置自然，禁止追加多余附录区块。",
 ).content;
 const wechatApiPublishSkillContent = readPromptSourceBundle(
   "prompt_wechat_api_publish",
@@ -1437,7 +1441,7 @@ export const database: MockDatabase = {
       provider: "Right Codes 文生文",
       defaultModel: "provider_runtime_text_global::gpt-5.5",
       pointsCost: 180,
-      description: "用于根据营销日历、产品信息、品牌信息和主题色生成适合公众号草稿箱的 HTML 文章。",
+      description: "用于根据营销日历、产品信息、品牌信息和主题色生成结构化公众号文章正文与图片提示词。",
       updatedAt: "2026-06-03T11:00:00.000Z",
     },
     {
@@ -1463,6 +1467,18 @@ export const database: MockDatabase = {
       pointsCost: 200,
       description: "用于生成公众号工作流中的正文插图、场景图和产品辅助图。",
       updatedAt: "2026-06-05T22:40:00.000Z",
+    },
+    {
+      id: "skill_wechat_html_render",
+      name: "公众号HTML渲染",
+      slug: "wechat-html-renderer",
+      category: "内容生产",
+      status: "ACTIVE",
+      provider: "国内文生文 · DeepSeek",
+      defaultModel: "provider_runtime_text_deepseek::deepseek-v4-pro",
+      pointsCost: 160,
+      description: "用于将公众号文章正文、封面图和正文配图渲染为最终可发布的公众号 HTML。",
+      updatedAt: "2026-06-06T20:30:00.000Z",
     },
     {
       id: "skill_wechat_api_publish",
@@ -2256,7 +2272,7 @@ export const database: MockDatabase = {
       temperature: 0.4,
       maxTokens: 8000,
       content: wechatArticleComposeSkillContent,
-      updatedAt: "2026-06-03T11:00:00.000Z",
+      updatedAt: "2026-06-06T20:30:00.000Z",
     },
     {
       id: "prompt_wechat_cover_image_compose",
@@ -2281,6 +2297,18 @@ export const database: MockDatabase = {
       maxTokens: 5000,
       content: wechatBodyImageComposeSkillContent,
       updatedAt: "2026-06-05T22:40:00.000Z",
+    },
+    {
+      id: "prompt_wechat_html_render",
+      name: "公众号HTML渲染提示词",
+      scene: "公众号HTML渲染",
+      version: "v1.0",
+      status: "ACTIVE",
+      modelName: "provider_runtime_text_deepseek::deepseek-v4-pro",
+      temperature: 0.2,
+      maxTokens: 8000,
+      content: wechatHtmlRenderSkillContent,
+      updatedAt: "2026-06-06T20:30:00.000Z",
     },
     {
       id: "prompt_wechat_api_publish",

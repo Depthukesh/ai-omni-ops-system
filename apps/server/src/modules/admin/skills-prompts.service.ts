@@ -264,6 +264,14 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_wechat_body_image_compose"],
     promptScenes: ["公众号正文配图生成"],
   },
+  skill_wechat_html_render: {
+    promptIds: ["prompt_wechat_html_render"],
+    promptScenes: ["公众号HTML渲染"],
+  },
+  "wechat-html-renderer": {
+    promptIds: ["prompt_wechat_html_render"],
+    promptScenes: ["公众号HTML渲染"],
+  },
   skill_wechat_api_publish: {
     promptIds: ["prompt_wechat_api_publish"],
     promptScenes: ["公众号API发布"],

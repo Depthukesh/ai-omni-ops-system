@@ -438,12 +438,13 @@ export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
 export type WechatBodyImageSize = "landscape-4-3" | "landscape-16-9" | "square-1-1" | "portrait-4-3";
 export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
-export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
+export type WechatWorkflowStep = "input" | "article" | "image" | "html" | "publish" | "result";
 export type WechatWorkflowStatus =
   | "INIT_REQUIRED"
   | "INPUT_PENDING"
   | "ARTICLE_PENDING"
   | "IMAGE_PENDING"
+  | "HTML_PENDING"
   | "PUBLISH_CONFIRM_PENDING"
   | "PUBLISHING"
   | "PUBLISHED"
@@ -1298,6 +1299,14 @@ export async function generateWechatWorkflowArticle(brandId: string, workflowId:
 export async function generateWechatWorkflowImages(brandId: string, workflowId: string) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/images/generate`,
+    "POST",
+    {},
+  );
+}
+
+export async function generateWechatWorkflowHtml(brandId: string, workflowId: string) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/html/generate`,
     "POST",
     {},
   );

@@ -1,17 +1,17 @@
-﻿---
+---
 name: wechat-article-composer
 source: wechat-workflow
 mode: api-only
 ---
 # 公众号创作文章
 
-用于公众号工作流中的“生成或编辑文章内容”阶段，必须服务于后续生图和 API 发布确认。
+用于公众号工作流中的“生成或编辑文章内容”阶段，必须服务于后续生图和 HTML 渲染。
 
 ## 核心要求
 
 - 仅支持 API 发布链路，不允许 browser / CDP。
 - 输入可以来自 plain-text、markdown、html、calendar。
-- 输出必须包含标题、摘要、作者、HTML 正文结构。
+- 输出必须包含标题、摘要、作者、正文纯文本结构。
 - 正文需适配公众号长文阅读习惯，并为封面图与正文配图留出明确锚点。
 
 ## 输出目标
@@ -19,7 +19,7 @@ mode: api-only
 1. title
 2. summary
 3. author
-4. htmlContent
+4. content
 5. coverImageBrief
 6. bodyImageBriefs
 

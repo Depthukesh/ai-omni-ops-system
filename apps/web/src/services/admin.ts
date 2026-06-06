@@ -561,7 +561,7 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     provider: "Right Codes 文生文",
     defaultModel: "provider_runtime_text_global::gpt-5.5",
     pointsCost: 180,
-    description: "用于根据营销日历、产品信息、品牌信息和主题色生成适合公众号草稿箱的 HTML 文章。",
+    description: "用于根据营销日历、产品信息、品牌信息和主题色生成结构化公众号文章正文与图片提示词。",
     updatedAt: "2026-06-03T11:00:00.000Z",
   },
   {
@@ -587,6 +587,18 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     pointsCost: 200,
     description: "用于生成公众号工作流中的正文插图、场景图和产品辅助图。",
     updatedAt: "2026-06-05T22:40:00.000Z",
+  },
+  {
+    id: "skill_wechat_html_render",
+    name: "公众号HTML渲染",
+    slug: "wechat-html-renderer",
+    category: "内容生产",
+    status: "ACTIVE",
+    provider: "国内文生文 · DeepSeek",
+    defaultModel: "provider_runtime_text_deepseek::deepseek-v4-pro",
+    pointsCost: 160,
+    description: "用于将公众号文章正文、封面图和正文配图渲染为最终可发布的公众号 HTML。",
+    updatedAt: "2026-06-06T20:30:00.000Z",
   },
   {
     id: "skill_wechat_api_publish",
@@ -757,8 +769,8 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     temperature: 0.4,
     maxTokens: 8000,
     content:
-      "基于公众号工作流文章能力生成公众号 API-only 草稿内容：先综合营销节点、品牌资料、产品信息、主题色、作者和用户要求，输出标题、摘要、作者、适配公众号草稿箱的 HTML 正文；正文需包含导语、2-4 个主体章节、品牌/产品植入段和结尾行动建议，并为后续封面图与正文配图阶段提炼 coverImageBrief 与 bodyImageBriefs。禁止输出 browser 发布步骤，禁止省略摘要、作者和章节结构。",
-    updatedAt: "2026-06-03T11:00:00.000Z",
+      "基于公众号工作流文章能力生成结构化公众号文章内容：先综合营销节点、品牌资料、产品信息、主题色、作者和用户要求，输出标题、摘要、作者、正文纯文本 content；正文需包含导语、2-4 个主体章节、品牌/产品植入段和结尾行动建议，并为后续封面图与正文配图阶段提炼 coverImageBrief 与 bodyImageBriefs。禁止输出 browser 发布步骤，禁止省略摘要、作者和章节结构，禁止直接输出 htmlContent。",
+    updatedAt: "2026-06-06T20:30:00.000Z",
   },
   {
     id: "prompt_wechat_cover_image_compose",
@@ -785,6 +797,19 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     content:
       "基于公众号长文配图工作流链路，为公众号正文插图、场景图和产品辅助图生成 prompt。需要读取文章章节结构、段落主题、品牌调性、产品卖点和主题色，输出 2-4 条 bodyImagePrompts，每条都要绑定 sectionTitle、imagePurpose、prompt 和 negativePrompt，保证与封面图风格统一、与正文阅读节奏匹配，禁止写成封面海报式大字主视觉。",
     updatedAt: "2026-06-06T12:00:00.000Z",
+  },
+  {
+    id: "prompt_wechat_html_render",
+    name: "公众号HTML渲染提示词",
+    scene: "公众号HTML渲染",
+    version: "v1.0",
+    status: "ACTIVE",
+    modelName: "provider_runtime_text_deepseek::deepseek-v4-pro",
+    temperature: 0.2,
+    maxTokens: 8000,
+    content:
+      "基于公众号 HTML 渲染工作流，把已确认的 title、summary、author、content、coverImageUrl、bodyImageUrls 和主题色渲染为最终可发布的公众号 HTML。必须输出单个 htmlContent JSON 字段，图片要自然植入正文对应位置，禁止附加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录。",
+    updatedAt: "2026-06-06T20:30:00.000Z",
   },
   {
     id: "prompt_wechat_api_publish",

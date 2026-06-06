@@ -473,12 +473,13 @@ export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
 export type WechatBodyImageSize = "landscape-4-3" | "landscape-16-9" | "square-1-1" | "portrait-4-3";
 export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
-export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
+export type WechatWorkflowStep = "input" | "article" | "image" | "html" | "publish" | "result";
 export type WechatWorkflowStatus =
   | "INIT_REQUIRED"
   | "INPUT_PENDING"
   | "ARTICLE_PENDING"
   | "IMAGE_PENDING"
+  | "HTML_PENDING"
   | "PUBLISH_CONFIRM_PENDING"
   | "PUBLISHING"
   | "PUBLISHED"
@@ -2036,9 +2037,18 @@ type WechatArticleGenerationModelResult = {
   summary: string;
   author: string;
   content: string;
-  htmlContent: string;
   coverImageBrief: string;
   bodyImageBriefs: string[];
+  provider: string;
+  runtimeKey: string;
+  modelName: string;
+  preferredModelName: string;
+  attemptedModels: string[];
+  attemptTrail: string[];
+};
+
+type WechatHtmlGenerationModelResult = {
+  htmlContent: string;
   provider: string;
   runtimeKey: string;
   modelName: string;
@@ -3656,12 +3666,14 @@ export class WorksService {
       target.summary = articleResult.summary;
       target.author = articleResult.author;
       target.content = articleResult.content;
-      target.htmlContent = articleResult.htmlContent;
+      target.htmlContent = "";
       target.articleProvider = articleResult.provider;
       target.articleRuntimeKey = articleResult.runtimeKey;
       target.articleModelName = articleResult.modelName;
       target.coverImageBrief = articleResult.coverImageBrief;
       target.bodyImageBriefs = articleResult.bodyImageBriefs;
+      target.imageBundle = undefined;
+      target.publishConfig = undefined;
       target.status = "IMAGE_PENDING";
       target.currentStep = "image";
       target.errorDetail = undefined;
@@ -3709,16 +3721,15 @@ export class WorksService {
 
   async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
-    const previousContent = target.content;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
     target.content = String(payload.content || "").trim() || target.content;
     target.commentMode = payload.commentMode || target.commentMode;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
-    target.htmlContent = target.htmlContent && target.content === previousContent
-      ? target.htmlContent
-      : this.renderWechatWorkflowArticleHtml(target);
+    target.htmlContent = "";
+    target.imageBundle = undefined;
+    target.publishConfig = undefined;
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
     target.updatedAt = new Date().toISOString();
@@ -3824,20 +3835,10 @@ export class WorksService {
         bodyModelName: bodyAssets[0]?.modelName,
         errorDetail: imageErrorDetail,
       };
-      target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
       const allRequestedImagesReady = generatedImageCount >= prompts.length;
-      const coverImageUrl = target.imageBundle.coverImageUrl || "";
-      target.publishConfig = {
-        ready: false,
-        accountId: target.accountId,
-        accountName: target.accountName,
-        coverImageUrl,
-        commentMode: target.commentMode,
-        fanCommentsOnly: false,
-        checklist: [],
-      };
-      target.status = allRequestedImagesReady ? "PUBLISH_CONFIRM_PENDING" : "IMAGE_PENDING";
-      target.currentStep = allRequestedImagesReady ? "publish" : "image";
+      target.publishConfig = undefined;
+      target.status = allRequestedImagesReady ? "HTML_PENDING" : "IMAGE_PENDING";
+      target.currentStep = allRequestedImagesReady ? "html" : "image";
       target.errorDetail = allRequestedImagesReady ? undefined : imageErrorDetail;
       target.updatedAt = now;
       await this.persistWechatWorkflowSessionStoreItem(target);
@@ -3875,6 +3876,103 @@ export class WorksService {
     return `已成功生成 ${generatedCount}/${safeTotalCount} 张图片，可继续重试补齐。${failureMessages.join("；")}`;
   }
 
+  async generateWechatWorkflowHtml(brandId: string, workflowId: string, auth?: RequestAuthContext) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    if (!target.imageBundle?.coverImageUrl && !target.imageBundle?.bodyImageUrls?.length) {
+      throw new BadRequestException("请先完成封面图与正文配图生成，再执行 HTML 阶段。");
+    }
+    const htmlPreference = await this.loadSkillModelPreference(
+      "wechat-html-renderer",
+      "prompt_wechat_html_render",
+      ["deepseek-v4-pro", "deepseek-v4-flash"],
+    );
+    const task = await this.createOriginalTask({
+      userId: await this.resolveTaskUserId(brandId, auth),
+      brandId,
+      taskType: "WECHAT_HTML_AI",
+      taskTitle: `生成公众号工作流HTML：${target.title}`,
+      modelName: htmlPreference.preferredModelName || target.articleModelName || "deepseek-v4-pro",
+    });
+    await this.markTaskRunning(task.id);
+    try {
+      const htmlResult = await this.generateWechatHtmlByModel({
+        brandId,
+        title: target.title,
+        summary: target.summary,
+        author: target.author,
+        content: target.content,
+        themeColor: target.themeColor,
+        commentMode: target.commentMode,
+        coverImageUrl: target.imageBundle?.coverImageUrl,
+        bodyImageUrls: target.imageBundle?.bodyImageUrls || [],
+        bodyImageBriefs: target.bodyImageBriefs || [],
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        preference: htmlPreference,
+      });
+      target.htmlContent = this.injectWechatImagesIntoHtml(htmlResult.htmlContent, {
+        coverImageUrl: target.imageBundle?.coverImageUrl,
+        bodyImageUrls: target.imageBundle?.bodyImageUrls || [],
+        bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio(target.bodyImageSize),
+      });
+      target.publishConfig = {
+        ready: false,
+        accountId: target.accountId,
+        accountName: target.accountName,
+        coverImageUrl: target.imageBundle?.coverImageUrl || target.publishConfig?.coverImageUrl,
+        commentMode: target.commentMode,
+        fanCommentsOnly: target.publishConfig?.fanCommentsOnly ?? false,
+        checklist: target.publishConfig?.checklist || [],
+        mediaId: target.publishConfig?.mediaId,
+        publishedAt: target.publishConfig?.publishedAt,
+        publishTaskId: target.publishConfig?.publishTaskId,
+      };
+      target.status = "PUBLISH_CONFIRM_PENDING";
+      target.currentStep = "publish";
+      target.errorDetail = undefined;
+      target.updatedAt = new Date().toISOString();
+      await this.persistWechatWorkflowSessionStoreItem(target);
+      await this.markTaskSuccess(
+        task.id,
+        {
+          workflowId: target.id,
+          title: target.title,
+          currentStep: target.currentStep,
+          runtimeKey: htmlResult.runtimeKey,
+          preferredModelName: htmlResult.preferredModelName,
+          successModelName: htmlResult.modelName,
+          actualModelName: htmlResult.modelName,
+          successProvider: htmlResult.provider,
+          attemptedModels: htmlResult.attemptedModels,
+          attemptTrail: htmlResult.attemptTrail,
+        },
+        { modelName: htmlResult.modelName },
+      );
+      return {
+        item: this.toWechatWorkflowSessionRecord(target),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号工作流 HTML 生成失败。";
+      const failureRecord = this.asRecord(error);
+      const failureOutput = this.asRecord(failureRecord?.taskOutput) || {};
+      const failureModelName = typeof failureRecord?.taskModelName === "string"
+        ? failureRecord.taskModelName.trim()
+        : "";
+      await this.markTaskFailed(task.id, message, {
+        modelName: failureModelName || htmlPreference.preferredModelName || "deepseek-v4-pro",
+        outputJson: {
+          workflowId: target.id,
+          title: target.title,
+          currentStep: "html",
+          preferredModelName: htmlPreference.preferredModelName,
+          ...failureOutput,
+        },
+      });
+      throw error;
+    }
+  }
+
   async updateWechatWorkflowPublishConfirm(
     brandId: string,
     workflowId: string,
@@ -3898,9 +3996,10 @@ export class WorksService {
       config?.appId && config?.appSecret ? "已配置 AppID / AppSecret" : "缺少 AppID / AppSecret",
       config?.whitelistIps?.length ? "已配置 IP 白名单" : "缺少 IP 白名单",
       coverImageUrl ? "已生成封面图" : "缺少封面图",
+      target.htmlContent ? "已生成 HTML" : "缺少 HTML",
       "已确认评论策略",
     ];
-    const ready = Boolean(config?.appId && config?.appSecret && config?.whitelistIps?.length && coverImageUrl);
+    const ready = Boolean(config?.appId && config?.appSecret && config?.whitelistIps?.length && coverImageUrl && target.htmlContent);
     target.publishConfig = {
       ready,
       accountId: target.accountId,
@@ -3913,9 +4012,11 @@ export class WorksService {
       publishedAt: target.publishConfig?.publishedAt,
       publishTaskId: target.publishConfig?.publishTaskId,
     };
-    target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
+    if (target.htmlContent) {
+      target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
+    }
     target.updatedAt = new Date().toISOString();
-    target.errorDetail = ready ? undefined : "发布确认未完成，请检查 API 凭证、白名单和封面图。";
+    target.errorDetail = ready ? undefined : "发布确认未完成，请检查 API 凭证、白名单、封面图和 HTML。";
     await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
@@ -3931,6 +4032,9 @@ export class WorksService {
     try {
       if (!target.publishConfig?.ready) {
         throw new BadRequestException("请先完成发布确认。");
+      }
+      if (!String(target.htmlContent || "").trim()) {
+        throw new BadRequestException("请先完成 HTML 阶段，生成最终公众号 HTML。");
       }
       if (!config?.appId || !config?.appSecret) {
         throw new BadRequestException("请先在配置初始化中完成 AppID 和 AppSecret 配置。");
@@ -4194,7 +4298,7 @@ export class WorksService {
         summary: articleResult.summary,
         author: articleResult.author,
         content: articleResult.content,
-        htmlContent: articleResult.htmlContent,
+        htmlContent: "",
         outputFormat: "HTML",
         coverMode,
         commentMode,
@@ -4246,6 +4350,7 @@ export class WorksService {
         createdAt: now,
         updatedAt: now,
       };
+      record.htmlContent = this.renderWechatArticleHtml(record);
       await this.persistWechatArticleDraftRecord(record);
 
       await this.markTaskSuccess(
@@ -9384,22 +9489,20 @@ export class WorksService {
     const systemPrompt = [
       skillPrompt,
       "",
-      "你当前处于公众号工作流的文章生成阶段，需要根据输入资料生成可直接继续进入生图和 API 发布阶段的文章稿。",
+      "你当前处于公众号工作流的文章生成阶段，需要根据输入资料生成可直接继续进入生图阶段的文章结构稿。",
       "请严格只输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
       "JSON 结构固定为：",
       "{",
       '  "title": "公众号标题，建议 12-24 字",',
       '  "summary": "120 字以内摘要",',
       '  "author": "作者名，可沿用输入作者",',
-      '  "htmlContent": "<section>...</section>，输出适合公众号排版的 HTML 结构，至少包含导语、2-4 个主体章节、总结或行动建议，并在对应章节内部预留 2-4 个正文配图 <img> 占位"', 
+      '  "content": "文章正文纯文本，使用自然段换行组织，至少包含导语、2-4 个主体章节、总结或行动建议"', 
       '  "coverImageBrief": "用于生成公众号封面图的详细中文提示词，包含主视觉、标题安全区、主题色、构图和禁忌元素"',
       '  "bodyImageBriefs": ["用于生成正文配图 1 的详细中文提示词", "用于生成正文配图 2 的详细中文提示词"]',
       "}",
       "不要返回 Markdown。",
-      "htmlContent 可以是 HTML 片段或完整 HTML 文档，但必须包含清晰的标题层级、摘要块、章节标题、强调块、列表或引用等适合公众号阅读的排版结构。",
-      "htmlContent 必须是单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行；需要分段时请使用 <section>、<p>、<br/> 等 HTML 标签表达。",
-      "htmlContent 内部所有 HTML 属性统一使用单引号，例如 <img src='' alt='正文配图1' />，不要在 HTML 属性里使用双引号，避免破坏 JSON。",
-      "正文配图必须以内嵌占位图的方式放进正文对应章节，例如 <figure><img src=\"\" alt=\"正文配图1\" /></figure>，禁止把所有图片集中放在文末单独成块。",
+      "content 必须是方便人工继续编辑和后续 HTML 渲染的正文纯文本，不要输出 HTML 标签。",
+      "content 需要自然分段，可以通过换行区分导语、主体章节、品牌/产品植入段和结尾总结。",
       "结尾只能保留正文总结或行动建议，禁止额外输出“营销日历资料 / 产品资料 / 品牌资料 / 原文链接 / 创作来源 / 素材说明 / 附录”之类的尾部信息块。",
       "bodyImageBriefs 数量控制在 2-4 条，必须与正文章节主题对应。",
     ].join("\n");
@@ -9445,7 +9548,8 @@ export class WorksService {
               const title = String(parsed.title ?? "").trim() || params.titleSeed || "公众号文章";
               const summary = String(parsed.summary ?? "").trim();
               const author = String(parsed.author ?? "").trim() || params.author || "品牌内容中心";
-              const rawHtmlContent = String(parsed.htmlContent ?? "").trim();
+              const body = String(parsed.content ?? "").trim()
+                || this.extractWechatPlainTextFromHtml(String(parsed.htmlContent ?? "").trim());
               const coverImageBrief = this.normalizeWechatImageBrief(
                 parsed.coverImageBrief,
                 this.buildWechatCoverImagePrompt(title, summary || params.inputContent, params.themeColor),
@@ -9454,54 +9558,16 @@ export class WorksService {
                 parsed.bodyImageBriefs,
                 params,
               );
-              if (!rawHtmlContent) {
-                lastError = `${provider.provider}/${modelName} 返回 htmlContent 为空`;
-                attemptTrail.push(`${attemptLabel} -> 返回 htmlContent 为空`);
+              if (!body) {
+                lastError = `${provider.provider}/${modelName} 返回 content 为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回 content 为空`);
                 continue;
               }
-              const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
-                title,
-                author,
-                summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
-                themeColor: params.themeColor,
-                htmlContent: rawHtmlContent,
-              });
-              const body = this.extractWechatPlainTextFromHtml(htmlContent);
-              const sessionLikeRecord: WechatWorkflowSessionRecord = {
-                id: createId("wechat_workflow_preview"),
-                brandId: params.brandId,
-                accountName: params.accountName,
-                status: "ARTICLE_PENDING",
-                currentStep: "article",
-                inputType: params.inputType,
-                inputContent: params.inputContent,
-                title,
-                summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
-                author,
-                content: body,
-                htmlContent,
-                articleProvider: provider.providerName || provider.provider,
-                articleRuntimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
-                articleModelName: modelName,
-                coverImageBrief,
-                bodyImageBriefs,
-                themeColor: params.themeColor,
-                commentMode: params.commentMode,
-                imageMode: "cover-and-body",
-                bodyImageSize: "landscape-4-3",
-                injectBrandProfile: params.injectBrandProfile,
-                selectedMarketingLabels: params.selectedMarketingLabels,
-                selectedProductLabels: params.selectedProductLabels,
-                selectedBrandLabels: params.selectedBrandLabels,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
               return {
                 title,
-                summary: sessionLikeRecord.summary,
+                summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
                 author,
                 content: body,
-                htmlContent: sessionLikeRecord.htmlContent,
                 coverImageBrief,
                 bodyImageBriefs,
                 provider: provider.providerName || provider.provider,
@@ -9539,6 +9605,160 @@ export class WorksService {
     failure.taskModelName = lastAttempt?.modelName || preference.preferredModelName;
     failure.taskOutput = {
       stage: "GENERATING_COPY",
+      preferredModelName: preference.preferredModelName,
+      lastAttemptModelName: lastAttempt?.modelName || "",
+      lastAttemptProvider: lastAttempt?.providerName || "",
+      attemptedModels: Array.from(attemptedModels),
+      attemptTrail,
+      lastError,
+    };
+    throw failure;
+  }
+
+  private async generateWechatHtmlByModel(params: {
+    brandId: string;
+    title: string;
+    summary: string;
+    author: string;
+    content: string;
+    themeColor: string;
+    commentMode: WechatCommentMode;
+    coverImageUrl?: string;
+    bodyImageUrls: string[];
+    bodyImageBriefs: string[];
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    preference?: SkillModelPreference;
+  }): Promise<WechatHtmlGenerationModelResult> {
+    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_wechat_html_render"))?.content || "").trim();
+    if (!skillPrompt) {
+      throw new ServiceUnavailableException("未找到公众号 HTML 渲染提示词，请先在技能中心启用对应 prompt。");
+    }
+    const preference = params.preference || await this.loadSkillModelPreference(
+      "wechat-html-renderer",
+      "prompt_wechat_html_render",
+      ["deepseek-v4-pro", "deepseek-v4-flash"],
+    );
+    const providers = await this.loadWechatTextProviders(params.brandId, preference);
+    const inputPayload = {
+      title: params.title,
+      summary: params.summary,
+      author: params.author,
+      content: params.content,
+      themeColor: params.themeColor,
+      commentMode: params.commentMode,
+      coverImageUrl: params.coverImageUrl,
+      bodyImageUrls: params.bodyImageUrls,
+      bodyImageBriefs: params.bodyImageBriefs,
+      marketingLabels: params.selectedMarketingLabels,
+      productLabels: params.selectedProductLabels,
+      brandLabels: params.selectedBrandLabels,
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前处于公众号工作流的 HTML 渲染阶段，需要把已确认的文章正文和已生成图片整理为最终公众号 HTML。",
+      "请严格只输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "htmlContent": "<!DOCTYPE html>..."',
+      "}",
+      "htmlContent 必须是结构完整的公众号 HTML 文档，包含标题区、摘要区、正文区，并把封面图和正文配图自然植入对应位置。",
+      "htmlContent 必须输出单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行。",
+      "htmlContent 内部所有 HTML 属性统一使用单引号，不要使用双引号，避免破坏 JSON。",
+      "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
+      "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
+    ].join("\n");
+    const userPrompt = ["以下是公众号 HTML 渲染输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    const attemptedModels = new Set<string>();
+    let lastAttempt: { modelName: string; providerName: string } | null = null;
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            attemptedModels.add(modelName);
+            lastAttempt = {
+              modelName,
+              providerName: provider.providerName || provider.provider,
+            };
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const responseText = this.extractResponseText(payload);
+              if (!responseText) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const parsed = this.parseJsonObject(responseText);
+              const rawHtmlContent = String(parsed.htmlContent ?? "").trim();
+              if (!rawHtmlContent) {
+                lastError = `${provider.provider}/${modelName} 返回 htmlContent 为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回 htmlContent 为空`);
+                continue;
+              }
+              const htmlContent = this.normalizeWechatGeneratedHtmlDocument({
+                title: params.title,
+                author: params.author,
+                summary: params.summary,
+                themeColor: params.themeColor,
+                htmlContent: rawHtmlContent,
+              });
+              return {
+                htmlContent,
+                provider: provider.providerName || provider.provider,
+                runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
+                modelName,
+                preferredModelName: preference.preferredModelName,
+                attemptedModels: Array.from(attemptedModels),
+                attemptTrail: [...attemptTrail, `${attemptLabel} -> 成功`],
+              };
+            } catch (error) {
+              const parsedError = error instanceof Error ? error.message : "调用失败";
+              const rawModelContent = typeof (error as { rawModelContent?: unknown })?.rawModelContent === "string"
+                ? (error as { rawModelContent?: string }).rawModelContent ?? ""
+                : "";
+              const contentSnippet = this.buildModelContentSnippet(rawModelContent);
+              lastError = contentSnippet ? `${parsedError}（响应片段：${contentSnippet}）` : parsedError;
+              attemptTrail.push(`${attemptLabel} -> ${lastError}`);
+            }
+          }
+        }
+      }
+    }
+
+    const failureMessage = this.buildModelAttemptFailureMessage(
+      "公众号 HTML 生成",
+      preference.preferredModelName,
+      lastError,
+      attemptTrail,
+      "未获取到有效响应",
+    );
+    const failure = new ServiceUnavailableException(failureMessage) as ServiceUnavailableException & {
+      taskModelName?: string;
+      taskOutput?: Record<string, unknown>;
+    };
+    failure.taskModelName = lastAttempt?.modelName || preference.preferredModelName;
+    failure.taskOutput = {
+      stage: "GENERATING_HTML",
       preferredModelName: preference.preferredModelName,
       lastAttemptModelName: lastAttempt?.modelName || "",
       lastAttemptProvider: lastAttempt?.providerName || "",
