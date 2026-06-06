@@ -74,7 +74,7 @@ const commentModeOptions: Array<{ value: WechatCommentMode; label: string }> = [
 const workflowSteps: Array<{ key: WechatWorkflowStep; label: string; description: string }> = [
   { key: "input", label: "1. 输入", description: "选择输入来源、资料与账号。" },
   { key: "article", label: "2. 文章", description: "生成并编辑标题、摘要与正文。" },
-  { key: "image", label: "3. 生图", description: "下一阶段接入封面图与正文配图生成。" },
+  { key: "image", label: "3. 生图", description: "调用封面图与正文配图技能对应的第三方模型生成图片。" },
   { key: "publish", label: "4. 发布确认", description: "固定 API 模式，校验凭证与封面。" },
   { key: "result", label: "5. 结果", description: "展示发布结果、media_id 与重试。" },
 ];
@@ -346,7 +346,7 @@ export function WechatWorkspaceShell() {
     setWorkflowInjectBrandProfile(selectedWorkflow.injectBrandProfile);
     setWorkflowThemeColor(selectedWorkflow.themeColor);
     setWorkflowImageMode(selectedWorkflow.imageMode);
-    setWorkflowInstruction(selectedWorkflow.content);
+    setWorkflowInstruction(selectedWorkflow.inputContent || selectedWorkflow.content);
     setArticleTitle(selectedWorkflow.title);
     setArticleSummary(selectedWorkflow.summary);
     setArticleAuthor(selectedWorkflow.author);
@@ -508,7 +508,7 @@ export function WechatWorkspaceShell() {
         selectedBrandLabels: workflowInjectBrandProfile ? ["品牌资料"] : [],
       });
       upsertSession(response.item);
-      setNotice("输入阶段已保存，已进入文章编辑阶段。");
+      setNotice("输入阶段已保存，并已调用所选文本大模型生成文章稿。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存输入阶段失败。");
     } finally {
@@ -532,7 +532,7 @@ export function WechatWorkspaceShell() {
         themeColor: workflowThemeColor,
       });
       upsertSession(response.item);
-      setNotice("文章阶段已保存，下一步将接入封面图与正文配图生成。");
+      setNotice("文章阶段已保存，可继续调用所选生图模型生成封面图与正文配图。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存文章阶段失败。");
     } finally {
@@ -641,7 +641,7 @@ export function WechatWorkspaceShell() {
           <aside className="wechat-section-nav">
             <div className="wechat-nav-head">
               <strong>公众号模块</strong>
-              <p>已切到独立模块骨架：初始化配置、创作工作流、发布历史。</p>
+              <p>已独立收口为正式模块：初始化配置、创作工作流、发布历史。</p>
             </div>
             <button
               type="button"
@@ -719,7 +719,7 @@ export function WechatWorkspaceShell() {
                     <div className="wechat-panel-head">
                       <div>
                         <strong>工作流默认配置</strong>
-                        <p className="wechat-inline-tip">对应后续 `EXTEND.md` 的站内化配置骨架。</p>
+                        <p className="wechat-inline-tip">对应 `EXTEND.md` 的站内化默认配置入口。</p>
                       </div>
                       <button
                         type="button"
@@ -824,7 +824,7 @@ export function WechatWorkspaceShell() {
                 <div className="workspace-toolbar top-toolbar">
                   <div>
                     <strong>创作工作流</strong>
-                    <p className="wechat-description">本轮已落地输入阶段和文章阶段骨架，生图与 API 发布确认作为下一阶段入口保留在流程中。</p>
+                    <p className="wechat-description">输入阶段会调用技能中心已选文本模型生成文章稿，生图阶段会调用封面图与正文配图技能对应的第三方模型。</p>
                   </div>
                 </div>
 
@@ -1095,7 +1095,7 @@ export function WechatWorkspaceShell() {
                           <div className="wechat-panel-head">
                             <div>
                               <strong>Step 2. 文章阶段</strong>
-                              <p className="wechat-inline-tip">保存后会生成 HTML 预览，并把工作流推进到生图阶段。</p>
+                              <p className="wechat-inline-tip">保存后会更新 HTML 预览，并把工作流推进到生图阶段。</p>
                             </div>
                             <div className="strategy-inline-actions">
                               {selectedWorkflow.htmlContent ? (

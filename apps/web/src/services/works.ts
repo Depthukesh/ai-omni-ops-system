@@ -492,11 +492,15 @@ export type WechatWorkflowSessionRecord = {
   status: WechatWorkflowStatus;
   currentStep: WechatWorkflowStep;
   inputType: WechatWorkflowInputType;
+  inputContent?: string;
   title: string;
   summary: string;
   author: string;
   content: string;
   htmlContent: string;
+  articleProvider?: string;
+  articleRuntimeKey?: string;
+  articleModelName?: string;
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
@@ -511,6 +515,12 @@ export type WechatWorkflowSessionRecord = {
     coverImageUrl?: string;
     bodyImageUrls: string[];
     prompts: string[];
+    coverProvider?: string;
+    coverRuntimeKey?: string;
+    coverModelName?: string;
+    bodyProvider?: string;
+    bodyRuntimeKey?: string;
+    bodyModelName?: string;
     errorDetail?: string;
   };
   publishConfig?: {

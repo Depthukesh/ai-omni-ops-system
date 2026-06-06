@@ -722,11 +722,15 @@ export type WechatWorkflowSessionRecord = {
   status: WechatWorkflowStatus;
   currentStep: WechatWorkflowStep;
   inputType: WechatWorkflowInputType;
+  inputContent?: string;
   title: string;
   summary: string;
   author: string;
   content: string;
   htmlContent: string;
+  articleProvider?: string;
+  articleRuntimeKey?: string;
+  articleModelName?: string;
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
@@ -741,6 +745,12 @@ export type WechatWorkflowSessionRecord = {
     coverImageUrl?: string;
     bodyImageUrls: string[];
     prompts: string[];
+    coverProvider?: string;
+    coverRuntimeKey?: string;
+    coverModelName?: string;
+    bodyProvider?: string;
+    bodyRuntimeKey?: string;
+    bodyModelName?: string;
     errorDetail?: string;
   };
   publishConfig?: {
@@ -1884,6 +1894,17 @@ type SkillModelPreference = {
   preferredModelName: string;
   configuredModels: string[];
   preferredProviderIds: string[];
+};
+
+type WechatArticleGenerationModelResult = {
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  provider: string;
+  runtimeKey: string;
+  modelName: string;
 };
 
 type ImagePromptMode = "social_graphic" | "video_storyboard";
@@ -3180,6 +3201,7 @@ export class WorksService {
       status: "INPUT_PENDING",
       currentStep: "input",
       inputType: payload.inputType || preferences?.defaultInputType || "calendar",
+      inputContent: content,
       title,
       summary: "",
       author: preferences?.defaultAuthor || config?.defaultAuthor || "品牌内容中心",
@@ -3212,7 +3234,7 @@ export class WorksService {
     target.accountName = selectedAccount?.accountName;
     target.inputType = payload.inputType || target.inputType;
     target.title = String(payload.title || "").trim() || target.title;
-    target.content = String(payload.content || "").trim() || target.content;
+    target.inputContent = String(payload.content || "").trim() || target.inputContent || target.content;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
     target.imageMode = payload.imageMode || target.imageMode;
     target.injectBrandProfile = payload.injectBrandProfile ?? target.injectBrandProfile;
@@ -3222,8 +3244,31 @@ export class WorksService {
       payload.selectedBrandLabels,
       target.injectBrandProfile ? target.selectedBrandLabels.length ? target.selectedBrandLabels : ["品牌资料"] : [],
     );
+    const articleResult = await this.generateWechatArticleByModel({
+      brandId,
+      inputType: target.inputType,
+      titleSeed: target.title,
+      inputContent: target.inputContent || target.content,
+      themeColor: target.themeColor,
+      author: target.author,
+      commentMode: target.commentMode,
+      accountName: target.accountName,
+      selectedMarketingLabels: target.selectedMarketingLabels,
+      selectedProductLabels: target.selectedProductLabels,
+      selectedBrandLabels: target.selectedBrandLabels,
+      injectBrandProfile: target.injectBrandProfile,
+    });
+    target.title = articleResult.title;
+    target.summary = articleResult.summary;
+    target.author = articleResult.author;
+    target.content = articleResult.content;
+    target.htmlContent = articleResult.htmlContent;
+    target.articleProvider = articleResult.provider;
+    target.articleRuntimeKey = articleResult.runtimeKey;
+    target.articleModelName = articleResult.modelName;
     target.status = "ARTICLE_PENDING";
     target.currentStep = "article";
+    target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
     return {
       item: this.toWechatWorkflowSessionRecord(target),
@@ -3251,19 +3296,90 @@ export class WorksService {
     const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
     const promptSummary = this.buildWechatImagePrompt(target.title, target.summary || target.content, target.themeColor, target.imageMode);
     const prompts = this.buildWechatWorkflowImagePrompts(target);
-    const coverImageUrl = this.buildWechatWorkflowGeneratedImageUrl(prompts[0] || promptSummary, "portrait_16_9");
-    const bodyImageUrls =
-      target.imageMode === "cover-only"
-        ? []
-        : prompts.slice(1).map((prompt) => this.buildWechatWorkflowGeneratedImageUrl(prompt, "landscape_16_9"));
+    const [coverImageConfig, bodyImageConfig] = await Promise.all([
+      this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "wechat-cover-image-designer",
+        promptId: "prompt_wechat_cover_image_compose",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k"],
+      }),
+      this.loadImageGenerationExecutionConfig({
+        brandId,
+        skillSlug: "wechat-body-image-designer",
+        promptId: "prompt_wechat_body_image_compose",
+        fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2", "nano-banana-pro-2k", "nano-banana-pro-4k"],
+      }),
+    ]);
     target.imageBundle = {
-      status: "SUCCESS",
+      status: "RUNNING",
       promptSummary,
-      generatedAt: new Date().toISOString(),
-      coverImageUrl,
-      bodyImageUrls,
+      bodyImageUrls: [],
       prompts,
     };
+    try {
+      const coverPrompt = prompts[0] || promptSummary;
+      const coverAsset = await this.generateImageAsset({
+        brandId,
+        taskId: target.id,
+        title: target.title,
+        workLabel: "公众号封面图",
+        role: "COVER",
+        order: 0,
+        providers: coverImageConfig.providers,
+        executionPrompt: coverImageConfig.executionPrompt,
+        prompt: coverPrompt,
+        referenceImageUrls: [],
+        promptMode: "social_graphic",
+      });
+      const bodyPrompts = target.imageMode === "cover-only" ? [] : prompts.slice(1);
+      const bodyAssets = bodyPrompts.length
+        ? await Promise.all(
+          bodyPrompts.map((prompt, index) =>
+            this.generateImageAsset({
+              brandId,
+              taskId: target.id,
+              title: target.title,
+              workLabel: `公众号正文配图 ${index + 1}`,
+              role: "GALLERY",
+              order: index,
+              providers: bodyImageConfig.providers,
+              executionPrompt: bodyImageConfig.executionPrompt,
+              prompt,
+              referenceImageUrls: [],
+              promptMode: "social_graphic",
+            })),
+        )
+        : [];
+      const now = new Date().toISOString();
+      target.imageBundle = {
+        status: "SUCCESS",
+        promptSummary,
+        generatedAt: now,
+        coverImageUrl: coverAsset.url,
+        bodyImageUrls: bodyAssets.map((item) => item.url),
+        prompts,
+        coverProvider: coverAsset.providerName || "IMAGE_API",
+        coverRuntimeKey: "image-generation",
+        coverModelName: coverAsset.modelName,
+        bodyProvider: bodyAssets[0]?.providerName || (target.imageMode === "cover-only" ? undefined : "IMAGE_API"),
+        bodyRuntimeKey: bodyAssets.length ? "image-generation" : undefined,
+        bodyModelName: bodyAssets[0]?.modelName,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号生图失败。";
+      target.imageBundle = {
+        status: "FAILED",
+        promptSummary,
+        bodyImageUrls: [],
+        prompts,
+        errorDetail: message,
+      };
+      target.errorDetail = message;
+      target.updatedAt = new Date().toISOString();
+      throw error;
+    }
+    const coverImageUrl = target.imageBundle.coverImageUrl || "";
+    const bodyImageUrls = target.imageBundle.bodyImageUrls;
     target.publishConfig = {
       ready: false,
       accountId: target.accountId,
@@ -3275,6 +3391,7 @@ export class WorksService {
     };
     target.status = "PUBLISH_CONFIRM_PENDING";
     target.currentStep = "publish";
+    target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
     return {
       item: this.toWechatWorkflowSessionRecord(target),
@@ -3367,11 +3484,26 @@ export class WorksService {
       );
       const mediaId = publishResult.mediaId;
       const now = new Date().toISOString();
-      const [articleRuntime, coverImageRuntime, bodyImageRuntime] = await Promise.all([
+      const [articleRuntimeFallback, coverImageRuntimeFallback, bodyImageRuntimeFallback] = await Promise.all([
         this.resolveWechatTextRuntimeMeta(),
         this.resolveWechatImageRuntimeMeta("cover"),
         this.resolveWechatImageRuntimeMeta("body"),
       ]);
+      const articleRuntime = {
+        provider: target.articleProvider || articleRuntimeFallback.provider,
+        runtimeKey: target.articleRuntimeKey || articleRuntimeFallback.runtimeKey,
+        modelName: target.articleModelName || articleRuntimeFallback.modelName,
+      };
+      const coverImageRuntime = {
+        provider: target.imageBundle?.coverProvider || coverImageRuntimeFallback.provider,
+        runtimeKey: target.imageBundle?.coverRuntimeKey || coverImageRuntimeFallback.runtimeKey,
+        modelName: target.imageBundle?.coverModelName || coverImageRuntimeFallback.modelName,
+      };
+      const bodyImageRuntime = {
+        provider: target.imageBundle?.bodyProvider || bodyImageRuntimeFallback.provider,
+        runtimeKey: target.imageBundle?.bodyRuntimeKey || bodyImageRuntimeFallback.runtimeKey,
+        modelName: target.imageBundle?.bodyModelName || bodyImageRuntimeFallback.modelName,
+      };
       const existingDraft = target.linkedDraftId
         ? wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === target.linkedDraftId)
         : undefined;
@@ -3547,83 +3679,104 @@ export class WorksService {
     });
 
     await this.markTaskRunning(task.id);
-
-    const record: WechatArticleDraftRecord = {
-      id: createId("wechat_draft"),
-      taskId: task.id,
-      brandId,
-      title,
-      summary,
-      author,
-      content,
-      htmlContent: "",
-      outputFormat: "HTML",
-      coverMode,
-      commentMode,
-      imageMode,
-      themeColor,
-      injectMarketingCalendar: payload.injectMarketingCalendar !== false,
-      injectProducts: payload.injectProducts !== false,
-      injectBrandProfile: payload.injectBrandProfile === true,
-      selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, [
-        "夏季会员周",
-        "节庆活动预热",
-      ]),
-      selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, ["主推商品信息", "到店权益"]),
-      selectedBrandLabels: this.normalizeWechatLabels(payload.selectedBrandLabels, ["品牌故事", "服务承诺"]),
-      articleSkillSlug: "wechat-article-composer",
-      articlePromptScene: "公众号创作文章",
-      articleProvider: articleRuntime.provider,
-      articleRuntimeKey: articleRuntime.runtimeKey,
-      articleModelName: articleRuntime.modelName,
-      imageTasks: this.buildWechatDraftImageTasks({
-        title,
-        summary,
+    try {
+      const articleResult = await this.generateWechatArticleByModel({
+        brandId,
+        inputType: "plain-text",
+        titleSeed: title,
+        inputContent: content,
         themeColor,
+        author,
+        commentMode,
+        selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, [
+          "夏季会员周",
+          "节庆活动预热",
+        ]),
+        selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, ["主推商品信息", "到店权益"]),
+        selectedBrandLabels: this.normalizeWechatLabels(payload.selectedBrandLabels, ["品牌故事", "服务承诺"]),
+        injectBrandProfile: payload.injectBrandProfile === true,
+      });
+
+      const record: WechatArticleDraftRecord = {
+        id: createId("wechat_draft"),
+        taskId: task.id,
+        brandId,
+        title: articleResult.title,
+        summary: articleResult.summary,
+        author: articleResult.author,
+        content: articleResult.content,
+        htmlContent: articleResult.htmlContent,
+        outputFormat: "HTML",
+        coverMode,
+        commentMode,
         imageMode,
-        coverTaskMeta: {
-          provider: coverImageRuntime.provider,
-          runtimeKey: coverImageRuntime.runtimeKey,
-          modelName: coverImageRuntime.modelName,
-          status: "QUEUED",
-          prompt: this.buildWechatCoverImagePrompt(title, summary, themeColor),
-          generatedImageUrls: [],
-          createdAt: now,
-        },
-        bodyTaskMeta: {
-          provider: bodyImageRuntime.provider,
-          runtimeKey: bodyImageRuntime.runtimeKey,
-          modelName: bodyImageRuntime.modelName,
-          status: "QUEUED",
-          prompt: this.buildWechatBodyImagePrompt(title, summary, themeColor),
-          generatedImageUrls: [],
-          createdAt: now,
-        },
+        themeColor,
+        injectMarketingCalendar: payload.injectMarketingCalendar !== false,
+        injectProducts: payload.injectProducts !== false,
+        injectBrandProfile: payload.injectBrandProfile === true,
+        selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, [
+          "夏季会员周",
+          "节庆活动预热",
+        ]),
+        selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, ["主推商品信息", "到店权益"]),
+        selectedBrandLabels: this.normalizeWechatLabels(payload.selectedBrandLabels, ["品牌故事", "服务承诺"]),
+        articleSkillSlug: "wechat-article-composer",
+        articlePromptScene: "公众号创作文章",
+        articleProvider: articleResult.provider,
+        articleRuntimeKey: articleResult.runtimeKey,
+        articleModelName: articleResult.modelName,
+        imageTasks: this.buildWechatDraftImageTasks({
+          title: articleResult.title,
+          summary: articleResult.summary,
+          themeColor,
+          imageMode,
+          coverTaskMeta: {
+            provider: coverImageRuntime.provider,
+            runtimeKey: coverImageRuntime.runtimeKey,
+            modelName: coverImageRuntime.modelName,
+            status: "QUEUED",
+            prompt: this.buildWechatCoverImagePrompt(articleResult.title, articleResult.summary, themeColor),
+            generatedImageUrls: [],
+            createdAt: now,
+          },
+          bodyTaskMeta: {
+            provider: bodyImageRuntime.provider,
+            runtimeKey: bodyImageRuntime.runtimeKey,
+            modelName: bodyImageRuntime.modelName,
+            status: "QUEUED",
+            prompt: this.buildWechatBodyImagePrompt(articleResult.title, articleResult.summary, themeColor),
+            generatedImageUrls: [],
+            createdAt: now,
+          },
+          updatedAt: now,
+        }),
+        publishStatus: "DRAFT",
+        taskStatus: "SUCCESS",
+        createdAt: now,
         updatedAt: now,
-      }),
-      publishStatus: "DRAFT",
-      taskStatus: "SUCCESS",
-      createdAt: now,
-      updatedAt: now,
-    };
-    record.htmlContent = this.renderWechatArticleHtml(record);
-    wechatArticleDraftMockStore.unshift(record);
+      };
+      wechatArticleDraftMockStore.unshift(record);
 
-    await this.markTaskSuccess(
-      task.id,
-      {
-        workId: record.id,
-        title: record.title,
-        outputFormat: record.outputFormat,
-        articleRuntimeKey: record.articleRuntimeKey,
-        imageRuntimeKey: record.imageTasks?.map((item) => item.runtimeKey).filter(Boolean).join(",") || undefined,
-      },
-      { modelName: articleRuntime.modelName },
-    );
+      await this.markTaskSuccess(
+        task.id,
+        {
+          workId: record.id,
+          title: record.title,
+          outputFormat: record.outputFormat,
+          articleRuntimeKey: record.articleRuntimeKey,
+          imageRuntimeKey: record.imageTasks?.map((item) => item.runtimeKey).filter(Boolean).join(",") || undefined,
+        },
+        { modelName: articleResult.modelName },
+      );
 
-    return {
-      item: this.hydrateWechatDraftTaskStatus(record),
-    };
+      return {
+        item: this.hydrateWechatDraftTaskStatus(record),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号文章生成失败。";
+      await this.markTaskFailed(task.id, message);
+      throw error;
+    }
   }
 
   async updateWechatArticleDraft(brandId: string, draftId: string, payload: UpdateWechatArticleDraftPayload) {
@@ -7815,6 +7968,170 @@ export class WorksService {
   private buildWechatWorkflowDefaultTitle(labels?: string[]) {
     const normalized = this.normalizeWechatLabels(labels, []);
     return normalized[0] ? `${normalized[0]}：公众号创作工作流` : "公众号创作工作流";
+  }
+
+  private async loadWechatTextProviders(brandId: string | undefined, preference?: SkillModelPreference) {
+    try {
+      return await this.loadOriginalCopyProviders(brandId, preference);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号文章生成模型配置读取失败";
+      throw new ServiceUnavailableException(message.replace("原创笔记文案", "公众号文章"));
+    }
+  }
+
+  private resolveWechatTextProviderRuntimeKey(provider: TextProviderConfig) {
+    if (provider.provider === "DEEPSEEK") {
+      return "text-domestic-deepseek";
+    }
+    if (provider.provider === "ARK") {
+      return "text-domestic-doubao";
+    }
+    if (provider.provider === "KIMI") {
+      return "text-domestic-kimi";
+    }
+    return "text-global";
+  }
+
+  private async generateWechatArticleByModel(params: {
+    brandId: string;
+    inputType: WechatWorkflowInputType;
+    titleSeed: string;
+    inputContent: string;
+    themeColor: string;
+    author: string;
+    commentMode: WechatCommentMode;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    injectBrandProfile: boolean;
+    accountName?: string;
+  }): Promise<WechatArticleGenerationModelResult> {
+    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_wechat_article_compose"))?.content || "").trim();
+    if (!skillPrompt) {
+      throw new ServiceUnavailableException("未找到公众号创作文章提示词，请先在技能中心启用对应 prompt。");
+    }
+    const preference = await this.loadSkillModelPreference(
+      "wechat-article-composer",
+      "prompt_wechat_article_compose",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadWechatTextProviders(params.brandId, preference);
+    const inputPayload = {
+      inputType: params.inputType,
+      titleSeed: params.titleSeed,
+      rawInput: params.inputContent,
+      themeColor: params.themeColor,
+      author: params.author,
+      commentMode: params.commentMode,
+      accountName: params.accountName,
+      injectBrandProfile: params.injectBrandProfile,
+      marketingLabels: params.selectedMarketingLabels,
+      productLabels: params.selectedProductLabels,
+      brandLabels: params.selectedBrandLabels,
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前处于公众号工作流的文章生成阶段，需要根据输入资料生成可直接继续进入生图和 API 发布阶段的文章稿。",
+      "请严格只输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "公众号标题，建议 12-24 字",',
+      '  "summary": "120 字以内摘要",',
+      '  "author": "作者名，可沿用输入作者",',
+      '  "content": "正文纯文本，按自然段换行，不要输出 HTML 标签"',
+      "}",
+    ].join("\n");
+    const userPrompt = ["以下是公众号文章生成输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                continue;
+              }
+              const payload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(payload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const title = String(parsed.title ?? "").trim() || params.titleSeed || "公众号文章";
+              const summary = String(parsed.summary ?? "").trim();
+              const author = String(parsed.author ?? "").trim() || params.author || "品牌内容中心";
+              const body = String(parsed.content ?? "").trim();
+              if (!body) {
+                lastError = `${provider.provider}/${modelName} 返回正文为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回正文为空`);
+                continue;
+              }
+              const sessionLikeRecord: WechatWorkflowSessionRecord = {
+                id: createId("wechat_workflow_preview"),
+                brandId: params.brandId,
+                accountName: params.accountName,
+                status: "ARTICLE_PENDING",
+                currentStep: "article",
+                inputType: params.inputType,
+                inputContent: params.inputContent,
+                title,
+                summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
+                author,
+                content: body,
+                htmlContent: "",
+                articleProvider: provider.providerName || provider.provider,
+                articleRuntimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
+                articleModelName: modelName,
+                themeColor: params.themeColor,
+                commentMode: params.commentMode,
+                imageMode: "cover-and-body",
+                injectBrandProfile: params.injectBrandProfile,
+                selectedMarketingLabels: params.selectedMarketingLabels,
+                selectedProductLabels: params.selectedProductLabels,
+                selectedBrandLabels: params.selectedBrandLabels,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+              const htmlContent = this.renderWechatWorkflowArticleHtml(sessionLikeRecord);
+              return {
+                title,
+                summary: sessionLikeRecord.summary,
+                author,
+                content: body,
+                htmlContent,
+                provider: provider.providerName || provider.provider,
+                runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
+                modelName,
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "公众号文章生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("公众号文章生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private buildWechatWorkflowSummary(params: Pick<WechatWorkflowSessionRecord, "selectedMarketingLabels" | "selectedProductLabels" | "injectBrandProfile">) {
