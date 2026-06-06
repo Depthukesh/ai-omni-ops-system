@@ -105,6 +105,7 @@
 - 生成品牌增长报告
   - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
   - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
+- 报告类技能当前已统一接入公共 Provider / 模型选择规则：先严格命中技能中心显式选择的 Provider，再严格命中首选模型，只有两者都匹配不到时才回退到通用 runtime 候选链路
 - 品牌增长可视化报告
 - 半年营销规划
 - 营销日历
@@ -429,6 +430,7 @@
   - 中间只展示当前选中三级提示词叶子项的一张精简详情卡
   - 详情卡字段：当前提示词、所属执行技能、提示词场景、状态、默认模型、点数成本、更新时间、提示词内容、保存当前提示词
   - 后台技能中心当前所有文本类技能已统一运行逻辑：先严格尝试当前卡片里选中的默认模型，再按兼容 provider / model 继续 fallback；失败时统一展示实际尝试顺序
+- 当前后台技能中心与个人中心技能中心的 Provider / 模型偏好，已经统一按公共规则分发到 `ReportsModule` 与 `WorksModule`：先 Provider、再模型、最后通用 fallback，不再允许各板块私写固定优先级
   - 技能提示词：后台当前仅对 `SKILL.md` 这类总技能入口自动聚合技能源目录下的顶层 `.md` / `.txt` 参考资料；独立提示词叶子项（如视频笔记 6 条 `.txt`）只展示自身内容，不再拼接同目录其它文件
   - 视频笔记提示词现按“剧本策划 / 视频生成”两组分类展示，前后台都可按单条 prompt 修改
   - 对于存在本地提示词文件的条目，后台启动时会按文件内容回填 `PromptTemplate.content`，避免页面继续显示数据库里遗留的一行旧占位文案
@@ -641,6 +643,7 @@
   - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
   - 原创/二创两条图片生成技能当前默认指向 `Right Codes · 文生图/图生图 / provider_runtime_image_generation_right_codes::gpt-image-2`；若数据库里仍残留旧的 `provider_runtime_image_generation::gpt-image-2` 基线，启动时会自动安全回填到新 provider，但不会覆盖后台后来手动改成的其他模型
   - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
+- 小红书内容生产链路当前也已统一接入公共 Provider / 模型选择规则：若技能中心明确指定供应商，则只先在该供应商下执行；若只指定模型，则只先在包含该模型的 Provider 中执行；都匹配不到时才回退到通用链路
   - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
   - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
   - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
@@ -657,8 +660,10 @@
     - `POST /api/works/brands/:brandId/wechat/articles/generate`
     - `PATCH /api/works/brands/:brandId/wechat/articles/:draftId`
   - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
+- 公众号文章、生图链路当前与小红书、报告链路共用同一套 Provider / 模型公共选择规则，不再单独维护公众号私有优先级
 - 公众号配置、工作流偏好、官方账号、工作流会话、文章草稿、发布历史当前都已切到数据库优先持久化；数据库不可用时才回退到内存 mock store
 - 生图链路当前会在 `rate_limit_exceeded / 429 / quota` 时停止同模型下的 prompt 级重复尝试，并继续切换下一候选模型/供应商
+- 参考变更：`docs/changes/2026-06-06-skill-provider-selection-rule-unification.md`
   - 当前已新增设计工作台数据链路：
     - `GET /api/works/brands/:brandId/design/options`
     - `POST /api/works/brands/:brandId/design/generate`

@@ -5,6 +5,7 @@ import { Inject, Injectable, NotFoundException, ServiceUnavailableException } fr
 import { AssetCategory, MediaType, Prisma, TaskStatus } from "@prisma/client";
 import { createId, database, type ApiProviderRecord, type AssetRecord } from "../../common/mock-data";
 import { XHS_MARKETING_CALENDAR_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
+import { applySkillProviderSelectionRule } from "../../common/skill-provider-selection";
 import { AppConfigService } from "../../config/app-config.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
@@ -555,6 +556,8 @@ type GrowthReportProviderType = "THIRD_PARTY" | VisualProviderType;
 
 type DomesticVisualProviderConfig = ThirdPartyChatConfig & {
   provider: VisualProviderType;
+  providerId: string;
+  providerName: string;
   requestTimeoutMs?: number;
   payloadExtras?: Record<string, unknown>;
   temperatureOverride?: number;
@@ -563,6 +566,8 @@ type DomesticVisualProviderConfig = ThirdPartyChatConfig & {
 
 type GrowthReportProviderConfig = ThirdPartyChatConfig & {
   provider: GrowthReportProviderType;
+  providerId: string;
+  providerName: string;
   requestTimeoutMs?: number;
   payloadExtras?: Record<string, unknown>;
   temperatureOverride?: number;
@@ -573,6 +578,8 @@ type AnnualMarketingProviderType = "THIRD_PARTY" | "DEEPSEEK" | "ARK";
 
 type AnnualMarketingProviderConfig = ThirdPartyChatConfig & {
   provider: AnnualMarketingProviderType;
+  providerId: string;
+  providerName: string;
   requestTimeoutMs?: number;
   payloadExtras?: Record<string, unknown>;
   temperatureOverride?: number;
@@ -583,6 +590,8 @@ type XiaohongshuMarketingProviderType = "THIRD_PARTY" | VisualProviderType;
 
 type XiaohongshuMarketingProviderConfig = ThirdPartyChatConfig & {
   provider: XiaohongshuMarketingProviderType;
+  providerId: string;
+  providerName: string;
   requestTimeoutMs?: number;
   payloadExtras?: Record<string, unknown>;
   temperatureOverride?: number;
@@ -8371,6 +8380,7 @@ ${normalizedMarkdown}`;
       "mathmind-video-tools",
       undefined,
       [],
+      undefined,
       "MathMind 视频工具平台未配置，暂时无法提取素材视频文案。",
     );
     if (!provider) {
@@ -8510,6 +8520,7 @@ ${normalizedMarkdown}`;
       "text-global",
       settings.baseUrl,
       settings.preferredProviderIds,
+      settings.preferredModelName,
       "第三方文生文接口配置读取失败",
     );
     if (!provider) {
@@ -8548,7 +8559,7 @@ ${normalizedMarkdown}`;
   private async loadGrowthReportProviderConfigs(settings: ModelGenerationSettings): Promise<GrowthReportProviderConfig[]> {
     const requestedModels = this.parseDelimitedModels(settings.modelName);
     const [thirdPartyProvider, deepseekProvider, kimiProvider, glmProvider, doubaoProvider] = await Promise.all([
-      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds),
+      this.resolveRuntimeProviderByBaseUrl("text-global", settings.baseUrl, settings.preferredProviderIds, settings.preferredModelName),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-deepseek"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-kimi"),
       this.apiProvidersService.findActiveProviderByRuntimeKey("text-domestic-glm"),
@@ -8568,6 +8579,8 @@ ${normalizedMarkdown}`;
       if (models.length && deepseekApiKeys.length) {
         providers.push({
           provider: "DEEPSEEK",
+          providerId: deepseekProvider.id,
+          providerName: deepseekProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
           completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
           apiKeys: deepseekApiKeys.slice(0, 2),
@@ -8587,6 +8600,8 @@ ${normalizedMarkdown}`;
       if (models.length && glmApiKeys.length) {
         providers.push({
           provider: "GLM",
+          providerId: glmProvider.id,
+          providerName: glmProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(glmProvider),
           completionPath: this.apiProvidersService.getStringExtra(glmProvider, "completionPath") || "/chat/completions",
           apiKeys: glmApiKeys.slice(0, 2),
@@ -8605,6 +8620,8 @@ ${normalizedMarkdown}`;
       if (models.length && kimiApiKeys.length) {
         providers.push({
           provider: "KIMI",
+          providerId: kimiProvider.id,
+          providerName: kimiProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
           completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
           apiKeys: kimiApiKeys.slice(0, 2),
@@ -8629,6 +8646,8 @@ ${normalizedMarkdown}`;
       if (models.length && doubaoApiKeys.length) {
         providers.push({
           provider: "ARK",
+          providerId: doubaoProvider.id,
+          providerName: doubaoProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
           completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
           apiKeys: doubaoApiKeys.slice(0, 1),
@@ -8660,6 +8679,8 @@ ${normalizedMarkdown}`;
         if (usableBaseUrls.length) {
           providers.push({
             provider: "THIRD_PARTY",
+            providerId: thirdPartyProvider.id,
+            providerName: thirdPartyProvider.name,
             baseUrls: usableBaseUrls,
             completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
             apiKeys: thirdPartyApiKeys.slice(0, 4),
@@ -8680,7 +8701,7 @@ ${normalizedMarkdown}`;
     }
 
     return this.reorderReportProvidersByPrimaryModel(
-      providers,
+      this.applyReportProviderSelectionRule(providers, settings),
       settings.preferredModelName || requestedModels[0] || "",
     );
   }
@@ -8706,6 +8727,8 @@ ${normalizedMarkdown}`;
       if (models.length && deepseekApiKeys.length) {
         providers.push({
           provider: "DEEPSEEK",
+          providerId: deepseekProvider.id,
+          providerName: deepseekProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
           completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
           apiKeys: deepseekApiKeys.slice(0, 2),
@@ -8725,6 +8748,8 @@ ${normalizedMarkdown}`;
       if (models.length && glmApiKeys.length) {
         providers.push({
           provider: "GLM",
+          providerId: glmProvider.id,
+          providerName: glmProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(glmProvider),
           completionPath: this.apiProvidersService.getStringExtra(glmProvider, "completionPath") || "/chat/completions",
           apiKeys: glmApiKeys.slice(0, 2),
@@ -8743,6 +8768,8 @@ ${normalizedMarkdown}`;
       if (models.length && kimiApiKeys.length) {
         providers.push({
           provider: "KIMI",
+          providerId: kimiProvider.id,
+          providerName: kimiProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
           completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
           apiKeys: kimiApiKeys.slice(0, 2),
@@ -8768,6 +8795,8 @@ ${normalizedMarkdown}`;
       if (models.length && doubaoApiKeys.length) {
         providers.push({
           provider: "ARK",
+          providerId: doubaoProvider.id,
+          providerName: doubaoProvider.name,
           baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
           completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
           apiKeys: doubaoApiKeys.slice(0, 1),
@@ -8784,7 +8813,7 @@ ${normalizedMarkdown}`;
     }
 
     return this.reorderReportProvidersByPrimaryModel(
-      providers,
+      this.applyReportProviderSelectionRule(providers, settings),
       settings.preferredModelName || requestedModels[0] || "",
     );
   }
@@ -8952,6 +8981,16 @@ ${normalizedMarkdown}`;
       ...matchingProviders,
       ...normalizedProviders.filter((provider) => !provider.models.includes(normalizedPreferredModelName)),
     ];
+  }
+
+  private applyReportProviderSelectionRule<T extends { providerId: string; models: string[] }>(
+    providers: T[],
+    settings: Pick<ModelGenerationSettings, "preferredModelName" | "preferredProviderIds">,
+  ) {
+    return applySkillProviderSelectionRule(providers, {
+      preferredModelName: settings.preferredModelName || "",
+      preferredProviderIds: settings.preferredProviderIds || [],
+    });
   }
 
   private buildReportAttemptLabel(provider: string, modelName: string, baseUrl: string) {
@@ -9518,6 +9557,7 @@ ${normalizedMarkdown}`;
       "text-global",
       settings.baseUrl,
       settings.preferredProviderIds,
+      settings.preferredModelName,
     );
     const requestedModels = this.orderModels(
       this.parseDelimitedModels(settings.modelName),
@@ -9560,6 +9600,8 @@ ${normalizedMarkdown}`;
       if (usableBaseUrls.length) {
         providers.push({
           provider: "THIRD_PARTY",
+          providerId: thirdPartyProvider.id,
+          providerName: thirdPartyProvider.name,
           baseUrls: usableBaseUrls,
           completionPath: this.apiProvidersService.getStringExtra(thirdPartyProvider, "completionPath") || "/v1/chat/completions",
           apiKeys: thirdPartyApiKeys.slice(0, 4),
@@ -9576,6 +9618,8 @@ ${normalizedMarkdown}`;
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",
+        providerId: deepseekProvider.id,
+        providerName: deepseekProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
         completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
         apiKeys: deepseekApiKeys.slice(0, 2),
@@ -9592,6 +9636,8 @@ ${normalizedMarkdown}`;
     if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
       providers.push({
         provider: "ARK",
+        providerId: doubaoProvider.id,
+        providerName: doubaoProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
         completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
         apiKeys: doubaoApiKeys.slice(0, 1),
@@ -9607,7 +9653,10 @@ ${normalizedMarkdown}`;
     if (!providers.length) {
       throw new ServiceUnavailableException("半年营销规划模型配置读取失败");
     }
-    return providers;
+    return this.reorderReportProvidersByPrimaryModel(
+      this.applyReportProviderSelectionRule(providers, settings),
+      settings.preferredModelName || requestedModels[0] || "",
+    );
   }
 
   private async loadXiaohongshuMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
@@ -9648,6 +9697,8 @@ ${normalizedMarkdown}`;
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",
+        providerId: deepseekProvider.id,
+        providerName: deepseekProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
         completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
         apiKeys: deepseekApiKeys.slice(0, 2),
@@ -9664,6 +9715,8 @@ ${normalizedMarkdown}`;
     if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
       providers.push({
         provider: "ARK",
+        providerId: doubaoProvider.id,
+        providerName: doubaoProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
         completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
         apiKeys: doubaoApiKeys.slice(0, 1),
@@ -9679,7 +9732,10 @@ ${normalizedMarkdown}`;
     if (!providers.length) {
       throw new ServiceUnavailableException("小红书营销策划方案模型配置读取失败");
     }
-    return providers;
+    return this.reorderReportProvidersByPrimaryModel(
+      this.applyReportProviderSelectionRule(providers, settings),
+      settings.preferredModelName || effectiveRequestedModels[0] || "",
+    );
   }
 
   private async loadDouyinMarketingProviderConfigs(settings: ModelGenerationSettings): Promise<XiaohongshuMarketingProviderConfig[]> {
@@ -9723,6 +9779,8 @@ ${normalizedMarkdown}`;
     if (deepseekProvider && deepseekModels.length && deepseekApiKeys.length) {
       providers.push({
         provider: "DEEPSEEK",
+        providerId: deepseekProvider.id,
+        providerName: deepseekProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(deepseekProvider),
         completionPath: this.apiProvidersService.getStringExtra(deepseekProvider, "completionPath") || "/chat/completions",
         apiKeys: deepseekApiKeys.slice(0, 2),
@@ -9739,6 +9797,8 @@ ${normalizedMarkdown}`;
     if (kimiProvider && kimiModels.length && kimiApiKeys.length) {
       providers.push({
         provider: "KIMI",
+        providerId: kimiProvider.id,
+        providerName: kimiProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(kimiProvider),
         completionPath: this.apiProvidersService.getStringExtra(kimiProvider, "completionPath") || "/chat/completions",
         apiKeys: kimiApiKeys.slice(0, 1),
@@ -9755,6 +9815,8 @@ ${normalizedMarkdown}`;
     if (doubaoProvider && arkModels.length && doubaoApiKeys.length) {
       providers.push({
         provider: "ARK",
+        providerId: doubaoProvider.id,
+        providerName: doubaoProvider.name,
         baseUrls: this.apiProvidersService.getBaseUrls(doubaoProvider),
         completionPath: this.apiProvidersService.getStringExtra(doubaoProvider, "completionPath") || "/chat/completions",
         apiKeys: doubaoApiKeys.slice(0, 1),
@@ -9770,7 +9832,10 @@ ${normalizedMarkdown}`;
     if (!providers.length) {
       throw new ServiceUnavailableException("营销日历模型配置读取失败");
     }
-    return providers;
+    return this.reorderReportProvidersByPrimaryModel(
+      this.applyReportProviderSelectionRule(providers, settings),
+      settings.preferredModelName || effectiveRequestedModels[0] || "",
+    );
   }
 
   private buildAnnualMarketingProviderPayload(
@@ -9848,11 +9913,19 @@ ${normalizedMarkdown}`;
     runtimeKey: string,
     baseUrl?: string,
     preferredProviderIds: string[] = [],
+    preferredModelName?: string,
     errorMessage?: string,
   ) {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey(runtimeKey);
     for (const providerId of preferredProviderIds) {
       const matched = providers.find((item) => item.id === providerId);
+      if (matched) {
+        return matched;
+      }
+    }
+    const normalizedPreferredModelName = String(preferredModelName || "").trim();
+    if (normalizedPreferredModelName) {
+      const matched = providers.find((item) => item.modelWhitelist.includes(normalizedPreferredModelName));
       if (matched) {
         return matched;
       }

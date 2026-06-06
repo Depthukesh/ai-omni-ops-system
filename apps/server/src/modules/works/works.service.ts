@@ -8,6 +8,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnav
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
+import { applySkillProviderSelectionRule } from "../../common/skill-provider-selection";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
@@ -9242,22 +9243,7 @@ export class WorksService {
 
   private async loadWechatTextProviders(brandId: string | undefined, preference?: SkillModelPreference) {
     try {
-      const providers = await this.loadOriginalCopyProviders(brandId, preference);
-      const preferredModelName = String(preference?.preferredModelName || "").trim();
-      const preferredProviderIds = preference?.preferredProviderIds || [];
-      if (preferredProviderIds.length) {
-        const scopedProviders = providers.filter((item) => item.providerId && preferredProviderIds.includes(item.providerId));
-        if (scopedProviders.length) {
-          return this.reorderTextProvidersByPrimaryModel(scopedProviders, preferredModelName, preferredProviderIds);
-        }
-      }
-      if (preferredModelName) {
-        const exactModelProviders = providers.filter((item) => item.models.includes(preferredModelName));
-        if (exactModelProviders.length) {
-          return this.reorderTextProvidersByPrimaryModel(exactModelProviders, preferredModelName, preferredProviderIds);
-        }
-      }
-      return providers;
+      return this.loadOriginalCopyProviders(brandId, preference);
     } catch (error) {
       const message = error instanceof Error ? error.message : "公众号文章生成模型配置读取失败";
       throw new ServiceUnavailableException(message.replace("原创笔记文案", "公众号文章"));
@@ -15220,6 +15206,29 @@ export class WorksService {
     });
   }
 
+  private applyTextProviderSelectionRule(
+    providers: TextProviderConfig[],
+    preference?: Pick<SkillModelPreference, "preferredModelName" | "preferredProviderIds">,
+  ) {
+    return applySkillProviderSelectionRule(providers, {
+      preferredModelName: preference?.preferredModelName || "",
+      preferredProviderIds: preference?.preferredProviderIds || [],
+    });
+  }
+
+  private applyImageProviderSelectionRule(
+    providers: ImageProviderConfig[],
+    preference?: {
+      preferredModelName?: string;
+      preferredProviderIds?: string[];
+    },
+  ) {
+    return applySkillProviderSelectionRule(providers, {
+      preferredModelName: preference?.preferredModelName || "",
+      preferredProviderIds: preference?.preferredProviderIds || [],
+    });
+  }
+
   private prioritizeImageProvidersForReferenceInputs(providers: ImageProviderConfig[], referenceImages: string[]) {
     const normalizedReferenceImages = referenceImages.map((item) => String(item || "").trim()).filter(Boolean);
     const capableProviders = normalizedReferenceImages.length
@@ -15458,7 +15467,7 @@ export class WorksService {
       throw new ServiceUnavailableException("原创笔记文案模型配置读取失败");
     }
     return this.reorderTextProvidersByPrimaryModel(
-      providers,
+      this.applyTextProviderSelectionRule(providers, preference),
       preference?.preferredModelName || "",
       preference?.preferredProviderIds || [],
     );
@@ -15519,7 +15528,7 @@ export class WorksService {
       throw new ServiceUnavailableException("原创笔记配图提示词模型配置读取失败");
     }
     return this.reorderTextProvidersByPrimaryModel(
-      providers,
+      this.applyTextProviderSelectionRule(providers, preference),
       preference?.preferredModelName || "",
       preference?.preferredProviderIds || [],
     );
@@ -16379,32 +16388,15 @@ export class WorksService {
       );
     }
     const normalizedConfigs = this.dedupeImageProviderConfigs(configs);
-    if (overridePreference?.strictPreferredProvider && overridePreference.preferredProviderIds?.length) {
-      const preferredConfigs = normalizedConfigs.filter((item) => overridePreference.preferredProviderIds?.includes(item.providerId));
-      if (!preferredConfigs.length) {
-        const preferredReasonText = skippedReasons
-          .filter((item) => overridePreference.preferredProviderIds?.includes(item.providerId))
-          .map((item) => `${item.providerName}：${item.reason}`)
-          .join("；");
-        throw new ServiceUnavailableException(
-          preferredReasonText
-            ? `已显式选择指定文生图供应商，但当前不可执行。${preferredReasonText}`
-            : "已显式选择指定文生图供应商，但当前不可执行，请检查该 Provider 的 baseUrl、API Key、createPath、queryPath 和模型白名单。",
-        );
-      }
-      return this.reorderImageProvidersByPrimaryModel(
-        preferredConfigs,
-        overridePreference.preferredModelName || preference?.preferredModelName || "",
-        overridePreference.preferredProviderIds,
-      );
-    }
-    if (!preference) {
-      return normalizedConfigs;
-    }
+    const effectivePreference = {
+      preferredModelName: overridePreference?.preferredModelName || preference?.preferredModelName || "",
+      preferredProviderIds: overridePreference?.preferredProviderIds || preference?.preferredProviderIds || [],
+    };
+    const scopedConfigs = this.applyImageProviderSelectionRule(normalizedConfigs, effectivePreference);
     return this.reorderImageProvidersByPrimaryModel(
-      normalizedConfigs,
-      overridePreference?.preferredModelName || preference.preferredModelName,
-      overridePreference?.preferredProviderIds || preference.preferredProviderIds,
+      scopedConfigs,
+      effectivePreference.preferredModelName,
+      effectivePreference.preferredProviderIds,
     );
   }
 

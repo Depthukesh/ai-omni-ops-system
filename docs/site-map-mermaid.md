@@ -225,11 +225,13 @@ flowchart LR
     C1 --> C11["轮询 latestTask: QUEUED/RUNNING/SUCCESS/FAILED"]
     C1 --> C12["先校验文本 provider runtimeKey 与模型白名单"]
     C1 --> C17["严格先跑后台选中的首选模型，再 fallback"]
+    C1 --> C21["统一规则：先 Provider、再模型、最后通用 fallback"]
     C1 --> C18["失败提示显示实际尝试顺序"]
     C2 --> C13["忽略不兼容的图像 provider，回退国内文本 provider"]
     C2 --> C19["同样按后台首选模型先跑，再 fallback"]
     C3 --> C13["按兼容 provider 重排模型，避免 gpt 模型误落国内 provider"]
     C3 --> C20["主路径切到 /half-year-marketing-plan，旧 annual 路径兼容保留"]
+    C3 --> C21
     C3 --> C19
     C --> C14["本地无 OSS 时回退 .runtime/local-oss，但仍沿用 reports/<brandId>/<fileName>"]
     C --> C15["本地 localhost/127.0.0.1 直连 3011/api，绕开 Next /api rewrite ECONNRESET"]
@@ -245,7 +247,7 @@ flowchart TD
     A2 --> B
     B --> C1["ReportsService 文本类技能"]
     B --> C2["WorksService 文本类技能"]
-    C1 --> D["先跑首选模型 -> 失败后 fallback"]
+    C1 --> D["公共规则：先 Provider -> 再模型 -> 最后 fallback"]
     C2 --> D
     D --> E["错误提示显示实际尝试顺序"]
 ```
