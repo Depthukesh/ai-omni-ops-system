@@ -9397,6 +9397,8 @@ export class WorksService {
       "}",
       "不要返回 Markdown。",
       "htmlContent 可以是 HTML 片段或完整 HTML 文档，但必须包含清晰的标题层级、摘要块、章节标题、强调块、列表或引用等适合公众号阅读的排版结构。",
+      "htmlContent 必须是单行 HTML 字符串，禁止在 JSON 字符串里直接输出原始换行；需要分段时请使用 <section>、<p>、<br/> 等 HTML 标签表达。",
+      "htmlContent 内部所有 HTML 属性统一使用单引号，例如 <img src='' alt='正文配图1' />，不要在 HTML 属性里使用双引号，避免破坏 JSON。",
       "正文配图必须以内嵌占位图的方式放进正文对应章节，例如 <figure><img src=\"\" alt=\"正文配图1\" /></figure>，禁止把所有图片集中放在文末单独成块。",
       "结尾只能保留正文总结或行动建议，禁止额外输出“营销日历资料 / 产品资料 / 品牌资料 / 原文链接 / 创作来源 / 素材说明 / 附录”之类的尾部信息块。",
       "bodyImageBriefs 数量控制在 2-4 条，必须与正文章节主题对应。",
@@ -9510,8 +9512,14 @@ export class WorksService {
                 attemptTrail: [...attemptTrail, `${attemptLabel} -> 成功`],
               };
             } catch (error) {
-              lastError = error instanceof Error ? error.message : "公众号文章生成失败";
-              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+              const parsedError = error instanceof Error ? error.message : "调用失败";
+              const contentSnippet = this.buildModelContentSnippet(
+                typeof (error as { rawModelContent?: unknown })?.rawModelContent === "string"
+                  ? (error as { rawModelContent?: string }).rawModelContent
+                  : "",
+              );
+              lastError = contentSnippet ? `${parsedError}（响应片段：${contentSnippet}）` : parsedError;
+              attemptTrail.push(`${attemptLabel} -> ${lastError}`);
             }
           }
         }
@@ -18224,11 +18232,28 @@ export class WorksService {
   }
 
   private parseJsonObject(content: string) {
-    const parsed = this.tryParseJson(this.extractJsonObject(this.stripMarkdownCodeFence(content)));
-    if (!parsed || typeof parsed !== "object") {
-      throw new ServiceUnavailableException("模型未返回有效 JSON");
+    for (const candidate of this.buildJsonParseCandidates(content)) {
+      const parsed = this.tryParseJson(candidate);
+      const normalized = this.normalizeParsedJsonValue(parsed);
+      if (normalized && typeof normalized === "object") {
+        return normalized as Record<string, unknown>;
+      }
     }
-    return parsed as Record<string, unknown>;
+    const error = new ServiceUnavailableException("模型未返回有效 JSON") as ServiceUnavailableException & {
+      rawModelContent?: string;
+    };
+    error.rawModelContent = content;
+    throw error;
+  }
+
+  private normalizeParsedJsonValue(value: unknown) {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === "string") {
+      return this.tryParseJson(value);
+    }
+    return value;
   }
 
   private tryParseJson(content: string) {
@@ -18245,6 +18270,17 @@ export class WorksService {
     return fencedMatch?.[1]?.trim() || trimmed;
   }
 
+  private buildJsonParseCandidates(content: string) {
+    const raw = content.trim();
+    const stripped = this.stripMarkdownCodeFence(raw);
+    const extracted = this.extractJsonObject(stripped);
+    const balanced = this.extractBalancedJsonObject(stripped);
+    const candidates = [raw, stripped, extracted, balanced]
+      .filter(Boolean)
+      .flatMap((item) => [item, this.escapeJsonStringControlChars(item)]);
+    return Array.from(new Set(candidates.filter(Boolean)));
+  }
+
   private extractJsonObject(content: string) {
     const start = content.indexOf("{");
     const end = content.lastIndexOf("}");
@@ -18252,6 +18288,101 @@ export class WorksService {
       return content.slice(start, end + 1);
     }
     return content;
+  }
+
+  private extractBalancedJsonObject(content: string) {
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+    for (let index = 0; index < content.length; index += 1) {
+      const char = content[index];
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          isEscaped = true;
+          continue;
+        }
+        if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+      if (char === "{") {
+        if (start < 0) {
+          start = index;
+        }
+        depth += 1;
+        continue;
+      }
+      if (char === "}") {
+        if (depth > 0) {
+          depth -= 1;
+          if (depth === 0 && start >= 0) {
+            return content.slice(start, index + 1);
+          }
+        }
+      }
+    }
+    return content;
+  }
+
+  private escapeJsonStringControlChars(content: string) {
+    let next = "";
+    let inString = false;
+    let isEscaped = false;
+    for (const char of content) {
+      if (inString) {
+        if (isEscaped) {
+          next += char;
+          isEscaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          next += char;
+          isEscaped = true;
+          continue;
+        }
+        if (char === "\"") {
+          next += char;
+          inString = false;
+          continue;
+        }
+        if (char === "\n") {
+          next += "\\n";
+          continue;
+        }
+        if (char === "\r") {
+          next += "\\r";
+          continue;
+        }
+        if (char === "\t") {
+          next += "\\t";
+          continue;
+        }
+        next += char;
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+      }
+      next += char;
+    }
+    return next;
+  }
+
+  private buildModelContentSnippet(content: string) {
+    return String(content || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160);
   }
 
   private extractResponseText(payload: {
