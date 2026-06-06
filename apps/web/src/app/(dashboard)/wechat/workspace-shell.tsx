@@ -204,6 +204,25 @@ function resolveDraftPreviewImageSources(draft: WechatArticleDraftRecord): Wecha
   };
 }
 
+function resolveDraftPreviewCoverUrl(draft: WechatArticleDraftRecord) {
+  const sources = resolveDraftPreviewImageSources(draft);
+  return sources.coverImageUrl || sources.bodyImageUrls[0] || "";
+}
+
+function formatWechatHistoryTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function WechatWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<WechatSectionKey>("workflow");
   const [brandId] = useState(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID);
@@ -1344,6 +1363,9 @@ export function WechatWorkspaceShell() {
                                   ) : null}
                                 </div>
                                 <p className="wechat-inline-tip">{selectedWorkflow.imageBundle.promptSummary}</p>
+                                {selectedWorkflow.imageBundle.errorDetail ? (
+                                  <div className="wechat-banner wechat-banner--warning">{selectedWorkflow.imageBundle.errorDetail}</div>
+                                ) : null}
                                 {selectedWorkflow.imageBundle.coverImageUrl ? (
                                   <button
                                     type="button"
@@ -1489,145 +1511,202 @@ export function WechatWorkspaceShell() {
                 ) : !publishHistory.length && !drafts.length ? (
                   <div className="empty-state">当前还没有发布历史或历史草稿。</div>
                 ) : (
-                  <div className="wechat-history-shell">
-                    <aside className="wechat-history-sidebar">
-                      <section className="light-data-panel">
-                        <div className="wechat-panel-head">
-                          <div>
-                            <strong>工作流发布记录</strong>
-                            <p className="wechat-inline-tip">{publishHistory.length} 条记录</p>
-                          </div>
+                  <div className="wechat-history-stack">
+                    <section className="light-data-panel">
+                      <div className="wechat-panel-head">
+                        <div>
+                          <strong>工作流发布记录</strong>
+                          <p className="wechat-inline-tip">{publishHistory.length} 条记录，改为卡片式浏览，风格对齐小红书原创笔记作品区。</p>
                         </div>
-                        <div className="wechat-session-list">
+                      </div>
+                      {publishHistory.length ? (
+                        <div className="wechat-history-card-grid">
                           {publishHistory.map((item) => (
-                            <button
+                            <article
                               key={item.id}
-                              type="button"
-                              className={`wechat-session-item ${item.id === selectedPublishHistoryId ? "is-active" : ""}`}
-                              onClick={() => setSelectedPublishHistoryId(item.id)}
+                              className={`wechat-history-work-card ${item.id === selectedPublishHistoryId ? "is-active" : ""}`}
                             >
-                              <strong>{item.workflowTitle}</strong>
-                              <span>{item.status === "SUCCESS" ? "发布成功" : "发布失败"}</span>
-                              <small>{item.mediaId || item.updatedAt}</small>
-                            </button>
-                          ))}
-                          {!publishHistory.length ? <div className="empty-state">当前还没有工作流发布记录。</div> : null}
-                        </div>
-                      </section>
-
-                      <section className="light-data-panel">
-                        <div className="wechat-panel-head">
-                          <div>
-                            <strong>历史草稿</strong>
-                            <p className="wechat-inline-tip">保留旧草稿与直接发布入口。</p>
-                          </div>
-                        </div>
-                        <div className="wechat-session-list">
-                          {drafts.map((draft) => (
-                            <article key={draft.id} className="wechat-session-result-card">
-                              <div className="wechat-pill-row">
-                                <span className={`archive-pill ${draft.publishStatus === "PUBLISHED" ? "status-ready" : "status-pending"}`}>
-                                  {draft.publishStatus === "PUBLISHED" ? "已发布" : "待发布"}
-                                </span>
-                                <span className="archive-pill status-ready">
-                                  {draft.imageTasks?.length ? `带 ${draft.imageTasks.length} 个图片任务` : "纯文章"}
-                                </span>
-                              </div>
-                              <strong>{draft.title}</strong>
-                              <p>{draft.summary}</p>
-                              <div className="wechat-card-actions">
-                                <button
-                                  type="button"
-                                  className="primary-button"
-                                  onClick={() => void handlePublishDraft(draft.id)}
-                                  disabled={publishingDraftId === draft.id || draft.publishStatus === "PUBLISHED"}
+                              <button
+                                type="button"
+                                className="wechat-history-work-card-stage"
+                                onClick={() => {
+                                  setSelectedPublishHistoryId(item.id);
+                                  if (item.coverImageUrl) {
+                                    handleOpenImagePreview(item.coverImageUrl, `${item.workflowTitle} 封面图预览`);
+                                  }
+                                }}
+                              >
+                                {item.coverImageUrl ? (
+                                  <img src={item.coverImageUrl} alt={item.workflowTitle} className="wechat-generated-cover" />
+                                ) : (
+                                  <span className="wechat-history-work-card-empty">暂无封面</span>
+                                )}
+                                <span className="wechat-history-work-card-badge wechat-history-work-card-badge--left">公众号</span>
+                                <span
+                                  className={`wechat-history-work-card-badge ${
+                                    item.status === "SUCCESS" ? "wechat-history-work-card-badge--success" : "wechat-history-work-card-badge--failed"
+                                  }`}
                                 >
-                                  {draft.publishStatus === "PUBLISHED"
-                                    ? "已发布"
-                                    : publishingDraftId === draft.id
-                                      ? "发布中..."
-                                      : "一键发布"}
-                                </button>
-                                <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft)}>
-                                  查看 HTML
-                                </button>
+                                  {item.status === "SUCCESS" ? "已发布" : "发布失败"}
+                                </span>
+                              </button>
+                              <div className="wechat-history-work-card-body">
+                                <div className="wechat-pill-row">
+                                  {item.mediaId ? <span className="archive-pill status-ready">media_id 已回写</span> : null}
+                                  <span className="archive-pill status-ready">重试 {item.retryCount} 次</span>
+                                </div>
+                                <strong>{item.workflowTitle}</strong>
+                                <p>{item.summary}</p>
+                                <p>{formatWechatHistoryTime(item.updatedAt)}</p>
+                                <div className="wechat-card-actions">
+                                  <button
+                                    type="button"
+                                    className="primary-button"
+                                    onClick={() => setSelectedPublishHistoryId(item.id)}
+                                  >
+                                    查看详情
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => void handleRetryPublishHistory(item.id)}
+                                    disabled={retryingPublishHistoryId === item.id}
+                                  >
+                                    {retryingPublishHistoryId === item.id ? "重试中..." : "重试发布"}
+                                  </button>
+                                </div>
                               </div>
                             </article>
                           ))}
                         </div>
-                      </section>
-                    </aside>
+                      ) : (
+                        <div className="empty-state">当前还没有工作流发布记录。</div>
+                      )}
+                    </section>
 
-                    <div className="wechat-history-main">
-                      <section className="light-data-panel">
-                        <div className="wechat-panel-head">
-                          <div>
-                            <strong>发布详情</strong>
-                            <p className="wechat-inline-tip">展示 media_id、账号、封面、评论策略与失败原因。</p>
+                    <section className="light-data-panel">
+                      <div className="wechat-panel-head">
+                        <div>
+                          <strong>历史草稿</strong>
+                          <p className="wechat-inline-tip">保留旧草稿与直接发布入口，同样按作品卡片展示。</p>
+                        </div>
+                      </div>
+                      {drafts.length ? (
+                        <div className="wechat-history-card-grid">
+                          {drafts.map((draft) => {
+                            const draftCoverUrl = resolveDraftPreviewCoverUrl(draft);
+                            const draftImageSources = resolveDraftPreviewImageSources(draft);
+                            const draftImageCount = (draftImageSources.coverImageUrl ? 1 : 0) + draftImageSources.bodyImageUrls.length;
+                            return (
+                              <article key={draft.id} className="wechat-history-work-card">
+                                <button
+                                  type="button"
+                                  className="wechat-history-work-card-stage"
+                                  onClick={() => {
+                                    if (draftCoverUrl) {
+                                      handleOpenImagePreview(draftCoverUrl, `${draft.title} 封面预览`);
+                                    } else {
+                                      openDraftPreview(draft);
+                                    }
+                                  }}
+                                >
+                                  {draftCoverUrl ? (
+                                    <img src={draftCoverUrl} alt={draft.title} className="wechat-generated-cover" />
+                                  ) : (
+                                    <span className="wechat-history-work-card-empty">暂无封面</span>
+                                  )}
+                                  <span className="wechat-history-work-card-badge wechat-history-work-card-badge--left">草稿</span>
+                                  <span
+                                    className={`wechat-history-work-card-badge ${
+                                      draft.publishStatus === "PUBLISHED"
+                                        ? "wechat-history-work-card-badge--success"
+                                        : "wechat-history-work-card-badge--pending"
+                                    }`}
+                                  >
+                                    {draft.publishStatus === "PUBLISHED" ? "已发布" : "待发布"}
+                                  </span>
+                                </button>
+                                <div className="wechat-history-work-card-body">
+                                  <div className="wechat-pill-row">
+                                    <span className="archive-pill status-ready">{draftImageCount ? `${draftImageCount} 张图片` : "纯文章"}</span>
+                                    <span className="archive-pill status-ready">{draft.articleModelName || "文章模型已记录"}</span>
+                                  </div>
+                                  <strong>{draft.title}</strong>
+                                  <p>{draft.summary}</p>
+                                  <p>{formatWechatHistoryTime(draft.updatedAt)}</p>
+                                  <div className="wechat-card-actions">
+                                    <button
+                                      type="button"
+                                      className="primary-button"
+                                      onClick={() => void handlePublishDraft(draft.id)}
+                                      disabled={publishingDraftId === draft.id || draft.publishStatus === "PUBLISHED"}
+                                    >
+                                      {draft.publishStatus === "PUBLISHED"
+                                        ? "已发布"
+                                        : publishingDraftId === draft.id
+                                          ? "发布中..."
+                                          : "一键发布"}
+                                    </button>
+                                    <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft)}>
+                                      查看 HTML
+                                    </button>
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="empty-state">当前还没有历史草稿。</div>
+                      )}
+                    </section>
+
+                    <section className="light-data-panel">
+                      <div className="wechat-panel-head">
+                        <div>
+                          <strong>发布详情</strong>
+                          <p className="wechat-inline-tip">展示 media_id、账号、评论策略与失败原因。</p>
+                        </div>
+                        {selectedPublishHistory ? (
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleRetryPublishHistory(selectedPublishHistory.id)}
+                            disabled={retryingPublishHistoryId === selectedPublishHistory.id}
+                          >
+                            {retryingPublishHistoryId === selectedPublishHistory.id ? "重试中..." : "重试发布"}
+                          </button>
+                        ) : null}
+                      </div>
+                      {isLoadingPublishHistoryDetail ? (
+                        <div className="empty-state">发布详情加载中...</div>
+                      ) : selectedPublishHistory ? (
+                        <div className="wechat-publish-summary">
+                          <div className="wechat-pill-row">
+                            <span className={`archive-pill ${selectedPublishHistory.status === "SUCCESS" ? "status-ready" : "status-pending"}`}>
+                              {selectedPublishHistory.status === "SUCCESS" ? "发布成功" : "发布失败"}
+                            </span>
+                            {selectedPublishHistory.mediaId ? (
+                              <span className="archive-pill status-ready">media_id：{selectedPublishHistory.mediaId}</span>
+                            ) : null}
+                            <span className="archive-pill status-ready">重试次数：{selectedPublishHistory.retryCount}</span>
                           </div>
-                          {selectedPublishHistory ? (
-                            <button
-                              type="button"
-                              className="primary-button"
-                              onClick={() => void handleRetryPublishHistory(selectedPublishHistory.id)}
-                              disabled={retryingPublishHistoryId === selectedPublishHistory.id}
-                            >
-                              {retryingPublishHistoryId === selectedPublishHistory.id ? "重试中..." : "重试发布"}
-                            </button>
+                          <strong>{selectedPublishHistory.workflowTitle}</strong>
+                          <p>{selectedPublishHistory.summary}</p>
+                          <div className="wechat-meta-list">
+                            <span>账号：{selectedPublishHistory.accountName || "默认账号"}</span>
+                            <span>评论：{selectedPublishHistory.commentMode}</span>
+                            <span>{selectedPublishHistory.fanCommentsOnly ? "仅粉丝评论" : "评论不限制粉丝"}</span>
+                            <span>发布时间：{formatWechatHistoryTime(selectedPublishHistory.updatedAt)}</span>
+                          </div>
+                          {selectedPublishHistory.errorDetail ? (
+                            <div className="wechat-banner wechat-banner--error">{selectedPublishHistory.errorDetail}</div>
                           ) : null}
                         </div>
-                        {isLoadingPublishHistoryDetail ? (
-                          <div className="empty-state">发布详情加载中...</div>
-                        ) : selectedPublishHistory ? (
-                          <div className="wechat-history-detail-grid">
-                            {selectedPublishHistory.coverImageUrl ? (
-                              <button
-                                type="button"
-                                className="wechat-image-preview-trigger"
-                                onClick={() =>
-                                  handleOpenImagePreview(
-                                    selectedPublishHistory.coverImageUrl,
-                                    `${selectedPublishHistory.workflowTitle} 封面图预览`,
-                                  )
-                                }
-                              >
-                                <img
-                                  src={selectedPublishHistory.coverImageUrl}
-                                  alt={selectedPublishHistory.workflowTitle}
-                                  className="wechat-generated-cover"
-                                />
-                              </button>
-                            ) : (
-                              <div className="empty-state">当前记录没有封面图。</div>
-                            )}
-                            <div className="wechat-publish-summary">
-                              <div className="wechat-pill-row">
-                                <span className={`archive-pill ${selectedPublishHistory.status === "SUCCESS" ? "status-ready" : "status-pending"}`}>
-                                  {selectedPublishHistory.status === "SUCCESS" ? "发布成功" : "发布失败"}
-                                </span>
-                                {selectedPublishHistory.mediaId ? (
-                                  <span className="archive-pill status-ready">media_id：{selectedPublishHistory.mediaId}</span>
-                                ) : null}
-                                <span className="archive-pill status-ready">重试次数：{selectedPublishHistory.retryCount}</span>
-                              </div>
-                              <strong>{selectedPublishHistory.workflowTitle}</strong>
-                              <p>{selectedPublishHistory.summary}</p>
-                              <div className="wechat-meta-list">
-                                <span>账号：{selectedPublishHistory.accountName || "默认账号"}</span>
-                                <span>评论：{selectedPublishHistory.commentMode}</span>
-                                <span>{selectedPublishHistory.fanCommentsOnly ? "仅粉丝评论" : "评论不限制粉丝"}</span>
-                                <span>发布时间：{selectedPublishHistory.updatedAt}</span>
-                              </div>
-                              {selectedPublishHistory.errorDetail ? (
-                                <div className="wechat-banner wechat-banner--error">{selectedPublishHistory.errorDetail}</div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="empty-state">请选择一条发布记录查看详情。</div>
-                        )}
-                      </section>
-                    </div>
+                      ) : (
+                        <div className="empty-state">请选择一条发布记录查看详情。</div>
+                      )}
+                    </section>
                   </div>
                 )}
               </article>
@@ -1722,6 +1801,11 @@ export function WechatWorkspaceShell() {
           color: #147a46;
         }
 
+        .wechat-banner--warning {
+          background: rgba(255, 247, 237, 0.98);
+          color: #b45309;
+        }
+
         .wechat-config-grid,
         .wechat-form-grid,
         .wechat-account-grid,
@@ -1743,6 +1827,17 @@ export function WechatWorkspaceShell() {
           display: grid;
           grid-template-columns: 320px minmax(0, 1fr);
           gap: 18px;
+        }
+
+        .wechat-history-stack {
+          display: grid;
+          gap: 18px;
+        }
+
+        .wechat-history-card-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
         }
 
         .wechat-workflow-sidebar {
@@ -1854,6 +1949,78 @@ export function WechatWorkspaceShell() {
         .wechat-generated-cover {
           aspect-ratio: 16 / 9;
           box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        .wechat-history-work-card {
+          overflow: hidden;
+          border: 1px solid #e4e8f0;
+          border-radius: 22px;
+          background: #ffffff;
+          box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+        }
+
+        .wechat-history-work-card.is-active {
+          border-color: rgba(87, 119, 255, 0.38);
+          box-shadow: 0 18px 36px rgba(87, 119, 255, 0.12);
+        }
+
+        .wechat-history-work-card-stage {
+          position: relative;
+          display: block;
+          width: 100%;
+          padding: 0;
+          border: none;
+          background: linear-gradient(180deg, #f6f8ff 0%, #eef2ff 100%);
+          cursor: pointer;
+        }
+
+        .wechat-history-work-card-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 220px;
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .wechat-history-work-card-badge {
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 28px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: rgba(17, 24, 39, 0.82);
+          color: #ffffff;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .wechat-history-work-card-badge--left {
+          left: 14px;
+          right: auto;
+          background: rgba(87, 119, 255, 0.92);
+        }
+
+        .wechat-history-work-card-badge--success {
+          background: rgba(22, 163, 74, 0.92);
+        }
+
+        .wechat-history-work-card-badge--failed {
+          background: rgba(220, 38, 38, 0.92);
+        }
+
+        .wechat-history-work-card-badge--pending {
+          background: rgba(217, 119, 6, 0.92);
+        }
+
+        .wechat-history-work-card-body {
+          display: grid;
+          gap: 10px;
+          padding: 14px;
         }
 
         .wechat-generated-gallery {
@@ -2007,7 +2174,8 @@ export function WechatWorkspaceShell() {
         @media (max-width: 1280px) {
           .wechat-workflow-layout,
           .wechat-history-shell,
-          .wechat-step-grid {
+          .wechat-step-grid,
+          .wechat-history-card-grid {
             grid-template-columns: 1fr;
           }
         }
