@@ -9513,11 +9513,10 @@ export class WorksService {
               };
             } catch (error) {
               const parsedError = error instanceof Error ? error.message : "调用失败";
-              const contentSnippet = this.buildModelContentSnippet(
-                typeof (error as { rawModelContent?: unknown })?.rawModelContent === "string"
-                  ? (error as { rawModelContent?: string }).rawModelContent
-                  : "",
-              );
+              const rawModelContent = typeof (error as { rawModelContent?: unknown })?.rawModelContent === "string"
+                ? (error as { rawModelContent?: string }).rawModelContent ?? ""
+                : "";
+              const contentSnippet = this.buildModelContentSnippet(rawModelContent);
               lastError = contentSnippet ? `${parsedError}（响应片段：${contentSnippet}）` : parsedError;
               attemptTrail.push(`${attemptLabel} -> ${lastError}`);
             }
