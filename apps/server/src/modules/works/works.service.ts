@@ -3618,40 +3618,64 @@ export class WorksService {
     };
   }
 
-  async generateWechatWorkflowArticle(brandId: string, workflowId: string) {
+  async generateWechatWorkflowArticle(brandId: string, workflowId: string, auth?: RequestAuthContext) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
-    const articleResult = await this.generateWechatArticleByModel({
+    const task = await this.createOriginalTask({
+      userId: await this.resolveTaskUserId(brandId, auth),
       brandId,
-      inputType: target.inputType,
-      titleSeed: target.title,
-      inputContent: target.inputContent || target.content,
-      themeColor: target.themeColor,
-      author: target.author,
-      commentMode: target.commentMode,
-      accountName: target.accountName,
-      selectedMarketingLabels: target.selectedMarketingLabels,
-      selectedProductLabels: target.selectedProductLabels,
-      selectedBrandLabels: target.selectedBrandLabels,
-      injectBrandProfile: target.injectBrandProfile,
+      taskType: "WECHAT_ARTICLE_AI",
+      taskTitle: `生成公众号工作流文章：${target.title}`,
+      modelName: target.articleModelName,
     });
-    target.title = articleResult.title;
-    target.summary = articleResult.summary;
-    target.author = articleResult.author;
-    target.content = articleResult.content;
-    target.htmlContent = articleResult.htmlContent;
-    target.articleProvider = articleResult.provider;
-    target.articleRuntimeKey = articleResult.runtimeKey;
-    target.articleModelName = articleResult.modelName;
-    target.coverImageBrief = articleResult.coverImageBrief;
-    target.bodyImageBriefs = articleResult.bodyImageBriefs;
-    target.status = "IMAGE_PENDING";
-    target.currentStep = "image";
-    target.errorDetail = undefined;
-    target.updatedAt = new Date().toISOString();
-    await this.persistWechatWorkflowSessionStoreItem(target);
-    return {
-      item: this.toWechatWorkflowSessionRecord(target),
-    };
+    await this.markTaskRunning(task.id);
+    try {
+      const articleResult = await this.generateWechatArticleByModel({
+        brandId,
+        inputType: target.inputType,
+        titleSeed: target.title,
+        inputContent: target.inputContent || target.content,
+        themeColor: target.themeColor,
+        author: target.author,
+        commentMode: target.commentMode,
+        accountName: target.accountName,
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        injectBrandProfile: target.injectBrandProfile,
+      });
+      target.title = articleResult.title;
+      target.summary = articleResult.summary;
+      target.author = articleResult.author;
+      target.content = articleResult.content;
+      target.htmlContent = articleResult.htmlContent;
+      target.articleProvider = articleResult.provider;
+      target.articleRuntimeKey = articleResult.runtimeKey;
+      target.articleModelName = articleResult.modelName;
+      target.coverImageBrief = articleResult.coverImageBrief;
+      target.bodyImageBriefs = articleResult.bodyImageBriefs;
+      target.status = "IMAGE_PENDING";
+      target.currentStep = "image";
+      target.errorDetail = undefined;
+      target.updatedAt = new Date().toISOString();
+      await this.persistWechatWorkflowSessionStoreItem(target);
+      await this.markTaskSuccess(
+        task.id,
+        {
+          workflowId: target.id,
+          title: target.title,
+          currentStep: target.currentStep,
+          runtimeKey: articleResult.runtimeKey,
+        },
+        { modelName: articleResult.modelName },
+      );
+      return {
+        item: this.toWechatWorkflowSessionRecord(target),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "公众号工作流文章生成失败。";
+      await this.markTaskFailed(task.id, message);
+      throw error;
+    }
   }
 
   async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
@@ -3888,6 +3912,7 @@ export class WorksService {
       const task = await this.createOriginalTask({
         userId: await this.resolveTaskUserId(brandId, auth),
         brandId,
+        taskType: "WECHAT_WORKFLOW_PUBLISH",
         taskTitle: `发布公众号工作流：${target.title}`,
         modelName: "wechat-official-account-api-publish",
       });
@@ -4108,6 +4133,7 @@ export class WorksService {
     const task = await this.createOriginalTask({
       userId,
       brandId,
+      taskType: "WECHAT_ARTICLE_DRAFT_AI",
       taskTitle: `生成公众号文章：${title}`,
       modelName: articleRuntime.modelName,
     });
@@ -4289,6 +4315,7 @@ export class WorksService {
     const task = await this.createOriginalTask({
       userId: await this.resolveTaskUserId(brandId, auth),
       brandId,
+      taskType: "WECHAT_ARTICLE_DRAFT_PUBLISH",
       taskTitle: `发布公众号文章：${target.title}`,
       modelName: "wechat-official-account-api-publish",
     });
@@ -7568,18 +7595,27 @@ export class WorksService {
     });
   }
 
-  private async createOriginalTask(params: { userId: string; brandId: string; taskTitle: string; modelName?: string }) {
+  private async createOriginalTask(params: {
+    userId: string;
+    brandId: string;
+    taskTitle: string;
+    taskType?: string;
+    modelName?: string;
+    pointsCost?: number;
+  }) {
     const modelName = params.modelName || "deepseek-v4-pro";
+    const taskType = params.taskType || "XHS_ORIGINAL_NOTE";
+    const pointsCost = params.pointsCost ?? 260;
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
           userId: params.userId,
           brandId: params.brandId,
-          taskType: "XHS_ORIGINAL_NOTE",
+          taskType,
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
           modelName,
-          pointsCost: 260,
+          pointsCost,
         },
       });
     }
@@ -7589,11 +7625,11 @@ export class WorksService {
       id: createId("tsk"),
       userId: params.userId,
       brandId: params.brandId,
-      taskType: "XHS_ORIGINAL_NOTE",
+      taskType,
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
       modelName,
-      pointsCost: 260,
+      pointsCost,
       createdAt: now,
       updatedAt: now,
     };

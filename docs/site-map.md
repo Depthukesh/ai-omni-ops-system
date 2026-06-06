@@ -433,7 +433,7 @@
 - 当前后台技能中心与个人中心技能中心的 Provider / 模型偏好，已经统一按公共规则分发到 `ReportsModule` 与 `WorksModule`：先 Provider、再模型、最后通用 fallback，不再允许各板块私写固定优先级
   - 技能提示词：后台当前仅对 `SKILL.md` 这类总技能入口自动聚合技能源目录下的顶层 `.md` / `.txt` 参考资料；独立提示词叶子项（如视频笔记 6 条 `.txt`）只展示自身内容，不再拼接同目录其它文件
   - 视频笔记提示词现按“剧本策划 / 视频生成”两组分类展示，前后台都可按单条 prompt 修改
-  - 对于存在本地提示词文件的条目，后台启动时会按文件内容回填 `PromptTemplate.content`，避免页面继续显示数据库里遗留的一行旧占位文案
+  - 平台级提示词当前已恢复为数据库真源：后台保存后以 `PromptTemplate.content` 为准，正常读取链路不再让本地提示词文件反向覆盖数据库
   - 视频笔记 6 条提示词源文件现已正式纳入仓库 `提示词/视频生成提示词/`；运行时优先读取仓库内路径，避免部署环境因缺少仓库外文件而继续显示错误内容
   - 当前选中某个三级提示词时，会自动展开对应一级/二级目录，避免所选项被折叠隐藏
   - 聚合型提示词在后台当前以只读方式展示，需回到原始提示词目录维护，避免把整份聚合内容误写回单个 `SKILL.md`
@@ -801,8 +801,10 @@
 6. 草稿生成后，前端按作品卡片展示，可直接查看 HTML 预览；若图片已生成，会优先将真实图片 URL 回写并植入 HTML
 7. 用户点击“一键发布”后，前端通过 `publishWechatArticleToOfficialAccount()` 命中 `PublishingModule`
 8. 后端发布入口会先校验当前品牌是否已配置 `AppID / AppSecret / IP 白名单`，再创建发布任务并把草稿状态更新为 `PUBLISHED`
-9. 当前发布链路已完成正式工作台接线，并会真实调用公众号官方 API 发布到草稿箱
-10. 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+9. 公众号工作流 `执行文章AI` 当前也已正式接入 `Task` 表；任务中心会记录 `WECHAT_ARTICLE_AI`，不再只在工作流会话表里留痕
+10. 当前发布链路已完成正式工作台接线，并会真实调用公众号官方 API 发布到草稿箱；公众号发布任务也已使用独立 `WECHAT_*` 类型，不再复用 `XHS_ORIGINAL_NOTE`
+11. 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+12. 参考变更：`docs/changes/2026-06-06-wechat-task-center-and-prompt-db-source-fix.md`
 
 ### 5.6 技能与提示词注册链路
 
@@ -812,11 +814,12 @@
 4. `ReportsModule` 与 `WorksModule` 当前已优先从注册表读取品牌增长、小红书原创/二创/视频相关提示词
 5. 小红书营销日历现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `xiaohongshu-marketing-calendar / prompt_xhs_calendar`
 6. 抖音热点找选题现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `douyin-hot-topic-candidates / prompt_douyin_hot_topic_candidates`
-7. 数据库已有旧内容时，后台读取链路仍会优先回源聚合文件内容；若命中的是营销日历旧占位短文案，则自动切换到内置完整 fallback，避免历史 `PromptTemplate.content` 继续挡住真实提示词
+7. 平台级提示词当前以数据库 `PromptTemplate.content` 为唯一真源；文件仅用于首次种子导入、数据库不可用时 fallback，以及开发阶段文件基线维护
 8. 个人中心用户技能覆盖层对营销日历提示词也会做同样的占位短文案矫正，避免历史 `UserPromptOverride.content` 把平台完整提示词重新覆盖坏
 9. 数据库不可用时，后端才回退到 `mock-data + 文件/内置 fallback`
 - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
 - 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
+- 参考变更：`docs/changes/2026-06-06-wechat-task-center-and-prompt-db-source-fix.md`
 - 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
 
 ## 6. 当前已确认的真实能力

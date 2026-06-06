@@ -1,12 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import {
   PROMPT_SOURCE_CANDIDATES,
   readPromptSourceBundle,
-  resolvePromptSourceEntryPath,
 } from "../../common/prompt-source-loader";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -757,10 +756,6 @@ export class SkillsPromptsService {
 
       const currentContent = current.content || "";
       const nextContent = normalizedSubmittedContent ?? currentContent;
-      if (normalizedSubmittedContent !== undefined) {
-        this.writePromptContentToFile(id, nextContent);
-      }
-
       const updatedRows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         UPDATE "PromptTemplate"
         SET
@@ -796,7 +791,6 @@ export class SkillsPromptsService {
     }
     if (normalizedSubmittedContent !== undefined) {
       const nextContent = normalizedSubmittedContent;
-      this.writePromptContentToFile(id, nextContent);
       prompt.content = nextContent;
     }
     prompt.updatedAt = new Date().toISOString();
@@ -1153,24 +1147,6 @@ export class SkillsPromptsService {
     return rows[0];
   }
 
-  private writePromptContentToFile(promptId: string, content: string) {
-    const filePath = this.resolvePromptFilePath(promptId);
-    if (!filePath) {
-      return;
-    }
-    try {
-      writeFileSync(filePath, content, "utf8");
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `提示词文件写入失败：${error instanceof Error ? error.message : "未知错误"}`,
-      );
-    }
-  }
-
-  private resolvePromptFilePath(promptId: string) {
-    return resolvePromptSourceEntryPath(promptId);
-  }
-
   private getPromptSourceBundle(promptId: string, fallback: string) {
     return readPromptSourceBundle(promptId, fallback);
   }
@@ -1225,7 +1201,7 @@ export class SkillsPromptsService {
   private hydratePromptTemplateRecord(prompt: PromptTemplateRecord): PromptTemplateRecord {
     return {
       ...prompt,
-      content: this.readPromptContent(prompt.id, prompt.content || ""),
+      content: prompt.content || "",
     };
   }
 

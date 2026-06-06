@@ -237,6 +237,19 @@
 - 工作流最终 HTML 在文章中没有足够 `<img>` 占位时，尾部兜底追加的正文配图也会按所选尺寸比例渲染，不再固定写死 `4:3`
 - 公众号 `draft/add` 发布请求已移除 `content_source_url`，导入公众号草稿箱时不再主动写入原文链接
 
+### 2026-06-06 第四轮收口
+
+- 公众号工作流 `执行文章AI` 当前已正式接入 `Task` 表：
+  - 新工作流文章生成接口不再只写 `WechatWorkflowSession`
+  - 现在会补齐 `QUEUED -> RUNNING -> SUCCESS / FAILED` 生命周期
+  - 后台任务中心与个人中心任务中心都可以看到这条文章生成任务
+- 公众号相关任务类型也已从历史复用的 `XHS_ORIGINAL_NOTE` 收口为独立类型：
+  - `WECHAT_ARTICLE_AI`
+  - `WECHAT_ARTICLE_DRAFT_AI`
+  - `WECHAT_WORKFLOW_PUBLISH`
+  - `WECHAT_ARTICLE_DRAFT_PUBLISH`
+- `TasksService` 超时收口表已同步补入上述公众号任务类型，避免新任务类型缺少超时治理
+
 ### 代码落点
 
 - 后端：

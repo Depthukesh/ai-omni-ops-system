@@ -258,7 +258,7 @@ export class WorksController {
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
-      return this.worksService.generateWechatWorkflowArticle(brandId, workflowId);
+      return this.worksService.generateWechatWorkflowArticle(brandId, workflowId, auth);
     });
   }
 

@@ -243,8 +243,10 @@ flowchart TD
     A["/admin 技能中心"]
     A --> A1["SkillConfig.defaultModel"]
     A --> A2["PromptTemplate.modelName"]
+    A --> A3["PromptTemplate.content 数据库真源"]
     A1 --> B["统一模型优先级解析"]
     A2 --> B
+    A3 --> B1["正常读取链路不再让本地提示词文件反向覆盖数据库"]
     B --> C1["ReportsService 文本类技能"]
     B --> C2["WorksService 文本类技能"]
     C1 --> D["公共规则：先 Provider -> 再模型 -> 最后 fallback"]
@@ -531,6 +533,7 @@ flowchart TD
     WS3 --> WAPI31["/works/brands/:brandId/wechat/articles"]
     WS3 --> WAPI32["/works/brands/:brandId/wechat/articles/generate"]
     WS3 --> WAPI33["/works/brands/:brandId/wechat/articles/:draftId"]
+    WS3 --> WAPI34["/works/brands/:brandId/wechat/workflows/:workflowId/article/generate"]
     WS4 --> WAPI4["/publishing/brands/:brandId/wechat/articles/:draftId/publish"]
 
     WAPI1 --> WM1["BrandsModule"]
@@ -539,6 +542,7 @@ flowchart TD
     WAPI31 --> WM3
     WAPI32 --> WM3
     WAPI33 --> WM3
+    WAPI34 --> WM3
     WAPI4 --> WM4["PublishingModule"]
 
     WM3 --> WT1["Task"]
@@ -546,6 +550,8 @@ flowchart TD
     WM3 --> WT3["Brand"]
     WM3 --> WT4["Product"]
     WM3 --> WT5["SkillConfig / PromptTemplate"]
+    WAPI34 --> WT1
+    WAPI34 --> WT5
     WM4 --> WT1
     WM4 --> WT2
 ```
@@ -740,6 +746,7 @@ flowchart TD
     M5 --> M57["原创/二创/视频三类作品创建都默认要求账号角色并写入主记录元数据"]
     M5 --> M58["历史 seedance 兼容值自动映射到 volcengine_seedance_20，避免落到已下线平台"]
     M5 --> M59["公众号工作台已接配置保存、HTML 草稿生成、自动植图回写、发布状态回写、数据库持久化与图片限流回退"]
+    M5 --> M511["公众号工作流执行文章AI已接 Task 表，任务中心可直接查看"]
     M5 --> M510["设计工作台已接真实选项聚合与生成链路，按模块分流到图像或文本 Provider"]
     M6 --> M5
     M6 --> M7
