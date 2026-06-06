@@ -436,6 +436,7 @@ export type DouyinDigitalHumanVideoWorkRecord = {
 export type WechatCommentMode = "open" | "fans" | "close";
 export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+export type WechatBodyImageSize = "landscape-4-3" | "landscape-16-9" | "square-1-1" | "portrait-4-3";
 export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
 export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
 export type WechatWorkflowStatus =
@@ -506,6 +507,7 @@ export type WechatWorkflowSessionRecord = {
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
+  bodyImageSize: WechatBodyImageSize;
   injectBrandProfile: boolean;
   selectedMarketingLabels: string[];
   selectedProductLabels: string[];
@@ -671,6 +673,7 @@ export type CreateWechatWorkflowForm = {
   content?: string;
   themeColor?: string;
   imageMode?: WechatImageMode;
+  bodyImageSize?: WechatBodyImageSize;
   injectBrandProfile?: boolean;
   selectedMarketingLabels?: string[];
   selectedProductLabels?: string[];

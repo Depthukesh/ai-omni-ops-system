@@ -470,6 +470,7 @@ type WorkTaskStatus = "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | 
 export type WechatCommentMode = "open" | "fans" | "close";
 export type WechatCoverMode = "ai" | "upload" | "asset";
 export type WechatImageMode = "cover-and-body" | "cover-only" | "body-only";
+export type WechatBodyImageSize = "landscape-4-3" | "landscape-16-9" | "square-1-1" | "portrait-4-3";
 export type WechatWorkflowInputType = "plain-text" | "markdown" | "html" | "calendar";
 export type WechatWorkflowStep = "input" | "article" | "image" | "publish" | "result";
 export type WechatWorkflowStatus =
@@ -526,6 +527,7 @@ export type CreateWechatWorkflowPayload = {
   content?: string;
   themeColor?: string;
   imageMode?: WechatImageMode;
+  bodyImageSize?: WechatBodyImageSize;
   injectBrandProfile?: boolean;
   selectedMarketingLabels?: string[];
   selectedProductLabels?: string[];
@@ -739,6 +741,7 @@ export type WechatWorkflowSessionRecord = {
   themeColor: string;
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
+  bodyImageSize: WechatBodyImageSize;
   injectBrandProfile: boolean;
   selectedMarketingLabels: string[];
   selectedProductLabels: string[];
@@ -888,6 +891,7 @@ type WechatWorkflowSessionRow = {
   themeColor: string;
   commentMode: string;
   imageMode: string;
+  bodyImageSize: string;
   injectBrandProfile: boolean;
   selectedMarketingLabelsJson: Prisma.JsonValue | null;
   selectedProductLabelsJson: Prisma.JsonValue | null;
@@ -1098,6 +1102,7 @@ const wechatWorkflowSessionMockStore: WechatWorkflowSessionStoreItem[] = [
     themeColor: "#25554a",
     commentMode: "open",
     imageMode: "cover-and-body",
+    bodyImageSize: "landscape-4-3",
     injectBrandProfile: true,
     selectedMarketingLabels: ["夏季会员周"],
     selectedProductLabels: ["爆浆提拉米苏蛋糕"],
@@ -3556,6 +3561,7 @@ export class WorksService {
       themeColor: String(payload.themeColor || "").trim() || preferences?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
       commentMode: preferences?.commentMode || config?.commentMode || "open",
       imageMode: payload.imageMode || "cover-and-body",
+      bodyImageSize: this.normalizeWechatBodyImageSizeValue(payload.bodyImageSize),
       injectBrandProfile: payload.injectBrandProfile === true,
       selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, []),
       selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, []),
@@ -3585,6 +3591,7 @@ export class WorksService {
     target.inputContent = String(payload.content || "").trim() || target.inputContent || target.content;
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
     target.imageMode = payload.imageMode || target.imageMode;
+    target.bodyImageSize = payload.bodyImageSize ? this.normalizeWechatBodyImageSizeValue(payload.bodyImageSize) : target.bodyImageSize;
     target.injectBrandProfile = payload.injectBrandProfile ?? target.injectBrandProfile;
     target.selectedMarketingLabels = this.normalizeWechatLabels(payload.selectedMarketingLabels, target.selectedMarketingLabels);
     target.selectedProductLabels = this.normalizeWechatLabels(payload.selectedProductLabels, target.selectedProductLabels);
@@ -3698,6 +3705,8 @@ export class WorksService {
       const bodyPrompts = target.imageMode === "cover-only" ? [] : prompts.slice(1);
       const bodyAssets: Array<Awaited<ReturnType<WorksService["generateImageAsset"]>>> = [];
       const imageFailures: string[] = [];
+      const coverImageSize = this.resolveWechatCoverImageGenerationSize();
+      const bodyImageSize = this.resolveWechatBodyImageGenerationSize(target.bodyImageSize);
       try {
         coverAsset = await this.generateImageAsset({
           brandId,
@@ -3711,6 +3720,7 @@ export class WorksService {
           prompt: coverPrompt,
           referenceImageUrls: [],
           promptMode: "social_graphic",
+          imageSizeOverride: coverImageSize,
         });
       } catch (error) {
         imageFailures.push(`封面图：${error instanceof Error ? error.message : "生成失败"}`);
@@ -3730,6 +3740,7 @@ export class WorksService {
             prompt: bodyPrompts[index] || "",
             referenceImageUrls: [],
             promptMode: "social_graphic",
+            imageSizeOverride: bodyImageSize,
           });
           bodyAssets.push(bodyAsset);
         } catch (error) {
@@ -3897,7 +3908,6 @@ export class WorksService {
           coverImageUrl: target.publishConfig.coverImageUrl || "",
           needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
           onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.publishConfig.fanCommentsOnly),
-          contentSourceUrl: this.appConfigService.getWebPublicBaseUrl(),
         },
       );
       const mediaId = publishResult.mediaId;
@@ -4296,7 +4306,6 @@ export class WorksService {
           coverImageUrl: this.resolveWechatDraftCoverImageUrl(target),
           needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
           onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.commentMode === "fans"),
-          contentSourceUrl: this.appConfigService.getWebPublicBaseUrl(),
         },
       );
       const now = new Date().toISOString();
@@ -7375,6 +7384,10 @@ export class WorksService {
     referenceImageUrls: string[];
     referenceImagePayloads?: UploadFilePayload[];
     promptMode?: ImagePromptMode;
+    imageSizeOverride?: {
+      apiz: string;
+      openai: string;
+    };
     includeFallbackPrompt?: boolean;
     maxProvidersToTry?: number;
     maxModelsPerProvider?: number;
@@ -7428,7 +7441,7 @@ export class WorksService {
                   }
                   const createResponse = await this.requestAuthorizedJson(baseUrl, provider.createPath, apiKey, {
                     method: "POST",
-                    body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode),
+                    body: this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode, params.imageSizeOverride),
                     timeoutMs: this.resolveModelAttemptTimeoutMs(
                       params.attemptTimeoutMs ?? provider.requestTimeoutMs,
                       IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
@@ -7455,7 +7468,7 @@ export class WorksService {
                     baseUrl,
                     provider.completionPath,
                     apiKey,
-                    this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode),
+                    this.buildImageGenerationPayload(provider, modelName, promptCandidate, referenceImages, promptMode, params.imageSizeOverride),
                     this.resolveModelAttemptTimeoutMs(
                       params.attemptTimeoutMs ?? provider.requestTimeoutMs,
                       IMAGE_MODEL_ATTEMPT_TIMEOUT_MS,
@@ -8291,6 +8304,7 @@ export class WorksService {
         "themeColor" TEXT NOT NULL DEFAULT '#25554a',
         "commentMode" TEXT NOT NULL DEFAULT 'open',
         "imageMode" TEXT NOT NULL DEFAULT 'cover-and-body',
+        "bodyImageSize" TEXT NOT NULL DEFAULT 'landscape-4-3',
         "injectBrandProfile" BOOLEAN NOT NULL DEFAULT FALSE,
         "selectedMarketingLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
         "selectedProductLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -8640,14 +8654,14 @@ export class WorksService {
       INSERT INTO "WechatWorkflowSession" (
         "id","brandId","accountId","accountName","status","currentStep","inputType","inputContent","title","summary","author","content",
         "htmlContent","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
-        "imageMode","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson","imageBundleJson",
+        "imageMode","bodyImageSize","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson","imageBundleJson",
         "publishConfigJson","linkedDraftId","errorDetail","createdAt","updatedAt"
       )
       VALUES (
         ${item.id},${item.brandId},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.currentStep},${item.inputType},
         ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${item.articleProvider ?? null},
         ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
-        ${item.themeColor},${item.commentMode},${item.imageMode},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
+        ${item.themeColor},${item.commentMode},${item.imageMode},${item.bodyImageSize},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
         ${JSON.stringify(item.selectedProductLabels || [])}::jsonb,${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,
         ${item.imageBundle ? JSON.stringify(item.imageBundle) : null}::jsonb,${item.publishConfig ? JSON.stringify(item.publishConfig) : null}::jsonb,
         ${item.linkedDraftId ?? null},${item.errorDetail ?? null},${new Date(item.createdAt)},${new Date(item.updatedAt)}
@@ -8673,6 +8687,7 @@ export class WorksService {
         "themeColor" = EXCLUDED."themeColor",
         "commentMode" = EXCLUDED."commentMode",
         "imageMode" = EXCLUDED."imageMode",
+        "bodyImageSize" = EXCLUDED."bodyImageSize",
         "injectBrandProfile" = EXCLUDED."injectBrandProfile",
         "selectedMarketingLabelsJson" = EXCLUDED."selectedMarketingLabelsJson",
         "selectedProductLabelsJson" = EXCLUDED."selectedProductLabelsJson",
@@ -8959,6 +8974,7 @@ export class WorksService {
       themeColor: row.themeColor || "#25554a",
       commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
       imageMode: this.normalizeWechatImageModeValue(row.imageMode),
+      bodyImageSize: this.normalizeWechatBodyImageSizeValue(row.bodyImageSize),
       injectBrandProfile: Boolean(row.injectBrandProfile),
       selectedMarketingLabels: this.normalizeStringArray(row.selectedMarketingLabelsJson, []),
       selectedProductLabels: this.normalizeStringArray(row.selectedProductLabelsJson, []),
@@ -9054,6 +9070,18 @@ export class WorksService {
   private normalizeWechatImageModeValue(value: unknown): WechatImageMode {
     const normalized = String(value || "").trim();
     return normalized === "cover-only" || normalized === "body-only" ? normalized : "cover-and-body";
+  }
+
+  private normalizeWechatBodyImageSizeValue(value: unknown): WechatBodyImageSize {
+    const normalized = String(value || "").trim();
+    if (
+      normalized === "landscape-16-9"
+      || normalized === "square-1-1"
+      || normalized === "portrait-4-3"
+    ) {
+      return normalized;
+    }
+    return "landscape-4-3";
   }
 
   private normalizeWechatInputTypeValue(value: unknown): WechatWorkflowInputType {
@@ -9281,12 +9309,14 @@ export class WorksService {
       '  "title": "公众号标题，建议 12-24 字",',
       '  "summary": "120 字以内摘要",',
       '  "author": "作者名，可沿用输入作者",',
-      '  "htmlContent": "<section>...</section>，输出适合公众号排版的 HTML 结构，至少包含导语、2-4 个主体章节、总结或行动建议，并在合适位置预留正文配图锚点"', 
+      '  "htmlContent": "<section>...</section>，输出适合公众号排版的 HTML 结构，至少包含导语、2-4 个主体章节、总结或行动建议，并在对应章节内部预留 2-4 个正文配图 <img> 占位"', 
       '  "coverImageBrief": "用于生成公众号封面图的详细中文提示词，包含主视觉、标题安全区、主题色、构图和禁忌元素"',
       '  "bodyImageBriefs": ["用于生成正文配图 1 的详细中文提示词", "用于生成正文配图 2 的详细中文提示词"]',
       "}",
       "不要返回 Markdown。",
       "htmlContent 可以是 HTML 片段或完整 HTML 文档，但必须包含清晰的标题层级、摘要块、章节标题、强调块、列表或引用等适合公众号阅读的排版结构。",
+      "正文配图必须以内嵌占位图的方式放进正文对应章节，例如 <figure><img src=\"\" alt=\"正文配图1\" /></figure>，禁止把所有图片集中放在文末单独成块。",
+      "结尾只能保留正文总结或行动建议，禁止额外输出“营销日历资料 / 产品资料 / 品牌资料 / 原文链接 / 创作来源 / 素材说明 / 附录”之类的尾部信息块。",
       "bodyImageBriefs 数量控制在 2-4 条，必须与正文章节主题对应。",
     ].join("\n");
     const userPrompt = ["以下是公众号文章生成输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
@@ -9344,9 +9374,6 @@ export class WorksService {
                 summary: summary || `围绕${params.selectedMarketingLabels[0] || "当前营销主题"}生成公众号文章摘要。`,
                 themeColor: params.themeColor,
                 htmlContent: rawHtmlContent,
-                selectedMarketingLabels: params.selectedMarketingLabels,
-                selectedProductLabels: params.selectedProductLabels,
-                selectedBrandLabels: params.selectedBrandLabels,
               });
               const body = this.extractWechatPlainTextFromHtml(htmlContent);
               const sessionLikeRecord: WechatWorkflowSessionRecord = {
@@ -9370,6 +9397,7 @@ export class WorksService {
                 themeColor: params.themeColor,
                 commentMode: params.commentMode,
                 imageMode: "cover-and-body",
+                bodyImageSize: "landscape-4-3",
                 injectBrandProfile: params.injectBrandProfile,
                 selectedMarketingLabels: params.selectedMarketingLabels,
                 selectedProductLabels: params.selectedProductLabels,
@@ -9447,9 +9475,6 @@ export class WorksService {
     summary: string;
     themeColor: string;
     htmlContent: string;
-    selectedMarketingLabels: string[];
-    selectedProductLabels: string[];
-    selectedBrandLabels: string[];
   }) {
     const htmlContent = String(params.htmlContent || "").trim();
     if (/<!doctype html/i.test(htmlContent) || /<html[\s>]/i.test(htmlContent)) {
@@ -9468,9 +9493,6 @@ export class WorksService {
       '<section style="margin-top:24px;">',
       htmlContent,
       "</section>",
-      this.buildWechatMetaBadgeRow("营销日历资料", params.selectedMarketingLabels, params.themeColor),
-      this.buildWechatMetaBadgeRow("产品资料", params.selectedProductLabels, params.themeColor),
-      this.buildWechatMetaBadgeRow("品牌资料", params.selectedBrandLabels, params.themeColor),
       "</section></main></body></html>",
     ].join("");
   }
@@ -9494,12 +9516,6 @@ export class WorksService {
       .trim();
   }
 
-  private buildWechatMetaBadgeRow(title: string, values: string[], themeColor: string) {
-    return values.length
-      ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(themeColor)}14;color:${this.escapeHtml(themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
-      : "";
-  }
-
   private buildWechatWorkflowImagePrompts(session: WechatWorkflowSessionRecord) {
     const coverPrompt = this.buildWechatCoverImagePrompt(
       session.title,
@@ -9519,6 +9535,26 @@ export class WorksService {
 
   private buildWechatWorkflowGeneratedImageUrl(prompt: string, imageSize: "portrait_16_9" | "landscape_16_9") {
     return `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${encodeURIComponent(prompt)}&image_size=${imageSize}`;
+  }
+
+  private resolveWechatCoverImageGenerationSize() {
+    return {
+      apiz: "16:9",
+      openai: "1600x900",
+    };
+  }
+
+  private resolveWechatBodyImageGenerationSize(bodyImageSize: WechatBodyImageSize) {
+    switch (bodyImageSize) {
+      case "landscape-16-9":
+        return { apiz: "16:9", openai: "1600x900" };
+      case "square-1-1":
+        return { apiz: "1:1", openai: "1200x1200" };
+      case "portrait-4-3":
+        return { apiz: "3:4", openai: "1200x1600" };
+      default:
+        return { apiz: "4:3", openai: "1600x1200" };
+    }
   }
 
   private buildWechatDraftImageTasks(params: {
@@ -9863,6 +9899,7 @@ export class WorksService {
     return this.injectWechatImagesIntoHtml(baseHtml, {
       coverImageUrl: params.imageBundle?.coverImageUrl,
       bodyImageUrls: params.imageBundle?.bodyImageUrls || [],
+      bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio(params.bodyImageSize),
     });
   }
 
@@ -9878,6 +9915,7 @@ export class WorksService {
     return this.injectWechatImagesIntoHtml(baseHtml, {
       coverImageUrl: coverTask?.generatedImageUrls[0],
       bodyImageUrls: bodyTask?.generatedImageUrls || [],
+      bodyImageAspectRatio: this.resolveWechatBodyImageAspectRatio("landscape-4-3"),
     });
   }
 
@@ -9886,6 +9924,7 @@ export class WorksService {
     params: {
       coverImageUrl?: string;
       bodyImageUrls?: string[];
+      bodyImageAspectRatio?: string;
     },
   ) {
     const normalizedHtml = String(htmlContent || "").trim();
@@ -9918,6 +9957,7 @@ export class WorksService {
     const appendedBlock = this.buildWechatGeneratedImageAppendBlock({
       coverImageUrl: cursor === 0 ? imageQueue[0] : undefined,
       bodyImageUrls: cursor === 0 ? imageQueue.slice(1) : remainingUrls,
+      bodyImageAspectRatio: params.bodyImageAspectRatio,
     });
     if (!appendedBlock) {
       return replacedHtml;
@@ -9951,19 +9991,34 @@ export class WorksService {
   private buildWechatGeneratedImageAppendBlock(params: {
     coverImageUrl?: string;
     bodyImageUrls: string[];
+    bodyImageAspectRatio?: string;
   }) {
     const coverImageUrl = String(params.coverImageUrl || "").trim();
     const bodyImageUrls = params.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean);
+    const bodyImageAspectRatio = String(params.bodyImageAspectRatio || "").trim() || "4 / 3";
     if (!coverImageUrl && !bodyImageUrls.length) {
       return "";
     }
     const coverBlock = coverImageUrl
-      ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">封面图</div><img src="${this.escapeHtml(coverImageUrl)}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
+      ? `<section style="margin-top:24px;"><img src="${this.escapeHtml(coverImageUrl)}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
       : "";
     const galleryBlock = bodyImageUrls.length
-      ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">正文配图</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${bodyImageUrls.map((item, index) => `<img src="${this.escapeHtml(item)}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:4 / 3;object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
+      ? `<section style="margin-top:24px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${bodyImageUrls.map((item, index) => `<img src="${this.escapeHtml(item)}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:${this.escapeHtml(bodyImageAspectRatio)};object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
       : "";
     return `${coverBlock}${galleryBlock}`;
+  }
+
+  private resolveWechatBodyImageAspectRatio(bodyImageSize: WechatBodyImageSize) {
+    switch (bodyImageSize) {
+      case "landscape-16-9":
+        return "16 / 9";
+      case "square-1-1":
+        return "1 / 1";
+      case "portrait-4-3":
+        return "3 / 4";
+      default:
+        return "4 / 3";
+    }
   }
 
   private renderWechatArticleHtml(params: WechatArticleDraftRecord) {
@@ -9973,10 +10028,6 @@ export class WorksService {
       .filter(Boolean)
       .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
       .join("");
-    const buildBadgeRow = (title: string, values: string[]) =>
-      values.length
-        ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}14;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
-        : "";
     const summary = params.summary
       ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
       : "";
@@ -9991,9 +10042,6 @@ export class WorksService {
       `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · 固定输出 HTML · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
       summary,
       `<section style="margin-top:24px;">${paragraphs}</section>`,
-      params.injectMarketingCalendar ? buildBadgeRow("营销日历植入", params.selectedMarketingLabels) : "",
-      params.injectProducts ? buildBadgeRow("产品信息植入", params.selectedProductLabels) : "",
-      params.injectBrandProfile ? buildBadgeRow("品牌信息植入", params.selectedBrandLabels) : "",
       "</section></main></body></html>",
     ].join("");
   }
@@ -10005,10 +10053,6 @@ export class WorksService {
       .filter(Boolean)
       .map((item) => `<p style="margin:0 0 14px;color:#24314a;font-size:16px;line-height:1.95;">${this.escapeHtml(item)}</p>`)
       .join("");
-    const buildBadgeRow = (title: string, values: string[]) =>
-      values.length
-        ? `<section style="margin-top:22px;padding:18px 20px;border-radius:20px;background:#f8fafc;border:1px solid #e4e8f0;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:10px;">${this.escapeHtml(title)}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${values.map((item) => `<span style="display:inline-flex;padding:6px 12px;border-radius:999px;background:${this.escapeHtml(params.themeColor)}14;color:${this.escapeHtml(params.themeColor)};font-size:12px;font-weight:700;">${this.escapeHtml(item)}</span>`).join("")}</div></section>`
-        : "";
     const summary = params.summary
       ? `<section style="margin:18px 0 0;padding:18px 20px;border-radius:22px;background:${this.escapeHtml(params.themeColor)}12;border:1px solid ${this.escapeHtml(params.themeColor)}33;"><div style="font-size:13px;color:${this.escapeHtml(params.themeColor)};font-weight:700;">摘要</div><p style="margin:10px 0 0;color:#24314a;font-size:15px;line-height:1.9;">${this.escapeHtml(params.summary)}</p></section>`
       : "";
@@ -10023,9 +10067,6 @@ export class WorksService {
       `<div style="color:#63708a;font-size:13px;">${this.escapeHtml(params.author)} · API 发布准备中 · 评论策略 ${this.escapeHtml(params.commentMode)}</div>`,
       summary,
       `<section style="margin-top:24px;">${paragraphs}</section>`,
-      buildBadgeRow("营销日历资料", params.selectedMarketingLabels),
-      buildBadgeRow("产品资料", params.selectedProductLabels),
-      params.injectBrandProfile ? buildBadgeRow("品牌资料", params.selectedBrandLabels) : "",
       "</section></main></body></html>",
     ].join("");
   }
@@ -17666,6 +17707,10 @@ export class WorksService {
     prompt: string,
     referenceImageUrls: string[],
     promptMode: ImagePromptMode = "social_graphic",
+    imageSizeOverride?: {
+      apiz: string;
+      openai: string;
+    },
   ) {
     if (provider.requestMode === "apiz-task") {
       const normalizedModelName = String(modelName || "").toLowerCase();
@@ -17673,7 +17718,7 @@ export class WorksService {
         && (provider.supportsReferenceImages || normalizedModelName.includes("/edit"));
       const params: Record<string, unknown> = {
         prompt,
-        image_size: this.resolveApizImageSize(modelName, referenceImageUrls, promptMode),
+        image_size: imageSizeOverride?.apiz || this.resolveApizImageSize(modelName, referenceImageUrls, promptMode),
         resolution: "1K",
         num_images: 1,
       };
@@ -17691,7 +17736,7 @@ export class WorksService {
         model: modelName,
         prompt,
         image: referenceImageUrls,
-        size: "1242x1660",
+        size: imageSizeOverride?.openai || "1242x1660",
         response_format: "url",
       };
     }

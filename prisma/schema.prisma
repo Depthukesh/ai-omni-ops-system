@@ -471,6 +471,7 @@ model WechatWorkflowSession {
   themeColor                String
   commentMode               String
   imageMode                 String
+  bodyImageSize             String   @default("landscape-4-3")
   injectBrandProfile        Boolean  @default(false)
   selectedMarketingLabelsJson Json
   selectedProductLabelsJson Json

@@ -16,7 +16,6 @@ type PublishWechatDraftPayload = {
   coverImageUrl: string;
   needOpenComment: boolean;
   onlyFansCanComment: boolean;
-  contentSourceUrl?: string;
 };
 
 type WechatTokenResponse = {
@@ -69,7 +68,6 @@ export class WechatOfficialAccountApiService {
                 author: payload.author || "",
                 digest: payload.summary || "",
                 content: payload.htmlContent,
-                content_source_url: this.normalizeContentSourceUrl(payload.contentSourceUrl),
                 thumb_media_id: thumbMediaId,
                 need_open_comment: payload.needOpenComment ? 1 : 0,
                 only_fans_can_comment: payload.onlyFansCanComment ? 1 : 0,
@@ -210,14 +208,6 @@ export class WechatOfficialAccountApiService {
       default:
         return ".jpg";
     }
-  }
-
-  private normalizeContentSourceUrl(value: string | undefined) {
-    const explicit = String(value || "").trim();
-    if (explicit && /^https?:\/\//i.test(explicit)) {
-      return explicit;
-    }
-    return this.appConfigService.getWebPublicBaseUrl();
   }
 
   private async requestJson<T>(

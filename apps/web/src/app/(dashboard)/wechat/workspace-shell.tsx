@@ -30,6 +30,7 @@ import {
   updateWechatWorkflowPublishConfirm,
   type WechatAccountConfigRecord,
   type WechatArticleDraftRecord,
+  type WechatBodyImageSize,
   type WechatCommentMode,
   type WechatImageMode,
   type WechatOfficialAccountRecord,
@@ -124,7 +125,21 @@ function resolveCurrentStepIndex(step: WechatWorkflowStep) {
 type WechatPreviewImageSources = {
   coverImageUrl?: string;
   bodyImageUrls: string[];
+  bodyImageAspectRatio?: string;
 };
+
+function resolveWechatBodyImageAspectRatio(size?: WechatBodyImageSize) {
+  switch (size) {
+    case "landscape-16-9":
+      return "16 / 9";
+    case "square-1-1":
+      return "1 / 1";
+    case "portrait-4-3":
+      return "3 / 4";
+    default:
+      return "4 / 3";
+  }
+}
 
 function replaceWechatImageTag(tag: string, url: string, alt: string) {
   let nextTag = tag;
@@ -142,11 +157,12 @@ function replaceWechatImageTag(tag: string, url: string, alt: string) {
 }
 
 function buildWechatGeneratedImageAppendBlock(sources: WechatPreviewImageSources) {
+  const bodyImageAspectRatio = resolveWechatBodyImageAspectRatio();
   const coverBlock = sources.coverImageUrl
-    ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">封面图</div><img src="${sources.coverImageUrl}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
+    ? `<section style="margin-top:24px;"><img src="${sources.coverImageUrl}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
     : "";
   const galleryBlock = sources.bodyImageUrls.length
-    ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">正文配图</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${sources.bodyImageUrls.map((imageUrl, index) => `<img src="${imageUrl}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:4 / 3;object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
+    ? `<section style="margin-top:24px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${sources.bodyImageUrls.map((imageUrl, index) => `<img src="${imageUrl}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:${sources.bodyImageAspectRatio || bodyImageAspectRatio};object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
     : "";
   return `${coverBlock}${galleryBlock}`;
 }
@@ -191,6 +207,7 @@ function resolveWorkflowPreviewImageSources(workflow: WechatWorkflowSessionRecor
   return {
     coverImageUrl: workflow.imageBundle?.coverImageUrl,
     bodyImageUrls: workflow.imageBundle?.bodyImageUrls || [],
+    bodyImageAspectRatio: resolveWechatBodyImageAspectRatio(workflow.bodyImageSize),
   };
 }
 
@@ -200,6 +217,7 @@ function resolveDraftPreviewImageSources(draft: WechatArticleDraftRecord): Wecha
   return {
     coverImageUrl: coverTask?.generatedImageUrls[0],
     bodyImageUrls: bodyTask?.generatedImageUrls || [],
+    bodyImageAspectRatio: resolveWechatBodyImageAspectRatio(),
   };
 }
 
@@ -405,12 +423,6 @@ export function WechatWorkspaceShell() {
       setSelectedWorkflowId(sessions[0].id);
     }
   }, [sessions, selectedWorkflowId]);
-
-  useEffect(() => {
-    if (!createCalendarId && calendarItems[0]?.id) {
-      setCreateCalendarId(calendarItems[0].id);
-    }
-  }, [calendarItems, createCalendarId]);
 
   useEffect(() => {
     if (!createProductId) {
@@ -812,7 +824,7 @@ export function WechatWorkspaceShell() {
                 <div className="workspace-toolbar top-toolbar">
                   <div>
                     <strong>配置初始化</strong>
-                    <p className="wechat-description">先完成公众号 API 接入信息，再保存工作流默认作者、主题色、默认输入方式与默认账号。</p>
+                    <p className="wechat-description">先完成公众号 API 接入信息。</p>
                   </div>
                 </div>
 
@@ -848,79 +860,6 @@ export function WechatWorkspaceShell() {
                           onChange={(event) => setWhitelistText(event.target.value)}
                           placeholder={"47.97.12.20\n47.97.12.21"}
                         />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section className="light-data-panel">
-                    <div className="wechat-panel-head">
-                      <div>
-                        <strong>工作流默认配置</strong>
-                        <p className="wechat-inline-tip">对应 `EXTEND.md` 的站内化默认配置入口。</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={() => void handleSavePreferences()}
-                        disabled={isSavingPreferences}
-                      >
-                        {isSavingPreferences ? "保存中..." : "保存默认项"}
-                      </button>
-                    </div>
-                    <div className="wechat-form-grid">
-                      <label className="wechat-field">
-                        <span>默认作者</span>
-                        <input value={defaultAuthor} onChange={(event) => setDefaultAuthor(event.target.value)} placeholder="品牌内容中心" />
-                      </label>
-                      <label className="wechat-field">
-                        <span>默认评论策略</span>
-                        <select value={defaultCommentMode} onChange={(event) => setDefaultCommentMode(event.target.value as WechatCommentMode)}>
-                          {commentModeOptions.map((item) => (
-                            <option key={item.value} value={item.value}>
-                              {item.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="wechat-field">
-                        <span>默认输入方式</span>
-                        <select value={defaultInputType} onChange={(event) => setDefaultInputType(event.target.value as WechatWorkflowInputType)}>
-                          {inputTypeOptions.map((item) => (
-                            <option key={item.value} value={item.value}>
-                              {item.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="wechat-field">
-                        <span>默认公众号账号</span>
-                        <select value={defaultAccountId} onChange={(event) => setDefaultAccountId(event.target.value)}>
-                          <option value="">请选择默认账号</option>
-                          {accounts.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.accountName}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="wechat-field wechat-field--full">
-                        <span>默认主题色</span>
-                        <div className="wechat-swatch-row">
-                          {themeOptions.map((item) => (
-                            <button
-                              key={item.color}
-                              type="button"
-                              className={`wechat-swatch ${defaultTheme === item.color ? "is-active" : ""}`}
-                              style={{ background: item.color }}
-                              onClick={() => setDefaultTheme(item.color)}
-                              aria-label={item.label}
-                            />
-                          ))}
-                        </div>
-                      </label>
-                      <label className="wechat-checkbox-row">
-                        <input type="checkbox" checked={fanCommentsOnly} onChange={(event) => setFanCommentsOnly(event.target.checked)} />
-                        <span>启用“仅粉丝评论”偏好</span>
                       </label>
                     </div>
                   </section>

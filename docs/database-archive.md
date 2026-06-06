@@ -203,6 +203,7 @@
 - 公众号创作过程数据
   - 主表：`WechatWorkflowSession`
   - 用途：持久化输入资料、文章阶段输出、`htmlContent`、图片 briefs、生图结果、发布确认状态，支持用户离开页面后继续编辑
+  - 关键字段：`imageMode`、`bodyImageSize`、`imageBundleJson`、`publishConfigJson`
 - 公众号文章草稿与发布历史
   - 主表：`WechatArticleDraft`、`WechatPublishHistory`
   - 用途：持久化草稿正文、HTML、图片任务、发布状态、重试记录与错误详情
