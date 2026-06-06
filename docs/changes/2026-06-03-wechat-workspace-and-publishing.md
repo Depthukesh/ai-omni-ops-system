@@ -223,8 +223,16 @@
 ### 当前边界
 
 - 当前已经满足“用户在技能中心里选择模型，公众号工作流实际按该模型执行”的主要求。
-- 当前尚未完成的不是模型接线本身，而是：
-  - mock store 正式入库
+- 当前新增了公众号正式持久化表：
+  - `WechatAccountConfig`
+  - `WechatWorkflowPreference`
+  - `WechatOfficialAccount`
+  - `WechatWorkflowSession`
+  - `WechatArticleDraft`
+  - `WechatPublishHistory`
+- 公众号配置、工作流会话、文章草稿、发布历史现在改为数据库优先；只有数据库不可用时才回退到内存 mock store。
+- 生图阶段在遇到 `rate_limit_exceeded / 429 / quota` 时，会停止同模型下的 prompt 级重复尝试，转而继续切换下一候选模型或供应商，避免第三方平台里刷出大量同类失败任务。
+- 当前尚待继续完成的主要是：
   - 多账号真实联调
   - 发布结果与历史的生产态验收
 

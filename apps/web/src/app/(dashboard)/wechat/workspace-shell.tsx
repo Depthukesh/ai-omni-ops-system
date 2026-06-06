@@ -122,6 +122,88 @@ function resolveCurrentStepIndex(step: WechatWorkflowStep) {
   return index === -1 ? 0 : index;
 }
 
+type WechatPreviewImageSources = {
+  coverImageUrl?: string;
+  bodyImageUrls: string[];
+};
+
+function replaceWechatImageTag(tag: string, url: string, alt: string) {
+  let nextTag = tag;
+  if (/\bsrc\s*=/i.test(nextTag)) {
+    nextTag = nextTag.replace(/\bsrc\s*=\s*(['"])(.*?)\1/i, `src="${url}"`);
+  } else {
+    nextTag = nextTag.replace(/<img\b/i, `<img src="${url}"`);
+  }
+  if (/\balt\s*=/i.test(nextTag)) {
+    nextTag = nextTag.replace(/\balt\s*=\s*(['"])(.*?)\1/i, `alt="${alt}"`);
+  } else {
+    nextTag = nextTag.replace(/<img\b/i, `<img alt="${alt}"`);
+  }
+  return nextTag;
+}
+
+function buildWechatGeneratedImageAppendBlock(sources: WechatPreviewImageSources) {
+  const coverBlock = sources.coverImageUrl
+    ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">封面图</div><img src="${sources.coverImageUrl}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
+    : "";
+  const galleryBlock = sources.bodyImageUrls.length
+    ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">正文配图</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${sources.bodyImageUrls.map((imageUrl, index) => `<img src="${imageUrl}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:4 / 3;object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
+    : "";
+  return `${coverBlock}${galleryBlock}`;
+}
+
+function injectWechatImagesIntoHtml(htmlContent: string, sources: WechatPreviewImageSources) {
+  const normalizedHtml = String(htmlContent || "").trim();
+  if (!normalizedHtml) {
+    return normalizedHtml;
+  }
+  const imageQueue = [String(sources.coverImageUrl || "").trim(), ...sources.bodyImageUrls.map((item) => String(item || "").trim())].filter(Boolean);
+  if (!imageQueue.length) {
+    return normalizedHtml;
+  }
+  let cursor = 0;
+  const replacedHtml = normalizedHtml.replace(/<img\b[^>]*>/gi, (tag) => {
+    const nextUrl = imageQueue[cursor];
+    if (!nextUrl) {
+      return tag;
+    }
+    const alt = cursor === 0 ? "公众号封面图" : `公众号正文配图${cursor}`;
+    cursor += 1;
+    return replaceWechatImageTag(tag, nextUrl, alt);
+  });
+  const remaining = imageQueue.slice(cursor);
+  if (!remaining.length) {
+    return replacedHtml;
+  }
+  const appendedBlock = buildWechatGeneratedImageAppendBlock({
+    coverImageUrl: cursor === 0 ? imageQueue[0] : undefined,
+    bodyImageUrls: cursor === 0 ? imageQueue.slice(1) : remaining,
+  });
+  if (/<\/main>/i.test(replacedHtml)) {
+    return replacedHtml.replace(/<\/main>/i, `${appendedBlock}</main>`);
+  }
+  if (/<\/body>/i.test(replacedHtml)) {
+    return replacedHtml.replace(/<\/body>/i, `${appendedBlock}</body>`);
+  }
+  return `${replacedHtml}${appendedBlock}`;
+}
+
+function resolveWorkflowPreviewImageSources(workflow: WechatWorkflowSessionRecord): WechatPreviewImageSources {
+  return {
+    coverImageUrl: workflow.imageBundle?.coverImageUrl,
+    bodyImageUrls: workflow.imageBundle?.bodyImageUrls || [],
+  };
+}
+
+function resolveDraftPreviewImageSources(draft: WechatArticleDraftRecord): WechatPreviewImageSources {
+  const coverTask = draft.imageTasks?.find((item) => item.kind === "cover");
+  const bodyTask = draft.imageTasks?.find((item) => item.kind === "body");
+  return {
+    coverImageUrl: coverTask?.generatedImageUrls[0],
+    bodyImageUrls: bodyTask?.generatedImageUrls || [],
+  };
+}
+
 export function WechatWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<WechatSectionKey>("workflow");
   const [brandId] = useState(() => getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID);
@@ -149,6 +231,7 @@ export function WechatWorkspaceShell() {
   const [isLoadingPublishHistoryDetail, setIsLoadingPublishHistoryDetail] = useState(false);
   const [retryingPublishHistoryId, setRetryingPublishHistoryId] = useState("");
   const [publishingDraftId, setPublishingDraftId] = useState("");
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -387,11 +470,39 @@ export function WechatWorkspaceShell() {
     };
   }, [brandId, selectedPublishHistoryId]);
 
-  function openDraftPreview(htmlContent: string) {
+  useEffect(() => {
+    if (!previewImage) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPreviewImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewImage]);
+
+  function openHtmlPreview(htmlContent: string) {
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener,noreferrer");
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+
+  function openWorkflowPreview(workflow: WechatWorkflowSessionRecord) {
+    openHtmlPreview(injectWechatImagesIntoHtml(workflow.htmlContent, resolveWorkflowPreviewImageSources(workflow)));
+  }
+
+  function openDraftPreview(draft: WechatArticleDraftRecord) {
+    openHtmlPreview(injectWechatImagesIntoHtml(draft.htmlContent, resolveDraftPreviewImageSources(draft)));
+  }
+
+  function handleOpenImagePreview(url?: string, alt = "预览图片") {
+    if (!url) {
+      return;
+    }
+    setPreviewImage({ url, alt });
   }
 
   function upsertSession(item: WechatWorkflowSessionRecord) {
@@ -1138,7 +1249,7 @@ export function WechatWorkspaceShell() {
                             </div>
                             <div className="strategy-inline-actions">
                               {selectedWorkflow.htmlContent ? (
-                                <button type="button" className="secondary-button" onClick={() => openDraftPreview(selectedWorkflow.htmlContent)}>
+                                <button type="button" className="secondary-button" onClick={() => openWorkflowPreview(selectedWorkflow)}>
                                   预览 HTML
                                 </button>
                               ) : null}
@@ -1234,12 +1345,25 @@ export function WechatWorkspaceShell() {
                                 </div>
                                 <p className="wechat-inline-tip">{selectedWorkflow.imageBundle.promptSummary}</p>
                                 {selectedWorkflow.imageBundle.coverImageUrl ? (
-                                  <img src={selectedWorkflow.imageBundle.coverImageUrl} alt="公众号封面图" className="wechat-generated-cover" />
+                                  <button
+                                    type="button"
+                                    className="wechat-image-preview-trigger"
+                                    onClick={() => handleOpenImagePreview(selectedWorkflow.imageBundle?.coverImageUrl, "公众号封面图预览")}
+                                  >
+                                    <img src={selectedWorkflow.imageBundle.coverImageUrl} alt="公众号封面图" className="wechat-generated-cover" />
+                                  </button>
                                 ) : null}
                                 {selectedWorkflow.imageBundle.bodyImageUrls.length ? (
                                   <div className="wechat-generated-gallery">
-                                    {selectedWorkflow.imageBundle.bodyImageUrls.map((imageUrl) => (
-                                      <img key={imageUrl} src={imageUrl} alt="公众号正文配图" className="wechat-generated-thumb" />
+                                    {selectedWorkflow.imageBundle.bodyImageUrls.map((imageUrl, index) => (
+                                      <button
+                                        key={imageUrl}
+                                        type="button"
+                                        className="wechat-image-preview-trigger"
+                                        onClick={() => handleOpenImagePreview(imageUrl, `公众号正文配图 ${index + 1} 预览`)}
+                                      >
+                                        <img src={imageUrl} alt={`公众号正文配图 ${index + 1}`} className="wechat-generated-thumb" />
+                                      </button>
                                     ))}
                                   </div>
                                 ) : (
@@ -1424,7 +1548,7 @@ export function WechatWorkspaceShell() {
                                       ? "发布中..."
                                       : "一键发布"}
                                 </button>
-                                <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft.htmlContent)}>
+                                <button type="button" className="secondary-button" onClick={() => openDraftPreview(draft)}>
                                   查看 HTML
                                 </button>
                               </div>
@@ -1457,11 +1581,22 @@ export function WechatWorkspaceShell() {
                         ) : selectedPublishHistory ? (
                           <div className="wechat-history-detail-grid">
                             {selectedPublishHistory.coverImageUrl ? (
-                              <img
-                                src={selectedPublishHistory.coverImageUrl}
-                                alt={selectedPublishHistory.workflowTitle}
-                                className="wechat-generated-cover"
-                              />
+                              <button
+                                type="button"
+                                className="wechat-image-preview-trigger"
+                                onClick={() =>
+                                  handleOpenImagePreview(
+                                    selectedPublishHistory.coverImageUrl,
+                                    `${selectedPublishHistory.workflowTitle} 封面图预览`,
+                                  )
+                                }
+                              >
+                                <img
+                                  src={selectedPublishHistory.coverImageUrl}
+                                  alt={selectedPublishHistory.workflowTitle}
+                                  className="wechat-generated-cover"
+                                />
+                              </button>
                             ) : (
                               <div className="empty-state">当前记录没有封面图。</div>
                             )}
@@ -1500,6 +1635,18 @@ export function WechatWorkspaceShell() {
           </div>
         </div>
       </section>
+
+      {previewImage ? (
+        <div className="wechat-image-preview-overlay" role="dialog" aria-modal="true" onClick={() => setPreviewImage(null)}>
+          <div className="wechat-image-preview-dialog" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="wechat-image-preview-close" onClick={() => setPreviewImage(null)}>
+              关闭
+            </button>
+            <img src={previewImage.url} alt={previewImage.alt} className="wechat-image-preview-full" />
+            <p className="wechat-inline-tip">{previewImage.alt}</p>
+          </div>
+        </div>
+      ) : null}
 
       <style jsx>{`
         .wechat-layout {
@@ -1717,6 +1864,57 @@ export function WechatWorkspaceShell() {
 
         .wechat-generated-thumb {
           aspect-ratio: 16 / 9;
+        }
+
+        .wechat-image-preview-trigger {
+          padding: 0;
+          border: 0;
+          background: transparent;
+          cursor: zoom-in;
+        }
+
+        .wechat-image-preview-trigger :global(img) {
+          display: block;
+        }
+
+        .wechat-image-preview-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 40;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+          background: rgba(15, 23, 42, 0.72);
+        }
+
+        .wechat-image-preview-dialog {
+          display: grid;
+          gap: 12px;
+          width: min(960px, 100%);
+          max-height: calc(100vh - 48px);
+          padding: 18px;
+          border-radius: 24px;
+          background: #ffffff;
+          box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+        }
+
+        .wechat-image-preview-close {
+          justify-self: end;
+          padding: 8px 14px;
+          border-radius: 999px;
+          border: 1px solid #d6dce7;
+          background: #f8fafc;
+          color: #24314a;
+          cursor: pointer;
+        }
+
+        .wechat-image-preview-full {
+          width: 100%;
+          max-height: calc(100vh - 180px);
+          object-fit: contain;
+          border-radius: 18px;
+          background: #f8fafc;
+          border: 1px solid #e4e8f0;
         }
 
         .wechat-account-card,

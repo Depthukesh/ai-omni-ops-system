@@ -832,6 +832,130 @@ type WechatOfficialAccountStoreItem = {
 type WechatWorkflowSessionStoreItem = WechatWorkflowSessionRecord;
 type WechatPublishHistoryStoreItem = WechatPublishHistoryRecord;
 
+type WechatAccountConfigRow = {
+  brandId: string;
+  appId: string;
+  appSecret: string;
+  whitelistIpsJson: Prisma.JsonValue | null;
+  defaultAuthor: string | null;
+  defaultThemeColor: string | null;
+  commentMode: string;
+  updatedAt: Date | string;
+};
+
+type WechatWorkflowPreferenceRow = {
+  brandId: string;
+  defaultAuthor: string;
+  defaultThemeColor: string;
+  commentMode: string;
+  fanCommentsOnly: boolean;
+  defaultInputType: string;
+  defaultAccountId: string | null;
+  updatedAt: Date | string;
+};
+
+type WechatOfficialAccountRow = {
+  id: string;
+  brandId: string;
+  accountName: string;
+  appId: string;
+  appSecret: string;
+  whitelistIpsJson: Prisma.JsonValue | null;
+  isDefault: boolean;
+  updatedAt: Date | string;
+};
+
+type WechatWorkflowSessionRow = {
+  id: string;
+  brandId: string;
+  accountId: string | null;
+  accountName: string | null;
+  status: string;
+  currentStep: string;
+  inputType: string;
+  inputContent: string | null;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  articleProvider: string | null;
+  articleRuntimeKey: string | null;
+  articleModelName: string | null;
+  coverImageBrief: string | null;
+  bodyImageBriefsJson: Prisma.JsonValue | null;
+  themeColor: string;
+  commentMode: string;
+  imageMode: string;
+  injectBrandProfile: boolean;
+  selectedMarketingLabelsJson: Prisma.JsonValue | null;
+  selectedProductLabelsJson: Prisma.JsonValue | null;
+  selectedBrandLabelsJson: Prisma.JsonValue | null;
+  imageBundleJson: Prisma.JsonValue | null;
+  publishConfigJson: Prisma.JsonValue | null;
+  linkedDraftId: string | null;
+  errorDetail: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+type WechatArticleDraftRow = {
+  id: string;
+  taskId: string;
+  brandId: string;
+  title: string;
+  summary: string;
+  author: string;
+  content: string;
+  htmlContent: string;
+  outputFormat: string;
+  coverMode: string;
+  commentMode: string;
+  imageMode: string;
+  themeColor: string;
+  injectMarketingCalendar: boolean;
+  injectProducts: boolean;
+  injectBrandProfile: boolean;
+  selectedMarketingLabelsJson: Prisma.JsonValue | null;
+  selectedProductLabelsJson: Prisma.JsonValue | null;
+  selectedBrandLabelsJson: Prisma.JsonValue | null;
+  articleSkillSlug: string;
+  articlePromptScene: string;
+  articleProvider: string;
+  articleRuntimeKey: string;
+  articleModelName: string;
+  coverImageBrief: string | null;
+  bodyImageBriefsJson: Prisma.JsonValue | null;
+  imageTasksJson: Prisma.JsonValue | null;
+  publishStatus: string;
+  publishedAt: Date | string | null;
+  publishTaskId: string | null;
+  taskStatus: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+type WechatPublishHistoryRow = {
+  id: string;
+  brandId: string;
+  workflowId: string;
+  workflowTitle: string;
+  accountId: string | null;
+  accountName: string | null;
+  status: string;
+  summary: string;
+  coverImageUrl: string | null;
+  mediaId: string | null;
+  publishTaskId: string | null;
+  sourceDraftId: string | null;
+  commentMode: string;
+  fanCommentsOnly: boolean;
+  retryCount: number;
+  errorDetail: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
 type DigitalHumanFavoriteTemplateStoreItem = {
   id: string;
   userId: string;
@@ -1990,6 +2114,8 @@ type VideoProviderFailureDisposition = "hard" | "retryable";
 
 @Injectable()
 export class WorksService {
+  private wechatPersistenceBootstrapPromise?: Promise<void>;
+
   constructor(
     @Inject(AppConfigService)
     private readonly appConfigService: AppConfigService,
@@ -3027,6 +3153,20 @@ export class WorksService {
   }
 
   async listWechatArticleDrafts(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const rows = await this.prismaService.$queryRaw<WechatArticleDraftRow[]>`
+        SELECT *
+        FROM "WechatArticleDraft"
+        WHERE "brandId" = ${brandId}
+        ORDER BY "updatedAt" DESC
+      `;
+      const items = rows
+        .map((item) => this.normalizeWechatArticleDraftRow(item))
+        .map((item) => this.hydrateWechatDraftTaskStatus(item));
+      return { items };
+    }
+
     const items = wechatArticleDraftMockStore
       .filter((item) => item.brandId === brandId)
       .map((item) => this.hydrateWechatDraftTaskStatus(item))
@@ -3036,6 +3176,38 @@ export class WorksService {
   }
 
   async getWechatWorkflowPreferences(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const [preferenceRows, configRows, accountRows] = await Promise.all([
+        this.prismaService.$queryRaw<WechatWorkflowPreferenceRow[]>`
+          SELECT *
+          FROM "WechatWorkflowPreference"
+          WHERE "brandId" = ${brandId}
+          LIMIT 1
+        `,
+        this.prismaService.$queryRaw<WechatAccountConfigRow[]>`
+          SELECT *
+          FROM "WechatAccountConfig"
+          WHERE "brandId" = ${brandId}
+          LIMIT 1
+        `,
+        this.prismaService.$queryRaw<WechatOfficialAccountRow[]>`
+          SELECT *
+          FROM "WechatOfficialAccount"
+          WHERE "brandId" = ${brandId} AND "isDefault" = TRUE
+          ORDER BY "updatedAt" DESC
+          LIMIT 1
+        `,
+      ]);
+      const item = this.toWechatWorkflowPreferenceRecordFromSources(
+        brandId,
+        preferenceRows[0] ? this.normalizeWechatWorkflowPreferenceRow(preferenceRows[0]) : undefined,
+        configRows[0] ? this.normalizeWechatAccountConfigRow(configRows[0]) : undefined,
+        accountRows[0] ? this.normalizeWechatOfficialAccountRow(accountRows[0]) : undefined,
+      );
+      return { item };
+    }
+
     const item = this.getWechatWorkflowPreferenceStoreItem(brandId);
     return {
       item: this.toWechatWorkflowPreferenceRecord(brandId, item),
@@ -3043,6 +3215,49 @@ export class WorksService {
   }
 
   async saveWechatWorkflowPreferences(brandId: string, payload: SaveWechatWorkflowPreferencePayload) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const [existingRows, configRows, accountRows] = await Promise.all([
+        this.prismaService.$queryRaw<WechatWorkflowPreferenceRow[]>`
+          SELECT *
+          FROM "WechatWorkflowPreference"
+          WHERE "brandId" = ${brandId}
+          LIMIT 1
+        `,
+        this.prismaService.$queryRaw<WechatAccountConfigRow[]>`
+          SELECT *
+          FROM "WechatAccountConfig"
+          WHERE "brandId" = ${brandId}
+          LIMIT 1
+        `,
+        this.prismaService.$queryRaw<WechatOfficialAccountRow[]>`
+          SELECT *
+          FROM "WechatOfficialAccount"
+          WHERE "brandId" = ${brandId}
+          ORDER BY "isDefault" DESC, "updatedAt" DESC
+        `,
+      ]);
+      const existing = existingRows[0] ? this.normalizeWechatWorkflowPreferenceRow(existingRows[0]) : undefined;
+      const config = configRows[0] ? this.normalizeWechatAccountConfigRow(configRows[0]) : undefined;
+      const accounts = accountRows.map((item) => this.normalizeWechatOfficialAccountRow(item));
+      const normalizedDefaultAccountId = String(payload.defaultAccountId || "").trim() || existing?.defaultAccountId || accounts[0]?.id;
+      const next: WechatWorkflowPreferenceStoreItem = {
+        brandId,
+        defaultAuthor: String(payload.defaultAuthor || "").trim() || existing?.defaultAuthor || config?.defaultAuthor || "品牌内容中心",
+        defaultThemeColor:
+          String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || config?.defaultThemeColor || "#25554a",
+        commentMode: payload.commentMode || existing?.commentMode || config?.commentMode || "open",
+        fanCommentsOnly: payload.fanCommentsOnly ?? existing?.fanCommentsOnly ?? false,
+        defaultInputType: payload.defaultInputType || existing?.defaultInputType || "calendar",
+        defaultAccountId: normalizedDefaultAccountId,
+        updatedAt: new Date().toISOString(),
+      };
+      await this.persistWechatWorkflowPreferenceStoreItem(next);
+      return {
+        item: this.toWechatWorkflowPreferenceRecordFromSources(brandId, next, config, accounts.find((item) => item.id === next.defaultAccountId)),
+      };
+    }
+
     const existing = this.getWechatWorkflowPreferenceStoreItem(brandId);
     const config = this.getWechatAccountConfigStoreItem(brandId);
     const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
@@ -3070,6 +3285,19 @@ export class WorksService {
   }
 
   async listWechatOfficialAccounts(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const rows = await this.prismaService.$queryRaw<WechatOfficialAccountRow[]>`
+        SELECT *
+        FROM "WechatOfficialAccount"
+        WHERE "brandId" = ${brandId}
+        ORDER BY "isDefault" DESC, "updatedAt" DESC
+      `;
+      return {
+        items: rows.map((item) => this.toWechatOfficialAccountRecord(this.normalizeWechatOfficialAccountRow(item))),
+      };
+    }
+
     const items = wechatOfficialAccountMockStore
       .filter((item) => item.brandId === brandId)
       .map((item) => this.toWechatOfficialAccountRecord(item));
@@ -3077,6 +3305,19 @@ export class WorksService {
   }
 
   async listWechatWorkflowSessions(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const rows = await this.prismaService.$queryRaw<WechatWorkflowSessionRow[]>`
+        SELECT *
+        FROM "WechatWorkflowSession"
+        WHERE "brandId" = ${brandId}
+        ORDER BY "updatedAt" DESC
+      `;
+      return {
+        items: rows.map((item) => this.toWechatWorkflowSessionRecord(this.normalizeWechatWorkflowSessionRow(item))),
+      };
+    }
+
     const items = wechatWorkflowSessionMockStore
       .filter((item) => item.brandId === brandId)
       .map((item) => this.toWechatWorkflowSessionRecord(item))
@@ -3085,6 +3326,19 @@ export class WorksService {
   }
 
   async listWechatPublishHistory(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const rows = await this.prismaService.$queryRaw<WechatPublishHistoryRow[]>`
+        SELECT *
+        FROM "WechatPublishHistory"
+        WHERE "brandId" = ${brandId}
+        ORDER BY "updatedAt" DESC
+      `;
+      return {
+        items: rows.map((item) => this.toWechatPublishHistoryRecord(this.normalizeWechatPublishHistoryRow(item))),
+      };
+    }
+
     const items = wechatPublishHistoryMockStore
       .filter((item) => item.brandId === brandId)
       .map((item) => this.toWechatPublishHistoryRecord(item))
@@ -3093,6 +3347,13 @@ export class WorksService {
   }
 
   async getWechatPublishHistoryItem(brandId: string, historyId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      const target = await this.loadWechatPublishHistoryStoreItem(brandId, historyId);
+      return {
+        item: this.toWechatPublishHistoryRecord(target),
+      };
+    }
+
     const target = this.getWechatPublishHistoryStoreItem(brandId, historyId);
     return {
       item: this.toWechatPublishHistoryRecord(target),
@@ -3100,6 +3361,13 @@ export class WorksService {
   }
 
   async getWechatWorkflowSession(brandId: string, workflowId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+      return {
+        item: this.toWechatWorkflowSessionRecord(target),
+      };
+    }
+
     const target = wechatWorkflowSessionMockStore.find((item) => item.brandId === brandId && item.id === workflowId);
     if (!target) {
       throw new NotFoundException("公众号工作流不存在。");
@@ -3110,8 +3378,8 @@ export class WorksService {
   }
 
   async retryWechatPublishHistoryItem(brandId: string, historyId: string, auth?: RequestAuthContext) {
-    const history = this.getWechatPublishHistoryStoreItem(brandId, historyId);
-    const session = this.getWechatWorkflowSessionStoreItem(brandId, history.workflowId);
+    const history = await this.loadWechatPublishHistoryStoreItem(brandId, historyId);
+    const session = await this.loadWechatWorkflowSessionStoreItem(brandId, history.workflowId);
     session.publishConfig = {
       ready: true,
       accountId: session.accountId,
@@ -3127,16 +3395,85 @@ export class WorksService {
     session.status = "PUBLISH_CONFIRM_PENDING";
     session.currentStep = "publish";
     session.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(session);
     return this.publishWechatWorkflow(brandId, session.id, auth, history.retryCount + 1);
   }
 
   async getWechatAccountConfig(brandId: string) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const rows = await this.prismaService.$queryRaw<WechatAccountConfigRow[]>`
+        SELECT *
+        FROM "WechatAccountConfig"
+        WHERE "brandId" = ${brandId}
+        LIMIT 1
+      `;
+      return {
+        item: this.toWechatAccountConfigRecord(rows[0] ? this.normalizeWechatAccountConfigRow(rows[0]) : undefined),
+      };
+    }
+
     return {
       item: this.toWechatAccountConfigRecord(this.getWechatAccountConfigStoreItem(brandId)),
     };
   }
 
   async saveWechatAccountConfig(brandId: string, payload: SaveWechatAccountConfigPayload) {
+    if (await this.canUseWechatPersistenceDatabase()) {
+      await this.ensureWechatPersistenceTablesReady();
+      const [existingConfigRows, existingAccountRows] = await Promise.all([
+        this.prismaService.$queryRaw<WechatAccountConfigRow[]>`
+          SELECT *
+          FROM "WechatAccountConfig"
+          WHERE "brandId" = ${brandId}
+          LIMIT 1
+        `,
+        this.prismaService.$queryRaw<WechatOfficialAccountRow[]>`
+          SELECT *
+          FROM "WechatOfficialAccount"
+          WHERE "brandId" = ${brandId} AND "isDefault" = TRUE
+          ORDER BY "updatedAt" DESC
+          LIMIT 1
+        `,
+      ]);
+      const existing = existingConfigRows[0] ? this.normalizeWechatAccountConfigRow(existingConfigRows[0]) : undefined;
+      const normalizedAppId = String(payload.appId || "").trim();
+      const normalizedAppSecret = String(payload.appSecret || "").trim();
+      if (!normalizedAppId) {
+        throw new BadRequestException("请填写公众号 AppID。");
+      }
+      if (!normalizedAppSecret && !existing?.appSecret) {
+        throw new BadRequestException("请填写公众号 AppSecret。");
+      }
+      const now = new Date().toISOString();
+      const next: WechatAccountConfigStoreItem = {
+        brandId,
+        appId: normalizedAppId,
+        appSecret: normalizedAppSecret || existing?.appSecret || "",
+        whitelistIps: this.normalizeWechatLabels(payload.whitelistIps, existing?.whitelistIps || []),
+        defaultAuthor: String(payload.defaultAuthor || "").trim() || existing?.defaultAuthor || "品牌内容中心",
+        defaultThemeColor: String(payload.defaultThemeColor || "").trim() || existing?.defaultThemeColor || "#25554a",
+        commentMode: payload.commentMode || existing?.commentMode || "open",
+        updatedAt: now,
+      };
+      await this.persistWechatAccountConfigStoreItem(next);
+      const existingAccount = existingAccountRows[0] ? this.normalizeWechatOfficialAccountRow(existingAccountRows[0]) : undefined;
+      const nextAccount: WechatOfficialAccountStoreItem = {
+        id: existingAccount?.id || createId("wechat_account"),
+        brandId,
+        accountName: existingAccount?.accountName || "默认公众号账号",
+        appId: next.appId,
+        appSecret: next.appSecret,
+        whitelistIps: next.whitelistIps,
+        isDefault: true,
+        updatedAt: now,
+      };
+      await this.persistWechatOfficialAccountStoreItem(nextAccount);
+      return {
+        item: this.toWechatAccountConfigRecord(next),
+      };
+    }
+
     const normalizedAppId = String(payload.appId || "").trim();
     const normalizedAppSecret = String(payload.appSecret || "").trim();
     const existing = this.getWechatAccountConfigStoreItem(brandId);
@@ -3186,12 +3523,14 @@ export class WorksService {
   }
 
   async createWechatWorkflow(brandId: string, payload: CreateWechatWorkflowPayload) {
-    const preferences = this.getWechatWorkflowPreferenceStoreItem(brandId);
-    const config = this.getWechatAccountConfigStoreItem(brandId);
+    const [preferences, config, accounts] = await Promise.all([
+      this.loadWechatWorkflowPreferenceStoreItem(brandId),
+      this.loadWechatAccountConfigStoreItem(brandId),
+      this.loadWechatOfficialAccountStoreItems(brandId),
+    ]);
     if (!preferences && !config) {
       throw new BadRequestException("请先完成公众号初始化配置。");
     }
-    const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
     const selectedAccount =
       accounts.find((item) => item.id === String(payload.accountId || "").trim()) ||
       accounts.find((item) => item.id === preferences?.defaultAccountId) ||
@@ -3223,15 +3562,17 @@ export class WorksService {
       createdAt: now,
       updatedAt: now,
     };
-    wechatWorkflowSessionMockStore.unshift(record);
+    await this.persistWechatWorkflowSessionStoreItem(record);
     return {
       item: this.toWechatWorkflowSessionRecord(record),
     };
   }
 
   async updateWechatWorkflowInput(brandId: string, workflowId: string, payload: UpdateWechatWorkflowInputPayload) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
-    const accounts = wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
+    const [target, accounts] = await Promise.all([
+      this.loadWechatWorkflowSessionStoreItem(brandId, workflowId),
+      this.loadWechatOfficialAccountStoreItems(brandId),
+    ]);
     const selectedAccount =
       accounts.find((item) => item.id === String(payload.accountId || "").trim()) ||
       accounts.find((item) => item.id === target.accountId) ||
@@ -3262,13 +3603,14 @@ export class WorksService {
     target.currentStep = "article";
     target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
   }
 
   async generateWechatWorkflowArticle(brandId: string, workflowId: string) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
     const articleResult = await this.generateWechatArticleByModel({
       brandId,
       inputType: target.inputType,
@@ -3297,13 +3639,14 @@ export class WorksService {
     target.currentStep = "image";
     target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
   }
 
   async updateWechatWorkflowArticle(brandId: string, workflowId: string, payload: UpdateWechatWorkflowArticlePayload) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
     const previousContent = target.content;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
@@ -3317,13 +3660,14 @@ export class WorksService {
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
     target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
   }
 
   async generateWechatWorkflowImages(brandId: string, workflowId: string) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
     const promptSummary = this.buildWechatImagePrompt(target.title, target.summary || target.content, target.themeColor, target.imageMode);
     const prompts = this.buildWechatWorkflowImagePrompts(target);
     const [coverImageConfig, bodyImageConfig] = await Promise.all([
@@ -3346,6 +3690,7 @@ export class WorksService {
       bodyImageUrls: [],
       prompts,
     };
+    await this.persistWechatWorkflowSessionStoreItem(target);
     try {
       const coverPrompt = prompts[0] || promptSummary;
       const coverAsset = await this.generateImageAsset({
@@ -3395,6 +3740,7 @@ export class WorksService {
         bodyRuntimeKey: bodyAssets.length ? "image-generation" : undefined,
         bodyModelName: bodyAssets[0]?.modelName,
       };
+      target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "公众号生图失败。";
       target.imageBundle = {
@@ -3406,6 +3752,7 @@ export class WorksService {
       };
       target.errorDetail = message;
       target.updatedAt = new Date().toISOString();
+      await this.persistWechatWorkflowSessionStoreItem(target);
       throw error;
     }
     const coverImageUrl = target.imageBundle.coverImageUrl || "";
@@ -3423,6 +3770,7 @@ export class WorksService {
     target.currentStep = "publish";
     target.errorDetail = undefined;
     target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
@@ -3433,8 +3781,10 @@ export class WorksService {
     workflowId: string,
     payload: UpdateWechatWorkflowPublishPayload,
   ) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
-    const config = this.getWechatAccountConfigStoreItem(brandId);
+    const [target, config] = await Promise.all([
+      this.loadWechatWorkflowSessionStoreItem(brandId, workflowId),
+      this.loadWechatAccountConfigStoreItem(brandId),
+    ]);
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary || this.buildWechatWorkflowSummary(target);
     target.author = String(payload.author || "").trim() || target.author;
@@ -3464,17 +3814,20 @@ export class WorksService {
       publishedAt: target.publishConfig?.publishedAt,
       publishTaskId: target.publishConfig?.publishTaskId,
     };
-    target.htmlContent = this.renderWechatWorkflowArticleHtml(target);
+    target.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
     target.updatedAt = new Date().toISOString();
     target.errorDetail = ready ? undefined : "发布确认未完成，请检查 API 凭证、白名单和封面图。";
+    await this.persistWechatWorkflowSessionStoreItem(target);
     return {
       item: this.toWechatWorkflowSessionRecord(target),
     };
   }
 
   async publishWechatWorkflow(brandId: string, workflowId: string, auth?: RequestAuthContext, retryCount = 0) {
-    const target = this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
-    const config = this.getWechatAccountConfigStoreItem(brandId);
+    const [target, config] = await Promise.all([
+      this.loadWechatWorkflowSessionStoreItem(brandId, workflowId),
+      this.loadWechatAccountConfigStoreItem(brandId),
+    ]);
     let publishTaskId = "";
     try {
       if (!target.publishConfig?.ready) {
@@ -3496,6 +3849,7 @@ export class WorksService {
       await this.markTaskRunning(task.id);
       target.status = "PUBLISHING";
       target.updatedAt = new Date().toISOString();
+      await this.persistWechatWorkflowSessionStoreItem(target);
       const publishResult = await this.wechatOfficialAccountApiService.publishDraft(
         {
           appId: config.appId,
@@ -3505,7 +3859,7 @@ export class WorksService {
           title: target.title,
           author: target.author,
           summary: target.summary,
-          htmlContent: target.htmlContent || this.renderWechatWorkflowArticleHtml(target),
+          htmlContent: this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true }),
           coverImageUrl: target.publishConfig.coverImageUrl || "",
           needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
           onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.publishConfig.fanCommentsOnly),
@@ -3535,7 +3889,7 @@ export class WorksService {
         modelName: target.imageBundle?.bodyModelName || bodyImageRuntimeFallback.modelName,
       };
       const existingDraft = target.linkedDraftId
-        ? wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === target.linkedDraftId)
+        ? await this.loadWechatArticleDraftStoreItem(brandId, target.linkedDraftId, { allowMissing: true })
         : undefined;
       const nextDraft: WechatArticleDraftRecord = existingDraft || {
         id: createId("wechat_draft"),
@@ -3545,7 +3899,7 @@ export class WorksService {
         summary: target.summary,
         author: target.author,
         content: target.content,
-        htmlContent: target.htmlContent,
+        htmlContent: this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true }),
         outputFormat: "HTML",
         coverMode: "ai",
         commentMode: target.commentMode,
@@ -3574,7 +3928,7 @@ export class WorksService {
       nextDraft.summary = target.summary;
       nextDraft.author = target.author;
       nextDraft.content = target.content;
-      nextDraft.htmlContent = target.htmlContent;
+      nextDraft.htmlContent = this.buildWechatWorkflowResolvedHtmlContent(target, { preferExisting: true });
       nextDraft.commentMode = target.commentMode;
       nextDraft.imageMode = target.imageMode;
       nextDraft.themeColor = target.themeColor;
@@ -3624,9 +3978,7 @@ export class WorksService {
       nextDraft.publishedAt = now;
       nextDraft.publishTaskId = task.id;
       nextDraft.updatedAt = now;
-      if (!existingDraft) {
-        wechatArticleDraftMockStore.unshift(nextDraft);
-      }
+      await this.persistWechatArticleDraftRecord(nextDraft);
       target.linkedDraftId = nextDraft.id;
       target.status = "PUBLISHED";
       target.currentStep = "result";
@@ -3644,6 +3996,7 @@ export class WorksService {
       };
       target.updatedAt = now;
       target.errorDetail = undefined;
+      await this.persistWechatWorkflowSessionStoreItem(target);
       await this.markTaskSuccess(
         task.id,
         {
@@ -3656,7 +4009,7 @@ export class WorksService {
         },
         { modelName: "wechat-official-account-api-publish" },
       );
-      this.appendWechatPublishHistoryRecord(target, {
+      await this.appendWechatPublishHistoryRecord(target, {
         status: "SUCCESS",
         mediaId,
         publishTaskId: task.id,
@@ -3678,7 +4031,8 @@ export class WorksService {
       if (publishTaskId) {
         await this.markTaskFailed(publishTaskId, message);
       }
-      this.appendWechatPublishHistoryRecord(target, {
+      await this.persistWechatWorkflowSessionStoreItem(target);
+      await this.appendWechatPublishHistoryRecord(target, {
         status: "FAILED",
         publishTaskId: publishTaskId || undefined,
         retryCount,
@@ -3690,12 +4044,13 @@ export class WorksService {
   }
 
   async generateWechatArticleDraft(brandId: string, payload: WechatArticleComposePayload, auth?: RequestAuthContext) {
+    const config = await this.loadWechatAccountConfigStoreItem(brandId);
     const title = String(payload.title || "").trim() || "公众号文章草稿";
     const summary = String(payload.summary || "").trim() || "围绕营销节点、产品信息和品牌信息生成公众号文章摘要。";
-    const author = String(payload.author || "").trim() || this.getWechatAccountConfigStoreItem(brandId)?.defaultAuthor || "品牌内容中心";
+    const author = String(payload.author || "").trim() || config?.defaultAuthor || "品牌内容中心";
     const content = String(payload.content || "").trim() || "请输入公众号文章正文内容。";
-    const themeColor = String(payload.themeColor || "").trim() || this.getWechatAccountConfigStoreItem(brandId)?.defaultThemeColor || "#25554a";
-    const commentMode = payload.commentMode || this.getWechatAccountConfigStoreItem(brandId)?.commentMode || "open";
+    const themeColor = String(payload.themeColor || "").trim() || config?.defaultThemeColor || "#25554a";
+    const commentMode = payload.commentMode || config?.commentMode || "open";
     const coverMode = payload.coverMode || "ai";
     const imageMode = payload.imageMode || "cover-and-body";
     const [articleRuntime, coverImageRuntime, bodyImageRuntime] = await Promise.all([
@@ -3791,7 +4146,7 @@ export class WorksService {
         createdAt: now,
         updatedAt: now,
       };
-      wechatArticleDraftMockStore.unshift(record);
+      await this.persistWechatArticleDraftRecord(record);
 
       await this.markTaskSuccess(
         task.id,
@@ -3816,10 +4171,7 @@ export class WorksService {
   }
 
   async updateWechatArticleDraft(brandId: string, draftId: string, payload: UpdateWechatArticleDraftPayload) {
-    const target = wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === draftId);
-    if (!target) {
-      throw new NotFoundException("公众号文章草稿不存在。");
-    }
+    const target = await this.loadWechatArticleDraftStoreItem(brandId, draftId);
     const previousContent = target.content;
     target.title = String(payload.title || "").trim() || target.title;
     target.summary = String(payload.summary || "").trim() || target.summary;
@@ -3869,20 +4221,20 @@ export class WorksService {
       updatedAt: now,
     });
     target.updatedAt = now;
-    target.htmlContent = target.htmlContent && target.content === previousContent
-      ? target.htmlContent
-      : this.renderWechatArticleHtml(target);
+    target.htmlContent = target.content === previousContent
+      ? this.buildWechatDraftResolvedHtmlContent(target, { preferExisting: true })
+      : this.buildWechatDraftResolvedHtmlContent(target);
+    await this.persistWechatArticleDraftRecord(target);
     return {
       item: this.hydrateWechatDraftTaskStatus(target),
     };
   }
 
   async publishWechatArticleDraft(brandId: string, draftId: string, auth?: RequestAuthContext) {
-    const target = wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === draftId);
-    if (!target) {
-      throw new NotFoundException("公众号文章草稿不存在。");
-    }
-    const config = this.getWechatAccountConfigStoreItem(brandId);
+    const [target, config] = await Promise.all([
+      this.loadWechatArticleDraftStoreItem(brandId, draftId),
+      this.loadWechatAccountConfigStoreItem(brandId),
+    ]);
     if (!config?.appId || !config?.appSecret) {
       throw new BadRequestException("请先在配置页面完成 AppID 和 AppSecret 配置。");
     }
@@ -3906,7 +4258,7 @@ export class WorksService {
           title: target.title,
           author: target.author,
           summary: target.summary,
-          htmlContent: target.htmlContent || this.renderWechatArticleHtml(target),
+          htmlContent: this.buildWechatDraftResolvedHtmlContent(target, { preferExisting: true }),
           coverImageUrl: this.resolveWechatDraftCoverImageUrl(target),
           needOpenComment: this.resolveWechatNeedOpenComment(target.commentMode),
           onlyFansCanComment: this.resolveWechatOnlyFansCanComment(target.commentMode, target.commentMode === "fans"),
@@ -3918,6 +4270,7 @@ export class WorksService {
       target.publishedAt = now;
       target.publishTaskId = task.id;
       target.updatedAt = now;
+      await this.persistWechatArticleDraftRecord(target);
       await this.markTaskSuccess(
         task.id,
         {
@@ -7027,6 +7380,7 @@ export class WorksService {
       for (const baseUrl of baseUrlsToTry) {
         for (const apiKey of apiKeysToTry) {
           for (const modelName of modelsToTry) {
+            let shouldSkipRemainingPromptCandidates = false;
             for (const promptCandidate of promptsToTry) {
               const attemptLabel = this.buildImageAttemptLabel(provider.providerName, modelName, baseUrl);
               try {
@@ -7050,6 +7404,10 @@ export class WorksService {
                   if (!providerTaskId) {
                     lastError = this.readVideoCreateFailureReason(createResponse) || `${modelName} 未返回任务 ID`;
                     attemptTrail.push(`${attemptLabel} -> ${lastError}`);
+                    if (this.shouldShortCircuitImagePromptRetries(lastError)) {
+                      shouldSkipRemainingPromptCandidates = true;
+                      break;
+                    }
                     continue;
                   }
                   providerTaskIdForResult = providerTaskId;
@@ -7073,6 +7431,10 @@ export class WorksService {
                     const responseSnippet = await this.readResponseSnippet(response);
                     lastError = `${modelName} 请求失败：${response.status}${responseSnippet ? `，${responseSnippet}` : ""}`;
                     attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                    if (this.shouldShortCircuitImagePromptRetries(lastError)) {
+                      shouldSkipRemainingPromptCandidates = true;
+                      break;
+                    }
                     continue;
                   }
                   const payload = await response.json() as Record<string, unknown>;
@@ -7124,6 +7486,13 @@ export class WorksService {
               } catch (error) {
                 lastError = this.normalizeImageGenerationFailureMessage(error instanceof Error ? error.message : "图片生成失败");
                 attemptTrail.push(`${attemptLabel} -> ${lastError}`);
+                if (this.shouldShortCircuitImagePromptRetries(lastError)) {
+                  shouldSkipRemainingPromptCandidates = true;
+                  break;
+                }
+              }
+              if (shouldSkipRemainingPromptCandidates) {
+                break;
               }
             }
           }
@@ -7807,6 +8176,587 @@ export class WorksService {
     return this.getBrandOwnerUserId(brandId);
   }
 
+  private async canUseWechatPersistenceDatabase() {
+    const dbAvailable = await this.prismaService.canUseDatabase();
+    if (dbAvailable) {
+      return true;
+    }
+    if (this.prismaService.isConfigured()) {
+      throw new ServiceUnavailableException("公众号持久化数据库当前不可用，请先恢复数据库连接后再操作，避免配置和创作记录丢失。");
+    }
+    return false;
+  }
+
+  private async ensureWechatPersistenceTablesReady() {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return;
+    }
+    if (!this.wechatPersistenceBootstrapPromise) {
+      this.wechatPersistenceBootstrapPromise = this.bootstrapWechatPersistenceTables();
+    }
+    await this.wechatPersistenceBootstrapPromise;
+  }
+
+  private async bootstrapWechatPersistenceTables() {
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatAccountConfig" (
+        "brandId" TEXT PRIMARY KEY,
+        "appId" TEXT NOT NULL DEFAULT '',
+        "appSecret" TEXT NOT NULL DEFAULT '',
+        "whitelistIpsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "defaultAuthor" TEXT NULL,
+        "defaultThemeColor" TEXT NULL,
+        "commentMode" TEXT NOT NULL DEFAULT 'open',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatWorkflowPreference" (
+        "brandId" TEXT PRIMARY KEY,
+        "defaultAuthor" TEXT NOT NULL DEFAULT '品牌内容中心',
+        "defaultThemeColor" TEXT NOT NULL DEFAULT '#25554a',
+        "commentMode" TEXT NOT NULL DEFAULT 'open',
+        "fanCommentsOnly" BOOLEAN NOT NULL DEFAULT FALSE,
+        "defaultInputType" TEXT NOT NULL DEFAULT 'calendar',
+        "defaultAccountId" TEXT NULL,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatOfficialAccount" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL,
+        "accountName" TEXT NOT NULL DEFAULT '',
+        "appId" TEXT NOT NULL DEFAULT '',
+        "appSecret" TEXT NOT NULL DEFAULT '',
+        "whitelistIpsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "isDefault" BOOLEAN NOT NULL DEFAULT FALSE,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatWorkflowSession" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL,
+        "accountId" TEXT NULL,
+        "accountName" TEXT NULL,
+        "status" TEXT NOT NULL,
+        "currentStep" TEXT NOT NULL,
+        "inputType" TEXT NOT NULL,
+        "inputContent" TEXT NULL,
+        "title" TEXT NOT NULL DEFAULT '',
+        "summary" TEXT NOT NULL DEFAULT '',
+        "author" TEXT NOT NULL DEFAULT '',
+        "content" TEXT NOT NULL DEFAULT '',
+        "htmlContent" TEXT NOT NULL DEFAULT '',
+        "articleProvider" TEXT NULL,
+        "articleRuntimeKey" TEXT NULL,
+        "articleModelName" TEXT NULL,
+        "coverImageBrief" TEXT NULL,
+        "bodyImageBriefsJson" JSONB NULL,
+        "themeColor" TEXT NOT NULL DEFAULT '#25554a',
+        "commentMode" TEXT NOT NULL DEFAULT 'open',
+        "imageMode" TEXT NOT NULL DEFAULT 'cover-and-body',
+        "injectBrandProfile" BOOLEAN NOT NULL DEFAULT FALSE,
+        "selectedMarketingLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "selectedProductLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "selectedBrandLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "imageBundleJson" JSONB NULL,
+        "publishConfigJson" JSONB NULL,
+        "linkedDraftId" TEXT NULL,
+        "errorDetail" TEXT NULL,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatArticleDraft" (
+        "id" TEXT PRIMARY KEY,
+        "taskId" TEXT NOT NULL,
+        "brandId" TEXT NOT NULL,
+        "title" TEXT NOT NULL DEFAULT '',
+        "summary" TEXT NOT NULL DEFAULT '',
+        "author" TEXT NOT NULL DEFAULT '',
+        "content" TEXT NOT NULL DEFAULT '',
+        "htmlContent" TEXT NOT NULL DEFAULT '',
+        "outputFormat" TEXT NOT NULL DEFAULT 'HTML',
+        "coverMode" TEXT NOT NULL DEFAULT 'ai',
+        "commentMode" TEXT NOT NULL DEFAULT 'open',
+        "imageMode" TEXT NOT NULL DEFAULT 'cover-and-body',
+        "themeColor" TEXT NOT NULL DEFAULT '#25554a',
+        "injectMarketingCalendar" BOOLEAN NOT NULL DEFAULT TRUE,
+        "injectProducts" BOOLEAN NOT NULL DEFAULT TRUE,
+        "injectBrandProfile" BOOLEAN NOT NULL DEFAULT FALSE,
+        "selectedMarketingLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "selectedProductLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "selectedBrandLabelsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "articleSkillSlug" TEXT NOT NULL DEFAULT 'wechat-article-composer',
+        "articlePromptScene" TEXT NOT NULL DEFAULT '公众号创作文章',
+        "articleProvider" TEXT NOT NULL DEFAULT '',
+        "articleRuntimeKey" TEXT NOT NULL DEFAULT '',
+        "articleModelName" TEXT NOT NULL DEFAULT '',
+        "coverImageBrief" TEXT NULL,
+        "bodyImageBriefsJson" JSONB NULL,
+        "imageTasksJson" JSONB NULL,
+        "publishStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+        "publishedAt" TIMESTAMPTZ NULL,
+        "publishTaskId" TEXT NULL,
+        "taskStatus" TEXT NOT NULL DEFAULT 'QUEUED',
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WechatPublishHistory" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NOT NULL,
+        "workflowId" TEXT NOT NULL,
+        "workflowTitle" TEXT NOT NULL DEFAULT '',
+        "accountId" TEXT NULL,
+        "accountName" TEXT NULL,
+        "status" TEXT NOT NULL,
+        "summary" TEXT NOT NULL DEFAULT '',
+        "coverImageUrl" TEXT NULL,
+        "mediaId" TEXT NULL,
+        "publishTaskId" TEXT NULL,
+        "sourceDraftId" TEXT NULL,
+        "commentMode" TEXT NOT NULL DEFAULT 'open',
+        "fanCommentsOnly" BOOLEAN NOT NULL DEFAULT FALSE,
+        "retryCount" INTEGER NOT NULL DEFAULT 0,
+        "errorDetail" TEXT NULL,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "WechatOfficialAccount_brandId_updatedAt_idx" ON "WechatOfficialAccount" ("brandId", "updatedAt" DESC)`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "WechatWorkflowSession_brandId_updatedAt_idx" ON "WechatWorkflowSession" ("brandId", "updatedAt" DESC)`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "WechatArticleDraft_brandId_updatedAt_idx" ON "WechatArticleDraft" ("brandId", "updatedAt" DESC)`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "WechatPublishHistory_brandId_updatedAt_idx" ON "WechatPublishHistory" ("brandId", "updatedAt" DESC)`,
+    );
+  }
+
+  private async loadWechatAccountConfigStoreItem(brandId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return this.getWechatAccountConfigStoreItem(brandId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatAccountConfigRow[]>`
+      SELECT *
+      FROM "WechatAccountConfig"
+      WHERE "brandId" = ${brandId}
+      LIMIT 1
+    `;
+    return rows[0] ? this.normalizeWechatAccountConfigRow(rows[0]) : undefined;
+  }
+
+  private async loadWechatWorkflowPreferenceStoreItem(brandId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return this.getWechatWorkflowPreferenceStoreItem(brandId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatWorkflowPreferenceRow[]>`
+      SELECT *
+      FROM "WechatWorkflowPreference"
+      WHERE "brandId" = ${brandId}
+      LIMIT 1
+    `;
+    return rows[0] ? this.normalizeWechatWorkflowPreferenceRow(rows[0]) : undefined;
+  }
+
+  private async loadWechatOfficialAccountStoreItems(brandId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return wechatOfficialAccountMockStore.filter((item) => item.brandId === brandId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatOfficialAccountRow[]>`
+      SELECT *
+      FROM "WechatOfficialAccount"
+      WHERE "brandId" = ${brandId}
+      ORDER BY "isDefault" DESC, "updatedAt" DESC
+    `;
+    return rows.map((item) => this.normalizeWechatOfficialAccountRow(item));
+  }
+
+  private async loadWechatWorkflowSessionStoreItem(brandId: string, workflowId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return this.getWechatWorkflowSessionStoreItem(brandId, workflowId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatWorkflowSessionRow[]>`
+      SELECT *
+      FROM "WechatWorkflowSession"
+      WHERE "brandId" = ${brandId} AND "id" = ${workflowId}
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      throw new NotFoundException("公众号工作流不存在。");
+    }
+    return this.normalizeWechatWorkflowSessionRow(rows[0]);
+  }
+
+  private async loadWechatPublishHistoryStoreItem(brandId: string, historyId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return this.getWechatPublishHistoryStoreItem(brandId, historyId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatPublishHistoryRow[]>`
+      SELECT *
+      FROM "WechatPublishHistory"
+      WHERE "brandId" = ${brandId} AND "id" = ${historyId}
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      throw new NotFoundException("公众号发布历史不存在。");
+    }
+    return this.normalizeWechatPublishHistoryRow(rows[0]);
+  }
+
+  private async loadWechatArticleDraftStoreItem(
+    brandId: string,
+    draftId: string,
+  ): Promise<WechatArticleDraftRecord>;
+  private async loadWechatArticleDraftStoreItem(
+    brandId: string,
+    draftId: string,
+    options: { allowMissing: true },
+  ): Promise<WechatArticleDraftRecord | undefined>;
+  private async loadWechatArticleDraftStoreItem(
+    brandId: string,
+    draftId: string,
+    options?: { allowMissing?: boolean },
+  ): Promise<WechatArticleDraftRecord | undefined> {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const target = wechatArticleDraftMockStore.find((item) => item.brandId === brandId && item.id === draftId);
+      if (!target && !options?.allowMissing) {
+        throw new NotFoundException("公众号文章草稿不存在。");
+      }
+      return target;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatArticleDraftRow[]>`
+      SELECT *
+      FROM "WechatArticleDraft"
+      WHERE "brandId" = ${brandId} AND "id" = ${draftId}
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      if (options?.allowMissing) {
+        return undefined;
+      }
+      throw new NotFoundException("公众号文章草稿不存在。");
+    }
+    return this.normalizeWechatArticleDraftRow(rows[0]);
+  }
+
+  private async persistWechatAccountConfigStoreItem(item: WechatAccountConfigStoreItem) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = this.getWechatAccountConfigStoreItem(item.brandId);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatAccountConfigMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatAccountConfig" (
+        "brandId",
+        "appId",
+        "appSecret",
+        "whitelistIpsJson",
+        "defaultAuthor",
+        "defaultThemeColor",
+        "commentMode",
+        "updatedAt"
+      )
+      VALUES (
+        ${item.brandId},
+        ${item.appId},
+        ${item.appSecret},
+        ${JSON.stringify(item.whitelistIps || [])}::jsonb,
+        ${item.defaultAuthor ?? null},
+        ${item.defaultThemeColor ?? null},
+        ${item.commentMode},
+        ${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("brandId") DO UPDATE SET
+        "appId" = EXCLUDED."appId",
+        "appSecret" = EXCLUDED."appSecret",
+        "whitelistIpsJson" = EXCLUDED."whitelistIpsJson",
+        "defaultAuthor" = EXCLUDED."defaultAuthor",
+        "defaultThemeColor" = EXCLUDED."defaultThemeColor",
+        "commentMode" = EXCLUDED."commentMode",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
+  private async persistWechatWorkflowPreferenceStoreItem(item: WechatWorkflowPreferenceStoreItem) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = this.getWechatWorkflowPreferenceStoreItem(item.brandId);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatWorkflowPreferenceMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatWorkflowPreference" (
+        "brandId",
+        "defaultAuthor",
+        "defaultThemeColor",
+        "commentMode",
+        "fanCommentsOnly",
+        "defaultInputType",
+        "defaultAccountId",
+        "updatedAt"
+      )
+      VALUES (
+        ${item.brandId},
+        ${item.defaultAuthor},
+        ${item.defaultThemeColor},
+        ${item.commentMode},
+        ${item.fanCommentsOnly},
+        ${item.defaultInputType},
+        ${item.defaultAccountId ?? null},
+        ${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("brandId") DO UPDATE SET
+        "defaultAuthor" = EXCLUDED."defaultAuthor",
+        "defaultThemeColor" = EXCLUDED."defaultThemeColor",
+        "commentMode" = EXCLUDED."commentMode",
+        "fanCommentsOnly" = EXCLUDED."fanCommentsOnly",
+        "defaultInputType" = EXCLUDED."defaultInputType",
+        "defaultAccountId" = EXCLUDED."defaultAccountId",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
+  private async persistWechatOfficialAccountStoreItem(item: WechatOfficialAccountStoreItem) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = wechatOfficialAccountMockStore.find((entry) => entry.brandId === item.brandId && entry.id === item.id);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatOfficialAccountMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    if (item.isDefault) {
+      await this.prismaService.$executeRaw`
+        UPDATE "WechatOfficialAccount"
+        SET "isDefault" = FALSE
+        WHERE "brandId" = ${item.brandId} AND "id" <> ${item.id}
+      `;
+    }
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatOfficialAccount" (
+        "id",
+        "brandId",
+        "accountName",
+        "appId",
+        "appSecret",
+        "whitelistIpsJson",
+        "isDefault",
+        "updatedAt"
+      )
+      VALUES (
+        ${item.id},
+        ${item.brandId},
+        ${item.accountName},
+        ${item.appId},
+        ${item.appSecret},
+        ${JSON.stringify(item.whitelistIps || [])}::jsonb,
+        ${item.isDefault},
+        ${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "brandId" = EXCLUDED."brandId",
+        "accountName" = EXCLUDED."accountName",
+        "appId" = EXCLUDED."appId",
+        "appSecret" = EXCLUDED."appSecret",
+        "whitelistIpsJson" = EXCLUDED."whitelistIpsJson",
+        "isDefault" = EXCLUDED."isDefault",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
+  private async persistWechatWorkflowSessionStoreItem(item: WechatWorkflowSessionStoreItem) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = wechatWorkflowSessionMockStore.find((entry) => entry.brandId === item.brandId && entry.id === item.id);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatWorkflowSessionMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatWorkflowSession" (
+        "id","brandId","accountId","accountName","status","currentStep","inputType","inputContent","title","summary","author","content",
+        "htmlContent","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
+        "imageMode","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson","imageBundleJson",
+        "publishConfigJson","linkedDraftId","errorDetail","createdAt","updatedAt"
+      )
+      VALUES (
+        ${item.id},${item.brandId},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.currentStep},${item.inputType},
+        ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${item.articleProvider ?? null},
+        ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
+        ${item.themeColor},${item.commentMode},${item.imageMode},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
+        ${JSON.stringify(item.selectedProductLabels || [])}::jsonb,${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,
+        ${item.imageBundle ? JSON.stringify(item.imageBundle) : null}::jsonb,${item.publishConfig ? JSON.stringify(item.publishConfig) : null}::jsonb,
+        ${item.linkedDraftId ?? null},${item.errorDetail ?? null},${new Date(item.createdAt)},${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "brandId" = EXCLUDED."brandId",
+        "accountId" = EXCLUDED."accountId",
+        "accountName" = EXCLUDED."accountName",
+        "status" = EXCLUDED."status",
+        "currentStep" = EXCLUDED."currentStep",
+        "inputType" = EXCLUDED."inputType",
+        "inputContent" = EXCLUDED."inputContent",
+        "title" = EXCLUDED."title",
+        "summary" = EXCLUDED."summary",
+        "author" = EXCLUDED."author",
+        "content" = EXCLUDED."content",
+        "htmlContent" = EXCLUDED."htmlContent",
+        "articleProvider" = EXCLUDED."articleProvider",
+        "articleRuntimeKey" = EXCLUDED."articleRuntimeKey",
+        "articleModelName" = EXCLUDED."articleModelName",
+        "coverImageBrief" = EXCLUDED."coverImageBrief",
+        "bodyImageBriefsJson" = EXCLUDED."bodyImageBriefsJson",
+        "themeColor" = EXCLUDED."themeColor",
+        "commentMode" = EXCLUDED."commentMode",
+        "imageMode" = EXCLUDED."imageMode",
+        "injectBrandProfile" = EXCLUDED."injectBrandProfile",
+        "selectedMarketingLabelsJson" = EXCLUDED."selectedMarketingLabelsJson",
+        "selectedProductLabelsJson" = EXCLUDED."selectedProductLabelsJson",
+        "selectedBrandLabelsJson" = EXCLUDED."selectedBrandLabelsJson",
+        "imageBundleJson" = EXCLUDED."imageBundleJson",
+        "publishConfigJson" = EXCLUDED."publishConfigJson",
+        "linkedDraftId" = EXCLUDED."linkedDraftId",
+        "errorDetail" = EXCLUDED."errorDetail",
+        "createdAt" = EXCLUDED."createdAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
+  private async persistWechatArticleDraftRecord(item: WechatArticleDraftRecord) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = wechatArticleDraftMockStore.find((entry) => entry.brandId === item.brandId && entry.id === item.id);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatArticleDraftMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatArticleDraft" (
+        "id","taskId","brandId","title","summary","author","content","htmlContent","outputFormat","coverMode","commentMode","imageMode","themeColor",
+        "injectMarketingCalendar","injectProducts","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson",
+        "articleSkillSlug","articlePromptScene","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson",
+        "imageTasksJson","publishStatus","publishedAt","publishTaskId","taskStatus","createdAt","updatedAt"
+      )
+      VALUES (
+        ${item.id},${item.taskId},${item.brandId},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${item.outputFormat},
+        ${item.coverMode},${item.commentMode},${item.imageMode},${item.themeColor},${item.injectMarketingCalendar},${item.injectProducts},
+        ${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,${JSON.stringify(item.selectedProductLabels || [])}::jsonb,
+        ${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,${item.articleSkillSlug},${item.articlePromptScene},${item.articleProvider},
+        ${item.articleRuntimeKey},${item.articleModelName},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
+        ${item.imageTasks ? JSON.stringify(item.imageTasks) : null}::jsonb,${item.publishStatus},${item.publishedAt ? new Date(item.publishedAt) : null},
+        ${item.publishTaskId ?? null},${item.taskStatus},${new Date(item.createdAt)},${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "taskId" = EXCLUDED."taskId",
+        "brandId" = EXCLUDED."brandId",
+        "title" = EXCLUDED."title",
+        "summary" = EXCLUDED."summary",
+        "author" = EXCLUDED."author",
+        "content" = EXCLUDED."content",
+        "htmlContent" = EXCLUDED."htmlContent",
+        "outputFormat" = EXCLUDED."outputFormat",
+        "coverMode" = EXCLUDED."coverMode",
+        "commentMode" = EXCLUDED."commentMode",
+        "imageMode" = EXCLUDED."imageMode",
+        "themeColor" = EXCLUDED."themeColor",
+        "injectMarketingCalendar" = EXCLUDED."injectMarketingCalendar",
+        "injectProducts" = EXCLUDED."injectProducts",
+        "injectBrandProfile" = EXCLUDED."injectBrandProfile",
+        "selectedMarketingLabelsJson" = EXCLUDED."selectedMarketingLabelsJson",
+        "selectedProductLabelsJson" = EXCLUDED."selectedProductLabelsJson",
+        "selectedBrandLabelsJson" = EXCLUDED."selectedBrandLabelsJson",
+        "articleSkillSlug" = EXCLUDED."articleSkillSlug",
+        "articlePromptScene" = EXCLUDED."articlePromptScene",
+        "articleProvider" = EXCLUDED."articleProvider",
+        "articleRuntimeKey" = EXCLUDED."articleRuntimeKey",
+        "articleModelName" = EXCLUDED."articleModelName",
+        "coverImageBrief" = EXCLUDED."coverImageBrief",
+        "bodyImageBriefsJson" = EXCLUDED."bodyImageBriefsJson",
+        "imageTasksJson" = EXCLUDED."imageTasksJson",
+        "publishStatus" = EXCLUDED."publishStatus",
+        "publishedAt" = EXCLUDED."publishedAt",
+        "publishTaskId" = EXCLUDED."publishTaskId",
+        "taskStatus" = EXCLUDED."taskStatus",
+        "createdAt" = EXCLUDED."createdAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
+  private async persistWechatPublishHistoryStoreItem(item: WechatPublishHistoryStoreItem) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      const existing = wechatPublishHistoryMockStore.find((entry) => entry.brandId === item.brandId && entry.id === item.id);
+      if (existing) {
+        Object.assign(existing, item);
+      } else {
+        wechatPublishHistoryMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "WechatPublishHistory" (
+        "id","brandId","workflowId","workflowTitle","accountId","accountName","status","summary","coverImageUrl","mediaId","publishTaskId",
+        "sourceDraftId","commentMode","fanCommentsOnly","retryCount","errorDetail","createdAt","updatedAt"
+      )
+      VALUES (
+        ${item.id},${item.brandId},${item.workflowId},${item.workflowTitle},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.summary},
+        ${item.coverImageUrl ?? null},${item.mediaId ?? null},${item.publishTaskId ?? null},${item.sourceDraftId ?? null},${item.commentMode},
+        ${item.fanCommentsOnly},${item.retryCount},${item.errorDetail ?? null},${new Date(item.createdAt)},${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "brandId" = EXCLUDED."brandId",
+        "workflowId" = EXCLUDED."workflowId",
+        "workflowTitle" = EXCLUDED."workflowTitle",
+        "accountId" = EXCLUDED."accountId",
+        "accountName" = EXCLUDED."accountName",
+        "status" = EXCLUDED."status",
+        "summary" = EXCLUDED."summary",
+        "coverImageUrl" = EXCLUDED."coverImageUrl",
+        "mediaId" = EXCLUDED."mediaId",
+        "publishTaskId" = EXCLUDED."publishTaskId",
+        "sourceDraftId" = EXCLUDED."sourceDraftId",
+        "commentMode" = EXCLUDED."commentMode",
+        "fanCommentsOnly" = EXCLUDED."fanCommentsOnly",
+        "retryCount" = EXCLUDED."retryCount",
+        "errorDetail" = EXCLUDED."errorDetail",
+        "createdAt" = EXCLUDED."createdAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
+  }
+
   private getWechatAccountConfigStoreItem(brandId: string) {
     return wechatAccountConfigMockStore.find((item) => item.brandId === brandId);
   }
@@ -7849,7 +8799,20 @@ export class WorksService {
     brandId: string,
     item?: WechatWorkflowPreferenceStoreItem,
   ): WechatWorkflowPreferenceRecord {
-    const config = this.getWechatAccountConfigStoreItem(brandId);
+    return this.toWechatWorkflowPreferenceRecordFromSources(
+      brandId,
+      item,
+      this.getWechatAccountConfigStoreItem(brandId),
+      wechatOfficialAccountMockStore.find((entry) => entry.brandId === brandId && entry.isDefault),
+    );
+  }
+
+  private toWechatWorkflowPreferenceRecordFromSources(
+    brandId: string,
+    item?: WechatWorkflowPreferenceStoreItem,
+    config?: WechatAccountConfigStoreItem,
+    defaultAccount?: WechatOfficialAccountStoreItem,
+  ): WechatWorkflowPreferenceRecord {
     return {
       brandId,
       initialized: Boolean(item || config),
@@ -7858,7 +8821,7 @@ export class WorksService {
       commentMode: item?.commentMode || config?.commentMode || "open",
       fanCommentsOnly: item?.fanCommentsOnly ?? false,
       defaultInputType: item?.defaultInputType || "calendar",
-      defaultAccountId: item?.defaultAccountId || wechatOfficialAccountMockStore.find((entry) => entry.brandId === brandId && entry.isDefault)?.id,
+      defaultAccountId: item?.defaultAccountId || defaultAccount?.id,
       updatedAt: item?.updatedAt || config?.updatedAt || new Date().toISOString(),
     };
   }
@@ -7885,7 +8848,217 @@ export class WorksService {
     return { ...item };
   }
 
-  private appendWechatPublishHistoryRecord(
+  private async loadWechatPublishHistoryByTaskId(brandId: string, publishTaskId: string) {
+    if (!(await this.canUseWechatPersistenceDatabase())) {
+      return wechatPublishHistoryMockStore.find((item) => item.brandId === brandId && item.publishTaskId === publishTaskId);
+    }
+    await this.ensureWechatPersistenceTablesReady();
+    const rows = await this.prismaService.$queryRaw<WechatPublishHistoryRow[]>`
+      SELECT *
+      FROM "WechatPublishHistory"
+      WHERE "brandId" = ${brandId} AND "publishTaskId" = ${publishTaskId}
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `;
+    return rows[0] ? this.normalizeWechatPublishHistoryRow(rows[0]) : undefined;
+  }
+
+  private normalizeWechatAccountConfigRow(row: WechatAccountConfigRow): WechatAccountConfigStoreItem {
+    return {
+      brandId: row.brandId,
+      appId: row.appId,
+      appSecret: row.appSecret,
+      whitelistIps: this.normalizeStringArray(row.whitelistIpsJson, []),
+      defaultAuthor: this.readOptionalString(row.defaultAuthor),
+      defaultThemeColor: this.readOptionalString(row.defaultThemeColor),
+      commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatWorkflowPreferenceRow(row: WechatWorkflowPreferenceRow): WechatWorkflowPreferenceStoreItem {
+    return {
+      brandId: row.brandId,
+      defaultAuthor: row.defaultAuthor || "品牌内容中心",
+      defaultThemeColor: row.defaultThemeColor || "#25554a",
+      commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
+      fanCommentsOnly: Boolean(row.fanCommentsOnly),
+      defaultInputType: this.normalizeWechatInputTypeValue(row.defaultInputType),
+      defaultAccountId: this.readOptionalString(row.defaultAccountId),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatOfficialAccountRow(row: WechatOfficialAccountRow): WechatOfficialAccountStoreItem {
+    return {
+      id: row.id,
+      brandId: row.brandId,
+      accountName: row.accountName || "默认公众号账号",
+      appId: row.appId,
+      appSecret: row.appSecret,
+      whitelistIps: this.normalizeStringArray(row.whitelistIpsJson, []),
+      isDefault: Boolean(row.isDefault),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatWorkflowSessionRow(row: WechatWorkflowSessionRow): WechatWorkflowSessionStoreItem {
+    return {
+      id: row.id,
+      brandId: row.brandId,
+      accountId: this.readOptionalString(row.accountId),
+      accountName: this.readOptionalString(row.accountName),
+      status: this.normalizeWechatWorkflowStatusValue(row.status),
+      currentStep: this.normalizeWechatWorkflowStepValue(row.currentStep),
+      inputType: this.normalizeWechatInputTypeValue(row.inputType),
+      inputContent: this.readOptionalString(row.inputContent),
+      title: row.title || "",
+      summary: row.summary || "",
+      author: row.author || "品牌内容中心",
+      content: row.content || "",
+      htmlContent: row.htmlContent || "",
+      articleProvider: this.readOptionalString(row.articleProvider),
+      articleRuntimeKey: this.readOptionalString(row.articleRuntimeKey),
+      articleModelName: this.readOptionalString(row.articleModelName),
+      coverImageBrief: this.readOptionalString(row.coverImageBrief),
+      bodyImageBriefs: this.normalizeStringArray(row.bodyImageBriefsJson, []),
+      themeColor: row.themeColor || "#25554a",
+      commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
+      imageMode: this.normalizeWechatImageModeValue(row.imageMode),
+      injectBrandProfile: Boolean(row.injectBrandProfile),
+      selectedMarketingLabels: this.normalizeStringArray(row.selectedMarketingLabelsJson, []),
+      selectedProductLabels: this.normalizeStringArray(row.selectedProductLabelsJson, []),
+      selectedBrandLabels: this.normalizeStringArray(row.selectedBrandLabelsJson, []),
+      imageBundle: this.asRecord(row.imageBundleJson) ? row.imageBundleJson as WechatWorkflowSessionRecord["imageBundle"] : undefined,
+      publishConfig: this.asRecord(row.publishConfigJson) ? row.publishConfigJson as WechatWorkflowSessionRecord["publishConfig"] : undefined,
+      linkedDraftId: this.readOptionalString(row.linkedDraftId),
+      errorDetail: this.readOptionalString(row.errorDetail),
+      createdAt: this.normalizeWechatTimestamp(row.createdAt),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatArticleDraftRow(row: WechatArticleDraftRow): WechatArticleDraftRecord {
+    return {
+      id: row.id,
+      taskId: row.taskId,
+      brandId: row.brandId,
+      title: row.title || "",
+      summary: row.summary || "",
+      author: row.author || "品牌内容中心",
+      content: row.content || "",
+      htmlContent: row.htmlContent || "",
+      outputFormat: "HTML",
+      coverMode: this.normalizeWechatCoverModeValue(row.coverMode),
+      commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
+      imageMode: this.normalizeWechatImageModeValue(row.imageMode),
+      themeColor: row.themeColor || "#25554a",
+      injectMarketingCalendar: Boolean(row.injectMarketingCalendar),
+      injectProducts: Boolean(row.injectProducts),
+      injectBrandProfile: Boolean(row.injectBrandProfile),
+      selectedMarketingLabels: this.normalizeStringArray(row.selectedMarketingLabelsJson, []),
+      selectedProductLabels: this.normalizeStringArray(row.selectedProductLabelsJson, []),
+      selectedBrandLabels: this.normalizeStringArray(row.selectedBrandLabelsJson, []),
+      articleSkillSlug: "wechat-article-composer",
+      articlePromptScene: "公众号创作文章",
+      articleProvider: row.articleProvider || "",
+      articleRuntimeKey: row.articleRuntimeKey || "",
+      articleModelName: row.articleModelName || "",
+      coverImageBrief: this.readOptionalString(row.coverImageBrief),
+      bodyImageBriefs: this.normalizeStringArray(row.bodyImageBriefsJson, []),
+      imageTasks: Array.isArray(row.imageTasksJson) ? row.imageTasksJson as WechatImageTaskRecord[] : undefined,
+      publishStatus: row.publishStatus === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
+      publishedAt: row.publishedAt ? this.normalizeWechatTimestamp(row.publishedAt) : undefined,
+      publishTaskId: this.readOptionalString(row.publishTaskId),
+      taskStatus: this.normalizeWechatTaskStatusValue(row.taskStatus),
+      createdAt: this.normalizeWechatTimestamp(row.createdAt),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatPublishHistoryRow(row: WechatPublishHistoryRow): WechatPublishHistoryStoreItem {
+    return {
+      id: row.id,
+      brandId: row.brandId,
+      workflowId: row.workflowId,
+      workflowTitle: row.workflowTitle || "",
+      accountId: this.readOptionalString(row.accountId),
+      accountName: this.readOptionalString(row.accountName),
+      status: row.status === "SUCCESS" ? "SUCCESS" : "FAILED",
+      summary: row.summary || "",
+      coverImageUrl: this.readOptionalString(row.coverImageUrl),
+      mediaId: this.readOptionalString(row.mediaId),
+      publishTaskId: this.readOptionalString(row.publishTaskId),
+      sourceDraftId: this.readOptionalString(row.sourceDraftId),
+      commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
+      fanCommentsOnly: Boolean(row.fanCommentsOnly),
+      retryCount: Number.isFinite(row.retryCount) ? row.retryCount : 0,
+      errorDetail: this.readOptionalString(row.errorDetail),
+      createdAt: this.normalizeWechatTimestamp(row.createdAt),
+      updatedAt: this.normalizeWechatTimestamp(row.updatedAt),
+    };
+  }
+
+  private normalizeWechatTimestamp(value: Date | string | null | undefined) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    const text = String(value || "").trim();
+    return text || new Date().toISOString();
+  }
+
+  private normalizeWechatCommentModeValue(value: unknown): WechatCommentMode {
+    const normalized = String(value || "").trim();
+    return normalized === "fans" || normalized === "close" ? normalized : "open";
+  }
+
+  private normalizeWechatCoverModeValue(value: unknown): WechatCoverMode {
+    const normalized = String(value || "").trim();
+    return normalized === "upload" || normalized === "asset" ? normalized : "ai";
+  }
+
+  private normalizeWechatImageModeValue(value: unknown): WechatImageMode {
+    const normalized = String(value || "").trim();
+    return normalized === "cover-only" || normalized === "body-only" ? normalized : "cover-and-body";
+  }
+
+  private normalizeWechatInputTypeValue(value: unknown): WechatWorkflowInputType {
+    const normalized = String(value || "").trim();
+    return normalized === "plain-text" || normalized === "markdown" || normalized === "html" ? normalized : "calendar";
+  }
+
+  private normalizeWechatWorkflowStepValue(value: unknown): WechatWorkflowStep {
+    const normalized = String(value || "").trim();
+    return normalized === "article" || normalized === "image" || normalized === "publish" || normalized === "result" ? normalized : "input";
+  }
+
+  private normalizeWechatWorkflowStatusValue(value: unknown): WechatWorkflowStatus {
+    const normalized = String(value || "").trim();
+    return normalized === "INIT_REQUIRED"
+      || normalized === "INPUT_PENDING"
+      || normalized === "ARTICLE_PENDING"
+      || normalized === "IMAGE_PENDING"
+      || normalized === "PUBLISH_CONFIRM_PENDING"
+      || normalized === "PUBLISHING"
+      || normalized === "PUBLISHED"
+      || normalized === "FAILED"
+      ? normalized
+      : "INPUT_PENDING";
+  }
+
+  private normalizeWechatTaskStatusValue(value: unknown): WorkTaskStatus {
+    const normalized = String(value || "").trim();
+    return normalized === "PENDING"
+      || normalized === "QUEUED"
+      || normalized === "RUNNING"
+      || normalized === "SUCCESS"
+      || normalized === "FAILED"
+      || normalized === "CANCELLED"
+      ? normalized
+      : "QUEUED";
+  }
+
+  private async appendWechatPublishHistoryRecord(
     target: WechatWorkflowSessionRecord,
     payload: {
       status: "SUCCESS" | "FAILED";
@@ -7899,7 +9072,7 @@ export class WorksService {
   ) {
     const now = payload.publishedAt;
     const existing = payload.publishTaskId
-      ? wechatPublishHistoryMockStore.find((item) => item.brandId === target.brandId && item.publishTaskId === payload.publishTaskId)
+      ? (await this.loadWechatPublishHistoryByTaskId(target.brandId, payload.publishTaskId))
       : undefined;
     const next: WechatPublishHistoryStoreItem = {
       id: existing?.id || createId("wechat_publish_history"),
@@ -7924,11 +9097,7 @@ export class WorksService {
       createdAt: existing?.createdAt || now,
       updatedAt: now,
     };
-    if (existing) {
-      Object.assign(existing, next);
-    } else {
-      wechatPublishHistoryMockStore.unshift(next);
-    }
+    await this.persistWechatPublishHistoryStoreItem(next);
   }
 
   private hydrateWechatDraftTaskStatus(item: WechatArticleDraftRecord): WechatArticleDraftRecord {
@@ -8648,6 +9817,119 @@ export class WorksService {
       gallery,
       "</section></main></body></html>",
     ].join("");
+  }
+
+  private buildWechatWorkflowResolvedHtmlContent(
+    params: WechatWorkflowSessionRecord,
+    options?: { preferExisting?: boolean },
+  ) {
+    const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
+      ? String(params.htmlContent || "").trim()
+      : this.renderWechatWorkflowArticleHtml(params);
+    return this.injectWechatImagesIntoHtml(baseHtml, {
+      coverImageUrl: params.imageBundle?.coverImageUrl,
+      bodyImageUrls: params.imageBundle?.bodyImageUrls || [],
+    });
+  }
+
+  private buildWechatDraftResolvedHtmlContent(
+    params: WechatArticleDraftRecord,
+    options?: { preferExisting?: boolean },
+  ) {
+    const baseHtml = options?.preferExisting && String(params.htmlContent || "").trim()
+      ? String(params.htmlContent || "").trim()
+      : this.renderWechatArticleHtml(params);
+    const coverTask = params.imageTasks?.find((item) => item.kind === "cover");
+    const bodyTask = params.imageTasks?.find((item) => item.kind === "body");
+    return this.injectWechatImagesIntoHtml(baseHtml, {
+      coverImageUrl: coverTask?.generatedImageUrls[0],
+      bodyImageUrls: bodyTask?.generatedImageUrls || [],
+    });
+  }
+
+  private injectWechatImagesIntoHtml(
+    htmlContent: string,
+    params: {
+      coverImageUrl?: string;
+      bodyImageUrls?: string[];
+    },
+  ) {
+    const normalizedHtml = String(htmlContent || "").trim();
+    if (!normalizedHtml) {
+      return normalizedHtml;
+    }
+    const imageQueue = [
+      String(params.coverImageUrl || "").trim(),
+      ...(params.bodyImageUrls || []).map((item) => String(item || "").trim()),
+    ].filter(Boolean);
+    if (!imageQueue.length) {
+      return normalizedHtml;
+    }
+
+    let cursor = 0;
+    const replacedHtml = normalizedHtml.replace(/<img\b[^>]*>/gi, (tag) => {
+      const nextUrl = imageQueue[cursor];
+      if (!nextUrl) {
+        return tag;
+      }
+      const alt = cursor === 0 ? "公众号封面图" : `公众号正文配图${cursor}`;
+      cursor += 1;
+      return this.replaceWechatImageTag(tag, nextUrl, alt);
+    });
+    const remainingUrls = imageQueue.slice(cursor);
+    if (!remainingUrls.length) {
+      return replacedHtml;
+    }
+
+    const appendedBlock = this.buildWechatGeneratedImageAppendBlock({
+      coverImageUrl: cursor === 0 ? imageQueue[0] : undefined,
+      bodyImageUrls: cursor === 0 ? imageQueue.slice(1) : remainingUrls,
+    });
+    if (!appendedBlock) {
+      return replacedHtml;
+    }
+    if (/<\/main>/i.test(replacedHtml)) {
+      return replacedHtml.replace(/<\/main>/i, `${appendedBlock}</main>`);
+    }
+    if (/<\/body>/i.test(replacedHtml)) {
+      return replacedHtml.replace(/<\/body>/i, `${appendedBlock}</body>`);
+    }
+    return `${replacedHtml}${appendedBlock}`;
+  }
+
+  private replaceWechatImageTag(tag: string, url: string, alt: string) {
+    const normalizedUrl = this.escapeHtml(url);
+    const normalizedAlt = this.escapeHtml(alt);
+    let nextTag = tag;
+    if (/\bsrc\s*=/i.test(nextTag)) {
+      nextTag = nextTag.replace(/\bsrc\s*=\s*(['"])(.*?)\1/i, `src="${normalizedUrl}"`);
+    } else {
+      nextTag = nextTag.replace(/<img\b/i, `<img src="${normalizedUrl}"`);
+    }
+    if (/\balt\s*=/i.test(nextTag)) {
+      nextTag = nextTag.replace(/\balt\s*=\s*(['"])(.*?)\1/i, `alt="${normalizedAlt}"`);
+    } else {
+      nextTag = nextTag.replace(/<img\b/i, `<img alt="${normalizedAlt}"`);
+    }
+    return nextTag;
+  }
+
+  private buildWechatGeneratedImageAppendBlock(params: {
+    coverImageUrl?: string;
+    bodyImageUrls: string[];
+  }) {
+    const coverImageUrl = String(params.coverImageUrl || "").trim();
+    const bodyImageUrls = params.bodyImageUrls.map((item) => String(item || "").trim()).filter(Boolean);
+    if (!coverImageUrl && !bodyImageUrls.length) {
+      return "";
+    }
+    const coverBlock = coverImageUrl
+      ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">封面图</div><img src="${this.escapeHtml(coverImageUrl)}" alt="公众号封面图" style="width:100%;border-radius:24px;border:1px solid #dfe5f2;background:#fff;box-shadow:0 18px 40px rgba(37,51,90,0.12);" /></section>`
+      : "";
+    const galleryBlock = bodyImageUrls.length
+      ? `<section style="margin-top:24px;"><div style="font-size:14px;font-weight:700;color:#17233f;margin-bottom:12px;">正文配图</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">${bodyImageUrls.map((item, index) => `<img src="${this.escapeHtml(item)}" alt="公众号正文配图${index + 1}" style="width:100%;aspect-ratio:4 / 3;object-fit:cover;border-radius:20px;border:1px solid #e8edf7;background:#fff;" />`).join("")}</div></section>`
+      : "";
+    return `${coverBlock}${galleryBlock}`;
   }
 
   private renderWechatArticleHtml(params: WechatArticleDraftRecord) {
@@ -13950,6 +15232,9 @@ export class WorksService {
     if (!normalized) {
       return "未获取到有效图片";
     }
+    if (/\brate_limit_exceeded\b|\b429\b|too many requests|rate limit|quota|insufficient_quota/i.test(normalized)) {
+      return `上游图片模型已触发限流或额度上限，请自动切换其他候选模型/供应商，或稍后重试。原始信息：${normalized}`;
+    }
     if (/\b502\b/.test(normalized) || /bad gateway/i.test(normalized)) {
       return `上游图片接口暂时不可用（502 Bad Gateway），请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
     }
@@ -13966,6 +15251,11 @@ export class WorksService {
       return `上游图片接口请求超时，请稍后重试或切换图片模型/供应商。原始信息：${normalized}`;
     }
     return normalized;
+  }
+
+  private shouldShortCircuitImagePromptRetries(message: string) {
+    const normalized = String(message || "").toLowerCase();
+    return /rate_limit_exceeded|\b429\b|too many requests|rate limit|quota|insufficient_quota|余额不足|credit/i.test(normalized);
   }
 
   private buildReferenceImageFailureContext(referenceImageUrls: string[], referenceImagePayloads?: UploadFilePayload[]) {
@@ -16162,19 +17452,23 @@ export class WorksService {
   private readVideoCreateFailureReason(payload: Record<string, unknown>) {
     const topLevelData = this.asRecord(payload.data);
     const nestedError = this.asRecord(payload.error);
-    return this.readOptionalString(payload.errorMessage)
+    const code = this.readOptionalString(payload.error_code)
+      || this.readOptionalString(payload.errorCode)
+      || this.readOptionalString(nestedError?.code);
+    const message = this.readOptionalString(payload.errorMessage)
       || this.readOptionalString(payload.message)
       || this.readOptionalString(payload.msg)
       || this.readOptionalString(payload.errorMsg)
-      || this.readOptionalString(payload.error_code)
-      || this.readOptionalString(payload.errorCode)
       || this.readOptionalString(topLevelData?.errorMessage)
       || this.readOptionalString(topLevelData?.message)
       || this.readOptionalString(topLevelData?.msg)
       || this.readOptionalString(topLevelData?.errorMsg)
-      || this.readOptionalString(nestedError?.code)
       || this.readOptionalString(nestedError?.message)
       || this.readOptionalString(nestedError?.msg);
+    if (code && message && !message.includes(code)) {
+      return `${code}: ${message}`;
+    }
+    return message || code;
   }
 
   private readVideoTaskSnapshot(payload: Record<string, unknown>, backend: VideoBackendKey, fallbackDurationSec?: number) {

@@ -195,6 +195,25 @@
 - 访问边界
   - 小红书素材、营销方案、营销日历和飞书媒体代理等按 `brandId` 访问的接口，当前已统一校验当前登录用户是否属于该品牌
 
+### 4.2B 公众号 `/wechat`
+
+- 公众号配置与工作流主数据
+  - 主表：`WechatAccountConfig`、`WechatWorkflowPreference`、`WechatOfficialAccount`
+  - 用途：持久化 `AppID / AppSecret / IP 白名单 / 默认作者 / 默认主题色 / 默认账号 / 评论策略`
+- 公众号创作过程数据
+  - 主表：`WechatWorkflowSession`
+  - 用途：持久化输入资料、文章阶段输出、`htmlContent`、图片 briefs、生图结果、发布确认状态，支持用户离开页面后继续编辑
+- 公众号文章草稿与发布历史
+  - 主表：`WechatArticleDraft`、`WechatPublishHistory`
+  - 用途：持久化草稿正文、HTML、图片任务、发布状态、重试记录与错误详情
+- 任务与媒体协同
+  - 任务表：`Task`
+  - 当前公众号工作流仍会把执行过程同步写入 `Task`，但业务主数据不再只停留在内存 mock store
+- 回退边界
+  - 数据库不可用时，公众号模块仍保留内存 mock store 兜底；一旦数据库可用，接口默认优先读写上述公众号正式表
+- 运行时说明
+  - 生图链路在命中 `rate_limit_exceeded / 429 / quota` 时，会停止同模型下的 prompt 级重复尝试，转而继续切换下一候选模型或供应商，减少第三方平台中的重复失败任务
+
 ### 4.3 个人中心 `/personal-center`
 
 - 用户资料：`User`

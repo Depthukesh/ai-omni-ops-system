@@ -409,6 +409,148 @@ model PlatformAccount {
   @@index([brandId, platform])
 }
 
+model WechatAccountConfig {
+  brandId             String   @id
+  appId               String
+  appSecret           String
+  whitelistIpsJson    Json
+  defaultAuthor       String?
+  defaultThemeColor   String?
+  commentMode         String
+  updatedAt           DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model WechatWorkflowPreference {
+  brandId             String   @id
+  defaultAuthor       String
+  defaultThemeColor   String
+  commentMode         String
+  fanCommentsOnly     Boolean  @default(false)
+  defaultInputType    String
+  defaultAccountId    String?
+  updatedAt           DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model WechatOfficialAccount {
+  id                  String   @id
+  brandId             String
+  accountName         String
+  appId               String
+  appSecret           String
+  whitelistIpsJson    Json
+  isDefault           Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+
+  @@index([brandId, updatedAt])
+  @@index([brandId, isDefault])
+}
+
+model WechatWorkflowSession {
+  id                        String   @id
+  brandId                   String
+  accountId                 String?
+  accountName               String?
+  status                    String
+  currentStep               String
+  inputType                 String
+  inputContent              String?
+  title                     String
+  summary                   String
+  author                    String
+  content                   String
+  htmlContent               String
+  articleProvider           String?
+  articleRuntimeKey         String?
+  articleModelName          String?
+  coverImageBrief           String?
+  bodyImageBriefsJson       Json?
+  themeColor                String
+  commentMode               String
+  imageMode                 String
+  injectBrandProfile        Boolean  @default(false)
+  selectedMarketingLabelsJson Json
+  selectedProductLabelsJson Json
+  selectedBrandLabelsJson   Json
+  imageBundleJson           Json?
+  publishConfigJson         Json?
+  linkedDraftId             String?
+  errorDetail               String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([brandId, updatedAt])
+  @@index([brandId, status, updatedAt])
+}
+
+model WechatArticleDraft {
+  id                        String   @id
+  taskId                    String
+  brandId                   String
+  title                     String
+  summary                   String
+  author                    String
+  content                   String
+  htmlContent               String
+  outputFormat              String
+  coverMode                 String
+  commentMode               String
+  imageMode                 String
+  themeColor                String
+  injectMarketingCalendar   Boolean  @default(true)
+  injectProducts            Boolean  @default(true)
+  injectBrandProfile        Boolean  @default(false)
+  selectedMarketingLabelsJson Json
+  selectedProductLabelsJson Json
+  selectedBrandLabelsJson   Json
+  articleSkillSlug          String
+  articlePromptScene        String
+  articleProvider           String
+  articleRuntimeKey         String
+  articleModelName          String
+  coverImageBrief           String?
+  bodyImageBriefsJson       Json?
+  imageTasksJson            Json?
+  publishStatus             String
+  publishedAt               DateTime?
+  publishTaskId             String?
+  taskStatus                String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([brandId, updatedAt])
+  @@index([brandId, publishStatus, updatedAt])
+  @@index([taskId])
+}
+
+model WechatPublishHistory {
+  id                  String   @id
+  brandId             String
+  workflowId          String
+  workflowTitle       String
+  accountId           String?
+  accountName         String?
+  status              String
+  summary             String
+  coverImageUrl       String?
+  mediaId             String?
+  publishTaskId       String?
+  sourceDraftId       String?
+  commentMode         String
+  fanCommentsOnly     Boolean  @default(false)
+  retryCount          Int      @default(0)
+  errorDetail         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([brandId, updatedAt])
+  @@index([brandId, workflowId, updatedAt])
+  @@index([publishTaskId])
+}
+
 model CompetitorAccount {
   id                  String       @id @default(cuid())
   brandId             String
