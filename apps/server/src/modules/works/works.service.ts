@@ -2042,6 +2042,9 @@ type WechatArticleGenerationModelResult = {
   provider: string;
   runtimeKey: string;
   modelName: string;
+  preferredModelName: string;
+  attemptedModels: string[];
+  attemptTrail: string[];
 };
 
 type ImagePromptMode = "social_graphic" | "video_storyboard";
@@ -3620,12 +3623,17 @@ export class WorksService {
 
   async generateWechatWorkflowArticle(brandId: string, workflowId: string, auth?: RequestAuthContext) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    const articlePreference = await this.loadSkillModelPreference(
+      "wechat-article-composer",
+      "prompt_wechat_article_compose",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
     const task = await this.createOriginalTask({
       userId: await this.resolveTaskUserId(brandId, auth),
       brandId,
       taskType: "WECHAT_ARTICLE_AI",
       taskTitle: `生成公众号工作流文章：${target.title}`,
-      modelName: target.articleModelName,
+      modelName: articlePreference.preferredModelName || target.articleModelName,
     });
     await this.markTaskRunning(task.id);
     try {
@@ -3642,6 +3650,7 @@ export class WorksService {
         selectedProductLabels: target.selectedProductLabels,
         selectedBrandLabels: target.selectedBrandLabels,
         injectBrandProfile: target.injectBrandProfile,
+        preference: articlePreference,
       });
       target.title = articleResult.title;
       target.summary = articleResult.summary;
@@ -3665,6 +3674,12 @@ export class WorksService {
           title: target.title,
           currentStep: target.currentStep,
           runtimeKey: articleResult.runtimeKey,
+          preferredModelName: articleResult.preferredModelName,
+          successModelName: articleResult.modelName,
+          actualModelName: articleResult.modelName,
+          successProvider: articleResult.provider,
+          attemptedModels: articleResult.attemptedModels,
+          attemptTrail: articleResult.attemptTrail,
         },
         { modelName: articleResult.modelName },
       );
@@ -3673,7 +3688,21 @@ export class WorksService {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "公众号工作流文章生成失败。";
-      await this.markTaskFailed(task.id, message);
+      const failureRecord = this.asRecord(error);
+      const failureOutput = this.asRecord(failureRecord?.taskOutput) || {};
+      const failureModelName = typeof failureRecord?.taskModelName === "string"
+        ? failureRecord.taskModelName.trim()
+        : "";
+      await this.markTaskFailed(task.id, message, {
+        modelName: failureModelName || articlePreference.preferredModelName || target.articleModelName,
+        outputJson: {
+          workflowId: target.id,
+          title: target.title,
+          currentStep: target.currentStep,
+          preferredModelName: articlePreference.preferredModelName,
+          ...failureOutput,
+        },
+      });
       throw error;
     }
   }
@@ -7811,7 +7840,14 @@ export class WorksService {
     }
   }
 
-  private async markTaskFailed(taskId: string, errorMessage: string) {
+  private async markTaskFailed(
+    taskId: string,
+    errorMessage: string,
+    options?: {
+      modelName?: string;
+      outputJson?: Record<string, unknown>;
+    },
+  ) {
     if (await this.isTaskCancelled(taskId)) {
       return;
     }
@@ -7823,6 +7859,8 @@ export class WorksService {
           taskStatus: TaskStatus.FAILED,
           finishedAt: new Date(),
           errorMessage,
+          ...(options?.outputJson ? { outputJson: options.outputJson as Prisma.InputJsonValue } : {}),
+          ...(options?.modelName ? { modelName: options.modelName } : {}),
         },
       });
       return;
@@ -7833,6 +7871,12 @@ export class WorksService {
       task.taskStatus = "FAILED";
       task.errorMessage = errorMessage;
       task.finishedAt = new Date().toISOString();
+      if (options?.outputJson) {
+        task.outputJson = options.outputJson;
+      }
+      if (options?.modelName) {
+        task.modelName = options.modelName;
+      }
       task.updatedAt = new Date().toISOString();
     }
   }
@@ -9312,12 +9356,13 @@ export class WorksService {
     selectedBrandLabels: string[];
     injectBrandProfile: boolean;
     accountName?: string;
+    preference?: SkillModelPreference;
   }): Promise<WechatArticleGenerationModelResult> {
     const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_wechat_article_compose"))?.content || "").trim();
     if (!skillPrompt) {
       throw new ServiceUnavailableException("未找到公众号创作文章提示词，请先在技能中心启用对应 prompt。");
     }
-    const preference = await this.loadSkillModelPreference(
+    const preference = params.preference || await this.loadSkillModelPreference(
       "wechat-article-composer",
       "prompt_wechat_article_compose",
       ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
@@ -9360,11 +9405,18 @@ export class WorksService {
 
     let lastError = "";
     const attemptTrail: string[] = [];
+    const attemptedModels = new Set<string>();
+    let lastAttempt: { modelName: string; providerName: string } | null = null;
     for (const provider of providers) {
       for (const baseUrl of provider.baseUrls) {
         for (const apiKey of provider.apiKeys) {
           for (const modelName of provider.models) {
             const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            attemptedModels.add(modelName);
+            lastAttempt = {
+              modelName,
+              providerName: provider.providerName || provider.provider,
+            };
             try {
               const response = await this.requestModelCompletion(
                 baseUrl,
@@ -9453,6 +9505,9 @@ export class WorksService {
                 provider: provider.providerName || provider.provider,
                 runtimeKey: this.resolveWechatTextProviderRuntimeKey(provider),
                 modelName,
+                preferredModelName: preference.preferredModelName,
+                attemptedModels: Array.from(attemptedModels),
+                attemptTrail: [...attemptTrail, `${attemptLabel} -> 成功`],
               };
             } catch (error) {
               lastError = error instanceof Error ? error.message : "公众号文章生成失败";
@@ -9463,9 +9518,28 @@ export class WorksService {
       }
     }
 
-    throw new ServiceUnavailableException(
-      this.buildModelAttemptFailureMessage("公众号文章生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    const failureMessage = this.buildModelAttemptFailureMessage(
+      "公众号文章生成",
+      preference.preferredModelName,
+      lastError,
+      attemptTrail,
+      "未获取到有效响应",
     );
+    const failure = new ServiceUnavailableException(failureMessage) as ServiceUnavailableException & {
+      taskModelName?: string;
+      taskOutput?: Record<string, unknown>;
+    };
+    failure.taskModelName = lastAttempt?.modelName || preference.preferredModelName;
+    failure.taskOutput = {
+      stage: "GENERATING_COPY",
+      preferredModelName: preference.preferredModelName,
+      lastAttemptModelName: lastAttempt?.modelName || "",
+      lastAttemptProvider: lastAttempt?.providerName || "",
+      attemptedModels: Array.from(attemptedModels),
+      attemptTrail,
+      lastError,
+    };
+    throw failure;
   }
 
   private buildWechatWorkflowSummary(params: Pick<WechatWorkflowSessionRecord, "selectedMarketingLabels" | "selectedProductLabels" | "injectBrandProfile">) {
@@ -15480,6 +15554,7 @@ export class WorksService {
         maxTokens: 2200,
         requestTimeoutMs: 180000,
         jsonResponse: true,
+        thinkingDisabled: true,
       }),
       this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
         apiKeys: kimiApiKeys,
@@ -15541,6 +15616,7 @@ export class WorksService {
         maxTokens: 2800,
         requestTimeoutMs: 180000,
         jsonResponse: true,
+        thinkingDisabled: true,
       }),
       this.buildTextProviderConfig(kimiProvider, "KIMI", preferredModels, {
         apiKeys: kimiApiKeys,

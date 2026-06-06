@@ -161,6 +161,9 @@ export default function PersonalCenterTasksPage() {
         || item.taskTitle.toLowerCase().includes(keyword)
         || item.taskType.toLowerCase().includes(keyword)
         || item.modelName.toLowerCase().includes(keyword)
+        || getTaskPreferredModel(item).toLowerCase().includes(keyword)
+        || getTaskResultModel(item).toLowerCase().includes(keyword)
+        || getTaskAttemptSummary(item).toLowerCase().includes(keyword)
         || (item.brandId ?? "").toLowerCase().includes(keyword),
       );
   }, [search, tasks]);
@@ -269,7 +272,7 @@ export default function PersonalCenterTasksPage() {
             <div className="entity-card-head">
               <div>
                 <strong>{task.taskTitle}</strong>
-                <p className="personal-meta">{task.taskType} · {task.modelName || "未指定模型"}</p>
+                <p className="personal-meta">{task.taskType} · 首选 {getTaskPreferredModel(task)}</p>
               </div>
               <span className={`archive-pill ${personalTaskStatusClassMap[task.taskStatus]}`}>{task.taskStatus}</span>
             </div>
@@ -301,12 +304,22 @@ export default function PersonalCenterTasksPage() {
                 <strong>{getTaskHeartbeatLabel(task)}</strong>
               </div>
               <div>
+                <span>首选模型</span>
+                <strong>{getTaskPreferredModel(task)}</strong>
+              </div>
+              <div>
+                <span>结果模型</span>
+                <strong>{getTaskResultModel(task)}</strong>
+              </div>
+            </div>
+            <div className="personal-grid" style={{ marginTop: 12 }}>
+              <div>
                 <span>模型接力</span>
                 <strong>{getTaskFallbackLabel(task)}</strong>
               </div>
-              <div>
-                <span>实际模型</span>
-                <strong>{getTaskModelSummary(task)}</strong>
+              <div style={{ gridColumn: "span 3" }}>
+                <span>尝试链路</span>
+                <strong>{getTaskAttemptSummary(task)}</strong>
               </div>
             </div>
             {task.errorMessage ? (
@@ -392,11 +405,13 @@ function getTaskHeartbeatLabel(task: TaskRecord) {
 }
 
 function getTaskFallbackLabel(task: TaskRecord) {
-  const modelSummary = getTaskModels(task);
-  if (modelSummary.length > 1) {
+  const attemptedModels = readOutputStringArray(task.outputJson || {}, "attemptedModels");
+  if (attemptedModels.length > 1) {
     return "已多模型接力";
   }
-  const attemptOrder = extractAttemptOrder(task.errorMessage);
+  const attemptOrder = readOutputStringArray(task.outputJson || {}, "attemptTrail").length
+    ? readOutputStringArray(task.outputJson || {}, "attemptTrail")
+    : extractAttemptOrder(task.errorMessage);
   if (attemptOrder.length > 1) {
     return "失败前已切兜底";
   }
@@ -406,18 +421,14 @@ function getTaskFallbackLabel(task: TaskRecord) {
   return "未触发";
 }
 
-function getTaskModelSummary(task: TaskRecord) {
-  const models = getTaskModels(task);
-  if (models.length) {
-    return models.join(" / ");
-  }
-  return task.modelName || "未记录";
-}
-
 function getTaskModels(task: TaskRecord) {
   const output = task.outputJson || {};
   return Array.from(new Set([
+    readOutputString(output, "preferredModelName"),
     task.modelName,
+    readOutputString(output, "successModelName"),
+    readOutputString(output, "actualModelName"),
+    readOutputString(output, "lastAttemptModelName"),
     readOutputString(output, "copyModel"),
     readOutputString(output, "imagePromptModel"),
     readOutputString(output, "imageGenerationModel"),
@@ -430,9 +441,49 @@ function getTaskModels(task: TaskRecord) {
   ].filter(Boolean)));
 }
 
+function getTaskPreferredModel(task: TaskRecord) {
+  return readOutputString(task.outputJson || {}, "preferredModelName") || task.modelName || "未记录";
+}
+
+function getTaskResultModel(task: TaskRecord) {
+  const output = task.outputJson || {};
+  return readOutputString(output, "successModelName")
+    || readOutputString(output, "actualModelName")
+    || readOutputString(output, "lastAttemptModelName")
+    || task.modelName
+    || "未记录";
+}
+
+function getTaskAttemptSummary(task: TaskRecord) {
+  const output = task.outputJson || {};
+  const attemptedModels = readOutputStringArray(output, "attemptedModels");
+  if (attemptedModels.length) {
+    return attemptedModels.join(" -> ");
+  }
+  const models = getTaskModels(task);
+  if (models.length) {
+    return models.join(" -> ");
+  }
+  const attemptOrder = extractAttemptOrder(task.errorMessage);
+  if (attemptOrder.length) {
+    return attemptOrder.join(" | ");
+  }
+  return task.taskStatus === "QUEUED" || task.taskStatus === "RUNNING" ? "执行中，尚未形成链路" : "未记录";
+}
+
 function readOutputString(output: Record<string, unknown>, key: string) {
   const value = output[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+function readOutputStringArray(output: Record<string, unknown>, key: string) {
+  const value = output[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
 }
 
 function extractAttemptOrder(message?: string) {
