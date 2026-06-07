@@ -6,6 +6,7 @@ import {
   deleteSkillPackageModule,
   getSkillPackageModules,
   skillPackageModuleSeed,
+  updateModuleDefinition,
   updateSkillPackageModule,
   type ModuleDefinitionRecord,
   type SkillPackageRecord,
@@ -15,6 +16,7 @@ import {
 type SkillPackageModulesPanelProps = {
   modules: ModuleDefinitionRecord[];
   skillPackages: SkillPackageRecord[];
+  onModulesChange: Dispatch<SetStateAction<ModuleDefinitionRecord[]>>;
   dataSource: "api" | "seed";
   onNotice: (message: string) => void;
   onError: (message: string) => void;
@@ -66,6 +68,8 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingDefaults, setIsSyncingDefaults] = useState(false);
   const [syncingModuleKey, setSyncingModuleKey] = useState("");
+  const [isBackfillingDefaults, setIsBackfillingDefaults] = useState(false);
+  const [backfillingModuleKey, setBackfillingModuleKey] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => {
@@ -122,6 +126,43 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
         })),
       ),
     [defaultPackageReconciliation],
+  );
+
+  const relationDefaultReconciliation = useMemo(() => {
+    return props.modules
+      .map((module) => {
+        const declaredPackageKeys = Array.from(new Set(module.defaultSkillPackages.map((item) => String(item || "").trim()).filter(Boolean)));
+        const relationDefaultKeys = Array.from(
+          new Set(
+            relations
+              .filter(
+                (item) =>
+                  item.moduleKey === module.moduleKey && item.bindingType === "DEFAULT" && item.isDefault && item.enabled,
+              )
+              .sort((left, right) => left.sortOrder - right.sortOrder)
+              .map((item) => item.packageKey),
+          ),
+        );
+        const missingInModuleDefaults = relationDefaultKeys.filter((item) => !declaredPackageKeys.includes(item));
+        return {
+          module,
+          declaredPackageKeys,
+          relationDefaultKeys,
+          missingInModuleDefaults,
+        };
+      })
+      .filter((item) => item.missingInModuleDefaults.length);
+  }, [props.modules, relations]);
+
+  const backfillableModuleDefaults = useMemo(
+    () =>
+      relationDefaultReconciliation.flatMap((item) =>
+        item.missingInModuleDefaults.map((packageKey) => ({
+          module: item.module,
+          packageKey,
+        })),
+      ),
+    [relationDefaultReconciliation],
   );
 
   useEffect(() => {
@@ -408,6 +449,77 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     }
   }
 
+  async function handleBackfillModuleDefaults(moduleKey?: string) {
+    const targetModules = relationDefaultReconciliation.filter((item) => !moduleKey || item.module.moduleKey === moduleKey);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetModules.length) {
+      props.onNotice(moduleKey ? "该模块当前没有可回填的默认能力包声明。" : "当前没有可回填的默认能力包声明。");
+      return;
+    }
+
+    setIsBackfillingDefaults(true);
+    setBackfillingModuleKey(moduleKey || "__all__");
+    try {
+      if (props.dataSource === "seed") {
+        props.onModulesChange((current) =>
+          current.map((item) => {
+            const target = targetModules.find((entry) => entry.module.id === item.id);
+            if (!target) {
+              return item;
+            }
+            return {
+              ...item,
+              defaultSkillPackages: Array.from(new Set([...item.defaultSkillPackages, ...target.missingInModuleDefaults])),
+              updatedAt: new Date().toISOString(),
+            };
+          }),
+        );
+        props.onNotice(
+          moduleKey
+            ? `已把模块「${targetModules[0]?.module.moduleName || moduleKey}」的默认关系回填到模块摘要。`
+            : `已把 ${targetModules.length} 个模块的默认关系回填到模块摘要。`,
+        );
+        return;
+      }
+
+      const updatedModules: ModuleDefinitionRecord[] = [];
+      const failedModules: string[] = [];
+      for (const entry of targetModules) {
+        try {
+          const updated = await updateModuleDefinition(entry.module.id, {
+            defaultSkillPackages: Array.from(new Set([...entry.module.defaultSkillPackages, ...entry.missingInModuleDefaults])),
+          });
+          updatedModules.push(updated);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "更新失败";
+          failedModules.push(`${entry.module.moduleName}（${message}）`);
+        }
+      }
+
+      if (updatedModules.length) {
+        props.onModulesChange((current) =>
+          current.map((item) => updatedModules.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      if (failedModules.length) {
+        props.onError(`模块默认能力包回填有 ${failedModules.length} 个失败：${failedModules.join("；")}`);
+      }
+      if (updatedModules.length) {
+        props.onNotice(
+          moduleKey
+            ? `已把模块「${targetModules[0]?.module.moduleName || moduleKey}」的默认关系回填到模块摘要。`
+            : `已把 ${updatedModules.length} 个模块的默认关系回填到模块摘要。`,
+        );
+      }
+    } finally {
+      setIsBackfillingDefaults(false);
+      setBackfillingModuleKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -566,6 +678,75 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
           ) : (
             <div className="entity-card" style={{ padding: 12 }}>
               <p className="personal-meta">当前模块注册中的默认能力包，已经和模块绑定关系表保持一致。</p>
+            </div>
+          )}
+
+          <div
+            className="entity-card"
+            style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}
+          >
+            <div>
+              <span className="personal-meta">待回填模块摘要</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{backfillableModuleDefaults.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">涉及模块</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{relationDefaultReconciliation.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">关系真源默认项</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {relationDefaultReconciliation.reduce((sum, item) => sum + item.relationDefaultKeys.length, 0)}
+              </strong>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleBackfillModuleDefaults()}
+                disabled={!backfillableModuleDefaults.length || isBackfillingDefaults}
+              >
+                {isBackfillingDefaults && backfillingModuleKey === "__all__" ? "回填中..." : "一键回填模块摘要"}
+              </button>
+            </div>
+          </div>
+
+          {relationDefaultReconciliation.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {relationDefaultReconciliation.map((item) => (
+                <div
+                  key={`backfill-${item.module.moduleKey}`}
+                  className="entity-card"
+                  style={{ padding: 12, display: "grid", gap: 8, gridTemplateColumns: "minmax(0, 1fr) auto" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{item.module.moduleName}</strong>
+                    <p className="personal-meta">
+                      关系表默认项：{item.relationDefaultKeys.length ? item.relationDefaultKeys.join(" / ") : "未识别"}
+                    </p>
+                    <p className="personal-meta">
+                      模块摘要当前值：{item.declaredPackageKeys.length ? item.declaredPackageKeys.join(" / ") : "未配置"}
+                    </p>
+                    <p className="personal-meta">
+                      待回填：{item.missingInModuleDefaults.length ? item.missingInModuleDefaults.join(" / ") : "无"}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBackfillModuleDefaults(item.module.moduleKey)}
+                      disabled={!item.missingInModuleDefaults.length || isBackfillingDefaults}
+                    >
+                      {isBackfillingDefaults && backfillingModuleKey === item.module.moduleKey ? "回填中..." : "回填该模块"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前关系表中的默认挂载，已经同步回模块注册摘要。</p>
             </div>
           )}
         </div>

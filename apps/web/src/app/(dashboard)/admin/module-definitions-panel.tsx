@@ -631,6 +631,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
           <SkillPackageModulesPanel
             modules={props.modules}
             skillPackages={props.skillPackages}
+            onModulesChange={props.onModulesChange}
             dataSource={props.dataSource}
             onNotice={props.onNotice}
             onError={props.onError}
