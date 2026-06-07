@@ -149,6 +149,23 @@ export type KnowledgeBaseSyncRunRecord = {
   completedAt?: string;
 };
 
+export type KnowledgeBindingRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  knowledgeBaseName?: string;
+  knowledgeBaseSlug?: string;
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "PROMPT" | "WORKFLOW_STEP";
+  targetId: string;
+  targetKey?: string;
+  targetName?: string;
+  priority: number;
+  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL";
+  isRequired: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeBaseSyncMutationResult = KnowledgeBaseFileMutationResult & {
   run: KnowledgeBaseSyncRunRecord;
 };
@@ -2521,6 +2538,48 @@ export async function completeKnowledgeBaseSyncRun(
   },
 ) {
   return jsonRequest<KnowledgeBaseRunMutationResult>(`/admin/knowledge-bases/sync-runs/${runId}`, "PATCH", payload);
+}
+
+export async function getKnowledgeBindingsByTarget(
+  bindingType: KnowledgeBindingRecord["bindingType"],
+  targetId: string,
+  enabled?: boolean,
+) {
+  const searchParams = new URLSearchParams({
+    bindingType,
+    targetId,
+  });
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  return request<KnowledgeBindingRecord[]>(`/admin/knowledge-bindings/by-target?${searchParams.toString()}`);
+}
+
+export async function createKnowledgeBinding(payload: {
+  knowledgeBaseId: string;
+  bindingType: KnowledgeBindingRecord["bindingType"];
+  targetId: string;
+  targetKey?: string;
+  targetName?: string;
+  priority: number;
+  retrievalMode: KnowledgeBindingRecord["retrievalMode"];
+  isRequired?: boolean;
+  enabled?: boolean;
+}) {
+  return jsonRequest<KnowledgeBindingRecord>("/admin/knowledge-bindings", "POST", payload);
+}
+
+export async function updateKnowledgeBinding(
+  id: string,
+  payload: Partial<Pick<KnowledgeBindingRecord, "targetKey" | "targetName" | "priority" | "retrievalMode" | "isRequired" | "enabled">>,
+) {
+  return jsonRequest<KnowledgeBindingRecord>(`/admin/knowledge-bindings/${id}`, "PATCH", payload);
+}
+
+export async function deleteKnowledgeBinding(id: string) {
+  return request<KnowledgeBindingRecord>(`/admin/knowledge-bindings/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getModuleDefinitions(query: GetModuleDefinitionsQuery = {}) {

@@ -445,6 +445,9 @@
 - 统一技能中心能力包详情 Scripts：
   - 正式表：`ScriptAsset`
   - 当前策略：数据库优先、`mock-data` 兜底；这一层先解决能力包脚本资产的独立真源化与后台可维护，不改现有业务模块运行链路
+- 统一技能中心能力包详情 Knowledge：
+  - 桥接表：`KnowledgeBinding`
+  - 当前策略：复用现有 `GET /admin/knowledge-bindings/by-target` 与 `POST/PATCH/DELETE /admin/knowledge-bindings`，先把能力包详情中的知识绑定区补成后台可维护闭环，不改现有业务运行链路
 
 ### 4.5 认证 `/` + `/login` + `/register`
 

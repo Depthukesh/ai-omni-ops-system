@@ -3,18 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   activateSkillPackageVersion,
+  createKnowledgeBinding,
   createReferenceAsset,
   createScriptAsset,
   createSkillPackageVersion,
+  deleteKnowledgeBinding,
   deleteReferenceAsset,
   deleteScriptAsset,
   getApiProviders,
+  getKnowledgeBases,
+  getKnowledgeBindingsByTarget,
   getSkillPackage,
   type ApiProviderRecord,
+  type KnowledgeBaseRecord,
+  type KnowledgeBindingRecord,
   type ModuleDefinitionRecord,
   type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  updateKnowledgeBinding,
   updateReferenceAsset,
   updateScriptAsset,
   updateSkillPackageBasic,
@@ -45,6 +52,7 @@ type PromptDetailRecord = NonNullable<SkillPackageDetailRecord["prompts"]>[numbe
 type ProviderBindingRecord = NonNullable<SkillPackageDetailRecord["providerBindings"]>[number];
 type ReferenceDetailRecord = NonNullable<SkillPackageDetailRecord["references"]>[number];
 type ScriptDetailRecord = NonNullable<SkillPackageDetailRecord["scripts"]>[number];
+type KnowledgeBindingViewRecord = KnowledgeBindingRecord;
 type PromptDraftRecord = {
   status: PromptTemplateRecord["status"];
   modelName: string;
@@ -74,6 +82,19 @@ type ScriptDraftRecord = {
   usageNote: string;
   sortOrder: string;
 };
+type KnowledgeBindingDraftRecord = {
+  priority: string;
+  retrievalMode: KnowledgeBindingViewRecord["retrievalMode"];
+  isRequired: boolean;
+  enabled: boolean;
+};
+type NewKnowledgeBindingDraftRecord = {
+  knowledgeBaseId: string;
+  priority: string;
+  retrievalMode: KnowledgeBindingViewRecord["retrievalMode"];
+  isRequired: boolean;
+  enabled: boolean;
+};
 type BasicDraftRecord = {
   packageName: string;
   packageKey: string;
@@ -99,7 +120,16 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [savingPromptId, setSavingPromptId] = useState("");
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ProviderDraftRecord>>({});
   const [availableProviders, setAvailableProviders] = useState<ApiProviderRecord[]>([]);
+  const [availableKnowledgeBases, setAvailableKnowledgeBases] = useState<KnowledgeBaseRecord[]>([]);
   const [savingProviderId, setSavingProviderId] = useState("");
+  const [knowledgeBindingRows, setKnowledgeBindingRows] = useState<KnowledgeBindingViewRecord[]>([]);
+  const [knowledgeBindingDrafts, setKnowledgeBindingDrafts] = useState<Record<string, KnowledgeBindingDraftRecord>>({});
+  const [newKnowledgeBindingDraft, setNewKnowledgeBindingDraft] = useState<NewKnowledgeBindingDraftRecord>(
+    buildNewKnowledgeBindingDraft(),
+  );
+  const [savingKnowledgeBindingId, setSavingKnowledgeBindingId] = useState("");
+  const [isCreatingKnowledgeBinding, setIsCreatingKnowledgeBinding] = useState(false);
+  const [deletingKnowledgeBindingId, setDeletingKnowledgeBindingId] = useState("");
   const [referenceDrafts, setReferenceDrafts] = useState<Record<string, ReferenceDraftRecord>>({});
   const [newReferenceDraft, setNewReferenceDraft] = useState<ReferenceDraftRecord>(buildReferenceDraft());
   const [savingReferenceId, setSavingReferenceId] = useState("");
@@ -240,6 +270,13 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   }, [detail]);
 
   useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      knowledgeBindingRows.map((item) => [item.id, buildKnowledgeBindingDraft(item)]),
+    ) as Record<string, KnowledgeBindingDraftRecord>;
+    setKnowledgeBindingDrafts(nextDrafts);
+  }, [knowledgeBindingRows]);
+
+  useEffect(() => {
     setBasicDraft(buildBasicDraft(selectedSummary));
   }, [selectedSummary]);
 
@@ -262,6 +299,62 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadKnowledgeBaseOptions() {
+      try {
+        const result = await getKnowledgeBases();
+        if (!cancelled) {
+          setAvailableKnowledgeBases(result.filter((item) => item.status !== "DISABLED"));
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableKnowledgeBases([]);
+        }
+      }
+    }
+    void loadKnowledgeBaseOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setNewKnowledgeBindingDraft((current) => {
+      if (current.knowledgeBaseId || !availableKnowledgeBases.length) {
+        return current;
+      }
+      return {
+        ...current,
+        knowledgeBaseId: availableKnowledgeBases[0]?.id || "",
+      };
+    });
+  }, [availableKnowledgeBases]);
+
+  useEffect(() => {
+    if (!selectedPackage?.id) {
+      setKnowledgeBindingRows([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadPackageKnowledgeBindings() {
+      try {
+        const result = await getKnowledgeBindingsByTarget("SKILL_PACKAGE", selectedPackage.id);
+        if (!cancelled) {
+          setKnowledgeBindingRows(result);
+        }
+      } catch {
+        if (!cancelled) {
+          setKnowledgeBindingRows([]);
+        }
+      }
+    }
+    void loadPackageKnowledgeBindings();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPackage?.id]);
 
   async function handleCreateVersion() {
     if (!selectedPackage?.id || !versionNumber.trim()) {
@@ -716,6 +809,125 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     }
   }
 
+  function handleKnowledgeBindingDraftChange(
+    bindingId: string,
+    field: keyof KnowledgeBindingDraftRecord,
+    value: string | boolean,
+  ) {
+    setKnowledgeBindingDrafts((current) => {
+      const binding = knowledgeBindingRows.find((item) => item.id === bindingId);
+      const base = current[bindingId] || buildKnowledgeBindingDraft(binding);
+      return {
+        ...current,
+        [bindingId]: {
+          ...base,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  function handleNewKnowledgeBindingDraftChange(
+    field: keyof NewKnowledgeBindingDraftRecord,
+    value: string | boolean,
+  ) {
+    setNewKnowledgeBindingDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function refreshKnowledgeBindings(packageId: string) {
+    const result = await getKnowledgeBindingsByTarget("SKILL_PACKAGE", packageId);
+    setKnowledgeBindingRows(result);
+  }
+
+  async function handleCreateKnowledgeBinding() {
+    if (!selectedPackage?.id || !selectedSummary) {
+      return;
+    }
+    if (!newKnowledgeBindingDraft.knowledgeBaseId) {
+      setDetailError("请选择知识库");
+      return;
+    }
+    const priority = Number(newKnowledgeBindingDraft.priority.trim() || "100");
+    if (!Number.isFinite(priority)) {
+      setDetailError("知识绑定优先级不合法");
+      return;
+    }
+    setIsCreatingKnowledgeBinding(true);
+    setDetailError("");
+    try {
+      await createKnowledgeBinding({
+        knowledgeBaseId: newKnowledgeBindingDraft.knowledgeBaseId,
+        bindingType: "SKILL_PACKAGE",
+        targetId: selectedPackage.id,
+        targetKey: selectedSummary.packageKey,
+        targetName: selectedSummary.packageName,
+        priority: Math.floor(priority),
+        retrievalMode: newKnowledgeBindingDraft.retrievalMode,
+        isRequired: newKnowledgeBindingDraft.isRequired,
+        enabled: newKnowledgeBindingDraft.enabled,
+      });
+      await refreshKnowledgeBindings(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "新增知识绑定失败";
+      setDetailError(`新增知识绑定失败：${message}`);
+    } finally {
+      setIsCreatingKnowledgeBinding(false);
+    }
+  }
+
+  async function handleSaveKnowledgeBinding(bindingId: string) {
+    const binding = knowledgeBindingRows.find((item) => item.id === bindingId);
+    if (!binding) {
+      return;
+    }
+    const draft = knowledgeBindingDrafts[bindingId] || buildKnowledgeBindingDraft(binding);
+    const priority = Number(draft.priority.trim() || "100");
+    if (!Number.isFinite(priority)) {
+      setDetailError(`知识绑定「${binding.knowledgeBaseName || binding.knowledgeBaseId}」优先级不合法`);
+      return;
+    }
+    setSavingKnowledgeBindingId(bindingId);
+    setDetailError("");
+    try {
+      await updateKnowledgeBinding(bindingId, {
+        priority: Math.floor(priority),
+        retrievalMode: draft.retrievalMode,
+        isRequired: draft.isRequired,
+        enabled: draft.enabled,
+        targetKey: binding.targetKey,
+        targetName: binding.targetName,
+      });
+      if (selectedPackage?.id) {
+        await refreshKnowledgeBindings(selectedPackage.id);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存知识绑定失败";
+      setDetailError(`保存知识绑定失败：${message}`);
+    } finally {
+      setSavingKnowledgeBindingId("");
+    }
+  }
+
+  async function handleDeleteKnowledgeBinding(bindingId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    setDeletingKnowledgeBindingId(bindingId);
+    setDetailError("");
+    try {
+      await deleteKnowledgeBinding(bindingId);
+      await refreshKnowledgeBindings(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除知识绑定失败";
+      setDetailError(`删除知识绑定失败：${message}`);
+    } finally {
+      setDeletingKnowledgeBindingId("");
+    }
+  }
+
   return (
     <section className="entity-card admin-user-filter-card" style={{ marginBottom: 24 }}>
       <div className="admin-user-filter-head">
@@ -858,7 +1070,7 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
               executionMode={detail?.skill?.executionMode || "-"}
               currentVersion={detail?.versions?.[0]?.versionNumber || selectedSummary.currentVersionNumber || selectedSummary.currentVersionId || "-"}
               updatedAt={formatDateTime(selectedSummary.updatedAt)}
-              defaultKnowledgeSpaces={(detail?.knowledgeBindings || []).map((item) => item.knowledgeBaseName).join(" / ") || selectedSummary.defaultKnowledgeSpaceIds.join(" / ") || "-"}
+              defaultKnowledgeSpaces={knowledgeBindingRows.map((item) => item.knowledgeBaseName || item.knowledgeBaseId).join(" / ") || (detail?.knowledgeBindings || []).map((item) => item.knowledgeBaseName).join(" / ") || selectedSummary.defaultKnowledgeSpaceIds.join(" / ") || "-"}
               onChange={(field, value) => setBasicDraft((current) => ({ ...current, [field]: value }))}
               onSave={() => void handleSaveBasic()}
             />
@@ -880,6 +1092,21 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                 emptyText="当前能力包暂无 Provider 绑定摘要。"
                 onDraftChange={handleProviderDraftChange}
                 onSave={(bindingId) => void handleSaveProvider(bindingId)}
+              />
+              <KnowledgeBlock
+                bindings={knowledgeBindingRows}
+                drafts={knowledgeBindingDrafts}
+                knowledgeBases={availableKnowledgeBases}
+                newDraft={newKnowledgeBindingDraft}
+                savingBindingId={savingKnowledgeBindingId}
+                deletingBindingId={deletingKnowledgeBindingId}
+                isCreating={isCreatingKnowledgeBinding}
+                emptyText="当前能力包暂无知识绑定。"
+                onDraftChange={handleKnowledgeBindingDraftChange}
+                onNewDraftChange={handleNewKnowledgeBindingDraftChange}
+                onCreate={() => void handleCreateKnowledgeBinding()}
+                onSave={(bindingId) => void handleSaveKnowledgeBinding(bindingId)}
+                onDelete={(bindingId) => void handleDeleteKnowledgeBinding(bindingId)}
               />
               <ReferenceBlock
                 references={detail?.references || []}
@@ -1482,6 +1709,195 @@ function ReferenceBlock(props: ReferenceBlockProps) {
   );
 }
 
+type KnowledgeBlockProps = {
+  bindings: KnowledgeBindingViewRecord[];
+  drafts: Record<string, KnowledgeBindingDraftRecord>;
+  knowledgeBases: KnowledgeBaseRecord[];
+  newDraft: NewKnowledgeBindingDraftRecord;
+  savingBindingId: string;
+  deletingBindingId: string;
+  isCreating: boolean;
+  emptyText: string;
+  onDraftChange: (bindingId: string, field: keyof KnowledgeBindingDraftRecord, value: string | boolean) => void;
+  onNewDraftChange: (field: keyof NewKnowledgeBindingDraftRecord, value: string | boolean) => void;
+  onCreate: () => void;
+  onSave: (bindingId: string) => void;
+  onDelete: (bindingId: string) => void;
+};
+
+function KnowledgeBlock(props: KnowledgeBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>Knowledge 绑定</strong>
+          <p className="personal-meta">{`${props.bindings.length} 条`}</p>
+        </div>
+        <button type="button" className="primary-button" onClick={props.onCreate} disabled={props.isCreating || !props.knowledgeBases.length}>
+          {props.isCreating ? "新增中..." : "新增知识绑定"}
+        </button>
+      </div>
+      <article
+        style={{
+          border: "1px dashed rgba(217, 119, 6, 0.28)",
+          borderRadius: 14,
+          padding: 12,
+          background: "rgba(255, 247, 237, 0.72)",
+          marginBottom: 12,
+        }}
+      >
+        <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+          <label>
+            <span>知识库</span>
+            <select
+              value={props.newDraft.knowledgeBaseId}
+              onChange={(event) => props.onNewDraftChange("knowledgeBaseId", event.target.value)}
+            >
+              <option value="">请选择知识库</option>
+              {props.knowledgeBases.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {`${item.name} / ${item.slug}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>检索模式</span>
+            <select
+              value={props.newDraft.retrievalMode}
+              onChange={(event) => props.onNewDraftChange("retrievalMode", event.target.value)}
+            >
+              <option value="HYBRID">HYBRID</option>
+              <option value="SEMANTIC">SEMANTIC</option>
+              <option value="MANUAL">MANUAL</option>
+            </select>
+          </label>
+          <label>
+            <span>优先级</span>
+            <input
+              value={props.newDraft.priority}
+              inputMode="numeric"
+              onChange={(event) => props.onNewDraftChange("priority", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>是否必需</span>
+            <select
+              value={props.newDraft.isRequired ? "true" : "false"}
+              onChange={(event) => props.onNewDraftChange("isRequired", event.target.value === "true")}
+            >
+              <option value="false">否</option>
+              <option value="true">是</option>
+            </select>
+          </label>
+          <label>
+            <span>是否启用</span>
+            <select
+              value={props.newDraft.enabled ? "true" : "false"}
+              onChange={(event) => props.onNewDraftChange("enabled", event.target.value === "true")}
+            >
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </label>
+        </div>
+      </article>
+      {props.bindings.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.bindings.map((item) => {
+            const draft = props.drafts[item.id] || buildKnowledgeBindingDraft(item);
+            return (
+              <article
+                key={item.id}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "rgba(255, 255, 255, 0.72)",
+                }}
+              >
+                <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="admin-user-row-title">{item.knowledgeBaseName || item.knowledgeBaseId}</div>
+                    <div className="admin-user-row-meta">
+                      {`${item.bindingType} / ${item.retrievalMode}${item.updatedAt ? ` / ${formatDateTime(item.updatedAt)}` : ""}`}
+                    </div>
+                  </div>
+                  <div className="personal-actions" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => props.onSave(item.id)}
+                      disabled={props.savingBindingId === item.id}
+                    >
+                      {props.savingBindingId === item.id ? "保存中..." : "保存绑定"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => props.onDelete(item.id)}
+                      disabled={props.deletingBindingId === item.id}
+                    >
+                      {props.deletingBindingId === item.id ? "删除中..." : "删除"}
+                    </button>
+                  </div>
+                </div>
+                <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label>
+                    <span>知识库</span>
+                    <input value={item.knowledgeBaseSlug ? `${item.knowledgeBaseName} / ${item.knowledgeBaseSlug}` : item.knowledgeBaseName || item.knowledgeBaseId} readOnly />
+                  </label>
+                  <label>
+                    <span>检索模式</span>
+                    <select
+                      value={draft.retrievalMode}
+                      onChange={(event) => props.onDraftChange(item.id, "retrievalMode", event.target.value)}
+                    >
+                      <option value="HYBRID">HYBRID</option>
+                      <option value="SEMANTIC">SEMANTIC</option>
+                      <option value="MANUAL">MANUAL</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>优先级</span>
+                    <input
+                      value={draft.priority}
+                      inputMode="numeric"
+                      onChange={(event) => props.onDraftChange(item.id, "priority", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>是否必需</span>
+                    <select
+                      value={draft.isRequired ? "true" : "false"}
+                      onChange={(event) => props.onDraftChange(item.id, "isRequired", event.target.value === "true")}
+                    >
+                      <option value="false">否</option>
+                      <option value="true">是</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>是否启用</span>
+                    <select
+                      value={draft.enabled ? "true" : "false"}
+                      onChange={(event) => props.onDraftChange(item.id, "enabled", event.target.value === "true")}
+                    >
+                      <option value="true">启用</option>
+                      <option value="false">停用</option>
+                    </select>
+                  </label>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="personal-meta">{props.emptyText}</div>
+      )}
+    </section>
+  );
+}
+
 type ScriptBlockProps = {
   scripts: ScriptDetailRecord[];
   drafts: Record<string, ScriptDraftRecord>;
@@ -1743,6 +2159,25 @@ function buildScriptDraft(script?: ScriptDetailRecord): ScriptDraftRecord {
     argsSchema: formatJsonText(script?.argsSchema || {}),
     usageNote: script?.usageNote || "",
     sortOrder: script?.sortOrder !== undefined ? String(script.sortOrder) : "100",
+  };
+}
+
+function buildKnowledgeBindingDraft(binding?: KnowledgeBindingViewRecord): KnowledgeBindingDraftRecord {
+  return {
+    priority: binding?.priority !== undefined ? String(binding.priority) : "100",
+    retrievalMode: binding?.retrievalMode || "HYBRID",
+    isRequired: binding?.isRequired ?? false,
+    enabled: binding?.enabled ?? true,
+  };
+}
+
+function buildNewKnowledgeBindingDraft(): NewKnowledgeBindingDraftRecord {
+  return {
+    knowledgeBaseId: "",
+    priority: "100",
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
   };
 }
 

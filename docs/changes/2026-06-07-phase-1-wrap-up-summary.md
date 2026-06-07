@@ -21,11 +21,15 @@
 - 第一阶段测试重点应放在：
   - 模块注册
   - 能力包主对象与关系表
-  - 统一技能中心 `basic / prompts / providers / references / scripts / versions`
+  - 统一技能中心 `basic / prompts / providers / knowledge / references / scripts / versions`
   - 知识库与知识绑定底座
   - 既有业务模块无明显回归
 - 当前第一阶段收尾开发已继续补齐 `ScriptAsset`：
   - 新增独立表与迁移
   - 新增 `POST /PATCH / DELETE /admin/skill-packages/:packageId/scripts...`
   - 后台统一技能中心详情页新增 `Scripts 资产` 管理区
+- 当前第一阶段最后收尾已继续接入能力包级 `KnowledgeBinding`：
+  - 复用已有 `knowledge-bindings` 桥接接口
+  - 后台统一技能中心详情页新增 `Knowledge 绑定` 管理区
+  - 支持能力包维度知识绑定新增、编辑、删除
 - 第二阶段仍建议先补文档再开工，但不需要完全重复第一阶段的完整规格化工作量；更适合采用“范围边界 + 数据扩展 + 页面接口 + 风险清单”的轻量文档包。
