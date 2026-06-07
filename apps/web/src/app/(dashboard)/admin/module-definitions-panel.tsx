@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   archiveModuleDefinition,
   createModuleDefinition,
@@ -610,6 +610,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
             aria-modal="true"
             aria-label="新建模块"
             onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(1180px, calc(100vw - 40px))", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
           >
             <div className="admin-user-modal-topbar">
               <div>
@@ -642,169 +643,300 @@ function ModuleDraftForm(props: {
   onChange: Dispatch<SetStateAction<ModuleDraft>>;
 }) {
   return (
-    <div className="admin-rule-grid">
-      <label>
-        <span>模块名称</span>
-        <input value={props.draft.moduleName} onChange={(event) => props.onChange((current) => ({ ...current, moduleName: event.target.value }))} />
-      </label>
-      <label>
-        <span>moduleKey</span>
-        <input value={props.draft.moduleKey} onChange={(event) => props.onChange((current) => ({ ...current, moduleKey: event.target.value }))} />
-      </label>
-      <label>
-        <span>模块类型</span>
-        <select value={props.draft.moduleType} onChange={(event) => props.onChange((current) => ({ ...current, moduleType: event.target.value as ModuleDraft["moduleType"] }))}>
-          {MODULE_TYPE_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>模块状态</span>
-        <select
-          value={props.draft.moduleStatus}
-          onChange={(event) => props.onChange((current) => ({ ...current, moduleStatus: event.target.value as ModuleDraft["moduleStatus"] }))}
-        >
-          {MODULE_STATUS_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>入口路由</span>
-        <input value={props.draft.entryRoute} onChange={(event) => props.onChange((current) => ({ ...current, entryRoute: event.target.value }))} />
-      </label>
-      <label>
-        <span>图标</span>
-        <input value={props.draft.icon} onChange={(event) => props.onChange((current) => ({ ...current, icon: event.target.value }))} />
-      </label>
-      <label>
-        <span>排序</span>
-        <input value={props.draft.sortOrder} onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))} />
-      </label>
-      <label>
-        <span>阶段优先级</span>
-        <select
-          value={props.draft.phasePriority}
-          onChange={(event) => props.onChange((current) => ({ ...current, phasePriority: event.target.value as ModuleDraft["phasePriority"] }))}
-        >
-          <option value="">未设置</option>
-          <option value="P0">P0</option>
-          <option value="P1">P1</option>
-          <option value="P2">P2</option>
-        </select>
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>描述</span>
-        <textarea value={props.draft.description} onChange={(event) => props.onChange((current) => ({ ...current, description: event.target.value }))} />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>所需权限</span>
-        <textarea value={props.draft.requiredPermissions} onChange={(event) => props.onChange((current) => ({ ...current, requiredPermissions: event.target.value }))} />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>功能开关</span>
-        <textarea value={props.draft.featureFlags} onChange={(event) => props.onChange((current) => ({ ...current, featureFlags: event.target.value }))} />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>依赖能力域</span>
-        <textarea value={props.draft.requiredCapabilities} onChange={(event) => props.onChange((current) => ({ ...current, requiredCapabilities: event.target.value }))} />
-      </label>
-      <label>
-        <span>Provider 依赖</span>
-        <textarea value={props.draft.requiredProviders} onChange={(event) => props.onChange((current) => ({ ...current, requiredProviders: event.target.value }))} />
-      </label>
-      <label>
-        <span>表依赖</span>
-        <textarea value={props.draft.requiredTables} onChange={(event) => props.onChange((current) => ({ ...current, requiredTables: event.target.value }))} />
-      </label>
-      <label>
-        <span>存储依赖</span>
-        <textarea value={props.draft.requiredStorages} onChange={(event) => props.onChange((current) => ({ ...current, requiredStorages: event.target.value }))} />
-      </label>
-      <label>
-        <span>第三方平台</span>
-        <textarea
-          value={props.draft.requiredThirdPartyPlatforms}
-          onChange={(event) => props.onChange((current) => ({ ...current, requiredThirdPartyPlatforms: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>任务类型</span>
-        <textarea value={props.draft.taskTypes} onChange={(event) => props.onChange((current) => ({ ...current, taskTypes: event.target.value }))} />
-      </label>
-      <label>
-        <span>媒体类型</span>
-        <textarea value={props.draft.mediaTypes} onChange={(event) => props.onChange((current) => ({ ...current, mediaTypes: event.target.value }))} />
-      </label>
-      <label>
-        <span>工作流类型</span>
-        <textarea value={props.draft.workflowTypes} onChange={(event) => props.onChange((current) => ({ ...current, workflowTypes: event.target.value }))} />
-      </label>
-      <label>
-        <span>发布目标</span>
-        <textarea value={props.draft.publishTargets} onChange={(event) => props.onChange((current) => ({ ...current, publishTargets: event.target.value }))} />
-      </label>
-      <label>
-        <span>默认能力包</span>
-        <textarea
-          value={props.draft.defaultSkillPackages}
-          onChange={(event) => props.onChange((current) => ({ ...current, defaultSkillPackages: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>默认知识空间</span>
-        <textarea
-          value={props.draft.defaultKnowledgeSpaces}
-          onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaces: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>默认 Provider 策略</span>
-        <textarea
-          value={props.draft.defaultProviderPolicies}
-          onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicies: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>平台可见</span>
-        <select
-          value={String(props.draft.isPlatformVisible)}
-          onChange={(event) => props.onChange((current) => ({ ...current, isPlatformVisible: event.target.value === "true" }))}
-        >
-          <option value="true">是</option>
-          <option value="false">否</option>
-        </select>
-      </label>
-      <label>
-        <span>品牌可见</span>
-        <select
-          value={String(props.draft.isBrandVisible)}
-          onChange={(event) => props.onChange((current) => ({ ...current, isBrandVisible: event.target.value === "true" }))}
-        >
-          <option value="true">是</option>
-          <option value="false">否</option>
-        </select>
-      </label>
-      <label>
-        <span>后台可见</span>
-        <select
-          value={String(props.draft.isAdminVisible)}
-          onChange={(event) => props.onChange((current) => ({ ...current, isAdminVisible: event.target.value === "true" }))}
-        >
-          <option value="true">是</option>
-          <option value="false">否</option>
-        </select>
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>备注</span>
-        <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
-      </label>
+    <div style={{ display: "grid", gap: 16, marginTop: 12 }}>
+      <section className="entity-card" style={{ padding: 16 }}>
+        <div className="entity-card-head" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>填写说明</strong>
+            <p className="personal-meta">先填基础信息与依赖，默认绑定项本轮仍以补充登记为主，后续再逐步切到后台真实选择器。</p>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+          <div className="entity-card" style={{ padding: 12 }}>
+            <strong>必填手工录入</strong>
+            <p className="personal-meta">模块名称、模块标识、模块类型、模块状态、入口路由、所需权限、依赖能力域、任务类型。</p>
+          </div>
+          <div className="entity-card" style={{ padding: 12 }}>
+            <strong>系统直接可选</strong>
+            <p className="personal-meta">模块类型、模块状态、阶段优先级、平台/品牌/后台可见性，当前都已做成固定下拉选择。</p>
+          </div>
+          <div className="entity-card" style={{ padding: 12 }}>
+            <strong>当前可不填</strong>
+            <p className="personal-meta">图标、排序、发布目标、默认知识空间、默认 Provider 策略、备注等，可后续补齐。</p>
+          </div>
+        </div>
+      </section>
+
+      <ModuleFormSection title="基础信息" description="先录入模块本身是什么、从哪里进入。这里是新建模块的最小必填区。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="模块名称" badge="必填" hint="用户手工填写，面向前后台的中文展示名称。">
+            <input
+              value={props.draft.moduleName}
+              placeholder="例如：公众号工作台"
+              onChange={(event) => props.onChange((current) => ({ ...current, moduleName: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="moduleKey" badge="必填" hint="用户手工填写，建议英文短横线命名，后续作为模块唯一标识。">
+            <input
+              value={props.draft.moduleKey}
+              placeholder="例如：wechat-workbench"
+              onChange={(event) => props.onChange((current) => ({ ...current, moduleKey: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="模块类型" badge="系统可选" hint="直接从固定枚举选择，不需要自由填写。">
+            <select value={props.draft.moduleType} onChange={(event) => props.onChange((current) => ({ ...current, moduleType: event.target.value as ModuleDraft["moduleType"] }))}>
+              {MODULE_TYPE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="模块状态" badge="系统可选" hint="直接从固定状态选择，初建阶段通常先用 PLANNING。">
+            <select
+              value={props.draft.moduleStatus}
+              onChange={(event) => props.onChange((current) => ({ ...current, moduleStatus: event.target.value as ModuleDraft["moduleStatus"] }))}
+            >
+              {MODULE_STATUS_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="入口路由" badge="必填" hint="用户手工填写，决定模块页面入口，建议以 / 开头。">
+            <input
+              value={props.draft.entryRoute}
+              placeholder="例如：/wechat"
+              onChange={(event) => props.onChange((current) => ({ ...current, entryRoute: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="图标" badge="可不填" hint="前端图标 key，没有就先留空，后续补。">
+            <input
+              value={props.draft.icon}
+              placeholder="例如：wechat"
+              onChange={(event) => props.onChange((current) => ({ ...current, icon: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="排序" badge="推荐" hint="用于列表和菜单排序，默认 100，一般不需要频繁调整。">
+            <input
+              value={props.draft.sortOrder}
+              placeholder="100"
+              onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="阶段优先级" badge="系统可选" hint="用于项目分期，不是运行必须字段。">
+            <select
+              value={props.draft.phasePriority}
+              onChange={(event) => props.onChange((current) => ({ ...current, phasePriority: event.target.value as ModuleDraft["phasePriority"] }))}
+            >
+              <option value="">未设置</option>
+              <option value="P0">P0</option>
+              <option value="P1">P1</option>
+              <option value="P2">P2</option>
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="描述" badge="推荐" hint="建议填写模块用途，便于后续模块中心和关系页面快速识别。" wide>
+            <textarea
+              value={props.draft.description}
+              placeholder="例如：负责公众号文章创作、配图、HTML 生成与发布。"
+              onChange={(event) => props.onChange((current) => ({ ...current, description: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
+
+      <ModuleFormSection title="展示与可见性" description="这部分主要决定模块会显示在哪些端，以及是否受功能开关控制。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="平台可见" badge="系统可选" hint="固定开关；通常工作台模块和平台模块保持可见。">
+            <select
+              value={String(props.draft.isPlatformVisible)}
+              onChange={(event) => props.onChange((current) => ({ ...current, isPlatformVisible: event.target.value === "true" }))}
+            >
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="品牌可见" badge="系统可选" hint="如果品牌侧不需要看到该模块，可以先关闭。">
+            <select
+              value={String(props.draft.isBrandVisible)}
+              onChange={(event) => props.onChange((current) => ({ ...current, isBrandVisible: event.target.value === "true" }))}
+            >
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="后台可见" badge="系统可选" hint="管理台是否显示该模块。通常后台治理模块设为可见。">
+            <select
+              value={String(props.draft.isAdminVisible)}
+              onChange={(event) => props.onChange((current) => ({ ...current, isAdminVisible: event.target.value === "true" }))}
+            >
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </ModuleFormField>
+          <ModuleFormField label="功能开关" badge="推荐" hint="当前需手工填写，每行一个；后续应与统一 feature flag 清单对齐。" wide>
+            <textarea
+              value={props.draft.featureFlags}
+              placeholder={"例如：\nwechat_enabled\nwechat_publish_enabled"}
+              onChange={(event) => props.onChange((current) => ({ ...current, featureFlags: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
+
+      <ModuleFormSection title="权限与依赖" description="这部分决定模块运行时依赖什么能力、权限、Provider、表和第三方平台。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="所需权限" badge="必填" hint="当前需手工填写，每行一个；这是访问控制的主字段。" wide>
+            <textarea
+              value={props.draft.requiredPermissions}
+              placeholder={"例如：\nmodule:wechat:read\nmodule:wechat:write"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredPermissions: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="依赖能力域" badge="必填" hint="当前需手工填写，每行一个；描述模块依赖的业务能力。" wide>
+            <textarea
+              value={props.draft.requiredCapabilities}
+              placeholder={"例如：\ncontent-domain\npublish-domain"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredCapabilities: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="Provider 依赖" badge="推荐" hint="当前可手工填写；如果模块明确依赖文本/图片/视频模型，建议补上。">
+            <textarea
+              value={props.draft.requiredProviders}
+              placeholder={"例如：\ntext\nimage"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredProviders: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="表依赖" badge="推荐" hint="当前可手工填写；可登记该模块主要依赖的数据库表。">
+            <textarea
+              value={props.draft.requiredTables}
+              placeholder={"例如：\nworks\npublish_records"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredTables: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="存储依赖" badge="可不填" hint="只有用到 OSS、本地文件、对象存储时再填。">
+            <textarea
+              value={props.draft.requiredStorages}
+              placeholder={"例如：\noss"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredStorages: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="第三方平台" badge="可不填" hint="只有依赖公众号、抖音、小红书等平台时再填。">
+            <textarea
+              value={props.draft.requiredThirdPartyPlatforms}
+              placeholder={"例如：\nwechat-official-account"}
+              onChange={(event) => props.onChange((current) => ({ ...current, requiredThirdPartyPlatforms: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
+
+      <ModuleFormSection title="任务与流程" description="这里说明模块会产出什么任务、媒体、流程和发布目标。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="任务类型" badge="必填" hint="当前需手工填写，每行一个；用于描述模块会创建的任务。">
+            <textarea
+              value={props.draft.taskTypes}
+              placeholder={"例如：\nwechat_article_generate"}
+              onChange={(event) => props.onChange((current) => ({ ...current, taskTypes: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="媒体类型" badge="推荐" hint="如果模块会生成图文、视频、HTML 等内容，建议补上。">
+            <textarea
+              value={props.draft.mediaTypes}
+              placeholder={"例如：\narticle\nhtml"}
+              onChange={(event) => props.onChange((current) => ({ ...current, mediaTypes: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="工作流类型" badge="推荐" hint="当前可手工填写；用于和后续工作流编排对齐。">
+            <textarea
+              value={props.draft.workflowTypes}
+              placeholder={"例如：\ncontent-production"}
+              onChange={(event) => props.onChange((current) => ({ ...current, workflowTypes: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="发布目标" badge="可不填" hint="只有存在明确发布端时再填，如公众号、抖音等。">
+            <textarea
+              value={props.draft.publishTargets}
+              placeholder={"例如：\nwechat"}
+              onChange={(event) => props.onChange((current) => ({ ...current, publishTargets: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
+
+      <ModuleFormSection title="默认绑定" description="这部分本质是模块与能力包、知识库、Provider 策略的默认关系。当前仍以登记为主，后续应切到后台真实选择器。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="默认能力包" badge="后续可带出" hint="当前仍需手工填写；后续建议直接从后台能力包数据选择。">
+            <textarea
+              value={props.draft.defaultSkillPackages}
+              placeholder={"例如：\nwechat-article-generation"}
+              onChange={(event) => props.onChange((current) => ({ ...current, defaultSkillPackages: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="默认知识空间" badge="可不填" hint="当前仍需手工填写；知识库闭环后应切成后台真实选择器。">
+            <textarea
+              value={props.draft.defaultKnowledgeSpaces}
+              placeholder={"例如：\nbrand-knowledge-space"}
+              onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaces: event.target.value }))}
+            />
+          </ModuleFormField>
+          <ModuleFormField label="默认 Provider 策略" badge="可不填" hint="当前仍需手工填写；后续 Provider 策略独立域完成后再切真实选择。">
+            <textarea
+              value={props.draft.defaultProviderPolicies}
+              placeholder={"例如：\ntext-default-policy"}
+              onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicies: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
+
+      <ModuleFormSection title="备注" description="这一部分不影响系统运行，主要用于补充说明和交接。">
+        <div className="admin-rule-grid">
+          <ModuleFormField label="备注" badge="可不填" hint="记录项目背景、上下游模块说明、临时限制等。" wide>
+            <textarea
+              value={props.draft.remarks}
+              placeholder="例如：当前先服务公众号工作流，后续再接品牌侧模块入口。"
+              onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))}
+            />
+          </ModuleFormField>
+        </div>
+      </ModuleFormSection>
     </div>
+  );
+}
+
+function ModuleFormSection(props: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head" style={{ marginBottom: 12 }}>
+        <div>
+          <strong>{props.title}</strong>
+          <p className="personal-meta">{props.description}</p>
+        </div>
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
+function ModuleFormField(props: {
+  label: string;
+  badge: string;
+  hint: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label style={props.wide ? { gridColumn: "1 / -1", display: "grid", gap: 6 } : { display: "grid", gap: 6 }}>
+      <span>{props.label}</span>
+      <small className="personal-meta">{`${props.badge} · ${props.hint}`}</small>
+      {props.children}
+    </label>
   );
 }
 
