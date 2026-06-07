@@ -131,8 +131,13 @@ type KnowledgeInputConfig = {
   id: string;
   knowledgeBaseId: string;
   knowledgeBaseName: string;
+  targetContentId: string;
   targetContentLabel: string;
   remarks: string;
+};
+type KnowledgeContentOption = {
+  value: string;
+  label: string;
 };
 type CustomInputConfig = {
   id: string;
@@ -984,9 +989,17 @@ export default function AdminPage() {
           return item;
         }
         const next = { ...item, ...patch };
-        if (patch.knowledgeBaseId) {
+        if (Object.prototype.hasOwnProperty.call(patch, "knowledgeBaseId")) {
           const matched = knowledgeBases.find((entry) => entry.id === patch.knowledgeBaseId);
           next.knowledgeBaseName = matched?.name || "";
+          const nextOptions = getKnowledgeContentOptions(patch.knowledgeBaseId || "", knowledgeBaseFiles);
+          next.targetContentId = nextOptions[0]?.value || "";
+          next.targetContentLabel = nextOptions[0]?.label || "";
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "targetContentId")) {
+          const nextOptions = getKnowledgeContentOptions(next.knowledgeBaseId, knowledgeBaseFiles, patch.targetContentId, next.targetContentLabel);
+          const matchedOption = nextOptions.find((entry) => entry.value === (patch.targetContentId || ""));
+          next.targetContentLabel = matchedOption?.label || "";
         }
         return next;
       }),
@@ -998,8 +1011,9 @@ export default function AdminPage() {
       return;
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    const defaultKnowledgeBase = knowledgeBases.find((item) => item.status !== "DISABLED");
     handleSkillDraftChange(activeSkillConfig.id, {
-      knowledgeInputs: [...draft.knowledgeInputs, buildKnowledgeInputConfig(knowledgeBases[0])],
+      knowledgeInputs: [...draft.knowledgeInputs, buildKnowledgeInputConfig(defaultKnowledgeBase, knowledgeBaseFiles)],
     });
   }
 
@@ -2314,9 +2328,20 @@ export default function AdminPage() {
   const activeSkillAssetSourceLabel = activePrimarySkillRelation?.packageName || activeSkillPackageLabel;
   const isLoadingActiveSkillAssets = !!activePrimarySkillRelation?.packageId && loadingSkillAssetPackageId === activePrimarySkillRelation.packageId;
   const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
-  const activeKnowledgeBaseOptions = knowledgeBases
+  const activeKnowledgeBaseRecords = knowledgeBases
     .filter((item) => item.status !== "DISABLED")
-    .map((item) => ({ value: item.id, label: item.name }));
+    .map((item) => ({ value: item.id, label: item.name, documentCount: item.documentCount }));
+  const activeKnowledgeBaseOptions = activeKnowledgeBaseRecords.map((item) => ({ value: item.value, label: item.label }));
+  const knowledgeBaseFileCountMap = knowledgeBaseFiles.reduce<Record<string, number>>((accumulator, item) => {
+    if (item.status === "FAILED") {
+      return accumulator;
+    }
+    accumulator[item.knowledgeBaseId] = (accumulator[item.knowledgeBaseId] || 0) + 1;
+    return accumulator;
+  }, {});
+  const knowledgeBaseSyncSummary = activeKnowledgeBaseRecords
+    .slice(0, 6)
+    .map((item) => `${item.label} ${knowledgeBaseFileCountMap[item.value] || 0} 项`);
   const databaseInputSummary = (activeSkillDraft?.databaseInputs || [])
     .map((item) => {
       if (item.parameterType === "INJECT_TOGGLE") {
@@ -2329,7 +2354,7 @@ export default function AdminPage() {
     .join(" / ");
   const databaseParameterSyncSummary = databaseParameterSync.summary.join(" / ");
   const knowledgeInputSummary = (activeSkillDraft?.knowledgeInputs || [])
-    .map((item) => `${item.knowledgeBaseName || "未选择知识库"}${item.targetContentLabel ? `：${item.targetContentLabel}` : ""}`)
+    .map((item) => `${item.knowledgeBaseName || "未选择知识库"}：${item.targetContentLabel || "整库检索"}`)
     .join(" / ");
   const customInputSummary = (activeSkillDraft?.customInputs || [])
     .map((item) => `${item.label || "未命名参数"}（${item.inputType === "SELECT" ? "下拉" : item.inputType === "FILE" ? "上传" : "输入"}）`)
@@ -3822,18 +3847,19 @@ export default function AdminPage() {
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
                                   <strong>知识库参数</strong>
-                                  <p className="personal-meta">支持多条创建。当前先选择知识库来源，具体内容选择器等知识库内容模型接入后再补齐。</p>
+                                  <p className="personal-meta">这里直接使用现有知识库与已同步内容作为技能输入项，支持按知识库选择和按具体内容选择。</p>
                                 </div>
-                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
                                   <button
                                     type="button"
                                     className="secondary-button"
+                                    style={{ whiteSpace: "nowrap" }}
                                     onClick={() => handleAddKnowledgeInput()}
                                     disabled={!activeKnowledgeBaseOptions.length}
                                   >
                                     新增知识库参数
                                   </button>
-                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearKnowledgeInputs()}>
+                                  <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearKnowledgeInputs()}>
                                     清空
                                   </button>
                                 </div>
@@ -3841,50 +3867,74 @@ export default function AdminPage() {
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
                                 {knowledgeInputSummary || "当前还没有知识库参数摘要。"}
                               </div>
+                              <div className="personal-meta" style={{ marginBottom: 12 }}>
+                                {knowledgeBaseSyncSummary.length
+                                  ? `已同步知识库内容：${knowledgeBaseSyncSummary.join(" / ")}`
+                                  : "当前还没有已同步的知识库内容。"}
+                              </div>
                               <div style={{ display: "grid", gap: 10 }}>
-                                {activeSkillDraft?.knowledgeInputs.length ? activeSkillDraft.knowledgeInputs.map((item) => (
-                                  <div className="entity-card" style={{ padding: 12 }} key={item.id}>
-                                    <div className="admin-skill-simple-grid">
-                                      <label className="admin-skill-field">
-                                        <span>知识库</span>
-                                        <select
-                                          value={item.knowledgeBaseId}
-                                          onChange={(event) => handleKnowledgeInputChange(item.id, { knowledgeBaseId: event.target.value })}
-                                        >
-                                          <option value="">请选择知识库</option>
-                                          {activeKnowledgeBaseOptions.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                      <label className="admin-skill-field">
-                                        <span>具体内容</span>
-                                        <input
-                                          value={item.targetContentLabel}
-                                          placeholder="知识库内容选择器待接入后，这里改为直接选择具体内容"
-                                          onChange={(event) => handleKnowledgeInputChange(item.id, { targetContentLabel: event.target.value })}
-                                        />
-                                      </label>
-                                      <label className="admin-skill-field admin-skill-field--wide">
-                                        <span>备注</span>
-                                        <input
-                                          value={item.remarks}
-                                          placeholder="例如：优先检索品牌FAQ；只读取活动资料。"
-                                          onChange={(event) => handleKnowledgeInputChange(item.id, { remarks: event.target.value })}
-                                        />
-                                      </label>
+                                {activeSkillDraft?.knowledgeInputs.length ? activeSkillDraft.knowledgeInputs.map((item) => {
+                                  const contentOptions = getKnowledgeContentOptions(
+                                    item.knowledgeBaseId,
+                                    knowledgeBaseFiles,
+                                    item.targetContentId,
+                                    item.targetContentLabel,
+                                  );
+                                  return (
+                                    <div className="entity-card" style={{ padding: 12 }} key={item.id}>
+                                      <div className="admin-skill-simple-grid">
+                                        <label className="admin-skill-field">
+                                          <span>知识库</span>
+                                          <select
+                                            value={item.knowledgeBaseId}
+                                            onChange={(event) => handleKnowledgeInputChange(item.id, { knowledgeBaseId: event.target.value })}
+                                          >
+                                            <option value="">请选择知识库</option>
+                                            {activeKnowledgeBaseOptions.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                        <label className="admin-skill-field">
+                                          <span>具体内容</span>
+                                          <select
+                                            value={item.targetContentId}
+                                            onChange={(event) => handleKnowledgeInputChange(item.id, { targetContentId: event.target.value })}
+                                            disabled={!item.knowledgeBaseId}
+                                          >
+                                            {contentOptions.map((option) => (
+                                              <option key={`${item.id}_${option.value || "all"}`} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                        <label className="admin-skill-field">
+                                          <span>知识库同步</span>
+                                          <input
+                                            value={`已同步 ${knowledgeBaseFileCountMap[item.knowledgeBaseId] || 0} 项内容`}
+                                            readOnly
+                                          />
+                                        </label>
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>备注</span>
+                                          <input
+                                            value={item.remarks}
+                                            placeholder="例如：优先检索品牌 FAQ；只读取活动资料。"
+                                            onChange={(event) => handleKnowledgeInputChange(item.id, { remarks: event.target.value })}
+                                          />
+                                        </label>
+                                      </div>
+                                      <div className="personal-actions" style={{ marginTop: 12 }}>
+                                        <button type="button" className="ghost-danger-button" onClick={() => handleRemoveKnowledgeInput(item.id)}>
+                                          删除参数
+                                        </button>
+                                      </div>
                                     </div>
-                                    <div className="personal-actions" style={{ marginTop: 12 }}>
-                                      <button type="button" className="ghost-danger-button" onClick={() => handleRemoveKnowledgeInput(item.id)}>
-                                        删除参数
-                                      </button>
-                                    </div>
-                                  </div>
-                                )) : (
+                                  );
+                                }) : (
                                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
                                     {activeKnowledgeBaseOptions.length
-                                      ? `当前可选知识库：${activeKnowledgeBaseSummary.join(" / ")}。可按技能继续创建多条知识库输入项。`
-                                      : "当前还没有可用知识库；等知识库模块和内容选择器接入后，这里可直接为技能添加多条知识库输入。"}
+                                      ? `当前可选知识库：${activeKnowledgeBaseSummary.join(" / ")}。现在可以直接选择知识库和已同步内容。`
+                                      : "当前还没有可用知识库；等知识库创建并同步内容后，这里可直接为技能添加多条知识库输入。"}
                                   </div>
                                 )}
                               </div>
@@ -5784,14 +5834,41 @@ function normalizeDatabaseInputConfig(value: unknown): DatabaseInputConfig {
   };
 }
 
-function buildKnowledgeInputConfig(knowledgeBase?: KnowledgeBaseRecord): KnowledgeInputConfig {
+function buildKnowledgeInputConfig(
+  knowledgeBase?: KnowledgeBaseRecord,
+  knowledgeBaseFiles?: KnowledgeBaseFileRecord[],
+): KnowledgeInputConfig {
+  const defaultOption = getKnowledgeContentOptions(knowledgeBase?.id || "", knowledgeBaseFiles || [])[0];
   return {
     id: createSkillInputConfigId("kb"),
     knowledgeBaseId: knowledgeBase?.id || "",
     knowledgeBaseName: knowledgeBase?.name || "",
-    targetContentLabel: "",
+    targetContentId: defaultOption?.value || "",
+    targetContentLabel: defaultOption?.label || "",
     remarks: "",
   };
+}
+
+function getKnowledgeContentOptions(
+  knowledgeBaseId: string,
+  knowledgeBaseFiles: KnowledgeBaseFileRecord[],
+  currentValue?: string,
+  currentLabel?: string,
+): KnowledgeContentOption[] {
+  const synced = knowledgeBaseFiles
+    .filter((item) => item.knowledgeBaseId === knowledgeBaseId && item.status !== "FAILED")
+    .map((item) => ({
+      value: item.id,
+      label: item.fileName,
+    }));
+  const options = [
+    { value: "", label: "不指定具体内容（整库检索）" },
+    ...synced,
+  ];
+  if (currentValue && currentLabel && !options.some((item) => item.value === currentValue)) {
+    return [...options, { value: currentValue, label: currentLabel }];
+  }
+  return options;
 }
 
 function normalizeKnowledgeInputConfig(value: unknown): KnowledgeInputConfig {
@@ -5800,6 +5877,7 @@ function normalizeKnowledgeInputConfig(value: unknown): KnowledgeInputConfig {
     id: String(current.id || createSkillInputConfigId("kb")),
     knowledgeBaseId: String(current.knowledgeBaseId || ""),
     knowledgeBaseName: String(current.knowledgeBaseName || ""),
+    targetContentId: String(current.targetContentId || ""),
     targetContentLabel: String(current.targetContentLabel || ""),
     remarks: String(current.remarks || ""),
   };
