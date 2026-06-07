@@ -109,25 +109,21 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
       {
         key: "registry" as const,
         label: "模块注册",
-        description: "维护模块定义、入口路由、依赖能力与默认接线。",
         badge: String(props.modules.length),
       },
       {
         key: "packages" as const,
         label: "能力包注册",
-        description: "维护 SkillPackage 主对象与默认资产摘要。",
         badge: "SP",
       },
       {
         key: "moduleRelations" as const,
         label: "模块绑定",
-        description: "维护模块与能力包的默认挂载关系。",
         badge: "MP",
       },
       {
         key: "skillRelations" as const,
         label: "技能绑定",
-        description: "维护能力包与技能的归属与默认关系。",
         badge: String(props.skills.length),
       },
     ],
@@ -347,8 +343,11 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   }
 
   return (
-    <div className="strategy-layout" style={{ alignItems: "flex-start" }}>
-      <aside className="strategy-level-panel strategy-level-panel--directory">
+    <div
+      className="strategy-layout"
+      style={{ alignItems: "stretch", gridTemplateColumns: "132px minmax(0, 1fr)", width: "100%" }}
+    >
+      <aside className="strategy-level-panel strategy-level-panel--directory" style={{ width: "100%", minWidth: 0 }}>
         <div className="strategy-level-button-list">
           {centerSections.map((section) => (
             <button
@@ -358,16 +357,18 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
               onClick={() => setActiveSection(section.key)}
             >
               <strong>{section.label}</strong>
-              <span>{section.description}</span>
               <small>{section.badge}</small>
             </button>
           ))}
         </div>
       </aside>
 
-      <div className="strategy-content-panel xiaohongshu-content-panel">
+      <div
+        className="strategy-content-panel xiaohongshu-content-panel"
+        style={{ width: "100%", maxWidth: "100%", minWidth: 0, alignContent: "start" }}
+      >
         {activeSection === "registry" ? (
-          <div className="admin-user-management">
+          <div className="admin-user-management" style={{ width: "100%", maxWidth: "100%", minWidth: 0, display: "grid", gap: 16 }}>
             <section className="entity-card admin-user-filter-card">
               <div className="admin-user-filter-head">
                 <div>
@@ -455,8 +456,8 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
               </div>
             </section>
 
-            <section className="admin-user-layout">
-              <article className="entity-card admin-user-list-card">
+            <section className="admin-user-layout" style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
+              <article className="entity-card admin-user-list-card" style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
                 <div className="entity-card-head">
                   <div>
                     <strong>模块列表</strong>
@@ -543,7 +544,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                 </div>
               </article>
 
-              <article className="entity-card admin-user-list-card">
+              <article className="entity-card admin-user-list-card" style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
                 <div className="entity-card-head">
                   <div>
                     <strong>模块编辑</strong>
