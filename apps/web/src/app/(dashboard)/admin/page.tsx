@@ -87,7 +87,15 @@ import {
   type ThirdPartyPlatformRecord,
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
+import { getBrandArchive, type BrandArchiveBundle } from "../../../services/brand-growth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
+import {
+  getDouyinMarketingPlanWorkspace,
+  getDouyinOriginalCopyWorkspace,
+  getDouyinRemixCopyWorkspace,
+  getXiaohongshuMarketingPlanWorkspace,
+  getXiaohongshuMarketingCalendarWorkspace,
+} from "../../../services/reports";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
 import { SkillPackageOverviewPanel } from "./skill-package-overview-panel";
 import { UsersManagementPanel } from "./users-management-panel";
@@ -143,7 +151,17 @@ type DatabaseInjectParameterOption = {
 type DatabaseSelectParameterOption = {
   value: string;
   label: string;
-  options: string[];
+  emptyLabel: string;
+};
+type DatabaseParameterSyncedOption = {
+  value: string;
+  label: string;
+};
+type DatabaseParameterSyncState = {
+  brandArchive?: BrandArchiveBundle;
+  injectCounts: Record<string, number>;
+  selectOptions: Record<string, DatabaseParameterSyncedOption[]>;
+  summary: string[];
 };
 type PromptEditDraft = {
   status: PromptTemplateRecord["status"];
@@ -316,27 +334,26 @@ const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
 };
 
 const DATABASE_INJECT_PARAMETER_OPTIONS: DatabaseInjectParameterOption[] = [
-  { value: "brand_profile", label: "品牌信息" },
-  { value: "product_library", label: "产品库" },
+  { value: "brand_profile", label: "品牌资料" },
+  { value: "product_library", label: "产品资料" },
   { value: "marketing_plan", label: "营销策划方案" },
-  { value: "campaign_strategy", label: "专项活动策略" },
 ];
 
 const DATABASE_SELECT_PARAMETER_OPTIONS: DatabaseSelectParameterOption[] = [
   {
     value: "marketing_calendar",
     label: "营销日历",
-    options: ["不使用营销日历", "品牌营销日历", "平台营销日历", "活动营销日历"],
+    emptyLabel: "不植入营销日历",
   },
   {
-    value: "asset_library",
+    value: "topic_library",
+    label: "选题库",
+    emptyLabel: "不植入选题库",
+  },
+  {
+    value: "material_library",
     label: "素材库",
-    options: ["不使用素材库", "品牌素材库", "活动素材库", "场景素材库"],
-  },
-  {
-    value: "persona_library",
-    label: "账号角色库",
-    options: ["品牌官方号", "达人合作号", "门店本地号", "员工个人号"],
+    emptyLabel: "不植入素材库",
   },
 ];
 
@@ -415,10 +432,17 @@ export default function AdminPage() {
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [loadingSkillAssetPackageId, setLoadingSkillAssetPackageId] = useState("");
+  const [databaseParameterSync, setDatabaseParameterSync] = useState<DatabaseParameterSyncState>({
+    injectCounts: {},
+    selectOptions: {},
+    summary: [],
+  });
+  const [isLoadingDatabaseParameters, setIsLoadingDatabaseParameters] = useState(false);
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [skillAssetLoadError, setSkillAssetLoadError] = useState("");
+  const [databaseParameterSyncError, setDatabaseParameterSyncError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [adminName, setAdminName] = useState("");
@@ -896,9 +920,11 @@ export default function AdminPage() {
         if (patch.parameterKey) {
           const meta = getDatabaseParameterMeta(next.parameterType, patch.parameterKey);
           next.parameterLabel = meta?.label || patch.parameterKey;
-          const selectMeta = next.parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(patch.parameterKey) : undefined;
-          if (selectMeta?.options?.length && !selectMeta.options.includes(next.selectedValue)) {
-            next.selectedValue = selectMeta.options[0];
+          const selectOptions = next.parameterType === "SELECT_CHOICE"
+            ? getDatabaseSelectValueOptions(patch.parameterKey, databaseParameterSync)
+            : [];
+          if (next.parameterType === "SELECT_CHOICE" && !selectOptions.some((option) => option.value === next.selectedValue)) {
+            next.selectedValue = selectOptions[0]?.value || "";
           }
         }
         return next;
@@ -912,7 +938,7 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      databaseInputs: [...draft.databaseInputs, buildDatabaseInputConfig(parameterType)],
+      databaseInputs: [...draft.databaseInputs, buildDatabaseInputConfig(parameterType, databaseParameterSync)],
     });
   }
 
@@ -931,7 +957,7 @@ export default function AdminPage() {
       return;
     }
     handleSkillDraftChange(activeSkillConfig.id, {
-      databaseInputs: buildRecommendedDatabaseInputs(),
+      databaseInputs: buildRecommendedDatabaseInputs(databaseParameterSync),
     });
   }
 
@@ -2296,9 +2322,12 @@ export default function AdminPage() {
       if (item.parameterType === "INJECT_TOGGLE") {
         return `${item.parameterLabel || item.parameterKey}：${item.selectedValue === "INJECT" ? "植入" : "不植入"}`;
       }
-      return `${item.parameterLabel || item.parameterKey}：${item.selectedValue || "未选择"}`;
+      const matchedOption = getDatabaseSelectValueOptions(item.parameterKey, databaseParameterSync)
+        .find((option) => option.value === item.selectedValue);
+      return `${item.parameterLabel || item.parameterKey}：${matchedOption?.label || "未选择"}`;
     })
     .join(" / ");
+  const databaseParameterSyncSummary = databaseParameterSync.summary.join(" / ");
   const knowledgeInputSummary = (activeSkillDraft?.knowledgeInputs || [])
     .map((item) => `${item.knowledgeBaseName || "未选择知识库"}${item.targetContentLabel ? `：${item.targetContentLabel}` : ""}`)
     .join(" / ");
@@ -2457,6 +2486,91 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [activePrimarySkillRelation?.packageId, dataSource, loadingSkillAssetPackageId, skillPackageDetailMap]);
+
+  useEffect(() => {
+    if (dataSource !== "api" || activeTab !== "assets") {
+      setIsLoadingDatabaseParameters(false);
+      setDatabaseParameterSyncError("");
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingDatabaseParameters(true);
+    setDatabaseParameterSyncError("");
+
+    void Promise.all([
+      getBrandArchive(),
+      getXiaohongshuMarketingCalendarWorkspace(),
+      getDouyinOriginalCopyWorkspace(),
+      getDouyinRemixCopyWorkspace(),
+      getXiaohongshuMarketingPlanWorkspace(),
+      getDouyinMarketingPlanWorkspace(),
+    ])
+      .then(([brandArchive, marketingCalendarWorkspace, topicWorkspace, materialWorkspace, xhsMarketingPlanWorkspace, douyinMarketingPlanWorkspace]) => {
+        if (cancelled) {
+          return;
+        }
+        const marketingCalendarOptions = marketingCalendarWorkspace.history
+          .flatMap((record) => record.items.map((item) => ({
+            value: item.id,
+            label: `${item.date}｜${item.topicName}`,
+          })));
+        const topicLibraryOptions = topicWorkspace.topicOptions.map((item) => ({
+          value: item.id,
+          label: item.topicContent,
+        }));
+        const materialLibraryOptions = materialWorkspace.materialOptions.map((item) => ({
+          value: item.id,
+          label: item.title,
+        }));
+        const marketingPlanCount =
+          (xhsMarketingPlanWorkspace.latest ? 1 : 0)
+          + (douyinMarketingPlanWorkspace.latest ? 1 : 0);
+
+        setDatabaseParameterSync({
+          brandArchive,
+          injectCounts: {
+            brand_profile: brandArchive.brand?.brandName ? 1 : 0,
+            product_library: brandArchive.products.length,
+            marketing_plan: marketingPlanCount,
+          },
+          selectOptions: {
+            marketing_calendar: marketingCalendarOptions,
+            topic_library: topicLibraryOptions,
+            material_library: materialLibraryOptions,
+          },
+          summary: [
+            `品牌资料 ${brandArchive.brand?.brandName ? 1 : 0} 项`,
+            `产品资料 ${brandArchive.products.length} 项`,
+            `营销策划方案 ${marketingPlanCount} 项`,
+            `营销日历 ${marketingCalendarOptions.length} 项`,
+            `选题库 ${topicLibraryOptions.length} 项`,
+            `素材库 ${materialLibraryOptions.length} 项`,
+          ],
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "数据库参数同步失败";
+        setDatabaseParameterSync({
+          injectCounts: {},
+          selectOptions: {},
+          summary: [],
+        });
+        setDatabaseParameterSyncError(`数据库参数同步失败：${message}`);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingDatabaseParameters(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, dataSource]);
 
   useEffect(() => {
     if (!isCreateSkillModalOpen) {
@@ -3599,19 +3713,19 @@ export default function AdminPage() {
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
                                   <strong>数据库参数</strong>
-                                  <p className="personal-meta">支持多条创建。可配置“是否植入”参数，以及“下拉框选择”类数据库参数。</p>
+                                  <p className="personal-meta">这里读取现有数据库内容作为技能输入项，并区分“植入参数”和“下拉参数”两类。</p>
                                 </div>
-                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
-                                  <button type="button" className="secondary-button" onClick={() => handleApplyRecommendedDatabaseInputs()}>
+                                <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleApplyRecommendedDatabaseInputs()}>
                                     一键补齐常用项
                                   </button>
-                                  <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("INJECT_TOGGLE")}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddDatabaseInput("INJECT_TOGGLE")}>
                                     新增植入参数
                                   </button>
-                                  <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("SELECT_CHOICE")}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddDatabaseInput("SELECT_CHOICE")}>
                                     新增下拉参数
                                   </button>
-                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearDatabaseInputs()}>
+                                  <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearDatabaseInputs()}>
                                     清空
                                   </button>
                                 </div>
@@ -3619,20 +3733,36 @@ export default function AdminPage() {
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
                                 {databaseInputSummary || "当前还没有数据库参数摘要。"}
                               </div>
+                              <div className="personal-meta" style={{ marginBottom: 12 }}>
+                                {isLoadingDatabaseParameters
+                                  ? "正在同步数据库参数..."
+                                  : databaseParameterSyncSummary || "当前还没有同步到数据库参数数据。"}
+                              </div>
+                              {databaseParameterSyncError ? (
+                                <div className="admin-skill-empty" style={{ marginTop: 0, marginBottom: 12 }}>
+                                  {databaseParameterSyncError}
+                                </div>
+                              ) : null}
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.databaseInputs.length ? activeSkillDraft.databaseInputs.map((item) => {
-                                  const selectMeta = item.parameterType === "SELECT_CHOICE"
-                                    ? DATABASE_SELECT_PARAMETER_OPTIONS.find((entry) => entry.value === item.parameterKey)
-                                    : undefined;
+                                  const selectOptions = item.parameterType === "SELECT_CHOICE"
+                                    ? getDatabaseSelectValueOptions(item.parameterKey, databaseParameterSync, item.selectedValue)
+                                    : [
+                                      { value: "INJECT", label: "植入" },
+                                      { value: "SKIP", label: `不植入${item.parameterLabel || "当前数据库参数"}` },
+                                    ];
+                                  const injectCount = item.parameterType === "INJECT_TOGGLE"
+                                    ? databaseParameterSync.injectCounts[item.parameterKey] || 0
+                                    : 0;
                                   return (
                                     <div className="entity-card" style={{ padding: 12 }} key={item.id}>
                                       <div className="admin-skill-simple-grid">
                                         <label className="admin-skill-field">
                                           <span>参数形式</span>
-                                          <input value={item.parameterType === "INJECT_TOGGLE" ? "是否植入" : "下拉框选择"} readOnly />
+                                          <input value={item.parameterType === "INJECT_TOGGLE" ? "植入参数" : "下拉参数"} readOnly />
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>参数名称</span>
+                                          <span>数据库参数</span>
                                           <select
                                             value={item.parameterKey}
                                             onChange={(event) => handleDatabaseInputChange(item.id, { parameterKey: event.target.value })}
@@ -3643,28 +3773,32 @@ export default function AdminPage() {
                                           </select>
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>{item.parameterType === "INJECT_TOGGLE" ? "植入方式" : "下拉选择值"}</span>
+                                          <span>下拉选择值</span>
                                           <select
                                             value={item.selectedValue}
                                             onChange={(event) => handleDatabaseInputChange(item.id, { selectedValue: event.target.value })}
                                           >
-                                            {item.parameterType === "INJECT_TOGGLE" ? (
-                                              <>
-                                                <option value="INJECT">植入</option>
-                                                <option value="SKIP">不植入</option>
-                                              </>
-                                            ) : (
-                                              (selectMeta?.options || ["待配置"]).map((option) => (
-                                                <option key={option} value={option}>{option}</option>
-                                              ))
-                                            )}
+                                            {selectOptions.map((option) => (
+                                              <option key={`${item.id}_${option.value || "empty"}`} value={option.value}>{option.label}</option>
+                                            ))}
                                           </select>
+                                        </label>
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>数据库同步</span>
+                                          <input
+                                            value={
+                                              item.parameterType === "INJECT_TOGGLE"
+                                                ? `已同步 ${injectCount} 项数据库内容`
+                                                : `已同步 ${selectOptions.length ? Math.max(selectOptions.length - 1, 0) : 0} 个可选值`
+                                            }
+                                            readOnly
+                                          />
                                         </label>
                                         <label className="admin-skill-field admin-skill-field--wide">
                                           <span>备注</span>
                                           <input
                                             value={item.remarks}
-                                            placeholder="例如：正文阶段必须植入品牌信息；营销日历优先读取最近一期。"
+                                            placeholder="例如：正文阶段必须植入品牌资料；营销日历优先读取最近一期。"
                                             onChange={(event) => handleDatabaseInputChange(item.id, { remarks: event.target.value })}
                                           />
                                         </label>
@@ -3678,7 +3812,7 @@ export default function AdminPage() {
                                   );
                                 }) : (
                                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                                    还没有配置数据库参数。可添加“品牌信息 / 产品库 / 营销策划方案”等植入参数，或“营销日历 / 素材库”等下拉参数。
+                                    还没有配置数据库参数。可添加“品牌资料 / 产品资料 / 营销策划方案”等植入参数，或“营销日历 / 选题库 / 素材库”等下拉参数。
                                   </div>
                                 )}
                               </div>
@@ -5548,56 +5682,88 @@ function getDatabaseSelectParameterMeta(parameterKey: string) {
   return DATABASE_SELECT_PARAMETER_OPTIONS.find((item) => item.value === parameterKey);
 }
 
-function buildDatabaseInputConfig(parameterType: DatabaseInputConfig["parameterType"]): DatabaseInputConfig {
+function getDatabaseSelectValueOptions(
+  parameterKey: string,
+  syncState: DatabaseParameterSyncState,
+  currentValue?: string,
+): DatabaseParameterSyncedOption[] {
+  const meta = getDatabaseSelectParameterMeta(parameterKey);
+  const synced = syncState.selectOptions[parameterKey] || [];
+  const options = [
+    { value: "", label: meta?.emptyLabel || "不植入" },
+    ...synced,
+  ];
+  if (currentValue && !options.some((item) => item.value === currentValue)) {
+    return [...options, { value: currentValue, label: currentValue }];
+  }
+  return options;
+}
+
+function buildDatabaseInputConfig(
+  parameterType: DatabaseInputConfig["parameterType"],
+  syncState?: DatabaseParameterSyncState,
+): DatabaseInputConfig {
   const defaultKey = parameterType === "INJECT_TOGGLE" ? DATABASE_INJECT_PARAMETER_OPTIONS[0]?.value || "" : DATABASE_SELECT_PARAMETER_OPTIONS[0]?.value || "";
   const meta = getDatabaseParameterMeta(parameterType, defaultKey);
-  const selectMeta = parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(defaultKey) : undefined;
+  const selectOptions = parameterType === "SELECT_CHOICE" && syncState
+    ? getDatabaseSelectValueOptions(defaultKey, syncState)
+    : [];
   return {
     id: createSkillInputConfigId("db"),
     parameterType,
     parameterKey: meta?.value || "",
     parameterLabel: meta?.label || "",
-    selectedValue: parameterType === "INJECT_TOGGLE" ? "INJECT" : selectMeta?.options?.[0] || "",
+    selectedValue: parameterType === "INJECT_TOGGLE" ? "INJECT" : selectOptions[0]?.value || "",
     remarks: "",
   };
 }
 
-function buildRecommendedDatabaseInputs(): DatabaseInputConfig[] {
+function buildRecommendedDatabaseInputs(syncState?: DatabaseParameterSyncState): DatabaseInputConfig[] {
+  const marketingCalendarOptions = getDatabaseSelectValueOptions("marketing_calendar", syncState || { injectCounts: {}, selectOptions: {}, summary: [] });
+  const topicLibraryOptions = getDatabaseSelectValueOptions("topic_library", syncState || { injectCounts: {}, selectOptions: {}, summary: [] });
+  const materialLibraryOptions = getDatabaseSelectValueOptions("material_library", syncState || { injectCounts: {}, selectOptions: {}, summary: [] });
   return [
     {
-      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "brand_profile",
-      parameterLabel: "品牌信息",
+      parameterLabel: "品牌资料",
       selectedValue: "INJECT",
       remarks: "默认植入品牌背景、定位和口径约束。",
     },
     {
-      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "product_library",
-      parameterLabel: "产品库",
+      parameterLabel: "产品资料",
       selectedValue: "INJECT",
       remarks: "按当前商品池提供产品卖点和卖货信息。",
     },
     {
-      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "marketing_plan",
       parameterLabel: "营销策划方案",
       selectedValue: "INJECT",
       remarks: "优先参考品牌既有营销方案和活动重点。",
     },
     {
-      ...buildDatabaseInputConfig("SELECT_CHOICE"),
+      ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
       parameterKey: "marketing_calendar",
       parameterLabel: "营销日历",
-      selectedValue: "品牌营销日历",
-      remarks: "默认读取品牌营销日历；没有时可切换为不使用。",
+      selectedValue: marketingCalendarOptions[1]?.value || "",
+      remarks: "默认从已同步的营销日历数据中选择；没有时可切换为不植入营销日历。",
     },
     {
-      ...buildDatabaseInputConfig("SELECT_CHOICE"),
-      parameterKey: "asset_library",
+      ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
+      parameterKey: "topic_library",
+      parameterLabel: "选题库",
+      selectedValue: topicLibraryOptions[1]?.value || "",
+      remarks: "默认从已同步的选题库中选择具体条目。",
+    },
+    {
+      ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
+      parameterKey: "material_library",
       parameterLabel: "素材库",
-      selectedValue: "品牌素材库",
-      remarks: "优先使用品牌素材库中的现成素材。",
+      selectedValue: materialLibraryOptions[1]?.value || "",
+      remarks: "默认从已同步的素材库中选择具体素材条目。",
     },
   ];
 }
@@ -5606,14 +5772,13 @@ function normalizeDatabaseInputConfig(value: unknown): DatabaseInputConfig {
   const current = value && typeof value === "object" ? (value as Partial<DatabaseInputConfig>) : {};
   const parameterType = current.parameterType === "SELECT_CHOICE" ? "SELECT_CHOICE" : "INJECT_TOGGLE";
   const meta = getDatabaseParameterMeta(parameterType, String(current.parameterKey || ""));
-  const selectMeta = parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(String(current.parameterKey || meta?.value || "")) : undefined;
   return {
     id: String(current.id || createSkillInputConfigId("db")),
     parameterType,
     parameterKey: String(current.parameterKey || meta?.value || ""),
     parameterLabel: String(current.parameterLabel || meta?.label || ""),
     selectedValue: String(
-      current.selectedValue || (parameterType === "INJECT_TOGGLE" ? "INJECT" : selectMeta?.options?.[0] || ""),
+      current.selectedValue || (parameterType === "INJECT_TOGGLE" ? "INJECT" : ""),
     ),
     remarks: String(current.remarks || ""),
   };
