@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   activateSkillPackageVersion,
+  createReferenceAsset,
   createSkillPackageVersion,
+  deleteReferenceAsset,
   getApiProviders,
   getSkillPackage,
   type ApiProviderRecord,
@@ -11,6 +13,7 @@ import {
   type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  updateReferenceAsset,
   updateSkillPackageBasic,
   updateSkillPackageProvider,
   updateSkillPackagePrompt,
@@ -37,6 +40,7 @@ const DEFAULT_FILTERS: OverviewFilters = {
 
 type PromptDetailRecord = NonNullable<SkillPackageDetailRecord["prompts"]>[number];
 type ProviderBindingRecord = NonNullable<SkillPackageDetailRecord["providerBindings"]>[number];
+type ReferenceDetailRecord = NonNullable<SkillPackageDetailRecord["references"]>[number];
 type PromptDraftRecord = {
   status: PromptTemplateRecord["status"];
   modelName: string;
@@ -47,6 +51,15 @@ type PromptDraftRecord = {
 type ProviderDraftRecord = {
   providerId: string;
   modelName: string;
+};
+type ReferenceDraftRecord = {
+  referenceKey: string;
+  title: string;
+  sourceType: ReferenceDetailRecord["sourceType"];
+  sourceUri: string;
+  usageNote: string;
+  applicableScopes: string;
+  sortOrder: string;
 };
 type BasicDraftRecord = {
   packageName: string;
@@ -74,6 +87,11 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ProviderDraftRecord>>({});
   const [availableProviders, setAvailableProviders] = useState<ApiProviderRecord[]>([]);
   const [savingProviderId, setSavingProviderId] = useState("");
+  const [referenceDrafts, setReferenceDrafts] = useState<Record<string, ReferenceDraftRecord>>({});
+  const [newReferenceDraft, setNewReferenceDraft] = useState<ReferenceDraftRecord>(buildReferenceDraft());
+  const [savingReferenceId, setSavingReferenceId] = useState("");
+  const [isCreatingReference, setIsCreatingReference] = useState(false);
+  const [deletingReferenceId, setDeletingReferenceId] = useState("");
   const [basicDraft, setBasicDraft] = useState<BasicDraftRecord>(buildBasicDraft(props.packages[0]));
   const [isBasicSaving, setIsBasicSaving] = useState(false);
 
@@ -137,7 +155,7 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     setIsDetailLoading(true);
     setDetailError("");
     try {
-      const result = await getSkillPackage(packageId);
+      const result = await getSkillPackage(packageId, { includeReferences: true });
       setDetail(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "能力包详情加载失败";
@@ -185,6 +203,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
       (detail?.providerBindings || []).map((item) => [item.id, buildProviderDraft(item)]),
     ) as Record<string, ProviderDraftRecord>;
     setProviderDrafts(nextDrafts);
+  }, [detail]);
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      (detail?.references || []).map((item) => [item.id, buildReferenceDraft(item)]),
+    ) as Record<string, ReferenceDraftRecord>;
+    setReferenceDrafts(nextDrafts);
+    setNewReferenceDraft(buildReferenceDraft());
   }, [detail]);
 
   useEffect(() => {
@@ -404,6 +430,136 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     }
   }
 
+  function handleReferenceDraftChange(referenceId: string, field: keyof ReferenceDraftRecord, value: string) {
+    setReferenceDrafts((current) => {
+      const reference = detail?.references?.find((item) => item.id === referenceId);
+      const base = current[referenceId] || buildReferenceDraft(reference);
+      return {
+        ...current,
+        [referenceId]: {
+          ...base,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  function handleNewReferenceDraftChange(field: keyof ReferenceDraftRecord, value: string) {
+    setNewReferenceDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleCreateReference() {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const title = newReferenceDraft.title.trim();
+    const referenceKey = newReferenceDraft.referenceKey.trim().toLowerCase();
+    const sourceUri = newReferenceDraft.sourceUri.trim();
+    const sortOrder = Number(newReferenceDraft.sortOrder.trim() || "100");
+
+    if (!referenceKey) {
+      setDetailError("参考资料标识不能为空");
+      return;
+    }
+    if (!title) {
+      setDetailError("参考资料标题不能为空");
+      return;
+    }
+    if (!Number.isFinite(sortOrder)) {
+      setDetailError("参考资料排序值不合法");
+      return;
+    }
+
+    setIsCreatingReference(true);
+    setDetailError("");
+    try {
+      await createReferenceAsset(selectedPackage.id, {
+        referenceKey,
+        title,
+        sourceType: newReferenceDraft.sourceType,
+        sourceUri: sourceUri || undefined,
+        usageNote: newReferenceDraft.usageNote.trim() || undefined,
+        applicableScopes: splitDraftList(newReferenceDraft.applicableScopes),
+        sortOrder: Math.floor(sortOrder),
+      });
+      setNewReferenceDraft(buildReferenceDraft());
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "新增参考资料失败";
+      setDetailError(`新增参考资料失败：${message}`);
+    } finally {
+      setIsCreatingReference(false);
+    }
+  }
+
+  async function handleSaveReference(referenceId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const reference = detail?.references?.find((item) => item.id === referenceId);
+    if (!reference) {
+      return;
+    }
+    const draft = referenceDrafts[referenceId] || buildReferenceDraft(reference);
+    const title = draft.title.trim();
+    const referenceKey = draft.referenceKey.trim().toLowerCase();
+    const sourceUri = draft.sourceUri.trim();
+    const sortOrder = Number(draft.sortOrder.trim() || "100");
+
+    if (!referenceKey) {
+      setDetailError(`参考资料「${reference.title}」标识不能为空`);
+      return;
+    }
+    if (!title) {
+      setDetailError(`参考资料「${reference.title}」标题不能为空`);
+      return;
+    }
+    if (!Number.isFinite(sortOrder)) {
+      setDetailError(`参考资料「${reference.title}」排序值不合法`);
+      return;
+    }
+
+    setSavingReferenceId(referenceId);
+    setDetailError("");
+    try {
+      await updateReferenceAsset(selectedPackage.id, referenceId, {
+        referenceKey,
+        title,
+        sourceType: draft.sourceType,
+        sourceUri: sourceUri || undefined,
+        usageNote: draft.usageNote.trim() || undefined,
+        applicableScopes: splitDraftList(draft.applicableScopes),
+        sortOrder: Math.floor(sortOrder),
+      });
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存参考资料失败";
+      setDetailError(`保存参考资料失败：${message}`);
+    } finally {
+      setSavingReferenceId("");
+    }
+  }
+
+  async function handleDeleteReference(referenceId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    setDeletingReferenceId(referenceId);
+    setDetailError("");
+    try {
+      await deleteReferenceAsset(selectedPackage.id, referenceId);
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除参考资料失败";
+      setDetailError(`删除参考资料失败：${message}`);
+    } finally {
+      setDeletingReferenceId("");
+    }
+  }
+
   return (
     <section className="entity-card admin-user-filter-card" style={{ marginBottom: 24 }}>
       <div className="admin-user-filter-head">
@@ -568,6 +724,20 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                 emptyText="当前能力包暂无 Provider 绑定摘要。"
                 onDraftChange={handleProviderDraftChange}
                 onSave={(bindingId) => void handleSaveProvider(bindingId)}
+              />
+              <ReferenceBlock
+                references={detail?.references || []}
+                drafts={referenceDrafts}
+                newDraft={newReferenceDraft}
+                savingReferenceId={savingReferenceId}
+                deletingReferenceId={deletingReferenceId}
+                isCreating={isCreatingReference}
+                emptyText="当前能力包暂无参考资料。"
+                onDraftChange={handleReferenceDraftChange}
+                onNewDraftChange={handleNewReferenceDraftChange}
+                onCreate={() => void handleCreateReference()}
+                onSave={(referenceId) => void handleSaveReference(referenceId)}
+                onDelete={(referenceId) => void handleDeleteReference(referenceId)}
               />
               <VersionBlock
                 packageId={selectedPackage?.id || ""}
@@ -976,6 +1146,172 @@ function ProviderBlock(props: ProviderBlockProps) {
   );
 }
 
+type ReferenceBlockProps = {
+  references: ReferenceDetailRecord[];
+  drafts: Record<string, ReferenceDraftRecord>;
+  newDraft: ReferenceDraftRecord;
+  savingReferenceId: string;
+  deletingReferenceId: string;
+  isCreating: boolean;
+  emptyText: string;
+  onDraftChange: (referenceId: string, field: keyof ReferenceDraftRecord, value: string) => void;
+  onNewDraftChange: (field: keyof ReferenceDraftRecord, value: string) => void;
+  onCreate: () => void;
+  onSave: (referenceId: string) => void;
+  onDelete: (referenceId: string) => void;
+};
+
+function ReferenceBlock(props: ReferenceBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>References 资产</strong>
+          <p className="personal-meta">{`${props.references.length} 条`}</p>
+        </div>
+        <button type="button" className="primary-button" onClick={props.onCreate} disabled={props.isCreating}>
+          {props.isCreating ? "新增中..." : "新增参考资料"}
+        </button>
+      </div>
+      <article
+        style={{
+          border: "1px dashed rgba(15, 118, 110, 0.28)",
+          borderRadius: 14,
+          padding: 12,
+          background: "rgba(240, 253, 250, 0.72)",
+          marginBottom: 12,
+        }}
+      >
+        <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+          <label>
+            <span>标识</span>
+            <input value={props.newDraft.referenceKey} onChange={(event) => props.onNewDraftChange("referenceKey", event.target.value)} />
+          </label>
+          <label>
+            <span>标题</span>
+            <input value={props.newDraft.title} onChange={(event) => props.onNewDraftChange("title", event.target.value)} />
+          </label>
+          <label>
+            <span>来源类型</span>
+            <select value={props.newDraft.sourceType} onChange={(event) => props.onNewDraftChange("sourceType", event.target.value)}>
+              <option value="URL">URL</option>
+              <option value="FILE">FILE</option>
+              <option value="DOC">DOC</option>
+              <option value="MARKDOWN">MARKDOWN</option>
+            </select>
+          </label>
+          <label>
+            <span>排序</span>
+            <input value={props.newDraft.sortOrder} inputMode="numeric" onChange={(event) => props.onNewDraftChange("sortOrder", event.target.value)} />
+          </label>
+          <label style={{ gridColumn: "span 2" }}>
+            <span>来源地址</span>
+            <input value={props.newDraft.sourceUri} onChange={(event) => props.onNewDraftChange("sourceUri", event.target.value)} />
+          </label>
+          <label style={{ gridColumn: "span 2" }}>
+            <span>适用范围</span>
+            <input
+              value={props.newDraft.applicableScopes}
+              placeholder="用 / 或 , 分隔"
+              onChange={(event) => props.onNewDraftChange("applicableScopes", event.target.value)}
+            />
+          </label>
+        </div>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>使用说明</span>
+          <textarea value={props.newDraft.usageNote} onChange={(event) => props.onNewDraftChange("usageNote", event.target.value)} />
+        </label>
+      </article>
+      {props.references.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.references.map((item) => {
+            const draft = props.drafts[item.id] || buildReferenceDraft(item);
+            return (
+              <article
+                key={item.id}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "rgba(255, 255, 255, 0.72)",
+                }}
+              >
+                <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="admin-user-row-title">{item.title}</div>
+                    <div className="admin-user-row-meta">
+                      {`${item.sourceType}${item.updatedAt ? ` / ${formatDateTime(item.updatedAt)}` : ""}`}
+                    </div>
+                  </div>
+                  <div className="personal-actions" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => props.onSave(item.id)}
+                      disabled={props.savingReferenceId === item.id}
+                    >
+                      {props.savingReferenceId === item.id ? "保存中..." : "保存资料"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => props.onDelete(item.id)}
+                      disabled={props.deletingReferenceId === item.id}
+                    >
+                      {props.deletingReferenceId === item.id ? "删除中..." : "删除"}
+                    </button>
+                  </div>
+                </div>
+                <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label>
+                    <span>标识</span>
+                    <input value={draft.referenceKey} onChange={(event) => props.onDraftChange(item.id, "referenceKey", event.target.value)} />
+                  </label>
+                  <label>
+                    <span>标题</span>
+                    <input value={draft.title} onChange={(event) => props.onDraftChange(item.id, "title", event.target.value)} />
+                  </label>
+                  <label>
+                    <span>来源类型</span>
+                    <select value={draft.sourceType} onChange={(event) => props.onDraftChange(item.id, "sourceType", event.target.value)}>
+                      <option value="URL">URL</option>
+                      <option value="FILE">FILE</option>
+                      <option value="DOC">DOC</option>
+                      <option value="MARKDOWN">MARKDOWN</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>排序</span>
+                    <input value={draft.sortOrder} inputMode="numeric" onChange={(event) => props.onDraftChange(item.id, "sortOrder", event.target.value)} />
+                  </label>
+                  <label style={{ gridColumn: "span 2" }}>
+                    <span>来源地址</span>
+                    <input value={draft.sourceUri} onChange={(event) => props.onDraftChange(item.id, "sourceUri", event.target.value)} />
+                  </label>
+                  <label style={{ gridColumn: "span 2" }}>
+                    <span>适用范围</span>
+                    <input
+                      value={draft.applicableScopes}
+                      placeholder="用 / 或 , 分隔"
+                      onChange={(event) => props.onDraftChange(item.id, "applicableScopes", event.target.value)}
+                    />
+                  </label>
+                </div>
+                <label className="admin-skill-field admin-skill-field--full">
+                  <span>使用说明</span>
+                  <textarea value={draft.usageNote} onChange={(event) => props.onDraftChange(item.id, "usageNote", event.target.value)} />
+                </label>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="personal-meta">{props.emptyText}</div>
+      )}
+    </section>
+  );
+}
+
 type DetailBlockProps = {
   title: string;
   meta: string;
@@ -1051,6 +1387,18 @@ function buildProviderDraft(binding?: ProviderBindingRecord): ProviderDraftRecor
   return {
     providerId: binding?.providerId || "",
     modelName: binding?.modelName || "",
+  };
+}
+
+function buildReferenceDraft(reference?: ReferenceDetailRecord): ReferenceDraftRecord {
+  return {
+    referenceKey: reference?.referenceKey || "",
+    title: reference?.title || "",
+    sourceType: reference?.sourceType || "URL",
+    sourceUri: reference?.sourceUri || "",
+    usageNote: reference?.usageNote || "",
+    applicableScopes: reference?.applicableScopes?.join(" / ") || "",
+    sortOrder: reference?.sortOrder !== undefined ? String(reference.sortOrder) : "100",
   };
 }
 

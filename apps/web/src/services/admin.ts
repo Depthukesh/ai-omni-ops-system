@@ -311,7 +311,17 @@ export type SkillPackageDetailRecord = {
     maxTokens?: number;
     updatedAt?: string;
   }>;
-  references?: Array<Record<string, never>>;
+  references?: Array<{
+    id: string;
+    referenceKey: string;
+    title: string;
+    sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes: string[];
+    sortOrder: number;
+    updatedAt?: string;
+  }>;
   scripts?: Array<Record<string, never>>;
   knowledgeBindings?: Array<{
     id: string;
@@ -2634,6 +2644,54 @@ export async function updateSkillPackageProvider(
     `/admin/skill-packages/${packageId}/providers/${bindingId}`,
     "PATCH",
     payload,
+  );
+}
+
+export async function createReferenceAsset(
+  packageId: string,
+  payload: {
+    referenceKey: string;
+    title: string;
+    sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes?: string[];
+    sortOrder?: number;
+  },
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["references"]>[number]>(
+    `/admin/skill-packages/${packageId}/references`,
+    "POST",
+    payload,
+  );
+}
+
+export async function updateReferenceAsset(
+  packageId: string,
+  referenceId: string,
+  payload: Partial<{
+    referenceKey: string;
+    title: string;
+    sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes?: string[];
+    sortOrder?: number;
+  }>,
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["references"]>[number]>(
+    `/admin/skill-packages/${packageId}/references/${referenceId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteReferenceAsset(packageId: string, referenceId: string) {
+  return request<NonNullable<SkillPackageDetailRecord["references"]>[number]>(
+    `/admin/skill-packages/${packageId}/references/${referenceId}`,
+    {
+      method: "DELETE",
+    },
   );
 }
 

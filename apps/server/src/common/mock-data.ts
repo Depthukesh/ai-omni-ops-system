@@ -351,6 +351,20 @@ export type SkillPackageVersionRecord = {
   updatedAt: string;
 };
 
+export type ReferenceAssetRecord = {
+  id: string;
+  packageId: string;
+  referenceKey: string;
+  title: string;
+  sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+  sourceUri?: string;
+  usageNote?: string;
+  applicableScopes: string[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -756,6 +770,7 @@ export type MockDatabase = {
   knowledgeBindings: KnowledgeBindingRecord[];
   skillPackages: SkillPackageRecord[];
   skillPackageVersions: SkillPackageVersionRecord[];
+  referenceAssets: ReferenceAssetRecord[];
   moduleDefinitions: ModuleDefinitionRecord[];
   skillPackageModules: SkillPackageModuleRecord[];
   skillPackageSkills: SkillPackageSkillRecord[];
@@ -3595,6 +3610,60 @@ export const database: MockDatabase = {
         providerBindingCount: 1,
       },
       createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+  ],
+  referenceAssets: [
+    {
+      id: "ref_brand_growth_strategy_template",
+      packageId: "sp_brand_growth_analysis",
+      referenceKey: "growth-analysis-template",
+      title: "品牌增长分析报告模板",
+      sourceType: "DOC",
+      sourceUri: "https://example.local/docs/brand-growth-analysis-template",
+      usageNote: "用于统一品牌增长分析报告的章节结构、指标口径和结论表达方式。",
+      applicableScopes: ["overview", "report", "analysis"],
+      sortOrder: 10,
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "ref_brand_growth_metric_dictionary",
+      packageId: "sp_brand_growth_analysis",
+      referenceKey: "growth-metric-dictionary",
+      title: "增长指标口径字典",
+      sourceType: "MARKDOWN",
+      sourceUri: "https://example.local/docs/growth-metric-dictionary.md",
+      usageNote: "生成报告前先统一曝光、转化、留资等核心指标定义，避免不同模块口径不一致。",
+      applicableScopes: ["analysis", "metrics"],
+      sortOrder: 20,
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "ref_wechat_article_style_guide",
+      packageId: "sp_wechat_article_generator",
+      referenceKey: "wechat-article-style-guide",
+      title: "公众号文章排版与风格规范",
+      sourceType: "DOC",
+      sourceUri: "https://example.local/docs/wechat-article-style-guide",
+      usageNote: "约束标题层级、分段节奏、金句样式和结尾 CTA 的输出风格。",
+      applicableScopes: ["article", "layout", "wechat"],
+      sortOrder: 10,
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "ref_wechat_compliance_checklist",
+      packageId: "sp_wechat_article_generator",
+      referenceKey: "wechat-compliance-checklist",
+      title: "公众号内容合规检查清单",
+      sourceType: "MARKDOWN",
+      sourceUri: "https://example.local/docs/wechat-compliance-checklist.md",
+      usageNote: "用于生成文章前后检查营销承诺、敏感词和外链策略是否符合发布要求。",
+      applicableScopes: ["article", "publish", "compliance"],
+      sortOrder: 20,
       createdAt: "2026-06-07T09:50:00.000Z",
       updatedAt: "2026-06-07T09:50:00.000Z",
     },

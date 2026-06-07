@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { SkillPackage } from "@prisma/client";
+import { ReferenceAsset, SkillPackage } from "@prisma/client";
 import {
   createId,
   database,
   type ApiProviderRecord,
   type PromptTemplateRecord,
+  type ReferenceAssetRecord,
   type SkillPackageRecord,
   type SkillPackageVersionRecord,
 } from "../../common/mock-data";
@@ -123,7 +124,17 @@ export type SkillPackageDetailRecord = {
     maxTokens?: number;
     updatedAt?: string;
   }>;
-  references?: Array<Record<string, never>>;
+  references?: Array<{
+    id: string;
+    referenceKey: string;
+    title: string;
+    sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes: string[];
+    sortOrder: number;
+    updatedAt?: string;
+  }>;
   scripts?: Array<Record<string, never>>;
   knowledgeBindings?: Array<{
     id: string;
@@ -186,10 +197,23 @@ export type UpdateSkillPackageBasicPayload = Partial<
   Pick<SkillPackageRecord, "packageName" | "packageKey" | "description" | "status" | "scope" | "tags" | "remarks">
 >;
 
+export type CreateReferenceAssetPayload = {
+  referenceKey: string;
+  title: string;
+  sourceType: "URL" | "FILE" | "DOC" | "MARKDOWN";
+  sourceUri?: string;
+  usageNote?: string;
+  applicableScopes?: string[];
+  sortOrder?: number;
+};
+
+export type UpdateReferenceAssetPayload = Partial<CreateReferenceAssetPayload>;
+
 @Injectable()
 export class SkillPackagesService {
   private bootstrapPromise?: Promise<void>;
   private versionBootstrapPromise?: Promise<void>;
+  private referenceBootstrapPromise?: Promise<void>;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -248,6 +272,7 @@ export class SkillPackagesService {
     const providerBindings = this.buildProviderBindings(relatedSkillBindings, skillConfigs, providers);
     const knowledgeBindings = this.buildKnowledgeBindings(packageSummary, knowledgeBases);
     const versionDetails = await this.loadVersionViewsByPackage(packageSummary);
+    const references = await this.loadReferenceAssetsByPackage(packageSummary.id);
 
     return {
       package: packageSummary,
@@ -263,7 +288,7 @@ export class SkillPackagesService {
       moduleSummaries: packageSummary.moduleSummaries,
       workflowStepSummaries: this.buildWorkflowStepSummaries(packageSummary.workflowStepKeys),
       ...(includeOptions.includePrompts ? { prompts: promptDetails } : {}),
-      ...(includeOptions.includeReferences ? { references: [] } : {}),
+      ...(includeOptions.includeReferences ? { references } : {}),
       ...(includeOptions.includeScripts ? { scripts: [] } : {}),
       ...(includeOptions.includeKnowledge ? { knowledgeBindings } : {}),
       ...(includeOptions.includeProviders ? { providerBindings } : {}),
@@ -380,6 +405,153 @@ export class SkillPackagesService {
   async updateSkillPackageBasic(id: string, payload: UpdateSkillPackageBasicPayload) {
     const normalizedPayload = this.normalizeUpdateBasicPayload(payload);
     return this.updateSkillPackage(id, normalizedPayload);
+  }
+
+  async createReferenceAsset(packageId: string, payload: CreateReferenceAssetPayload) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const normalizedPayload = this.normalizeCreateReferencePayload(payload);
+    const now = new Date().toISOString();
+
+    if (await this.tableExists("ReferenceAsset")) {
+      await this.ensureReferenceAssetStorageSeeded();
+      const duplicated = await this.prismaService.referenceAsset.findFirst({
+        where: {
+          packageId: packageRecord.id,
+          referenceKey: normalizedPayload.referenceKey,
+        },
+      });
+      if (duplicated) {
+        throw new ConflictException("参考资料标识已存在");
+      }
+      const created = await this.prismaService.referenceAsset.create({
+        data: {
+          id: createId("ref"),
+          packageId: packageRecord.id,
+          referenceKey: normalizedPayload.referenceKey,
+          title: normalizedPayload.title,
+          sourceType: normalizedPayload.sourceType,
+          sourceUri: normalizedPayload.sourceUri,
+          usageNote: normalizedPayload.usageNote ?? "",
+          applicableScopesJson: normalizedPayload.applicableScopes,
+          sortOrder: normalizedPayload.sortOrder ?? 100,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+        },
+      });
+      return this.normalizeReferenceAsset(created);
+    }
+
+    const duplicated = database.referenceAssets.find(
+      (item) => item.packageId === packageRecord.id && item.referenceKey === normalizedPayload.referenceKey,
+    );
+    if (duplicated) {
+      throw new ConflictException("参考资料标识已存在");
+    }
+    const created: ReferenceAssetRecord = {
+      id: createId("ref"),
+      packageId: packageRecord.id,
+      referenceKey: normalizedPayload.referenceKey,
+      title: normalizedPayload.title,
+      sourceType: normalizedPayload.sourceType,
+      sourceUri: normalizedPayload.sourceUri,
+      usageNote: normalizedPayload.usageNote,
+      applicableScopes: normalizedPayload.applicableScopes || [],
+      sortOrder: normalizedPayload.sortOrder ?? 100,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.referenceAssets.unshift(created);
+    return this.normalizeReferenceAsset(created);
+  }
+
+  async updateReferenceAsset(packageId: string, referenceId: string, payload: UpdateReferenceAssetPayload) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const normalizedPayload = this.normalizeUpdateReferencePayload(payload);
+
+    if (await this.tableExists("ReferenceAsset")) {
+      await this.ensureReferenceAssetStorageSeeded();
+      const current = await this.prismaService.referenceAsset.findUnique({
+        where: { id: referenceId },
+      });
+      if (!current || current.packageId !== packageRecord.id) {
+        throw new NotFoundException("参考资料不存在");
+      }
+      const nextReferenceKey =
+        normalizedPayload.referenceKey !== undefined
+          ? this.normalizeReferenceKey(normalizedPayload.referenceKey)
+          : current.referenceKey;
+      if (nextReferenceKey !== current.referenceKey) {
+        const duplicated = await this.prismaService.referenceAsset.findFirst({
+          where: {
+            packageId: packageRecord.id,
+            referenceKey: nextReferenceKey,
+            id: { not: referenceId },
+          },
+        });
+        if (duplicated) {
+          throw new ConflictException("参考资料标识已存在");
+        }
+      }
+      const updated = await this.prismaService.referenceAsset.update({
+        where: { id: referenceId },
+        data: this.toReferenceAssetUpdateInput(normalizedPayload, current),
+      });
+      return this.normalizeReferenceAsset(updated);
+    }
+
+    const index = database.referenceAssets.findIndex((item) => item.id === referenceId && item.packageId === packageRecord.id);
+    if (index < 0) {
+      throw new NotFoundException("参考资料不存在");
+    }
+    const current = database.referenceAssets[index];
+    const nextReferenceKey =
+      normalizedPayload.referenceKey !== undefined ? this.normalizeReferenceKey(normalizedPayload.referenceKey) : current.referenceKey;
+    const duplicated = database.referenceAssets.find(
+      (item) => item.packageId === packageRecord.id && item.referenceKey === nextReferenceKey && item.id !== referenceId,
+    );
+    if (duplicated) {
+      throw new ConflictException("参考资料标识已存在");
+    }
+    const updated: ReferenceAssetRecord = {
+      ...current,
+      ...(normalizedPayload.referenceKey !== undefined ? { referenceKey: nextReferenceKey } : {}),
+      ...(normalizedPayload.title !== undefined ? { title: this.normalizeReferenceTitle(normalizedPayload.title) } : {}),
+      ...(normalizedPayload.sourceType !== undefined ? { sourceType: this.normalizeReferenceSourceType(normalizedPayload.sourceType) } : {}),
+      ...(normalizedPayload.sourceUri !== undefined ? { sourceUri: String(normalizedPayload.sourceUri || "").trim() || undefined } : {}),
+      ...(normalizedPayload.usageNote !== undefined ? { usageNote: String(normalizedPayload.usageNote || "").trim() || undefined } : {}),
+      ...(normalizedPayload.applicableScopes !== undefined
+        ? { applicableScopes: this.normalizeStringArrayInput(normalizedPayload.applicableScopes) }
+        : {}),
+      ...(normalizedPayload.sortOrder !== undefined ? { sortOrder: this.normalizeSortOrder(normalizedPayload.sortOrder) } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    database.referenceAssets[index] = updated;
+    return this.normalizeReferenceAsset(updated);
+  }
+
+  async deleteReferenceAsset(packageId: string, referenceId: string) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+
+    if (await this.tableExists("ReferenceAsset")) {
+      await this.ensureReferenceAssetStorageSeeded();
+      const current = await this.prismaService.referenceAsset.findUnique({
+        where: { id: referenceId },
+      });
+      if (!current || current.packageId !== packageRecord.id) {
+        throw new NotFoundException("参考资料不存在");
+      }
+      await this.prismaService.referenceAsset.delete({
+        where: { id: referenceId },
+      });
+      return this.normalizeReferenceAsset(current);
+    }
+
+    const index = database.referenceAssets.findIndex((item) => item.id === referenceId && item.packageId === packageRecord.id);
+    if (index < 0) {
+      throw new NotFoundException("参考资料不存在");
+    }
+    const [deleted] = database.referenceAssets.splice(index, 1);
+    return this.normalizeReferenceAsset(deleted);
   }
 
   async listSkillPackageVersions(packageId: string): Promise<{ items: SkillPackageVersionView[] }> {
@@ -645,6 +817,74 @@ export class SkillPackagesService {
     }
 
     return normalized;
+  }
+
+  private normalizeCreateReferencePayload(payload: CreateReferenceAssetPayload): CreateReferenceAssetPayload {
+    return {
+      referenceKey: this.normalizeReferenceKey(payload.referenceKey),
+      title: this.normalizeReferenceTitle(payload.title),
+      sourceType: this.normalizeReferenceSourceType(payload.sourceType),
+      sourceUri: String(payload.sourceUri || "").trim() || undefined,
+      usageNote: String(payload.usageNote || "").trim() || undefined,
+      applicableScopes: this.normalizeStringArrayInput(payload.applicableScopes),
+      sortOrder: this.normalizeSortOrder(payload.sortOrder),
+    };
+  }
+
+  private normalizeUpdateReferencePayload(payload: UpdateReferenceAssetPayload): UpdateReferenceAssetPayload {
+    const normalized: UpdateReferenceAssetPayload = {};
+    if (payload.referenceKey !== undefined) {
+      normalized.referenceKey = this.normalizeReferenceKey(payload.referenceKey);
+    }
+    if (payload.title !== undefined) {
+      normalized.title = this.normalizeReferenceTitle(payload.title);
+    }
+    if (payload.sourceType !== undefined) {
+      normalized.sourceType = this.normalizeReferenceSourceType(payload.sourceType);
+    }
+    if (payload.sourceUri !== undefined) {
+      normalized.sourceUri = String(payload.sourceUri || "").trim() || undefined;
+    }
+    if (payload.usageNote !== undefined) {
+      normalized.usageNote = String(payload.usageNote || "").trim() || undefined;
+    }
+    if (payload.applicableScopes !== undefined) {
+      normalized.applicableScopes = this.normalizeStringArrayInput(payload.applicableScopes);
+    }
+    if (payload.sortOrder !== undefined) {
+      normalized.sortOrder = this.normalizeSortOrder(payload.sortOrder);
+    }
+    if (!Object.keys(normalized).length) {
+      throw new BadRequestException("至少需要更新一个参考资料字段");
+    }
+    return normalized;
+  }
+
+  private normalizeReferenceKey(value: string) {
+    const referenceKey = String(value || "").trim().toLowerCase();
+    if (!referenceKey) {
+      throw new BadRequestException("参考资料标识不能为空");
+    }
+    if (!/^[a-z0-9-]+$/.test(referenceKey)) {
+      throw new BadRequestException("参考资料标识只能使用英文小写、数字和短横线");
+    }
+    return referenceKey;
+  }
+
+  private normalizeReferenceTitle(value: string) {
+    const title = String(value || "").trim();
+    if (!title) {
+      throw new BadRequestException("参考资料标题不能为空");
+    }
+    return title;
+  }
+
+  private normalizeReferenceSourceType(value: string | undefined): CreateReferenceAssetPayload["sourceType"] {
+    const sourceType = String(value || "URL").trim().toUpperCase();
+    if (!["URL", "FILE", "DOC", "MARKDOWN"].includes(sourceType)) {
+      throw new BadRequestException("参考资料来源类型不合法");
+    }
+    return sourceType as CreateReferenceAssetPayload["sourceType"];
   }
 
   private normalizePackageKey(value: string) {
@@ -1244,6 +1484,21 @@ export class SkillPackagesService {
     return database.skillPackageVersions.map((item) => this.normalizeVersionRecord(item));
   }
 
+  private async loadReferenceAssetsByPackage(packageId: string) {
+    if (await this.tableExists("ReferenceAsset")) {
+      await this.ensureReferenceAssetStorageSeeded();
+      const rows = await this.prismaService.referenceAsset.findMany({
+        where: { packageId },
+        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      });
+      return rows.map((row) => this.normalizeReferenceAsset(row));
+    }
+    return database.referenceAssets
+      .filter((item) => item.packageId === packageId)
+      .sort((a, b) => (a.sortOrder === b.sortOrder ? b.updatedAt.localeCompare(a.updatedAt) : a.sortOrder - b.sortOrder))
+      .map((item) => this.normalizeReferenceAsset(item));
+  }
+
   private async loadVersionViewsByPackage(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "currentVersionId">) {
     const records = await this.loadVersionRecordsByPackage(packageRecord.id, packageRecord.packageKey);
     const versionViews = records.map((item) => this.normalizeVersionRecord(item));
@@ -1290,9 +1545,10 @@ export class SkillPackagesService {
   }
 
   private async buildVersionSnapshot(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "defaultKnowledgeSpaceIds">) {
-    const [packageSkills, promptBindings] = await Promise.all([
+    const [packageSkills, promptBindings, references] = await Promise.all([
       this.loadSkillPackageSkillsForSummary(),
       this.loadSkillPromptBindingsForSummary(),
+      this.loadReferenceAssetsByPackage(packageRecord.id),
     ]);
     const relatedSkills = packageSkills.filter((item) => item.packageKey === packageRecord.packageKey && item.enabled);
     const relatedSkillIds = Array.from(new Set(relatedSkills.map((item) => item.skillId)));
@@ -1303,7 +1559,7 @@ export class SkillPackagesService {
     );
     return {
       promptCount: promptIds.size,
-      referenceCount: 0,
+      referenceCount: references.length,
       scriptCount: 0,
       knowledgeBindingCount: packageRecord.defaultKnowledgeSpaceIds.length,
       providerBindingCount: relatedSkills.length ? 1 : 0,
@@ -1341,6 +1597,40 @@ export class SkillPackagesService {
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
       snapshotSummary: this.normalizeSnapshotSummary(row.snapshotJson),
+    };
+  }
+
+  private normalizeReferenceAsset(
+    row:
+      | ReferenceAssetRecord
+      | ReferenceAsset
+      | {
+          id: string;
+          packageId: string;
+          referenceKey: string;
+          title: string;
+          sourceType: string;
+          sourceUri: string | null;
+          usageNote: string;
+          applicableScopesJson: unknown;
+          sortOrder: number;
+          createdAt: Date;
+          updatedAt: Date;
+        },
+  ): NonNullable<SkillPackageDetailRecord["references"]>[number] {
+    return {
+      id: row.id,
+      referenceKey: row.referenceKey,
+      title: row.title,
+      sourceType: this.normalizeReferenceSourceType(row.sourceType),
+      sourceUri: "sourceUri" in row ? row.sourceUri || undefined : undefined,
+      usageNote: "usageNote" in row ? row.usageNote || undefined : undefined,
+      applicableScopes:
+        "applicableScopes" in row
+          ? this.normalizeStringArray(row.applicableScopes)
+          : this.normalizeStringArray((row as { applicableScopesJson: unknown }).applicableScopesJson),
+      sortOrder: Number(row.sortOrder || 0),
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
     };
   }
 
@@ -1522,6 +1812,56 @@ export class SkillPackagesService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  private async ensureReferenceAssetStorageSeeded() {
+    if (!this.referenceBootstrapPromise) {
+      this.referenceBootstrapPromise = this.bootstrapReferenceAssetStorage();
+    }
+    await this.referenceBootstrapPromise;
+  }
+
+  private async bootstrapReferenceAssetStorage() {
+    if (!(await this.tableExists("ReferenceAsset"))) {
+      return;
+    }
+    const count = await this.prismaService.referenceAsset.count();
+    if (count > 0 || !database.referenceAssets.length) {
+      return;
+    }
+    await this.prismaService.referenceAsset.createMany({
+      data: database.referenceAssets.map((item) => ({
+        id: item.id,
+        packageId: item.packageId,
+        referenceKey: item.referenceKey,
+        title: item.title,
+        sourceType: item.sourceType,
+        sourceUri: item.sourceUri,
+        usageNote: item.usageNote ?? "",
+        applicableScopesJson: item.applicableScopes,
+        sortOrder: item.sortOrder,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  private toReferenceAssetUpdateInput(payload: UpdateReferenceAssetPayload, current: ReferenceAsset) {
+    return {
+      referenceKey:
+        payload.referenceKey !== undefined ? this.normalizeReferenceKey(payload.referenceKey) : current.referenceKey,
+      title: payload.title !== undefined ? this.normalizeReferenceTitle(payload.title) : current.title,
+      sourceType:
+        payload.sourceType !== undefined ? this.normalizeReferenceSourceType(payload.sourceType) : current.sourceType,
+      sourceUri: payload.sourceUri !== undefined ? String(payload.sourceUri || "").trim() || null : current.sourceUri,
+      usageNote: payload.usageNote !== undefined ? String(payload.usageNote || "").trim() : current.usageNote,
+      applicableScopesJson:
+        payload.applicableScopes !== undefined
+          ? this.normalizeStringArrayInput(payload.applicableScopes)
+          : this.normalizeStringArray(current.applicableScopesJson),
+      sortOrder: payload.sortOrder !== undefined ? this.normalizeSortOrder(payload.sortOrder) : current.sortOrder,
+    };
   }
 
   private toDatabaseCreateInput(record: ReturnType<SkillPackagesService["buildRecord"]>, now: string) {

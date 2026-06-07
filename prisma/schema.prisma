@@ -1042,6 +1042,23 @@ model SkillPackageVersion {
   @@index([packageKey, createdAt(sort: Desc)])
 }
 
+model ReferenceAsset {
+  id                   String   @id
+  packageId            String
+  referenceKey         String
+  title                String
+  sourceType           String
+  sourceUri            String?
+  usageNote            String   @default("")
+  applicableScopesJson Json?
+  sortOrder            Int      @default(100)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([packageId, referenceKey])
+  @@index([packageId, sortOrder, updatedAt])
+}
+
 model ModuleDefinition {
   id                              String   @id
   moduleKey                       String   @unique

@@ -179,6 +179,9 @@
   - 当前已继续补第一批能力包维度 Prompt 管理，接通 `PATCH /admin/skill-packages/:packageId/prompts/:promptId`，后台能力包详情中的 Prompt 不再只是只读摘要，而是直接复用 `PromptTemplate` 真源完成内容与参数保存
   - 当前已继续补第一批能力包维度 Provider 管理，接通 `PATCH /admin/skill-packages/:packageId/providers/:bindingId`，先桥接更新对应 `SkillConfig` 的 `provider + defaultModel`，让能力包详情中的 Provider 卡片可以直接维护模型供应商与模型值
   - 当前已继续补第一批能力包基础信息管理，接通 `PATCH /admin/skill-packages/:packageId/basic`，后台能力包详情中的名称、标识、状态、作用域、说明、标签、备注已可直接保存，同时保留模块、知识空间等关系字段只读展示
+  - 当前已继续补第一批能力包维度 References 管理，新增独立表 `ReferenceAsset`，并接通 `POST /admin/skill-packages/:packageId/references`、`PATCH /admin/skill-packages/:packageId/references/:referenceId`、`DELETE /admin/skill-packages/:packageId/references/:referenceId`
+  - 当前统一技能中心详情中的 `references` 不再固定返回空数组；数据库和 `ReferenceAsset` 表可用时优先读取 PostgreSQL，迁移未执行时回退到 `mock-data.referenceAssets`
+  - 当前版本快照 `snapshotSummary.referenceCount` 已按真实 `ReferenceAsset` 数量统计，后台能力包详情页也已可直接新增、编辑、删除参考资料
 
 ## 3. 正式数据表分层
 
@@ -286,6 +289,10 @@
   - 用途：统一技能中心与能力包注册中心的主对象，作为模块、技能、知识、Prompt、Provider 等资产的聚合根入口
   - 关键字段：`packageKey`、`packageName`、`status`、`scope`、`moduleKeysJson`、`workflowStepKeysJson`、`tagsJson`、`currentVersionId`
   - 当前约定：第一批先支持后台 CRUD 和主数据维护，不急着把 Prompt、Provider、版本快照一次性全部塞进主表
+- `ReferenceAsset`
+  - 用途：能力包级参考资料真源，承接统一技能中心详情里的 `references` 资产域
+  - 关键字段：`packageId`、`referenceKey`、`title`、`sourceType`、`sourceUri`、`usageNote`、`applicableScopesJson`、`sortOrder`
+  - 当前约定：同一能力包内 `referenceKey` 唯一；数据库可用时后台能力包详情页直接对这一表做增改删，数据库不可用时回退到 `mock-data.referenceAssets`
 
 ### 3.7 接口供应商注册域
 
@@ -425,6 +432,9 @@
 - 模块默认能力包关系：
   - 正式表：`SkillPackageModule`
   - 当前策略：数据库优先、`mock-data` 兜底；先提供双向查询和读写接口，后续再接统一技能中心与模块注册中心页面
+- 统一技能中心能力包详情 References：
+  - 正式表：`ReferenceAsset`
+  - 当前策略：数据库优先、`mock-data` 兜底；这一层先解决能力包参考资料的独立真源化与后台可维护，不改现有业务模块运行链路
 
 ### 4.5 认证 `/` + `/login` + `/register`
 

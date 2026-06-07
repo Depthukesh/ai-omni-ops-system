@@ -3,11 +3,13 @@ import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   type ActivateSkillPackageVersionPayload,
+  type CreateReferenceAssetPayload,
   type CreateSkillPackageVersionPayload,
   type CreateSkillPackagePayload,
   type SkillPackageDetailQuery,
   type SkillPackageListQuery,
   SkillPackagesService,
+  type UpdateReferenceAssetPayload,
   type UpdateSkillPackageBasicPayload,
   type UpdateSkillPackageProviderPayload,
   type UpdateSkillPackagePromptPayload,
@@ -145,6 +147,37 @@ export class SkillPackagesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.updateSkillPackageProvider(packageId, bindingId, payload);
+  }
+
+  @Post(":packageId/references")
+  async createReferenceAsset(
+    @Param("packageId") packageId: string,
+    @Body() payload: CreateReferenceAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.createReferenceAsset(packageId, payload);
+  }
+
+  @Patch(":packageId/references/:referenceId")
+  async updateReferenceAsset(
+    @Param("packageId") packageId: string,
+    @Param("referenceId") referenceId: string,
+    @Body() payload: UpdateReferenceAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.updateReferenceAsset(packageId, referenceId, payload);
+  }
+
+  @Delete(":packageId/references/:referenceId")
+  async deleteReferenceAsset(
+    @Param("packageId") packageId: string,
+    @Param("referenceId") referenceId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.deleteReferenceAsset(packageId, referenceId);
   }
 
   private parseBooleanQuery(value: string | undefined): SkillPackageDetailQuery[keyof SkillPackageDetailQuery] {
