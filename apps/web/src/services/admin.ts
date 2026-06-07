@@ -305,6 +305,10 @@ export type SkillPackageDetailRecord = {
     content: string;
     isDefault: boolean;
     versionTag?: string;
+    status?: PromptTemplateRecord["status"];
+    modelName?: string;
+    temperature?: number;
+    maxTokens?: number;
     updatedAt?: string;
   }>;
   references?: Array<Record<string, never>>;
@@ -2597,6 +2601,18 @@ export async function activateSkillPackageVersion(id: string, versionId: string)
   return jsonRequest<SkillPackageVersionRecord>(`/admin/skill-packages/${id}/activate-version`, "POST", {
     versionId,
   });
+}
+
+export async function updateSkillPackagePrompt(
+  packageId: string,
+  promptId: string,
+  payload: Partial<Pick<PromptTemplateRecord, "status" | "modelName" | "temperature" | "maxTokens" | "content">>,
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["prompts"]>[number]>(
+    `/admin/skill-packages/${packageId}/prompts/${promptId}`,
+    "PATCH",
+    payload,
+  );
 }
 
 export async function getSkillPackageModules(query: GetSkillPackageModulesQuery = {}) {

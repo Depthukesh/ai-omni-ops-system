@@ -6,8 +6,10 @@ import {
   createSkillPackageVersion,
   getSkillPackage,
   type ModuleDefinitionRecord,
+  type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  updateSkillPackagePrompt,
 } from "../../../services/admin";
 
 type SkillPackageOverviewPanelProps = {
@@ -29,6 +31,15 @@ const DEFAULT_FILTERS: OverviewFilters = {
   scope: "ALL",
 };
 
+type PromptDetailRecord = NonNullable<SkillPackageDetailRecord["prompts"]>[number];
+type PromptDraftRecord = {
+  status: PromptTemplateRecord["status"];
+  modelName: string;
+  temperature: string;
+  maxTokens: string;
+  content: string;
+};
+
 export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps) {
   const [filters, setFilters] = useState<OverviewFilters>(DEFAULT_FILTERS);
   const [selectedPackageId, setSelectedPackageId] = useState(props.packages[0]?.id || "");
@@ -39,6 +50,8 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [versionChangeLog, setVersionChangeLog] = useState("");
   const [isVersionSubmitting, setIsVersionSubmitting] = useState(false);
   const [activatingVersionId, setActivatingVersionId] = useState("");
+  const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptDraftRecord>>({});
+  const [savingPromptId, setSavingPromptId] = useState("");
 
   const moduleOptions = useMemo(() => {
     const moduleMap = new Map<string, string>();
@@ -132,6 +145,13 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     };
   }, [selectedPackage?.id]);
 
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      (detail?.prompts || []).map((item) => [item.id, buildPromptDraft(item)]),
+    ) as Record<string, PromptDraftRecord>;
+    setPromptDrafts(nextDrafts);
+  }, [detail]);
+
   async function handleCreateVersion() {
     if (!selectedPackage?.id || !versionNumber.trim()) {
       setDetailError("请先填写版本号");
@@ -170,6 +190,65 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
       setDetailError(`激活版本失败：${message}`);
     } finally {
       setActivatingVersionId("");
+    }
+  }
+
+  function handlePromptDraftChange(promptId: string, field: keyof PromptDraftRecord, value: string) {
+    setPromptDrafts((current) => {
+      const prompt = detail?.prompts?.find((item) => item.id === promptId);
+      const base = current[promptId] || buildPromptDraft(prompt);
+      return {
+        ...current,
+        [promptId]: {
+          ...base,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  async function handleSavePrompt(promptId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const prompt = detail?.prompts?.find((item) => item.id === promptId);
+    if (!prompt) {
+      return;
+    }
+    const draft = promptDrafts[promptId] || buildPromptDraft(prompt);
+    const modelName = draft.modelName.trim();
+    const temperature = Number(draft.temperature.trim());
+    const maxTokens = Number(draft.maxTokens.trim());
+
+    if (!modelName) {
+      setDetailError(`Prompt「${prompt.promptName}」模型不能为空`);
+      return;
+    }
+    if (!Number.isFinite(temperature)) {
+      setDetailError(`Prompt「${prompt.promptName}」温度参数不合法`);
+      return;
+    }
+    if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
+      setDetailError(`Prompt「${prompt.promptName}」最大 Tokens 不合法`);
+      return;
+    }
+
+    setSavingPromptId(promptId);
+    setDetailError("");
+    try {
+      await updateSkillPackagePrompt(selectedPackage.id, promptId, {
+        status: draft.status,
+        modelName,
+        temperature,
+        maxTokens: Math.floor(maxTokens),
+        content: draft.content,
+      });
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存 Prompt 失败";
+      setDetailError(`保存 Prompt 失败：${message}`);
+    } finally {
+      setSavingPromptId("");
     }
   }
 
@@ -373,16 +452,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
               </label>
             </div>
             <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-              <DetailBlock
-                title="Prompt 资产"
-                meta={isDetailLoading ? "正在加载能力包详情..." : `${detail?.prompts?.length || 0} 条`}
+              <PromptBlock
+                prompts={detail?.prompts || []}
+                drafts={promptDrafts}
+                savingPromptId={savingPromptId}
+                isLoading={isDetailLoading}
                 emptyText={detailError ? detailError : "当前能力包暂无 Prompt 详情。"}
-                items={(detail?.prompts || []).map((item) => ({
-                  id: item.id,
-                  title: item.promptName,
-                  subtitle: `${item.promptRole}${item.versionTag ? ` / ${item.versionTag}` : ""}`,
-                  body: item.content || "-",
-                }))}
+                onDraftChange={handlePromptDraftChange}
+                onSave={(promptId) => void handleSavePrompt(promptId)}
               />
               <DetailBlock
                 title="Provider 绑定"
@@ -518,6 +595,100 @@ function VersionBlock(props: VersionBlockProps) {
   );
 }
 
+type PromptBlockProps = {
+  prompts: PromptDetailRecord[];
+  drafts: Record<string, PromptDraftRecord>;
+  savingPromptId: string;
+  isLoading: boolean;
+  emptyText: string;
+  onDraftChange: (promptId: string, field: keyof PromptDraftRecord, value: string) => void;
+  onSave: (promptId: string) => void;
+};
+
+function PromptBlock(props: PromptBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>Prompt 资产</strong>
+          <p className="personal-meta">{props.isLoading ? "正在加载能力包详情..." : `${props.prompts.length} 条`}</p>
+        </div>
+      </div>
+      {props.prompts.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.prompts.map((item) => {
+            const draft = props.drafts[item.id] || buildPromptDraft(item);
+            return (
+              <article
+                key={item.id}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "rgba(255, 255, 255, 0.72)",
+                }}
+              >
+                <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="admin-user-row-title">{item.promptName}</div>
+                    <div className="admin-user-row-meta">
+                      {`${item.promptRole}${item.versionTag ? ` / ${item.versionTag}` : ""}${item.updatedAt ? ` / ${formatDateTime(item.updatedAt)}` : ""}`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => props.onSave(item.id)}
+                    disabled={props.savingPromptId === item.id}
+                  >
+                    {props.savingPromptId === item.id ? "保存中..." : "保存 Prompt"}
+                  </button>
+                </div>
+                <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label>
+                    <span>状态</span>
+                    <select value={draft.status} onChange={(event) => props.onDraftChange(item.id, "status", event.target.value)}>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="DRAFT">DRAFT</option>
+                      <option value="DISABLED">DISABLED</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>模型</span>
+                    <input value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)} />
+                  </label>
+                  <label>
+                    <span>Temperature</span>
+                    <input
+                      value={draft.temperature}
+                      inputMode="decimal"
+                      onChange={(event) => props.onDraftChange(item.id, "temperature", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Max Tokens</span>
+                    <input value={draft.maxTokens} inputMode="numeric" onChange={(event) => props.onDraftChange(item.id, "maxTokens", event.target.value)} />
+                  </label>
+                </div>
+                <label className="admin-skill-field admin-skill-field--full">
+                  <span>内容</span>
+                  <textarea
+                    value={draft.content}
+                    onChange={(event) => props.onDraftChange(item.id, "content", event.target.value)}
+                    style={{ minHeight: 180 }}
+                  />
+                </label>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="personal-meta">{props.emptyText}</div>
+      )}
+    </section>
+  );
+}
+
 type DetailBlockProps = {
   title: string;
   meta: string;
@@ -577,4 +748,14 @@ function formatDateTime(value?: string) {
   } catch {
     return value;
   }
+}
+
+function buildPromptDraft(prompt?: PromptDetailRecord): PromptDraftRecord {
+  return {
+    status: prompt?.status || "DRAFT",
+    modelName: prompt?.modelName || "",
+    temperature: prompt?.temperature !== undefined ? String(prompt.temperature) : "",
+    maxTokens: prompt?.maxTokens !== undefined ? String(prompt.maxTokens) : "",
+    content: prompt?.content || "",
+  };
 }

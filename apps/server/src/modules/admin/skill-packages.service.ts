@@ -9,6 +9,10 @@ import {
   type SkillPackageVersionRecord,
 } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
+import {
+  SkillsPromptsService,
+  type UpdatePromptTemplatePayload as BaseUpdateSkillPackagePromptPayload,
+} from "./skills-prompts.service";
 
 export type SkillPackageListQuery = {
   keyword?: string;
@@ -81,6 +85,8 @@ export type ActivateSkillPackageVersionPayload = {
   versionId: string;
 };
 
+export type UpdateSkillPackagePromptPayload = BaseUpdateSkillPackagePromptPayload;
+
 export type SkillPackageDetailRecord = {
   package: SkillPackageSummaryRecord;
   skill?: {
@@ -105,6 +111,10 @@ export type SkillPackageDetailRecord = {
     content: string;
     isDefault: boolean;
     versionTag?: string;
+    status?: PromptTemplateRecord["status"];
+    modelName?: string;
+    temperature?: number;
+    maxTokens?: number;
     updatedAt?: string;
   }>;
   references?: Array<Record<string, never>>;
@@ -172,7 +182,10 @@ export class SkillPackagesService {
   private bootstrapPromise?: Promise<void>;
   private versionBootstrapPromise?: Promise<void>;
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly skillsPromptsService: SkillsPromptsService,
+  ) {}
 
   async listSkillPackages(query: SkillPackageListQuery = {}): Promise<SkillPackageSummaryRecord[]> {
     if (await this.canUseSkillPackageStorage()) {
@@ -482,6 +495,37 @@ export class SkillPackagesService {
     return this.normalizeVersionRecord(database.skillPackageVersions[targetIndex]);
   }
 
+  async updateSkillPackagePrompt(
+    packageId: string,
+    promptId: string,
+    payload: UpdateSkillPackagePromptPayload,
+  ): Promise<NonNullable<SkillPackageDetailRecord["prompts"]>[number]> {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const packagePrompts = await this.loadPromptDetailsByPackage(packageRecord);
+    const currentPrompt = packagePrompts.find((item) => item.id === promptId);
+    if (!currentPrompt) {
+      throw new NotFoundException("当前能力包下不存在该 Prompt");
+    }
+
+    const updatedPrompt = await this.skillsPromptsService.updatePrompt(
+      promptId,
+      this.normalizeUpdatePromptPayload(payload),
+    );
+
+    return {
+      ...currentPrompt,
+      promptKey: updatedPrompt.scene,
+      promptName: updatedPrompt.name,
+      content: updatedPrompt.content,
+      versionTag: updatedPrompt.version,
+      status: updatedPrompt.status,
+      modelName: updatedPrompt.modelName,
+      temperature: updatedPrompt.temperature,
+      maxTokens: updatedPrompt.maxTokens,
+      updatedAt: updatedPrompt.updatedAt,
+    };
+  }
+
   private normalizeSkillPackage(row: SkillPackage): SkillPackageRecord {
     return {
       id: row.id,
@@ -747,11 +791,78 @@ export class SkillPackagesService {
         content: prompt?.content || "",
         isDefault: binding.isPrimary || index === 0,
         versionTag: prompt?.version,
+        status: prompt?.status,
+        modelName: prompt?.modelName,
+        temperature: prompt?.temperature,
+        maxTokens: prompt?.maxTokens,
         updatedAt: prompt?.updatedAt,
       });
     });
 
     return Array.from(detailMap.values());
+  }
+
+  private async loadPromptDetailsByPackage(packageRecord: Pick<SkillPackageRecord, "packageKey">) {
+    const [packageSkills, promptBindings, promptTemplates] = await Promise.all([
+      this.loadSkillPackageSkillsForSummary(),
+      this.loadSkillPromptBindingsForSummary(),
+      this.loadPromptTemplatesForDetail(),
+    ]);
+    const relatedSkillBindings = packageSkills
+      .filter((relation) => relation.packageKey === packageRecord.packageKey && relation.enabled)
+      .sort((left, right) => {
+        if (left.isDefault !== right.isDefault) {
+          return left.isDefault ? -1 : 1;
+        }
+        return left.sortOrder - right.sortOrder;
+      });
+    return this.buildPromptDetails(relatedSkillBindings, promptBindings, promptTemplates);
+  }
+
+  private normalizeUpdatePromptPayload(payload: UpdateSkillPackagePromptPayload): UpdateSkillPackagePromptPayload {
+    const normalized: UpdateSkillPackagePromptPayload = {};
+
+    if (payload.status !== undefined) {
+      const status = String(payload.status || "").trim().toUpperCase();
+      if (!["ACTIVE", "DISABLED", "DRAFT"].includes(status)) {
+        throw new BadRequestException("Prompt 状态不合法");
+      }
+      normalized.status = status as PromptTemplateRecord["status"];
+    }
+
+    if (payload.modelName !== undefined) {
+      const modelName = String(payload.modelName || "").trim();
+      if (!modelName) {
+        throw new BadRequestException("Prompt 模型不能为空");
+      }
+      normalized.modelName = modelName;
+    }
+
+    if (payload.temperature !== undefined) {
+      const temperature = Number(payload.temperature);
+      if (!Number.isFinite(temperature)) {
+        throw new BadRequestException("温度参数不合法");
+      }
+      normalized.temperature = temperature;
+    }
+
+    if (payload.maxTokens !== undefined) {
+      const maxTokens = Number(payload.maxTokens);
+      if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
+        throw new BadRequestException("最大 Tokens 不合法");
+      }
+      normalized.maxTokens = Math.floor(maxTokens);
+    }
+
+    if (payload.content !== undefined) {
+      normalized.content = String(payload.content);
+    }
+
+    if (!Object.keys(normalized).length) {
+      throw new BadRequestException("至少需要更新一个 Prompt 字段");
+    }
+
+    return normalized;
   }
 
   private buildKnowledgeBindings(packageSummary: SkillPackageSummaryRecord, knowledgeBases: Array<{ id: string; name: string }>) {
