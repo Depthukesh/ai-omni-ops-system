@@ -8,11 +8,13 @@ import {
   skillPackageSkillSeed,
   updateSkillPackageSkill,
   type SkillConfigRecord,
+  type SkillPackageRecord,
   type SkillPackageSkillRecord,
 } from "../../../services/admin";
 
 type SkillPackageSkillsPanelProps = {
   skills: SkillConfigRecord[];
+  skillPackages: SkillPackageRecord[];
   dataSource: "api" | "seed";
   onNotice: (message: string) => void;
   onError: (message: string) => void;
@@ -55,8 +57,8 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
   const [filters, setFilters] = useState<SkillPackageSkillFilters>(DEFAULT_FILTERS);
   const [relations, setRelations] = useState<SkillPackageSkillRecord[]>(skillPackageSkillSeed);
   const [selectedRelationId, setSelectedRelationId] = useState("");
-  const [selectedDraft, setSelectedDraft] = useState<SkillPackageSkillDraft>(buildCreateDraft(props.skills));
-  const [createDraft, setCreateDraft] = useState<SkillPackageSkillDraft>(buildCreateDraft(props.skills));
+  const [selectedDraft, setSelectedDraft] = useState<SkillPackageSkillDraft>(buildCreateDraft(props.skills, props.skillPackages));
+  const [createDraft, setCreateDraft] = useState<SkillPackageSkillDraft>(buildCreateDraft(props.skills, props.skillPackages));
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
@@ -76,16 +78,16 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
 
   useEffect(() => {
     if (!selectedRelationId) {
-      setSelectedDraft(buildCreateDraft(props.skills));
+      setSelectedDraft(buildCreateDraft(props.skills, props.skillPackages));
       return;
     }
     if (!selectedRelation) {
       setSelectedRelationId("");
-      setSelectedDraft(buildCreateDraft(props.skills));
+      setSelectedDraft(buildCreateDraft(props.skills, props.skillPackages));
       return;
     }
     setSelectedDraft(buildDraftFromRecord(selectedRelation));
-  }, [props.skills, selectedRelation, selectedRelationId]);
+  }, [props.skillPackages, props.skills, selectedRelation, selectedRelationId]);
 
   useEffect(() => {
     if (!isCreateModalOpen) {
@@ -168,7 +170,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
   }
 
   function handleOpenCreateModal() {
-    setCreateDraft(buildCreateDraft(props.skills));
+    setCreateDraft(buildCreateDraft(props.skills, props.skillPackages));
     setIsCreateModalOpen(true);
   }
 
@@ -177,7 +179,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
       return;
     }
     setIsCreateModalOpen(false);
-    setCreateDraft(buildCreateDraft(props.skills));
+    setCreateDraft(buildCreateDraft(props.skills, props.skillPackages));
   }
 
   async function handleCreateRelation() {
@@ -201,7 +203,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
         };
         setRelations((current) => [created, ...current]);
         setSelectedRelationId(created.id);
-        setCreateDraft(buildCreateDraft(props.skills));
+        setCreateDraft(buildCreateDraft(props.skills, props.skillPackages));
         setIsCreateModalOpen(false);
         props.onNotice(`演示能力包技能关系已创建：${created.packageName} -> ${created.skillName || created.skillSlug}`);
         return;
@@ -209,7 +211,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
       const created = await createSkillPackageSkill(payload);
       setRelations((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       setSelectedRelationId(created.id);
-      setCreateDraft(buildCreateDraft(props.skills));
+      setCreateDraft(buildCreateDraft(props.skills, props.skillPackages));
       setIsCreateModalOpen(false);
       props.onNotice(`能力包技能关系已创建：${created.packageName} -> ${created.skillName || created.skillSlug}`);
     } catch (error) {
@@ -457,7 +459,9 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => setSelectedDraft(selectedRelation ? buildDraftFromRecord(selectedRelation) : buildCreateDraft(props.skills))}
+                onClick={() =>
+                  setSelectedDraft(selectedRelation ? buildDraftFromRecord(selectedRelation) : buildCreateDraft(props.skills, props.skillPackages))
+                }
                 disabled={!selectedRelation || isSaving}
               >
                 重置
@@ -469,7 +473,12 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
           </div>
 
           {selectedRelation ? (
-            <SkillPackageSkillDraftForm draft={selectedDraft} skills={props.skills} onChange={setSelectedDraft} />
+            <SkillPackageSkillDraftForm
+              draft={selectedDraft}
+              skills={props.skills}
+              skillPackages={props.skillPackages}
+              onChange={setSelectedDraft}
+            />
           ) : (
             <div className="personal-meta" style={{ paddingTop: 12 }}>
               请选择一条能力包技能关系进行编辑。
@@ -497,7 +506,12 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                 关闭
               </button>
             </div>
-            <SkillPackageSkillDraftForm draft={createDraft} skills={props.skills} onChange={setCreateDraft} />
+            <SkillPackageSkillDraftForm
+              draft={createDraft}
+              skills={props.skills}
+              skillPackages={props.skillPackages}
+              onChange={setCreateDraft}
+            />
             <div className="personal-actions">
               <button type="button" className="secondary-button" onClick={handleCloseCreateModal} disabled={isCreating}>
                 取消
@@ -516,21 +530,74 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
 function SkillPackageSkillDraftForm(props: {
   draft: SkillPackageSkillDraft;
   skills: SkillConfigRecord[];
+  skillPackages: SkillPackageRecord[];
   onChange: Dispatch<SetStateAction<SkillPackageSkillDraft>>;
 }) {
+  const selectedPackage = props.skillPackages.find(
+    (item) => item.id === props.draft.packageId || item.packageKey === props.draft.packageKey,
+  );
+  const packageSelectValue = selectedPackage?.id || "__manual__";
+
+  function handlePackageChange(nextValue: string) {
+    if (nextValue === "__manual__") {
+      return;
+    }
+    const target = props.skillPackages.find((item) => item.id === nextValue);
+    if (!target) {
+      return;
+    }
+    props.onChange((current) => ({
+      ...current,
+      packageId: target.id,
+      packageKey: target.packageKey,
+      packageName: target.packageName,
+    }));
+  }
+
   return (
     <div className="admin-rule-grid">
+      <label style={{ gridColumn: "1 / -1" }}>
+        <span>能力包选择</span>
+        <select value={packageSelectValue} onChange={(event) => handlePackageChange(event.target.value)}>
+          <option value="__manual__">手工填写 / 历史值兼容</option>
+          {props.skillPackages.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.packageName}
+            </option>
+          ))}
+        </select>
+      </label>
+      {selectedPackage ? (
+        <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
+          <strong>{selectedPackage.packageName}</strong>
+          <p className="personal-meta">
+            {selectedPackage.packageKey} · {selectedPackage.status} · {selectedPackage.scope}
+          </p>
+        </div>
+      ) : null}
       <label>
         <span>能力包名称</span>
-        <input value={props.draft.packageName} onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))} />
+        <input
+          value={props.draft.packageName}
+          readOnly={Boolean(selectedPackage)}
+          onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))}
+        />
       </label>
       <label>
         <span>能力包 ID</span>
-        <input value={props.draft.packageId} onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))} />
+        <input
+          value={props.draft.packageId}
+          readOnly={Boolean(selectedPackage)}
+          onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))}
+        />
       </label>
       <label>
         <span>能力包标识</span>
-        <input value={props.draft.packageKey} onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))} />
+        <input
+          value={props.draft.packageKey}
+          readOnly={Boolean(selectedPackage)}
+          onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))}
+        />
       </label>
       <label>
         <span>所属技能</span>
@@ -589,11 +656,12 @@ function SkillPackageSkillDraftForm(props: {
   );
 }
 
-function buildCreateDraft(skills: SkillConfigRecord[]): SkillPackageSkillDraft {
+function buildCreateDraft(skills: SkillConfigRecord[], skillPackages: SkillPackageRecord[]): SkillPackageSkillDraft {
+  const firstPackage = skillPackages[0];
   return {
-    packageId: "",
-    packageKey: "",
-    packageName: "",
+    packageId: firstPackage?.id || "",
+    packageKey: firstPackage?.packageKey || "",
+    packageName: firstPackage?.packageName || "",
     skillId: skills[0]?.id || "",
     bindingType: "DEFAULT",
     isDefault: true,

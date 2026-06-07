@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI全域运营系统 能力包关系面板填写指引 v1</title>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.7;
+      color: #1f2937;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      background: #f8fafc;
+    }
+    main {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    h1, h2, h3 { color: #111827; }
+    h1 { font-size: 30px; margin-bottom: 24px; }
+    h2 { margin-top: 32px; font-size: 22px; border-left: 4px solid #2563eb; padding-left: 12px; }
+    h3 { margin-top: 24px; font-size: 18px; }
+    ul, ol { padding-left: 24px; }
+    li { margin: 6px 0; }
+    p, li { font-size: 15px; }
+    code {
+      background: #eff6ff;
+      border-radius: 6px;
+      padding: 2px 6px;
+      color: #1d4ed8;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 28px 0;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>AI全域运营系统 能力包关系面板填写指引 v1</h1>
+
+    <h2>1. 文档目的</h2>
+    <p>本文档用于说明后台 <code>模块绑定</code> 与 <code>技能绑定</code> 两个面板当前如何填写，尤其是能力包字段现在应该优先怎么选。</p>
+
+    <hr />
+
+    <h2>2. 当前适用面板</h2>
+    <ul>
+      <li><code>模块绑定</code>：对应模块与能力包关系。</li>
+      <li><code>技能绑定</code>：对应能力包与技能关系。</li>
+    </ul>
+    <p>这两个面板当前都已经从“手工录入能力包三元组”升级为“优先使用后台真实能力包选择器，并保留手工填写模式兼容历史值”。</p>
+
+    <hr />
+
+    <h2>3. 能力包字段填写规则</h2>
+    <p>关系面板中的能力包相关字段包括：</p>
+    <ul>
+      <li><code>packageId</code></li>
+      <li><code>packageKey</code></li>
+      <li><code>packageName</code></li>
+    </ul>
+
+    <h3>3.1 优先使用真实选择器</h3>
+    <ul>
+      <li>表单顶部新增了 <code>能力包选择</code>。</li>
+      <li>直接从后台已有 <code>SkillPackage</code> 列表中选择。</li>
+      <li>选择后会自动带出 <code>packageId</code>、<code>packageKey</code>、<code>packageName</code>。</li>
+    </ul>
+    <p>这是当前推荐方式，可以减少手工录错，并保证关系记录和能力包注册中心里的真实对象一致。</p>
+
+    <h3>3.2 保留手工模式</h3>
+    <ul>
+      <li>如果历史值还没有进入能力包注册中心。</li>
+      <li>或者需要兼容旧关系数据。</li>
+      <li>可以切回 <code>手工填写 / 历史值兼容</code>。</li>
+    </ul>
+    <p>这时仍可以手工填写 <code>packageId</code>、<code>packageKey</code>、<code>packageName</code>。</p>
+
+    <hr />
+
+    <h2>4. 模块绑定面板填写建议</h2>
+    <h3>4.1 关键字段</h3>
+    <ul>
+      <li><code>能力包选择</code></li>
+      <li><code>所属模块</code></li>
+      <li><code>绑定类型</code></li>
+      <li><code>默认挂载</code></li>
+      <li><code>启用状态</code></li>
+      <li><code>排序</code></li>
+    </ul>
+
+    <h3>4.2 推荐填写顺序</h3>
+    <ol>
+      <li>先选真实能力包。</li>
+      <li>再选所属模块。</li>
+      <li>再设置 <code>绑定类型</code>。</li>
+      <li>最后补 <code>默认挂载</code>、<code>启用状态</code>、<code>排序</code>。</li>
+    </ol>
+    <p>模块绑定面板现在已经不是只靠 <code>packageId / packageKey / packageName</code> 手工录入，当前应优先把模块和真实能力包对象挂上关系。</p>
+
+    <hr />
+
+    <h2>5. 技能绑定面板填写建议</h2>
+    <h3>5.1 关键字段</h3>
+    <ul>
+      <li><code>能力包选择</code></li>
+      <li><code>所属技能</code></li>
+      <li><code>绑定类型</code></li>
+      <li><code>默认挂载</code></li>
+      <li><code>启用状态</code></li>
+      <li><code>排序</code></li>
+    </ul>
+
+    <h3>5.2 推荐填写顺序</h3>
+    <ol>
+      <li>先选真实能力包。</li>
+      <li>再选所属技能。</li>
+      <li>再设置 <code>绑定类型</code>。</li>
+      <li>最后补 <code>默认挂载</code>、<code>启用状态</code>、<code>排序</code>。</li>
+    </ol>
+    <p>技能绑定面板现在也已优先对齐真实能力包对象，后续技能归属、默认能力包和后台治理，应该逐步以这层关系真源为准。</p>
+
+    <hr />
+
+    <h2>6. 当前总体结论</h2>
+    <ul>
+      <li>能力包字段优先走真实选择器。</li>
+      <li>手工录入仍保留为兼容模式。</li>
+      <li>能力包注册中心、模块绑定、技能绑定三者的后台治理口径开始统一。</li>
+    </ul>
+    <p>下一步如果继续推进，建议优先做模块绑定面板按模块自动过滤推荐能力包、技能绑定面板按技能当前所属模块推荐能力包，以及关系面板和模块注册中的 <code>defaultSkillPackages</code> 做更明确的双向对照。</p>
+  </main>
+</body>
+</html>

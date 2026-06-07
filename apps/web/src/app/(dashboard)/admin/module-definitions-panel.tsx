@@ -626,11 +626,23 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         ) : null}
 
         {activeSection === "moduleRelations" ? (
-          <SkillPackageModulesPanel modules={props.modules} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+          <SkillPackageModulesPanel
+            modules={props.modules}
+            skillPackages={props.skillPackages}
+            dataSource={props.dataSource}
+            onNotice={props.onNotice}
+            onError={props.onError}
+          />
         ) : null}
 
         {activeSection === "skillRelations" ? (
-          <SkillPackageSkillsPanel skills={props.skills} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+          <SkillPackageSkillsPanel
+            skills={props.skills}
+            skillPackages={props.skillPackages}
+            dataSource={props.dataSource}
+            onNotice={props.onNotice}
+            onError={props.onError}
+          />
         ) : null}
 
         {activeSection === "knowledgeRelations" ? (
@@ -692,6 +704,7 @@ function ModuleDraftForm(props: {
   const selectedPackageKeys = useMemo(() => parseLines(props.draft.defaultSkillPackages), [props.draft.defaultSkillPackages]);
   const selectedKnowledgeSpaceSlugs = useMemo(() => parseLines(props.draft.defaultKnowledgeSpaces), [props.draft.defaultKnowledgeSpaces]);
   const selectedProviderPolicies = useMemo(() => parseLines(props.draft.defaultProviderPolicies), [props.draft.defaultProviderPolicies]);
+  const selectedFeatureFlags = useMemo(() => parseLines(props.draft.featureFlags), [props.draft.featureFlags]);
   const selectedPermissions = useMemo(() => parseLines(props.draft.requiredPermissions), [props.draft.requiredPermissions]);
   const selectedCapabilities = useMemo(() => parseLines(props.draft.requiredCapabilities), [props.draft.requiredCapabilities]);
   const selectedProviders = useMemo(() => parseLines(props.draft.requiredProviders), [props.draft.requiredProviders]);
@@ -704,6 +717,11 @@ function ModuleDraftForm(props: {
   const selectedTaskTypes = useMemo(() => parseLines(props.draft.taskTypes), [props.draft.taskTypes]);
   const selectedMediaTypes = useMemo(() => parseLines(props.draft.mediaTypes), [props.draft.mediaTypes]);
   const selectedWorkflowTypes = useMemo(() => parseLines(props.draft.workflowTypes), [props.draft.workflowTypes]);
+  const selectedPublishTargets = useMemo(() => parseLines(props.draft.publishTargets), [props.draft.publishTargets]);
+  const featureFlagOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.featureFlags), "功能开关", "来自已注册模块的 feature flag"),
+    [props.modules],
+  );
   const permissionOptions = useMemo(
     () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredPermissions), "权限", "来自已注册模块的权限项"),
     [props.modules],
@@ -743,6 +761,10 @@ function ModuleDraftForm(props: {
   );
   const workflowTypeOptions = useMemo(
     () => buildStructuredOptions(props.modules.flatMap((item) => item.workflowTypes), "工作流", "来自已注册模块的工作流类型"),
+    [props.modules],
+  );
+  const publishTargetOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.publishTargets), "发布目标", "来自已注册模块的发布目标"),
     [props.modules],
   );
   const packageOptions = useMemo(
@@ -804,9 +826,11 @@ function ModuleDraftForm(props: {
       | "requiredTables"
       | "requiredStorages"
       | "requiredThirdPartyPlatforms"
+      | "featureFlags"
       | "taskTypes"
       | "mediaTypes"
-      | "workflowTypes",
+      | "workflowTypes"
+      | "publishTargets",
     value: string,
     checked: boolean,
   ) {
@@ -836,7 +860,7 @@ function ModuleDraftForm(props: {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
           <div className="entity-card" style={{ padding: 12 }}>
             <strong>基础必填区</strong>
-            <p className="personal-meta">模块名称、模块标识、入口路由必须明确；权限、能力域、任务类型当前改为结构化优先，仍可手工补充。</p>
+            <p className="personal-meta">模块名称、模块标识、入口路由必须明确；功能开关、权限、能力域、任务类型当前都已改为结构化优先，仍可手工补充。</p>
           </div>
           <div className="entity-card" style={{ padding: 12 }}>
             <strong>系统直接可选</strong>
@@ -957,12 +981,20 @@ function ModuleDraftForm(props: {
               <option value="false">否</option>
             </select>
           </ModuleFormField>
-          <ModuleFormField label="功能开关" badge="推荐" hint="当前需手工填写，每行一个；后续应与统一 feature flag 清单对齐。" wide>
-            <textarea
-              value={props.draft.featureFlags}
-              placeholder={"例如：\nwechat_enabled\nwechat_publish_enabled"}
-              onChange={(event) => props.onChange((current) => ({ ...current, featureFlags: event.target.value }))}
-            />
+          <ModuleFormField label="功能开关" badge="结构化" hint="优先复用已有模块的 feature flag，再按每行一个补充；命名需与前端开关保持一致。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用功能开关，可直接在下方补充。"
+                options={featureFlagOptions}
+                selectedValues={selectedFeatureFlags}
+                onToggle={(value, checked) => updateStructuredField("featureFlags", value, checked)}
+              />
+              <textarea
+                value={props.draft.featureFlags}
+                placeholder={"例如：\nwechat_enabled\nwechat_publish_enabled"}
+                onChange={(event) => props.onChange((current) => ({ ...current, featureFlags: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
         </div>
       </ModuleFormSection>
@@ -1109,12 +1141,20 @@ function ModuleDraftForm(props: {
               />
             </div>
           </ModuleFormField>
-          <ModuleFormField label="发布目标" badge="可不填" hint="只有存在明确发布端时再填，如公众号、抖音等。">
-            <textarea
-              value={props.draft.publishTargets}
-              placeholder={"例如：\nwechat"}
-              onChange={(event) => props.onChange((current) => ({ ...current, publishTargets: event.target.value }))}
-            />
+          <ModuleFormField label="发布目标" badge="结构化" hint="只有存在明确发布端时再填，优先复用已有目标；通常应和第三方平台依赖一起看。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用发布目标，可直接在下方补充。"
+                options={publishTargetOptions}
+                selectedValues={selectedPublishTargets}
+                onToggle={(value, checked) => updateStructuredField("publishTargets", value, checked)}
+              />
+              <textarea
+                value={props.draft.publishTargets}
+                placeholder={"例如：\nwechat-api"}
+                onChange={(event) => props.onChange((current) => ({ ...current, publishTargets: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
         </div>
       </ModuleFormSection>
