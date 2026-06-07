@@ -1059,6 +1059,23 @@ model ReferenceAsset {
   @@index([packageId, sortOrder, updatedAt])
 }
 
+model ScriptAsset {
+  id            String   @id
+  packageId     String
+  scriptKey     String
+  scriptName    String
+  runtime       String
+  entry         String?
+  argsSchemaJson Json?
+  usageNote     String   @default("")
+  sortOrder     Int      @default(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([packageId, scriptKey])
+  @@index([packageId, sortOrder, updatedAt])
+}
+
 model ModuleDefinition {
   id                              String   @id
   moduleKey                       String   @unique

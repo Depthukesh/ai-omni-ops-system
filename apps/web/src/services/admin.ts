@@ -322,7 +322,17 @@ export type SkillPackageDetailRecord = {
     sortOrder: number;
     updatedAt?: string;
   }>;
-  scripts?: Array<Record<string, never>>;
+  scripts?: Array<{
+    id: string;
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    argsSchema?: Record<string, unknown>;
+    usageNote?: string;
+    sortOrder: number;
+    updatedAt?: string;
+  }>;
   knowledgeBindings?: Array<{
     id: string;
     knowledgeBaseId: string;
@@ -2689,6 +2699,54 @@ export async function updateReferenceAsset(
 export async function deleteReferenceAsset(packageId: string, referenceId: string) {
   return request<NonNullable<SkillPackageDetailRecord["references"]>[number]>(
     `/admin/skill-packages/${packageId}/references/${referenceId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function createScriptAsset(
+  packageId: string,
+  payload: {
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    argsSchema?: Record<string, unknown>;
+    usageNote?: string;
+    sortOrder?: number;
+  },
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["scripts"]>[number]>(
+    `/admin/skill-packages/${packageId}/scripts`,
+    "POST",
+    payload,
+  );
+}
+
+export async function updateScriptAsset(
+  packageId: string,
+  scriptId: string,
+  payload: Partial<{
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    argsSchema?: Record<string, unknown>;
+    usageNote?: string;
+    sortOrder?: number;
+  }>,
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["scripts"]>[number]>(
+    `/admin/skill-packages/${packageId}/scripts/${scriptId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteScriptAsset(packageId: string, scriptId: string) {
+  return request<NonNullable<SkillPackageDetailRecord["scripts"]>[number]>(
+    `/admin/skill-packages/${packageId}/scripts/${scriptId}`,
     {
       method: "DELETE",
     },

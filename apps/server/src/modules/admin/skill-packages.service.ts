@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { ReferenceAsset, SkillPackage } from "@prisma/client";
+import { Prisma, ReferenceAsset, ScriptAsset, SkillPackage } from "@prisma/client";
 import {
   createId,
   database,
   type ApiProviderRecord,
   type PromptTemplateRecord,
   type ReferenceAssetRecord,
+  type ScriptAssetRecord,
   type SkillPackageRecord,
   type SkillPackageVersionRecord,
 } from "../../common/mock-data";
@@ -135,7 +136,17 @@ export type SkillPackageDetailRecord = {
     sortOrder: number;
     updatedAt?: string;
   }>;
-  scripts?: Array<Record<string, never>>;
+  scripts?: Array<{
+    id: string;
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    argsSchema?: Record<string, unknown>;
+    usageNote?: string;
+    sortOrder: number;
+    updatedAt?: string;
+  }>;
   knowledgeBindings?: Array<{
     id: string;
     knowledgeBaseId: string;
@@ -209,11 +220,24 @@ export type CreateReferenceAssetPayload = {
 
 export type UpdateReferenceAssetPayload = Partial<CreateReferenceAssetPayload>;
 
+export type CreateScriptAssetPayload = {
+  scriptKey: string;
+  scriptName: string;
+  runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+  entry?: string;
+  argsSchema?: Record<string, unknown>;
+  usageNote?: string;
+  sortOrder?: number;
+};
+
+export type UpdateScriptAssetPayload = Partial<CreateScriptAssetPayload>;
+
 @Injectable()
 export class SkillPackagesService {
   private bootstrapPromise?: Promise<void>;
   private versionBootstrapPromise?: Promise<void>;
   private referenceBootstrapPromise?: Promise<void>;
+  private scriptBootstrapPromise?: Promise<void>;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -273,6 +297,7 @@ export class SkillPackagesService {
     const knowledgeBindings = this.buildKnowledgeBindings(packageSummary, knowledgeBases);
     const versionDetails = await this.loadVersionViewsByPackage(packageSummary);
     const references = await this.loadReferenceAssetsByPackage(packageSummary.id);
+    const scripts = await this.loadScriptAssetsByPackage(packageSummary.id);
 
     return {
       package: packageSummary,
@@ -289,7 +314,7 @@ export class SkillPackagesService {
       workflowStepSummaries: this.buildWorkflowStepSummaries(packageSummary.workflowStepKeys),
       ...(includeOptions.includePrompts ? { prompts: promptDetails } : {}),
       ...(includeOptions.includeReferences ? { references } : {}),
-      ...(includeOptions.includeScripts ? { scripts: [] } : {}),
+      ...(includeOptions.includeScripts ? { scripts } : {}),
       ...(includeOptions.includeKnowledge ? { knowledgeBindings } : {}),
       ...(includeOptions.includeProviders ? { providerBindings } : {}),
       ...(includeOptions.includeVersions ? { versions: versionDetails } : {}),
@@ -552,6 +577,149 @@ export class SkillPackagesService {
     }
     const [deleted] = database.referenceAssets.splice(index, 1);
     return this.normalizeReferenceAsset(deleted);
+  }
+
+  async createScriptAsset(packageId: string, payload: CreateScriptAssetPayload) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const normalizedPayload = this.normalizeCreateScriptPayload(payload);
+    const now = new Date().toISOString();
+
+    if (await this.tableExists("ScriptAsset")) {
+      await this.ensureScriptAssetStorageSeeded();
+      const duplicated = await this.prismaService.scriptAsset.findFirst({
+        where: {
+          packageId: packageRecord.id,
+          scriptKey: normalizedPayload.scriptKey,
+        },
+      });
+      if (duplicated) {
+        throw new ConflictException("脚本标识已存在");
+      }
+      const created = await this.prismaService.scriptAsset.create({
+        data: {
+          id: createId("script"),
+          packageId: packageRecord.id,
+          scriptKey: normalizedPayload.scriptKey,
+          scriptName: normalizedPayload.scriptName,
+          runtime: normalizedPayload.runtime,
+          entry: normalizedPayload.entry,
+          argsSchemaJson: this.toJsonInput(normalizedPayload.argsSchema),
+          usageNote: normalizedPayload.usageNote ?? "",
+          sortOrder: normalizedPayload.sortOrder ?? 100,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+        },
+      });
+      return this.normalizeScriptAsset(created);
+    }
+
+    const duplicated = database.scriptAssets.find(
+      (item) => item.packageId === packageRecord.id && item.scriptKey === normalizedPayload.scriptKey,
+    );
+    if (duplicated) {
+      throw new ConflictException("脚本标识已存在");
+    }
+    const created: ScriptAssetRecord = {
+      id: createId("script"),
+      packageId: packageRecord.id,
+      scriptKey: normalizedPayload.scriptKey,
+      scriptName: normalizedPayload.scriptName,
+      runtime: normalizedPayload.runtime,
+      entry: normalizedPayload.entry,
+      argsSchema: normalizedPayload.argsSchema,
+      usageNote: normalizedPayload.usageNote,
+      sortOrder: normalizedPayload.sortOrder ?? 100,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.scriptAssets.unshift(created);
+    return this.normalizeScriptAsset(created);
+  }
+
+  async updateScriptAsset(packageId: string, scriptId: string, payload: UpdateScriptAssetPayload) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const normalizedPayload = this.normalizeUpdateScriptPayload(payload);
+
+    if (await this.tableExists("ScriptAsset")) {
+      await this.ensureScriptAssetStorageSeeded();
+      const current = await this.prismaService.scriptAsset.findUnique({
+        where: { id: scriptId },
+      });
+      if (!current || current.packageId !== packageRecord.id) {
+        throw new NotFoundException("脚本不存在");
+      }
+      const nextScriptKey =
+        normalizedPayload.scriptKey !== undefined ? this.normalizeScriptKey(normalizedPayload.scriptKey) : current.scriptKey;
+      if (nextScriptKey !== current.scriptKey) {
+        const duplicated = await this.prismaService.scriptAsset.findFirst({
+          where: {
+            packageId: packageRecord.id,
+            scriptKey: nextScriptKey,
+            id: { not: scriptId },
+          },
+        });
+        if (duplicated) {
+          throw new ConflictException("脚本标识已存在");
+        }
+      }
+      const updated = await this.prismaService.scriptAsset.update({
+        where: { id: scriptId },
+        data: this.toScriptAssetUpdateInput(normalizedPayload, current),
+      });
+      return this.normalizeScriptAsset(updated);
+    }
+
+    const index = database.scriptAssets.findIndex((item) => item.id === scriptId && item.packageId === packageRecord.id);
+    if (index < 0) {
+      throw new NotFoundException("脚本不存在");
+    }
+    const current = database.scriptAssets[index];
+    const nextScriptKey =
+      normalizedPayload.scriptKey !== undefined ? this.normalizeScriptKey(normalizedPayload.scriptKey) : current.scriptKey;
+    const duplicated = database.scriptAssets.find(
+      (item) => item.packageId === packageRecord.id && item.scriptKey === nextScriptKey && item.id !== scriptId,
+    );
+    if (duplicated) {
+      throw new ConflictException("脚本标识已存在");
+    }
+    const updated: ScriptAssetRecord = {
+      ...current,
+      ...(normalizedPayload.scriptKey !== undefined ? { scriptKey: nextScriptKey } : {}),
+      ...(normalizedPayload.scriptName !== undefined ? { scriptName: this.normalizeScriptName(normalizedPayload.scriptName) } : {}),
+      ...(normalizedPayload.runtime !== undefined ? { runtime: this.normalizeScriptRuntime(normalizedPayload.runtime) } : {}),
+      ...(normalizedPayload.entry !== undefined ? { entry: String(normalizedPayload.entry || "").trim() || undefined } : {}),
+      ...(normalizedPayload.argsSchema !== undefined ? { argsSchema: this.normalizeJsonObject(normalizedPayload.argsSchema) } : {}),
+      ...(normalizedPayload.usageNote !== undefined ? { usageNote: String(normalizedPayload.usageNote || "").trim() || undefined } : {}),
+      ...(normalizedPayload.sortOrder !== undefined ? { sortOrder: this.normalizeSortOrder(normalizedPayload.sortOrder) } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    database.scriptAssets[index] = updated;
+    return this.normalizeScriptAsset(updated);
+  }
+
+  async deleteScriptAsset(packageId: string, scriptId: string) {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+
+    if (await this.tableExists("ScriptAsset")) {
+      await this.ensureScriptAssetStorageSeeded();
+      const current = await this.prismaService.scriptAsset.findUnique({
+        where: { id: scriptId },
+      });
+      if (!current || current.packageId !== packageRecord.id) {
+        throw new NotFoundException("脚本不存在");
+      }
+      await this.prismaService.scriptAsset.delete({
+        where: { id: scriptId },
+      });
+      return this.normalizeScriptAsset(current);
+    }
+
+    const index = database.scriptAssets.findIndex((item) => item.id === scriptId && item.packageId === packageRecord.id);
+    if (index < 0) {
+      throw new NotFoundException("脚本不存在");
+    }
+    const [deleted] = database.scriptAssets.splice(index, 1);
+    return this.normalizeScriptAsset(deleted);
   }
 
   async listSkillPackageVersions(packageId: string): Promise<{ items: SkillPackageVersionView[] }> {
@@ -885,6 +1053,74 @@ export class SkillPackagesService {
       throw new BadRequestException("参考资料来源类型不合法");
     }
     return sourceType as CreateReferenceAssetPayload["sourceType"];
+  }
+
+  private normalizeCreateScriptPayload(payload: CreateScriptAssetPayload): CreateScriptAssetPayload {
+    return {
+      scriptKey: this.normalizeScriptKey(payload.scriptKey),
+      scriptName: this.normalizeScriptName(payload.scriptName),
+      runtime: this.normalizeScriptRuntime(payload.runtime),
+      entry: String(payload.entry || "").trim() || undefined,
+      argsSchema: this.normalizeJsonObject(payload.argsSchema),
+      usageNote: String(payload.usageNote || "").trim() || undefined,
+      sortOrder: this.normalizeSortOrder(payload.sortOrder),
+    };
+  }
+
+  private normalizeUpdateScriptPayload(payload: UpdateScriptAssetPayload): UpdateScriptAssetPayload {
+    const normalized: UpdateScriptAssetPayload = {};
+    if (payload.scriptKey !== undefined) {
+      normalized.scriptKey = this.normalizeScriptKey(payload.scriptKey);
+    }
+    if (payload.scriptName !== undefined) {
+      normalized.scriptName = this.normalizeScriptName(payload.scriptName);
+    }
+    if (payload.runtime !== undefined) {
+      normalized.runtime = this.normalizeScriptRuntime(payload.runtime);
+    }
+    if (payload.entry !== undefined) {
+      normalized.entry = String(payload.entry || "").trim() || undefined;
+    }
+    if (payload.argsSchema !== undefined) {
+      normalized.argsSchema = this.normalizeJsonObject(payload.argsSchema);
+    }
+    if (payload.usageNote !== undefined) {
+      normalized.usageNote = String(payload.usageNote || "").trim() || undefined;
+    }
+    if (payload.sortOrder !== undefined) {
+      normalized.sortOrder = this.normalizeSortOrder(payload.sortOrder);
+    }
+    if (!Object.keys(normalized).length) {
+      throw new BadRequestException("至少需要更新一个脚本字段");
+    }
+    return normalized;
+  }
+
+  private normalizeScriptKey(value: string) {
+    const scriptKey = String(value || "").trim().toLowerCase();
+    if (!scriptKey) {
+      throw new BadRequestException("脚本标识不能为空");
+    }
+    if (!/^[a-z0-9-]+$/.test(scriptKey)) {
+      throw new BadRequestException("脚本标识只能使用英文小写、数字和短横线");
+    }
+    return scriptKey;
+  }
+
+  private normalizeScriptName(value: string) {
+    const scriptName = String(value || "").trim();
+    if (!scriptName) {
+      throw new BadRequestException("脚本名称不能为空");
+    }
+    return scriptName;
+  }
+
+  private normalizeScriptRuntime(value: string | undefined): CreateScriptAssetPayload["runtime"] {
+    const runtime = String(value || "TS").trim().toUpperCase();
+    if (!["TS", "JS", "PYTHON", "SHELL"].includes(runtime)) {
+      throw new BadRequestException("脚本运行时不合法");
+    }
+    return runtime as CreateScriptAssetPayload["runtime"];
   }
 
   private normalizePackageKey(value: string) {
@@ -1499,6 +1735,21 @@ export class SkillPackagesService {
       .map((item) => this.normalizeReferenceAsset(item));
   }
 
+  private async loadScriptAssetsByPackage(packageId: string) {
+    if (await this.tableExists("ScriptAsset")) {
+      await this.ensureScriptAssetStorageSeeded();
+      const rows = await this.prismaService.scriptAsset.findMany({
+        where: { packageId },
+        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      });
+      return rows.map((row) => this.normalizeScriptAsset(row));
+    }
+    return database.scriptAssets
+      .filter((item) => item.packageId === packageId)
+      .sort((a, b) => (a.sortOrder === b.sortOrder ? b.updatedAt.localeCompare(a.updatedAt) : a.sortOrder - b.sortOrder))
+      .map((item) => this.normalizeScriptAsset(item));
+  }
+
   private async loadVersionViewsByPackage(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "currentVersionId">) {
     const records = await this.loadVersionRecordsByPackage(packageRecord.id, packageRecord.packageKey);
     const versionViews = records.map((item) => this.normalizeVersionRecord(item));
@@ -1545,10 +1796,11 @@ export class SkillPackagesService {
   }
 
   private async buildVersionSnapshot(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "defaultKnowledgeSpaceIds">) {
-    const [packageSkills, promptBindings, references] = await Promise.all([
+    const [packageSkills, promptBindings, references, scripts] = await Promise.all([
       this.loadSkillPackageSkillsForSummary(),
       this.loadSkillPromptBindingsForSummary(),
       this.loadReferenceAssetsByPackage(packageRecord.id),
+      this.loadScriptAssetsByPackage(packageRecord.id),
     ]);
     const relatedSkills = packageSkills.filter((item) => item.packageKey === packageRecord.packageKey && item.enabled);
     const relatedSkillIds = Array.from(new Set(relatedSkills.map((item) => item.skillId)));
@@ -1560,7 +1812,7 @@ export class SkillPackagesService {
     return {
       promptCount: promptIds.size,
       referenceCount: references.length,
-      scriptCount: 0,
+      scriptCount: scripts.length,
       knowledgeBindingCount: packageRecord.defaultKnowledgeSpaceIds.length,
       providerBindingCount: relatedSkills.length ? 1 : 0,
     };
@@ -1629,6 +1881,40 @@ export class SkillPackagesService {
         "applicableScopes" in row
           ? this.normalizeStringArray(row.applicableScopes)
           : this.normalizeStringArray((row as { applicableScopesJson: unknown }).applicableScopesJson),
+      sortOrder: Number(row.sortOrder || 0),
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+    };
+  }
+
+  private normalizeScriptAsset(
+    row:
+      | ScriptAssetRecord
+      | ScriptAsset
+      | {
+          id: string;
+          packageId: string;
+          scriptKey: string;
+          scriptName: string;
+          runtime: string;
+          entry: string | null;
+          argsSchemaJson: unknown;
+          usageNote: string;
+          sortOrder: number;
+          createdAt: Date;
+          updatedAt: Date;
+        },
+  ): NonNullable<SkillPackageDetailRecord["scripts"]>[number] {
+    return {
+      id: row.id,
+      scriptKey: row.scriptKey,
+      scriptName: row.scriptName,
+      runtime: this.normalizeScriptRuntime(row.runtime),
+      entry: "entry" in row ? row.entry || undefined : undefined,
+      argsSchema:
+        "argsSchema" in row
+          ? this.normalizeJsonObject(row.argsSchema)
+          : this.normalizeJsonObject("argsSchemaJson" in row ? row.argsSchemaJson : {}),
+      usageNote: "usageNote" in row ? row.usageNote || undefined : undefined,
       sortOrder: Number(row.sortOrder || 0),
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
     };
@@ -1742,6 +2028,10 @@ export class SkillPackagesService {
     return { ...(value as Record<string, unknown>) };
   }
 
+  private toJsonInput(value: unknown): Prisma.InputJsonValue {
+    return this.normalizeJsonObject(value) as Prisma.InputJsonValue;
+  }
+
   private normalizeSnapshotCount(value: unknown) {
     const count = Number(value);
     return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
@@ -1847,6 +2137,39 @@ export class SkillPackagesService {
     });
   }
 
+  private async ensureScriptAssetStorageSeeded() {
+    if (!this.scriptBootstrapPromise) {
+      this.scriptBootstrapPromise = this.bootstrapScriptAssetStorage();
+    }
+    await this.scriptBootstrapPromise;
+  }
+
+  private async bootstrapScriptAssetStorage() {
+    if (!(await this.tableExists("ScriptAsset"))) {
+      return;
+    }
+    const count = await this.prismaService.scriptAsset.count();
+    if (count > 0 || !database.scriptAssets.length) {
+      return;
+    }
+    await this.prismaService.scriptAsset.createMany({
+      data: database.scriptAssets.map((item) => ({
+        id: item.id,
+        packageId: item.packageId,
+        scriptKey: item.scriptKey,
+        scriptName: item.scriptName,
+        runtime: item.runtime,
+        entry: item.entry,
+        argsSchemaJson: this.toJsonInput(item.argsSchema),
+        usageNote: item.usageNote ?? "",
+        sortOrder: item.sortOrder,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   private toReferenceAssetUpdateInput(payload: UpdateReferenceAssetPayload, current: ReferenceAsset) {
     return {
       referenceKey:
@@ -1860,6 +2183,19 @@ export class SkillPackagesService {
         payload.applicableScopes !== undefined
           ? this.normalizeStringArrayInput(payload.applicableScopes)
           : this.normalizeStringArray(current.applicableScopesJson),
+      sortOrder: payload.sortOrder !== undefined ? this.normalizeSortOrder(payload.sortOrder) : current.sortOrder,
+    };
+  }
+
+  private toScriptAssetUpdateInput(payload: UpdateScriptAssetPayload, current: ScriptAsset) {
+    return {
+      scriptKey: payload.scriptKey !== undefined ? this.normalizeScriptKey(payload.scriptKey) : current.scriptKey,
+      scriptName: payload.scriptName !== undefined ? this.normalizeScriptName(payload.scriptName) : current.scriptName,
+      runtime: payload.runtime !== undefined ? this.normalizeScriptRuntime(payload.runtime) : current.runtime,
+      entry: payload.entry !== undefined ? String(payload.entry || "").trim() || null : current.entry,
+      argsSchemaJson:
+        payload.argsSchema !== undefined ? this.toJsonInput(payload.argsSchema) : this.toJsonInput(current.argsSchemaJson),
+      usageNote: payload.usageNote !== undefined ? String(payload.usageNote || "").trim() : current.usageNote,
       sortOrder: payload.sortOrder !== undefined ? this.normalizeSortOrder(payload.sortOrder) : current.sortOrder,
     };
   }

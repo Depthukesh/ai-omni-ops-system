@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   activateSkillPackageVersion,
   createReferenceAsset,
+  createScriptAsset,
   createSkillPackageVersion,
   deleteReferenceAsset,
+  deleteScriptAsset,
   getApiProviders,
   getSkillPackage,
   type ApiProviderRecord,
@@ -14,6 +16,7 @@ import {
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
   updateReferenceAsset,
+  updateScriptAsset,
   updateSkillPackageBasic,
   updateSkillPackageProvider,
   updateSkillPackagePrompt,
@@ -41,6 +44,7 @@ const DEFAULT_FILTERS: OverviewFilters = {
 type PromptDetailRecord = NonNullable<SkillPackageDetailRecord["prompts"]>[number];
 type ProviderBindingRecord = NonNullable<SkillPackageDetailRecord["providerBindings"]>[number];
 type ReferenceDetailRecord = NonNullable<SkillPackageDetailRecord["references"]>[number];
+type ScriptDetailRecord = NonNullable<SkillPackageDetailRecord["scripts"]>[number];
 type PromptDraftRecord = {
   status: PromptTemplateRecord["status"];
   modelName: string;
@@ -59,6 +63,15 @@ type ReferenceDraftRecord = {
   sourceUri: string;
   usageNote: string;
   applicableScopes: string;
+  sortOrder: string;
+};
+type ScriptDraftRecord = {
+  scriptKey: string;
+  scriptName: string;
+  runtime: ScriptDetailRecord["runtime"];
+  entry: string;
+  argsSchema: string;
+  usageNote: string;
   sortOrder: string;
 };
 type BasicDraftRecord = {
@@ -92,6 +105,11 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [savingReferenceId, setSavingReferenceId] = useState("");
   const [isCreatingReference, setIsCreatingReference] = useState(false);
   const [deletingReferenceId, setDeletingReferenceId] = useState("");
+  const [scriptDrafts, setScriptDrafts] = useState<Record<string, ScriptDraftRecord>>({});
+  const [newScriptDraft, setNewScriptDraft] = useState<ScriptDraftRecord>(buildScriptDraft());
+  const [savingScriptId, setSavingScriptId] = useState("");
+  const [isCreatingScript, setIsCreatingScript] = useState(false);
+  const [deletingScriptId, setDeletingScriptId] = useState("");
   const [basicDraft, setBasicDraft] = useState<BasicDraftRecord>(buildBasicDraft(props.packages[0]));
   const [isBasicSaving, setIsBasicSaving] = useState(false);
 
@@ -155,7 +173,7 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     setIsDetailLoading(true);
     setDetailError("");
     try {
-      const result = await getSkillPackage(packageId, { includeReferences: true });
+      const result = await getSkillPackage(packageId, { includeReferences: true, includeScripts: true });
       setDetail(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "能力包详情加载失败";
@@ -211,6 +229,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     ) as Record<string, ReferenceDraftRecord>;
     setReferenceDrafts(nextDrafts);
     setNewReferenceDraft(buildReferenceDraft());
+  }, [detail]);
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      (detail?.scripts || []).map((item) => [item.id, buildScriptDraft(item)]),
+    ) as Record<string, ScriptDraftRecord>;
+    setScriptDrafts(nextDrafts);
+    setNewScriptDraft(buildScriptDraft());
   }, [detail]);
 
   useEffect(() => {
@@ -560,6 +586,136 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     }
   }
 
+  function handleScriptDraftChange(scriptId: string, field: keyof ScriptDraftRecord, value: string) {
+    setScriptDrafts((current) => {
+      const script = detail?.scripts?.find((item) => item.id === scriptId);
+      const base = current[scriptId] || buildScriptDraft(script);
+      return {
+        ...current,
+        [scriptId]: {
+          ...base,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  function handleNewScriptDraftChange(field: keyof ScriptDraftRecord, value: string) {
+    setNewScriptDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleCreateScript() {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const scriptKey = newScriptDraft.scriptKey.trim().toLowerCase();
+    const scriptName = newScriptDraft.scriptName.trim();
+    const entry = newScriptDraft.entry.trim();
+    const sortOrder = Number(newScriptDraft.sortOrder.trim() || "100");
+    if (!scriptKey) {
+      setDetailError("脚本标识不能为空");
+      return;
+    }
+    if (!scriptName) {
+      setDetailError("脚本名称不能为空");
+      return;
+    }
+    if (!Number.isFinite(sortOrder)) {
+      setDetailError("脚本排序值不合法");
+      return;
+    }
+
+    setIsCreatingScript(true);
+    setDetailError("");
+    try {
+      const parsedArgsSchema = parseJsonDraft(newScriptDraft.argsSchema, "新增脚本参数 schema");
+      await createScriptAsset(selectedPackage.id, {
+        scriptKey,
+        scriptName,
+        runtime: newScriptDraft.runtime,
+        entry: entry || undefined,
+        argsSchema: parsedArgsSchema,
+        usageNote: newScriptDraft.usageNote.trim() || undefined,
+        sortOrder: Math.floor(sortOrder),
+      });
+      setNewScriptDraft(buildScriptDraft());
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "新增脚本失败";
+      setDetailError(`新增脚本失败：${message}`);
+    } finally {
+      setIsCreatingScript(false);
+    }
+  }
+
+  async function handleSaveScript(scriptId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const script = detail?.scripts?.find((item) => item.id === scriptId);
+    if (!script) {
+      return;
+    }
+    const draft = scriptDrafts[scriptId] || buildScriptDraft(script);
+    const scriptKey = draft.scriptKey.trim().toLowerCase();
+    const scriptName = draft.scriptName.trim();
+    const entry = draft.entry.trim();
+    const sortOrder = Number(draft.sortOrder.trim() || "100");
+    if (!scriptKey) {
+      setDetailError(`脚本「${script.scriptName}」标识不能为空`);
+      return;
+    }
+    if (!scriptName) {
+      setDetailError(`脚本「${script.scriptName}」名称不能为空`);
+      return;
+    }
+    if (!Number.isFinite(sortOrder)) {
+      setDetailError(`脚本「${script.scriptName}」排序值不合法`);
+      return;
+    }
+
+    setSavingScriptId(scriptId);
+    setDetailError("");
+    try {
+      const parsedArgsSchema = parseJsonDraft(draft.argsSchema, `脚本「${script.scriptName}」参数 schema`);
+      await updateScriptAsset(selectedPackage.id, scriptId, {
+        scriptKey,
+        scriptName,
+        runtime: draft.runtime,
+        entry: entry || undefined,
+        argsSchema: parsedArgsSchema,
+        usageNote: draft.usageNote.trim() || undefined,
+        sortOrder: Math.floor(sortOrder),
+      });
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存脚本失败";
+      setDetailError(`保存脚本失败：${message}`);
+    } finally {
+      setSavingScriptId("");
+    }
+  }
+
+  async function handleDeleteScript(scriptId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    setDeletingScriptId(scriptId);
+    setDetailError("");
+    try {
+      await deleteScriptAsset(selectedPackage.id, scriptId);
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除脚本失败";
+      setDetailError(`删除脚本失败：${message}`);
+    } finally {
+      setDeletingScriptId("");
+    }
+  }
+
   return (
     <section className="entity-card admin-user-filter-card" style={{ marginBottom: 24 }}>
       <div className="admin-user-filter-head">
@@ -738,6 +894,20 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                 onCreate={() => void handleCreateReference()}
                 onSave={(referenceId) => void handleSaveReference(referenceId)}
                 onDelete={(referenceId) => void handleDeleteReference(referenceId)}
+              />
+              <ScriptBlock
+                scripts={detail?.scripts || []}
+                drafts={scriptDrafts}
+                newDraft={newScriptDraft}
+                savingScriptId={savingScriptId}
+                deletingScriptId={deletingScriptId}
+                isCreating={isCreatingScript}
+                emptyText="当前能力包暂无脚本资产。"
+                onDraftChange={handleScriptDraftChange}
+                onNewDraftChange={handleNewScriptDraftChange}
+                onCreate={() => void handleCreateScript()}
+                onSave={(scriptId) => void handleSaveScript(scriptId)}
+                onDelete={(scriptId) => void handleDeleteScript(scriptId)}
               />
               <VersionBlock
                 packageId={selectedPackage?.id || ""}
@@ -1312,6 +1482,168 @@ function ReferenceBlock(props: ReferenceBlockProps) {
   );
 }
 
+type ScriptBlockProps = {
+  scripts: ScriptDetailRecord[];
+  drafts: Record<string, ScriptDraftRecord>;
+  newDraft: ScriptDraftRecord;
+  savingScriptId: string;
+  deletingScriptId: string;
+  isCreating: boolean;
+  emptyText: string;
+  onDraftChange: (scriptId: string, field: keyof ScriptDraftRecord, value: string) => void;
+  onNewDraftChange: (field: keyof ScriptDraftRecord, value: string) => void;
+  onCreate: () => void;
+  onSave: (scriptId: string) => void;
+  onDelete: (scriptId: string) => void;
+};
+
+function ScriptBlock(props: ScriptBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>Scripts 资产</strong>
+          <p className="personal-meta">{`${props.scripts.length} 条`}</p>
+        </div>
+        <button type="button" className="primary-button" onClick={props.onCreate} disabled={props.isCreating}>
+          {props.isCreating ? "新增中..." : "新增脚本"}
+        </button>
+      </div>
+      <article
+        style={{
+          border: "1px dashed rgba(59, 130, 246, 0.28)",
+          borderRadius: 14,
+          padding: 12,
+          background: "rgba(239, 246, 255, 0.72)",
+          marginBottom: 12,
+        }}
+      >
+        <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+          <label>
+            <span>标识</span>
+            <input value={props.newDraft.scriptKey} onChange={(event) => props.onNewDraftChange("scriptKey", event.target.value)} />
+          </label>
+          <label>
+            <span>名称</span>
+            <input value={props.newDraft.scriptName} onChange={(event) => props.onNewDraftChange("scriptName", event.target.value)} />
+          </label>
+          <label>
+            <span>运行时</span>
+            <select value={props.newDraft.runtime} onChange={(event) => props.onNewDraftChange("runtime", event.target.value)}>
+              <option value="TS">TS</option>
+              <option value="JS">JS</option>
+              <option value="PYTHON">PYTHON</option>
+              <option value="SHELL">SHELL</option>
+            </select>
+          </label>
+          <label>
+            <span>排序</span>
+            <input value={props.newDraft.sortOrder} inputMode="numeric" onChange={(event) => props.onNewDraftChange("sortOrder", event.target.value)} />
+          </label>
+          <label style={{ gridColumn: "span 2" }}>
+            <span>入口文件</span>
+            <input value={props.newDraft.entry} onChange={(event) => props.onNewDraftChange("entry", event.target.value)} />
+          </label>
+        </div>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>参数 Schema(JSON)</span>
+          <textarea
+            value={props.newDraft.argsSchema}
+            placeholder='例如 {"brandId":"string"}'
+            onChange={(event) => props.onNewDraftChange("argsSchema", event.target.value)}
+          />
+        </label>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>使用说明</span>
+          <textarea value={props.newDraft.usageNote} onChange={(event) => props.onNewDraftChange("usageNote", event.target.value)} />
+        </label>
+      </article>
+      {props.scripts.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.scripts.map((item) => {
+            const draft = props.drafts[item.id] || buildScriptDraft(item);
+            return (
+              <article
+                key={item.id}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "rgba(255, 255, 255, 0.72)",
+                }}
+              >
+                <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="admin-user-row-title">{item.scriptName}</div>
+                    <div className="admin-user-row-meta">
+                      {`${item.runtime}${item.entry ? ` / ${item.entry}` : ""}${item.updatedAt ? ` / ${formatDateTime(item.updatedAt)}` : ""}`}
+                    </div>
+                  </div>
+                  <div className="personal-actions" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => props.onSave(item.id)}
+                      disabled={props.savingScriptId === item.id}
+                    >
+                      {props.savingScriptId === item.id ? "保存中..." : "保存脚本"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => props.onDelete(item.id)}
+                      disabled={props.deletingScriptId === item.id}
+                    >
+                      {props.deletingScriptId === item.id ? "删除中..." : "删除"}
+                    </button>
+                  </div>
+                </div>
+                <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label>
+                    <span>标识</span>
+                    <input value={draft.scriptKey} onChange={(event) => props.onDraftChange(item.id, "scriptKey", event.target.value)} />
+                  </label>
+                  <label>
+                    <span>名称</span>
+                    <input value={draft.scriptName} onChange={(event) => props.onDraftChange(item.id, "scriptName", event.target.value)} />
+                  </label>
+                  <label>
+                    <span>运行时</span>
+                    <select value={draft.runtime} onChange={(event) => props.onDraftChange(item.id, "runtime", event.target.value)}>
+                      <option value="TS">TS</option>
+                      <option value="JS">JS</option>
+                      <option value="PYTHON">PYTHON</option>
+                      <option value="SHELL">SHELL</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>排序</span>
+                    <input value={draft.sortOrder} inputMode="numeric" onChange={(event) => props.onDraftChange(item.id, "sortOrder", event.target.value)} />
+                  </label>
+                  <label style={{ gridColumn: "span 2" }}>
+                    <span>入口文件</span>
+                    <input value={draft.entry} onChange={(event) => props.onDraftChange(item.id, "entry", event.target.value)} />
+                  </label>
+                </div>
+                <label className="admin-skill-field admin-skill-field--full">
+                  <span>参数 Schema(JSON)</span>
+                  <textarea value={draft.argsSchema} onChange={(event) => props.onDraftChange(item.id, "argsSchema", event.target.value)} />
+                </label>
+                <label className="admin-skill-field admin-skill-field--full">
+                  <span>使用说明</span>
+                  <textarea value={draft.usageNote} onChange={(event) => props.onDraftChange(item.id, "usageNote", event.target.value)} />
+                </label>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="personal-meta">{props.emptyText}</div>
+      )}
+    </section>
+  );
+}
+
 type DetailBlockProps = {
   title: string;
   meta: string;
@@ -1402,6 +1734,18 @@ function buildReferenceDraft(reference?: ReferenceDetailRecord): ReferenceDraftR
   };
 }
 
+function buildScriptDraft(script?: ScriptDetailRecord): ScriptDraftRecord {
+  return {
+    scriptKey: script?.scriptKey || "",
+    scriptName: script?.scriptName || "",
+    runtime: script?.runtime || "TS",
+    entry: script?.entry || "",
+    argsSchema: formatJsonText(script?.argsSchema || {}),
+    usageNote: script?.usageNote || "",
+    sortOrder: script?.sortOrder !== undefined ? String(script.sortOrder) : "100",
+  };
+}
+
 function buildBasicDraft(packageRecord?: SkillPackageRecord): BasicDraftRecord {
   return {
     packageName: packageRecord?.packageName || "",
@@ -1419,4 +1763,25 @@ function splitDraftList(value: string) {
     .split(/[\/,，]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function formatJsonText(value: Record<string, unknown>) {
+  return Object.keys(value || {}).length ? JSON.stringify(value, null, 2) : "{}";
+}
+
+function parseJsonDraft(value: string, fieldName: string) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(normalized);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("JSON 必须是对象");
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "格式错误";
+    throw new Error(`${fieldName} 解析失败：${message}`);
+  }
 }

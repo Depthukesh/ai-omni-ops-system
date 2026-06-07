@@ -365,6 +365,20 @@ export type ReferenceAssetRecord = {
   updatedAt: string;
 };
 
+export type ScriptAssetRecord = {
+  id: string;
+  packageId: string;
+  scriptKey: string;
+  scriptName: string;
+  runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+  entry?: string;
+  argsSchema?: Record<string, unknown>;
+  usageNote?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -771,6 +785,7 @@ export type MockDatabase = {
   skillPackages: SkillPackageRecord[];
   skillPackageVersions: SkillPackageVersionRecord[];
   referenceAssets: ReferenceAssetRecord[];
+  scriptAssets: ScriptAssetRecord[];
   moduleDefinitions: ModuleDefinitionRecord[];
   skillPackageModules: SkillPackageModuleRecord[];
   skillPackageSkills: SkillPackageSkillRecord[];
@@ -3664,6 +3679,41 @@ export const database: MockDatabase = {
       usageNote: "用于生成文章前后检查营销承诺、敏感词和外链策略是否符合发布要求。",
       applicableScopes: ["article", "publish", "compliance"],
       sortOrder: 20,
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+  ],
+  scriptAssets: [
+    {
+      id: "script_brand_growth_outline_builder",
+      packageId: "sp_brand_growth_analysis",
+      scriptKey: "growth-outline-builder",
+      scriptName: "增长分析提纲组装脚本",
+      runtime: "TS",
+      entry: "scripts/brand-growth/outline-builder.ts",
+      argsSchema: {
+        brandId: "string",
+        reportPeriod: "string",
+        metricsPreset: "string[]",
+      },
+      usageNote: "在生成品牌增长报告前统一组装章节提纲、指标口径和数据占位结构。",
+      sortOrder: 10,
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "script_wechat_html_post_processor",
+      packageId: "sp_wechat_article_generator",
+      scriptKey: "wechat-html-post-processor",
+      scriptName: "公众号 HTML 后处理脚本",
+      runtime: "JS",
+      entry: "scripts/wechat/html-post-processor.js",
+      argsSchema: {
+        injectImageBlocks: "boolean",
+        normalizeSpacing: "boolean",
+      },
+      usageNote: "用于文章生成后统一处理段间距、配图注入和公众号 HTML 兼容格式。",
+      sortOrder: 10,
       createdAt: "2026-06-07T09:50:00.000Z",
       updatedAt: "2026-06-07T09:50:00.000Z",
     },

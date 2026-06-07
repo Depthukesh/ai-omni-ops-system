@@ -182,6 +182,9 @@
   - 当前已继续补第一批能力包维度 References 管理，新增独立表 `ReferenceAsset`，并接通 `POST /admin/skill-packages/:packageId/references`、`PATCH /admin/skill-packages/:packageId/references/:referenceId`、`DELETE /admin/skill-packages/:packageId/references/:referenceId`
   - 当前统一技能中心详情中的 `references` 不再固定返回空数组；数据库和 `ReferenceAsset` 表可用时优先读取 PostgreSQL，迁移未执行时回退到 `mock-data.referenceAssets`
   - 当前版本快照 `snapshotSummary.referenceCount` 已按真实 `ReferenceAsset` 数量统计，后台能力包详情页也已可直接新增、编辑、删除参考资料
+  - 当前已继续补第一批能力包维度 Scripts 管理，新增独立表 `ScriptAsset`，并接通 `POST /admin/skill-packages/:packageId/scripts`、`PATCH /admin/skill-packages/:packageId/scripts/:scriptId`、`DELETE /admin/skill-packages/:packageId/scripts/:scriptId`
+  - 当前统一技能中心详情中的 `scripts` 不再固定返回空数组；数据库和 `ScriptAsset` 表可用时优先读取 PostgreSQL，迁移未执行时回退到 `mock-data.scriptAssets`
+  - 当前版本快照 `snapshotSummary.scriptCount` 已按真实 `ScriptAsset` 数量统计，后台能力包详情页也已可直接新增、编辑、删除脚本资产
 
 ## 3. 正式数据表分层
 
@@ -293,6 +296,10 @@
   - 用途：能力包级参考资料真源，承接统一技能中心详情里的 `references` 资产域
   - 关键字段：`packageId`、`referenceKey`、`title`、`sourceType`、`sourceUri`、`usageNote`、`applicableScopesJson`、`sortOrder`
   - 当前约定：同一能力包内 `referenceKey` 唯一；数据库可用时后台能力包详情页直接对这一表做增改删，数据库不可用时回退到 `mock-data.referenceAssets`
+- `ScriptAsset`
+  - 用途：能力包级脚本资产真源，承接统一技能中心详情里的 `scripts` 资产域
+  - 关键字段：`packageId`、`scriptKey`、`scriptName`、`runtime`、`entry`、`argsSchemaJson`、`usageNote`、`sortOrder`
+  - 当前约定：同一能力包内 `scriptKey` 唯一；数据库可用时后台能力包详情页直接对这一表做增改删，数据库不可用时回退到 `mock-data.scriptAssets`
 
 ### 3.7 接口供应商注册域
 
@@ -435,6 +442,9 @@
 - 统一技能中心能力包详情 References：
   - 正式表：`ReferenceAsset`
   - 当前策略：数据库优先、`mock-data` 兜底；这一层先解决能力包参考资料的独立真源化与后台可维护，不改现有业务模块运行链路
+- 统一技能中心能力包详情 Scripts：
+  - 正式表：`ScriptAsset`
+  - 当前策略：数据库优先、`mock-data` 兜底；这一层先解决能力包脚本资产的独立真源化与后台可维护，不改现有业务模块运行链路
 
 ### 4.5 认证 `/` + `/login` + `/register`
 

@@ -4,12 +4,14 @@ import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   type ActivateSkillPackageVersionPayload,
   type CreateReferenceAssetPayload,
+  type CreateScriptAssetPayload,
   type CreateSkillPackageVersionPayload,
   type CreateSkillPackagePayload,
   type SkillPackageDetailQuery,
   type SkillPackageListQuery,
   SkillPackagesService,
   type UpdateReferenceAssetPayload,
+  type UpdateScriptAssetPayload,
   type UpdateSkillPackageBasicPayload,
   type UpdateSkillPackageProviderPayload,
   type UpdateSkillPackagePromptPayload,
@@ -178,6 +180,37 @@ export class SkillPackagesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.deleteReferenceAsset(packageId, referenceId);
+  }
+
+  @Post(":packageId/scripts")
+  async createScriptAsset(
+    @Param("packageId") packageId: string,
+    @Body() payload: CreateScriptAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.createScriptAsset(packageId, payload);
+  }
+
+  @Patch(":packageId/scripts/:scriptId")
+  async updateScriptAsset(
+    @Param("packageId") packageId: string,
+    @Param("scriptId") scriptId: string,
+    @Body() payload: UpdateScriptAssetPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.updateScriptAsset(packageId, scriptId, payload);
+  }
+
+  @Delete(":packageId/scripts/:scriptId")
+  async deleteScriptAsset(
+    @Param("packageId") packageId: string,
+    @Param("scriptId") scriptId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.deleteScriptAsset(packageId, scriptId);
   }
 
   private parseBooleanQuery(value: string | undefined): SkillPackageDetailQuery[keyof SkillPackageDetailQuery] {
