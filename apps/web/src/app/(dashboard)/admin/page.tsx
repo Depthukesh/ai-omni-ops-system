@@ -1949,6 +1949,31 @@ export default function AdminPage() {
   const activeSkillBindingLabel =
     activeSkillBindings[0]?.remarks ||
     (activeSkillPackageNames.length || activeSkillModules.length ? "已建立技能归属映射" : "暂未建立技能归属映射");
+  const activeSkillRelations = activeSkillConfig
+    ? skillPackageSkills.filter((item) => item.skillSlug === activeSkillConfig.slug && item.enabled)
+    : [];
+  const activePrimarySkillRelation =
+    activeSkillRelations.find((item) => activeSkillPackageKeys.includes(item.packageKey))
+    || activeSkillRelations[0];
+  const activeSkillFlow = activePrimarySkillRelation
+    ? skillPackageSkills
+      .filter((item) => item.packageKey === activePrimarySkillRelation.packageKey && item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+    : [];
+  const activeSkillFlowIndex = activePrimarySkillRelation
+    ? activeSkillFlow.findIndex((item) => item.id === activePrimarySkillRelation.id)
+    : -1;
+  const upstreamSkillNames = activeSkillFlowIndex > 0
+    ? activeSkillFlow.slice(0, activeSkillFlowIndex).map((item) => item.skillName || item.skillSlug)
+    : [];
+  const downstreamSkillNames =
+    activeSkillFlowIndex >= 0
+      ? activeSkillFlow.slice(activeSkillFlowIndex + 1).map((item) => item.skillName || item.skillSlug)
+      : [];
+  const activeOutputSummary = downstreamSkillNames.length
+    ? `当前技能输出将继续传递给：${downstreamSkillNames.join(" -> ")}`
+    : "当前技能输出为能力包终态输出，或进入人工审核 / 发布环节。";
+  const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
   const skillModelOptions = useMemo(
     () =>
       buildScopedModelOptions(
@@ -2816,7 +2841,7 @@ export default function AdminPage() {
 
             {activeAssetsWorkspaceTab === "overview" ? (
               <div>
-                <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
+                <SkillPackageOverviewPanel packages={skillPackages} modules={modules} skillPackageSkills={skillPackageSkills} />
               </div>
             ) : (
               <div
@@ -2970,71 +2995,148 @@ export default function AdminPage() {
                           <p>{activeSkillLeaf.description || activeSkillSection?.label || "技能分类"}</p>
                         </div>
                       </div>
-                      <div className="admin-skill-simple-grid">
-                        <label className="admin-skill-field">
-                          <span>当前提示词</span>
-                          <input value={skillCenterName} readOnly />
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>所属执行技能</span>
-                          <input value={activeSkillConfig?.name || "-"} readOnly />
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>所属模块</span>
-                          <input value={activeSkillModuleLabel} readOnly />
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>所属能力包</span>
-                          <input value={activeSkillPackageLabel} readOnly />
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>状态</span>
-                          <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
-                            <option value="ACTIVE">启用中</option>
-                            <option value="DRAFT">草稿</option>
-                            <option value="DISABLED">停用</option>
-                          </select>
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>默认模型</span>
-                          <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
-                            {(skillModelOptions.length ? skillModelOptions : [buildFallbackScopedModelOption(skillCenterModel || "gpt-5.4-nano")]).map((option) => (
-                              <option value={option.value} key={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>提示词场景</span>
-                          <input value={resolvedActivePromptScene || "-"} readOnly />
-                        </label>
-                        <label className="admin-skill-field">
-                          <span>点数成本</span>
-                          <input
-                            type="number"
-                            value={skillCenterPointsCost}
-                            onChange={(event) => handleSkillCenterPointsCostChange(event.target.value)}
-                            disabled={!activeSkillConfig}
+                      <div className="personal-grid" style={{ marginBottom: 16 }}>
+                        <SkillDimensionMetric label="当前技能" value={activeSkillConfig?.name || skillCenterName} />
+                        <SkillDimensionMetric label="所在能力包" value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} />
+                        <SkillDimensionMetric label="顺序位置" value={activeSkillFlowIndex >= 0 ? `${activeSkillFlowIndex + 1} / ${activeSkillFlow.length}` : "-"} />
+                        <SkillDimensionMetric label="更新时间" value={skillCenterUpdatedAtLabel} />
+                      </div>
+
+                      <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
+                        <div className="entity-card-head">
+                          <div>
+                            <strong>输入项</strong>
+                            <p className="personal-meta">聚合当前技能依赖的数据源、系统预设项、用户输入项、模型选择和上游技能输出。</p>
+                          </div>
+                        </div>
+                        <div className="admin-skill-simple-grid">
+                          <label className="admin-skill-field">
+                            <span>所属模块</span>
+                            <input value={activeSkillModuleLabel} readOnly />
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>所属能力包</span>
+                            <input value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} readOnly />
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>状态</span>
+                            <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
+                              <option value="ACTIVE">启用中</option>
+                              <option value="DRAFT">草稿</option>
+                              <option value="DISABLED">停用</option>
+                            </select>
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>第三方模型</span>
+                            <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
+                              {(skillModelOptions.length ? skillModelOptions : [buildFallbackScopedModelOption(skillCenterModel || "gpt-5.4-nano")]).map((option) => (
+                                <option value={option.value} key={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>点数成本</span>
+                            <input
+                              type="number"
+                              value={skillCenterPointsCost}
+                              onChange={(event) => handleSkillCenterPointsCostChange(event.target.value)}
+                              disabled={!activeSkillConfig}
+                            />
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>提示词场景</span>
+                            <input value={resolvedActivePromptScene || "-"} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>数据库 / 知识库输入</span>
+                            <input value={activeKnowledgeBaseSummary.join(" / ") || "知识库完成后在这里按技能选择；当前 first pass 先读取系统已启用知识库"} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>系统预设项</span>
+                            <input value="账号角色 / 时长 / 风格 / 平台 / 任务模式（当前先以技能说明和分类继承）" readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>用户输入项</span>
+                            <input value="用户要求 / 上传素材 / 参考图 / 参考文档（当前先由前台工作流和上传入口承接）" readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>上游技能输出</span>
+                            <input value={upstreamSkillNames.join(" -> ") || "当前技能为首个步骤，没有上游技能输出"} readOnly />
+                          </label>
+                        </div>
+                      </section>
+
+                      <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
+                        <div className="entity-card-head">
+                          <div>
+                            <strong>提示词及其他元素</strong>
+                            <p className="personal-meta">这里维护提示词版本、模型、References 资产、Scripts 资产等技能执行要素。</p>
+                          </div>
+                        </div>
+                        <div className="admin-skill-simple-grid">
+                          <label className="admin-skill-field">
+                            <span>当前提示词</span>
+                            <input value={skillCenterName} readOnly />
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>执行技能</span>
+                            <input value={activeSkillConfig?.name || "-"} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>References 资产</span>
+                            <input value="当前 first pass 仍沿用已绑定能力包的参考资产，下一步会下沉为技能级真源对象。" readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>Scripts 资产</span>
+                            <input value="当前 first pass 仍沿用已绑定能力包的脚本资产，后续迁移为技能级脚本资产。" readOnly />
+                          </label>
+                        </div>
+                        <label className="admin-skill-field admin-skill-field--full">
+                          <span>提示词内容</span>
+                          <textarea
+                            value={skillCenterPromptValue}
+                            onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
+                            placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
                           />
                         </label>
-                        <label className="admin-skill-field admin-skill-field--wide">
-                          <span>更新时间</span>
-                          <input value={skillCenterUpdatedAtLabel} readOnly />
-                        </label>
-                        <label className="admin-skill-field admin-skill-field--wide">
-                          <span>归属说明</span>
-                          <input value={activeSkillBindingLabel} readOnly />
-                        </label>
-                      </div>
-                      <label className="admin-skill-field admin-skill-field--full">
-                        <span>提示词内容</span>
-                        <textarea
-                          value={skillCenterPromptValue}
-                          onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
-                          placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
-                        />
-                      </label>
+                      </section>
+
+                      <section className="entity-card" style={{ padding: 16 }}>
+                        <div className="entity-card-head">
+                          <div>
+                            <strong>输出</strong>
+                            <p className="personal-meta">当前技能输出会作为后续技能输入，或直接成为能力包最终产出。</p>
+                          </div>
+                        </div>
+                        <div className="admin-skill-simple-grid">
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>技能链路</span>
+                            <input value={activeSkillFlow.map((item) => item.skillName || item.skillSlug).join(" -> ") || "当前还没有配置能力包技能链路"} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>下游输出去向</span>
+                            <input value={activeOutputSummary} readOnly />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>输入 / 输出补充说明</span>
+                            <textarea
+                              value={activeSkillDraft?.description || activeSkillConfig?.description || ""}
+                              onChange={(event) => {
+                                if (activeSkillConfig) {
+                                  handleSkillDraftChange(activeSkillConfig.id, { description: event.target.value });
+                                }
+                              }}
+                              placeholder="例如：输出故事板提示词，供后续生图技能直接调用。"
+                            />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>归属说明</span>
+                            <input value={activeSkillBindingLabel} readOnly />
+                          </label>
+                        </div>
+                      </section>
                       <div className="admin-skill-form-actions">
                         <button
                           type="button"
@@ -3064,8 +3166,8 @@ export default function AdminPage() {
                   <div className="admin-user-modal-topbar">
                     <div>
                       <span className="archive-pill status-ready">技能创建</span>
-                      <strong>创建技能并登记归属</strong>
-                      <p className="personal-meta">在技能专区中点击创建技能后，通过弹窗完成技能本体、模块归属、能力包归属和提示词场景登记。</p>
+                      <strong>创建技能主功能单元</strong>
+                      <p className="personal-meta">技能是主要功能实现单元；创建后再由能力包按顺序组合成完整功能链路。</p>
                     </div>
                     <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>
                       关闭
@@ -4300,6 +4402,15 @@ function buildCreateKnowledgeBaseDraft(): CreateKnowledgeBaseDraft {
     sourceType: "MANUAL",
     description: "",
   };
+}
+
+function SkillDimensionMetric(props: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{props.label}</span>
+      <strong>{props.value || "-"}</strong>
+    </div>
+  );
 }
 
 type CreateSkillWorkspaceProps = {

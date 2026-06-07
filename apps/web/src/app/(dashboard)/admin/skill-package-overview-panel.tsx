@@ -21,6 +21,7 @@ import {
   type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  type SkillPackageSkillRecord,
   updateKnowledgeBinding,
   updateReferenceAsset,
   updateScriptAsset,
@@ -32,6 +33,7 @@ import {
 type SkillPackageOverviewPanelProps = {
   packages: SkillPackageRecord[];
   modules: ModuleDefinitionRecord[];
+  skillPackageSkills: SkillPackageSkillRecord[];
 };
 
 type OverviewFilters = {
@@ -1020,10 +1022,9 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                 <tr>
                   <th>能力包</th>
                   <th>模块</th>
-                  <th>技能数</th>
-                  <th>提示词数</th>
-                  <th>默认模型</th>
-                  <th>版本</th>
+                  <th>技能编排数</th>
+                  <th>状态</th>
+                  <th>作用域</th>
                   <th>更新时间</th>
                 </tr>
               </thead>
@@ -1044,15 +1045,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                       </td>
                       <td>{(item.moduleSummaries || []).map((moduleItem) => moduleItem.moduleName).join(" / ") || item.moduleKeys.join(" / ") || "-"}</td>
                       <td>{item.skillCount || 0}</td>
-                      <td>{item.promptCount || 0}</td>
-                      <td>{item.defaultProviderSummary?.modelName || item.defaultProviderSummary?.providerName || "-"}</td>
-                      <td>{item.currentVersionNumber || item.currentVersionId || "-"}</td>
+                      <td>{item.status}</td>
+                      <td>{item.scope}</td>
                       <td>{formatDateTime(item.updatedAt)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
                       当前筛选条件下没有匹配的能力包。
                     </td>
                   </tr>
@@ -1076,102 +1076,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
               isSaving={isBasicSaving}
               moduleNames={(detail?.moduleSummaries || selectedSummary.moduleSummaries || []).map((item) => item.moduleName).join(" / ") || selectedSummary.moduleKeys.join(" / ") || "-"}
               skillCount={String(selectedSummary.skillCount || 0)}
-              promptCount={String(selectedSummary.promptCount || 0)}
-              defaultProvider={selectedSummary.defaultProviderSummary?.providerName || detail?.providerBindings?.find((item) => item.isDefault)?.providerName || "-"}
-              defaultModel={selectedSummary.defaultProviderSummary?.modelName || detail?.providerBindings?.find((item) => item.isDefault)?.modelName || "-"}
-              skillName={detail?.skill?.skillName || "-"}
-              executionMode={detail?.skill?.executionMode || "-"}
-              currentVersion={detail?.versions?.[0]?.versionNumber || selectedSummary.currentVersionNumber || selectedSummary.currentVersionId || "-"}
               updatedAt={formatDateTime(selectedSummary.updatedAt)}
-              defaultKnowledgeSpaces={knowledgeBindingRows.map((item) => item.knowledgeBaseName || item.knowledgeBaseId).join(" / ") || (detail?.knowledgeBindings || []).map((item) => item.knowledgeBaseName).join(" / ") || selectedSummary.defaultKnowledgeSpaceIds.join(" / ") || "-"}
               onChange={(field, value) => setBasicDraft((current) => ({ ...current, [field]: value }))}
               onSave={() => void handleSaveBasic()}
             />
             <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-              <PromptBlock
-                prompts={detail?.prompts || []}
-                drafts={promptDrafts}
-                modelOptions={promptModelOptions}
-                savingPromptId={savingPromptId}
-                isLoading={isDetailLoading}
-                emptyText={detailError ? detailError : "当前能力包暂无 Prompt 详情。"}
-                onDraftChange={handlePromptDraftChange}
-                onSave={(promptId) => void handleSavePrompt(promptId)}
-              />
-              <ProviderBlock
-                bindings={detail?.providerBindings || []}
-                drafts={providerDrafts}
-                providers={availableProviders}
-                savingProviderId={savingProviderId}
-                emptyText="当前能力包暂无 Provider 绑定摘要。"
-                onDraftChange={handleProviderDraftChange}
-                onSave={(bindingId) => void handleSaveProvider(bindingId)}
-              />
-              <KnowledgeBlock
-                bindings={knowledgeBindingRows}
-                drafts={knowledgeBindingDrafts}
-                knowledgeBases={availableKnowledgeBases}
-                newDraft={newKnowledgeBindingDraft}
-                savingBindingId={savingKnowledgeBindingId}
-                deletingBindingId={deletingKnowledgeBindingId}
-                isCreating={isCreatingKnowledgeBinding}
-                emptyText="当前能力包暂无知识绑定。"
-                onDraftChange={handleKnowledgeBindingDraftChange}
-                onNewDraftChange={handleNewKnowledgeBindingDraftChange}
-                onCreate={() => void handleCreateKnowledgeBinding()}
-                onSave={(bindingId) => void handleSaveKnowledgeBinding(bindingId)}
-                onDelete={(bindingId) => void handleDeleteKnowledgeBinding(bindingId)}
-              />
-              <ReferenceBlock
-                references={detail?.references || []}
-                drafts={referenceDrafts}
-                newDraft={newReferenceDraft}
-                savingReferenceId={savingReferenceId}
-                deletingReferenceId={deletingReferenceId}
-                isCreating={isCreatingReference}
-                emptyText="当前能力包暂无参考资料。"
-                onDraftChange={handleReferenceDraftChange}
-                onNewDraftChange={handleNewReferenceDraftChange}
-                onCreate={() => void handleCreateReference()}
-                onSave={(referenceId) => void handleSaveReference(referenceId)}
-                onDelete={(referenceId) => void handleDeleteReference(referenceId)}
-              />
-              <ScriptBlock
-                scripts={detail?.scripts || []}
-                drafts={scriptDrafts}
-                newDraft={newScriptDraft}
-                savingScriptId={savingScriptId}
-                deletingScriptId={deletingScriptId}
-                isCreating={isCreatingScript}
-                emptyText="当前能力包暂无脚本资产。"
-                onDraftChange={handleScriptDraftChange}
-                onNewDraftChange={handleNewScriptDraftChange}
-                onCreate={() => void handleCreateScript()}
-                onSave={(scriptId) => void handleSaveScript(scriptId)}
-                onDelete={(scriptId) => void handleDeleteScript(scriptId)}
-              />
-              <VersionBlock
-                packageId={selectedPackage?.id || ""}
-                versions={detail?.versions || []}
-                versionNumber={versionNumber}
-                versionChangeLog={versionChangeLog}
-                isSubmitting={isVersionSubmitting}
-                activatingVersionId={activatingVersionId}
-                onVersionNumberChange={setVersionNumber}
-                onVersionChangeLogChange={setVersionChangeLog}
-                onCreate={() => void handleCreateVersion()}
-                onActivate={(versionId) => void handleActivateVersion(versionId)}
-              />
-              <DetailBlock
-                title="工作流步骤"
-                meta={`${detail?.workflowStepSummaries?.length || 0} 条`}
-                emptyText="当前能力包暂无工作流步骤摘要。"
-                items={(detail?.workflowStepSummaries || []).map((item) => ({
-                  id: item.stepKey,
-                  title: `${item.stepOrder}. ${item.stepName}`,
-                  subtitle: item.workflowKey,
-                  body: item.stepKey,
-                }))}
+              <SkillSequenceBlock
+                packageKey={selectedSummary.packageKey}
+                relations={props.skillPackageSkills}
               />
             </div>
             </>
@@ -1278,14 +1190,7 @@ type BasicBlockProps = {
   isSaving: boolean;
   moduleNames: string;
   skillCount: string;
-  promptCount: string;
-  defaultProvider: string;
-  defaultModel: string;
-  skillName: string;
-  executionMode: string;
-  currentVersion: string;
   updatedAt: string;
-  defaultKnowledgeSpaces: string;
   onChange: (field: keyof BasicDraftRecord, value: string) => void;
   onSave: () => void;
 };
@@ -1296,7 +1201,7 @@ function BasicBlock(props: BasicBlockProps) {
       <div className="entity-card-head">
         <div>
           <strong>基础信息</strong>
-          <p className="personal-meta">first pass 先开放能力包主字段编辑，不改模块与知识绑定关系。</p>
+          <p className="personal-meta">能力包定位为最小功能实现单元，用于编排和承载多个技能，不再在这里维护技能级版本和资产。</p>
         </div>
         <button type="button" className="primary-button" onClick={props.onSave} disabled={props.isSaving}>
           {props.isSaving ? "保存中..." : "保存基础信息"}
@@ -1337,36 +1242,8 @@ function BasicBlock(props: BasicBlockProps) {
           <input value={props.skillCount} readOnly />
         </label>
         <label className="admin-skill-field">
-          <span>提示词数</span>
-          <input value={props.promptCount} readOnly />
-        </label>
-        <label className="admin-skill-field">
-          <span>默认 Provider</span>
-          <input value={props.defaultProvider} readOnly />
-        </label>
-        <label className="admin-skill-field">
-          <span>默认模型</span>
-          <input value={props.defaultModel} readOnly />
-        </label>
-        <label className="admin-skill-field">
-          <span>主技能</span>
-          <input value={props.skillName} readOnly />
-        </label>
-        <label className="admin-skill-field">
-          <span>执行模式</span>
-          <input value={props.executionMode} readOnly />
-        </label>
-        <label className="admin-skill-field">
-          <span>当前版本</span>
-          <input value={props.currentVersion} readOnly />
-        </label>
-        <label className="admin-skill-field">
           <span>更新时间</span>
           <input value={props.updatedAt} readOnly />
-        </label>
-        <label className="admin-skill-field admin-skill-field--wide">
-          <span>默认知识空间</span>
-          <input value={props.defaultKnowledgeSpaces} readOnly />
         </label>
         <label className="admin-skill-field admin-skill-field--wide">
           <span>标签</span>
@@ -1381,6 +1258,76 @@ function BasicBlock(props: BasicBlockProps) {
           <textarea value={props.draft.remarks} onChange={(event) => props.onChange("remarks", event.target.value)} />
         </label>
       </div>
+    </section>
+  );
+}
+
+function SkillSequenceBlock(props: {
+  packageKey: string;
+  relations: SkillPackageSkillRecord[];
+}) {
+  const rows = props.relations
+    .filter((item) => item.packageKey === props.packageKey && item.enabled)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>技能编排顺序</strong>
+          <p className="personal-meta">能力包由多个技能按顺序组合而成，这里只看技能编排关系，不维护技能级 Prompt、资产和版本。</p>
+        </div>
+      </div>
+      {rows.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {rows.map((item, index) => (
+            <article
+              key={item.id}
+              style={{
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: 14,
+                padding: 12,
+                background: "rgba(255, 255, 255, 0.72)",
+              }}
+            >
+              <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                <div>
+                  <div className="admin-user-row-title">{`${index + 1}. ${item.skillName || item.skillSlug}`}</div>
+                  <div className="admin-user-row-meta">
+                    {`${item.skillCategory || "未分类"} / ${item.bindingType}${item.isDefault ? " / DEFAULT" : ""}`}
+                  </div>
+                </div>
+                <span className={`archive-pill ${item.skillStatus === "ACTIVE" ? "status-ready" : item.skillStatus === "DISABLED" ? "status-paused" : "status-in_progress"}`}>
+                  {item.skillStatus || "DRAFT"}
+                </span>
+              </div>
+              <div className="personal-grid">
+                <div>
+                  <span>技能标识</span>
+                  <strong>{item.skillSlug}</strong>
+                </div>
+                <div>
+                  <span>执行顺序</span>
+                  <strong>{item.sortOrder}</strong>
+                </div>
+                <div>
+                  <span>默认模型</span>
+                  <strong>{item.skillDefaultModel || "-"}</strong>
+                </div>
+                <div>
+                  <span>供应商</span>
+                  <strong>{item.skillProvider || "-"}</strong>
+                </div>
+              </div>
+              <div className="personal-meta" style={{ marginTop: 8 }}>
+                {item.remarks || "当前能力包按该顺序串联技能输出，前一步输出将作为后一步输入。"}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="personal-meta">当前能力包还没有配置技能编排关系。</div>
+      )}
     </section>
   );
 }
