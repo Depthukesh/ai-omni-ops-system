@@ -926,6 +926,24 @@ export default function AdminPage() {
     });
   }
 
+  function handleApplyRecommendedDatabaseInputs() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    handleSkillDraftChange(activeSkillConfig.id, {
+      databaseInputs: buildRecommendedDatabaseInputs(),
+    });
+  }
+
+  function handleClearDatabaseInputs() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    handleSkillDraftChange(activeSkillConfig.id, {
+      databaseInputs: [],
+    });
+  }
+
   function handleKnowledgeInputChange(
     inputId: string,
     patch: Partial<KnowledgeInputConfig>,
@@ -969,6 +987,15 @@ export default function AdminPage() {
     });
   }
 
+  function handleClearKnowledgeInputs() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    handleSkillDraftChange(activeSkillConfig.id, {
+      knowledgeInputs: [],
+    });
+  }
+
   function handleCustomInputChange(
     inputId: string,
     patch: Partial<CustomInputConfig>,
@@ -999,6 +1026,24 @@ export default function AdminPage() {
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
       customInputs: draft.customInputs.filter((item) => item.id !== inputId),
+    });
+  }
+
+  function handleApplyRecommendedCustomInputs() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    handleSkillDraftChange(activeSkillConfig.id, {
+      customInputs: buildRecommendedCustomInputs(),
+    });
+  }
+
+  function handleClearCustomInputs() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    handleSkillDraftChange(activeSkillConfig.id, {
+      customInputs: [],
     });
   }
 
@@ -2246,6 +2291,20 @@ export default function AdminPage() {
   const activeKnowledgeBaseOptions = knowledgeBases
     .filter((item) => item.status !== "DISABLED")
     .map((item) => ({ value: item.id, label: item.name }));
+  const databaseInputSummary = (activeSkillDraft?.databaseInputs || [])
+    .map((item) => {
+      if (item.parameterType === "INJECT_TOGGLE") {
+        return `${item.parameterLabel || item.parameterKey}：${item.selectedValue === "INJECT" ? "植入" : "不植入"}`;
+      }
+      return `${item.parameterLabel || item.parameterKey}：${item.selectedValue || "未选择"}`;
+    })
+    .join(" / ");
+  const knowledgeInputSummary = (activeSkillDraft?.knowledgeInputs || [])
+    .map((item) => `${item.knowledgeBaseName || "未选择知识库"}${item.targetContentLabel ? `：${item.targetContentLabel}` : ""}`)
+    .join(" / ");
+  const customInputSummary = (activeSkillDraft?.customInputs || [])
+    .map((item) => `${item.label || "未命名参数"}（${item.inputType === "SELECT" ? "下拉" : item.inputType === "FILE" ? "上传" : "输入"}）`)
+    .join(" / ");
   const skillModelOptions = useMemo(
     () =>
       buildScopedModelOptions(
@@ -3543,13 +3602,22 @@ export default function AdminPage() {
                                   <p className="personal-meta">支持多条创建。可配置“是否植入”参数，以及“下拉框选择”类数据库参数。</p>
                                 </div>
                                 <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                  <button type="button" className="secondary-button" onClick={() => handleApplyRecommendedDatabaseInputs()}>
+                                    一键补齐常用项
+                                  </button>
                                   <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("INJECT_TOGGLE")}>
                                     新增植入参数
                                   </button>
                                   <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("SELECT_CHOICE")}>
                                     新增下拉参数
                                   </button>
+                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearDatabaseInputs()}>
+                                    清空
+                                  </button>
                                 </div>
+                              </div>
+                              <div className="personal-meta" style={{ marginBottom: 12 }}>
+                                {databaseInputSummary || "当前还没有数据库参数摘要。"}
                               </div>
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.databaseInputs.length ? activeSkillDraft.databaseInputs.map((item) => {
@@ -3631,7 +3699,13 @@ export default function AdminPage() {
                                   >
                                     新增知识库参数
                                   </button>
+                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearKnowledgeInputs()}>
+                                    清空
+                                  </button>
                                 </div>
+                              </div>
+                              <div className="personal-meta" style={{ marginBottom: 12 }}>
+                                {knowledgeInputSummary || "当前还没有知识库参数摘要。"}
                               </div>
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.knowledgeInputs.length ? activeSkillDraft.knowledgeInputs.map((item) => (
@@ -3689,6 +3763,9 @@ export default function AdminPage() {
                                   <p className="personal-meta">支持多条创建。可配置下拉框参数、普通输入框参数和文件上传参数。</p>
                                 </div>
                                 <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                  <button type="button" className="secondary-button" onClick={() => handleApplyRecommendedCustomInputs()}>
+                                    一键补齐常用项
+                                  </button>
                                   <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("SELECT")}>
                                     新增下拉参数
                                   </button>
@@ -3698,7 +3775,13 @@ export default function AdminPage() {
                                   <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("FILE")}>
                                     新增文件参数
                                   </button>
+                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearCustomInputs()}>
+                                    清空
+                                  </button>
                                 </div>
+                              </div>
+                              <div className="personal-meta" style={{ marginBottom: 12 }}>
+                                {customInputSummary || "当前还没有自定义输入参数摘要。"}
                               </div>
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.customInputs.length ? activeSkillDraft.customInputs.map((item) => (
@@ -5479,6 +5562,46 @@ function buildDatabaseInputConfig(parameterType: DatabaseInputConfig["parameterT
   };
 }
 
+function buildRecommendedDatabaseInputs(): DatabaseInputConfig[] {
+  return [
+    {
+      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      parameterKey: "brand_profile",
+      parameterLabel: "品牌信息",
+      selectedValue: "INJECT",
+      remarks: "默认植入品牌背景、定位和口径约束。",
+    },
+    {
+      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      parameterKey: "product_library",
+      parameterLabel: "产品库",
+      selectedValue: "INJECT",
+      remarks: "按当前商品池提供产品卖点和卖货信息。",
+    },
+    {
+      ...buildDatabaseInputConfig("INJECT_TOGGLE"),
+      parameterKey: "marketing_plan",
+      parameterLabel: "营销策划方案",
+      selectedValue: "INJECT",
+      remarks: "优先参考品牌既有营销方案和活动重点。",
+    },
+    {
+      ...buildDatabaseInputConfig("SELECT_CHOICE"),
+      parameterKey: "marketing_calendar",
+      parameterLabel: "营销日历",
+      selectedValue: "品牌营销日历",
+      remarks: "默认读取品牌营销日历；没有时可切换为不使用。",
+    },
+    {
+      ...buildDatabaseInputConfig("SELECT_CHOICE"),
+      parameterKey: "asset_library",
+      parameterLabel: "素材库",
+      selectedValue: "品牌素材库",
+      remarks: "优先使用品牌素材库中的现成素材。",
+    },
+  ];
+}
+
 function normalizeDatabaseInputConfig(value: unknown): DatabaseInputConfig {
   const current = value && typeof value === "object" ? (value as Partial<DatabaseInputConfig>) : {};
   const parameterType = current.parameterType === "SELECT_CHOICE" ? "SELECT_CHOICE" : "INJECT_TOGGLE";
@@ -5528,6 +5651,32 @@ function buildCustomInputConfig(inputType: CustomInputConfig["inputType"]): Cust
     acceptedFileTypes: inputType === "FILE" ? ".pdf,.docx,.xlsx,.png,.jpg" : "",
     remarks: "",
   };
+}
+
+function buildRecommendedCustomInputs(): CustomInputConfig[] {
+  return [
+    {
+      ...buildCustomInputConfig("SELECT"),
+      label: "执行模式",
+      required: true,
+      options: ["标准模式", "快速模式", "深度模式"],
+      remarks: "用于切换技能执行深度和生成策略。",
+    },
+    {
+      ...buildCustomInputConfig("TEXT"),
+      label: "用户要求",
+      required: true,
+      placeholder: "请输入本次任务目标、风格、限制条件等",
+      remarks: "由用户直接补充本次技能执行要求。",
+    },
+    {
+      ...buildCustomInputConfig("FILE"),
+      label: "参考文件",
+      required: false,
+      acceptedFileTypes: ".pdf,.doc,.docx,.xlsx,.png,.jpg,.jpeg",
+      remarks: "支持上传参考图、参考文档、素材包等文件。",
+    },
+  ];
 }
 
 function normalizeCustomInputConfig(value: unknown): CustomInputConfig {
