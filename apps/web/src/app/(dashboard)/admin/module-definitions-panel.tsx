@@ -694,6 +694,13 @@ function ModuleDraftForm(props: {
   const selectedProviderPolicies = useMemo(() => parseLines(props.draft.defaultProviderPolicies), [props.draft.defaultProviderPolicies]);
   const selectedPermissions = useMemo(() => parseLines(props.draft.requiredPermissions), [props.draft.requiredPermissions]);
   const selectedCapabilities = useMemo(() => parseLines(props.draft.requiredCapabilities), [props.draft.requiredCapabilities]);
+  const selectedProviders = useMemo(() => parseLines(props.draft.requiredProviders), [props.draft.requiredProviders]);
+  const selectedTables = useMemo(() => parseLines(props.draft.requiredTables), [props.draft.requiredTables]);
+  const selectedStorages = useMemo(() => parseLines(props.draft.requiredStorages), [props.draft.requiredStorages]);
+  const selectedThirdPartyPlatforms = useMemo(
+    () => parseLines(props.draft.requiredThirdPartyPlatforms),
+    [props.draft.requiredThirdPartyPlatforms],
+  );
   const selectedTaskTypes = useMemo(() => parseLines(props.draft.taskTypes), [props.draft.taskTypes]);
   const selectedMediaTypes = useMemo(() => parseLines(props.draft.mediaTypes), [props.draft.mediaTypes]);
   const selectedWorkflowTypes = useMemo(() => parseLines(props.draft.workflowTypes), [props.draft.workflowTypes]);
@@ -703,6 +710,27 @@ function ModuleDraftForm(props: {
   );
   const capabilityOptions = useMemo(
     () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredCapabilities), "能力域", "来自已注册模块的能力域"),
+    [props.modules],
+  );
+  const providerOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredProviders), "Provider", "来自已注册模块的 Provider 依赖类型"),
+    [props.modules],
+  );
+  const tableOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredTables), "数据表", "来自已注册模块的表依赖"),
+    [props.modules],
+  );
+  const storageOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredStorages), "存储", "来自已注册模块的存储依赖"),
+    [props.modules],
+  );
+  const thirdPartyPlatformOptions = useMemo(
+    () =>
+      buildStructuredOptions(
+        props.modules.flatMap((item) => item.requiredThirdPartyPlatforms),
+        "第三方平台",
+        "来自已注册模块的第三方平台依赖",
+      ),
     [props.modules],
   );
   const taskTypeOptions = useMemo(
@@ -769,7 +797,16 @@ function ModuleDraftForm(props: {
   }
 
   function updateStructuredField(
-    field: "requiredPermissions" | "requiredCapabilities" | "taskTypes" | "mediaTypes" | "workflowTypes",
+    field:
+      | "requiredPermissions"
+      | "requiredCapabilities"
+      | "requiredProviders"
+      | "requiredTables"
+      | "requiredStorages"
+      | "requiredThirdPartyPlatforms"
+      | "taskTypes"
+      | "mediaTypes"
+      | "workflowTypes",
     value: string,
     checked: boolean,
   ) {
@@ -962,33 +999,65 @@ function ModuleDraftForm(props: {
               />
             </div>
           </ModuleFormField>
-          <ModuleFormField label="Provider 依赖" badge="推荐" hint="当前可手工填写；如果模块明确依赖文本/图片/视频模型，建议补上。">
-            <textarea
-              value={props.draft.requiredProviders}
-              placeholder={"例如：\ntext\nimage"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredProviders: event.target.value }))}
-            />
+          <ModuleFormField label="Provider 依赖" badge="结构化" hint="优先复用已有模块中的 Provider 类型，再按每行一个补充；例如 text、image、video。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用 Provider 类型，可直接在下方补充。"
+                options={providerOptions}
+                selectedValues={selectedProviders}
+                onToggle={(value, checked) => updateStructuredField("requiredProviders", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredProviders}
+                placeholder={"例如：\ntext\nimage"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredProviders: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="表依赖" badge="推荐" hint="当前可手工填写；可登记该模块主要依赖的数据库表。">
-            <textarea
-              value={props.draft.requiredTables}
-              placeholder={"例如：\nworks\npublish_records"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredTables: event.target.value }))}
-            />
+          <ModuleFormField label="表依赖" badge="结构化" hint="优先复用已有模块沉淀的表依赖，再按每行一个补充实际核心表。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用表依赖，可直接在下方补充。"
+                options={tableOptions}
+                selectedValues={selectedTables}
+                onToggle={(value, checked) => updateStructuredField("requiredTables", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredTables}
+                placeholder={"例如：\nWork\nPublishRecord"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredTables: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="存储依赖" badge="可不填" hint="只有用到 OSS、本地文件、对象存储时再填。">
-            <textarea
-              value={props.draft.requiredStorages}
-              placeholder={"例如：\noss"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredStorages: event.target.value }))}
-            />
+          <ModuleFormField label="存储依赖" badge="结构化" hint="只有用到 OSS、本地文件、对象存储时再填，优先从已有模块依赖中复用。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用存储依赖，可直接在下方补充。"
+                options={storageOptions}
+                selectedValues={selectedStorages}
+                onToggle={(value, checked) => updateStructuredField("requiredStorages", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredStorages}
+                placeholder={"例如：\noss"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredStorages: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="第三方平台" badge="可不填" hint="只有依赖公众号、抖音、小红书等平台时再填。">
-            <textarea
-              value={props.draft.requiredThirdPartyPlatforms}
-              placeholder={"例如：\nwechat-official-account"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredThirdPartyPlatforms: event.target.value }))}
-            />
+          <ModuleFormField label="第三方平台" badge="结构化" hint="只有依赖公众号、抖音、小红书等平台时再填，优先复用已有平台依赖。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用第三方平台依赖，可直接在下方补充。"
+                options={thirdPartyPlatformOptions}
+                selectedValues={selectedThirdPartyPlatforms}
+                onToggle={(value, checked) => updateStructuredField("requiredThirdPartyPlatforms", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredThirdPartyPlatforms}
+                placeholder={"例如：\nwechat-official-account"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredThirdPartyPlatforms: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
         </div>
       </ModuleFormSection>
