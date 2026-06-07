@@ -10,6 +10,7 @@ import {
   type ModuleDefinitionRecord,
   updateModuleDefinition,
 } from "../../../services/admin";
+import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
 
 type ModuleDefinitionsPanelProps = {
   modules: ModuleDefinitionRecord[];
@@ -549,6 +550,13 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
           </div>
         </div>
       ) : null}
+
+      <SkillPackageModulesPanel
+        modules={props.modules}
+        dataSource={props.dataSource}
+        onNotice={props.onNotice}
+        onError={props.onError}
+      />
     </div>
   );
 }
