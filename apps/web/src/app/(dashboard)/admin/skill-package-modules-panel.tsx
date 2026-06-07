@@ -534,9 +534,29 @@ function SkillPackageModuleDraftForm(props: {
   skillPackages: SkillPackageRecord[];
   onChange: Dispatch<SetStateAction<SkillPackageModuleDraft>>;
 }) {
+  const recommendedPackages = useMemo(
+    () =>
+      props.skillPackages
+        .filter((item) => item.moduleKeys.includes(props.draft.moduleKey))
+        .sort((left, right) => left.sortOrder - right.sortOrder),
+    [props.draft.moduleKey, props.skillPackages],
+  );
   const selectedPackage = props.skillPackages.find(
     (item) => item.id === props.draft.packageId || item.packageKey === props.draft.packageKey,
   );
+  const packageOptions = useMemo(() => {
+    const recommendedIds = new Set(recommendedPackages.map((item) => item.id));
+    return props.skillPackages
+      .slice()
+      .sort((left, right) => {
+        const leftPriority = recommendedIds.has(left.id) ? 0 : 1;
+        const rightPriority = recommendedIds.has(right.id) ? 0 : 1;
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority;
+        }
+        return left.sortOrder - right.sortOrder;
+      });
+  }, [props.skillPackages, recommendedPackages]);
   const packageSelectValue = selectedPackage?.id || "__manual__";
 
   function handlePackageChange(nextValue: string) {
@@ -561,13 +581,21 @@ function SkillPackageModuleDraftForm(props: {
         <span>能力包选择</span>
         <select value={packageSelectValue} onChange={(event) => handlePackageChange(event.target.value)}>
           <option value="__manual__">手工填写 / 历史值兼容</option>
-          {props.skillPackages.map((item) => (
+          {packageOptions.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.packageName}
+              {recommendedPackages.some((recommended) => recommended.id === item.id) ? `推荐 · ${item.packageName}` : item.packageName}
             </option>
           ))}
         </select>
       </label>
+      <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
+        <strong>当前模块推荐能力包 {recommendedPackages.length} 个</strong>
+        <p className="personal-meta">
+          {recommendedPackages.length
+            ? recommendedPackages.map((item) => item.packageName).join(" / ")
+            : "当前模块还没有命中已登记的推荐能力包，可继续手工选择或录入历史值。"}
+        </p>
+      </div>
       {selectedPackage ? (
         <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
           <strong>{selectedPackage.packageName}</strong>

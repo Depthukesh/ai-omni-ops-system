@@ -10,6 +10,7 @@ import {
   type ApiProviderRecord,
   type KnowledgeBaseRecord,
   type ModuleDefinitionRecord,
+  type SkillAssetBindingRecord,
   type SkillConfigRecord,
   type SkillPackageRecord,
   updateModuleDefinition,
@@ -23,6 +24,7 @@ type ModuleDefinitionsPanelProps = {
   modules: ModuleDefinitionRecord[];
   skills: SkillConfigRecord[];
   skillPackages: SkillPackageRecord[];
+  skillAssetBindings: SkillAssetBindingRecord[];
   knowledgeBases: KnowledgeBaseRecord[];
   providers: ApiProviderRecord[];
   dataSource: "api" | "seed";
@@ -639,6 +641,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
           <SkillPackageSkillsPanel
             skills={props.skills}
             skillPackages={props.skillPackages}
+            skillAssetBindings={props.skillAssetBindings}
             dataSource={props.dataSource}
             onNotice={props.onNotice}
             onError={props.onError}

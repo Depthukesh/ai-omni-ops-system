@@ -4476,6 +4476,7 @@ export default function AdminPage() {
             modules={modules}
             skills={skills}
             skillPackages={skillPackages}
+        skillAssetBindings={skillAssetBindings}
             knowledgeBases={knowledgeBases}
             providers={providers}
             dataSource={dataSource}
