@@ -11,6 +11,7 @@ import {
   adminOrderSeed,
   billingRulesSeed,
   createApiProvider,
+  createSkillPackageSkill,
   createSkillPromptBinding,
   createPromptTemplate,
   createSkillConfig,
@@ -33,6 +34,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  getSkillPackageSkills,
   getSkillPromptBindings,
   getSkillPackageModules,
   getThirdPartyPlatforms,
@@ -45,6 +47,7 @@ import {
   skillConfigSeed,
   skillAssetBindingSeed,
   skillPackageModuleSeed,
+  skillPackageSkillSeed,
   startKnowledgeBaseSync,
   syncKnowledgeBaseFile,
   updateApiProvider,
@@ -72,6 +75,7 @@ import {
   type SkillAssetBindingRecord,
   type SkillConfigRecord,
   type SkillPackageModuleRecord,
+  type SkillPackageSkillRecord,
   type ThirdPartyPlatformRecord,
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
@@ -261,6 +265,7 @@ export default function AdminPage() {
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
+  const [skillPackageSkills, setSkillPackageSkills] = useState<SkillPackageSkillRecord[]>(skillPackageSkillSeed);
   const [skillAssetBindings, setSkillAssetBindings] = useState<SkillAssetBindingRecord[]>(skillAssetBindingSeed);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
@@ -383,6 +388,7 @@ export default function AdminPage() {
       skillPromptBindingResult,
       moduleDefinitionResult,
       skillPackageModuleResult,
+      skillPackageSkillResult,
       knowledgeBaseResult,
       knowledgeBaseFilesResult,
       knowledgeBaseSyncRunsResult,
@@ -399,6 +405,7 @@ export default function AdminPage() {
       canReadAssets ? getSkillPromptBindings() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
       canReadAssets ? getSkillPackageModules() : Promise.resolve([]),
+      canReadAssets ? getSkillPackageSkills() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
@@ -453,13 +460,6 @@ export default function AdminPage() {
       usingSeed = true;
     }
 
-    if (skillPromptBindingResult.status === "fulfilled") {
-      setSkillAssetBindings(mergeSkillAssetBindings(skillPromptBindingResult.value));
-    } else {
-      setSkillAssetBindings(skillAssetBindingSeed);
-      usingSeed = true;
-    }
-
     if (moduleDefinitionResult.status === "fulfilled") {
       setModules(moduleDefinitionResult.value);
     } else {
@@ -471,6 +471,26 @@ export default function AdminPage() {
       setSkillPackageModules(skillPackageModuleResult.value);
     } else {
       setSkillPackageModules(skillPackageModuleSeed);
+      usingSeed = true;
+    }
+    const resolvedSkillPackageModules =
+      skillPackageModuleResult.status === "fulfilled" ? skillPackageModuleResult.value : skillPackageModuleSeed;
+    const resolvedSkillPackageSkills =
+      skillPackageSkillResult.status === "fulfilled" ? skillPackageSkillResult.value : skillPackageSkillSeed;
+    if (skillPackageSkillResult.status === "fulfilled") {
+      setSkillPackageSkills(skillPackageSkillResult.value);
+    } else {
+      setSkillPackageSkills(skillPackageSkillSeed);
+      usingSeed = true;
+    }
+    if (skillPromptBindingResult.status === "fulfilled") {
+      setSkillAssetBindings(
+        mergeSkillAssetBindings(skillPromptBindingResult.value, resolvedSkillPackageSkills, resolvedSkillPackageModules),
+      );
+    } else {
+      setSkillAssetBindings(
+        mergeSkillAssetBindings(skillAssetBindingSeed, resolvedSkillPackageSkills, resolvedSkillPackageModules),
+      );
       usingSeed = true;
     }
     if (knowledgeBaseResult.status === "fulfilled") {
@@ -1806,21 +1826,33 @@ export default function AdminPage() {
     [modules],
   );
   const skillPackageFilterOptions = useMemo(() => {
-    const packageMap = new Map<string, string>();
+    const packageMap = new Map<string, { label: string; packageId: string }>();
     skillPackageModules.forEach((item) => {
-      packageMap.set(item.packageKey, item.packageName);
+      packageMap.set(item.packageKey, {
+        label: item.packageName,
+        packageId: item.packageId,
+      });
+    });
+    skillPackageSkills.forEach((item) => {
+      packageMap.set(item.packageKey, {
+        label: item.packageName,
+        packageId: item.packageId,
+      });
     });
     skillAssetBindingSeed.forEach((item) => {
       item.packageKeys.forEach((packageKey, index) => {
         if (!packageMap.has(packageKey)) {
-          packageMap.set(packageKey, item.packageNames[index] || packageKey);
+          packageMap.set(packageKey, {
+            label: item.packageNames[index] || packageKey,
+            packageId: buildPackageIdFromKey(packageKey),
+          });
         }
       });
     });
     return Array.from(packageMap.entries())
-      .map(([value, label]) => ({ value, label }))
+      .map(([value, meta]) => ({ value, label: meta.label, packageId: meta.packageId }))
       .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
-  }, [skillPackageModules]);
+  }, [skillPackageModules, skillPackageSkills]);
   const filteredSkillTree = useMemo(
     () =>
       SKILL_CENTER_TREE.map((primary) => ({
@@ -1892,6 +1924,7 @@ export default function AdminPage() {
       : "-";
   const activeSkillPackageNames = Array.from(
     new Set([
+      ...skillPackageSkills.filter((item) => activeSkillPackageKeys.includes(item.packageKey)).map((item) => item.packageName),
       ...skillPackageModules.filter((item) => activeSkillPackageKeys.includes(item.packageKey)).map((item) => item.packageName),
       ...activeSkillBindings.flatMap((item) => item.packageNames),
     ]),
@@ -2099,6 +2132,70 @@ export default function AdminPage() {
     setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
   }
 
+  function upsertSkillPackageSkillState(saved: SkillPackageSkillRecord) {
+    setSkillPackageSkills((current) => [
+      saved,
+      ...current.filter(
+        (item) =>
+          item.id !== saved.id
+          && !(item.skillId === saved.skillId && item.packageKey === saved.packageKey && item.bindingType === saved.bindingType),
+      ),
+    ]);
+  }
+
+  async function persistSkillPackageBinding(payload: {
+    packageId: string;
+    packageKey: string;
+    packageName: string;
+    skillId: string;
+    skillSlug: string;
+    bindingType?: SkillPackageSkillRecord["bindingType"];
+    isDefault?: boolean;
+    sortOrder?: number;
+    enabled?: boolean;
+    remarks?: string;
+  }) {
+    try {
+      const saved = await createSkillPackageSkill({
+        ...payload,
+        bindingType: payload.bindingType || "DEFAULT",
+        isDefault: payload.isDefault ?? true,
+        sortOrder: payload.sortOrder ?? 100,
+        enabled: payload.enabled ?? true,
+      });
+      upsertSkillPackageSkillState(saved);
+      return saved;
+    } catch (error) {
+      if (dataSource === "seed") {
+        const skillMeta = skills.find((item) => item.id === payload.skillId || item.slug === payload.skillSlug);
+        const saved: SkillPackageSkillRecord = {
+          id: `sps_local_${Date.now()}`,
+          packageId: payload.packageId,
+          packageKey: payload.packageKey,
+          packageName: payload.packageName,
+          skillId: payload.skillId,
+          skillSlug: payload.skillSlug,
+          bindingType: payload.bindingType || "DEFAULT",
+          isDefault: payload.isDefault ?? true,
+          sortOrder: payload.sortOrder ?? 100,
+          enabled: payload.enabled ?? true,
+          remarks: payload.remarks,
+          skillName: skillMeta?.name,
+          skillCategory: skillMeta?.category,
+          skillStatus: skillMeta?.status,
+          skillProvider: skillMeta?.provider,
+          skillDefaultModel: skillMeta?.defaultModel,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        upsertSkillPackageSkillState(saved);
+        return saved;
+      }
+      console.error("持久化能力包技能关系失败", error);
+      return undefined;
+    }
+  }
+
   async function handleCreateSkill() {
     setIsCreatingSkill(true);
     setNotice("");
@@ -2170,6 +2267,20 @@ export default function AdminPage() {
       nextBinding,
       ...current.filter((item) => item.skillSlug !== created.slug),
     ]);
+    if (newSkill.packageKey !== "NONE") {
+      await persistSkillPackageBinding({
+        packageId: packageMeta?.packageId || buildPackageIdFromKey(newSkill.packageKey),
+        packageKey: newSkill.packageKey,
+        packageName: packageMeta?.label || newSkill.packageKey,
+        skillId: created.id,
+        skillSlug: created.slug,
+        bindingType: "DEFAULT",
+        isDefault: true,
+        sortOrder: 100,
+        enabled: true,
+        remarks: newSkill.bindingRemarks.trim() || undefined,
+      });
+    }
     if (existingPrompt) {
       await persistSkillPromptBinding({
         skillId: created.id,
@@ -2305,7 +2416,7 @@ export default function AdminPage() {
     try {
       const saved = await createSkillPromptBinding(payload);
       setSkillAssetBindings((current) => [
-        mergeSkillAssetBindingRecord(current, saved),
+        mergeSkillAssetBindingRecord(current, saved, skillPackageSkills, skillPackageModules),
         ...current.filter((item) => item.id !== saved.id && !(item.skillSlug === saved.skillSlug && item.promptId === saved.promptId)),
       ]);
       return saved;
@@ -4116,19 +4227,63 @@ function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): 
   };
 }
 
-function mergeSkillAssetBindings(records: SkillAssetBindingRecord[]) {
-  return records.map((item) => mergeSkillAssetBindingRecord(skillAssetBindingSeed, item));
+function buildPackageIdFromKey(packageKey: string) {
+  return `sp_${String(packageKey || "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")}`;
+}
+
+function mergeSkillAssetBindings(
+  records: SkillAssetBindingRecord[],
+  skillPackageSkills: SkillPackageSkillRecord[] = [],
+  skillPackageModules: SkillPackageModuleRecord[] = [],
+) {
+  return records.map((item) =>
+    mergeSkillAssetBindingRecord(skillAssetBindingSeed, item, skillPackageSkills, skillPackageModules),
+  );
 }
 
 function mergeSkillAssetBindingRecord(
   existingList: SkillAssetBindingRecord[],
   incoming: SkillAssetBindingRecord,
+  skillPackageSkills: SkillPackageSkillRecord[] = [],
+  skillPackageModules: SkillPackageModuleRecord[] = [],
 ): SkillAssetBindingRecord {
   const matched =
     existingList.find((item) => incoming.id && item.id === incoming.id)
     || existingList.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
     || skillAssetBindingSeed.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
     || skillAssetBindingSeed.find((item) => incoming.promptScene && item.promptScene === incoming.promptScene);
+  const resolvedSkillSlug = incoming.skillSlug || matched?.skillSlug;
+  const relatedPackageBindings = resolvedSkillSlug
+    ? skillPackageSkills.filter((item) => item.skillSlug === resolvedSkillSlug && item.enabled)
+    : [];
+  const packageNameMap = new Map<string, string>();
+  matched?.packageKeys?.forEach((packageKey, index) => {
+    packageNameMap.set(packageKey, matched.packageNames[index] || packageKey);
+  });
+  incoming.packageKeys?.forEach((packageKey, index) => {
+    packageNameMap.set(packageKey, incoming.packageNames?.[index] || packageKey);
+  });
+  relatedPackageBindings.forEach((item) => {
+    packageNameMap.set(item.packageKey, item.packageName);
+  });
+  const resolvedPackageKeys = Array.from(
+    new Set([
+      ...(incoming.packageKeys || []),
+      ...relatedPackageBindings.map((item) => item.packageKey),
+      ...(matched?.packageKeys || []),
+    ]),
+  );
+  const derivedModuleKeys = relatedPackageBindings.flatMap((item) =>
+    skillPackageModules
+      .filter((relation) => relation.packageKey === item.packageKey && relation.enabled)
+      .map((relation) => relation.moduleKey),
+  );
+  const resolvedModuleKeys = Array.from(
+    new Set([...(incoming.moduleKeys || []), ...derivedModuleKeys, ...(matched?.moduleKeys || [])]),
+  );
 
   return {
     id: incoming.id || matched?.id || `sab_${incoming.skillSlug || incoming.promptScene || Date.now()}`,
@@ -4142,9 +4297,9 @@ function mergeSkillAssetBindingRecord(
     isPrimary: incoming.isPrimary ?? matched?.isPrimary ?? true,
     sortOrder: incoming.sortOrder ?? matched?.sortOrder ?? 100,
     enabled: incoming.enabled ?? matched?.enabled ?? true,
-    moduleKeys: incoming.moduleKeys?.length ? incoming.moduleKeys : matched?.moduleKeys || [],
-    packageKeys: incoming.packageKeys?.length ? incoming.packageKeys : matched?.packageKeys || [],
-    packageNames: incoming.packageNames?.length ? incoming.packageNames : matched?.packageNames || [],
+    moduleKeys: resolvedModuleKeys,
+    packageKeys: resolvedPackageKeys,
+    packageNames: resolvedPackageKeys.map((packageKey) => packageNameMap.get(packageKey) || packageKey),
     remarks: incoming.remarks ?? matched?.remarks,
   };
 }

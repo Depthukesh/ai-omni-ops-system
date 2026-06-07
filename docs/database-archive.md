@@ -136,6 +136,26 @@
   - 若迁移未执行，则仍可回退到历史绑定映射与前端 seed 过渡层
   - 这一层的目标是让后台管理、运行时用户技能中心和后续版本管理共享同一套技能提示词关系基础
 
+### 2.10 能力包与技能关系第一批真源化
+
+- 当前已补入关系表：
+  - `SkillPackageSkill`
+- 配套迁移：
+  - `prisma/migrations/20260607_skill_package_skills_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/skill-package-skills`
+  - `GET /admin/skill-package-skills/:id`
+  - `GET /admin/skill-package-skills/by-skill/:skillSlug`
+  - `GET /admin/skill-package-skills/by-package/:packageKey`
+  - `POST /admin/skill-package-skills`
+  - `PATCH /admin/skill-package-skills/:id`
+  - `DELETE /admin/skill-package-skills/:id`
+- 当前策略：
+  - 数据库和关系表可用时，后台技能中心中的能力包归属优先读写 PostgreSQL
+  - 首次命中且表为空时，会把 `mock-data` 中已有的技能能力包挂载关系自动回填进库
+  - 若迁移未执行，则接口仍回退到 `mock-data` 演示数据，不影响当前后台页面继续使用
+  - 这一层先解决技能反查能力包、能力包反查技能，以及后台创建技能时同步落库能力包归属
+
 ## 3. 正式数据表分层
 
 ### 3.1 用户与交易域
@@ -234,6 +254,10 @@
   - 用途：技能与提示词的正式关系表，承接后台技能中心绑定、运行时解析和后续多版本扩展
   - 关键字段：`skillId`、`promptId`、`skillSlug`、`promptScene`、`bindingType`、`isPrimary`、`sortOrder`、`enabled`
   - 当前约定：支持一个技能挂多条提示词关系，但允许通过 `isPrimary` 指定主绑定；当前后台创建提示词并绑定技能时会优先写入这一层
+- `SkillPackageSkill`
+  - 用途：能力包与技能的正式关系表，承接技能中心能力包归属、模块推导与后续独立关系管理页
+  - 关键字段：`packageId`、`packageKey`、`packageName`、`skillId`、`skillSlug`、`bindingType`、`isDefault`、`sortOrder`、`enabled`
+  - 当前约定：同一技能可挂多个能力包，但默认归属通过 `isDefault` 收口为单技能唯一默认；后台创建技能时若选择能力包会优先写入这一层
 
 ### 3.7 接口供应商注册域
 

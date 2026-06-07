@@ -693,6 +693,7 @@ model SkillConfig {
   brandPromptOverrides BrandPromptOverride[]
   brandSkillResetLogs BrandSkillResetLog[]
   promptBindings SkillPromptBinding[]
+  skillPackageBindings SkillPackageSkill[]
 }
 
 model PromptTemplate {
@@ -1057,6 +1058,28 @@ model SkillPackageModule {
   @@unique([packageKey, moduleKey, bindingType])
   @@index([moduleKey, enabled, sortOrder])
   @@index([packageKey, enabled, sortOrder])
+}
+
+model SkillPackageSkill {
+  id          String      @id
+  packageId   String
+  packageKey  String
+  packageName String
+  skillId     String
+  skillSlug   String
+  bindingType String      @default("DEFAULT")
+  isDefault   Boolean     @default(false)
+  sortOrder   Int         @default(100)
+  enabled     Boolean     @default(true)
+  remarks     String      @default("")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  skill       SkillConfig @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([packageKey, skillId, bindingType])
+  @@index([packageKey, enabled, sortOrder])
+  @@index([skillSlug, enabled, sortOrder])
 }
 
 model DigitalHumanFavoriteTemplate {

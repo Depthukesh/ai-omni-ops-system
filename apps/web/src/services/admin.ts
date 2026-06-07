@@ -216,10 +216,38 @@ export type SkillPackageModuleRecord = {
   updatedAt: string;
 };
 
+export type SkillPackageSkillRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  skillId: string;
+  skillSlug: string;
+  bindingType: "DEFAULT" | "OPTIONAL" | "SYSTEM_REQUIRED" | "EXPERIMENTAL";
+  isDefault: boolean;
+  sortOrder: number;
+  enabled: boolean;
+  remarks?: string;
+  skillName?: string;
+  skillCategory?: string;
+  skillStatus?: SkillConfigRecord["status"];
+  skillProvider?: string;
+  skillDefaultModel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GetSkillPackageModulesQuery = {
   moduleKey?: string;
   packageKey?: string;
   bindingType?: "ALL" | SkillPackageModuleRecord["bindingType"];
+  enabled?: boolean;
+};
+
+export type GetSkillPackageSkillsQuery = {
+  skillSlug?: string;
+  packageKey?: string;
+  bindingType?: "ALL" | SkillPackageSkillRecord["bindingType"];
   enabled?: boolean;
 };
 
@@ -1415,6 +1443,249 @@ export const skillPackageModuleSeed: SkillPackageModuleRecord[] = [
   },
 ];
 
+export const skillPackageSkillSeed: SkillPackageSkillRecord[] = [
+  {
+    id: "sps_brand_growth_analysis_default",
+    packageId: "sp_brand_growth_analysis",
+    packageKey: "brand-growth-analysis",
+    packageName: "品牌增长分析能力包",
+    skillId: "skill_growth_analysis",
+    skillSlug: "brand-omni-growth-analysis",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "品牌增长工作台主分析技能。",
+    skillName: "品牌全域增长分析",
+    skillCategory: "品牌增长",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_annual_plan_default",
+    packageId: "sp_enterprise_annual_plan",
+    packageKey: "enterprise-annual-plan",
+    packageName: "半年营销规划能力包",
+    skillId: "skill_annual_plan",
+    skillSlug: "enterprise-annual-plan",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "半年营销规划核心技能。",
+    skillName: "半年营销规划",
+    skillCategory: "品牌增长",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_xhs_plan_default",
+    packageId: "sp_xiaohongshu_brand_marketing_plan",
+    packageKey: "xiaohongshu-brand-marketing-plan",
+    packageName: "小红书营销规划能力包",
+    skillId: "skill_xhs_plan",
+    skillSlug: "xiaohongshu-brand-marketing-plan",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "小红书营销规划主技能。",
+    skillName: "小红书营销规划",
+    skillCategory: "内容营销",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "gpt-5.5",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_wechat_article_default",
+    packageId: "sp_wechat_article_generator",
+    packageKey: "wechat-article-generator",
+    packageName: "公众号文章生成能力包",
+    skillId: "skill_wechat_article_composer",
+    skillSlug: "wechat-article-composer",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "公众号创作文章主技能。",
+    skillName: "公众号创作文章",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_wechat_cover_default",
+    packageId: "sp_wechat_image_designer",
+    packageKey: "wechat-image-designer",
+    packageName: "公众号配图生成能力包",
+    skillId: "skill_wechat_cover_image_designer",
+    skillSlug: "wechat-cover-image-designer",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "公众号封面图生成技能。",
+    skillName: "公众号封面图生成",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "Right Codes · 文生图/图生图",
+    skillDefaultModel: "provider_runtime_image_generation_right_codes::gpt-image-2",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_wechat_body_default",
+    packageId: "sp_wechat_image_designer",
+    packageKey: "wechat-image-designer",
+    packageName: "公众号配图生成能力包",
+    skillId: "skill_wechat_body_image_designer",
+    skillSlug: "wechat-body-image-designer",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 20,
+    enabled: true,
+    remarks: "公众号正文配图生成技能。",
+    skillName: "公众号正文配图生成",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "Right Codes · 文生图/图生图",
+    skillDefaultModel: "provider_runtime_image_generation_right_codes::gpt-image-2",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_wechat_html_default",
+    packageId: "sp_wechat_html_renderer",
+    packageKey: "wechat-html-renderer",
+    packageName: "公众号 HTML 渲染能力包",
+    skillId: "skill_wechat_html_renderer",
+    skillSlug: "wechat-html-renderer",
+    bindingType: "SYSTEM_REQUIRED",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "公众号 HTML 渲染技能。",
+    skillName: "公众号 HTML 渲染",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_wechat_publish_default",
+    packageId: "sp_wechat_publish_bridge",
+    packageKey: "wechat-publish-bridge",
+    packageName: "公众号 API 发布能力包",
+    skillId: "skill_wechat_api_publisher",
+    skillSlug: "wechat-api-publisher",
+    bindingType: "SYSTEM_REQUIRED",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "公众号 API 发布技能。",
+    skillName: "公众号 API 发布",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "公众号 API",
+    skillDefaultModel: "wechat-api",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_douyin_plan_default",
+    packageId: "sp_tongcheng_brand_douyin_planning",
+    packageKey: "tongcheng-brand-douyin-planning",
+    packageName: "抖音营销规划能力包",
+    skillId: "skill_douyin_plan",
+    skillSlug: "tongcheng-brand-douyin-planning",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "抖音营销规划主技能。",
+    skillName: "抖音营销策划方案",
+    skillCategory: "内容营销",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_douyin_storyboard_default",
+    packageId: "sp_tongcheng_brand_douyin_planning",
+    packageKey: "tongcheng-brand-douyin-planning",
+    packageName: "抖音营销规划能力包",
+    skillId: "skill_douyin_video_note",
+    skillSlug: "douyin-video-storyboard-studio",
+    bindingType: "OPTIONAL",
+    isDefault: false,
+    sortOrder: 20,
+    enabled: true,
+    remarks: "抖音故事板编排技能。",
+    skillName: "抖音AI生视频故事板",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "火山方舟 · Seedance 2.0",
+    skillDefaultModel: "doubao-seedance-2-0-260128",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_douyin_direct_video_default",
+    packageId: "sp_douyin_video_production",
+    packageKey: "douyin-video-production",
+    packageName: "抖音视频生产能力包",
+    skillId: "skill_douyin_direct_video",
+    skillSlug: "douyin-direct-video-studio",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "抖音视频提示词主技能。",
+    skillName: "抖音视频直出提示词",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "火山方舟 · Seedance 2.0",
+    skillDefaultModel: "doubao-seedance-2-0-260128",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+  {
+    id: "sps_douyin_digital_human_default",
+    packageId: "sp_douyin_digital_human",
+    packageKey: "douyin-digital-human",
+    packageName: "抖音数字人能力包",
+    skillId: "skill_douyin_digital_human_script",
+    skillSlug: "douyin-digital-human-script-studio",
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: 10,
+    enabled: true,
+    remarks: "抖音数字人口播脚本技能。",
+    skillName: "抖音数字人口播脚本",
+    skillCategory: "内容生产",
+    skillStatus: "ACTIVE",
+    skillProvider: "国内文生文 · DeepSeek",
+    skillDefaultModel: "deepseek-v4-pro",
+    createdAt: "2026-06-07T10:30:00.000Z",
+    updatedAt: "2026-06-07T10:30:00.000Z",
+  },
+];
+
 export const skillAssetBindingSeed: SkillAssetBindingRecord[] = [
   {
     id: "sab_brand_growth_report",
@@ -2022,6 +2293,97 @@ export async function updateSkillPackageModule(
 
 export async function deleteSkillPackageModule(id: string) {
   return request<SkillPackageModuleRecord>(`/admin/skill-package-modules/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSkillPackageSkills(query: GetSkillPackageSkillsQuery = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.skillSlug?.trim()) {
+    searchParams.set("skillSlug", query.skillSlug.trim());
+  }
+  if (query.packageKey?.trim()) {
+    searchParams.set("packageKey", query.packageKey.trim());
+  }
+  if (query.bindingType && query.bindingType !== "ALL") {
+    searchParams.set("bindingType", query.bindingType);
+  }
+  if (typeof query.enabled === "boolean") {
+    searchParams.set("enabled", String(query.enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageSkillRecord[]>(
+    suffix ? `/admin/skill-package-skills?${suffix}` : "/admin/skill-package-skills",
+  );
+}
+
+export async function getSkillPackageSkill(id: string) {
+  return request<SkillPackageSkillRecord>(`/admin/skill-package-skills/${id}`);
+}
+
+export async function getSkillPackageSkillsBySkill(skillSlug: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageSkillRecord[]>(
+    suffix
+      ? `/admin/skill-package-skills/by-skill/${encodeURIComponent(skillSlug)}?${suffix}`
+      : `/admin/skill-package-skills/by-skill/${encodeURIComponent(skillSlug)}`,
+  );
+}
+
+export async function getSkillPackageSkillsByPackage(packageKey: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageSkillRecord[]>(
+    suffix
+      ? `/admin/skill-package-skills/by-package/${encodeURIComponent(packageKey)}?${suffix}`
+      : `/admin/skill-package-skills/by-package/${encodeURIComponent(packageKey)}`,
+  );
+}
+
+export async function createSkillPackageSkill(
+  payload: Omit<
+    SkillPackageSkillRecord,
+    | "id"
+    | "skillName"
+    | "skillCategory"
+    | "skillStatus"
+    | "skillProvider"
+    | "skillDefaultModel"
+    | "createdAt"
+    | "updatedAt"
+  >,
+) {
+  return jsonRequest<SkillPackageSkillRecord>("/admin/skill-package-skills", "POST", payload);
+}
+
+export async function updateSkillPackageSkill(
+  id: string,
+  payload: Partial<
+    Omit<
+      SkillPackageSkillRecord,
+      | "id"
+      | "skillName"
+      | "skillCategory"
+      | "skillStatus"
+      | "skillProvider"
+      | "skillDefaultModel"
+      | "createdAt"
+      | "updatedAt"
+    >
+  >,
+) {
+  return jsonRequest<SkillPackageSkillRecord>(`/admin/skill-package-skills/${id}`, "PATCH", payload);
+}
+
+export async function deleteSkillPackageSkill(id: string) {
+  return request<SkillPackageSkillRecord>(`/admin/skill-package-skills/${id}`, {
     method: "DELETE",
   });
 }
