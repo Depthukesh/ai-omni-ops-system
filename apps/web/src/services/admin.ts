@@ -225,8 +225,16 @@ export type GetSkillPackageModulesQuery = {
 
 export type SkillAssetBindingRecord = {
   id: string;
+  skillId?: string;
   skillSlug?: string;
+  skillName?: string;
+  promptId?: string;
   promptScene?: string;
+  promptName?: string;
+  bindingType?: "PRIMARY" | "SUPPLEMENTAL" | "FALLBACK";
+  isPrimary?: boolean;
+  sortOrder?: number;
+  enabled?: boolean;
   moduleKeys: string[];
   packageKeys: string[];
   packageNames: string[];
@@ -1785,6 +1793,35 @@ export async function createPromptTemplate(
   payload: Pick<PromptTemplateRecord, "name" | "scene" | "version" | "status" | "modelName" | "temperature" | "maxTokens" | "content">,
 ) {
   return jsonRequest<PromptTemplateRecord>("/admin/prompts", "POST", payload);
+}
+
+export async function getSkillPromptBindings() {
+  return request<SkillAssetBindingRecord[]>("/admin/skill-prompt-bindings");
+}
+
+export async function getSkillPromptBindingsBySkill(skillSlug: string) {
+  return request<SkillAssetBindingRecord[]>(`/admin/skill-prompt-bindings/by-skill/${encodeURIComponent(skillSlug)}`);
+}
+
+export async function createSkillPromptBinding(payload: {
+  skillId?: string;
+  skillSlug?: string;
+  promptId?: string;
+  promptScene?: string;
+  bindingType?: "PRIMARY" | "SUPPLEMENTAL" | "FALLBACK";
+  isPrimary?: boolean;
+  sortOrder?: number;
+  enabled?: boolean;
+  remarks?: string;
+}) {
+  return jsonRequest<SkillAssetBindingRecord>("/admin/skill-prompt-bindings", "POST", payload);
+}
+
+export async function updateSkillPromptBinding(
+  id: string,
+  payload: Partial<Pick<SkillAssetBindingRecord, "bindingType" | "isPrimary" | "sortOrder" | "enabled" | "remarks">>,
+) {
+  return jsonRequest<SkillAssetBindingRecord>(`/admin/skill-prompt-bindings/${id}`, "PATCH", payload);
 }
 
 export async function updatePromptTemplate(

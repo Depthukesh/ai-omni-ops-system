@@ -50,6 +50,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
         "KnowledgeBinding",
         "ModuleDefinition",
         "SkillPackageModule",
+        "SkillPromptBinding",
       ],
     };
   }

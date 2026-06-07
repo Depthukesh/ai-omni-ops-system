@@ -119,6 +119,23 @@
   - 若迁移未执行，则回退到 `mock-data` 中的模块与能力包挂载演示数据
   - 这一层先解决模块反查能力包、能力包反查模块和默认挂载管理，不强制统一技能中心页面先完成改造
 
+### 2.9 技能与提示词关系第一批真源化
+
+- 当前已补入关系表：
+  - `SkillPromptBinding`
+- 配套迁移：
+  - `prisma/migrations/20260607_skill_prompt_bindings_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/skill-prompt-bindings`
+  - `GET /admin/skill-prompt-bindings/by-skill/:skillSlug`
+  - `POST /admin/skill-prompt-bindings`
+  - `PATCH /admin/skill-prompt-bindings/:id`
+- 当前策略：
+  - 数据库和关系表可用时，后台技能中心、创建技能、创建提示词等操作优先读写 PostgreSQL
+  - 首次命中时，会根据历史 `SKILL_PROMPT_BINDINGS` 自动回填关系数据，并建立运行时缓存
+  - 若迁移未执行，则仍可回退到历史绑定映射与前端 seed 过渡层
+  - 这一层的目标是让后台管理、运行时用户技能中心和后续版本管理共享同一套技能提示词关系基础
+
 ## 3. 正式数据表分层
 
 ### 3.1 用户与交易域
@@ -213,6 +230,10 @@
   - 用途：后台技能中心中的提示词模板正文与参数
   - 关键字段：`name`、`scene`、`version`、`status`、`modelName`、`temperature`、`maxTokens`、`content`
   - 当前约定：`modelName` 同样兼容 `providerId::modelName` 作用域值；用户态覆盖层沿用相同格式
+- `SkillPromptBinding`
+  - 用途：技能与提示词的正式关系表，承接后台技能中心绑定、运行时解析和后续多版本扩展
+  - 关键字段：`skillId`、`promptId`、`skillSlug`、`promptScene`、`bindingType`、`isPrimary`、`sortOrder`、`enabled`
+  - 当前约定：支持一个技能挂多条提示词关系，但允许通过 `isPrimary` 指定主绑定；当前后台创建提示词并绑定技能时会优先写入这一层
 
 ### 3.7 接口供应商注册域
 
@@ -252,6 +273,9 @@
 - `SkillPackageModule`
   - 用途：模块与能力包关系表
   - 关键字段：`packageId`、`packageKey`、`packageName`、`moduleKey`、`bindingType`、`isDefault`、`sortOrder`、`enabled`
+- `SkillPromptBinding`
+  - 用途：统一技能中心与运行时之间的技能-提示词桥接关系
+  - 关键字段：`skillId`、`promptId`、`skillSlug`、`promptScene`、`bindingType`、`isPrimary`、`sortOrder`、`enabled`
 
 ## 4. 业务板块与数据表映射
 

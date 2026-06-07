@@ -11,6 +11,7 @@ import {
   adminOrderSeed,
   billingRulesSeed,
   createApiProvider,
+  createSkillPromptBinding,
   createPromptTemplate,
   createSkillConfig,
   createThirdPartyPlatform,
@@ -32,6 +33,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  getSkillPromptBindings,
   getSkillPackageModules,
   getThirdPartyPlatforms,
   knowledgeBaseFileSeed,
@@ -378,6 +380,7 @@ export default function AdminPage() {
       usageResult,
       skillResult,
       promptResult,
+      skillPromptBindingResult,
       moduleDefinitionResult,
       skillPackageModuleResult,
       knowledgeBaseResult,
@@ -393,6 +396,7 @@ export default function AdminPage() {
       canReadUsage ? getModelUsage() : Promise.resolve([]),
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
+      canReadAssets ? getSkillPromptBindings() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
       canReadAssets ? getSkillPackageModules() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
@@ -449,6 +453,13 @@ export default function AdminPage() {
       usingSeed = true;
     }
 
+    if (skillPromptBindingResult.status === "fulfilled") {
+      setSkillAssetBindings(mergeSkillAssetBindings(skillPromptBindingResult.value));
+    } else {
+      setSkillAssetBindings(skillAssetBindingSeed);
+      usingSeed = true;
+    }
+
     if (moduleDefinitionResult.status === "fulfilled") {
       setModules(moduleDefinitionResult.value);
     } else {
@@ -462,8 +473,6 @@ export default function AdminPage() {
       setSkillPackageModules(skillPackageModuleSeed);
       usingSeed = true;
     }
-    setSkillAssetBindings(skillAssetBindingSeed);
-
     if (knowledgeBaseResult.status === "fulfilled") {
       setKnowledgeBases(knowledgeBaseResult.value);
       setKnowledgeBaseDrafts(buildKnowledgeBaseDrafts(knowledgeBaseResult.value));
@@ -1866,8 +1875,9 @@ export default function AdminPage() {
       (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
       (activeSkillLeaf?.promptScene && item.promptScene === activeSkillLeaf.promptScene),
   );
-  const activeBoundPromptScene = activeSkillBindings.find((item) => item.skillSlug === activeSkillLeaf?.skillSlug && item.promptScene)?.promptScene;
-  const resolvedActivePromptScene = activeBoundPromptScene || activeSkillLeaf?.promptScene;
+  const activeExactPromptBinding = activeSkillBindings.find((item) => item.promptScene === activeSkillLeaf?.promptScene);
+  const activePrimaryPromptBinding = activeSkillBindings.find((item) => item.isPrimary) || activeSkillBindings[0];
+  const resolvedActivePromptScene = activeExactPromptBinding?.promptScene || activePrimaryPromptBinding?.promptScene || activeSkillLeaf?.promptScene;
   const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
   const activePromptConfig = resolvedActivePromptScene ? prompts.find((item) => item.scene === resolvedActivePromptScene) : undefined;
   const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
@@ -2093,6 +2103,7 @@ export default function AdminPage() {
     setIsCreatingSkill(true);
     setNotice("");
     setErrorMessage("");
+    const requestedPromptScene = newSkill.promptScene.trim();
     const payload = {
       name: newSkill.name.trim(),
       slug: newSkill.slug.trim().toLowerCase(),
@@ -2108,7 +2119,7 @@ export default function AdminPage() {
       const created = await createSkillConfig(payload);
       setSkills((current) => [created, ...current]);
       setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
-      upsertSkillAssetBinding(created);
+      await upsertSkillAssetBinding(created, requestedPromptScene);
       setNotice(`技能已创建：${created.name}`);
       setIsCreateSkillModalOpen(false);
       setNewSkill(buildCreateSkillDraft());
@@ -2122,7 +2133,7 @@ export default function AdminPage() {
         };
         setSkills((current) => [created, ...current]);
         setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
-        upsertSkillAssetBinding(created);
+        await upsertSkillAssetBinding(created, requestedPromptScene);
         setNotice(`演示技能已创建：${created.name}`);
         setIsCreateSkillModalOpen(false);
         setNewSkill(buildCreateSkillDraft());
@@ -2135,21 +2146,43 @@ export default function AdminPage() {
     }
   }
 
-  function upsertSkillAssetBinding(created: SkillConfigRecord) {
+  async function upsertSkillAssetBinding(created: SkillConfigRecord, promptSceneOverride?: string) {
     const packageMeta = skillPackageFilterOptions.find((item) => item.value === newSkill.packageKey);
-    const nextBinding: SkillAssetBindingRecord = {
+    const existingPrompt = promptSceneOverride ? prompts.find((item) => item.scene === promptSceneOverride) : undefined;
+    const nextBinding = mergeSkillAssetBindingRecord(skillAssetBindings, {
       id: `sab_${created.slug}`,
+      skillId: created.id,
       skillSlug: created.slug,
-      promptScene: newSkill.promptScene.trim() || undefined,
+      skillName: created.name,
+      promptId: existingPrompt?.id,
+      promptScene: promptSceneOverride || undefined,
+      promptName: existingPrompt?.name,
+      bindingType: "PRIMARY",
+      isPrimary: true,
+      sortOrder: 100,
+      enabled: true,
       moduleKeys: newSkill.moduleKey !== "NONE" ? [newSkill.moduleKey] : [],
       packageKeys: newSkill.packageKey !== "NONE" ? [newSkill.packageKey] : [],
       packageNames: newSkill.packageKey !== "NONE" ? [packageMeta?.label || newSkill.packageKey] : [],
       remarks: newSkill.bindingRemarks.trim() || undefined,
-    };
+    });
     setSkillAssetBindings((current) => [
       nextBinding,
       ...current.filter((item) => item.skillSlug !== created.slug),
     ]);
+    if (existingPrompt) {
+      await persistSkillPromptBinding({
+        skillId: created.id,
+        skillSlug: created.slug,
+        promptId: existingPrompt.id,
+        promptScene: existingPrompt.scene,
+        bindingType: "PRIMARY",
+        isPrimary: true,
+        sortOrder: 100,
+        enabled: true,
+        remarks: newSkill.bindingRemarks.trim() || undefined,
+      });
+    }
   }
 
   async function handleCreatePrompt() {
@@ -2172,7 +2205,7 @@ export default function AdminPage() {
       setPrompts((current) => [created, ...current]);
       setPromptDrafts((current) => ({ [created.id]: buildPromptDraft(created), ...current }));
       if (newPrompt.bindSkillSlug !== "NONE") {
-        upsertPromptBinding(newPrompt.bindSkillSlug, created.scene, newPrompt.bindingRemarks);
+        await upsertPromptBinding(newPrompt.bindSkillSlug, created.id, created.scene, created.name, newPrompt.bindingRemarks);
       }
       setNotice(`提示词模板已创建：${created.name}`);
       setIsCreatePromptModalOpen(false);
@@ -2188,7 +2221,7 @@ export default function AdminPage() {
         setPrompts((current) => [created, ...current]);
         setPromptDrafts((current) => ({ [created.id]: buildPromptDraft(created), ...current }));
         if (newPrompt.bindSkillSlug !== "NONE") {
-          upsertPromptBinding(newPrompt.bindSkillSlug, created.scene, newPrompt.bindingRemarks);
+          await upsertPromptBinding(newPrompt.bindSkillSlug, created.id, created.scene, created.name, newPrompt.bindingRemarks);
         }
         setNotice(`演示提示词模板已创建：${created.name}`);
         setIsCreatePromptModalOpen(false);
@@ -2202,15 +2235,21 @@ export default function AdminPage() {
     }
   }
 
-  function upsertPromptBinding(skillSlug: string, promptScene: string, remarks: string) {
+  async function upsertPromptBinding(skillSlug: string, promptId: string, promptScene: string, promptName: string, remarks: string) {
     setSkillAssetBindings((current) => {
       const existed = current.find((item) => item.skillSlug === skillSlug);
       if (!existed) {
         return [
           {
             id: `sab_${skillSlug}_prompt`,
+            promptId,
             skillSlug,
             promptScene,
+            promptName,
+            bindingType: "PRIMARY",
+            isPrimary: true,
+            sortOrder: 100,
+            enabled: true,
             moduleKeys: [],
             packageKeys: [],
             packageNames: [],
@@ -2223,12 +2262,61 @@ export default function AdminPage() {
         item.skillSlug === skillSlug
           ? {
               ...item,
+              promptId,
               promptScene,
+              promptName,
+              bindingType: "PRIMARY",
+              isPrimary: true,
+              sortOrder: item.sortOrder ?? 100,
+              enabled: true,
               remarks: remarks.trim() || item.remarks,
             }
           : item,
       );
     });
+    const skill = skills.find((item) => item.slug === skillSlug);
+    if (!skill) {
+      return;
+    }
+    await persistSkillPromptBinding({
+      skillId: skill.id,
+      skillSlug,
+      promptId,
+      promptScene,
+      bindingType: "PRIMARY",
+      isPrimary: true,
+      sortOrder: 100,
+      enabled: true,
+      remarks: remarks.trim() || undefined,
+    });
+  }
+
+  async function persistSkillPromptBinding(payload: {
+    skillId?: string;
+    skillSlug?: string;
+    promptId?: string;
+    promptScene?: string;
+    bindingType?: "PRIMARY" | "SUPPLEMENTAL" | "FALLBACK";
+    isPrimary?: boolean;
+    sortOrder?: number;
+    enabled?: boolean;
+    remarks?: string;
+  }) {
+    try {
+      const saved = await createSkillPromptBinding(payload);
+      setSkillAssetBindings((current) => [
+        mergeSkillAssetBindingRecord(current, saved),
+        ...current.filter((item) => item.id !== saved.id && !(item.skillSlug === saved.skillSlug && item.promptId === saved.promptId)),
+      ]);
+      return saved;
+    } catch (error) {
+      if (dataSource === "seed") {
+        return undefined;
+      }
+      const message = error instanceof Error ? error.message : "技能提示词绑定保存失败";
+      setErrorMessage(message);
+      return undefined;
+    }
   }
 
   if (isCheckingAccess) {
@@ -4025,6 +4113,39 @@ function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): 
     content: "",
     bindSkillSlug: bindSkillSlug || "NONE",
     bindingRemarks: "",
+  };
+}
+
+function mergeSkillAssetBindings(records: SkillAssetBindingRecord[]) {
+  return records.map((item) => mergeSkillAssetBindingRecord(skillAssetBindingSeed, item));
+}
+
+function mergeSkillAssetBindingRecord(
+  existingList: SkillAssetBindingRecord[],
+  incoming: SkillAssetBindingRecord,
+): SkillAssetBindingRecord {
+  const matched =
+    existingList.find((item) => incoming.id && item.id === incoming.id)
+    || existingList.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
+    || skillAssetBindingSeed.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
+    || skillAssetBindingSeed.find((item) => incoming.promptScene && item.promptScene === incoming.promptScene);
+
+  return {
+    id: incoming.id || matched?.id || `sab_${incoming.skillSlug || incoming.promptScene || Date.now()}`,
+    skillId: incoming.skillId || matched?.skillId,
+    skillSlug: incoming.skillSlug || matched?.skillSlug,
+    skillName: incoming.skillName || matched?.skillName,
+    promptId: incoming.promptId || matched?.promptId,
+    promptScene: incoming.promptScene || matched?.promptScene,
+    promptName: incoming.promptName || matched?.promptName,
+    bindingType: incoming.bindingType || matched?.bindingType || "PRIMARY",
+    isPrimary: incoming.isPrimary ?? matched?.isPrimary ?? true,
+    sortOrder: incoming.sortOrder ?? matched?.sortOrder ?? 100,
+    enabled: incoming.enabled ?? matched?.enabled ?? true,
+    moduleKeys: incoming.moduleKeys?.length ? incoming.moduleKeys : matched?.moduleKeys || [],
+    packageKeys: incoming.packageKeys?.length ? incoming.packageKeys : matched?.packageKeys || [],
+    packageNames: incoming.packageNames?.length ? incoming.packageNames : matched?.packageNames || [],
+    remarks: incoming.remarks ?? matched?.remarks,
   };
 }
 

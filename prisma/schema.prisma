@@ -692,6 +692,7 @@ model SkillConfig {
   brandSkillProfiles BrandSkillProfile[]
   brandPromptOverrides BrandPromptOverride[]
   brandSkillResetLogs BrandSkillResetLog[]
+  promptBindings SkillPromptBinding[]
 }
 
 model PromptTemplate {
@@ -708,8 +709,32 @@ model PromptTemplate {
 
   userPromptOverrides UserPromptOverride[]
   brandPromptOverrides BrandPromptOverride[]
+  skillBindings SkillPromptBinding[]
 
   @@index([scene, updatedAt(sort: Desc)])
+}
+
+model SkillPromptBinding {
+  id          String         @id
+  skillId     String
+  promptId    String
+  skillSlug   String
+  promptScene String
+  bindingType String         @default("PRIMARY")
+  isPrimary   Boolean        @default(false)
+  sortOrder   Int            @default(100)
+  enabled     Boolean        @default(true)
+  remarks     String         @default("")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  skill       SkillConfig    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  prompt      PromptTemplate @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, promptId])
+  @@index([skillSlug, enabled, sortOrder])
+  @@index([promptScene, enabled, sortOrder])
+  @@index([promptId, enabled, sortOrder])
 }
 
 model BrandSkillProfile {

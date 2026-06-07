@@ -35,6 +35,23 @@ type PromptTemplateRow = {
   updatedAt: Date | string;
 };
 
+type SkillPromptBindingRow = {
+  id: string;
+  skillId: string;
+  promptId: string;
+  skillSlug: string;
+  promptScene: string;
+  bindingType: string;
+  isPrimary: boolean;
+  sortOrder: number;
+  enabled: boolean;
+  remarks: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  skillName?: string;
+  promptName?: string;
+};
+
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
   defaultModel?: string;
@@ -70,6 +87,49 @@ export type CreatePromptTemplatePayload = {
   temperature?: number;
   maxTokens?: number;
   content?: string;
+};
+
+export type SkillPromptBindingRecord = {
+  id: string;
+  skillId: string;
+  skillSlug: string;
+  skillName?: string;
+  promptId: string;
+  promptScene: string;
+  promptName?: string;
+  bindingType: "PRIMARY" | "SUPPLEMENTAL" | "FALLBACK";
+  isPrimary: boolean;
+  sortOrder: number;
+  enabled: boolean;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListSkillPromptBindingsQuery = {
+  skillSlug?: string;
+  promptScene?: string;
+  enabled?: boolean;
+};
+
+export type CreateSkillPromptBindingPayload = {
+  skillId?: string;
+  skillSlug?: string;
+  promptId?: string;
+  promptScene?: string;
+  bindingType?: SkillPromptBindingRecord["bindingType"];
+  isPrimary?: boolean;
+  sortOrder?: number;
+  enabled?: boolean;
+  remarks?: string;
+};
+
+export type UpdateSkillPromptBindingPayload = {
+  bindingType?: SkillPromptBindingRecord["bindingType"];
+  isPrimary?: boolean;
+  sortOrder?: number;
+  enabled?: boolean;
+  remarks?: string;
 };
 
 type SkillPromptBindingRule = {
@@ -715,6 +775,8 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
 @Injectable()
 export class SkillsPromptsService {
   private registryBootstrapPromise?: Promise<void>;
+  private skillPromptBindingCache = new Map<string, string[]>();
+  private legacySkillPromptBindings?: SkillPromptBindingRecord[];
 
   private readonly promptFileCandidates = PROMPT_SOURCE_CANDIDATES;
 
@@ -978,6 +1040,154 @@ export class SkillsPromptsService {
     return { ...prompt };
   }
 
+  async listSkillPromptBindings(query: ListSkillPromptBindingsQuery = {}) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const bindings = await this.listSkillPromptBindingRowsFromDatabase();
+      return bindings.filter((item) => this.matchSkillPromptBindingQuery(item, query));
+    }
+    return this.buildLegacySkillPromptBindings().filter((item) => this.matchSkillPromptBindingQuery(item, query));
+  }
+
+  async listSkillPromptBindingsBySkill(skillSlug: string, enabled?: boolean) {
+    return this.listSkillPromptBindings({
+      skillSlug,
+      enabled,
+    });
+  }
+
+  async createSkillPromptBinding(payload: CreateSkillPromptBindingPayload) {
+    const skill = await this.resolveSkillForBinding(payload);
+    const prompt = await this.resolvePromptForBinding(payload);
+    const bindingType = this.normalizeSkillPromptBindingType(payload.bindingType);
+    const isPrimary = payload.isPrimary ?? bindingType === "PRIMARY";
+    const sortOrder = Number.isFinite(payload.sortOrder) ? Number(payload.sortOrder) : 100;
+    const enabled = payload.enabled ?? true;
+    const remarks = String(payload.remarks || "").trim();
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const current = await this.findSkillPromptBindingBySkillAndPrompt(skill.id, prompt.id);
+      const bindingId = current?.id || createId("skill_prompt_binding");
+
+      if (isPrimary) {
+        await this.clearPrimarySkillPromptBindings(skill.id, current?.id);
+      }
+
+      const rows = await this.prismaService.$queryRaw<SkillPromptBindingRow[]>`
+        INSERT INTO "SkillPromptBinding" (
+          "id",
+          "skillId",
+          "promptId",
+          "skillSlug",
+          "promptScene",
+          "bindingType",
+          "isPrimary",
+          "sortOrder",
+          "enabled",
+          "remarks",
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          ${bindingId},
+          ${skill.id},
+          ${prompt.id},
+          ${skill.slug},
+          ${prompt.scene},
+          ${bindingType},
+          ${isPrimary},
+          ${sortOrder},
+          ${enabled},
+          ${remarks},
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("skillId","promptId") DO UPDATE SET
+          "skillSlug" = EXCLUDED."skillSlug",
+          "promptScene" = EXCLUDED."promptScene",
+          "bindingType" = EXCLUDED."bindingType",
+          "isPrimary" = EXCLUDED."isPrimary",
+          "sortOrder" = EXCLUDED."sortOrder",
+          "enabled" = EXCLUDED."enabled",
+          "remarks" = EXCLUDED."remarks",
+          "updatedAt" = CURRENT_TIMESTAMP
+        RETURNING *
+      `;
+      await this.refreshSkillPromptBindingCache();
+      const joined = await this.findSkillPromptBindingByIdFromDatabase(rows[0]?.id || bindingId);
+      return this.normalizeSkillPromptBindingRow(joined || rows[0]);
+    }
+
+    const next: SkillPromptBindingRecord = {
+      id: createId("skill_prompt_binding"),
+      skillId: skill.id,
+      skillSlug: skill.slug,
+      skillName: skill.name,
+      promptId: prompt.id,
+      promptScene: prompt.scene,
+      promptName: prompt.name,
+      bindingType,
+      isPrimary,
+      sortOrder,
+      enabled,
+      remarks,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.upsertLegacySkillPromptBinding(next);
+    this.rebuildSkillPromptBindingCacheFromRecords(this.buildLegacySkillPromptBindings());
+    return next;
+  }
+
+  async updateSkillPromptBinding(id: string, payload: UpdateSkillPromptBindingPayload) {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const current = await this.findSkillPromptBindingByIdFromDatabase(id);
+      if (!current) {
+        throw new NotFoundException("技能提示词绑定不存在");
+      }
+      const nextBindingType = this.normalizeSkillPromptBindingType(payload.bindingType ?? current.bindingType);
+      const nextIsPrimary = payload.isPrimary ?? current.isPrimary;
+      if (nextIsPrimary) {
+        await this.clearPrimarySkillPromptBindings(current.skillId, current.id);
+      }
+      const rows = await this.prismaService.$queryRaw<SkillPromptBindingRow[]>`
+        UPDATE "SkillPromptBinding"
+        SET
+          "bindingType" = ${nextBindingType},
+          "isPrimary" = ${nextIsPrimary},
+          "sortOrder" = ${payload.sortOrder ?? current.sortOrder},
+          "enabled" = ${payload.enabled ?? current.enabled},
+          "remarks" = ${payload.remarks !== undefined ? String(payload.remarks || "").trim() : current.remarks},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${id}
+        RETURNING *
+      `;
+      await this.refreshSkillPromptBindingCache();
+      const joined = await this.findSkillPromptBindingByIdFromDatabase(id);
+      return this.normalizeSkillPromptBindingRow(joined || rows[0] || current);
+    }
+
+    const bindings = this.buildLegacySkillPromptBindings();
+    const current = bindings.find((item) => item.id === id);
+    if (!current) {
+      throw new NotFoundException("技能提示词绑定不存在");
+    }
+    const updated: SkillPromptBindingRecord = {
+      ...current,
+      bindingType: this.normalizeSkillPromptBindingType(payload.bindingType ?? current.bindingType),
+      isPrimary: payload.isPrimary ?? current.isPrimary,
+      sortOrder: payload.sortOrder ?? current.sortOrder,
+      enabled: payload.enabled ?? current.enabled,
+      remarks: payload.remarks !== undefined ? String(payload.remarks || "").trim() : current.remarks,
+      updatedAt: new Date().toISOString(),
+    };
+    this.upsertLegacySkillPromptBinding(updated, true);
+    this.rebuildSkillPromptBindingCacheFromRecords(this.buildLegacySkillPromptBindings());
+    return updated;
+  }
+
   async getActiveSkillBySlug(slug: string) {
     const skill = await this.getSkillBySlug(slug);
     return skill?.status === "ACTIVE" ? skill : undefined;
@@ -1053,6 +1263,11 @@ export class SkillsPromptsService {
   }
 
   resolvePromptIdsForSkill(skill: SkillConfigRecord, prompts: PromptTemplateRecord[]) {
+    const cachedIds = this.skillPromptBindingCache.get(skill.id) || this.skillPromptBindingCache.get(skill.slug);
+    if (cachedIds?.length) {
+      return cachedIds.filter((promptId, index, list) => list.indexOf(promptId) === index);
+    }
+
     const binding = SKILL_PROMPT_BINDINGS[skill.id] || SKILL_PROMPT_BINDINGS[skill.slug];
     const matched: string[] = [];
     const seen = new Set<string>();
@@ -1164,6 +1379,34 @@ export class SkillsPromptsService {
     await this.prismaService.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "PromptTemplate_scene_updatedAt_idx" ON "PromptTemplate" ("scene", "updatedAt" DESC)`,
     );
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SkillPromptBinding" (
+        "id" TEXT PRIMARY KEY,
+        "skillId" TEXT NOT NULL,
+        "promptId" TEXT NOT NULL,
+        "skillSlug" TEXT NOT NULL,
+        "promptScene" TEXT NOT NULL,
+        "bindingType" TEXT NOT NULL DEFAULT 'PRIMARY',
+        "isPrimary" BOOLEAN NOT NULL DEFAULT false,
+        "sortOrder" INTEGER NOT NULL DEFAULT 100,
+        "enabled" BOOLEAN NOT NULL DEFAULT true,
+        "remarks" TEXT NOT NULL DEFAULT '',
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "SkillPromptBinding_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "SkillConfig"("id") ON DELETE CASCADE,
+        CONSTRAINT "SkillPromptBinding_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "PromptTemplate"("id") ON DELETE CASCADE,
+        CONSTRAINT "SkillPromptBinding_skillId_promptId_key" UNIQUE ("skillId", "promptId")
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "SkillPromptBinding_skillSlug_enabled_sortOrder_idx" ON "SkillPromptBinding" ("skillSlug", "enabled", "sortOrder")`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "SkillPromptBinding_promptScene_enabled_sortOrder_idx" ON "SkillPromptBinding" ("promptScene", "enabled", "sortOrder")`,
+    );
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "SkillPromptBinding_promptId_enabled_sortOrder_idx" ON "SkillPromptBinding" ("promptId", "enabled", "sortOrder")`,
+    );
 
     for (const skill of database.skillConfigs) {
       await this.prismaService.$executeRaw`
@@ -1232,6 +1475,8 @@ export class SkillsPromptsService {
     await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
+    await this.backfillLegacySkillPromptBindings();
+    await this.refreshSkillPromptBindingCache();
   }
 
   private async backfillDouyinOriginalCopyPromptContents() {
@@ -1298,6 +1543,43 @@ export class SkillsPromptsService {
     `;
   }
 
+  private async backfillLegacySkillPromptBindings() {
+    const records = this.buildLegacySkillPromptBindings();
+    for (const item of records) {
+      await this.prismaService.$executeRaw`
+        INSERT INTO "SkillPromptBinding" (
+          "id",
+          "skillId",
+          "promptId",
+          "skillSlug",
+          "promptScene",
+          "bindingType",
+          "isPrimary",
+          "sortOrder",
+          "enabled",
+          "remarks",
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          ${item.id},
+          ${item.skillId},
+          ${item.promptId},
+          ${item.skillSlug},
+          ${item.promptScene},
+          ${item.bindingType},
+          ${item.isPrimary},
+          ${item.sortOrder},
+          ${item.enabled},
+          ${item.remarks || ""},
+          ${new Date(item.createdAt)},
+          ${new Date(item.updatedAt)}
+        )
+        ON CONFLICT ("skillId","promptId") DO NOTHING
+      `;
+    }
+  }
+
   private async findSkillByIdFromDatabase(id: string) {
     const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
       SELECT *
@@ -1336,6 +1618,234 @@ export class SkillsPromptsService {
       LIMIT 1
     `;
     return rows[0];
+  }
+
+  private async listSkillPromptBindingRowsFromDatabase() {
+    const rows = await this.prismaService.$queryRaw<SkillPromptBindingRow[]>`
+      SELECT
+        binding.*,
+        skill."name" AS "skillName",
+        prompt."name" AS "promptName"
+      FROM "SkillPromptBinding" AS binding
+      INNER JOIN "SkillConfig" AS skill ON skill."id" = binding."skillId"
+      INNER JOIN "PromptTemplate" AS prompt ON prompt."id" = binding."promptId"
+      ORDER BY binding."isPrimary" DESC, binding."sortOrder" ASC, binding."updatedAt" DESC
+    `;
+    return rows.map((item) => this.normalizeSkillPromptBindingRow(item));
+  }
+
+  private async findSkillPromptBindingByIdFromDatabase(id: string) {
+    const rows = await this.prismaService.$queryRaw<SkillPromptBindingRow[]>`
+      SELECT
+        binding.*,
+        skill."name" AS "skillName",
+        prompt."name" AS "promptName"
+      FROM "SkillPromptBinding" AS binding
+      INNER JOIN "SkillConfig" AS skill ON skill."id" = binding."skillId"
+      INNER JOIN "PromptTemplate" AS prompt ON prompt."id" = binding."promptId"
+      WHERE binding."id" = ${id}
+      LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  private async findSkillPromptBindingBySkillAndPrompt(skillId: string, promptId: string) {
+    const rows = await this.prismaService.$queryRaw<SkillPromptBindingRow[]>`
+      SELECT *
+      FROM "SkillPromptBinding"
+      WHERE "skillId" = ${skillId}
+        AND "promptId" = ${promptId}
+      LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  private async clearPrimarySkillPromptBindings(skillId: string, excludeId?: string) {
+    if (excludeId) {
+      await this.prismaService.$executeRaw`
+        UPDATE "SkillPromptBinding"
+        SET
+          "isPrimary" = false,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "skillId" = ${skillId}
+          AND "id" <> ${excludeId}
+      `;
+      return;
+    }
+    await this.prismaService.$executeRaw`
+      UPDATE "SkillPromptBinding"
+      SET
+        "isPrimary" = false,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "skillId" = ${skillId}
+    `;
+  }
+
+  private async refreshSkillPromptBindingCache() {
+    if (await this.prismaService.canUseDatabase()) {
+      const records = await this.listSkillPromptBindingRowsFromDatabase();
+      this.rebuildSkillPromptBindingCacheFromRecords(records);
+      return;
+    }
+    this.rebuildSkillPromptBindingCacheFromRecords(this.getLegacySkillPromptBindingsStore());
+  }
+
+  private rebuildSkillPromptBindingCacheFromRecords(records: SkillPromptBindingRecord[]) {
+    const next = new Map<string, string[]>();
+    records
+      .filter((item) => item.enabled)
+      .sort((left, right) => {
+        if (left.skillId !== right.skillId) {
+          return left.skillId.localeCompare(right.skillId);
+        }
+        if (left.isPrimary !== right.isPrimary) {
+          return left.isPrimary ? -1 : 1;
+        }
+        return left.sortOrder - right.sortOrder;
+      })
+      .forEach((item) => {
+        const idsBySkillId = next.get(item.skillId) || [];
+        idsBySkillId.push(item.promptId);
+        next.set(item.skillId, idsBySkillId);
+
+        const idsBySkillSlug = next.get(item.skillSlug) || [];
+        idsBySkillSlug.push(item.promptId);
+        next.set(item.skillSlug, idsBySkillSlug);
+      });
+    this.skillPromptBindingCache = next;
+  }
+
+  private getLegacySkillPromptBindingsStore() {
+    if (!this.legacySkillPromptBindings) {
+      this.legacySkillPromptBindings = this.buildLegacySkillPromptBindings();
+    }
+    return this.legacySkillPromptBindings;
+  }
+
+  private buildLegacySkillPromptBindings() {
+    const skills = database.skillConfigs;
+    const prompts = database.promptTemplates;
+    const records: SkillPromptBindingRecord[] = [];
+    const existed = new Set<string>();
+
+    Object.entries(SKILL_PROMPT_BINDINGS).forEach(([skillKey, rule]) => {
+      const skill = skills.find((item) => item.id === skillKey || item.slug === skillKey);
+      if (!skill) {
+        return;
+      }
+      const promptQueue: PromptTemplateRecord[] = [];
+      const seenPromptId = new Set<string>();
+      rule.promptIds?.forEach((promptId) => {
+        const prompt = prompts.find((item) => item.id === promptId);
+        if (prompt && !seenPromptId.has(prompt.id)) {
+          seenPromptId.add(prompt.id);
+          promptQueue.push(prompt);
+        }
+      });
+      rule.promptScenes?.forEach((scene) => {
+        const prompt = prompts.find((item) => item.scene === scene);
+        if (prompt && !seenPromptId.has(prompt.id)) {
+          seenPromptId.add(prompt.id);
+          promptQueue.push(prompt);
+        }
+      });
+
+      promptQueue.forEach((prompt, index) => {
+        const uniqueKey = `${skill.id}:${prompt.id}`;
+        if (existed.has(uniqueKey)) {
+          return;
+        }
+        existed.add(uniqueKey);
+        records.push({
+          id: `spb_${skill.id}_${prompt.id}`,
+          skillId: skill.id,
+          skillSlug: skill.slug,
+          skillName: skill.name,
+          promptId: prompt.id,
+          promptScene: prompt.scene,
+          promptName: prompt.name,
+          bindingType: index === 0 ? "PRIMARY" : "SUPPLEMENTAL",
+          isPrimary: index === 0,
+          sortOrder: 100 + index * 10,
+          enabled: true,
+          remarks: "由历史技能提示词映射自动回填。",
+          createdAt: skill.updatedAt,
+          updatedAt: prompt.updatedAt || skill.updatedAt,
+        });
+      });
+    });
+
+    return records;
+  }
+
+  private upsertLegacySkillPromptBinding(record: SkillPromptBindingRecord, replace = false) {
+    const store = this.getLegacySkillPromptBindingsStore();
+    if (record.isPrimary) {
+      store.forEach((item, index) => {
+        if (item.skillId === record.skillId && item.id !== record.id) {
+          store[index] = { ...item, isPrimary: false };
+        }
+      });
+    }
+    const index = store.findIndex((item) => item.skillId === record.skillId && item.promptId === record.promptId);
+    if (index >= 0) {
+      store[index] = replace ? record : { ...store[index], ...record, updatedAt: new Date().toISOString() };
+      return;
+    }
+    store.unshift(record);
+  }
+
+  private matchSkillPromptBindingQuery(item: SkillPromptBindingRecord, query: ListSkillPromptBindingsQuery) {
+    if (query.skillSlug && item.skillSlug !== query.skillSlug) {
+      return false;
+    }
+    if (query.promptScene && item.promptScene !== query.promptScene) {
+      return false;
+    }
+    if (typeof query.enabled === "boolean" && item.enabled !== query.enabled) {
+      return false;
+    }
+    return true;
+  }
+
+  private async resolveSkillForBinding(payload: CreateSkillPromptBindingPayload) {
+    const byId = payload.skillId ? await this.getSkillById(String(payload.skillId).trim()) : undefined;
+    if (byId) {
+      return byId;
+    }
+    const skillSlug = this.normalizeSkillSlug(payload.skillSlug);
+    const bySlug = await this.getSkillBySlug(skillSlug);
+    if (!bySlug) {
+      throw new BadRequestException("绑定的技能不存在");
+    }
+    return bySlug;
+  }
+
+  private async resolvePromptForBinding(payload: CreateSkillPromptBindingPayload) {
+    const promptId = String(payload.promptId || "").trim();
+    if (promptId) {
+      const byId = await this.getPromptById(promptId);
+      if (!byId) {
+        throw new BadRequestException("绑定的提示词不存在");
+      }
+      return byId;
+    }
+    const promptScene = String(payload.promptScene || "").trim();
+    if (!promptScene) {
+      throw new BadRequestException("提示词场景不能为空");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const byScene = await this.findPromptBySceneFromDatabase(promptScene);
+      if (byScene) {
+        return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(byScene));
+      }
+    }
+    const prompt = database.promptTemplates.find((item) => item.scene === promptScene);
+    if (!prompt) {
+      throw new BadRequestException("绑定的提示词不存在");
+    }
+    return this.hydratePromptTemplateRecord(prompt);
   }
 
   private getPromptSourceBundle(promptId: string, fallback: string) {
@@ -1396,6 +1906,25 @@ export class SkillsPromptsService {
     };
   }
 
+  private normalizeSkillPromptBindingRow(row: SkillPromptBindingRow): SkillPromptBindingRecord {
+    return {
+      id: row.id,
+      skillId: row.skillId,
+      skillSlug: row.skillSlug,
+      skillName: row.skillName,
+      promptId: row.promptId,
+      promptScene: row.promptScene,
+      promptName: row.promptName,
+      bindingType: this.normalizeSkillPromptBindingType(row.bindingType),
+      isPrimary: Boolean(row.isPrimary),
+      sortOrder: Number(row.sortOrder || 0),
+      enabled: Boolean(row.enabled),
+      remarks: row.remarks || "",
+      createdAt: this.normalizeDate(row.createdAt),
+      updatedAt: this.normalizeDate(row.updatedAt),
+    };
+  }
+
   private normalizeDate(value: Date | string) {
     if (value instanceof Date) {
       return value.toISOString();
@@ -1412,6 +1941,14 @@ export class SkillsPromptsService {
       return VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL;
     }
     return value;
+  }
+
+  private normalizeSkillPromptBindingType(value: unknown): SkillPromptBindingRecord["bindingType"] {
+    const normalized = String(value || "PRIMARY").trim().toUpperCase();
+    if (normalized === "SUPPLEMENTAL" || normalized === "FALLBACK") {
+      return normalized;
+    }
+    return "PRIMARY";
   }
 
   private normalizeSkillSlug(value: unknown) {

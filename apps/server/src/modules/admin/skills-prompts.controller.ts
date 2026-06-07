@@ -2,10 +2,12 @@ import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/comm
 import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
+  type CreateSkillPromptBindingPayload,
   type CreatePromptTemplatePayload,
   type CreateSkillConfigPayload,
   SkillsPromptsService,
   type UpdatePromptTemplatePayload,
+  type UpdateSkillPromptBindingPayload,
   type UpdateSkillConfigPayload,
 } from "./skills-prompts.service";
 
@@ -64,5 +66,41 @@ export class SkillsPromptsController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillsPromptsService.updatePrompt(id, payload);
+  }
+
+  @Get("skill-prompt-bindings")
+  async listSkillPromptBindings(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.skillsPromptsService.listSkillPromptBindings();
+  }
+
+  @Get("skill-prompt-bindings/by-skill/:skillSlug")
+  async listSkillPromptBindingsBySkill(
+    @Param("skillSlug") skillSlug: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.skillsPromptsService.listSkillPromptBindingsBySkill(skillSlug);
+  }
+
+  @Post("skill-prompt-bindings")
+  async createSkillPromptBinding(
+    @Body() payload: CreateSkillPromptBindingPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillsPromptsService.createSkillPromptBinding(payload);
+  }
+
+  @Patch("skill-prompt-bindings/:id")
+  async updateSkillPromptBinding(
+    @Param("id") id: string,
+    @Body() payload: UpdateSkillPromptBindingPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillsPromptsService.updateSkillPromptBinding(id, payload);
   }
 }
