@@ -116,7 +116,7 @@ type CreateSkillDraft = {
   promptScene: string;
   bindingRemarks: string;
 };
-type AssetsWorkspaceTab = "overview" | "createSkill";
+type AssetsWorkspaceTab = "overview" | "skillZone";
 type CreatePromptDraft = {
   name: string;
   scene: string;
@@ -299,6 +299,7 @@ export default function AdminPage() {
   const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
   const [newPrompt, setNewPrompt] = useState<CreatePromptDraft>(buildCreatePromptDraft());
   const [activeAssetsWorkspaceTab, setActiveAssetsWorkspaceTab] = useState<AssetsWorkspaceTab>("overview");
+  const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
@@ -2051,6 +2052,19 @@ export default function AdminPage() {
   }, [activeSkillLeafId, activeSkillPrimaryId, activeSkillSectionId, filteredSkillTree]);
 
   useEffect(() => {
+    if (!isCreateSkillModalOpen) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isCreatingSkill) {
+        handleCloseCreateSkillModal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreateSkillModalOpen, isCreatingSkill]);
+
+  useEffect(() => {
     if (!isCreatePromptModalOpen) {
       return;
     }
@@ -2143,15 +2157,16 @@ export default function AdminPage() {
   }
 
   function handleOpenCreateSkillModal() {
+    setActiveAssetsWorkspaceTab("skillZone");
     setNewSkill(buildCreateSkillDraft());
-    setActiveAssetsWorkspaceTab("createSkill");
+    setIsCreateSkillModalOpen(true);
   }
 
   function handleCloseCreateSkillModal() {
     if (isCreatingSkill) {
       return;
     }
-    setActiveAssetsWorkspaceTab("overview");
+    setIsCreateSkillModalOpen(false);
     setNewSkill(buildCreateSkillDraft());
   }
 
@@ -2254,7 +2269,8 @@ export default function AdminPage() {
       setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
       await upsertSkillAssetBinding(created, requestedPromptScene);
       setNotice(`技能已创建：${created.name}`);
-      setActiveAssetsWorkspaceTab("overview");
+      setActiveAssetsWorkspaceTab("skillZone");
+      setIsCreateSkillModalOpen(false);
       setNewSkill(buildCreateSkillDraft());
       return;
     } catch (error) {
@@ -2268,7 +2284,8 @@ export default function AdminPage() {
         setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
         await upsertSkillAssetBinding(created, requestedPromptScene);
         setNotice(`演示技能已创建：${created.name}`);
-        setActiveAssetsWorkspaceTab("overview");
+        setActiveAssetsWorkspaceTab("skillZone");
+        setIsCreateSkillModalOpen(false);
         setNewSkill(buildCreateSkillDraft());
         return;
       }
@@ -2758,289 +2775,325 @@ export default function AdminPage() {
             ))}
           </div>
         ) : activeTab === "assets" ? (
-          <div className="admin-skill-center-layout">
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                display: "grid",
-                gridTemplateColumns: "220px minmax(0, 1fr)",
-                gap: 16,
-                alignItems: "start",
-              }}
-            >
-              <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished">
-                <div className="admin-skill-card-topline">
-                  <span className="admin-skill-card-kicker">工作台</span>
-                  <span className="archive-pill status-ready">2 个板块</span>
-                </div>
-                <div className="personal-meta" style={{ marginBottom: 16 }}>
-                  把能力包摘要与技能创建拆开，减少页面堆叠和填表干扰。
-                </div>
-                <div style={{ display: "grid", gap: 12 }}>
-                  <button
-                    type="button"
-                    className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "overview" ? " active" : ""}`}
-                    onClick={() => setActiveAssetsWorkspaceTab("overview")}
-                  >
-                    <span className="admin-skill-primary-mark">摘</span>
-                    <span className="admin-skill-primary-button-copy">
-                      <strong>能力包摘要</strong>
-                      <small>查看统一技能中心摘要</small>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "createSkill" ? " active" : ""}`}
-                    onClick={handleOpenCreateSkillModal}
-                  >
-                    <span className="admin-skill-primary-mark">建</span>
-                    <span className="admin-skill-primary-button-copy">
-                      <strong>创建技能</strong>
-                      <small>用下拉和选择器登记归属</small>
-                    </span>
-                  </button>
-                </div>
-              </aside>
-              <div>
-                {activeAssetsWorkspaceTab === "overview" ? (
-                  <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
-                ) : (
-                  <CreateSkillWorkspace
-                    draft={newSkill}
-                    isCreating={isCreatingSkill}
-                    moduleOptions={skillModuleFilterOptions}
-                    packageOptions={skillPackageFilterOptions}
-                    providerOptions={createSkillProviderOptions}
-                    modelOptions={createSkillModelOptions}
-                    categoryOptions={createSkillCategoryOptions}
-                    promptSceneOptions={createSkillPromptSceneOptions}
-                    onChange={(field, value) => setNewSkill((current) => ({ ...current, [field]: value }))}
-                    onCancel={handleCloseCreateSkillModal}
-                    onSubmit={() => void handleCreateSkill()}
-                  />
-                )}
-              </div>
-            </div>
-            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "220px minmax(0, 1fr)",
+              gap: 16,
+              alignItems: "start",
+            }}
+          >
+            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished">
               <div className="admin-skill-card-topline">
-                <span className="admin-skill-card-kicker">技能目录</span>
-                <span className="archive-pill status-ready">
-                  {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
-                </span>
+                <span className="admin-skill-card-kicker">菜单</span>
+                <span className="archive-pill status-ready">2 个板块</span>
               </div>
-              <div className="personal-actions" style={{ marginBottom: 16 }}>
-                <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
-                  创建技能
+              <div style={{ display: "grid", gap: 12 }}>
+                <button
+                  type="button"
+                  className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "overview" ? " active" : ""}`}
+                  onClick={() => setActiveAssetsWorkspaceTab("overview")}
+                >
+                  <span className="admin-skill-primary-mark">摘</span>
+                  <span className="admin-skill-primary-button-copy">
+                    <strong>能力包摘要</strong>
+                    <small>仅查看能力包摘要</small>
+                  </span>
                 </button>
-                <button type="button" className="secondary-button" onClick={handleOpenCreatePromptModal}>
-                  创建提示词
-                </button>
-              </div>
-              <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
-                <label>
-                  <span>模块筛选</span>
-                  <select value={skillModuleFilter} onChange={(event) => setSkillModuleFilter(event.target.value)}>
-                    <option value="ALL">全部模块</option>
-                    {skillModuleFilterOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>能力包筛选</span>
-                  <select value={skillPackageFilter} onChange={(event) => setSkillPackageFilter(event.target.value)}>
-                    <option value="ALL">全部能力包</option>
-                    {skillPackageFilterOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ gridColumn: "1 / -1" }}>
-                  <span>关键词</span>
-                  <input
-                    value={skillKeywordFilter}
-                    placeholder="模块 / 能力包 / 技能 / 提示词"
-                    onChange={(event) => setSkillKeywordFilter(event.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="personal-actions" style={{ marginBottom: 16 }}>
-                <button type="button" className="secondary-button" onClick={() => {
-                  setSkillModuleFilter("ALL");
-                  setSkillPackageFilter("ALL");
-                  setSkillKeywordFilter("");
-                }}>
-                  重置筛选
+                <button
+                  type="button"
+                  className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "skillZone" ? " active" : ""}`}
+                  onClick={() => setActiveAssetsWorkspaceTab("skillZone")}
+                >
+                  <span className="admin-skill-primary-mark">技</span>
+                  <span className="admin-skill-primary-button-copy">
+                    <strong>技能专区</strong>
+                    <small>技能目录与技能呈现</small>
+                  </span>
                 </button>
               </div>
-              <div className="admin-skill-primary-list">
-                {filteredSkillTree.map((primary) => {
-                  const primaryActive = activeSkillPrimaryId === primary.id;
-                  const primaryExpanded = isSkillPrimaryExpanded(primary.id);
-
-                  return (
-                    <div
-                      className={`entity-card admin-skill-primary-group${primaryExpanded ? " expanded" : ""}`}
-                      key={primary.id}
-                    >
-                      <button
-                        type="button"
-                        className={`admin-skill-primary-button${primaryActive ? " active" : ""}`}
-                        onClick={() => handleToggleSkillPrimary(primary.id)}
-                      >
-                        <span className="admin-skill-primary-mark">{primary.label.slice(0, 1)}</span>
-                        <span className="admin-skill-primary-button-copy">
-                          <strong>{primary.label}</strong>
-                          <small>{primary.sections.length} 个二级分类</small>
-                        </span>
-                        <span className={`admin-skill-primary-arrow${primaryExpanded ? " expanded" : ""}`}>⌄</span>
-                      </button>
-                      {primaryExpanded ? (
-                        <div className="admin-skill-tree-sections">
-                          {primary.sections.map((section) => {
-                            const sectionActive = primary.id === activeSkillPrimaryId && section.id === activeSkillSectionId;
-                            const sectionExpanded = isSkillSectionExpanded(primary.id, section.id);
-
-                            return (
-                              <div className="entity-card admin-skill-tree-section" key={section.id}>
-                                <button
-                                  type="button"
-                                  className={`admin-skill-tree-section-button${sectionActive ? " active" : ""}`}
-                                  onClick={() => handleToggleSkillSection(primary.id, section.id)}
-                                >
-                                  <span className="admin-skill-tree-section-label">{section.label}</span>
-                                  <small>{sectionExpanded ? "收起" : `${section.items.length}`}</small>
-                                </button>
-                                {sectionExpanded ? (
-                                  <div className="admin-skill-tree-leaf-list">
-                                    {section.items.map((leaf) => {
-                                      const leafActive =
-                                        primary.id === activeSkillPrimaryId &&
-                                        section.id === activeSkillSectionId &&
-                                        leaf.id === activeSkillLeafId;
-
-                                      return (
-                                        <button
-                                          type="button"
-                                          className={`admin-skill-tree-leaf-button${leafActive ? " active" : ""}`}
-                                          key={leaf.id}
-                                          onClick={() => handleSelectSkillLeaf(primary.id, section.id, leaf.id)}
-                                        >
-                                          <span className="admin-skill-tree-leaf-dot" />
-                                          <strong>{leaf.label}</strong>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-              {!filteredSkillTree.length ? <div className="admin-skill-empty">当前筛选条件下没有匹配的技能项。</div> : null}
             </aside>
-            <section className="panel personal-center-panel admin-skill-center-panel">
-              {activeSkillLeaf ? (
-                <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
+
+            {activeAssetsWorkspaceTab === "overview" ? (
+              <div>
+                <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
+              </div>
+            ) : (
+              <div
+                className="admin-skill-center-layout"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(320px, 360px) minmax(0, 1fr)",
+                  gap: 16,
+                  alignItems: "start",
+                }}
+              >
+                <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
                   <div className="admin-skill-card-topline">
-                    <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "技能中心"}</span>
-                    <span className={`archive-pill ${getStatusClassName(skillCenterStatus)}`}>{getStatusLabel(skillCenterStatus)}</span>
+                    <span className="admin-skill-card-kicker">技能专区</span>
+                    <span className="archive-pill status-ready">
+                      {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
+                    </span>
                   </div>
-                  <div className="admin-skill-card-header">
-                    <div>
-                      <strong>{activeSkillLeaf.label}</strong>
-                      <p>{activeSkillLeaf.description || activeSkillSection?.label || "技能分类"}</p>
-                    </div>
+                  <div className="personal-actions" style={{ marginBottom: 16 }}>
+                    <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
+                      创建技能
+                    </button>
+                    <button type="button" className="secondary-button" onClick={handleOpenCreatePromptModal}>
+                      创建提示词
+                    </button>
                   </div>
-                  <div className="admin-skill-simple-grid">
-                    <label className="admin-skill-field">
-                      <span>当前提示词</span>
-                      <input value={skillCenterName} readOnly />
-                    </label>
-                    <label className="admin-skill-field">
-                      <span>所属执行技能</span>
-                      <input value={activeSkillConfig?.name || "-"} readOnly />
-                    </label>
-                    <label className="admin-skill-field">
-                      <span>所属模块</span>
-                      <input value={activeSkillModuleLabel} readOnly />
-                    </label>
-                    <label className="admin-skill-field">
-                      <span>所属能力包</span>
-                      <input value={activeSkillPackageLabel} readOnly />
-                    </label>
-                    <label className="admin-skill-field">
-                      <span>状态</span>
-                      <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
-                        <option value="ACTIVE">启用中</option>
-                        <option value="DRAFT">草稿</option>
-                        <option value="DISABLED">停用</option>
-                      </select>
-                    </label>
-                    <label className="admin-skill-field">
-                      <span>默认模型</span>
-                      <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
-                        {(skillModelOptions.length ? skillModelOptions : [buildFallbackScopedModelOption(skillCenterModel || "gpt-5.4-nano")]).map((option) => (
-                          <option value={option.value} key={option.value}>
-                            {option.label}
+                  <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
+                    <label>
+                      <span>模块筛选</span>
+                      <select value={skillModuleFilter} onChange={(event) => setSkillModuleFilter(event.target.value)}>
+                        <option value="ALL">全部模块</option>
+                        {skillModuleFilterOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
                           </option>
                         ))}
                       </select>
                     </label>
-                    <label className="admin-skill-field">
-                      <span>提示词场景</span>
-                      <input value={resolvedActivePromptScene || "-"} readOnly />
+                    <label>
+                      <span>能力包筛选</span>
+                      <select value={skillPackageFilter} onChange={(event) => setSkillPackageFilter(event.target.value)}>
+                        <option value="ALL">全部能力包</option>
+                        {skillPackageFilterOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
-                    <label className="admin-skill-field">
-                      <span>点数成本</span>
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      <span>关键词</span>
                       <input
-                        type="number"
-                        value={skillCenterPointsCost}
-                        onChange={(event) => handleSkillCenterPointsCostChange(event.target.value)}
-                        disabled={!activeSkillConfig}
+                        value={skillKeywordFilter}
+                        placeholder="模块 / 能力包 / 技能 / 提示词"
+                        onChange={(event) => setSkillKeywordFilter(event.target.value)}
                       />
                     </label>
-                    <label className="admin-skill-field admin-skill-field--wide">
-                      <span>更新时间</span>
-                      <input value={skillCenterUpdatedAtLabel} readOnly />
-                    </label>
-                    <label className="admin-skill-field admin-skill-field--wide">
-                      <span>归属说明</span>
-                      <input value={activeSkillBindingLabel} readOnly />
-                    </label>
                   </div>
-                  <label className="admin-skill-field admin-skill-field--full">
-                    <span>提示词内容</span>
-                    <textarea
-                      value={skillCenterPromptValue}
-                      onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
-                      placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
-                    />
-                  </label>
-                  <div className="admin-skill-form-actions">
+                  <div className="personal-actions" style={{ marginBottom: 16 }}>
                     <button
                       type="button"
-                      className="primary-button"
-                      onClick={() => void handleSaveSkillCenter()}
-                      disabled={isSavingSkillCenter || (!activeSkillConfig && !activePromptConfig)}
+                      className="secondary-button"
+                      onClick={() => {
+                        setSkillModuleFilter("ALL");
+                        setSkillPackageFilter("ALL");
+                        setSkillKeywordFilter("");
+                      }}
                     >
-                      {isSavingSkillCenter ? "保存中..." : "保存当前提示词"}
+                      重置筛选
                     </button>
                   </div>
-                </article>
-              ) : (
-                <div className="admin-skill-empty">请先从右侧选择一个三级技能项。</div>
-              )}
-            </section>
+                  <div className="admin-skill-primary-list">
+                    {filteredSkillTree.map((primary) => {
+                      const primaryActive = activeSkillPrimaryId === primary.id;
+                      const primaryExpanded = isSkillPrimaryExpanded(primary.id);
+
+                      return (
+                        <div className={`entity-card admin-skill-primary-group${primaryExpanded ? " expanded" : ""}`} key={primary.id}>
+                          <button
+                            type="button"
+                            className={`admin-skill-primary-button${primaryActive ? " active" : ""}`}
+                            onClick={() => handleToggleSkillPrimary(primary.id)}
+                          >
+                            <span className="admin-skill-primary-mark">{primary.label.slice(0, 1)}</span>
+                            <span className="admin-skill-primary-button-copy">
+                              <strong>{primary.label}</strong>
+                              <small>{primary.sections.length} 个二级分类</small>
+                            </span>
+                            <span className={`admin-skill-primary-arrow${primaryExpanded ? " expanded" : ""}`}>⌄</span>
+                          </button>
+                          {primaryExpanded ? (
+                            <div className="admin-skill-tree-sections">
+                              {primary.sections.map((section) => {
+                                const sectionActive = primary.id === activeSkillPrimaryId && section.id === activeSkillSectionId;
+                                const sectionExpanded = isSkillSectionExpanded(primary.id, section.id);
+
+                                return (
+                                  <div className="entity-card admin-skill-tree-section" key={section.id}>
+                                    <button
+                                      type="button"
+                                      className={`admin-skill-tree-section-button${sectionActive ? " active" : ""}`}
+                                      onClick={() => handleToggleSkillSection(primary.id, section.id)}
+                                    >
+                                      <span className="admin-skill-tree-section-label">{section.label}</span>
+                                      <small>{sectionExpanded ? "收起" : `${section.items.length}`}</small>
+                                    </button>
+                                    {sectionExpanded ? (
+                                      <div className="admin-skill-tree-leaf-list">
+                                        {section.items.map((leaf) => {
+                                          const leafActive =
+                                            primary.id === activeSkillPrimaryId &&
+                                            section.id === activeSkillSectionId &&
+                                            leaf.id === activeSkillLeafId;
+
+                                          return (
+                                            <button
+                                              type="button"
+                                              className={`admin-skill-tree-leaf-button${leafActive ? " active" : ""}`}
+                                              key={leaf.id}
+                                              onClick={() => handleSelectSkillLeaf(primary.id, section.id, leaf.id)}
+                                            >
+                                              <span className="admin-skill-tree-leaf-dot" />
+                                              <strong>{leaf.label}</strong>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!filteredSkillTree.length ? <div className="admin-skill-empty">当前筛选条件下没有匹配的技能项。</div> : null}
+                </aside>
+
+                <section className="panel personal-center-panel admin-skill-center-panel">
+                  {activeSkillLeaf ? (
+                    <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
+                      <div className="admin-skill-card-topline">
+                        <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "技能中心"}</span>
+                        <span className={`archive-pill ${getStatusClassName(skillCenterStatus)}`}>{getStatusLabel(skillCenterStatus)}</span>
+                      </div>
+                      <div className="admin-skill-card-header">
+                        <div>
+                          <strong>{activeSkillLeaf.label}</strong>
+                          <p>{activeSkillLeaf.description || activeSkillSection?.label || "技能分类"}</p>
+                        </div>
+                      </div>
+                      <div className="admin-skill-simple-grid">
+                        <label className="admin-skill-field">
+                          <span>当前提示词</span>
+                          <input value={skillCenterName} readOnly />
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>所属执行技能</span>
+                          <input value={activeSkillConfig?.name || "-"} readOnly />
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>所属模块</span>
+                          <input value={activeSkillModuleLabel} readOnly />
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>所属能力包</span>
+                          <input value={activeSkillPackageLabel} readOnly />
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>状态</span>
+                          <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
+                            <option value="ACTIVE">启用中</option>
+                            <option value="DRAFT">草稿</option>
+                            <option value="DISABLED">停用</option>
+                          </select>
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>默认模型</span>
+                          <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
+                            {(skillModelOptions.length ? skillModelOptions : [buildFallbackScopedModelOption(skillCenterModel || "gpt-5.4-nano")]).map((option) => (
+                              <option value={option.value} key={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>提示词场景</span>
+                          <input value={resolvedActivePromptScene || "-"} readOnly />
+                        </label>
+                        <label className="admin-skill-field">
+                          <span>点数成本</span>
+                          <input
+                            type="number"
+                            value={skillCenterPointsCost}
+                            onChange={(event) => handleSkillCenterPointsCostChange(event.target.value)}
+                            disabled={!activeSkillConfig}
+                          />
+                        </label>
+                        <label className="admin-skill-field admin-skill-field--wide">
+                          <span>更新时间</span>
+                          <input value={skillCenterUpdatedAtLabel} readOnly />
+                        </label>
+                        <label className="admin-skill-field admin-skill-field--wide">
+                          <span>归属说明</span>
+                          <input value={activeSkillBindingLabel} readOnly />
+                        </label>
+                      </div>
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>提示词内容</span>
+                        <textarea
+                          value={skillCenterPromptValue}
+                          onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
+                          placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
+                        />
+                      </label>
+                      <div className="admin-skill-form-actions">
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={() => void handleSaveSkillCenter()}
+                          disabled={isSavingSkillCenter || (!activeSkillConfig && !activePromptConfig)}
+                        >
+                          {isSavingSkillCenter ? "保存中..." : "保存当前提示词"}
+                        </button>
+                      </div>
+                    </article>
+                  ) : (
+                    <div className="admin-skill-empty">请先从左侧选择一个三级技能项。</div>
+                  )}
+                </section>
+              </div>
+            )}
+            {isCreateSkillModalOpen ? (
+              <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateSkillModal}>
+                <div
+                  className="entity-card admin-user-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="创建技能"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="admin-user-modal-topbar">
+                    <div>
+                      <span className="archive-pill status-ready">技能创建</span>
+                      <strong>创建技能并登记归属</strong>
+                      <p className="personal-meta">在技能专区中点击创建技能后，通过弹窗完成技能本体、模块归属、能力包归属和提示词场景登记。</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>
+                      关闭
+                    </button>
+                  </div>
+                  <div className="admin-skill-simple-grid">
+                    <label className="admin-skill-field"><span>技能名称</span><input value={newSkill.name} placeholder="例如：公众号文章生成" onChange={(event) => setNewSkill((current) => ({ ...current, name: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>技能标识</span><input value={newSkill.slug} placeholder="例如：wechat-article-generator" onChange={(event) => setNewSkill((current) => ({ ...current, slug: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>分类</span><select value={newSkill.category} onChange={(event) => setNewSkill((current) => ({ ...current, category: event.target.value }))}>{createSkillCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>状态</span><select value={newSkill.status} onChange={(event) => setNewSkill((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
+                    <label className="admin-skill-field"><span>供应商</span><select value={newSkill.provider} onChange={(event) => setNewSkill((current) => ({ ...current, provider: event.target.value }))}><option value="">请选择供应商</option>{createSkillProviderOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>默认模型</span><select value={newSkill.defaultModel} onChange={(event) => setNewSkill((current) => ({ ...current, defaultModel: event.target.value }))}><option value="">请选择模型</option>{createSkillModelOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>点数成本</span><input type="number" value={newSkill.pointsCost} onChange={(event) => setNewSkill((current) => ({ ...current, pointsCost: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>所属模块</span><select value={newSkill.moduleKey} onChange={(event) => setNewSkill((current) => ({ ...current, moduleKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillModuleFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>所属能力包</span><select value={newSkill.packageKey} onChange={(event) => setNewSkill((current) => ({ ...current, packageKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillPackageFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>提示词场景</span><select value={newSkill.promptScene} onChange={(event) => setNewSkill((current) => ({ ...current, promptScene: event.target.value }))}><option value="">稍后绑定</option>{createSkillPromptSceneOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>技能说明</span><textarea value={newSkill.description} onChange={(event) => setNewSkill((current) => ({ ...current, description: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>归属说明</span><textarea value={newSkill.bindingRemarks} onChange={(event) => setNewSkill((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
+                  </div>
+                  <div className="personal-actions">
+                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
+                    <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
+                      {isCreatingSkill ? "创建中..." : "确认创建"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             {isCreatePromptModalOpen ? (
               <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreatePromptModal}>
                 <div
