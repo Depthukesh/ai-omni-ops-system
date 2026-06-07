@@ -227,6 +227,69 @@ export type KnowledgeBaseSyncRunRecord = {
   completedAt?: string;
 };
 
+export type KnowledgeBindingRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "PROMPT" | "WORKFLOW_STEP";
+  targetId: string;
+  targetKey?: string;
+  targetName?: string;
+  priority: number;
+  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL";
+  isRequired: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ModuleDefinitionRecord = {
+  id: string;
+  moduleKey: string;
+  moduleName: string;
+  moduleType: "WORKBENCH" | "DOMAIN" | "PLATFORM_CORE" | "ADMIN_TOOL" | "EXTERNAL_BRIDGE";
+  moduleStatus: "PLANNING" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+  entryRoute: string;
+  icon: string;
+  sortOrder: number;
+  description: string;
+  requiredPermissions: string[];
+  featureFlags: string[];
+  isPlatformVisible: boolean;
+  isBrandVisible: boolean;
+  isAdminVisible: boolean;
+  requiredCapabilities: string[];
+  requiredProviders: string[];
+  requiredTables: string[];
+  requiredStorages: string[];
+  requiredThirdPartyPlatforms: string[];
+  taskTypes: string[];
+  mediaTypes: string[];
+  workflowTypes: string[];
+  publishTargets: string[];
+  defaultSkillPackages: string[];
+  defaultKnowledgeSpaces: string[];
+  defaultProviderPolicies: string[];
+  phasePriority?: "P0" | "P1" | "P2";
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SkillPackageModuleRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  moduleKey: string;
+  bindingType: "DEFAULT" | "OPTIONAL" | "SYSTEM_REQUIRED" | "EXPERIMENTAL";
+  isDefault: boolean;
+  sortOrder: number;
+  enabled: boolean;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -629,6 +692,9 @@ export type MockDatabase = {
   knowledgeBases: KnowledgeBaseRecord[];
   knowledgeBaseFiles: KnowledgeBaseFileRecord[];
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
+  knowledgeBindings: KnowledgeBindingRecord[];
+  moduleDefinitions: ModuleDefinitionRecord[];
+  skillPackageModules: SkillPackageModuleRecord[];
   apiProviders: ApiProviderRecord[];
   thirdPartyPlatforms: ThirdPartyPlatformRecord[];
   brandThirdPartyPlatformSecrets: Array<{
@@ -3086,6 +3152,298 @@ export const database: MockDatabase = {
       result: "RUNNING",
       summary: "全量同步进行中，正在扫描飞书文档增量变更。",
       startedAt: "2026-05-02T10:40:00.000Z",
+    },
+  ],
+  knowledgeBindings: [
+    {
+      id: "kbb_brand_docs_module",
+      knowledgeBaseId: "kb_brand_docs",
+      bindingType: "MODULE",
+      targetId: "wechat-workbench",
+      targetKey: "wechat-workbench",
+      targetName: "公众号工作台",
+      priority: 10,
+      retrievalMode: "HYBRID",
+      isRequired: true,
+      enabled: true,
+      createdAt: "2026-05-02T09:40:00.000Z",
+      updatedAt: "2026-05-02T09:40:00.000Z",
+    },
+    {
+      id: "kbb_brand_docs_prompt",
+      knowledgeBaseId: "kb_brand_docs",
+      bindingType: "PROMPT",
+      targetId: "prompt_wechat_article_compose",
+      targetKey: "prompt_wechat_article_compose",
+      targetName: "公众号文章生成提示词",
+      priority: 20,
+      retrievalMode: "SEMANTIC",
+      isRequired: false,
+      enabled: true,
+      createdAt: "2026-05-02T09:45:00.000Z",
+      updatedAt: "2026-05-02T09:45:00.000Z",
+    },
+    {
+      id: "kbb_feishu_ops_workflow",
+      knowledgeBaseId: "kb_feishu_ops",
+      bindingType: "WORKFLOW_STEP",
+      targetId: "wechat-article-generate-step",
+      targetKey: "wechat-article-generate-step",
+      targetName: "公众号文章生成步骤",
+      priority: 30,
+      retrievalMode: "HYBRID",
+      isRequired: false,
+      enabled: true,
+      createdAt: "2026-05-02T10:00:00.000Z",
+      updatedAt: "2026-05-02T10:00:00.000Z",
+    },
+  ],
+  moduleDefinitions: [
+    {
+      id: "module_brand_growth_workbench",
+      moduleKey: "brand-growth-workbench",
+      moduleName: "品牌增长工作台",
+      moduleType: "WORKBENCH",
+      moduleStatus: "ACTIVE",
+      entryRoute: "/brand-growth",
+      icon: "chart",
+      sortOrder: 10,
+      description: "用于品牌增长报告、半年营销规划和营销诊断。",
+      requiredPermissions: ["brand:growth:read", "brand:growth:write"],
+      featureFlags: ["brand-growth-workbench"],
+      isPlatformVisible: true,
+      isBrandVisible: true,
+      isAdminVisible: true,
+      requiredCapabilities: ["strategy-domain", "insight-domain"],
+      requiredProviders: ["text"],
+      requiredTables: ["BrandReport", "Task"],
+      requiredStorages: [],
+      requiredThirdPartyPlatforms: [],
+      taskTypes: ["BRAND_GROWTH_REPORT_AI", "HALF_YEAR_PLAN_AI"],
+      mediaTypes: [],
+      workflowTypes: ["brand-growth-workflow"],
+      publishTargets: [],
+      defaultSkillPackages: ["brand-growth-analysis", "enterprise-annual-plan"],
+      defaultKnowledgeSpaces: ["brand-docs"],
+      defaultProviderPolicies: ["brand-text-provider-policy"],
+      phasePriority: "P0",
+      remarks: "第一阶段核心工作台样例。",
+      createdAt: "2026-06-07T10:00:00.000Z",
+      updatedAt: "2026-06-07T10:00:00.000Z",
+    },
+    {
+      id: "module_xiaohongshu_workbench",
+      moduleKey: "xiaohongshu-workbench",
+      moduleName: "小红书工作台",
+      moduleType: "WORKBENCH",
+      moduleStatus: "ACTIVE",
+      entryRoute: "/xiaohongshu",
+      icon: "sparkles",
+      sortOrder: 20,
+      description: "用于小红书营销规划、内容生成和选题协作。",
+      requiredPermissions: ["xiaohongshu:workspace:read", "xiaohongshu:workspace:write"],
+      featureFlags: ["xiaohongshu-workbench"],
+      isPlatformVisible: true,
+      isBrandVisible: true,
+      isAdminVisible: true,
+      requiredCapabilities: ["copy-domain", "campaign-domain"],
+      requiredProviders: ["text", "image"],
+      requiredTables: ["Task", "Work"],
+      requiredStorages: ["oss"],
+      requiredThirdPartyPlatforms: ["xiaohongshu"],
+      taskTypes: ["XHS_NOTE_AI", "XHS_CALENDAR_AI"],
+      mediaTypes: ["xhs-cover-image"],
+      workflowTypes: ["xiaohongshu-content-workflow"],
+      publishTargets: ["xiaohongshu-api"],
+      defaultSkillPackages: ["xiaohongshu-brand-marketing-plan"],
+      defaultKnowledgeSpaces: ["brand-docs"],
+      defaultProviderPolicies: ["brand-text-provider-policy"],
+      phasePriority: "P0",
+      remarks: "第一阶段核心工作台样例。",
+      createdAt: "2026-06-07T10:00:00.000Z",
+      updatedAt: "2026-06-07T10:00:00.000Z",
+    },
+    {
+      id: "module_douyin_workbench",
+      moduleKey: "douyin-workbench",
+      moduleName: "抖音工作台",
+      moduleType: "WORKBENCH",
+      moduleStatus: "ACTIVE",
+      entryRoute: "/douyin",
+      icon: "video",
+      sortOrder: 30,
+      description: "用于抖音策划、原创文案、视频提示词与数字人脚本。",
+      requiredPermissions: ["douyin:workspace:read", "douyin:workspace:write"],
+      featureFlags: ["douyin-workbench"],
+      isPlatformVisible: true,
+      isBrandVisible: true,
+      isAdminVisible: true,
+      requiredCapabilities: ["copy-domain", "video-domain"],
+      requiredProviders: ["text", "video"],
+      requiredTables: ["Task", "Work"],
+      requiredStorages: ["oss"],
+      requiredThirdPartyPlatforms: ["douyin"],
+      taskTypes: ["DOUYIN_PLAN_AI", "DOUYIN_COPY_AI", "DOUYIN_VIDEO_AI"],
+      mediaTypes: ["douyin-video-script"],
+      workflowTypes: ["douyin-content-workflow"],
+      publishTargets: ["douyin-api"],
+      defaultSkillPackages: ["tongcheng-brand-douyin-planning", "douyin-direct-video"],
+      defaultKnowledgeSpaces: ["brand-docs", "competitor-cases"],
+      defaultProviderPolicies: ["brand-video-provider-policy"],
+      phasePriority: "P0",
+      remarks: "第一阶段核心工作台样例。",
+      createdAt: "2026-06-07T10:00:00.000Z",
+      updatedAt: "2026-06-07T10:00:00.000Z",
+    },
+    {
+      id: "module_wechat_workbench",
+      moduleKey: "wechat-workbench",
+      moduleName: "公众号工作台",
+      moduleType: "WORKBENCH",
+      moduleStatus: "ACTIVE",
+      entryRoute: "/wechat",
+      icon: "wechat",
+      sortOrder: 40,
+      description: "用于公众号文章、图片、HTML 和 API 发布工作流。",
+      requiredPermissions: ["wechat:workspace:read", "wechat:workspace:write"],
+      featureFlags: ["wechat-workbench"],
+      isPlatformVisible: true,
+      isBrandVisible: true,
+      isAdminVisible: true,
+      requiredCapabilities: ["copy-domain", "image-domain", "html-render-domain", "publish-domain"],
+      requiredProviders: ["text", "image"],
+      requiredTables: ["Task", "MediaAsset", "Work"],
+      requiredStorages: ["oss"],
+      requiredThirdPartyPlatforms: ["wechat-official-account"],
+      taskTypes: ["WECHAT_ARTICLE_AI", "WECHAT_IMAGE_AI", "WECHAT_HTML_AI"],
+      mediaTypes: ["wechat-cover", "wechat-body-image", "wechat-html"],
+      workflowTypes: ["wechat-content-workflow"],
+      publishTargets: ["wechat-api"],
+      defaultSkillPackages: ["wechat-article-generator", "wechat-image-designer", "wechat-html-renderer"],
+      defaultKnowledgeSpaces: ["brand-docs", "feishu-ops"],
+      defaultProviderPolicies: ["brand-wechat-provider-policy"],
+      phasePriority: "P0",
+      remarks: "来自第一阶段模块注册样例。",
+      createdAt: "2026-06-07T10:00:00.000Z",
+      updatedAt: "2026-06-07T10:00:00.000Z",
+    },
+    {
+      id: "module_design_workbench",
+      moduleKey: "design-workbench",
+      moduleName: "设计工作台",
+      moduleType: "WORKBENCH",
+      moduleStatus: "ACTIVE",
+      entryRoute: "/design",
+      icon: "palette",
+      sortOrder: 50,
+      description: "用于网页原型、数据看板、营销页面等设计生成任务。",
+      requiredPermissions: ["design:workspace:read", "design:workspace:write"],
+      featureFlags: ["design-workbench"],
+      isPlatformVisible: true,
+      isBrandVisible: true,
+      isAdminVisible: true,
+      requiredCapabilities: ["copy-domain", "image-domain"],
+      requiredProviders: ["text", "image"],
+      requiredTables: ["Task", "MediaAsset"],
+      requiredStorages: ["oss"],
+      requiredThirdPartyPlatforms: [],
+      taskTypes: ["DESIGN_HTML_AI", "DESIGN_IMAGE_AI"],
+      mediaTypes: ["design-preview-image", "design-html"],
+      workflowTypes: ["design-workflow"],
+      publishTargets: [],
+      defaultSkillPackages: ["design-web-prototype", "design-dashboard"],
+      defaultKnowledgeSpaces: ["brand-docs"],
+      defaultProviderPolicies: ["brand-design-provider-policy"],
+      phasePriority: "P0",
+      remarks: "第一阶段核心工作台样例。",
+      createdAt: "2026-06-07T10:00:00.000Z",
+      updatedAt: "2026-06-07T10:00:00.000Z",
+    },
+  ],
+  skillPackageModules: [
+    {
+      id: "spm_wechat_article_default",
+      packageId: "sp_wechat_article_generator",
+      packageKey: "wechat-article-generator",
+      packageName: "公众号文章生成能力包",
+      moduleKey: "wechat-workbench",
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 10,
+      enabled: true,
+      remarks: "公众号文章主生成能力包。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
+    },
+    {
+      id: "spm_wechat_image_default",
+      packageId: "sp_wechat_image_designer",
+      packageKey: "wechat-image-designer",
+      packageName: "公众号配图生成能力包",
+      moduleKey: "wechat-workbench",
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 20,
+      enabled: true,
+      remarks: "公众号配图生成能力包。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
+    },
+    {
+      id: "spm_wechat_html_required",
+      packageId: "sp_wechat_html_renderer",
+      packageKey: "wechat-html-renderer",
+      packageName: "公众号 HTML 渲染能力包",
+      moduleKey: "wechat-workbench",
+      bindingType: "SYSTEM_REQUIRED",
+      isDefault: true,
+      sortOrder: 30,
+      enabled: true,
+      remarks: "公众号工作流必需的 HTML 渲染能力。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
+    },
+    {
+      id: "spm_xhs_plan_default",
+      packageId: "sp_xiaohongshu_brand_marketing_plan",
+      packageKey: "xiaohongshu-brand-marketing-plan",
+      packageName: "小红书营销规划能力包",
+      moduleKey: "xiaohongshu-workbench",
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 10,
+      enabled: true,
+      remarks: "小红书工作台默认能力包。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
+    },
+    {
+      id: "spm_douyin_plan_default",
+      packageId: "sp_tongcheng_brand_douyin_planning",
+      packageKey: "tongcheng-brand-douyin-planning",
+      packageName: "抖音营销规划能力包",
+      moduleKey: "douyin-workbench",
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 10,
+      enabled: true,
+      remarks: "抖音工作台默认能力包。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
+    },
+    {
+      id: "spm_design_web_default",
+      packageId: "sp_design_web_prototype",
+      packageKey: "design-web-prototype",
+      packageName: "网页原型设计能力包",
+      moduleKey: "design-workbench",
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 10,
+      enabled: true,
+      remarks: "设计工作台默认原型能力。",
+      createdAt: "2026-06-07T10:20:00.000Z",
+      updatedAt: "2026-06-07T10:20:00.000Z",
     },
   ],
   apiProviders: SYSTEM_API_PROVIDER_SEEDS.map((item) => ({ ...item })),

@@ -47,6 +47,78 @@
   - 后台保存后的平台级提示词以 `PromptTemplate.content` 为唯一真源，不再让本地提示词文件反向覆盖数据库
   - 数据库不可用时，仍回退到 `mock-data + 文件`
 
+### 2.5 知识库管理持久化
+
+- 当前知识库后台管理已补入 3 张正式表：
+  - `KnowledgeBase`
+  - `KnowledgeBaseFile`
+  - `KnowledgeBaseSyncRun`
+- 持久化结构位于：
+  - `prisma/schema.prisma`
+  - `prisma/migrations/20260607_knowledge_base_persistence_tables/migration.sql`
+- 后端服务入口：
+  - `apps/server/src/modules/admin/knowledge-bases.service.ts`
+- 当前策略：
+  - 数据库和知识库表都可用时，后台知识库页优先从 PostgreSQL 读写
+  - 首次切到正式表且表为空时，会把现有 `mock-data` 中的知识库、文件和同步记录回填进库
+  - 数据库不可用，或知识库迁移尚未执行时，接口仍回退到 `mock-data`
+  - 因此前台现有 `/admin` 知识库管理页在本次改造后不需要更换接口即可继续工作
+
+### 2.6 知识绑定桥接层
+
+- 在 `project_planning` 第一阶段规划中，知识空间并不是孤立对象，而是要逐步与模块、能力包、Prompt、工作流步骤建立关系。
+- 当前已新增：
+  - `KnowledgeBinding`
+- 配套迁移：
+  - `prisma/migrations/20260607_knowledge_bindings_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/knowledge-bindings`
+  - `GET /admin/knowledge-bindings/by-target`
+  - `POST /admin/knowledge-bindings`
+  - `PATCH /admin/knowledge-bindings/:id`
+  - `DELETE /admin/knowledge-bindings/:id`
+- 当前策略：
+  - 数据库和知识绑定表可用时，接口优先读写 PostgreSQL
+  - 若知识绑定迁移未执行，则回退到 `mock-data` 中的知识绑定演示数据
+  - 这一层属于第一阶段的通用桥接底座，不直接改动现有前台业务链路
+
+### 2.7 模块注册中心第一批落地
+
+- 按 `docs/project_planning` 第一阶段规划，当前已补入模块注册正式表：
+  - `ModuleDefinition`
+- 配套迁移：
+  - `prisma/migrations/20260607_module_definitions_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/module-definitions`
+  - `GET /admin/module-definitions/:id`
+  - `POST /admin/module-definitions`
+  - `PATCH /admin/module-definitions/:id`
+  - `PATCH /admin/module-definitions/:id/archive`
+  - `DELETE /admin/module-definitions/:id`
+- 当前策略：
+  - 数据库和模块注册表可用时，优先读写 PostgreSQL
+  - 若迁移未执行，则回退到 `mock-data` 中的 5 个工作台模块样例
+  - 本轮只补正式表和接口，不直接改现有顶部菜单和后台单页标签结构，因此不会影响现有页面运行
+
+### 2.8 模块默认能力包关系第一批落地
+
+- 当前已补入关系表：
+  - `SkillPackageModule`
+- 配套迁移：
+  - `prisma/migrations/20260607_skill_package_modules_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/skill-package-modules`
+  - `GET /admin/skill-package-modules/:id`
+  - `GET /admin/skill-package-modules/by-module/:moduleKey`
+  - `GET /admin/skill-package-modules/by-package/:packageKey`
+  - `POST /admin/skill-package-modules`
+  - `PATCH /admin/skill-package-modules/:id`
+  - `DELETE /admin/skill-package-modules/:id`
+- 当前策略：
+  - 数据库和关系表可用时，优先读写 PostgreSQL
+  - 若迁移未执行，则回退到 `mock-data` 中的模块与能力包挂载演示数据
+  - 这一层先解决模块反查能力包、能力包反查模块和默认挂载管理，不强制统一技能中心页面先完成改造
+
 ## 3. 正式数据表分层
 
 ### 3.1 用户与交易域
@@ -160,6 +232,27 @@
   - 关键字段：`brandId`、`platformId`、`apiKey`
   - 当前约定：唯一键为 `brandId + platformId`；拥有 `personalCenter.thirdPartyPlatforms.edit` 权限的成员维护同一份品牌共享 Key；当 `ApiProviderConfig.baseUrl / extraParams.baseUrls` 命中平台 `baseUrl` 时，`ReportsModule` 与 `WorksModule` 会按 `brandId + platformId` 强制读取这里的共享 Key，若当前品牌未配置则直接返回提醒，不再回退公共 Key
 
+### 3.8 知识库管理域
+
+- `KnowledgeBase`
+  - 用途：后台知识库主档
+  - 关键字段：`name`、`slug`、`sourceType`、`status`、`syncStatus`、`documentCount`、`chunkCount`、`description`
+- `KnowledgeBaseFile`
+  - 用途：知识库文件索引与索引状态管理
+  - 关键字段：`knowledgeBaseId`、`fileName`、`fileType`、`sourceName`、`chunkCount`、`status`、`uploadedAt`
+- `KnowledgeBaseSyncRun`
+  - 用途：知识库文件同步与全量同步记录
+  - 关键字段：`knowledgeBaseId`、`fileId`、`scope`、`operator`、`result`、`summary`、`errorDetail`、`startedAt`、`completedAt`
+- `KnowledgeBinding`
+  - 用途：知识库与模块、能力包、Prompt、工作流步骤之间的桥接关系
+  - 关键字段：`knowledgeBaseId`、`bindingType`、`targetId`、`targetKey`、`targetName`、`priority`、`retrievalMode`、`isRequired`、`enabled`
+- `ModuleDefinition`
+  - 用途：模块注册中心主表
+  - 关键字段：`moduleKey`、`moduleName`、`moduleType`、`moduleStatus`、`entryRoute`、`requiredPermissionsJson`、`featureFlagsJson`、`requiredCapabilitiesJson`、`taskTypesJson`
+- `SkillPackageModule`
+  - 用途：模块与能力包关系表
+  - 关键字段：`packageId`、`packageKey`、`packageName`、`moduleKey`、`bindingType`、`isDefault`、`sortOrder`、`enabled`
+
 ## 4. 业务板块与数据表映射
 
 ### 4.1 品牌增长策略 `/brand-growth`
@@ -246,7 +339,16 @@
 - 技能中心
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`
-- 知识库管理：当前仍主要来自 `mock-data`
+- 知识库管理：
+  - 正式表：`KnowledgeBase`、`KnowledgeBaseFile`、`KnowledgeBaseSyncRun`
+  - 桥接表：`KnowledgeBinding`
+  - 当前策略：数据库优先、`mock-data` 兜底；知识库迁移未执行时仍保持现有页面和接口可用
+- 模块注册中心：
+  - 正式表：`ModuleDefinition`
+  - 当前策略：数据库优先、`mock-data` 兜底；当前先提供后台接口和前端服务层，不强推现有菜单改成注册表驱动
+- 模块默认能力包关系：
+  - 正式表：`SkillPackageModule`
+  - 当前策略：数据库优先、`mock-data` 兜底；先提供双向查询和读写接口，后续再接统一技能中心与模块注册中心页面
 
 ### 4.5 认证 `/` + `/login` + `/register`
 

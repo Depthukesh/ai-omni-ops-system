@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统 SkillPackage 数据结构草案 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --soft:#ecfeff; --soft-line:#a5f3fc; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1180px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px}
+    p{margin:0 0 12px} ul{margin:0 0 12px 20px;padding:0} li{margin:4px 0} pre{background:#0f172a;color:#e5e7eb;padding:14px;border-radius:14px;overflow:auto}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}.good{padding:14px 16px;border-radius:14px;margin:12px 0;background:var(--soft);border:1px solid var(--soft-line)}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统 SkillPackage 数据结构草案 v1</h1>
+      <p>本草案用于把 SkillPackage 对象关系继续下钻成更贴近实现的数据结构，指导后端对象、数据库拆分和统一技能中心详情接口设计。</p>
+    </section>
+
+    <section class="card">
+      <h2>1. 建模原则</h2>
+      <ul>
+        <li><strong>聚合根：</strong> 以 <code>SkillPackage</code> 作为统一根对象</li>
+        <li><strong>三层结构：</strong> 主对象层、资产与绑定层、版本与覆盖层</li>
+        <li><strong>落地目标：</strong> 直接支撑统一技能中心详情页与版本管理</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>2. 核心对象草案</h2>
+      <pre><code>export interface SkillPackage {
+  id: string;
+  packageKey: string;
+  packageName: string;
+  description?: string;
+  status: "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+  scope: "PLATFORM" | "BRAND" | "USER";
+  moduleKeys: string[];
+  workflowStepKeys: string[];
+  tags: string[];
+  currentVersionId?: string;
+  defaultKnowledgeSpaceIds: string[];
+  defaultProviderPolicyIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}</code></pre>
+      <p><code>packageKey</code> 用于唯一标识能力包，<code>scope</code> 用于区分平台默认、品牌覆盖和用户层派生。</p>
+    </section>
+
+    <section class="card">
+      <h2>3. 子对象建议</h2>
+      <ul>
+        <li><code>SkillDefinition</code>：表达能力定义本身与输入输出合同</li>
+        <li><code>PromptAsset</code>：承载主 Prompt、格式 Prompt、摘要 Prompt 等</li>
+        <li><code>ReferenceAsset</code>：承载 references 资料</li>
+        <li><code>ScriptAsset</code>：承载 scripts 与参数说明</li>
+        <li><code>KnowledgeBinding</code>：承载知识空间绑定和检索优先级</li>
+        <li><code>ProviderBinding</code>：承载默认 Provider、模型白名单与 fallback</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>4. 版本与覆盖</h2>
+      <pre><code>export interface SkillPackageVersion {
+  id: string;
+  packageId: string;
+  versionNumber: string;
+  changeLog?: string;
+  isActive: boolean;
+  snapshot: SkillPackageVersionSnapshot;
+  createdBy?: string;
+  createdAt: string;
+}</code></pre>
+      <div class="good"><strong>建议：</strong> 版本对象优先保存完整快照，第一阶段先保证可回滚、可对比，再考虑复杂 merge。</div>
+      <p>覆盖层分为 <code>BrandSkillPackageOverride</code> 与 <code>UserSkillPackageOverride</code>，分别承接品牌级和用户级差异。</p>
+    </section>
+
+    <section class="card">
+      <h2>5. 详情接口返回草案</h2>
+      <pre><code>export interface SkillPackageDetailDTO {
+  package: SkillPackage;
+  skill: SkillDefinition;
+  prompts: PromptAsset[];
+  references: ReferenceAsset[];
+  scripts: ScriptAsset[];
+  knowledgeBindings: KnowledgeBinding[];
+  providerBindings: ProviderBinding[];
+  versions: SkillPackageVersion[];
+  brandOverrides: BrandSkillPackageOverride[];
+  userOverrides: UserSkillPackageOverride[];
+}</code></pre>
+      <p>这份 DTO 可以直接映射概览、Prompt、参考资料、脚本、知识、Provider、版本、品牌覆盖和用户覆盖九个页签。</p>
+    </section>
+
+    <section class="card">
+      <h2>6. 第一阶段最小集合</h2>
+      <p><strong>P0：</strong> <code>SkillPackage</code>、<code>SkillDefinition</code>、<code>PromptAsset</code>、<code>ProviderBinding</code>、<code>SkillPackageVersion</code></p>
+      <p><strong>P1：</strong> <code>ReferenceAsset</code>、<code>ScriptAsset</code>、模块关联表、工作流步骤关联表</p>
+      <p><strong>P2：</strong> <code>KnowledgeBinding</code>、<code>BrandSkillPackageOverride</code>、<code>UserSkillPackageOverride</code></p>
+    </section>
+  </div>
+</body>
+</html>

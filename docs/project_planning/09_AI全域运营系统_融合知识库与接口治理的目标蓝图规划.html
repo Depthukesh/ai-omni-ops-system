@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统融合知识库与接口治理的目标蓝图规划</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #d9e2ee;
+      --text: #1f2937;
+      --muted: #5b6577;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --ok-soft: #ecfdf5;
+      --ok-line: #bbf7d0;
+      --warn-soft: #fff7ed;
+      --warn-line: #fed7aa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.8;
+    }
+    .page { max-width: 1120px; margin: 0 auto; padding: 30px 18px 72px; }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+    }
+    .hero { padding: 28px 30px; margin-bottom: 18px; }
+    .card { padding: 24px 28px; margin-bottom: 16px; }
+    h1 { margin: 0 0 10px; font-size: 30px; line-height: 1.35; }
+    h2 { margin: 0 0 12px; font-size: 24px; line-height: 1.4; }
+    h3 { margin: 22px 0 10px; font-size: 18px; line-height: 1.5; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .toc a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    .mini {
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #fbfdff;
+    }
+    .mini h4 { margin: 0 0 8px; font-size: 16px; }
+    .good, .warn, .quote {
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin: 12px 0;
+    }
+    .good { background: var(--ok-soft); border: 1px solid var(--ok-line); }
+    .warn { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+    .quote {
+      background: #f8fbff;
+      border-left: 4px solid var(--accent);
+      color: #1e3a8a;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fbff; }
+    code {
+      background: #eef2f7;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: Consolas, monospace;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统融合知识库与接口治理的目标蓝图规划</h1>
+      <p>本蓝图把现有系统架构分析报告与 `MaxKB`、`cc-switch` 的借鉴结论融合到一起，形成未来 6 到 12 个月可持续演进的目标架构。</p>
+      <div class="toc">
+        <a href="#baseline">当前基线</a>
+        <a href="#problems">结构问题</a>
+        <a href="#target">目标蓝图</a>
+        <a href="#knowledge">知识库蓝图</a>
+        <a href="#provider">接口治理蓝图</a>
+        <a href="#summary">蓝图总结</a>
+      </div>
+    </section>
+
+    <section class="card" id="baseline">
+      <h2>1. 当前系统基线</h2>
+      <p>当前系统已经具备多用户、多品牌、品牌上下文隔离、多工作台前台、后台管理台、技能中心与提示词数据库真源、Provider 配置中心、第三方平台配置中心、任务中心和媒体资产中心。</p>
+      <div class="quote">当前主线：`Auth + Brands` 提供上下文，`Collectors` 提供原料，`Reports` 提供策略，`Works` 负责生产，`Publishing` 负责交付，`Tasks + Media` 作为横切面支撑。</div>
+    </section>
+
+    <section class="card" id="problems">
+      <h2>2. 当前系统的主要结构问题</h2>
+      <div class="warn">
+        <strong>核心问题：</strong> 目前最大的结构风险是超级服务过重、知识沉淀尚未正式建模、第三方接口治理还停留在配置中心阶段，以及模块虽然页面独立但后端能力边界并未真正独立。
+      </div>
+      <ul>
+        <li><code>WorksService</code> 和 <code>ReportsService</code> 过重</li>
+        <li>知识沉淀没有正式知识库域</li>
+        <li>接口治理缺少健康检测、熔断、用量和故障转移产品化能力</li>
+        <li>工作台页面独立，但后端能力未完全独立</li>
+        <li>模块注册与接入协议尚未建立</li>
+      </ul>
+    </section>
+
+    <section class="card" id="target">
+      <h2>3. 新蓝图总体目标</h2>
+      <div class="good">
+        <strong>目标定义：</strong> 以品牌为租户边界，以任务为执行边界，以媒体为产物边界，以知识库为长期记忆边界，以 Provider 治理网关为调用边界，把系统升级为“平台底座 + 领域能力 + 业务工作台 + 外挂能力引擎”的统一架构。
+      </div>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>第一层：平台底座层</h4>
+          <ul>
+            <li><code>auth-core</code></li>
+            <li><code>brand-core</code></li>
+            <li><code>permission-core</code></li>
+            <li><code>task-core</code></li>
+            <li><code>media-core</code></li>
+            <li><code>provider-core</code></li>
+            <li><code>prompt-core</code></li>
+            <li><code>knowledge-core</code></li>
+            <li><code>workflow-core</code></li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h4>第二层：领域能力层</h4>
+          <ul>
+            <li><code>collector-domain</code></li>
+            <li><code>strategy-domain</code></li>
+            <li><code>copy-domain</code></li>
+            <li><code>image-domain</code></li>
+            <li><code>video-domain</code></li>
+            <li><code>html-render-domain</code></li>
+            <li><code>publish-domain</code></li>
+            <li><code>knowledge-retrieval-domain</code></li>
+            <li><code>provider-routing-domain</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="mini" style="margin-top:14px;">
+        <h4>第三层与第四层</h4>
+        <p><strong>第三层</strong> 是用户可见的业务工作台，如品牌增长、小红书、抖音、公众号、设计等。</p>
+        <p><strong>第四层</strong> 是外挂能力引擎，用于放置类似 MaxKB 这样的外挂式知识问答与智能体系统，而不是直接揉进主系统代码层。</p>
+      </div>
+    </section>
+
+    <section class="card" id="knowledge">
+      <h2>4. 融合 MaxKB 后的知识库蓝图</h2>
+      <p>对 MaxKB 的吸收方式不是代码级融合，而是吸收其四个关键思想：知识库可检索、可问答、可进入工作流、可外挂解耦。</p>
+      <h3>知识库在新蓝图中的三种角色</h3>
+      <ul>
+        <li><strong>长期记忆层：</strong> 承载品牌资料、产品资料、行业报告、历史经验、references、scripts 等。</li>
+        <li><strong>工作流输入层：</strong> 让工作流步骤按品牌或模块显式引用知识空间。</li>
+        <li><strong>智能问答层：</strong> 为未来外挂式问答助手或品牌 AI 助手提供知识能力。</li>
+      </ul>
+      <h3>建议新增的知识对象</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>对象</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>KnowledgeSpace</code></td><td>平台、品牌、模块、技能级知识空间容器</td></tr>
+          <tr><td><code>KnowledgeDocument</code></td><td>知识原文档与来源</td></tr>
+          <tr><td><code>KnowledgeChunk</code></td><td>知识切片</td></tr>
+          <tr><td><code>KnowledgeEmbedding</code></td><td>向量化结果</td></tr>
+          <tr><td><code>KnowledgeBinding</code></td><td>绑定模块、技能、Prompt、工作流步骤</td></tr>
+          <tr><td><code>KnowledgeRetrievalLog</code></td><td>知识检索与召回日志</td></tr>
+        </tbody>
+      </table>
+      <h3>多品牌知识规则</h3>
+      <ul>
+        <li>平台公共知识</li>
+        <li>品牌公共知识</li>
+        <li>品牌模块知识</li>
+        <li>用户私有临时知识</li>
+      </ul>
+      <p>建议检索优先级为：用户私有临时知识 → 品牌模块知识 → 品牌公共知识 → 平台公共知识。</p>
+      <div class="quote">MaxKB 在新蓝图中的正确位置：外挂知识问答与智能体引擎，而不是主系统内部的知识主数据层。</div>
+    </section>
+
+    <section class="card" id="provider">
+      <h2>5. 融合 cc-switch 后的接口治理蓝图</h2>
+      <p>对 cc-switch 的吸收方式同样不是照搬产品，而是吸收其 Provider 预设、切换、故障转移、健康检测、用量查询、Skills / Prompts 产品化管理思路。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>层级</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Provider Registry</strong></td>
+            <td>维护平台级供应商模板、模型、协议、默认超时和默认重试策略</td>
+          </tr>
+          <tr>
+            <td><strong>Tenant Routing</strong></td>
+            <td>维护品牌默认、品牌 fallback、技能绑定和用户覆盖策略</td>
+          </tr>
+          <tr>
+            <td><strong>Execution Gateway</strong></td>
+            <td>统一执行、超时、重试、熔断、fallback、日志和成本统计</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>建议新增对象</h3>
+      <ul>
+        <li><code>ProviderTemplate</code></li>
+        <li><code>ProviderModel</code></li>
+        <li><code>ProviderHealthSnapshot</code></li>
+        <li><code>BrandProviderPolicy</code></li>
+        <li><code>BrandModelPolicy</code></li>
+        <li><code>SkillProviderBinding</code></li>
+        <li><code>ExecutionAttempt</code></li>
+        <li><code>ExecutionRoute</code></li>
+        <li><code>ProviderFailoverPolicy</code></li>
+        <li><code>ModelDiagnosticRecord</code></li>
+      </ul>
+      <p>未来调用链应统一为：工作流或技能声明需求 → Tenant Routing 计算候选链 → Execution Gateway 执行 → 任务中心记录 → 诊断层收口。</p>
+    </section>
+
+    <section class="card">
+      <h2>6. 技能与 Prompt 中心的目标状态</h2>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>技能中心</h4>
+          <ul>
+            <li>技能元信息</li>
+            <li>技能版本</li>
+            <li>技能状态</li>
+            <li>依赖 Prompt / references / scripts / knowledge / provider</li>
+            <li>绑定模块与更新记录</li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h4>Prompt 中心</h4>
+          <ul>
+            <li>平台默认、品牌覆盖、用户覆盖</li>
+            <li>激活版本</li>
+            <li>历史版本与回滚</li>
+            <li>差异对比</li>
+            <li>绑定知识空间与工作流步骤</li>
+          </ul>
+        </div>
+      </div>
+      <div class="quote">未来建议把技能、Prompt、references、scripts、知识空间和 Provider 策略统一看作“能力包”，而不是零散配置项。</div>
+    </section>
+
+    <section class="card" id="summary">
+      <h2>7. 蓝图总结</h2>
+      <p>这份目标蓝图的核心不是继续向超级服务里堆功能，而是让主系统内部形成：</p>
+      <ul>
+        <li>多品牌知识主数据层</li>
+        <li>工作流级知识引用机制</li>
+        <li>平台级 Provider 治理层</li>
+        <li>模块注册与能力包机制</li>
+      </ul>
+      <div class="good">
+        <strong>最终结论：</strong> `MaxKB` 适合做外挂知识问答与智能体引擎，`cc-switch` 适合做 Provider 治理与技能管理产品化的参考对象；真正应该落到主系统内部的，是知识主数据层、治理网关层和模块注册机制。
+      </div>
+    </section>
+  </div>
+</body>
+</html>

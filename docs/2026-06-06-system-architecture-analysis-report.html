@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 全域智能体系统架构分析报告</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --line: #dbe2ea;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --ok: #0f766e;
+      --warn: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      line-height: 1.8;
+    }
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 72px;
+    }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+    }
+    .hero {
+      padding: 28px 30px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      line-height: 1.3;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .toc a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card {
+      padding: 26px 28px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.4;
+    }
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .mini {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfdff;
+    }
+    .mini h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .badge {
+      display: inline-block;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .quote {
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      background: #f8fbff;
+      color: #1e3a8a;
+      margin: 12px 0;
+    }
+    .good, .risk {
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin: 12px 0;
+    }
+    .good {
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+    }
+    .risk {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+    }
+    code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #eef2f7;
+      font-family: Consolas, monospace;
+      font-size: 0.95em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f8fbff;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI 全域智能体系统架构分析报告</h1>
+      <p>本报告用于系统性梳理当前网站的真实架构、模块边界、数据存储设计、数据库结构，以及未来如何把模块能力改造成类似 USB 插拔一样可扩展、可复用、可维护的体系。</p>
+      <div class="toc">
+        <a href="#scope">分析范围</a>
+        <a href="#overall">总体架构</a>
+        <a href="#modules">模块清单</a>
+        <a href="#storage">存储与数据库</a>
+        <a href="#usb">USB 式扩展蓝图</a>
+        <a href="#roadmap">治理路线图</a>
+      </div>
+    </section>
+
+    <section class="card" id="scope">
+      <h2>1. 分析范围与方法</h2>
+      <p>本次分析以主仓 <code>ai-omni-ops-system</code> 为核心对象，因为它已经承接了当前网站的主业务链路，包括前端工作台、后台管理台、品牌增长、小红书、抖音、公众号、设计工作台、个人中心、任务中心和第三方平台配置。</p>
+      <p>目录中的 <code>ai-omni-ops-xhs-agent</code> 与 <code>ai-omni-ops-system-code-backup-20260525-205255</code> 分别更像平行开发仓和备份快照，不作为主结论的核心依据，只在资产治理层面做说明。</p>
+      <div class="good">
+        <strong>方法说明：</strong> 本报告综合参考了前后端代码结构、Prisma schema、迁移脚本、工程规范、站点地图、数据库存档和近期变更文档。
+      </div>
+    </section>
+
+    <section class="card" id="overall">
+      <h2>2. 系统总体架构</h2>
+      <p>当前系统不是单一页面应用，而是一个以品牌为上下文、以多平台内容生产为核心的复合型业务系统。它同时具备 SaaS 化账号体系、多品牌工作区、内容采集、策略生成、作品生产、发布交付、模型配置与第三方平台配置等能力。</p>
+      <div class="quote">系统主轴：以品牌为统一上下文，以采集数据和品牌资料为原料，通过报告与作品模块驱动多平台内容生产，再通过发布模块输出到平台，整个过程由任务、媒体、技能、供应商和提示词系统共同支撑。</div>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>六层结构</h4>
+          <ul>
+            <li>表现层：<code>apps/web/src/app</code></li>
+            <li>前端服务层：<code>apps/web/src/services</code></li>
+            <li>API 代理层：Next 同域代理</li>
+            <li>后端业务模块层：<code>apps/server/src/modules</code></li>
+            <li>基础设施层：Prisma、Storage、Common、Config</li>
+            <li>数据层：PostgreSQL、OSS、本地 fallback</li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h4>典型调用链</h4>
+          <ol>
+            <li>前端页面触发动作</li>
+            <li>调用前端服务层</li>
+            <li>经 Next API 代理转发</li>
+            <li>后端控制器进入对应模块</li>
+            <li>Service 调用数据库、OSS、外部模型或平台</li>
+            <li>结果回写任务、资产和业务表</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. 仓库与目录结构</h2>
+      <p>主仓采用 workspace monorepo 结构，核心目录包括 <code>apps/web</code>、<code>apps/server</code>、<code>packages/shared</code>、<code>packages/prompt-runtime</code>、<code>packages/ui</code>、<code>docs</code> 和 <code>prisma</code>。</p>
+      <p>这说明项目已经具备一定的平台化雏形，但根目录中仍有平行仓、备份仓、方案文档、素材和运维资料并存，后续需要收束资产边界，明确唯一生产主仓。</p>
+      <div>
+        <span class="badge">apps/web</span>
+        <span class="badge">apps/server</span>
+        <span class="badge">packages/shared</span>
+        <span class="badge">packages/prompt-runtime</span>
+        <span class="badge">packages/ui</span>
+        <span class="badge">docs</span>
+        <span class="badge">prisma</span>
+      </div>
+    </section>
+
+    <section class="card" id="modules">
+      <h2>4. 独立模块清单</h2>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>认证与账号模块</h4>
+          <p>负责登录、注册、验证码、刷新 token、用户资料与品牌切换，是全站统一入口和身份来源。</p>
+        </div>
+        <div class="mini">
+          <h4>品牌与团队协作模块</h4>
+          <p>负责品牌主档案、成员、邀请、角色权限和品牌级第三方配置，是全站业务主数据中心。</p>
+        </div>
+        <div class="mini">
+          <h4>后台管理模块</h4>
+          <p>负责技能中心、提示词模板、Provider、第三方平台、计费规则、用户管理、知识库与统计，是平台控制面。</p>
+        </div>
+        <div class="mini">
+          <h4>任务中心模块</h4>
+          <p>负责长耗时链路的状态观测、失败诊断、重试与取消，是系统可运行性的关键横切面。</p>
+        </div>
+        <div class="mini">
+          <h4>媒体资产模块</h4>
+          <p>负责图片、视频、音频、上传媒体和 OSS 资产，是生成能力与最终交付之间的桥梁。</p>
+        </div>
+        <div class="mini">
+          <h4>第三方平台配置模块</h4>
+          <p>负责品牌级和用户级第三方平台密钥、平台能力目录和模型目录，是平台连接层。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>5. 业务工作台模块</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>核心能力</th>
+            <th>独立性判断</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>品牌增长</td>
+            <td>品牌资料、竞品资料、行业报告、半年规划、营销日历、增长报告</td>
+            <td>较强，但依赖 <code>brands + collectors + reports</code></td>
+          </tr>
+          <tr>
+            <td>小红书</td>
+            <td>原创笔记、二创笔记、视频笔记、素材库、模板库、发布</td>
+            <td>页面独立，后端仍复用 <code>reports + works + publishing</code></td>
+          </tr>
+          <tr>
+            <td>抖音</td>
+            <td>热点选题、文案、直生视频、故事板视频、数字人、素材库</td>
+            <td>页面独立，后端复用 <code>collectors + reports + works</code></td>
+          </tr>
+          <tr>
+            <td>公众号</td>
+            <td>文章生成、生图、HTML 生成、API 发布、发布历史</td>
+            <td>工作流独立，但底层挂在 <code>WorksModule + PublishingModule</code></td>
+          </tr>
+          <tr>
+            <td>设计工作台</td>
+            <td>设计图生成、模型路由、结果展示</td>
+            <td>页面独立，后端仍依附 <code>WorksModule</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>6. 非独立模块与共享基础设施</h2>
+      <div class="risk">
+        <strong>当前最大风险：</strong> <code>WorksService</code> 与 <code>ReportsService</code> 已经演化为跨多个平台与多个能力域的超级服务，未来如果继续往里堆功能，会持续拉高认知成本和回归风险。
+      </div>
+      <ul>
+        <li><strong>Works 模块：</strong> 当前最重要的生产执行中心，承接小红书、抖音、公众号、设计等多种执行链路。</li>
+        <li><strong>Reports 模块：</strong> 策略与文案生成中心，承接报告、规划、日历、选题和文案。</li>
+        <li><strong>Publishing 模块：</strong> 交付出口层，负责把内部作品推向外部平台。</li>
+        <li><strong>Collectors 模块：</strong> 数据采集与素材输入层，为报告和作品模块提供原料。</li>
+        <li><strong>Prompt / Skill / Provider 体系：</strong> 横跨所有业务模块的 AI 配置底座，是标准化和可替换的关键枢纽。</li>
+      </ul>
+    </section>
+
+    <section class="card" id="storage">
+      <h2>7. 数据存储与数据库设计</h2>
+      <p>当前正式持久化主链路是 <strong>PostgreSQL + OSS</strong>，另有少量本地 fallback 和 mock 过渡路径。数据库整体采用 <strong>结构化主干 + JSON 扩展</strong> 的混合建模方式，以 <code>User</code>、<code>Brand</code>、<code>Task</code> 为三大根节点。</p>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>结构化业务域</h4>
+          <ul>
+            <li>用户与认证域</li>
+            <li>品牌与协作域</li>
+            <li>经营资料域</li>
+            <li>任务与资产域</li>
+            <li>技能与提示词域</li>
+            <li>供应商与第三方配置域</li>
+            <li>公众号专属域</li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h4>JSON 字段的作用</h4>
+          <ul>
+            <li>扩展配置</li>
+            <li>AI 输入输出快照</li>
+            <li>多平台差异字段</li>
+            <li>流程状态与中间态数据</li>
+            <li>图片任务、发布配置、标签集合</li>
+          </ul>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>数据域</th>
+            <th>代表表</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>用户与认证域</td>
+            <td><code>User</code>、<code>UserSession</code>、<code>EmailVerificationCode</code></td>
+            <td>账号、会话、登录注册</td>
+          </tr>
+          <tr>
+            <td>品牌与协作域</td>
+            <td><code>Brand</code>、<code>BrandMember</code>、<code>BrandInvite</code></td>
+            <td>品牌上下文、团队、权限</td>
+          </tr>
+          <tr>
+            <td>经营资料域</td>
+            <td><code>Product</code>、<code>BrandSurvey</code>、<code>BusinessAsset</code></td>
+            <td>品牌资料、产品、资产和输入素材</td>
+          </tr>
+          <tr>
+            <td>任务与产物域</td>
+            <td><code>Task</code>、<code>MediaAsset</code></td>
+            <td>执行过程、资产元数据和结果复用</td>
+          </tr>
+          <tr>
+            <td>技能与提示词域</td>
+            <td><code>SkillConfig</code>、<code>PromptTemplate</code>、覆盖表</td>
+            <td>数据库真源的 AI 配置体系</td>
+          </tr>
+          <tr>
+            <td>供应商与接口配置域</td>
+            <td><code>ApiProviderConfig</code>、<code>ThirdPartyPlatformConfig</code></td>
+            <td>模型供应商和第三方平台配置</td>
+          </tr>
+          <tr>
+            <td>公众号专属域</td>
+            <td><code>WechatWorkflowSession</code>、<code>WechatArticleDraft</code>、<code>WechatPublishHistory</code></td>
+            <td>公众号工作流和发布历史</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>8. 数据与模块之间的关系</h2>
+      <p>当前系统中最关键的三个根节点是 <code>User</code>、<code>Brand</code> 和 <code>Task</code>。身份从用户进入，业务在品牌上下文中展开，执行过程和诊断落在任务中心，产物再进入媒体资产和各业务域表。</p>
+      <ol>
+        <li>用户登录并进入某个品牌上下文。</li>
+        <li>品牌资料、采集数据和营销策略从数据库读取。</li>
+        <li><code>Reports</code> 输出规划、日历、文案或报告。</li>
+        <li><code>Works</code> 生成图文、视频、HTML 或设计结果。</li>
+        <li><code>Task</code> 记录过程状态，<code>MediaAsset</code> 记录产物元数据。</li>
+        <li><code>Publishing</code> 把内容推向平台，业务域表再保存历史记录。</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>9. 对当前架构健壮性的判断</h2>
+      <div class="good">
+        <strong>优势：</strong> 已形成统一品牌上下文、多层架构、任务化长链路、媒体资产中心、后台配置中心，以及技能/提示词/Provider 治理基础，文档体系也较完整。
+      </div>
+      <div class="risk">
+        <strong>风险：</strong> 超级 service 过重、前端部分壳层偏厚、数据层仍有过渡态、仓库资产未完全收束、模块注册和可插拔协议尚未建立。
+      </div>
+    </section>
+
+    <section class="card" id="usb">
+      <h2>10. 如何做到像 USB 插拔一样扩展模块</h2>
+      <p>所谓“像 USB 插拔一样”，不是多加一个菜单，而是新增模块接入成本低、对现有系统侵入小、共享能力无需重复开发、模块既能独立运行，又能统一接入身份、品牌、权限、任务、存储和配置体系。</p>
+      <h3>建议的未来三层模块模型</h3>
+      <div class="grid-2">
+        <div class="mini">
+          <h4>平台底座模块</h4>
+          <ul>
+            <li><code>auth-core</code></li>
+            <li><code>brand-core</code></li>
+            <li><code>permission-core</code></li>
+            <li><code>task-core</code></li>
+            <li><code>media-core</code></li>
+            <li><code>provider-core</code></li>
+            <li><code>prompt-core</code></li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h4>领域能力模块</h4>
+          <ul>
+            <li><code>collector-domain</code></li>
+            <li><code>strategy-domain</code></li>
+            <li><code>copy-domain</code></li>
+            <li><code>image-domain</code></li>
+            <li><code>video-domain</code></li>
+            <li><code>html-render-domain</code></li>
+            <li><code>publish-domain</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="mini" style="margin-top:14px;">
+        <h4>业务工作台模块</h4>
+        <p>如 <code>brand-growth-workbench</code>、<code>xiaohongshu-workbench</code>、<code>douyin-workbench</code>、<code>wechat-workbench</code>、<code>design-workbench</code>。这些工作台不再直接依赖超级 service，而是声明自己装配了哪些领域能力。</p>
+      </div>
+      <h3>必须补的关键点</h3>
+      <ul>
+        <li>拆分 <code>WorksService</code> 与 <code>ReportsService</code></li>
+        <li>建立模块注册中心</li>
+        <li>建立统一生成链路接口</li>
+        <li>让页面壳层标准化</li>
+        <li>建立领域模型设计模板</li>
+      </ul>
+      <h3>建议的模块注册元数据</h3>
+      <ul>
+        <li><code>moduleKey</code>、<code>moduleName</code>、<code>moduleType</code></li>
+        <li><code>entryRoute</code>、<code>requiredPermissions</code></li>
+        <li><code>requiredCapabilities</code>、<code>requiredProviders</code></li>
+        <li><code>requiredTables</code>、<code>taskTypes</code>、<code>mediaTypes</code></li>
+        <li><code>featureFlags</code></li>
+      </ul>
+    </section>
+
+    <section class="card" id="roadmap">
+      <h2>11. 推荐治理路线图</h2>
+      <ol>
+        <li><strong>第一阶段：</strong> 明确唯一主仓，继续清理 mock fallback，继续收敛技能与提示词数据库真源。</li>
+        <li><strong>第二阶段：</strong> 拆分 <code>WorksService</code> 与 <code>ReportsService</code>，把设计、公众号、视频、数字人等能力从超级服务中抽离。</li>
+        <li><strong>第三阶段：</strong> 建立模块注册中心、统一任务/媒体/发布合同和生成链路接口。</li>
+        <li><strong>第四阶段：</strong> 为未来新增模块提供标准接入模板，包括页面、服务、数据模型、文档和测试模板。</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>12. 最终结论</h2>
+      <p>当前系统整体方向是正确的，已经具备较好的平台化基础，但仍处于从“功能集合”走向“模块化平台”的过渡阶段。</p>
+      <div class="quote">未来这套系统不应继续按“新增一个功能，就往某个大 service 里塞”的方式演进，而应转向：平台底座统一、领域能力复用、业务工作台装配、模块元数据注册、任务与数据合同标准化。</div>
+      <p>只有这样，未来新增模块时才能真正接近“USB 插拔式”的方便、高效、低风险接入。</p>
+    </section>
+  </div>
+</body>
+</html>

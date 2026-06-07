@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统统一技能中心设计方案 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --accent:#2563eb; --accent-soft:#eff6ff; --ok-soft:#ecfdf5; --ok-line:#bbf7d0; --warn-soft:#fff7ed; --warn-line:#fed7aa; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1160px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px} h3{margin:20px 0 10px;font-size:18px}
+    p{margin:0 0 12px} ul,ol{margin:0 0 12px 20px;padding:0} li{margin:4px 0}.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:18px}
+    .toc a{display:block;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent);text-decoration:none;font-size:14px;font-weight:700}
+    .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}.mini{padding:16px;border-radius:16px;border:1px solid var(--line);background:#fbfdff}
+    .good,.warn,.quote{padding:14px 16px;border-radius:14px;margin:12px 0}.good{background:var(--ok-soft);border:1px solid var(--ok-line)}.warn{background:var(--warn-soft);border:1px solid var(--warn-line)}.quote{background:#f8fbff;border-left:4px solid var(--accent);color:#1e3a8a}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统统一技能中心设计方案 v1</h1>
+      <p>本方案用于明确统一技能中心的产品定位、信息架构、数据分层原则与迁移路线，让“技能中心”成为后续能力包治理的统一入口。</p>
+      <div class="toc">
+        <a href="#decision">核心结论</a>
+        <a href="#why">为什么统一</a>
+        <a href="#ia">信息架构</a>
+        <a href="#tabs">页签结构</a>
+        <a href="#data">数据层原则</a>
+        <a href="#migration">迁移路线</a>
+      </div>
+    </section>
+
+    <section class="card" id="decision">
+      <h2>1. 核心结论</h2>
+      <div class="good">
+        <strong>建议：</strong> 产品入口统一为“技能中心”，Prompt 不再作为平行中心存在；但在领域模型与数据库对象上，仍保留 Skill、Prompt、references、scripts、knowledge、Provider 的边界。
+      </div>
+      <p>统一技能中心的本质不是“技能列表页”，而是“能力包管理中心”。</p>
+    </section>
+
+    <section class="card" id="why">
+      <h2>2. 为什么要统一</h2>
+      <div class="grid-2">
+        <div class="mini">
+          <h3>继续分开的问题</h3>
+          <ul>
+            <li>用户理解成本高</li>
+            <li>配置入口重复</li>
+            <li>技能与 Prompt 关系不直观</li>
+            <li>references、scripts、knowledge、Provider 入口继续碎片化</li>
+            <li>品牌覆盖与用户覆盖入口分散</li>
+          </ul>
+        </div>
+        <div class="mini">
+          <h3>统一后的收益</h3>
+          <ul>
+            <li>产品入口更清晰</li>
+            <li>能力配置链路更完整</li>
+            <li>更方便挂接知识库与 Provider 治理</li>
+            <li>更符合能力包平台化思路</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="data">
+      <h2>3. 数据层原则</h2>
+      <div class="quote">前台和后台只解释一个“技能中心”，但底层对象不建议粗暴合表。</div>
+      <ul>
+        <li><code>SkillPackage</code>：能力包聚合根</li>
+        <li><code>Skill</code>：能力定义对象</li>
+        <li><code>PromptAsset</code>：提示词资产对象</li>
+        <li><code>ReferenceAsset</code>：参考资料对象</li>
+        <li><code>ScriptAsset</code>：脚本资产对象</li>
+        <li><code>KnowledgeBinding</code>：知识绑定对象</li>
+        <li><code>ProviderBinding</code>：Provider 策略绑定对象</li>
+      </ul>
+    </section>
+
+    <section class="card" id="ia">
+      <h2>4. 统一技能中心的信息架构</h2>
+      <h3>列表页</h3>
+      <p>负责发现、筛选、状态查看。建议字段包括技能名称、所属模块、技能状态、当前版本、是否启用、最近更新时间、绑定品牌数、默认 Provider、是否有覆盖。</p>
+      <h3>详情页</h3>
+      <p>负责查看、配置、版本管理、绑定关系管理。建议区域包括基本信息、Prompt、references、scripts、knowledge、Provider、版本、品牌覆盖、用户覆盖。</p>
+    </section>
+
+    <section class="card" id="tabs">
+      <h2>5. 推荐页签结构</h2>
+      <ul>
+        <li><code>概览</code></li>
+        <li><code>Prompt</code></li>
+        <li><code>参考资料</code></li>
+        <li><code>脚本</code></li>
+        <li><code>知识</code></li>
+        <li><code>Provider</code></li>
+        <li><code>版本</code></li>
+        <li><code>品牌覆盖</code></li>
+        <li><code>用户覆盖</code></li>
+      </ul>
+      <h3>各页签承载重点</h3>
+      <ul>
+        <li><strong>概览：</strong> 技能名称、描述、模块、状态、激活版本、默认 Provider、默认知识空间</li>
+        <li><strong>Prompt：</strong> system prompt、user prompt 模板、版本、差异对比、回滚</li>
+        <li><strong>参考资料：</strong> references 文档、来源、使用说明</li>
+        <li><strong>脚本：</strong> scripts、参数、调用说明、适用步骤</li>
+        <li><strong>知识：</strong> 绑定知识空间、检索范围、检索优先级、绑定步骤</li>
+        <li><strong>Provider：</strong> 默认 Provider、fallback、品牌级覆盖、模型白名单</li>
+        <li><strong>版本：</strong> 能力包版本、变更说明、激活状态</li>
+        <li><strong>品牌覆盖 / 用户覆盖：</strong> Prompt、Provider、知识与偏好覆盖</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>6. 权限与可见性建议</h2>
+      <ul>
+        <li>可见性层级：平台可见、品牌可见、用户可见</li>
+        <li>角色层级：平台管理员、品牌管理员、普通运营用户</li>
+        <li>平台管理员管理平台默认能力包</li>
+        <li>品牌管理员配置品牌覆盖</li>
+        <li>普通用户仅查看和使用可见能力</li>
+      </ul>
+    </section>
+
+    <section class="card" id="migration">
+      <h2>7. 迁移路线建议</h2>
+      <ol>
+        <li>先统一命名：对内对外优先使用“技能中心”</li>
+        <li>再统一入口：后台管理台和前台能力配置入口逐步收敛</li>
+        <li>最后统一对象映射：梳理 Skill / Prompt / references / scripts / Provider 的旧归属，并迁入能力包结构</li>
+      </ol>
+      <div class="warn">
+        <strong>第一阶段要求：</strong> 不必立即重构全部前后台，只需要把命名、信息架构、页面结构、数据边界和迁移路线先定下来。
+      </div>
+    </section>
+  </div>
+</body>
+</html>

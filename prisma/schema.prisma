@@ -894,6 +894,146 @@ model BrandThirdPartyPlatformSecret {
   @@unique([brandId, platformId])
 }
 
+model KnowledgeBase {
+  id            String                 @id
+  name          String
+  slug          String                 @unique
+  sourceType    String
+  status        String                 @default("DRAFT")
+  syncStatus    String                 @default("IDLE")
+  documentCount Int                    @default(0)
+  chunkCount    Int                    @default(0)
+  description   String                 @default("")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  files         KnowledgeBaseFile[]
+  bindings      KnowledgeBinding[]
+  syncRuns      KnowledgeBaseSyncRun[]
+
+  @@index([status, updatedAt])
+  @@index([syncStatus, updatedAt])
+}
+
+model KnowledgeBaseFile {
+  id              String                   @id
+  knowledgeBaseId String
+  fileName        String
+  fileType        String
+  sourceName      String
+  chunkCount      Int                      @default(0)
+  status          String                   @default("PENDING")
+  uploadedAt      DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  knowledgeBase   KnowledgeBase            @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  syncRuns        KnowledgeBaseSyncRun[]   @relation("KnowledgeBaseFileSyncRuns")
+
+  @@index([knowledgeBaseId, uploadedAt])
+  @@index([knowledgeBaseId, status, uploadedAt])
+}
+
+model KnowledgeBaseSyncRun {
+  id              String                 @id
+  knowledgeBaseId String
+  fileId          String?
+  scope           String
+  operator        String
+  fileName        String?
+  result          String
+  summary         String
+  errorDetail     String?
+  startedAt       DateTime               @default(now())
+  completedAt     DateTime?
+
+  knowledgeBase   KnowledgeBase          @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  file            KnowledgeBaseFile?     @relation("KnowledgeBaseFileSyncRuns", fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([knowledgeBaseId, startedAt])
+  @@index([result, startedAt])
+  @@index([fileId, startedAt])
+}
+
+model KnowledgeBinding {
+  id              String        @id
+  knowledgeBaseId String
+  bindingType     String
+  targetId        String
+  targetKey       String?
+  targetName      String?
+  priority        Int           @default(100)
+  retrievalMode   String        @default("HYBRID")
+  isRequired      Boolean       @default(false)
+  enabled         Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@unique([knowledgeBaseId, bindingType, targetId])
+  @@index([bindingType, targetId, priority])
+  @@index([knowledgeBaseId, enabled, priority])
+}
+
+model ModuleDefinition {
+  id                              String   @id
+  moduleKey                       String   @unique
+  moduleName                      String
+  moduleType                      String
+  moduleStatus                    String   @default("PLANNING")
+  entryRoute                      String
+  icon                            String   @default("")
+  sortOrder                       Int      @default(100)
+  description                     String   @default("")
+  requiredPermissionsJson         Json
+  featureFlagsJson                Json
+  isPlatformVisible               Boolean  @default(true)
+  isBrandVisible                  Boolean  @default(true)
+  isAdminVisible                  Boolean  @default(true)
+  requiredCapabilitiesJson        Json
+  requiredProvidersJson           Json?
+  requiredTablesJson              Json?
+  requiredStoragesJson            Json?
+  requiredThirdPartyPlatformsJson Json?
+  taskTypesJson                   Json
+  mediaTypesJson                  Json?
+  workflowTypesJson               Json?
+  publishTargetsJson              Json?
+  defaultSkillPackagesJson        Json?
+  defaultKnowledgeSpacesJson      Json?
+  defaultProviderPoliciesJson     Json?
+  phasePriority                   String?
+  remarks                         String   @default("")
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  skillPackageBindings            SkillPackageModule[]
+
+  @@index([moduleType, moduleStatus, sortOrder])
+  @@index([moduleStatus, updatedAt])
+}
+
+model SkillPackageModule {
+  id          String           @id
+  packageId   String
+  packageKey  String
+  packageName String
+  moduleKey   String
+  bindingType String
+  isDefault   Boolean          @default(false)
+  sortOrder   Int              @default(100)
+  enabled     Boolean          @default(true)
+  remarks     String           @default("")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  module      ModuleDefinition @relation(fields: [moduleKey], references: [moduleKey], onDelete: Cascade)
+
+  @@unique([packageKey, moduleKey, bindingType])
+  @@index([moduleKey, enabled, sortOrder])
+  @@index([packageKey, enabled, sortOrder])
+}
+
 model DigitalHumanFavoriteTemplate {
   id         String   @id @default(cuid())
   userId     String

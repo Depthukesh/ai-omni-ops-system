@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统统一技能中心详情接口草案 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --soft:#eff6ff; --soft-line:#bfdbfe; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1180px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px}
+    p{margin:0 0 12px} ul{margin:0 0 12px 20px;padding:0} li{margin:4px 0} pre{background:#0f172a;color:#e5e7eb;padding:14px;border-radius:14px;overflow:auto}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}.good{padding:14px 16px;border-radius:14px;margin:12px 0;background:var(--soft);border:1px solid var(--soft-line)}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统统一技能中心详情接口草案 v1</h1>
+      <p>本草案用于把统一技能中心详情页字段清单推进到接口层，指导后端详情接口设计和前端详情页数据对接。</p>
+    </section>
+
+    <section class="card">
+      <h2>1. 主接口建议</h2>
+      <pre><code>GET /api/admin/skill-packages/:packageId</code></pre>
+      <p>后续如要统一外部标识，也可以补充 <code>GET /api/admin/skill-packages/by-key/:packageKey</code>。</p>
+    </section>
+
+    <section class="card">
+      <h2>2. 查询参数建议</h2>
+      <ul>
+        <li><code>includePrompts</code>、<code>includeProviders</code>、<code>includeVersions</code> 建议第一阶段默认开启</li>
+        <li><code>includeReferences</code>、<code>includeScripts</code>、<code>includeKnowledge</code>、<code>includeBrandOverrides</code>、<code>includeUserOverrides</code> 可按需懒加载</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>3. 返回结构草案</h2>
+      <pre><code>export interface SkillPackageDetailResponse {
+  package: SkillPackageSummaryDTO;
+  skill: SkillDefinitionDTO;
+  moduleSummaries: ModuleSummaryDTO[];
+  workflowStepSummaries: WorkflowStepSummaryDTO[];
+  prompts?: PromptAssetDTO[];
+  references?: ReferenceAssetDTO[];
+  scripts?: ScriptAssetDTO[];
+  knowledgeBindings?: KnowledgeBindingDTO[];
+  providerBindings?: ProviderBindingDTO[];
+  versions?: SkillPackageVersionDTO[];
+  brandOverrides?: BrandSkillPackageOverrideDTO[];
+  userOverrides?: UserSkillPackageOverrideDTO[];
+}</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>4. 第一阶段最小返回集合</h2>
+      <div class="good"><strong>P0：</strong> <code>package</code>、<code>skill</code>、<code>moduleSummaries</code>、<code>prompts</code>、<code>providerBindings</code>、<code>versions</code></div>
+      <p>可延后：<code>workflowStepSummaries</code>、<code>references</code>、<code>scripts</code>、<code>knowledgeBindings</code>、<code>brandOverrides</code>、<code>userOverrides</code>。</p>
+    </section>
+
+    <section class="card">
+      <h2>5. 后续写接口建议</h2>
+      <ul>
+        <li><code>PATCH /api/admin/skill-packages/:packageId/basic</code></li>
+        <li><code>PATCH /api/admin/skill-packages/:packageId/prompts/:promptId</code></li>
+        <li><code>PATCH /api/admin/skill-packages/:packageId/providers/:bindingId</code></li>
+        <li><code>POST /api/admin/skill-packages/:packageId/versions</code></li>
+        <li><code>POST /api/admin/skill-packages/:packageId/activate-version</code></li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统 WorksService 与 ReportsService 拆分边界表 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --accent:#2563eb; --accent-soft:#eff6ff; --ok-soft:#ecfdf5; --ok-line:#bbf7d0; --warn-soft:#fff7ed; --warn-line:#fed7aa; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1160px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px} h3{margin:20px 0 10px;font-size:18px}
+    p{margin:0 0 12px} ul,ol{margin:0 0 12px 20px;padding:0} li{margin:4px 0}.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:18px}
+    .toc a{display:block;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent);text-decoration:none;font-size:14px;font-weight:700}
+    .good,.warn,.quote{padding:14px 16px;border-radius:14px;margin:12px 0}.good{background:var(--ok-soft);border:1px solid var(--ok-line)}.warn{background:var(--warn-soft);border:1px solid var(--warn-line)}.quote{background:#f8fbff;border-left:4px solid var(--accent);color:#1e3a8a}
+    table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px} th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top} th{background:#f8fbff}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统 WorksService 与 ReportsService 拆分边界表 v1</h1>
+      <p>本表用于把超级 service 的拆分从“方向建议”推进到“职责归属、拆分顺序和保留边界”的层面，便于后续进入真正的代码拆分阶段。</p>
+      <div class="toc">
+        <a href="#works">WorksService</a>
+        <a href="#works-order">Works 拆分顺序</a>
+        <a href="#reports">ReportsService</a>
+        <a href="#reports-order">Reports 拆分顺序</a>
+        <a href="#not-split">不要误拆的职责</a>
+        <a href="#summary">最终结论</a>
+      </div>
+    </section>
+
+    <section class="card" id="works">
+      <h2>1. WorksService 拆分边界表</h2>
+      <div class="warn">
+        <strong>现状：</strong> <code>WorksService</code> 同时混合了领域能力、工作流编排和任务/媒体横切处理，因此更像总控中心，而不是单一服务。
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>当前职责</th>
+            <th>推荐归属</th>
+            <th>第一阶段是否确认拆分</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>文案生成</td><td><code>copy-domain</code></td><td>否</td><td>重要但与业务编排耦合较深，建议第二批</td></tr>
+          <tr><td>图片生成</td><td><code>image-domain</code></td><td>是</td><td>边界清晰，可被多个模块复用</td></tr>
+          <tr><td>视频生成</td><td><code>video-domain</code></td><td>否</td><td>链路复杂，建议第三批</td></tr>
+          <tr><td>HTML 渲染</td><td><code>html-render-domain</code></td><td>是</td><td>输入输出边界最清晰</td></tr>
+          <tr><td>发布动作</td><td><code>publish-domain</code></td><td>是</td><td>发布目标和调用链容易独立治理</td></tr>
+          <tr><td>工作流步骤推进</td><td><code>workflow-orchestration</code></td><td>否</td><td>应保留在上层编排</td></tr>
+          <tr><td>任务创建与状态更新</td><td><code>task-core</code></td><td>否</td><td>属于平台底座，应统一收口</td></tr>
+          <tr><td>媒体落库与关联</td><td><code>media-core</code></td><td>否</td><td>属于平台横切能力，不应分散</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="works-order">
+      <h2>2. WorksService 建议拆分顺序</h2>
+      <ol>
+        <li><strong>第一批：</strong> <code>html-render-domain</code>、<code>publish-domain</code>、<code>image-domain</code></li>
+        <li><strong>第二批：</strong> <code>copy-domain</code>、<code>workflow-orchestration</code></li>
+        <li><strong>第三批：</strong> <code>video-domain</code></li>
+      </ol>
+      <p>优先拆边界清晰、复用高、对主流程侵入更小的能力；视频链路最复杂，建议最后拆。</p>
+    </section>
+
+    <section class="card" id="reports">
+      <h2>3. ReportsService 拆分边界表</h2>
+      <div class="warn">
+        <strong>现状：</strong> <code>ReportsService</code> 同时混合洞察抽取、报告生成、营销规划和策略推导，模块边界与复用边界不清晰。
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>当前职责</th>
+            <th>推荐归属</th>
+            <th>第一阶段是否确认拆分</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>洞察抽取</td><td><code>insight-domain</code></td><td>是</td><td>适合作为通用分析能力沉淀</td></tr>
+          <tr><td>报告生成</td><td><code>report-generation-domain</code></td><td>是</td><td>输出形态清晰，易先抽离</td></tr>
+          <tr><td>品牌策略推导</td><td><code>strategy-domain</code></td><td>否</td><td>与业务语境耦合较深，建议第二批</td></tr>
+          <tr><td>营销规划</td><td><code>campaign-domain</code></td><td>否</td><td>与品牌上下文耦合更深</td></tr>
+          <tr><td>原始数据组装</td><td><code>collector-domain</code> / 编排层</td><td>否</td><td>更像前置输入准备，不宜盲拆</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="reports-order">
+      <h2>4. ReportsService 建议拆分顺序</h2>
+      <ol>
+        <li><strong>第一批：</strong> <code>report-generation-domain</code>、<code>insight-domain</code></li>
+        <li><strong>第二批：</strong> <code>strategy-domain</code>、<code>campaign-domain</code></li>
+      </ol>
+      <p>先把更像通用输出能力的部分抽出来，再处理高度依赖业务语境的规划与策略能力。</p>
+    </section>
+
+    <section class="card" id="not-split">
+      <h2>5. 哪些职责不要误拆</h2>
+      <ul>
+        <li>任务状态治理</li>
+        <li>媒体主数据治理</li>
+        <li>权限控制</li>
+        <li>品牌上下文解析</li>
+        <li>Provider 调用治理</li>
+      </ul>
+      <p>这些能力更适合继续留在平台底座层：<code>task-core</code>、<code>media-core</code>、<code>permission-core</code>、<code>brand-core</code>、<code>provider-core</code>。</p>
+    </section>
+
+    <section class="card" id="summary">
+      <h2>6. 最终结论</h2>
+      <div class="good">
+        <strong>拆分原则：</strong> 不是拆得越多越好，而是把真正可复用、边界清晰的能力抽出来，把仍需掌握全局上下文的编排逻辑先留在上层。
+      </div>
+      <p>第一阶段只需要形成职责清单、归属建议、分批顺序和风险说明，不必直接大规模删改超级 service。</p>
+    </section>
+  </div>
+</body>
+</html>

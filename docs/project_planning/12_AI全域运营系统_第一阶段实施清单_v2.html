@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统第一阶段实施清单 v2</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #d9e2ee;
+      --text: #1f2937;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --ok-soft: #ecfdf5;
+      --ok-line: #bbf7d0;
+      --warn-soft: #fff7ed;
+      --warn-line: #fed7aa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.8;
+    }
+    .page { max-width: 1160px; margin: 0 auto; padding: 30px 18px 72px; }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+    }
+    .hero { padding: 28px 30px; margin-bottom: 18px; }
+    .card { padding: 24px 28px; margin-bottom: 16px; }
+    h1 { margin: 0 0 10px; font-size: 30px; line-height: 1.35; }
+    h2 { margin: 0 0 12px; font-size: 24px; }
+    h3 { margin: 20px 0 10px; font-size: 18px; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .toc a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    .mini {
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #fbfdff;
+    }
+    .warn, .good, .quote {
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin: 12px 0;
+    }
+    .warn { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+    .good { background: var(--ok-soft); border: 1px solid var(--ok-line); }
+    .quote {
+      background: #f8fbff;
+      border-left: 4px solid var(--accent);
+      color: #1e3a8a;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fbff; }
+    code {
+      background: #eef2f7;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: Consolas, monospace;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统第一阶段实施清单 v2</h1>
+      <p>本版本在 v1 基础上继续细化，重点把第一阶段推进到更接近真实目录状态、真实对象关系和真实拆分顺序的程度，便于后续拆成可执行任务单。</p>
+      <div class="toc">
+        <a href="#baseline">现状基线</a>
+        <a href="#tracks">五条工作线</a>
+        <a href="#module">模块注册</a>
+        <a href="#skill-center">统一技能中心</a>
+        <a href="#split">超级 Service 拆分</a>
+        <a href="#milestones">里程碑</a>
+      </div>
+    </section>
+
+    <section class="card" id="baseline">
+      <h2>1. 第一阶段的真实现状基线</h2>
+      <div class="warn">
+        <strong>现状判断：</strong> 第一阶段不是从零开始，而是从“已有蓝图和行动文档已经形成，但主仓、规划区、备份区和副本文档边界尚未完全收束”的状态继续推进。
+      </div>
+      <ul>
+        <li><code>ai-omni-ops-system</code> 是目标主仓</li>
+        <li><code>规划文档</code> 已承载 08-11 等阶段性规划成果</li>
+        <li><code>规划文档</code> 中存在 <code>备份</code> 目录</li>
+        <li>架构分析报告在项目 <code>docs</code> 与 <code>规划文档</code> 中存在副本</li>
+      </ul>
+    </section>
+
+    <section class="card" id="tracks">
+      <h2>2. 第一阶段的五条工作线</h2>
+      <div class="grid-2">
+        <div class="mini">
+          <h3>工作线 A</h3>
+          <p>主仓与文档收束</p>
+        </div>
+        <div class="mini">
+          <h3>工作线 B</h3>
+          <p>模块注册机制 v1</p>
+        </div>
+        <div class="mini">
+          <h3>工作线 C</h3>
+          <p>能力包机制 v1</p>
+        </div>
+        <div class="mini">
+          <h3>工作线 D</h3>
+          <p>统一技能中心方案 v1</p>
+        </div>
+        <div class="mini">
+          <h3>工作线 E</h3>
+          <p>超级 service 拆分路线 v1</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. 工作线 A：主仓与文档收束</h2>
+      <p>目标是把主仓、规划区、备份区、项目文档区的关系一次讲清楚。</p>
+      <ul>
+        <li>明确 <code>ai-omni-ops-system</code> 为唯一开发主仓</li>
+        <li>明确 <code>规划文档</code> 是方案评审区，而非代码主文档区</li>
+        <li>明确 <code>规划文档/备份</code> 的只读定位</li>
+        <li>建立规划文档总索引</li>
+        <li>盘点重复文档与副本关系</li>
+      </ul>
+      <div class="quote">建议输出件：规划文档索引、主仓与文档边界说明、副本关系清单。</div>
+    </section>
+
+    <section class="card" id="module">
+      <h2>4. 工作线 B：模块注册机制 v1</h2>
+      <p>目标是建立统一对象 <code>ModuleDefinition</code>，让新增模块不再依赖临时口头约定接入。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>字段组</th>
+            <th>推荐字段</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>基础字段</td>
+            <td><code>moduleKey</code>、<code>moduleName</code>、<code>moduleType</code>、<code>moduleStatus</code>、<code>entryRoute</code>、<code>icon</code>、<code>sortOrder</code></td>
+          </tr>
+          <tr>
+            <td>权限与开关</td>
+            <td><code>requiredPermissions</code>、<code>featureFlags</code>、<code>isPlatformVisible</code>、<code>isBrandVisible</code>、<code>isAdminVisible</code></td>
+          </tr>
+          <tr>
+            <td>依赖字段</td>
+            <td><code>requiredCapabilities</code>、<code>requiredProviders</code>、<code>requiredTables</code>、<code>requiredStorages</code></td>
+          </tr>
+          <tr>
+            <td>执行字段</td>
+            <td><code>taskTypes</code>、<code>mediaTypes</code>、<code>workflowTypes</code>、<code>publishTargets</code></td>
+          </tr>
+          <tr>
+            <td>装配字段</td>
+            <td><code>defaultSkillPackages</code>、<code>defaultKnowledgeSpaces</code>、<code>defaultProviderPolicies</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>第一批必须先对齐品牌增长、小红书、抖音、公众号、设计五个工作台。</p>
+    </section>
+
+    <section class="card">
+      <h2>5. 工作线 C：能力包机制 v1</h2>
+      <p>目标是把 Skill、Prompt、references、scripts、知识绑定、Provider 策略重新放回一个统一能力包视角。</p>
+      <div class="good">
+        <strong>核心定义：</strong> <code>SkillPackage</code> 不是简单等于 Skill，而是能力单元、依赖资产、执行策略和绑定关系的聚合根。
+      </div>
+      <ul>
+        <li>聚合根：<code>SkillPackage</code></li>
+        <li>子对象：<code>PromptAsset</code>、<code>ReferenceAsset</code>、<code>ScriptAsset</code>、<code>KnowledgeBinding</code>、<code>ProviderBinding</code>、<code>SkillPackageVersion</code></li>
+        <li>第一阶段需完成对象图、绑定关系、覆盖规则和 Skill / Prompt 映射关系说明</li>
+      </ul>
+    </section>
+
+    <section class="card" id="skill-center">
+      <h2>6. 工作线 D：统一技能中心方案 v1</h2>
+      <p>目标是把技能、Prompt、references、scripts、knowledge、Provider 等碎片化入口统一收敛为单一产品入口。</p>
+      <div class="quote">产品入口统一为“技能中心”，但领域模型中仍保留 Skill 与 Prompt 的边界。</div>
+      <h3>推荐页面结构</h3>
+      <ul>
+        <li>技能列表页</li>
+        <li>技能详情页</li>
+        <li>Prompt 页签</li>
+        <li>参考资料页签</li>
+        <li>脚本页签</li>
+        <li>知识页签</li>
+        <li>Provider 页签</li>
+        <li>版本页签</li>
+        <li>品牌覆盖与用户覆盖页签</li>
+      </ul>
+    </section>
+
+    <section class="card" id="split">
+      <h2>7. 工作线 E：超级 service 拆分路线 v1</h2>
+      <h3><code>WorksService</code> 推荐拆分顺序</h3>
+      <ol>
+        <li>第一批：<code>html-render-domain</code>、<code>publish-domain</code>、<code>image-domain</code></li>
+        <li>第二批：<code>copy-domain</code>、<code>workflow-orchestration</code></li>
+        <li>第三批：<code>video-domain</code></li>
+      </ol>
+      <h3><code>ReportsService</code> 推荐拆分顺序</h3>
+      <ol>
+        <li>第一批：<code>report-generation-domain</code>、<code>insight-domain</code></li>
+        <li>第二批：<code>strategy-domain</code>、<code>campaign-domain</code></li>
+      </ol>
+      <p>本阶段重点不是立刻开拆，而是先形成职责清单、边界图、批次顺序和拆分风险说明。</p>
+    </section>
+
+    <section class="card" id="milestones">
+      <h2>8. 第一阶段建议里程碑</h2>
+      <div class="grid-2">
+        <div class="mini">
+          <h3>M1</h3>
+          <p>主仓与文档收束</p>
+        </div>
+        <div class="mini">
+          <h3>M2</h3>
+          <p>模块注册机制落图</p>
+        </div>
+        <div class="mini">
+          <h3>M3</h3>
+          <p>能力包与统一技能中心落图</p>
+        </div>
+        <div class="mini">
+          <h3>M4</h3>
+          <p>超级 service 拆分路线定稿</p>
+        </div>
+      </div>
+      <div class="good">
+        <strong>最终结论：</strong> 第一阶段最该先做扎实的不是写业务代码，而是模块注册规范、能力包模型、统一技能中心方案和超级 service 拆分路线这四个底座产物。
+      </div>
+    </section>
+  </div>
+</body>
+</html>

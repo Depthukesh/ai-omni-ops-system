@@ -159,6 +159,70 @@ export type KnowledgeBaseRunMutationResult = {
   file?: KnowledgeBaseFileRecord;
 };
 
+export type ModuleDefinitionRecord = {
+  id: string;
+  moduleKey: string;
+  moduleName: string;
+  moduleType: "WORKBENCH" | "DOMAIN" | "PLATFORM_CORE" | "ADMIN_TOOL" | "EXTERNAL_BRIDGE";
+  moduleStatus: "PLANNING" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+  entryRoute: string;
+  icon: string;
+  sortOrder: number;
+  description: string;
+  requiredPermissions: string[];
+  featureFlags: string[];
+  isPlatformVisible: boolean;
+  isBrandVisible: boolean;
+  isAdminVisible: boolean;
+  requiredCapabilities: string[];
+  requiredProviders: string[];
+  requiredTables: string[];
+  requiredStorages: string[];
+  requiredThirdPartyPlatforms: string[];
+  taskTypes: string[];
+  mediaTypes: string[];
+  workflowTypes: string[];
+  publishTargets: string[];
+  defaultSkillPackages: string[];
+  defaultKnowledgeSpaces: string[];
+  defaultProviderPolicies: string[];
+  phasePriority?: "P0" | "P1" | "P2";
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetModuleDefinitionsQuery = {
+  keyword?: string;
+  moduleType?: "ALL" | ModuleDefinitionRecord["moduleType"];
+  moduleStatus?: "ALL" | ModuleDefinitionRecord["moduleStatus"];
+};
+
+export type SkillPackageModuleRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  moduleKey: string;
+  bindingType: "DEFAULT" | "OPTIONAL" | "SYSTEM_REQUIRED" | "EXPERIMENTAL";
+  isDefault: boolean;
+  sortOrder: number;
+  enabled: boolean;
+  remarks?: string;
+  moduleName?: string;
+  moduleType?: string;
+  entryRoute?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetSkillPackageModulesQuery = {
+  moduleKey?: string;
+  packageKey?: string;
+  bindingType?: "ALL" | SkillPackageModuleRecord["bindingType"];
+  enabled?: boolean;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -1376,6 +1440,117 @@ export async function completeKnowledgeBaseSyncRun(
   },
 ) {
   return jsonRequest<KnowledgeBaseRunMutationResult>(`/admin/knowledge-bases/sync-runs/${runId}`, "PATCH", payload);
+}
+
+export async function getModuleDefinitions(query: GetModuleDefinitionsQuery = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.keyword?.trim()) {
+    searchParams.set("keyword", query.keyword.trim());
+  }
+  if (query.moduleType && query.moduleType !== "ALL") {
+    searchParams.set("moduleType", query.moduleType);
+  }
+  if (query.moduleStatus && query.moduleStatus !== "ALL") {
+    searchParams.set("moduleStatus", query.moduleStatus);
+  }
+  const suffix = searchParams.toString();
+  return request<ModuleDefinitionRecord[]>(suffix ? `/admin/module-definitions?${suffix}` : "/admin/module-definitions");
+}
+
+export async function getModuleDefinition(moduleId: string) {
+  return request<ModuleDefinitionRecord>(`/admin/module-definitions/${moduleId}`);
+}
+
+export async function createModuleDefinition(payload: Omit<ModuleDefinitionRecord, "id" | "createdAt" | "updatedAt">) {
+  return jsonRequest<ModuleDefinitionRecord>("/admin/module-definitions", "POST", payload);
+}
+
+export async function updateModuleDefinition(
+  moduleId: string,
+  payload: Partial<Omit<ModuleDefinitionRecord, "id" | "createdAt" | "updatedAt">>,
+) {
+  return jsonRequest<ModuleDefinitionRecord>(`/admin/module-definitions/${moduleId}`, "PATCH", payload);
+}
+
+export async function archiveModuleDefinition(moduleId: string) {
+  return jsonRequest<ModuleDefinitionRecord>(`/admin/module-definitions/${moduleId}/archive`, "PATCH", {});
+}
+
+export async function deleteModuleDefinition(moduleId: string) {
+  return request<ModuleDefinitionRecord>(`/admin/module-definitions/${moduleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSkillPackageModules(query: GetSkillPackageModulesQuery = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.moduleKey?.trim()) {
+    searchParams.set("moduleKey", query.moduleKey.trim());
+  }
+  if (query.packageKey?.trim()) {
+    searchParams.set("packageKey", query.packageKey.trim());
+  }
+  if (query.bindingType && query.bindingType !== "ALL") {
+    searchParams.set("bindingType", query.bindingType);
+  }
+  if (typeof query.enabled === "boolean") {
+    searchParams.set("enabled", String(query.enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageModuleRecord[]>(
+    suffix ? `/admin/skill-package-modules?${suffix}` : "/admin/skill-package-modules",
+  );
+}
+
+export async function getSkillPackageModule(id: string) {
+  return request<SkillPackageModuleRecord>(`/admin/skill-package-modules/${id}`);
+}
+
+export async function getSkillPackageModulesByModule(moduleKey: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageModuleRecord[]>(
+    suffix
+      ? `/admin/skill-package-modules/by-module/${encodeURIComponent(moduleKey)}?${suffix}`
+      : `/admin/skill-package-modules/by-module/${encodeURIComponent(moduleKey)}`,
+  );
+}
+
+export async function getSkillPackageModulesByPackage(packageKey: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageModuleRecord[]>(
+    suffix
+      ? `/admin/skill-package-modules/by-package/${encodeURIComponent(packageKey)}?${suffix}`
+      : `/admin/skill-package-modules/by-package/${encodeURIComponent(packageKey)}`,
+  );
+}
+
+export async function createSkillPackageModule(
+  payload: Omit<SkillPackageModuleRecord, "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt">,
+) {
+  return jsonRequest<SkillPackageModuleRecord>("/admin/skill-package-modules", "POST", payload);
+}
+
+export async function updateSkillPackageModule(
+  id: string,
+  payload: Partial<
+    Omit<SkillPackageModuleRecord, "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt">
+  >,
+) {
+  return jsonRequest<SkillPackageModuleRecord>(`/admin/skill-package-modules/${id}`, "PATCH", payload);
+}
+
+export async function deleteSkillPackageModule(id: string) {
+  return request<SkillPackageModuleRecord>(`/admin/skill-package-modules/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getApiProviders() {

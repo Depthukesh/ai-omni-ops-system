@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统 SkillPackage 与 ModuleDefinition 关系表草案 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --soft:#fef3c7; --soft-line:#fde68a; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1180px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px}
+    p{margin:0 0 12px} ul{margin:0 0 12px 20px;padding:0} li{margin:4px 0} pre{background:#0f172a;color:#e5e7eb;padding:14px;border-radius:14px;overflow:auto}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}.good{padding:14px 16px;border-radius:14px;margin:12px 0;background:var(--soft);border:1px solid var(--soft-line)}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统 SkillPackage 与 ModuleDefinition 关系表草案 v1</h1>
+      <p>本草案用于把能力包与模块之间的挂载关系落成关系表设计，支撑默认能力包绑定、模块反查能力包和影响范围分析。</p>
+    </section>
+
+    <section class="card">
+      <h2>1. 关系定位</h2>
+      <p><code>SkillPackage</code> 与 <code>ModuleDefinition</code> 是多对多关系，因此建议使用独立关系表，而不是把关系全部写死在某一侧的单字段里。</p>
+      <pre><code>skill_package_modules</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>2. 关键字段</h2>
+      <ul>
+        <li><code>packageId</code></li>
+        <li><code>moduleKey</code></li>
+        <li><code>bindingType</code></li>
+        <li><code>isDefault</code></li>
+        <li><code>sortOrder</code></li>
+        <li><code>enabled</code></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>3. bindingType 建议</h2>
+      <ul>
+        <li><code>DEFAULT</code></li>
+        <li><code>OPTIONAL</code></li>
+        <li><code>SYSTEM_REQUIRED</code></li>
+        <li><code>EXPERIMENTAL</code></li>
+      </ul>
+      <div class="good"><strong>P0：</strong> 先支持 <code>DEFAULT</code>，再逐步补其他挂载类型。</div>
+    </section>
+
+    <section class="card">
+      <h2>4. 与模块注册表的关系</h2>
+      <p><code>ModuleDefinition.defaultSkillPackages</code> 建议继续保留为摘要字段，但真实可查询、可管理、可排序的挂载关系，以 <code>skill_package_modules</code> 为准。</p>
+    </section>
+
+    <section class="card">
+      <h2>5. 结论</h2>
+      <p>第一阶段最值得尽快落地的，是先把一张干净、可查询、可管理的关系表立起来，这样模块默认能力包绑定和技能中心所属模块展示都会顺很多。</p>
+    </section>
+  </div>
+</body>
+</html>

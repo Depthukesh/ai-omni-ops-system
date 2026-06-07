@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI全域运营系统 模块注册中心列表页字段清单 v1</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --line:#d9e2ee; --text:#1f2937; --soft:#eff6ff; --soft-line:#bfdbfe; }
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.8}
+    .page{max-width:1200px;margin:0 auto;padding:30px 18px 72px}.hero,.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .hero{padding:28px 30px;margin-bottom:18px}.card{padding:24px 28px;margin-bottom:16px} h1{margin:0 0 10px;font-size:30px} h2{margin:0 0 12px;font-size:24px}
+    p{margin:0 0 12px} ul{margin:0 0 12px 20px;padding:0} li{margin:4px 0} table{width:100%;border-collapse:collapse;font-size:14px} th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top} th{background:#f8fafc}
+    code{background:#eef2f7;border-radius:6px;padding:2px 6px;font-family:Consolas,monospace;font-size:.95em}.good{padding:14px 16px;border-radius:14px;margin:12px 0;background:var(--soft);border:1px solid var(--soft-line)}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>AI全域运营系统 模块注册中心列表页字段清单 v1</h1>
+      <p>本清单用于把模块注册中心推进到列表页字段层，指导前端页面开发和后端列表接口返回设计。</p>
+    </section>
+
+    <section class="card">
+      <h2>1. 页面结构范围</h2>
+      <ul>
+        <li>顶部操作区</li>
+        <li>筛选区</li>
+        <li>表格列表区</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>2. P0 表格字段</h2>
+      <table>
+        <thead><tr><th>字段名</th><th>展示名称</th><th>来源对象</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>moduleName</code></td><td>模块名称</td><td><code>ModuleDefinition</code></td><td>主展示字段</td></tr>
+          <tr><td><code>moduleKey</code></td><td>模块标识</td><td><code>ModuleDefinition</code></td><td>唯一标识</td></tr>
+          <tr><td><code>moduleType</code></td><td>模块类型</td><td><code>ModuleDefinition</code></td><td>标签展示</td></tr>
+          <tr><td><code>moduleStatus</code></td><td>模块状态</td><td><code>ModuleDefinition</code></td><td>状态标签</td></tr>
+          <tr><td><code>entryRoute</code></td><td>入口路由</td><td><code>ModuleDefinition</code></td><td>路由展示</td></tr>
+          <tr><td><code>defaultSkillPackageCount</code></td><td>默认能力包数</td><td>聚合字段</td><td>显示绑定数量</td></tr>
+          <tr><td><code>updatedAt</code></td><td>最近更新时间</td><td>审计字段</td><td>时间文本</td></tr>
+        </tbody>
+      </table>
+      <div class="good"><strong>P0 目标：</strong> 先让用户能快速找到模块、判断状态并进入详情页。</div>
+    </section>
+
+    <section class="card">
+      <h2>3. 筛选字段</h2>
+      <ul>
+        <li><code>searchKeyword</code>：搜索模块名称和标识</li>
+        <li><code>moduleType</code>：按模块类型筛选</li>
+        <li><code>moduleStatus</code>：按状态筛选</li>
+        <li><code>phasePriority</code>：按阶段优先级筛选</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>4. 列表接口返回草案</h2>
+      <p>建议返回 <code>items</code>、<code>page</code>、<code>pageSize</code>、<code>total</code>、<code>totalPages</code>，列表项至少包含模块名称、标识、类型、状态、路由、默认能力包数和更新时间。</p>
+    </section>
+  </div>
+</body>
+</html>
