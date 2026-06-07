@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SKILL_CENTER_TREE as DASHBOARD_SKILL_CENTER_TREE } from "../skill-center-config";
 import {
@@ -37,6 +37,7 @@ import {
   getModelUsage,
   getSkillConfigs,
   installSkillConfig,
+  getSkillPackage,
   getSkillPackages,
   getSkillPackageSkills,
   getSkillPromptBindings,
@@ -79,6 +80,7 @@ import {
   type PromptTemplateRecord,
   type SkillAssetBindingRecord,
   type SkillConfigRecord,
+  type SkillPackageDetailRecord,
   type SkillPackageRecord,
   type SkillPackageModuleRecord,
   type SkillPackageSkillRecord,
@@ -296,6 +298,7 @@ export default function AdminPage() {
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
   const [skillPackageSkills, setSkillPackageSkills] = useState<SkillPackageSkillRecord[]>(skillPackageSkillSeed);
   const [skillAssetBindings, setSkillAssetBindings] = useState<SkillAssetBindingRecord[]>(skillAssetBindingSeed);
+  const [skillPackageDetailMap, setSkillPackageDetailMap] = useState<Record<string, SkillPackageDetailRecord>>({});
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
@@ -345,9 +348,11 @@ export default function AdminPage() {
   const [isInstallingSkill, setIsInstallingSkill] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
+  const [loadingSkillAssetPackageId, setLoadingSkillAssetPackageId] = useState("");
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [skillAssetLoadError, setSkillAssetLoadError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [adminName, setAdminName] = useState("");
@@ -1978,6 +1983,9 @@ export default function AdminPage() {
   const activePrimarySkillRelation =
     activeSkillRelations.find((item) => activeSkillPackageKeys.includes(item.packageKey))
     || activeSkillRelations[0];
+  const activeSkillPackageDetail = activePrimarySkillRelation
+    ? skillPackageDetailMap[activePrimarySkillRelation.packageId]
+    : undefined;
   const activeSkillFlow = activePrimarySkillRelation
     ? skillPackageSkills
       .filter((item) => item.packageKey === activePrimarySkillRelation.packageKey && item.enabled)
@@ -1996,6 +2004,10 @@ export default function AdminPage() {
   const activeOutputSummary = downstreamSkillNames.length
     ? `当前技能输出将继续传递给：${downstreamSkillNames.join(" -> ")}`
     : "当前技能输出为能力包终态输出，或进入人工审核 / 发布环节。";
+  const activeReferenceAssets = activeSkillPackageDetail?.references || [];
+  const activeScriptAssets = activeSkillPackageDetail?.scripts || [];
+  const activeSkillAssetSourceLabel = activePrimarySkillRelation?.packageName || activeSkillPackageLabel;
+  const isLoadingActiveSkillAssets = !!activePrimarySkillRelation?.packageId && loadingSkillAssetPackageId === activePrimarySkillRelation.packageId;
   const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
   const skillModelOptions = useMemo(
     () =>
@@ -2098,6 +2110,57 @@ export default function AdminPage() {
       setActiveSkillLeafId(currentLeaf?.id || nextLeaf.id);
     }
   }, [activeSkillLeafId, activeSkillPrimaryId, activeSkillSectionId, filteredSkillTree]);
+
+  useEffect(() => {
+    if (dataSource !== "api") {
+      setLoadingSkillAssetPackageId("");
+      setSkillAssetLoadError("");
+      return;
+    }
+    const packageId = activePrimarySkillRelation?.packageId;
+    if (!packageId) {
+      setLoadingSkillAssetPackageId("");
+      setSkillAssetLoadError("");
+      return;
+    }
+    if (skillPackageDetailMap[packageId] || loadingSkillAssetPackageId === packageId) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSkillAssetPackageId(packageId);
+    setSkillAssetLoadError("");
+
+    void getSkillPackage(packageId, {
+      includeReferences: true,
+      includeScripts: true,
+    })
+      .then((detail) => {
+        if (cancelled) {
+          return;
+        }
+        setSkillPackageDetailMap((current) => ({
+          ...current,
+          [packageId]: detail,
+        }));
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "读取所属能力包资产失败";
+        setSkillAssetLoadError(`所属能力包资产读取失败：${message}`);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingSkillAssetPackageId((current) => (current === packageId ? "" : current));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activePrimarySkillRelation?.packageId, dataSource, loadingSkillAssetPackageId, skillPackageDetailMap]);
 
   useEffect(() => {
     if (!isCreateSkillModalOpen) {
@@ -3283,13 +3346,67 @@ export default function AdminPage() {
                             <input value={activeSkillConfig?.name || "-"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>References 资产</span>
-                            <input value="当前 first pass 仍沿用已绑定能力包的参考资产，下一步会下沉为技能级真源对象。" readOnly />
+                            <span>References 来源</span>
+                            <input
+                              value={
+                                activePrimarySkillRelation
+                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 项`
+                                  : "当前技能尚未绑定能力包，暂无可继承 References 资产"
+                              }
+                              readOnly
+                            />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>Scripts 资产</span>
-                            <input value="当前 first pass 仍沿用已绑定能力包的脚本资产，后续迁移为技能级脚本资产。" readOnly />
+                            <span>Scripts 来源</span>
+                            <input
+                              value={
+                                activePrimarySkillRelation
+                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 项`
+                                  : "当前技能尚未绑定能力包，暂无可继承 Scripts 资产"
+                              }
+                              readOnly
+                            />
                           </label>
+                        </div>
+                        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                          {dataSource === "seed" ? (
+                            <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                              当前为本地演示数据，技能真实资产仍以能力包详情页维护；切换到接口数据后，这里会自动展示所属能力包的 References / Scripts。
+                            </div>
+                          ) : null}
+                          {!activePrimarySkillRelation ? (
+                            <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                              当前技能尚未绑定能力包，因此还没有可复用的 References / Scripts 资产来源。
+                            </div>
+                          ) : null}
+                          {isLoadingActiveSkillAssets ? (
+                            <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                              正在读取所属能力包的真实资产...
+                            </div>
+                          ) : null}
+                          {!isLoadingActiveSkillAssets && skillAssetLoadError ? (
+                            <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                              {skillAssetLoadError}
+                            </div>
+                          ) : null}
+                          {activePrimarySkillRelation && dataSource === "api" && !isLoadingActiveSkillAssets && !skillAssetLoadError ? (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                              <SkillAssetListCard
+                                title="References 资产"
+                                emptyText="所属能力包当前还没有参考资料资产。"
+                                items={activeReferenceAssets.map((item) => (
+                                  <SkillReferenceAssetItem key={item.id} item={item} />
+                                ))}
+                              />
+                              <SkillAssetListCard
+                                title="Scripts 资产"
+                                emptyText="所属能力包当前还没有脚本资产。"
+                                items={activeScriptAssets.map((item) => (
+                                  <SkillScriptAssetItem key={item.id} item={item} />
+                                ))}
+                              />
+                            </div>
+                          ) : null}
                         </div>
                         <label className="admin-skill-field admin-skill-field--full">
                           <span>提示词内容</span>
@@ -4865,6 +4982,72 @@ function SkillDimensionMetric(props: { label: string; value: string }) {
     <div>
       <span>{props.label}</span>
       <strong>{props.value || "-"}</strong>
+    </div>
+  );
+}
+
+function SkillAssetListCard(props: {
+  title: string;
+  emptyText: string;
+  items: ReactNode[];
+}) {
+  return (
+    <section className="entity-card" style={{ padding: 12 }}>
+      <div className="entity-card-head" style={{ marginBottom: 12 }}>
+        <div>
+          <strong>{props.title}</strong>
+          <p className="personal-meta">当前展示的是技能所属能力包中的真实资产，后续再下沉为技能级真源对象。</p>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {props.items.length ? props.items : <div className="admin-skill-empty" style={{ marginTop: 0 }}>{props.emptyText}</div>}
+      </div>
+    </section>
+  );
+}
+
+function SkillReferenceAssetItem(props: {
+  item: NonNullable<SkillPackageDetailRecord["references"]>[number];
+}) {
+  const metaParts = [
+    props.item.referenceKey,
+    props.item.sourceType,
+    props.item.applicableScopes.length ? `作用域：${props.item.applicableScopes.join(" / ")}` : "",
+    Number.isFinite(props.item.sortOrder) ? `排序：${props.item.sortOrder}` : "",
+  ].filter(Boolean);
+
+  return (
+    <div className="entity-card" style={{ padding: 12 }}>
+      <div style={{ display: "grid", gap: 6 }}>
+        <strong>{props.item.title}</strong>
+        <span className="personal-meta">{metaParts.join(" · ")}</span>
+        <span className="personal-meta">{props.item.usageNote || props.item.sourceUri || "暂无使用说明"}</span>
+      </div>
+    </div>
+  );
+}
+
+function SkillScriptAssetItem(props: {
+  item: NonNullable<SkillPackageDetailRecord["scripts"]>[number];
+}) {
+  const metaParts = [
+    props.item.scriptKey,
+    props.item.runtime,
+    props.item.entry ? `入口：${props.item.entry}` : "",
+    Number.isFinite(props.item.sortOrder) ? `排序：${props.item.sortOrder}` : "",
+  ].filter(Boolean);
+  const argsSummary =
+    props.item.argsSchema && Object.keys(props.item.argsSchema).length
+      ? `参数字段：${Object.keys(props.item.argsSchema).join(", ")}`
+      : "暂无参数 schema";
+
+  return (
+    <div className="entity-card" style={{ padding: 12 }}>
+      <div style={{ display: "grid", gap: 6 }}>
+        <strong>{props.item.scriptName}</strong>
+        <span className="personal-meta">{metaParts.join(" · ")}</span>
+        <span className="personal-meta">{props.item.usageNote || argsSummary}</span>
+      </div>
     </div>
   );
 }
