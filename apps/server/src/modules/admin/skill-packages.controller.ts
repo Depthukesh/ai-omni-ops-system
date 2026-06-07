@@ -3,6 +3,7 @@ import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
   type CreateSkillPackagePayload,
+  type SkillPackageDetailQuery,
   type SkillPackageListQuery,
   SkillPackagesService,
   type UpdateSkillPackagePayload,
@@ -33,9 +34,29 @@ export class SkillPackagesController {
   }
 
   @Get(":id")
-  async getSkillPackage(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async getSkillPackage(
+    @Param("id") id: string,
+    @Query("includePrompts") includePrompts: string | undefined,
+    @Query("includeReferences") includeReferences: string | undefined,
+    @Query("includeScripts") includeScripts: string | undefined,
+    @Query("includeKnowledge") includeKnowledge: string | undefined,
+    @Query("includeProviders") includeProviders: string | undefined,
+    @Query("includeVersions") includeVersions: string | undefined,
+    @Query("includeBrandOverrides") includeBrandOverrides: string | undefined,
+    @Query("includeUserOverrides") includeUserOverrides: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
-    return this.skillPackagesService.getSkillPackage(id);
+    return this.skillPackagesService.getSkillPackage(id, {
+      includePrompts: this.parseBooleanQuery(includePrompts),
+      includeReferences: this.parseBooleanQuery(includeReferences),
+      includeScripts: this.parseBooleanQuery(includeScripts),
+      includeKnowledge: this.parseBooleanQuery(includeKnowledge),
+      includeProviders: this.parseBooleanQuery(includeProviders),
+      includeVersions: this.parseBooleanQuery(includeVersions),
+      includeBrandOverrides: this.parseBooleanQuery(includeBrandOverrides),
+      includeUserOverrides: this.parseBooleanQuery(includeUserOverrides),
+    });
   }
 
   @Post()
@@ -61,5 +82,19 @@ export class SkillPackagesController {
   async deleteSkillPackage(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.deleteSkillPackage(id);
+  }
+
+  private parseBooleanQuery(value: string | undefined): SkillPackageDetailQuery[keyof SkillPackageDetailQuery] {
+    if (value === undefined) {
+      return undefined;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (["true", "1", "yes"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no"].includes(normalized)) {
+      return false;
+    }
+    return undefined;
   }
 }

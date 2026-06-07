@@ -174,6 +174,7 @@
   - 若迁移未执行，则接口仍回退到 `mock-data` 演示数据
   - 当前关系表 `SkillPackageModule`、`SkillPackageSkill` 仍保持独立可用，下一阶段再继续把列表页 / 详情页和版本域与主对象统一收口
   - 当前已继续补第一批列表摘要聚合，`GET /admin/skill-packages` 开始返回模块摘要、默认模型摘要、技能数、提示词数等列表字段，供统一技能中心列表视图直接使用
+  - 当前已继续补第一批详情聚合，`GET /admin/skill-packages/:id` 开始返回主对象摘要、主技能、模块摘要、工作流步骤、Prompt 摘要、Provider 摘要和当前版本占位摘要，供统一技能中心详情面板 first pass 直接使用
 
 ## 3. 正式数据表分层
 

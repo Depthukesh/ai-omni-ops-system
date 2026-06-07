@@ -241,6 +241,82 @@ export type GetSkillPackagesQuery = {
   scope?: "ALL" | SkillPackageRecord["scope"];
 };
 
+export type SkillPackageDetailQuery = {
+  includePrompts?: boolean;
+  includeReferences?: boolean;
+  includeScripts?: boolean;
+  includeKnowledge?: boolean;
+  includeProviders?: boolean;
+  includeVersions?: boolean;
+  includeBrandOverrides?: boolean;
+  includeUserOverrides?: boolean;
+};
+
+export type SkillPackageDetailRecord = {
+  package: SkillPackageRecord;
+  skill?: {
+    id: string;
+    skillKey: string;
+    skillName: string;
+    summary?: string;
+    executionMode: "SYNC" | "ASYNC" | "WORKFLOW_STEP";
+  };
+  moduleSummaries: NonNullable<SkillPackageRecord["moduleSummaries"]>;
+  workflowStepSummaries: Array<{
+    workflowKey: string;
+    stepKey: string;
+    stepName: string;
+    stepOrder: number;
+  }>;
+  prompts?: Array<{
+    id: string;
+    promptKey: string;
+    promptName: string;
+    promptRole: "SYSTEM" | "USER_TEMPLATE" | "FORMATTER" | "SUMMARY";
+    content: string;
+    isDefault: boolean;
+    versionTag?: string;
+    updatedAt?: string;
+  }>;
+  references?: Array<Record<string, never>>;
+  scripts?: Array<Record<string, never>>;
+  knowledgeBindings?: Array<{
+    id: string;
+    knowledgeBaseId: string;
+    knowledgeBaseName: string;
+    bindingType: "DEFAULT";
+    isDefault: boolean;
+  }>;
+  providerBindings?: Array<{
+    id: string;
+    providerType: "TEXT" | "IMAGE" | "VIDEO" | "EMBEDDING" | "RERANK";
+    providerId?: string;
+    providerName?: string;
+    modelName?: string;
+    priority: number;
+    isDefault: boolean;
+    fallbackProviderIds: string[];
+    modelWhitelist: string[];
+  }>;
+  versions?: Array<{
+    id: string;
+    versionNumber: string;
+    changeLog?: string;
+    isActive: boolean;
+    createdAt: string;
+    createdBy?: string;
+    snapshotSummary?: {
+      promptCount: number;
+      referenceCount: number;
+      scriptCount: number;
+      knowledgeBindingCount: number;
+      providerBindingCount: number;
+    };
+  }>;
+  brandOverrides?: Array<Record<string, never>>;
+  userOverrides?: Array<Record<string, never>>;
+};
+
 export type SkillPackageModuleRecord = {
   id: string;
   packageId: string;
@@ -2452,8 +2528,15 @@ export async function getSkillPackages(query: GetSkillPackagesQuery = {}) {
   return request<SkillPackageRecord[]>(suffix ? `/admin/skill-packages?${suffix}` : "/admin/skill-packages");
 }
 
-export async function getSkillPackage(id: string) {
-  return request<SkillPackageRecord>(`/admin/skill-packages/${id}`);
+export async function getSkillPackage(id: string, query: SkillPackageDetailQuery = {}) {
+  const searchParams = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (typeof value === "boolean") {
+      searchParams.set(key, String(value));
+    }
+  });
+  const suffix = searchParams.toString();
+  return request<SkillPackageDetailRecord>(suffix ? `/admin/skill-packages/${id}?${suffix}` : `/admin/skill-packages/${id}`);
 }
 
 export async function createSkillPackage(payload: Omit<SkillPackageRecord, "id" | "createdAt" | "updatedAt">) {

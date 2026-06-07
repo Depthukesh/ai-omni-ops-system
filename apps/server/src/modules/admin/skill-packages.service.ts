@@ -1,6 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { SkillPackage } from "@prisma/client";
-import { createId, database, type SkillPackageRecord } from "../../common/mock-data";
+import {
+  createId,
+  database,
+  type ApiProviderRecord,
+  type PromptTemplateRecord,
+  type SkillPackageRecord,
+} from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export type SkillPackageListQuery = {
@@ -28,6 +34,82 @@ export type SkillPackageSummaryRecord = SkillPackageRecord & {
   userOverrideCount: number;
   promptCount: number;
   skillCount: number;
+};
+
+export type SkillPackageDetailQuery = {
+  includePrompts?: boolean;
+  includeReferences?: boolean;
+  includeScripts?: boolean;
+  includeKnowledge?: boolean;
+  includeProviders?: boolean;
+  includeVersions?: boolean;
+  includeBrandOverrides?: boolean;
+  includeUserOverrides?: boolean;
+};
+
+export type SkillPackageDetailRecord = {
+  package: SkillPackageSummaryRecord;
+  skill?: {
+    id: string;
+    skillKey: string;
+    skillName: string;
+    summary?: string;
+    executionMode: "SYNC" | "ASYNC" | "WORKFLOW_STEP";
+  };
+  moduleSummaries: SkillPackageSummaryRecord["moduleSummaries"];
+  workflowStepSummaries: Array<{
+    workflowKey: string;
+    stepKey: string;
+    stepName: string;
+    stepOrder: number;
+  }>;
+  prompts?: Array<{
+    id: string;
+    promptKey: string;
+    promptName: string;
+    promptRole: "SYSTEM" | "USER_TEMPLATE" | "FORMATTER" | "SUMMARY";
+    content: string;
+    isDefault: boolean;
+    versionTag?: string;
+    updatedAt?: string;
+  }>;
+  references?: Array<Record<string, never>>;
+  scripts?: Array<Record<string, never>>;
+  knowledgeBindings?: Array<{
+    id: string;
+    knowledgeBaseId: string;
+    knowledgeBaseName: string;
+    bindingType: "DEFAULT";
+    isDefault: boolean;
+  }>;
+  providerBindings?: Array<{
+    id: string;
+    providerType: "TEXT" | "IMAGE" | "VIDEO" | "EMBEDDING" | "RERANK";
+    providerId?: string;
+    providerName?: string;
+    modelName?: string;
+    priority: number;
+    isDefault: boolean;
+    fallbackProviderIds: string[];
+    modelWhitelist: string[];
+  }>;
+  versions?: Array<{
+    id: string;
+    versionNumber: string;
+    changeLog?: string;
+    isActive: boolean;
+    createdAt: string;
+    createdBy?: string;
+    snapshotSummary?: {
+      promptCount: number;
+      referenceCount: number;
+      scriptCount: number;
+      knowledgeBindingCount: number;
+      providerBindingCount: number;
+    };
+  }>;
+  brandOverrides?: Array<Record<string, never>>;
+  userOverrides?: Array<Record<string, never>>;
 };
 
 type SkillPackageModuleSummaryRow = {
@@ -76,23 +158,69 @@ export class SkillPackagesService {
     );
   }
 
-  async getSkillPackage(id: string) {
-    if (await this.canUseSkillPackageStorage()) {
-      await this.ensureSkillPackageStorageSeeded();
-      const row = await this.prismaService.skillPackage.findUnique({
-        where: { id },
-      });
-      if (!row) {
-        throw new NotFoundException("能力包不存在");
-      }
-      return this.normalizeSkillPackage(row);
-    }
+  async getSkillPackage(id: string, query: SkillPackageDetailQuery = {}): Promise<SkillPackageDetailRecord> {
+    const includeOptions = this.normalizeDetailQuery(query);
+    const packageRecord = await this.loadSkillPackageRecordById(id);
+    const packageSummary = (await this.enrichSkillPackages([{ ...packageRecord }], {}))[0];
 
-    const record = database.skillPackages.find((item) => item.id === id);
-    if (!record) {
+    if (!packageSummary) {
       throw new NotFoundException("能力包不存在");
     }
-    return { ...record };
+
+    const [packageSkills, skillConfigs, promptBindings, promptTemplates, providers, knowledgeBases] = await Promise.all([
+      this.loadSkillPackageSkillsForSummary(),
+      this.loadSkillConfigsForSummary(),
+      this.loadSkillPromptBindingsForSummary(),
+      this.loadPromptTemplatesForDetail(),
+      this.loadApiProvidersForDetail(),
+      this.loadKnowledgeBasesForDetail(),
+    ]);
+
+    const relatedSkillBindings = packageSkills
+      .filter((relation) => relation.packageKey === packageSummary.packageKey && relation.enabled)
+      .sort((left, right) => {
+        if (left.isDefault !== right.isDefault) {
+          return left.isDefault ? -1 : 1;
+        }
+        return left.sortOrder - right.sortOrder;
+      });
+    const primarySkill = relatedSkillBindings
+      .map((relation) => skillConfigs.find((item) => item.id === relation.skillId || item.slug === relation.skillSlug))
+      .find(Boolean);
+    const promptDetails = this.buildPromptDetails(relatedSkillBindings, promptBindings, promptTemplates);
+    const providerBindings = this.buildProviderBindings(relatedSkillBindings, skillConfigs, providers);
+    const knowledgeBindings = this.buildKnowledgeBindings(packageSummary, knowledgeBases);
+
+    return {
+      package: packageSummary,
+      skill: primarySkill
+        ? {
+            id: primarySkill.id,
+            skillKey: primarySkill.slug,
+            skillName: primarySkill.name,
+            summary: primarySkill.description || undefined,
+            executionMode: packageSummary.workflowStepKeys.length ? "WORKFLOW_STEP" : "SYNC",
+          }
+        : undefined,
+      moduleSummaries: packageSummary.moduleSummaries,
+      workflowStepSummaries: this.buildWorkflowStepSummaries(packageSummary.workflowStepKeys),
+      ...(includeOptions.includePrompts ? { prompts: promptDetails } : {}),
+      ...(includeOptions.includeReferences ? { references: [] } : {}),
+      ...(includeOptions.includeScripts ? { scripts: [] } : {}),
+      ...(includeOptions.includeKnowledge ? { knowledgeBindings } : {}),
+      ...(includeOptions.includeProviders ? { providerBindings } : {}),
+      ...(includeOptions.includeVersions
+        ? {
+            versions: this.buildVersionDetails(packageSummary, {
+              promptCount: promptDetails.length || packageSummary.promptCount || 0,
+              providerCount: providerBindings.length,
+              knowledgeBindingCount: knowledgeBindings.length,
+            }),
+          }
+        : {}),
+      ...(includeOptions.includeBrandOverrides ? { brandOverrides: [] } : {}),
+      ...(includeOptions.includeUserOverrides ? { userOverrides: [] } : {}),
+    };
   }
 
   async createSkillPackage(payload: CreateSkillPackagePayload) {
@@ -292,6 +420,19 @@ export class SkillPackagesService {
     return Math.floor(normalized);
   }
 
+  private normalizeDetailQuery(query: SkillPackageDetailQuery) {
+    return {
+      includePrompts: query.includePrompts ?? true,
+      includeReferences: query.includeReferences ?? false,
+      includeScripts: query.includeScripts ?? false,
+      includeKnowledge: query.includeKnowledge ?? false,
+      includeProviders: query.includeProviders ?? true,
+      includeVersions: query.includeVersions ?? true,
+      includeBrandOverrides: query.includeBrandOverrides ?? false,
+      includeUserOverrides: query.includeUserOverrides ?? false,
+    };
+  }
+
   private buildDatabaseWhere(query: SkillPackageListQuery) {
     const where: Record<string, unknown> = {};
     if (query.keyword?.trim()) {
@@ -408,6 +549,126 @@ export class SkillPackagesService {
       .filter((item) => (query.moduleKey ? item.moduleSummaries.some((moduleItem) => moduleItem.moduleKey === query.moduleKey) : true));
   }
 
+  private buildWorkflowStepSummaries(workflowStepKeys: string[]) {
+    return workflowStepKeys.map((stepKey, index) => ({
+      workflowKey: stepKey.replace(/-step$/i, ""),
+      stepKey,
+      stepName: this.humanizeKey(stepKey),
+      stepOrder: index + 1,
+    }));
+  }
+
+  private buildPromptDetails(
+    relatedSkillBindings: Awaited<ReturnType<SkillPackagesService["loadSkillPackageSkillsForSummary"]>>,
+    promptBindings: Awaited<ReturnType<SkillPackagesService["loadSkillPromptBindingsForSummary"]>>,
+    promptTemplates: PromptTemplateRecord[],
+  ) {
+    const relatedSkillIds = new Set(relatedSkillBindings.map((item) => item.skillId));
+    const relatedSkillSlugs = new Set(relatedSkillBindings.map((item) => item.skillSlug));
+    const relevantBindings = promptBindings
+      .filter(
+        (binding) =>
+          binding.enabled &&
+          (relatedSkillIds.has(binding.skillId) || (binding.skillSlug ? relatedSkillSlugs.has(binding.skillSlug) : false)),
+      )
+      .sort((left, right) => {
+        if (left.isPrimary !== right.isPrimary) {
+          return left.isPrimary ? -1 : 1;
+        }
+        return left.sortOrder - right.sortOrder;
+      });
+
+    const detailMap = new Map<string, NonNullable<SkillPackageDetailRecord["prompts"]>[number]>();
+    relevantBindings.forEach((binding, index) => {
+      const prompt = promptTemplates.find((item) => item.id === binding.promptId);
+      detailMap.set(binding.promptId, {
+        id: binding.promptId,
+        promptKey: prompt?.scene || binding.promptScene || binding.promptId,
+        promptName: prompt?.name || binding.promptScene || binding.promptId,
+        promptRole: this.inferPromptRole(binding.bindingType, binding.isPrimary, index),
+        content: prompt?.content || "",
+        isDefault: binding.isPrimary || index === 0,
+        versionTag: prompt?.version,
+        updatedAt: prompt?.updatedAt,
+      });
+    });
+
+    return Array.from(detailMap.values());
+  }
+
+  private buildKnowledgeBindings(packageSummary: SkillPackageSummaryRecord, knowledgeBases: Array<{ id: string; name: string }>) {
+    return packageSummary.defaultKnowledgeSpaceIds.map((knowledgeBaseId, index) => ({
+      id: `${packageSummary.id}:knowledge:${knowledgeBaseId}`,
+      knowledgeBaseId,
+      knowledgeBaseName: knowledgeBases.find((item) => item.id === knowledgeBaseId)?.name || knowledgeBaseId,
+      bindingType: "DEFAULT" as const,
+      isDefault: index === 0,
+    }));
+  }
+
+  private buildProviderBindings(
+    relatedSkillBindings: Awaited<ReturnType<SkillPackagesService["loadSkillPackageSkillsForSummary"]>>,
+    skillConfigs: Awaited<ReturnType<SkillPackagesService["loadSkillConfigsForSummary"]>>,
+    providers: ApiProviderRecord[],
+  ) {
+    return relatedSkillBindings.map((relation, index) => {
+      const skill = skillConfigs.find((item) => item.id === relation.skillId || item.slug === relation.skillSlug);
+      const scopedModel = this.parseScopedModel(skill?.defaultModel || relation.skillDefaultModel);
+      const modelName = scopedModel.modelName || skill?.defaultModel || relation.skillDefaultModel || undefined;
+      const provider = providers.find((item) => {
+        if (scopedModel.providerId && item.id === scopedModel.providerId) {
+          return true;
+        }
+        if (skill?.provider && item.name === skill.provider) {
+          return true;
+        }
+        return modelName ? item.modelWhitelist.includes(modelName) || item.defaultModel === modelName : false;
+      });
+
+      return {
+        id: relation.id,
+        providerType: this.inferProviderType(provider?.name || skill?.provider || relation.skillProvider, modelName) as
+          | "TEXT"
+          | "IMAGE"
+          | "VIDEO"
+          | "EMBEDDING"
+          | "RERANK",
+        providerId: provider?.id || scopedModel.providerId || undefined,
+        providerName: provider?.name || skill?.provider || relation.skillProvider || undefined,
+        modelName,
+        priority: relation.sortOrder || index + 1,
+        isDefault: relation.isDefault || index === 0,
+        fallbackProviderIds: [],
+        modelWhitelist: provider?.modelWhitelist || (modelName ? [modelName] : []),
+      };
+    });
+  }
+
+  private buildVersionDetails(
+    packageSummary: SkillPackageSummaryRecord,
+    snapshot: { promptCount: number; providerCount: number; knowledgeBindingCount: number },
+  ) {
+    if (!packageSummary.currentVersionId) {
+      return [];
+    }
+    return [
+      {
+        id: packageSummary.currentVersionId,
+        versionNumber: this.normalizeVersionNumber(packageSummary.currentVersionId),
+        changeLog: "第一阶段详情聚合返回当前启用版本占位摘要。",
+        isActive: true,
+        createdAt: packageSummary.updatedAt,
+        snapshotSummary: {
+          promptCount: snapshot.promptCount,
+          referenceCount: 0,
+          scriptCount: 0,
+          knowledgeBindingCount: snapshot.knowledgeBindingCount,
+          providerBindingCount: snapshot.providerCount,
+        },
+      },
+    ];
+  }
+
   private async loadModuleDefinitionsForSummary() {
     const canUseStorage = await this.tableExists("ModuleDefinition");
     if (!canUseStorage) {
@@ -489,6 +750,71 @@ export class SkillPackagesService {
     return this.prismaService.skillPromptBinding.findMany();
   }
 
+  private async loadPromptTemplatesForDetail() {
+    const canUseStorage = await this.tableExists("PromptTemplate");
+    if (!canUseStorage) {
+      return database.promptTemplates.map((item) => ({ ...item }));
+    }
+    const rows = await this.prismaService.promptTemplate.findMany();
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      scene: row.scene,
+      version: row.version,
+      status: row.status as PromptTemplateRecord["status"],
+      modelName: row.modelName,
+      temperature: row.temperature,
+      maxTokens: row.maxTokens,
+      content: row.content,
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
+  private async loadApiProvidersForDetail() {
+    const canUseStorage = await this.tableExists("ApiProviderConfig");
+    if (!canUseStorage) {
+      return database.apiProviders.map((item) => ({ ...item }));
+    }
+    const rows = await this.prismaService.apiProviderConfig.findMany({
+      orderBy: { updatedAt: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      providerType: row.providerType as ApiProviderRecord["providerType"],
+      status: row.status as ApiProviderRecord["status"],
+      baseUrl: row.baseUrl,
+      tutorialUrl: row.tutorialUrl,
+      modelWhitelist: this.normalizeStringArray(row.modelWhitelistJson),
+      apiKey: row.apiKey,
+      defaultModel: row.defaultModel,
+      organization: row.organization,
+      project: row.project,
+      timeoutMs: row.timeoutMs,
+      streamEnabled: row.streamEnabled,
+      customHeaders: this.normalizeStringMap(row.customHeadersJson),
+      extraParams: this.normalizeJsonObject(row.extraParamsJson),
+      remark: row.remark,
+      successRate: row.successRate,
+      requestCount24h: row.requestCount24h,
+      totalCostYuan: row.totalCostYuan,
+      lastCalledAt: row.lastCalledAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
+  private async loadKnowledgeBasesForDetail() {
+    const canUseStorage = await this.tableExists("KnowledgeBase");
+    if (!canUseStorage) {
+      return database.knowledgeBases.map((item) => ({ id: item.id, name: item.name }));
+    }
+    const rows = await this.prismaService.knowledgeBase.findMany();
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+    }));
+  }
+
   private async loadSkillConfigsForSummary() {
     const canUseStorage = await this.tableExists("SkillConfig");
     if (!canUseStorage) {
@@ -524,6 +850,83 @@ export class SkillPackagesService {
       return "RERANK";
     }
     return "TEXT";
+  }
+
+  private inferPromptRole(bindingType?: string, isPrimary?: boolean, index = 0) {
+    if (isPrimary || index === 0) {
+      return "SYSTEM" as const;
+    }
+    if (bindingType === "FALLBACK") {
+      return "FORMATTER" as const;
+    }
+    if (bindingType === "SUPPLEMENTAL") {
+      return "USER_TEMPLATE" as const;
+    }
+    return "SUMMARY" as const;
+  }
+
+  private parseScopedModel(value?: string) {
+    const normalized = String(value || "").trim();
+    if (!normalized.includes("::")) {
+      return { providerId: "", modelName: normalized };
+    }
+    const [providerId, modelName] = normalized.split("::", 2);
+    return {
+      providerId: providerId.trim(),
+      modelName: modelName.trim(),
+    };
+  }
+
+  private normalizeVersionNumber(versionId: string) {
+    const normalized = String(versionId || "").trim();
+    if (!normalized) {
+      return "v1";
+    }
+    const segments = normalized.split("_");
+    return segments[segments.length - 1] || normalized;
+  }
+
+  private humanizeKey(value: string) {
+    return String(value || "")
+      .trim()
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (segment) => segment.toUpperCase());
+  }
+
+  private normalizeStringMap(value: unknown): Record<string, string> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, String(item ?? "")]),
+    );
+  }
+
+  private normalizeJsonObject(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+    return { ...(value as Record<string, unknown>) };
+  }
+
+  private async loadSkillPackageRecordById(id: string) {
+    if (await this.canUseSkillPackageStorage()) {
+      await this.ensureSkillPackageStorageSeeded();
+      const row = await this.prismaService.skillPackage.findUnique({
+        where: { id },
+      });
+      if (!row) {
+        throw new NotFoundException("能力包不存在");
+      }
+      return this.normalizeSkillPackage(row);
+    }
+
+    const record = database.skillPackages.find((item) => item.id === id);
+    if (!record) {
+      throw new NotFoundException("能力包不存在");
+    }
+    return { ...record };
   }
 
   private async tableExists(tableName: string) {
