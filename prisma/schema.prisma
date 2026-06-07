@@ -1001,6 +1001,28 @@ model KnowledgeBinding {
   @@index([knowledgeBaseId, enabled, priority])
 }
 
+model SkillPackage {
+  id                        String   @id
+  packageKey                String   @unique
+  packageName               String
+  description               String   @default("")
+  status                    String   @default("DRAFT")
+  scope                     String   @default("PLATFORM")
+  moduleKeysJson            Json
+  workflowStepKeysJson      Json?
+  tagsJson                  Json?
+  currentVersionId          String?
+  defaultKnowledgeSpaceIdsJson  Json?
+  defaultProviderPolicyIdsJson Json?
+  sortOrder                 Int      @default(100)
+  remarks                   String   @default("")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([status, scope, sortOrder])
+  @@index([updatedAt])
+}
+
 model ModuleDefinition {
   id                              String   @id
   moduleKey                       String   @unique

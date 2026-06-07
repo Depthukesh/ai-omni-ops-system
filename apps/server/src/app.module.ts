@@ -9,6 +9,7 @@ import { ModelUsageModule } from "./modules/admin/model-usage.module";
 import { ModuleDefinitionsModule } from "./modules/admin/module-definitions.module";
 import { SkillsPromptsModule } from "./modules/admin/skills-prompts.module";
 import { SkillPackageModulesModule } from "./modules/admin/skill-package-modules.module";
+import { SkillPackagesModule } from "./modules/admin/skill-packages.module";
 import { SkillPackageSkillsModule } from "./modules/admin/skill-package-skills.module";
 import { UsersAdminModule } from "./modules/admin/users-admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -32,6 +33,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     BillingRulesModule,
     KnowledgeBasesModule,
     ModuleDefinitionsModule,
+    SkillPackagesModule,
     SkillPackageModulesModule,
     SkillPackageSkillsModule,
     UsersAdminModule,

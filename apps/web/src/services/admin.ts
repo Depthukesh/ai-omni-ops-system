@@ -198,6 +198,31 @@ export type GetModuleDefinitionsQuery = {
   moduleStatus?: "ALL" | ModuleDefinitionRecord["moduleStatus"];
 };
 
+export type SkillPackageRecord = {
+  id: string;
+  packageKey: string;
+  packageName: string;
+  description?: string;
+  status: "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+  scope: "PLATFORM" | "BRAND" | "USER";
+  moduleKeys: string[];
+  workflowStepKeys: string[];
+  tags: string[];
+  currentVersionId?: string;
+  defaultKnowledgeSpaceIds: string[];
+  defaultProviderPolicyIds: string[];
+  sortOrder: number;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetSkillPackagesQuery = {
+  keyword?: string;
+  status?: "ALL" | SkillPackageRecord["status"];
+  scope?: "ALL" | SkillPackageRecord["scope"];
+};
+
 export type SkillPackageModuleRecord = {
   id: string;
   packageId: string;
@@ -1338,6 +1363,171 @@ export const moduleDefinitionSeed: ModuleDefinitionRecord[] = [
   },
 ];
 
+export const skillPackageSeed: SkillPackageRecord[] = [
+  {
+    id: "sp_brand_growth_analysis",
+    packageKey: "brand-growth-analysis",
+    packageName: "品牌增长分析能力包",
+    description: "面向品牌全域增长分析、诊断与策略建议的基础能力包。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["brand-growth-workbench"],
+    workflowStepKeys: ["brand-growth-analysis-step"],
+    tags: ["analysis", "growth", "strategy"],
+    currentVersionId: "spv_brand_growth_analysis_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs"],
+    defaultProviderPolicyIds: ["brand-text-provider-policy"],
+    sortOrder: 10,
+    remarks: "统一技能中心第一批平台能力包样例。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_enterprise_annual_plan",
+    packageKey: "enterprise-annual-plan",
+    packageName: "半年营销规划能力包",
+    description: "用于半年营销规划、阶段动作拆解与策略路线输出。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["brand-growth-workbench"],
+    workflowStepKeys: ["annual-marketing-plan-step"],
+    tags: ["planning", "marketing", "campaign"],
+    currentVersionId: "spv_enterprise_annual_plan_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs"],
+    defaultProviderPolicyIds: ["brand-text-provider-policy"],
+    sortOrder: 20,
+    remarks: "规划类能力包样例。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_xiaohongshu_brand_marketing_plan",
+    packageKey: "xiaohongshu-brand-marketing-plan",
+    packageName: "小红书营销规划能力包",
+    description: "小红书选题、品牌策略与节奏规划的能力包。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["xiaohongshu-workbench"],
+    workflowStepKeys: ["xiaohongshu-planning-step"],
+    tags: ["xiaohongshu", "planning"],
+    currentVersionId: "spv_xiaohongshu_brand_plan_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs"],
+    defaultProviderPolicyIds: ["brand-text-provider-policy"],
+    sortOrder: 30,
+    remarks: "小红书工作台默认能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_tongcheng_brand_douyin_planning",
+    packageKey: "tongcheng-brand-douyin-planning",
+    packageName: "抖音营销规划能力包",
+    description: "抖音品牌营销策划、内容规划与执行建议能力包。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["douyin-workbench"],
+    workflowStepKeys: ["douyin-plan-step"],
+    tags: ["douyin", "planning"],
+    currentVersionId: "spv_douyin_plan_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs", "kb_competitor_cases"],
+    defaultProviderPolicyIds: ["brand-video-provider-policy"],
+    sortOrder: 40,
+    remarks: "抖音工作台默认策划能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_wechat_article_generator",
+    packageKey: "wechat-article-generator",
+    packageName: "公众号文章生成能力包",
+    description: "公众号文章创作、改写与结构化输出能力包。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["wechat-workbench"],
+    workflowStepKeys: ["wechat-article-generate-step"],
+    tags: ["wechat", "article", "copywriting"],
+    currentVersionId: "spv_wechat_article_generator_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs", "kb_feishu_ops"],
+    defaultProviderPolicyIds: ["brand-wechat-provider-policy"],
+    sortOrder: 50,
+    remarks: "公众号工作台主文章能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_wechat_image_designer",
+    packageKey: "wechat-image-designer",
+    packageName: "公众号配图生成能力包",
+    description: "公众号封面图和正文配图生成能力包。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["wechat-workbench"],
+    workflowStepKeys: ["wechat-image-generate-step"],
+    tags: ["wechat", "image"],
+    currentVersionId: "spv_wechat_image_designer_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs"],
+    defaultProviderPolicyIds: ["brand-wechat-provider-policy"],
+    sortOrder: 60,
+    remarks: "公众号配图能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_wechat_html_renderer",
+    packageKey: "wechat-html-renderer",
+    packageName: "公众号 HTML 渲染能力包",
+    description: "负责公众号 HTML 结构化排版与最终渲染输出。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["wechat-workbench"],
+    workflowStepKeys: ["wechat-html-render-step"],
+    tags: ["wechat", "html"],
+    currentVersionId: "spv_wechat_html_renderer_v1",
+    defaultKnowledgeSpaceIds: ["kb_feishu_ops"],
+    defaultProviderPolicyIds: ["brand-wechat-provider-policy"],
+    sortOrder: 70,
+    remarks: "公众号 HTML 渲染能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_wechat_publish_bridge",
+    packageKey: "wechat-publish-bridge",
+    packageName: "公众号 API 发布能力包",
+    description: "负责公众号内容 API 发布、同步和回执管理。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["wechat-workbench"],
+    workflowStepKeys: ["wechat-api-publish-step"],
+    tags: ["wechat", "publish", "api"],
+    currentVersionId: "spv_wechat_publish_bridge_v1",
+    defaultKnowledgeSpaceIds: ["kb_feishu_ops"],
+    defaultProviderPolicyIds: ["brand-wechat-provider-policy"],
+    sortOrder: 80,
+    remarks: "公众号发布桥接能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+  {
+    id: "sp_design_web_prototype",
+    packageKey: "design-web-prototype",
+    packageName: "网页原型生成能力包",
+    description: "用于网页原型、页面结构与设计稿生成。",
+    status: "ACTIVE",
+    scope: "PLATFORM",
+    moduleKeys: ["design-workbench"],
+    workflowStepKeys: ["design-web-prototype-step"],
+    tags: ["design", "prototype", "web"],
+    currentVersionId: "spv_design_web_prototype_v1",
+    defaultKnowledgeSpaceIds: ["kb_brand_docs"],
+    defaultProviderPolicyIds: ["brand-design-provider-policy"],
+    sortOrder: 90,
+    remarks: "设计工作台主能力包。",
+    createdAt: "2026-06-07T09:50:00.000Z",
+    updatedAt: "2026-06-07T09:50:00.000Z",
+  },
+];
+
 export const skillPackageModuleSeed: SkillPackageModuleRecord[] = [
   {
     id: "spm_wechat_article_default",
@@ -2222,6 +2412,42 @@ export async function archiveModuleDefinition(moduleId: string) {
 
 export async function deleteModuleDefinition(moduleId: string) {
   return request<ModuleDefinitionRecord>(`/admin/module-definitions/${moduleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSkillPackages(query: GetSkillPackagesQuery = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.keyword?.trim()) {
+    searchParams.set("keyword", query.keyword.trim());
+  }
+  if (query.status && query.status !== "ALL") {
+    searchParams.set("status", query.status);
+  }
+  if (query.scope && query.scope !== "ALL") {
+    searchParams.set("scope", query.scope);
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageRecord[]>(suffix ? `/admin/skill-packages?${suffix}` : "/admin/skill-packages");
+}
+
+export async function getSkillPackage(id: string) {
+  return request<SkillPackageRecord>(`/admin/skill-packages/${id}`);
+}
+
+export async function createSkillPackage(payload: Omit<SkillPackageRecord, "id" | "createdAt" | "updatedAt">) {
+  return jsonRequest<SkillPackageRecord>("/admin/skill-packages", "POST", payload);
+}
+
+export async function updateSkillPackage(
+  id: string,
+  payload: Partial<Omit<SkillPackageRecord, "id" | "createdAt" | "updatedAt">>,
+) {
+  return jsonRequest<SkillPackageRecord>(`/admin/skill-packages/${id}`, "PATCH", payload);
+}
+
+export async function deleteSkillPackage(id: string) {
+  return request<SkillPackageRecord>(`/admin/skill-packages/${id}`, {
     method: "DELETE",
   });
 }

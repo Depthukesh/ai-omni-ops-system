@@ -11,6 +11,7 @@ import {
   type SkillConfigRecord,
   updateModuleDefinition,
 } from "../../../services/admin";
+import { SkillPackagesPanel } from "./skill-packages-panel";
 import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
 import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
 
@@ -554,6 +555,12 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         </div>
       ) : null}
 
+      <SkillPackagesPanel
+        modules={props.modules}
+        dataSource={props.dataSource}
+        onNotice={props.onNotice}
+        onError={props.onError}
+      />
       <SkillPackageModulesPanel
         modules={props.modules}
         dataSource={props.dataSource}

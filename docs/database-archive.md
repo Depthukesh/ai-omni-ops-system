@@ -156,6 +156,24 @@
   - 若迁移未执行，则接口仍回退到 `mock-data` 演示数据，不影响当前后台页面继续使用
   - 这一层先解决技能反查能力包、能力包反查技能，以及后台创建技能时同步落库能力包归属
 
+### 2.11 SkillPackage 主数据第一批真源化
+
+- 当前已补入主表：
+  - `SkillPackage`
+- 配套迁移：
+  - `prisma/migrations/20260607_skill_packages_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/skill-packages`
+  - `GET /admin/skill-packages/:id`
+  - `POST /admin/skill-packages`
+  - `PATCH /admin/skill-packages/:id`
+  - `DELETE /admin/skill-packages/:id`
+- 当前策略：
+  - 先把 `SkillPackage` 主对象单独立起来，承接 `packageKey`、`packageName`、状态、作用域、默认知识空间、默认 Provider 策略等主数据
+  - 首次命中且表为空时，会把 `mock-data` 中已整理的第一批能力包主数据自动回填到 PostgreSQL
+  - 若迁移未执行，则接口仍回退到 `mock-data` 演示数据
+  - 当前关系表 `SkillPackageModule`、`SkillPackageSkill` 仍保持独立可用，下一阶段再继续把列表页 / 详情页和版本域与主对象统一收口
+
 ## 3. 正式数据表分层
 
 ### 3.1 用户与交易域
@@ -258,6 +276,10 @@
   - 用途：能力包与技能的正式关系表，承接技能中心能力包归属、模块推导与后续独立关系管理页
   - 关键字段：`packageId`、`packageKey`、`packageName`、`skillId`、`skillSlug`、`bindingType`、`isDefault`、`sortOrder`、`enabled`
   - 当前约定：同一技能可挂多个能力包，但默认归属通过 `isDefault` 收口为单技能唯一默认；后台创建技能时若选择能力包会优先写入这一层
+- `SkillPackage`
+  - 用途：统一技能中心与能力包注册中心的主对象，作为模块、技能、知识、Prompt、Provider 等资产的聚合根入口
+  - 关键字段：`packageKey`、`packageName`、`status`、`scope`、`moduleKeysJson`、`workflowStepKeysJson`、`tagsJson`、`currentVersionId`
+  - 当前约定：第一批先支持后台 CRUD 和主数据维护，不急着把 Prompt、Provider、版本快照一次性全部塞进主表
 
 ### 3.7 接口供应商注册域
 
