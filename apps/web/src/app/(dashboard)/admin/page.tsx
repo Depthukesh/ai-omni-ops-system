@@ -217,6 +217,9 @@ export default function AdminPage() {
   const [activeSkillPrimaryId, setActiveSkillPrimaryId] = useState(SKILL_CENTER_TREE[0]?.id || "");
   const [activeSkillSectionId, setActiveSkillSectionId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.id || "");
   const [activeSkillLeafId, setActiveSkillLeafId] = useState(SKILL_CENTER_TREE[0]?.sections[0]?.items[0]?.id || "");
+  const [skillModuleFilter, setSkillModuleFilter] = useState<"ALL" | string>("ALL");
+  const [skillPackageFilter, setSkillPackageFilter] = useState<"ALL" | string>("ALL");
+  const [skillKeywordFilter, setSkillKeywordFilter] = useState("");
   const [collapsedSkillPrimaryMap, setCollapsedSkillPrimaryMap] = useState<Record<string, boolean>>({});
   const [collapsedSkillSectionMap, setCollapsedSkillSectionMap] = useState<Record<string, boolean>>({});
   const [orders, setOrders] = useState<OrderRecord[]>(adminOrderSeed);
@@ -1748,13 +1751,77 @@ export default function AdminPage() {
     { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `当前共有 ${summary.knowledgeBaseCount} 个知识库` },
     { key: "providers" as const, count: summary.providerCount, note: `接口供应商 ${summary.providerCount} 个` },
   ].filter((item) => accessibleTabs.some((tab) => tab.key === item.key));
+  const skillModuleFilterOptions = useMemo(
+    () =>
+      modules.map((item) => ({
+        value: item.moduleKey,
+        label: item.moduleName,
+      })),
+    [modules],
+  );
+  const skillPackageFilterOptions = useMemo(() => {
+    const packageMap = new Map<string, string>();
+    skillPackageModules.forEach((item) => {
+      packageMap.set(item.packageKey, item.packageName);
+    });
+    skillAssetBindingSeed.forEach((item) => {
+      item.packageKeys.forEach((packageKey, index) => {
+        if (!packageMap.has(packageKey)) {
+          packageMap.set(packageKey, item.packageNames[index] || packageKey);
+        }
+      });
+    });
+    return Array.from(packageMap.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+  }, [skillPackageModules]);
+  const filteredSkillTree = useMemo(
+    () =>
+      SKILL_CENTER_TREE.map((primary) => ({
+        ...primary,
+        sections: primary.sections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((leaf) => {
+              const bindings = skillAssetBindingSeed.filter(
+                (item) =>
+                  (leaf.skillSlug && item.skillSlug === leaf.skillSlug) ||
+                  (leaf.promptScene && item.promptScene === leaf.promptScene),
+              );
+              const keyword = skillKeywordFilter.trim().toLowerCase();
+              const keywordMatched = !keyword
+                || [
+                  leaf.label,
+                  leaf.description,
+                  leaf.skillSlug,
+                  leaf.promptScene,
+                  ...bindings.flatMap((item) => [...item.moduleKeys, ...item.packageKeys, ...item.packageNames]),
+                ]
+                  .join(" ")
+                  .toLowerCase()
+                  .includes(keyword);
+              const moduleMatched =
+                skillModuleFilter === "ALL" || bindings.some((item) => item.moduleKeys.includes(skillModuleFilter));
+              const packageMatched =
+                skillPackageFilter === "ALL" || bindings.some((item) => item.packageKeys.includes(skillPackageFilter));
+              return keywordMatched && moduleMatched && packageMatched;
+            }),
+          }))
+          .filter((section) => section.items.length > 0),
+      })).filter((primary) => primary.sections.length > 0),
+    [modules, skillKeywordFilter, skillModuleFilter, skillPackageFilter, skillPackageModules],
+  );
+  const filteredSkillLeafCount = useMemo(
+    () => filteredSkillTree.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0),
+    [filteredSkillTree],
+  );
   const operationPulse = [
     { label: "订单履约", value: summary.orderCount ? Math.round((summary.paidCount / summary.orderCount) * 100) : 0 },
     { label: "知识同步", value: knowledgeBases.length ? Math.round((knowledgeBases.filter((item) => item.syncStatus === "SUCCESS").length / knowledgeBases.length) * 100) : 0 },
     { label: "接口健康", value: providers.length ? Math.round(providers.filter((item) => item.status === "ACTIVE").length / providers.length * 100) : 0 },
   ];
   const latestKnowledgeRun = knowledgeBaseSyncRuns[0];
-  const activeSkillPrimary = SKILL_CENTER_TREE.find((item) => item.id === activeSkillPrimaryId) || SKILL_CENTER_TREE[0];
+  const activeSkillPrimary = filteredSkillTree.find((item) => item.id === activeSkillPrimaryId) || filteredSkillTree[0];
   const activeSkillSection = activeSkillPrimary?.sections.find((item) => item.id === activeSkillSectionId) || activeSkillPrimary?.sections[0];
   const activeSkillLeaf = activeSkillSection?.items.find((item) => item.id === activeSkillLeafId) || activeSkillSection?.items[0];
   const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
@@ -1821,6 +1888,40 @@ export default function AdminPage() {
     : undefined;
 
   useEffect(() => {
+    const nextPrimary = filteredSkillTree[0];
+    const nextSection = nextPrimary?.sections[0];
+    const nextLeaf = nextSection?.items[0];
+
+    if (!nextPrimary || !nextSection || !nextLeaf) {
+      setActiveSkillPrimaryId("");
+      setActiveSkillSectionId("");
+      setActiveSkillLeafId("");
+      return;
+    }
+
+    const primaryExists = filteredSkillTree.some((item) => item.id === activeSkillPrimaryId);
+    const sectionExists = nextPrimary.sections.some((item) => item.id === activeSkillSectionId);
+    const leafExists = nextSection.items.some((item) => item.id === activeSkillLeafId);
+
+    if (!primaryExists) {
+      setActiveSkillPrimaryId(nextPrimary.id);
+      setActiveSkillSectionId(nextSection.id);
+      setActiveSkillLeafId(nextLeaf.id);
+      return;
+    }
+
+    const currentPrimary = filteredSkillTree.find((item) => item.id === activeSkillPrimaryId) || nextPrimary;
+    const currentSection = currentPrimary.sections.find((item) => item.id === activeSkillSectionId) || currentPrimary.sections[0];
+    const currentLeaf = currentSection?.items.find((item) => item.id === activeSkillLeafId) || currentSection?.items[0];
+
+    if (!sectionExists || !leafExists || !currentSection || !currentLeaf) {
+      setActiveSkillPrimaryId(currentPrimary.id);
+      setActiveSkillSectionId(currentSection?.id || nextSection.id);
+      setActiveSkillLeafId(currentLeaf?.id || nextLeaf.id);
+    }
+  }, [activeSkillLeafId, activeSkillPrimaryId, activeSkillSectionId, filteredSkillTree]);
+
+  useEffect(() => {
     if (!filteredThirdPartyPlatforms.length) {
       return;
     }
@@ -1830,7 +1931,7 @@ export default function AdminPage() {
   }, [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId]);
 
   function handleSelectSkillPrimary(primaryId: string) {
-    const nextPrimary = SKILL_CENTER_TREE.find((item) => item.id === primaryId);
+    const nextPrimary = filteredSkillTree.find((item) => item.id === primaryId);
     if (!nextPrimary) {
       return;
     }
@@ -1852,7 +1953,7 @@ export default function AdminPage() {
   }
 
   function handleSelectSkillSection(primaryId: string, sectionId: string) {
-    const nextPrimary = SKILL_CENTER_TREE.find((item) => item.id === primaryId);
+    const nextPrimary = filteredSkillTree.find((item) => item.id === primaryId);
     const nextSection = nextPrimary?.sections.find((item) => item.id === sectionId);
     if (!nextPrimary || !nextSection) {
       return;
@@ -2196,11 +2297,52 @@ export default function AdminPage() {
               <div className="admin-skill-card-topline">
                 <span className="admin-skill-card-kicker">技能目录</span>
                 <span className="archive-pill status-ready">
-                  {skills.length} 技能 / {prompts.length} 提示词
+                  {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
                 </span>
               </div>
+              <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
+                <label>
+                  <span>模块筛选</span>
+                  <select value={skillModuleFilter} onChange={(event) => setSkillModuleFilter(event.target.value)}>
+                    <option value="ALL">全部模块</option>
+                    {skillModuleFilterOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>能力包筛选</span>
+                  <select value={skillPackageFilter} onChange={(event) => setSkillPackageFilter(event.target.value)}>
+                    <option value="ALL">全部能力包</option>
+                    {skillPackageFilterOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ gridColumn: "1 / -1" }}>
+                  <span>关键词</span>
+                  <input
+                    value={skillKeywordFilter}
+                    placeholder="模块 / 能力包 / 技能 / 提示词"
+                    onChange={(event) => setSkillKeywordFilter(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="personal-actions" style={{ marginBottom: 16 }}>
+                <button type="button" className="secondary-button" onClick={() => {
+                  setSkillModuleFilter("ALL");
+                  setSkillPackageFilter("ALL");
+                  setSkillKeywordFilter("");
+                }}>
+                  重置筛选
+                </button>
+              </div>
               <div className="admin-skill-primary-list">
-                {SKILL_CENTER_TREE.map((primary) => {
+                {filteredSkillTree.map((primary) => {
                   const primaryActive = activeSkillPrimaryId === primary.id;
                   const primaryExpanded = isSkillPrimaryExpanded(primary.id);
 
@@ -2268,6 +2410,7 @@ export default function AdminPage() {
                   );
                 })}
               </div>
+              {!filteredSkillTree.length ? <div className="admin-skill-empty">当前筛选条件下没有匹配的技能项。</div> : null}
             </aside>
             <section className="panel personal-center-panel admin-skill-center-panel">
               {activeSkillLeaf ? (
