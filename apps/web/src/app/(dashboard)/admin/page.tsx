@@ -24,6 +24,7 @@ import {
   getKnowledgeBases,
   getKnowledgeBaseFiles,
   getKnowledgeBaseSyncRuns,
+  getModuleDefinitions,
   getPromptTemplates,
   getAdminUsers,
   getBillingRules,
@@ -33,6 +34,7 @@ import {
   knowledgeBaseFileSeed,
   knowledgeBaseSyncRunSeed,
   knowledgeBaseSeed,
+  moduleDefinitionSeed,
   modelUsageSeed,
   promptTemplateSeed,
   skillConfigSeed,
@@ -57,6 +59,7 @@ import {
   type MembershipLevel,
   type MembershipPlanRule,
   type ModelUsageRecord,
+  type ModuleDefinitionRecord,
   type PointsPackageRule,
   type PromptTemplateRecord,
   type SkillConfigRecord,
@@ -64,9 +67,10 @@ import {
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
+import { ModuleDefinitionsPanel } from "./module-definitions-panel";
 import { UsersManagementPanel } from "./users-management-panel";
 
-type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "knowledge" | "providers";
+type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
 type SkillEditDraft = {
   status: SkillConfigRecord["status"];
@@ -184,6 +188,7 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
   { key: "users", label: "用户管理", shortLabel: "用户", description: "调整会员等级、增减点数，并查看用户规模与活跃情况。" },
   { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
   { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
+  { key: "modules", label: "模块注册中心", shortLabel: "模块", description: "维护模块定义、入口路由、能力依赖和默认能力包摘要。" },
   { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
   {
     key: "providers",
@@ -194,8 +199,8 @@ const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabe
 ];
 
 const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
-  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "knowledge", "providers"],
-  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "knowledge", "providers"],
+  SUPER_ADMIN: ["dashboard", "orders", "rules", "users", "usage", "assets", "modules", "knowledge", "providers"],
+  ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "modules", "knowledge", "providers"],
   FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
   SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
 };
@@ -216,6 +221,7 @@ export default function AdminPage() {
   const [usage, setUsage] = useState<ModelUsageRecord[]>(modelUsageSeed);
   const [skills, setSkills] = useState<SkillConfigRecord[]>(skillConfigSeed);
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
+  const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
@@ -317,6 +323,7 @@ export default function AdminPage() {
     const canReadUsers = allowedTabs.includes("users");
     const canReadUsage = allowedTabs.includes("usage");
     const canReadAssets = allowedTabs.includes("assets");
+    const canReadModules = allowedTabs.includes("modules");
     const canReadKnowledge = allowedTabs.includes("knowledge");
     const canReadProviders = allowedTabs.includes("providers");
 
@@ -327,6 +334,7 @@ export default function AdminPage() {
       usageResult,
       skillResult,
       promptResult,
+      moduleDefinitionResult,
       knowledgeBaseResult,
       knowledgeBaseFilesResult,
       knowledgeBaseSyncRunsResult,
@@ -340,6 +348,7 @@ export default function AdminPage() {
       canReadUsage ? getModelUsage() : Promise.resolve([]),
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
+      canReadModules ? getModuleDefinitions() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
@@ -391,6 +400,13 @@ export default function AdminPage() {
     } else {
       setPrompts(promptTemplateSeed);
       setPromptDrafts(buildPromptDrafts(promptTemplateSeed));
+      usingSeed = true;
+    }
+
+    if (moduleDefinitionResult.status === "fulfilled") {
+      setModules(moduleDefinitionResult.value);
+    } else {
+      setModules(moduleDefinitionSeed);
       usingSeed = true;
     }
 
@@ -2296,6 +2312,14 @@ export default function AdminPage() {
               )}
             </section>
           </div>
+        ) : activeTab === "modules" ? (
+          <ModuleDefinitionsPanel
+            modules={modules}
+            dataSource={dataSource}
+            onModulesChange={setModules}
+            onNotice={setNotice}
+            onError={setErrorMessage}
+          />
         ) : activeTab === "knowledge" ? (
           <div className="personal-list">
             <article className="entity-card personal-card">
