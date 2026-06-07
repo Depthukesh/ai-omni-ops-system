@@ -6,6 +6,7 @@ import {
   type ApiProviderRecord,
   type PromptTemplateRecord,
   type SkillPackageRecord,
+  type SkillPackageVersionRecord,
 } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -45,6 +46,39 @@ export type SkillPackageDetailQuery = {
   includeVersions?: boolean;
   includeBrandOverrides?: boolean;
   includeUserOverrides?: boolean;
+};
+
+export type SkillPackageVersionView = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  versionNumber: string;
+  changeLog?: string;
+  sourceMode: "CURRENT_STATE" | "CLONE_FROM_VERSION";
+  sourceVersionId?: string;
+  isActive: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  snapshotSummary?: {
+    promptCount: number;
+    referenceCount: number;
+    scriptCount: number;
+    knowledgeBindingCount: number;
+    providerBindingCount: number;
+  };
+};
+
+export type CreateSkillPackageVersionPayload = {
+  versionNumber: string;
+  changeLog?: string;
+  sourceMode: "CURRENT_STATE" | "CLONE_FROM_VERSION";
+  sourceVersionId?: string;
+  createdBy?: string;
+};
+
+export type ActivateSkillPackageVersionPayload = {
+  versionId: string;
 };
 
 export type SkillPackageDetailRecord = {
@@ -136,6 +170,7 @@ export type UpdateSkillPackagePayload = Partial<Omit<SkillPackageRecord, "id" | 
 @Injectable()
 export class SkillPackagesService {
   private bootstrapPromise?: Promise<void>;
+  private versionBootstrapPromise?: Promise<void>;
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -190,6 +225,7 @@ export class SkillPackagesService {
     const promptDetails = this.buildPromptDetails(relatedSkillBindings, promptBindings, promptTemplates);
     const providerBindings = this.buildProviderBindings(relatedSkillBindings, skillConfigs, providers);
     const knowledgeBindings = this.buildKnowledgeBindings(packageSummary, knowledgeBases);
+    const versionDetails = await this.loadVersionViewsByPackage(packageSummary);
 
     return {
       package: packageSummary,
@@ -209,15 +245,7 @@ export class SkillPackagesService {
       ...(includeOptions.includeScripts ? { scripts: [] } : {}),
       ...(includeOptions.includeKnowledge ? { knowledgeBindings } : {}),
       ...(includeOptions.includeProviders ? { providerBindings } : {}),
-      ...(includeOptions.includeVersions
-        ? {
-            versions: this.buildVersionDetails(packageSummary, {
-              promptCount: promptDetails.length || packageSummary.promptCount || 0,
-              providerCount: providerBindings.length,
-              knowledgeBindingCount: knowledgeBindings.length,
-            }),
-          }
-        : {}),
+      ...(includeOptions.includeVersions ? { versions: versionDetails } : {}),
       ...(includeOptions.includeBrandOverrides ? { brandOverrides: [] } : {}),
       ...(includeOptions.includeUserOverrides ? { userOverrides: [] } : {}),
     };
@@ -325,6 +353,133 @@ export class SkillPackagesService {
     }
     const [deleted] = database.skillPackages.splice(index, 1);
     return { ...deleted };
+  }
+
+  async listSkillPackageVersions(packageId: string): Promise<{ items: SkillPackageVersionView[] }> {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    return {
+      items: await this.loadVersionViewsByPackage(packageRecord),
+    };
+  }
+
+  async createSkillPackageVersion(packageId: string, payload: CreateSkillPackageVersionPayload): Promise<SkillPackageVersionView> {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const normalizedPayload = this.normalizeCreateVersionPayload(payload);
+    const existingVersions = await this.loadVersionRecordsByPackage(packageRecord.id, packageRecord.packageKey);
+    if (existingVersions.some((item) => item.versionNumber === normalizedPayload.versionNumber)) {
+      throw new ConflictException("版本号已存在");
+    }
+
+    const sourceVersion =
+      normalizedPayload.sourceMode === "CLONE_FROM_VERSION"
+        ? existingVersions.find((item) => item.id === normalizedPayload.sourceVersionId)
+        : undefined;
+    if (normalizedPayload.sourceMode === "CLONE_FROM_VERSION" && !sourceVersion) {
+      throw new BadRequestException("克隆来源版本不存在");
+    }
+
+    const snapshot = sourceVersion
+      ? this.normalizeSnapshotSummary(sourceVersion.snapshotJson)
+      : await this.buildVersionSnapshot(packageRecord);
+    const now = new Date().toISOString();
+
+    if (await this.tableExists("SkillPackageVersion")) {
+      const created = await this.prismaService.skillPackageVersion.create({
+        data: {
+          id: createId("spv"),
+          packageId: packageRecord.id,
+          packageKey: packageRecord.packageKey,
+          versionNumber: normalizedPayload.versionNumber,
+          changeLog: normalizedPayload.changeLog ?? "",
+          sourceMode: normalizedPayload.sourceMode,
+          sourceVersionId: normalizedPayload.sourceVersionId,
+          isActive: false,
+          snapshotJson: snapshot,
+          createdBy: normalizedPayload.createdBy,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+        },
+      });
+      return this.normalizeVersionRecord(created);
+    }
+
+    const created: SkillPackageVersionRecord = {
+      id: createId("spv"),
+      packageId: packageRecord.id,
+      packageKey: packageRecord.packageKey,
+      versionNumber: normalizedPayload.versionNumber,
+      changeLog: normalizedPayload.changeLog,
+      sourceMode: normalizedPayload.sourceMode,
+      sourceVersionId: normalizedPayload.sourceVersionId,
+      isActive: false,
+      snapshotJson: snapshot,
+      createdBy: normalizedPayload.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.skillPackageVersions.unshift(created);
+    return this.normalizeVersionRecord(created);
+  }
+
+  async activateSkillPackageVersion(packageId: string, payload: ActivateSkillPackageVersionPayload): Promise<SkillPackageVersionView> {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const versionId = String(payload.versionId || "").trim();
+    if (!versionId) {
+      throw new BadRequestException("版本 ID 不能为空");
+    }
+
+    if ((await this.tableExists("SkillPackageVersion")) && (await this.canUseSkillPackageStorage())) {
+      const target = await this.prismaService.skillPackageVersion.findUnique({
+        where: { id: versionId },
+      });
+      if (!target || target.packageId !== packageRecord.id) {
+        throw new NotFoundException("版本不存在");
+      }
+      await this.prismaService.$transaction([
+        this.prismaService.skillPackageVersion.updateMany({
+          where: { packageId: packageRecord.id, isActive: true },
+          data: { isActive: false, updatedAt: new Date() },
+        }),
+        this.prismaService.skillPackageVersion.update({
+          where: { id: versionId },
+          data: { isActive: true, updatedAt: new Date() },
+        }),
+        this.prismaService.skillPackage.update({
+          where: { id: packageRecord.id },
+          data: { currentVersionId: versionId, updatedAt: new Date() },
+        }),
+      ]);
+      const activated = await this.prismaService.skillPackageVersion.findUnique({
+        where: { id: versionId },
+      });
+      if (!activated) {
+        throw new NotFoundException("版本不存在");
+      }
+      return this.normalizeVersionRecord(activated);
+    }
+
+    const targetIndex = database.skillPackageVersions.findIndex((item) => item.id === versionId && item.packageId === packageRecord.id);
+    if (targetIndex < 0) {
+      throw new NotFoundException("版本不存在");
+    }
+    database.skillPackageVersions = database.skillPackageVersions.map((item) =>
+      item.packageId === packageRecord.id
+        ? {
+            ...item,
+            isActive: item.id === versionId,
+            updatedAt: item.id === versionId ? new Date().toISOString() : item.updatedAt,
+          }
+        : item,
+    );
+    const packageIndex = database.skillPackages.findIndex((item) => item.id === packageRecord.id);
+    if (packageIndex >= 0) {
+      database.skillPackages[packageIndex] = {
+        ...database.skillPackages[packageIndex],
+        currentVersionId: versionId,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return this.normalizeVersionRecord(database.skillPackageVersions[targetIndex]);
   }
 
   private normalizeSkillPackage(row: SkillPackage): SkillPackageRecord {
@@ -472,12 +627,13 @@ export class SkillPackagesService {
     packages: SkillPackageRecord[],
     query: SkillPackageListQuery,
   ): Promise<SkillPackageSummaryRecord[]> {
-    const [moduleDefinitions, packageModules, packageSkills, skillPromptBindings, skillConfigs] = await Promise.all([
+    const [moduleDefinitions, packageModules, packageSkills, skillPromptBindings, skillConfigs, versionRows] = await Promise.all([
       this.loadModuleDefinitionsForSummary(),
       this.loadSkillPackageModulesForSummary(),
       this.loadSkillPackageSkillsForSummary(),
       this.loadSkillPromptBindingsForSummary(),
       this.loadSkillConfigsForSummary(),
+      this.loadSkillPackageVersionsForSummary(),
     ]);
 
     return packages
@@ -528,11 +684,13 @@ export class SkillPackagesService {
           })
           .map((relation) => skillConfigs.find((item2) => item2.id === relation.skillId || item2.slug === relation.skillSlug))
           .find(Boolean);
+        const currentVersion = versionRows.find((versionItem) => versionItem.packageId === item.id && versionItem.isActive)
+          || versionRows.find((versionItem) => versionItem.packageId === item.id && versionItem.id === item.currentVersionId);
 
         return {
           ...item,
           moduleSummaries: Array.from(moduleSummaryMap.values()),
-          currentVersionNumber: item.currentVersionId || undefined,
+          currentVersionNumber: currentVersion?.versionNumber || item.currentVersionId || undefined,
           defaultProviderSummary: firstSkill
             ? {
                 providerType: this.inferProviderType(firstSkill.provider, firstSkill.defaultModel),
@@ -642,31 +800,6 @@ export class SkillPackagesService {
         modelWhitelist: provider?.modelWhitelist || (modelName ? [modelName] : []),
       };
     });
-  }
-
-  private buildVersionDetails(
-    packageSummary: SkillPackageSummaryRecord,
-    snapshot: { promptCount: number; providerCount: number; knowledgeBindingCount: number },
-  ) {
-    if (!packageSummary.currentVersionId) {
-      return [];
-    }
-    return [
-      {
-        id: packageSummary.currentVersionId,
-        versionNumber: this.normalizeVersionNumber(packageSummary.currentVersionId),
-        changeLog: "第一阶段详情聚合返回当前启用版本占位摘要。",
-        isActive: true,
-        createdAt: packageSummary.updatedAt,
-        snapshotSummary: {
-          promptCount: snapshot.promptCount,
-          referenceCount: 0,
-          scriptCount: 0,
-          knowledgeBindingCount: snapshot.knowledgeBindingCount,
-          providerBindingCount: snapshot.providerCount,
-        },
-      },
-    ];
   }
 
   private async loadModuleDefinitionsForSummary() {
@@ -835,6 +968,128 @@ export class SkillPackagesService {
     }));
   }
 
+  private async loadSkillPackageVersionsForSummary() {
+    if (await this.tableExists("SkillPackageVersion")) {
+      await this.ensureSkillPackageVersionStorageSeeded();
+      const rows = await this.prismaService.skillPackageVersion.findMany({
+        orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
+      });
+      return rows.map((row) => this.normalizeVersionRecord(row));
+    }
+    return database.skillPackageVersions.map((item) => this.normalizeVersionRecord(item));
+  }
+
+  private async loadVersionViewsByPackage(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "currentVersionId">) {
+    const records = await this.loadVersionRecordsByPackage(packageRecord.id, packageRecord.packageKey);
+    const versionViews = records.map((item) => this.normalizeVersionRecord(item));
+    if (versionViews.length) {
+      return versionViews;
+    }
+    if (!packageRecord.currentVersionId) {
+      return [];
+    }
+    const fallbackVersion: SkillPackageVersionView = {
+        id: packageRecord.currentVersionId,
+        packageId: packageRecord.id,
+        packageKey: packageRecord.packageKey,
+        versionNumber: this.normalizeVersionNumber(packageRecord.currentVersionId),
+        changeLog: "第一阶段版本表未落地前的兼容占位版本。",
+        sourceMode: "CURRENT_STATE",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        snapshotSummary: {
+          promptCount: 0,
+          referenceCount: 0,
+          scriptCount: 0,
+          knowledgeBindingCount: 0,
+          providerBindingCount: 0,
+        },
+      };
+    return [fallbackVersion];
+  }
+
+  private async loadVersionRecordsByPackage(packageId: string, packageKey: string) {
+    if (await this.tableExists("SkillPackageVersion")) {
+      await this.ensureSkillPackageVersionStorageSeeded();
+      return this.prismaService.skillPackageVersion.findMany({
+        where: {
+          OR: [{ packageId }, { packageKey }],
+        },
+        orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
+      });
+    }
+    return database.skillPackageVersions
+      .filter((item) => item.packageId === packageId || item.packageKey === packageKey)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  private async buildVersionSnapshot(packageRecord: Pick<SkillPackageRecord, "id" | "packageKey" | "defaultKnowledgeSpaceIds">) {
+    const [packageSkills, promptBindings] = await Promise.all([
+      this.loadSkillPackageSkillsForSummary(),
+      this.loadSkillPromptBindingsForSummary(),
+    ]);
+    const relatedSkills = packageSkills.filter((item) => item.packageKey === packageRecord.packageKey && item.enabled);
+    const relatedSkillIds = Array.from(new Set(relatedSkills.map((item) => item.skillId)));
+    const promptIds = new Set(
+      promptBindings
+        .filter((item) => item.enabled && relatedSkillIds.includes(item.skillId))
+        .map((item) => item.promptId),
+    );
+    return {
+      promptCount: promptIds.size,
+      referenceCount: 0,
+      scriptCount: 0,
+      knowledgeBindingCount: packageRecord.defaultKnowledgeSpaceIds.length,
+      providerBindingCount: relatedSkills.length ? 1 : 0,
+    };
+  }
+
+  private normalizeVersionRecord(
+    row:
+      | SkillPackageVersionRecord
+      | {
+          id: string;
+          packageId: string;
+          packageKey: string;
+          versionNumber: string;
+          changeLog: string;
+          sourceMode: string;
+          sourceVersionId: string | null;
+          isActive: boolean;
+          snapshotJson: unknown;
+          createdBy: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+        },
+  ): SkillPackageVersionView {
+    return {
+      id: row.id,
+      packageId: row.packageId,
+      packageKey: row.packageKey,
+      versionNumber: row.versionNumber,
+      changeLog: row.changeLog || undefined,
+      sourceMode: (row.sourceMode as SkillPackageVersionView["sourceMode"]) || "CURRENT_STATE",
+      sourceVersionId: row.sourceVersionId || undefined,
+      isActive: row.isActive,
+      createdBy: row.createdBy || undefined,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+      snapshotSummary: this.normalizeSnapshotSummary(row.snapshotJson),
+    };
+  }
+
+  private normalizeSnapshotSummary(value: unknown): NonNullable<SkillPackageVersionView["snapshotSummary"]> {
+    const snapshot = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    return {
+      promptCount: this.normalizeSnapshotCount(snapshot.promptCount),
+      referenceCount: this.normalizeSnapshotCount(snapshot.referenceCount),
+      scriptCount: this.normalizeSnapshotCount(snapshot.scriptCount),
+      knowledgeBindingCount: this.normalizeSnapshotCount(snapshot.knowledgeBindingCount),
+      providerBindingCount: this.normalizeSnapshotCount(snapshot.providerBindingCount),
+    };
+  }
+
   private inferProviderType(providerName?: string, modelName?: string) {
     const normalized = `${providerName || ""} ${modelName || ""}`.toLowerCase();
     if (normalized.includes("image") || normalized.includes("文生图")) {
@@ -886,6 +1141,28 @@ export class SkillPackagesService {
     return segments[segments.length - 1] || normalized;
   }
 
+  private normalizeCreateVersionPayload(payload: CreateSkillPackageVersionPayload): CreateSkillPackageVersionPayload {
+    const versionNumber = String(payload.versionNumber || "").trim();
+    if (!versionNumber) {
+      throw new BadRequestException("版本号不能为空");
+    }
+    const sourceMode = String(payload.sourceMode || "CURRENT_STATE").trim().toUpperCase();
+    if (!["CURRENT_STATE", "CLONE_FROM_VERSION"].includes(sourceMode)) {
+      throw new BadRequestException("版本来源模式不合法");
+    }
+    const sourceVersionId = String(payload.sourceVersionId || "").trim() || undefined;
+    if (sourceMode === "CLONE_FROM_VERSION" && !sourceVersionId) {
+      throw new BadRequestException("克隆来源版本不能为空");
+    }
+    return {
+      versionNumber,
+      changeLog: String(payload.changeLog || "").trim() || undefined,
+      sourceMode: sourceMode as CreateSkillPackageVersionPayload["sourceMode"],
+      sourceVersionId,
+      createdBy: String(payload.createdBy || "").trim() || undefined,
+    };
+  }
+
   private humanizeKey(value: string) {
     return String(value || "")
       .trim()
@@ -908,6 +1185,11 @@ export class SkillPackagesService {
       return {};
     }
     return { ...(value as Record<string, unknown>) };
+  }
+
+  private normalizeSnapshotCount(value: unknown) {
+    const count = Number(value);
+    return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   }
 
   private async loadSkillPackageRecordById(id: string) {
@@ -941,6 +1223,40 @@ export class SkillPackagesService {
     } catch {
       return false;
     }
+  }
+
+  private async ensureSkillPackageVersionStorageSeeded() {
+    if (!this.versionBootstrapPromise) {
+      this.versionBootstrapPromise = this.bootstrapSkillPackageVersionStorage();
+    }
+    await this.versionBootstrapPromise;
+  }
+
+  private async bootstrapSkillPackageVersionStorage() {
+    if (!(await this.tableExists("SkillPackageVersion"))) {
+      return;
+    }
+    const count = await this.prismaService.skillPackageVersion.count();
+    if (count > 0 || !database.skillPackageVersions.length) {
+      return;
+    }
+    await this.prismaService.skillPackageVersion.createMany({
+      data: database.skillPackageVersions.map((item) => ({
+        id: item.id,
+        packageId: item.packageId,
+        packageKey: item.packageKey,
+        versionNumber: item.versionNumber,
+        changeLog: item.changeLog ?? "",
+        sourceMode: item.sourceMode,
+        sourceVersionId: item.sourceVersionId,
+        isActive: item.isActive,
+        snapshotJson: item.snapshotJson,
+        createdBy: item.createdBy,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private toDatabaseCreateInput(record: ReturnType<SkillPackagesService["buildRecord"]>, now: string) {

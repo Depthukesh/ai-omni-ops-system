@@ -330,6 +330,27 @@ export type SkillPackageSkillRecord = {
   updatedAt: string;
 };
 
+export type SkillPackageVersionRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  versionNumber: string;
+  changeLog?: string;
+  sourceMode: "CURRENT_STATE" | "CLONE_FROM_VERSION";
+  sourceVersionId?: string;
+  isActive: boolean;
+  snapshotJson: {
+    promptCount: number;
+    referenceCount: number;
+    scriptCount: number;
+    knowledgeBindingCount: number;
+    providerBindingCount: number;
+  };
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -734,6 +755,7 @@ export type MockDatabase = {
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
   knowledgeBindings: KnowledgeBindingRecord[];
   skillPackages: SkillPackageRecord[];
+  skillPackageVersions: SkillPackageVersionRecord[];
   moduleDefinitions: ModuleDefinitionRecord[];
   skillPackageModules: SkillPackageModuleRecord[];
   skillPackageSkills: SkillPackageSkillRecord[];
@@ -3400,6 +3422,179 @@ export const database: MockDatabase = {
       defaultProviderPolicyIds: ["brand-design-provider-policy"],
       sortOrder: 90,
       remarks: "设计工作台主能力包。",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+  ],
+  skillPackageVersions: [
+    {
+      id: "spv_brand_growth_analysis_v1",
+      packageId: "sp_brand_growth_analysis",
+      packageKey: "brand-growth-analysis",
+      versionNumber: "v1",
+      changeLog: "初始化品牌增长分析能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_enterprise_annual_plan_v1",
+      packageId: "sp_enterprise_annual_plan",
+      packageKey: "enterprise-annual-plan",
+      versionNumber: "v1",
+      changeLog: "初始化半年营销规划能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_xiaohongshu_brand_plan_v1",
+      packageId: "sp_xiaohongshu_brand_marketing_plan",
+      packageKey: "xiaohongshu-brand-marketing-plan",
+      versionNumber: "v1",
+      changeLog: "初始化小红书营销规划能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_douyin_plan_v1",
+      packageId: "sp_tongcheng_brand_douyin_planning",
+      packageKey: "tongcheng-brand-douyin-planning",
+      versionNumber: "v1",
+      changeLog: "初始化抖音营销规划能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 8,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 2,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_wechat_article_generator_v1",
+      packageId: "sp_wechat_article_generator",
+      packageKey: "wechat-article-generator",
+      versionNumber: "v1",
+      changeLog: "初始化公众号文章生成能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 5,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 2,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_wechat_image_designer_v1",
+      packageId: "sp_wechat_image_designer",
+      packageKey: "wechat-image-designer",
+      versionNumber: "v1",
+      changeLog: "初始化公众号配图生成能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_wechat_html_renderer_v1",
+      packageId: "sp_wechat_html_renderer",
+      packageKey: "wechat-html-renderer",
+      versionNumber: "v1",
+      changeLog: "初始化公众号 HTML 渲染能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_wechat_publish_bridge_v1",
+      packageId: "sp_wechat_publish_bridge",
+      packageKey: "wechat-publish-bridge",
+      versionNumber: "v1",
+      changeLog: "初始化公众号 API 发布能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
+      createdAt: "2026-06-07T09:50:00.000Z",
+      updatedAt: "2026-06-07T09:50:00.000Z",
+    },
+    {
+      id: "spv_design_web_prototype_v1",
+      packageId: "sp_design_web_prototype",
+      packageKey: "design-web-prototype",
+      versionNumber: "v1",
+      changeLog: "初始化网页原型生成能力包版本。",
+      sourceMode: "CURRENT_STATE",
+      isActive: true,
+      snapshotJson: {
+        promptCount: 1,
+        referenceCount: 0,
+        scriptCount: 0,
+        knowledgeBindingCount: 1,
+        providerBindingCount: 1,
+      },
+      createdBy: "system",
       createdAt: "2026-06-07T09:50:00.000Z",
       updatedAt: "2026-06-07T09:50:00.000Z",
     },

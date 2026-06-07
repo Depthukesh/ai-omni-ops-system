@@ -1023,6 +1023,25 @@ model SkillPackage {
   @@index([updatedAt])
 }
 
+model SkillPackageVersion {
+  id           String   @id
+  packageId    String
+  packageKey   String
+  versionNumber String
+  changeLog    String   @default("")
+  sourceMode   String   @default("CURRENT_STATE")
+  sourceVersionId String?
+  isActive     Boolean  @default(false)
+  snapshotJson Json
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([packageId, versionNumber])
+  @@index([packageId, isActive, createdAt(sort: Desc)])
+  @@index([packageKey, createdAt(sort: Desc)])
+}
+
 model ModuleDefinition {
   id                              String   @id
   moduleKey                       String   @unique

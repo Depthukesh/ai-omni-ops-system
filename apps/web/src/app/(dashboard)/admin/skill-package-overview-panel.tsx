@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  activateSkillPackageVersion,
+  createSkillPackageVersion,
   getSkillPackage,
   type ModuleDefinitionRecord,
   type SkillPackageDetailRecord,
@@ -33,6 +35,10 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [detail, setDetail] = useState<SkillPackageDetailRecord | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [versionNumber, setVersionNumber] = useState("");
+  const [versionChangeLog, setVersionChangeLog] = useState("");
+  const [isVersionSubmitting, setIsVersionSubmitting] = useState(false);
+  const [activatingVersionId, setActivatingVersionId] = useState("");
 
   const moduleOptions = useMemo(() => {
     const moduleMap = new Map<string, string>();
@@ -86,6 +92,21 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const selectedPackage = visiblePackages.find((item) => item.id === selectedPackageId) || visiblePackages[0] || props.packages[0];
   const selectedSummary = detail?.package.id === selectedPackage?.id ? detail.package : selectedPackage;
 
+  async function loadPackageDetail(packageId: string) {
+    setIsDetailLoading(true);
+    setDetailError("");
+    try {
+      const result = await getSkillPackage(packageId);
+      setDetail(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "能力包详情加载失败";
+      setDetail(null);
+      setDetailError(message);
+    } finally {
+      setIsDetailLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!visiblePackages.length) {
       setSelectedPackageId("");
@@ -104,34 +125,53 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     }
 
     let cancelled = false;
-    setIsDetailLoading(true);
-    setDetailError("");
-
-    void getSkillPackage(selectedPackage.id).then(
-      (result) => {
-        if (cancelled) {
-          return;
-        }
-        setDetail(result);
-      },
-      (error) => {
-        if (cancelled) {
-          return;
-        }
-        const message = error instanceof Error ? error.message : "能力包详情加载失败";
-        setDetail(null);
-        setDetailError(message);
-      },
-    ).finally(() => {
-      if (!cancelled) {
-        setIsDetailLoading(false);
-      }
-    });
+    void loadPackageDetail(selectedPackage.id).catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
   }, [selectedPackage?.id]);
+
+  async function handleCreateVersion() {
+    if (!selectedPackage?.id || !versionNumber.trim()) {
+      setDetailError("请先填写版本号");
+      return;
+    }
+    setIsVersionSubmitting(true);
+    setDetailError("");
+    try {
+      await createSkillPackageVersion(selectedPackage.id, {
+        versionNumber: versionNumber.trim(),
+        changeLog: versionChangeLog.trim() || undefined,
+        sourceMode: "CURRENT_STATE",
+      });
+      setVersionNumber("");
+      setVersionChangeLog("");
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "创建版本失败";
+      setDetailError(`创建版本失败：${message}`);
+    } finally {
+      setIsVersionSubmitting(false);
+    }
+  }
+
+  async function handleActivateVersion(versionId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    setActivatingVersionId(versionId);
+    setDetailError("");
+    try {
+      await activateSkillPackageVersion(selectedPackage.id, versionId);
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "激活版本失败";
+      setDetailError(`激活版本失败：${message}`);
+    } finally {
+      setActivatingVersionId("");
+    }
+  }
 
   return (
     <section className="entity-card admin-user-filter-card" style={{ marginBottom: 24 }}>
@@ -355,16 +395,17 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                   body: `优先级 ${item.priority}；可用模型 ${item.modelWhitelist.join(" / ") || "-"}`,
                 }))}
               />
-              <DetailBlock
-                title="版本摘要"
-                meta={`${detail?.versions?.length || 0} 条`}
-                emptyText="当前能力包暂无版本摘要。"
-                items={(detail?.versions || []).map((item) => ({
-                  id: item.id,
-                  title: `${item.versionNumber}${item.isActive ? "（当前）" : ""}`,
-                  subtitle: formatDateTime(item.createdAt),
-                  body: `Prompt ${item.snapshotSummary?.promptCount || 0} / Provider ${item.snapshotSummary?.providerBindingCount || 0} / Knowledge ${item.snapshotSummary?.knowledgeBindingCount || 0}`,
-                }))}
+              <VersionBlock
+                packageId={selectedPackage?.id || ""}
+                versions={detail?.versions || []}
+                versionNumber={versionNumber}
+                versionChangeLog={versionChangeLog}
+                isSubmitting={isVersionSubmitting}
+                activatingVersionId={activatingVersionId}
+                onVersionNumberChange={setVersionNumber}
+                onVersionChangeLogChange={setVersionChangeLog}
+                onCreate={() => void handleCreateVersion()}
+                onActivate={(versionId) => void handleActivateVersion(versionId)}
               />
               <DetailBlock
                 title="工作流步骤"
@@ -384,6 +425,95 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
           )}
         </article>
       </div>
+    </section>
+  );
+}
+
+type VersionBlockProps = {
+  packageId: string;
+  versions: NonNullable<SkillPackageDetailRecord["versions"]>;
+  versionNumber: string;
+  versionChangeLog: string;
+  isSubmitting: boolean;
+  activatingVersionId: string;
+  onVersionNumberChange: (value: string) => void;
+  onVersionChangeLogChange: (value: string) => void;
+  onCreate: () => void;
+  onActivate: (versionId: string) => void;
+};
+
+function VersionBlock(props: VersionBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>版本摘要</strong>
+          <p className="personal-meta">{props.versions.length} 条</p>
+        </div>
+      </div>
+      <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
+        <label>
+          <span>版本号</span>
+          <input
+            value={props.versionNumber}
+            placeholder="如 v2"
+            onChange={(event) => props.onVersionNumberChange(event.target.value)}
+          />
+        </label>
+        <label style={{ gridColumn: "span 3" }}>
+          <span>变更说明</span>
+          <input
+            value={props.versionChangeLog}
+            placeholder="记录这次版本变更内容"
+            onChange={(event) => props.onVersionChangeLogChange(event.target.value)}
+          />
+        </label>
+      </div>
+      <div className="personal-actions" style={{ marginBottom: 16 }}>
+        <button type="button" className="primary-button" onClick={props.onCreate} disabled={!props.packageId || props.isSubmitting}>
+          {props.isSubmitting ? "创建中..." : "创建版本"}
+        </button>
+      </div>
+      {props.versions.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.versions.map((item) => (
+            <article
+              key={item.id}
+              style={{
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: 14,
+                padding: 12,
+                background: "rgba(255, 255, 255, 0.72)",
+              }}
+            >
+              <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                <div>
+                  <div className="admin-user-row-title">{`${item.versionNumber}${item.isActive ? "（当前）" : ""}`}</div>
+                  <div className="admin-user-row-meta">{formatDateTime(item.createdAt)}</div>
+                </div>
+                {!item.isActive ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => props.onActivate(item.id)}
+                    disabled={props.activatingVersionId === item.id}
+                  >
+                    {props.activatingVersionId === item.id ? "激活中..." : "激活"}
+                  </button>
+                ) : null}
+              </div>
+              <div className="personal-meta" style={{ marginBottom: 8 }}>
+                {item.changeLog || "暂无版本说明"}
+              </div>
+              <div className="personal-meta">
+                {`Prompt ${item.snapshotSummary?.promptCount || 0} / Provider ${item.snapshotSummary?.providerBindingCount || 0} / Knowledge ${item.snapshotSummary?.knowledgeBindingCount || 0}`}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="personal-meta">当前能力包暂无版本摘要。</div>
+      )}
     </section>
   );
 }

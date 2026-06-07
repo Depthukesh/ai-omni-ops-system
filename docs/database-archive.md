@@ -175,6 +175,7 @@
   - 当前关系表 `SkillPackageModule`、`SkillPackageSkill` 仍保持独立可用，下一阶段再继续把列表页 / 详情页和版本域与主对象统一收口
   - 当前已继续补第一批列表摘要聚合，`GET /admin/skill-packages` 开始返回模块摘要、默认模型摘要、技能数、提示词数等列表字段，供统一技能中心列表视图直接使用
   - 当前已继续补第一批详情聚合，`GET /admin/skill-packages/:id` 开始返回主对象摘要、主技能、模块摘要、工作流步骤、Prompt 摘要、Provider 摘要和当前版本占位摘要，供统一技能中心详情面板 first pass 直接使用
+  - 当前已继续补第一批版本域，新增 `SkillPackageVersion`，并接通 `GET /admin/skill-packages/:id/versions`、`POST /admin/skill-packages/:id/versions`、`POST /admin/skill-packages/:id/activate-version`，让统一技能中心具备版本列表、创建和激活的最小闭环
 
 ## 3. 正式数据表分层
 

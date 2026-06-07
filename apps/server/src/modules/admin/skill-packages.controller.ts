@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } fro
 import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
+  type ActivateSkillPackageVersionPayload,
+  type CreateSkillPackageVersionPayload,
   type CreateSkillPackagePayload,
   type SkillPackageDetailQuery,
   type SkillPackageListQuery,
@@ -82,6 +84,32 @@ export class SkillPackagesController {
   async deleteSkillPackage(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.deleteSkillPackage(id);
+  }
+
+  @Get(":id/versions")
+  async listSkillPackageVersions(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.skillPackagesService.listSkillPackageVersions(id);
+  }
+
+  @Post(":id/versions")
+  async createSkillPackageVersion(
+    @Param("id") id: string,
+    @Body() payload: CreateSkillPackageVersionPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.createSkillPackageVersion(id, payload);
+  }
+
+  @Post(":id/activate-version")
+  async activateSkillPackageVersion(
+    @Param("id") id: string,
+    @Body() payload: ActivateSkillPackageVersionPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.activateSkillPackageVersion(id, payload);
   }
 
   private parseBooleanQuery(value: string | undefined): SkillPackageDetailQuery[keyof SkillPackageDetailQuery] {

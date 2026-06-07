@@ -252,6 +252,35 @@ export type SkillPackageDetailQuery = {
   includeUserOverrides?: boolean;
 };
 
+export type SkillPackageVersionRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  versionNumber: string;
+  changeLog?: string;
+  sourceMode: "CURRENT_STATE" | "CLONE_FROM_VERSION";
+  sourceVersionId?: string;
+  isActive: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  snapshotSummary?: {
+    promptCount: number;
+    referenceCount: number;
+    scriptCount: number;
+    knowledgeBindingCount: number;
+    providerBindingCount: number;
+  };
+};
+
+export type CreateSkillPackageVersionPayload = {
+  versionNumber: string;
+  changeLog?: string;
+  sourceMode: "CURRENT_STATE" | "CLONE_FROM_VERSION";
+  sourceVersionId?: string;
+  createdBy?: string;
+};
+
 export type SkillPackageDetailRecord = {
   package: SkillPackageRecord;
   skill?: {
@@ -2553,6 +2582,20 @@ export async function updateSkillPackage(
 export async function deleteSkillPackage(id: string) {
   return request<SkillPackageRecord>(`/admin/skill-packages/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function getSkillPackageVersions(id: string) {
+  return request<{ items: SkillPackageVersionRecord[] }>(`/admin/skill-packages/${id}/versions`);
+}
+
+export async function createSkillPackageVersion(id: string, payload: CreateSkillPackageVersionPayload) {
+  return jsonRequest<SkillPackageVersionRecord>(`/admin/skill-packages/${id}/versions`, "POST", payload);
+}
+
+export async function activateSkillPackageVersion(id: string, versionId: string) {
+  return jsonRequest<SkillPackageVersionRecord>(`/admin/skill-packages/${id}/activate-version`, "POST", {
+    versionId,
   });
 }
 
