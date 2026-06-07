@@ -104,6 +104,10 @@ type BasicDraftRecord = {
   tags: string;
   remarks: string;
 };
+type ModelOption = {
+  value: string;
+  label: string;
+};
 
 export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps) {
   const [packageRows, setPackageRows] = useState<SkillPackageRecord[]>(props.packages);
@@ -162,6 +166,15 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
       .map(([value, label]) => ({ value, label }))
       .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
   }, [props.modules, packageRows]);
+  const promptModelOptions = useMemo(
+    () =>
+      buildModelOptions(
+        availableProviders,
+        ...(detail?.prompts || []).map((item) => item.modelName),
+        ...Object.values(promptDrafts).map((item) => item.modelName),
+      ),
+    [availableProviders, detail?.prompts, promptDrafts],
+  );
 
   useEffect(() => {
     setPackageRows(props.packages);
@@ -1078,6 +1091,7 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
               <PromptBlock
                 prompts={detail?.prompts || []}
                 drafts={promptDrafts}
+                modelOptions={promptModelOptions}
                 savingPromptId={savingPromptId}
                 isLoading={isDetailLoading}
                 emptyText={detailError ? detailError : "当前能力包暂无 Prompt 详情。"}
@@ -1374,6 +1388,7 @@ function BasicBlock(props: BasicBlockProps) {
 type PromptBlockProps = {
   prompts: PromptDetailRecord[];
   drafts: Record<string, PromptDraftRecord>;
+  modelOptions: ModelOption[];
   savingPromptId: string;
   isLoading: boolean;
   emptyText: string;
@@ -1431,7 +1446,14 @@ function PromptBlock(props: PromptBlockProps) {
                   </label>
                   <label>
                     <span>模型</span>
-                    <input value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)} />
+                    <select value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)}>
+                      <option value="">请选择模型</option>
+                      {props.modelOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>Temperature</span>
@@ -1526,7 +1548,14 @@ function ProviderBlock(props: ProviderBlockProps) {
                   </label>
                   <label style={{ gridColumn: "span 3" }}>
                     <span>模型</span>
-                    <input value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)} />
+                    <select value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)}>
+                      <option value="">请选择模型</option>
+                      {buildProviderModelOptions(props.providers, draft.providerId || item.providerId, draft.modelName || item.modelName).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
                 <div className="personal-meta">
@@ -1579,7 +1608,30 @@ function ReferenceBlock(props: ReferenceBlockProps) {
           marginBottom: 12,
         }}
       >
+        <div className="personal-meta" style={{ marginBottom: 12 }}>
+          支持先选择本地文件，自动带入标识、标题、类型和来源地址；当前阶段先登记参考资料元数据。
+        </div>
         <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+          <label style={{ gridColumn: "span 2" }}>
+            <span>选择文件</span>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.md,.markdown,.txt,.csv,.xlsx,.xls,.ppt,.pptx"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) {
+                  return;
+                }
+                const nextDraft = buildReferenceDraftFromFile(file, props.newDraft);
+                props.onNewDraftChange("referenceKey", nextDraft.referenceKey);
+                props.onNewDraftChange("title", nextDraft.title);
+                props.onNewDraftChange("sourceType", nextDraft.sourceType);
+                props.onNewDraftChange("sourceUri", nextDraft.sourceUri);
+                props.onNewDraftChange("usageNote", nextDraft.usageNote);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
           <label>
             <span>标识</span>
             <input value={props.newDraft.referenceKey} onChange={(event) => props.onNewDraftChange("referenceKey", event.target.value)} />
@@ -1659,7 +1711,30 @@ function ReferenceBlock(props: ReferenceBlockProps) {
                     </button>
                   </div>
                 </div>
+                <div className="personal-meta" style={{ marginBottom: 12 }}>
+                  如果来源是本地资料，可以重新选择文件自动回填字段后再保存。
+                </div>
                 <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label style={{ gridColumn: "span 2" }}>
+                    <span>替换来源文件</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.md,.markdown,.txt,.csv,.xlsx,.xls,.ppt,.pptx"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) {
+                          return;
+                        }
+                        const nextDraft = buildReferenceDraftFromFile(file, draft);
+                        props.onDraftChange(item.id, "referenceKey", nextDraft.referenceKey);
+                        props.onDraftChange(item.id, "title", nextDraft.title);
+                        props.onDraftChange(item.id, "sourceType", nextDraft.sourceType);
+                        props.onDraftChange(item.id, "sourceUri", nextDraft.sourceUri);
+                        props.onDraftChange(item.id, "usageNote", nextDraft.usageNote);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
                   <label>
                     <span>标识</span>
                     <input value={draft.referenceKey} onChange={(event) => props.onDraftChange(item.id, "referenceKey", event.target.value)} />
@@ -2121,6 +2196,38 @@ function formatDateTime(value?: string) {
   }
 }
 
+function buildModelOptions(providers: ApiProviderRecord[], ...extraValues: Array<string | undefined>): ModelOption[] {
+  const options = new Map<string, ModelOption>();
+  for (const provider of providers) {
+    const models = Array.from(new Set([provider.defaultModel, ...provider.modelWhitelist].map((item) => String(item || "").trim()).filter(Boolean)));
+    for (const modelName of models) {
+      options.set(modelName, {
+        value: modelName,
+        label: `${modelName} · ${provider.name}`,
+      });
+    }
+  }
+  for (const rawValue of extraValues) {
+    const value = String(rawValue || "").trim();
+    if (!value || options.has(value)) {
+      continue;
+    }
+    options.set(value, {
+      value,
+      label: value,
+    });
+  }
+  return Array.from(options.values()).sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+function buildProviderModelOptions(providers: ApiProviderRecord[], providerId?: string, currentValue?: string): ModelOption[] {
+  const provider = providers.find((item) => item.id === providerId);
+  if (!provider) {
+    return buildModelOptions([], currentValue);
+  }
+  return buildModelOptions([provider], currentValue);
+}
+
 function buildPromptDraft(prompt?: PromptDetailRecord): PromptDraftRecord {
   return {
     status: prompt?.status || "DRAFT",
@@ -2148,6 +2255,49 @@ function buildReferenceDraft(reference?: ReferenceDetailRecord): ReferenceDraftR
     applicableScopes: reference?.applicableScopes?.join(" / ") || "",
     sortOrder: reference?.sortOrder !== undefined ? String(reference.sortOrder) : "100",
   };
+}
+
+function buildReferenceDraftFromFile(file: File, current?: ReferenceDraftRecord): ReferenceDraftRecord {
+  const title = stripLocalFileExtension(file.name);
+  return {
+    referenceKey: slugifyLocalFileName(title),
+    title,
+    sourceType: inferReferenceSourceType(file.name),
+    sourceUri: `local-upload://${encodeURIComponent(file.name)}`,
+    usageNote: current?.usageNote || `本地导入文件：${file.name}`,
+    applicableScopes: current?.applicableScopes || "",
+    sortOrder: current?.sortOrder || "100",
+  };
+}
+
+function inferReferenceSourceType(fileName: string): ReferenceDetailRecord["sourceType"] {
+  const normalized = fileName.trim().toLowerCase();
+  if (normalized.endsWith(".md") || normalized.endsWith(".markdown") || normalized.endsWith(".txt")) {
+    return "MARKDOWN";
+  }
+  if (
+    normalized.endsWith(".doc")
+    || normalized.endsWith(".docx")
+    || normalized.endsWith(".pdf")
+    || normalized.endsWith(".ppt")
+    || normalized.endsWith(".pptx")
+  ) {
+    return "DOC";
+  }
+  return "FILE";
+}
+
+function stripLocalFileExtension(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "");
+}
+
+function slugifyLocalFileName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
 }
 
 function buildScriptDraft(script?: ScriptDetailRecord): ScriptDraftRecord {

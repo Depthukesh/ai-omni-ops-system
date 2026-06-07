@@ -116,6 +116,7 @@ type CreateSkillDraft = {
   promptScene: string;
   bindingRemarks: string;
 };
+type AssetsWorkspaceTab = "overview" | "createSkill";
 type CreatePromptDraft = {
   name: string;
   scene: string;
@@ -297,12 +298,12 @@ export default function AdminPage() {
   );
   const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
   const [newPrompt, setNewPrompt] = useState<CreatePromptDraft>(buildCreatePromptDraft());
+  const [activeAssetsWorkspaceTab, setActiveAssetsWorkspaceTab] = useState<AssetsWorkspaceTab>("overview");
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
   const [createProviderSecretVisible, setCreateProviderSecretVisible] = useState(false);
   const [revealedProviderKeys, setRevealedProviderKeys] = useState<Record<string, boolean>>({});
-  const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
   const [isCreatePromptModalOpen, setIsCreatePromptModalOpen] = useState(false);
   const [dataSource, setDataSource] = useState<"api" | "seed">("api");
   const [isLoading, setIsLoading] = useState(true);
@@ -1957,6 +1958,40 @@ export default function AdminPage() {
       ),
     [providers, usage, activePromptDraft?.modelName, activeSkillDraft?.defaultModel],
   );
+  const createSkillProviderOptions = useMemo(
+    () =>
+      Array.from(new Set(providers.map((item) => item.name).filter(Boolean)))
+        .map((name) => ({ value: name, label: name }))
+        .sort((a, b) => a.label.localeCompare(b.label, "zh-CN")),
+    [providers],
+  );
+  const createSkillModelOptions = useMemo(
+    () => buildScopedModelOptions(providers, ...usage.map((item) => item.modelName), newSkill.defaultModel),
+    [providers, usage, newSkill.defaultModel],
+  );
+  const createSkillCategoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          "内容生产",
+          ...skills.map((item) => item.category),
+          ...SKILL_CENTER_TREE.map((item) => item.label),
+          ...SKILL_CENTER_TREE.flatMap((item) => item.sections.map((section) => section.label)),
+        ].filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b, "zh-CN")),
+    [skills],
+  );
+  const createSkillPromptSceneOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...prompts.map((item) => item.scene),
+          ...SKILL_CENTER_TREE.flatMap((item) => item.sections.flatMap((section) => section.items.map((leaf) => leaf.promptScene || ""))),
+          newSkill.promptScene,
+        ].filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b, "zh-CN")),
+    [newSkill.promptScene, prompts],
+  );
   const skillCenterStatus = activePromptDraft?.status || activeSkillDraft?.status || "DRAFT";
   const skillCenterModel = activePromptDraft?.modelName || activeSkillDraft?.defaultModel || "";
   const skillCenterPointsCost = activeSkillDraft?.pointsCost || `${activeSkillConfig?.pointsCost || 180}`;
@@ -2014,19 +2049,6 @@ export default function AdminPage() {
       setActiveSkillLeafId(currentLeaf?.id || nextLeaf.id);
     }
   }, [activeSkillLeafId, activeSkillPrimaryId, activeSkillSectionId, filteredSkillTree]);
-
-  useEffect(() => {
-    if (!isCreateSkillModalOpen) {
-      return;
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !isCreatingSkill) {
-        handleCloseCreateSkillModal();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCreateSkillModalOpen, isCreatingSkill]);
 
   useEffect(() => {
     if (!isCreatePromptModalOpen) {
@@ -2122,14 +2144,14 @@ export default function AdminPage() {
 
   function handleOpenCreateSkillModal() {
     setNewSkill(buildCreateSkillDraft());
-    setIsCreateSkillModalOpen(true);
+    setActiveAssetsWorkspaceTab("createSkill");
   }
 
   function handleCloseCreateSkillModal() {
     if (isCreatingSkill) {
       return;
     }
-    setIsCreateSkillModalOpen(false);
+    setActiveAssetsWorkspaceTab("overview");
     setNewSkill(buildCreateSkillDraft());
   }
 
@@ -2232,7 +2254,7 @@ export default function AdminPage() {
       setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
       await upsertSkillAssetBinding(created, requestedPromptScene);
       setNotice(`技能已创建：${created.name}`);
-      setIsCreateSkillModalOpen(false);
+      setActiveAssetsWorkspaceTab("overview");
       setNewSkill(buildCreateSkillDraft());
       return;
     } catch (error) {
@@ -2246,7 +2268,7 @@ export default function AdminPage() {
         setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
         await upsertSkillAssetBinding(created, requestedPromptScene);
         setNotice(`演示技能已创建：${created.name}`);
-        setIsCreateSkillModalOpen(false);
+        setActiveAssetsWorkspaceTab("overview");
         setNewSkill(buildCreateSkillDraft());
         return;
       }
@@ -2737,8 +2759,67 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "assets" ? (
           <div className="admin-skill-center-layout">
-            <div style={{ gridColumn: "1 / -1" }}>
-              <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                display: "grid",
+                gridTemplateColumns: "220px minmax(0, 1fr)",
+                gap: 16,
+                alignItems: "start",
+              }}
+            >
+              <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished">
+                <div className="admin-skill-card-topline">
+                  <span className="admin-skill-card-kicker">工作台</span>
+                  <span className="archive-pill status-ready">2 个板块</span>
+                </div>
+                <div className="personal-meta" style={{ marginBottom: 16 }}>
+                  把能力包摘要与技能创建拆开，减少页面堆叠和填表干扰。
+                </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <button
+                    type="button"
+                    className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "overview" ? " active" : ""}`}
+                    onClick={() => setActiveAssetsWorkspaceTab("overview")}
+                  >
+                    <span className="admin-skill-primary-mark">摘</span>
+                    <span className="admin-skill-primary-button-copy">
+                      <strong>能力包摘要</strong>
+                      <small>查看统一技能中心摘要</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "createSkill" ? " active" : ""}`}
+                    onClick={handleOpenCreateSkillModal}
+                  >
+                    <span className="admin-skill-primary-mark">建</span>
+                    <span className="admin-skill-primary-button-copy">
+                      <strong>创建技能</strong>
+                      <small>用下拉和选择器登记归属</small>
+                    </span>
+                  </button>
+                </div>
+              </aside>
+              <div>
+                {activeAssetsWorkspaceTab === "overview" ? (
+                  <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
+                ) : (
+                  <CreateSkillWorkspace
+                    draft={newSkill}
+                    isCreating={isCreatingSkill}
+                    moduleOptions={skillModuleFilterOptions}
+                    packageOptions={skillPackageFilterOptions}
+                    providerOptions={createSkillProviderOptions}
+                    modelOptions={createSkillModelOptions}
+                    categoryOptions={createSkillCategoryOptions}
+                    promptSceneOptions={createSkillPromptSceneOptions}
+                    onChange={(field, value) => setNewSkill((current) => ({ ...current, [field]: value }))}
+                    onCancel={handleCloseCreateSkillModal}
+                    onSubmit={() => void handleCreateSkill()}
+                  />
+                )}
+              </div>
             </div>
             <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
               <div className="admin-skill-card-topline">
@@ -2960,48 +3041,6 @@ export default function AdminPage() {
                 <div className="admin-skill-empty">请先从右侧选择一个三级技能项。</div>
               )}
             </section>
-            {isCreateSkillModalOpen ? (
-              <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateSkillModal}>
-                <div
-                  className="entity-card admin-user-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="创建技能"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="admin-user-modal-topbar">
-                    <div>
-                      <span className="archive-pill status-ready">技能创建</span>
-                      <strong>创建技能并登记归属</strong>
-                      <p className="personal-meta">先创建技能本体，再同步记录所属模块与能力包，后续继续补正式关系真源表。</p>
-                    </div>
-                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>
-                      关闭
-                    </button>
-                  </div>
-                  <div className="admin-skill-simple-grid">
-                    <label className="admin-skill-field"><span>技能名称</span><input value={newSkill.name} onChange={(event) => setNewSkill((current) => ({ ...current, name: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>技能标识</span><input value={newSkill.slug} onChange={(event) => setNewSkill((current) => ({ ...current, slug: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>分类</span><input value={newSkill.category} onChange={(event) => setNewSkill((current) => ({ ...current, category: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>状态</span><select value={newSkill.status} onChange={(event) => setNewSkill((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
-                    <label className="admin-skill-field"><span>供应商</span><input value={newSkill.provider} onChange={(event) => setNewSkill((current) => ({ ...current, provider: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>默认模型</span><input value={newSkill.defaultModel} onChange={(event) => setNewSkill((current) => ({ ...current, defaultModel: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>点数成本</span><input type="number" value={newSkill.pointsCost} onChange={(event) => setNewSkill((current) => ({ ...current, pointsCost: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>所属模块</span><select value={newSkill.moduleKey} onChange={(event) => setNewSkill((current) => ({ ...current, moduleKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillModuleFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>所属能力包</span><select value={newSkill.packageKey} onChange={(event) => setNewSkill((current) => ({ ...current, packageKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillPackageFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>提示词场景</span><input value={newSkill.promptScene} onChange={(event) => setNewSkill((current) => ({ ...current, promptScene: event.target.value }))} /></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>技能说明</span><textarea value={newSkill.description} onChange={(event) => setNewSkill((current) => ({ ...current, description: event.target.value }))} /></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>归属说明</span><textarea value={newSkill.bindingRemarks} onChange={(event) => setNewSkill((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
-                  </div>
-                  <div className="personal-actions">
-                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
-                    <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
-                      {isCreatingSkill ? "创建中..." : "确认创建"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
             {isCreatePromptModalOpen ? (
               <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreatePromptModal}>
                 <div
@@ -3301,7 +3340,23 @@ export default function AdminPage() {
                         {updatingKnowledgeBaseId === item.id ? "同步中..." : "触发全量同步"}
                       </button>
                     </div>
+                    <div className="personal-meta">支持先选择本地文件，自动带入文件名、类型和来源；当前阶段会先登记文件元数据。</div>
                     <div className="admin-rule-grid">
+                      <label style={{ gridColumn: "span 2" }}>
+                        <span>选择文件</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,.xlsx,.xls,.md,.markdown,.txt,.csv,.ppt,.pptx"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (!file) {
+                              return;
+                            }
+                            handleKnowledgeBaseFileDraftChange(item.id, buildKnowledgeBaseFileDraftFromFile(file));
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
                       <label>
                         <span>文件名</span>
                         <input
@@ -4194,6 +4249,169 @@ function buildCreateKnowledgeBaseDraft(): CreateKnowledgeBaseDraft {
   };
 }
 
+type CreateSkillWorkspaceProps = {
+  draft: CreateSkillDraft;
+  isCreating: boolean;
+  moduleOptions: Array<{ value: string; label: string }>;
+  packageOptions: Array<{ value: string; label: string }>;
+  providerOptions: Array<{ value: string; label: string }>;
+  modelOptions: ScopedModelOption[];
+  categoryOptions: string[];
+  promptSceneOptions: string[];
+  onChange: <K extends keyof CreateSkillDraft>(field: K, value: CreateSkillDraft[K]) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+};
+
+function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
+  return (
+    <section className="entity-card admin-user-filter-card">
+      <div className="admin-user-filter-head">
+        <div>
+          <span className="archive-pill status-ready">技能创建</span>
+          <h3>创建技能并登记归属</h3>
+          <p>把高频字段改成下拉选择，优先完成技能本体、模块归属、能力包归属和提示词场景登记。</p>
+        </div>
+        <div className="admin-user-filter-summary">
+          <div>
+            <span>供应商</span>
+            <strong>{props.providerOptions.length}</strong>
+          </div>
+          <div>
+            <span>模型</span>
+            <strong>{props.modelOptions.length}</strong>
+          </div>
+          <div>
+            <span>提示词场景</span>
+            <strong>{props.promptSceneOptions.length}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div className="personal-meta" style={{ marginBottom: 16 }}>
+        `References` 与知识库文件现在支持选择本地文件后自动带入字段；这里先把技能创建必填项尽量收口为选择器。
+      </div>
+
+      <div className="admin-skill-simple-grid">
+        <label className="admin-skill-field">
+          <span>技能名称</span>
+          <input value={props.draft.name} placeholder="例如：公众号文章生成" onChange={(event) => props.onChange("name", event.target.value)} />
+        </label>
+        <label className="admin-skill-field">
+          <span>技能标识</span>
+          <input value={props.draft.slug} placeholder="例如：wechat-article-generator" onChange={(event) => props.onChange("slug", event.target.value)} />
+        </label>
+        <label className="admin-skill-field">
+          <span>分类</span>
+          <select value={props.draft.category} onChange={(event) => props.onChange("category", event.target.value)}>
+            {props.categoryOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>状态</span>
+          <select value={props.draft.status} onChange={(event) => props.onChange("status", event.target.value as CreateSkillDraft["status"])}>
+            <option value="ACTIVE">启用中</option>
+            <option value="DRAFT">草稿</option>
+            <option value="DISABLED">停用</option>
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>供应商</span>
+          <select value={props.draft.provider} onChange={(event) => props.onChange("provider", event.target.value)}>
+            <option value="">请选择供应商</option>
+            {props.providerOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>默认模型</span>
+          <select value={props.draft.defaultModel} onChange={(event) => props.onChange("defaultModel", event.target.value)}>
+            <option value="">请选择模型</option>
+            {props.modelOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>点数成本</span>
+          <input type="number" value={props.draft.pointsCost} onChange={(event) => props.onChange("pointsCost", event.target.value)} />
+        </label>
+        <label className="admin-skill-field">
+          <span>所属模块</span>
+          <select value={props.draft.moduleKey} onChange={(event) => props.onChange("moduleKey", event.target.value)}>
+            <option value="NONE">暂不绑定</option>
+            {props.moduleOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>所属能力包</span>
+          <select value={props.draft.packageKey} onChange={(event) => props.onChange("packageKey", event.target.value)}>
+            <option value="NONE">暂不绑定</option>
+            {props.packageOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>提示词场景</span>
+          <select value={props.draft.promptScene} onChange={(event) => props.onChange("promptScene", event.target.value)}>
+            <option value="">稍后绑定</option>
+            {props.promptSceneOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>技能说明</span>
+          <textarea value={props.draft.description} onChange={(event) => props.onChange("description", event.target.value)} />
+        </label>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>归属说明</span>
+          <textarea value={props.draft.bindingRemarks} onChange={(event) => props.onChange("bindingRemarks", event.target.value)} />
+        </label>
+      </div>
+
+      <div className="personal-actions">
+        <button type="button" className="secondary-button" onClick={props.onCancel} disabled={props.isCreating}>
+          返回能力包摘要
+        </button>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={props.onSubmit}
+          disabled={
+            props.isCreating
+            || !props.draft.name.trim()
+            || !props.draft.slug.trim()
+            || !props.draft.category.trim()
+            || !props.draft.provider.trim()
+            || !props.draft.defaultModel.trim()
+          }
+        >
+          {props.isCreating ? "创建中..." : "确认创建"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function buildCreateApiProviderDraft(): CreateApiProviderDraft {
   return {
     name: "",
@@ -4651,6 +4869,31 @@ function buildCreateKnowledgeBaseFileDraft(): CreateKnowledgeBaseFileDraft {
     sourceName: "",
     chunkCount: "0",
   };
+}
+
+function buildKnowledgeBaseFileDraftFromFile(file: File): Partial<CreateKnowledgeBaseFileDraft> {
+  return {
+    fileName: file.name,
+    fileType: inferKnowledgeBaseFileType(file.name),
+    sourceName: "LOCAL_UPLOAD",
+  };
+}
+
+function inferKnowledgeBaseFileType(fileName: string): KnowledgeBaseFileRecord["fileType"] {
+  const normalized = fileName.trim().toLowerCase();
+  if (normalized.endsWith(".doc") || normalized.endsWith(".docx")) {
+    return "DOCX";
+  }
+  if (normalized.endsWith(".xls") || normalized.endsWith(".xlsx") || normalized.endsWith(".csv")) {
+    return "XLSX";
+  }
+  if (normalized.endsWith(".md") || normalized.endsWith(".markdown") || normalized.endsWith(".txt")) {
+    return "MD";
+  }
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return "LINK";
+  }
+  return "PDF";
 }
 
 function buildKnowledgeBaseFileCreateDrafts(list: KnowledgeBaseRecord[]) {
