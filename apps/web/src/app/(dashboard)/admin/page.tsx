@@ -30,6 +30,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  getSkillPackageModules,
   getThirdPartyPlatforms,
   knowledgeBaseFileSeed,
   knowledgeBaseSyncRunSeed,
@@ -38,6 +39,8 @@ import {
   modelUsageSeed,
   promptTemplateSeed,
   skillConfigSeed,
+  skillAssetBindingSeed,
+  skillPackageModuleSeed,
   startKnowledgeBaseSync,
   syncKnowledgeBaseFile,
   updateApiProvider,
@@ -63,6 +66,7 @@ import {
   type PointsPackageRule,
   type PromptTemplateRecord,
   type SkillConfigRecord,
+  type SkillPackageModuleRecord,
   type ThirdPartyPlatformRecord,
 } from "../../../services/admin";
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
@@ -222,6 +226,7 @@ export default function AdminPage() {
   const [skills, setSkills] = useState<SkillConfigRecord[]>(skillConfigSeed);
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
+  const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
@@ -335,6 +340,7 @@ export default function AdminPage() {
       skillResult,
       promptResult,
       moduleDefinitionResult,
+      skillPackageModuleResult,
       knowledgeBaseResult,
       knowledgeBaseFilesResult,
       knowledgeBaseSyncRunsResult,
@@ -349,6 +355,7 @@ export default function AdminPage() {
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
+      canReadAssets ? getSkillPackageModules() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
@@ -407,6 +414,13 @@ export default function AdminPage() {
       setModules(moduleDefinitionResult.value);
     } else {
       setModules(moduleDefinitionSeed);
+      usingSeed = true;
+    }
+
+    if (skillPackageModuleResult.status === "fulfilled") {
+      setSkillPackageModules(skillPackageModuleResult.value);
+    } else {
+      setSkillPackageModules(skillPackageModuleSeed);
       usingSeed = true;
     }
 
@@ -1747,6 +1761,31 @@ export default function AdminPage() {
   const activePromptConfig = activeSkillLeaf?.promptScene ? prompts.find((item) => item.scene === activeSkillLeaf.promptScene) : undefined;
   const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
   const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
+  const activeSkillBindings = skillAssetBindingSeed.filter(
+    (item) =>
+      (activeSkillConfig?.slug && item.skillSlug === activeSkillConfig.slug) ||
+      (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
+      (activePromptConfig?.scene && item.promptScene === activePromptConfig.scene) ||
+      (activeSkillLeaf?.promptScene && item.promptScene === activeSkillLeaf.promptScene),
+  );
+  const activeSkillModuleKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.moduleKeys)));
+  const activeSkillPackageKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.packageKeys)));
+  const activeSkillModules = modules.filter((item) => activeSkillModuleKeys.includes(item.moduleKey));
+  const activeSkillModuleLabel = activeSkillModules.length
+    ? activeSkillModules.map((item) => item.moduleName).join(" / ")
+    : activeSkillModuleKeys.length
+      ? activeSkillModuleKeys.join(" / ")
+      : "-";
+  const activeSkillPackageNames = Array.from(
+    new Set([
+      ...skillPackageModules.filter((item) => activeSkillPackageKeys.includes(item.packageKey)).map((item) => item.packageName),
+      ...activeSkillBindings.flatMap((item) => item.packageNames),
+    ]),
+  );
+  const activeSkillPackageLabel = activeSkillPackageNames.length ? activeSkillPackageNames.join(" / ") : "-";
+  const activeSkillBindingLabel =
+    activeSkillBindings[0]?.remarks ||
+    (activeSkillPackageNames.length || activeSkillModules.length ? "已建立技能归属映射" : "暂未建立技能归属映射");
   const skillModelOptions = useMemo(
     () =>
       buildScopedModelOptions(
@@ -2253,6 +2292,14 @@ export default function AdminPage() {
                       <input value={activeSkillConfig?.name || "-"} readOnly />
                     </label>
                     <label className="admin-skill-field">
+                      <span>所属模块</span>
+                      <input value={activeSkillModuleLabel} readOnly />
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>所属能力包</span>
+                      <input value={activeSkillPackageLabel} readOnly />
+                    </label>
+                    <label className="admin-skill-field">
                       <span>状态</span>
                       <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
                         <option value="ACTIVE">启用中</option>
@@ -2286,6 +2333,10 @@ export default function AdminPage() {
                     <label className="admin-skill-field admin-skill-field--wide">
                       <span>更新时间</span>
                       <input value={skillCenterUpdatedAtLabel} readOnly />
+                    </label>
+                    <label className="admin-skill-field admin-skill-field--wide">
+                      <span>归属说明</span>
+                      <input value={activeSkillBindingLabel} readOnly />
                     </label>
                   </div>
                   <label className="admin-skill-field admin-skill-field--full">

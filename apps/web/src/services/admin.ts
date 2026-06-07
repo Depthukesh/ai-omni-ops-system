@@ -223,6 +223,16 @@ export type GetSkillPackageModulesQuery = {
   enabled?: boolean;
 };
 
+export type SkillAssetBindingRecord = {
+  id: string;
+  skillSlug?: string;
+  promptScene?: string;
+  moduleKeys: string[];
+  packageKeys: string[];
+  packageNames: string[];
+  remarks?: string;
+};
+
 export type ApiProviderRecord = {
   id: string;
   name: string;
@@ -1394,6 +1404,152 @@ export const skillPackageModuleSeed: SkillPackageModuleRecord[] = [
     entryRoute: "/design",
     createdAt: "2026-06-07T10:20:00.000Z",
     updatedAt: "2026-06-07T10:20:00.000Z",
+  },
+];
+
+export const skillAssetBindingSeed: SkillAssetBindingRecord[] = [
+  {
+    id: "sab_brand_growth_report",
+    skillSlug: "brand-omni-growth-analysis",
+    promptScene: "品牌增长报告生成",
+    moduleKeys: ["brand-growth-workbench"],
+    packageKeys: ["brand-growth-analysis"],
+    packageNames: ["品牌增长分析能力包"],
+    remarks: "品牌增长报告主技能归属于品牌增长工作台。",
+  },
+  {
+    id: "sab_brand_visual_report",
+    skillSlug: "article-visual-report-designer",
+    promptScene: "HTML 可视化报告生成",
+    moduleKeys: ["brand-growth-workbench", "design-workbench"],
+    packageKeys: ["brand-growth-analysis", "design-web-prototype"],
+    packageNames: ["品牌增长分析能力包", "网页原型设计能力包"],
+    remarks: "可视化报告同时服务增长工作台与设计工作台。",
+  },
+  {
+    id: "sab_annual_plan",
+    skillSlug: "enterprise-annual-plan",
+    promptScene: "半年营销规划生成",
+    moduleKeys: ["brand-growth-workbench"],
+    packageKeys: ["enterprise-annual-plan"],
+    packageNames: ["半年营销规划能力包"],
+  },
+  {
+    id: "sab_xhs_plan",
+    skillSlug: "xiaohongshu-brand-marketing-plan",
+    promptScene: "小红书营销规划",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-brand-marketing-plan"],
+    packageNames: ["小红书营销规划能力包"],
+  },
+  {
+    id: "sab_xhs_calendar",
+    skillSlug: "xiaohongshu-marketing-calendar",
+    promptScene: "小红书营销日历生成",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-brand-marketing-plan"],
+    packageNames: ["小红书营销规划能力包"],
+  },
+  {
+    id: "sab_xhs_original_copy",
+    skillSlug: "original_copy",
+    promptScene: "小红书原创笔记文案",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-content-original"],
+    packageNames: ["小红书原创内容能力包"],
+  },
+  {
+    id: "sab_xhs_original_image",
+    skillSlug: "xhs-original-image-prompt",
+    promptScene: "小红书原创笔记配图",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-content-original"],
+    packageNames: ["小红书原创内容能力包"],
+  },
+  {
+    id: "sab_xhs_rewrite_copy",
+    skillSlug: "rewrite_copy",
+    promptScene: "小红书二创笔记文案",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-content-rewrite"],
+    packageNames: ["小红书二创内容能力包"],
+  },
+  {
+    id: "sab_xhs_rewrite_image",
+    skillSlug: "rewrite_image",
+    promptScene: "小红书二创笔记配图",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-content-rewrite"],
+    packageNames: ["小红书二创内容能力包"],
+  },
+  {
+    id: "sab_xhs_video",
+    skillSlug: "short-video-api-studio",
+    moduleKeys: ["xiaohongshu-workbench"],
+    packageKeys: ["xiaohongshu-video-production"],
+    packageNames: ["小红书视频生产能力包"],
+  },
+  {
+    id: "sab_wechat_article",
+    skillSlug: "wechat-article-composer",
+    promptScene: "公众号创作文章",
+    moduleKeys: ["wechat-workbench"],
+    packageKeys: ["wechat-article-generator"],
+    packageNames: ["公众号文章生成能力包"],
+  },
+  {
+    id: "sab_wechat_cover",
+    skillSlug: "wechat-cover-image-designer",
+    promptScene: "公众号封面图生成",
+    moduleKeys: ["wechat-workbench"],
+    packageKeys: ["wechat-image-designer"],
+    packageNames: ["公众号配图生成能力包"],
+  },
+  {
+    id: "sab_wechat_body",
+    skillSlug: "wechat-body-image-designer",
+    promptScene: "公众号正文配图生成",
+    moduleKeys: ["wechat-workbench"],
+    packageKeys: ["wechat-image-designer"],
+    packageNames: ["公众号配图生成能力包"],
+  },
+  {
+    id: "sab_wechat_html",
+    skillSlug: "wechat-html-renderer",
+    promptScene: "公众号HTML渲染",
+    moduleKeys: ["wechat-workbench"],
+    packageKeys: ["wechat-html-renderer"],
+    packageNames: ["公众号 HTML 渲染能力包"],
+  },
+  {
+    id: "sab_wechat_publish",
+    skillSlug: "wechat-api-publisher",
+    promptScene: "公众号API发布",
+    moduleKeys: ["wechat-workbench"],
+    packageKeys: ["wechat-publish-bridge"],
+    packageNames: ["公众号 API 发布能力包"],
+  },
+  {
+    id: "sab_douyin_storyboard",
+    skillSlug: "douyin-video-storyboard-studio",
+    moduleKeys: ["douyin-workbench"],
+    packageKeys: ["tongcheng-brand-douyin-planning"],
+    packageNames: ["抖音营销规划能力包"],
+  },
+  {
+    id: "sab_douyin_direct_video",
+    skillSlug: "douyin-direct-video-studio",
+    moduleKeys: ["douyin-workbench"],
+    packageKeys: ["douyin-video-production"],
+    packageNames: ["抖音视频生产能力包"],
+  },
+  {
+    id: "sab_douyin_digital_human",
+    skillSlug: "douyin-digital-human-script-studio",
+    promptScene: "抖音数字人-口播脚本",
+    moduleKeys: ["douyin-workbench"],
+    packageKeys: ["douyin-digital-human"],
+    packageNames: ["抖音数字人能力包"],
   },
 ];
 
