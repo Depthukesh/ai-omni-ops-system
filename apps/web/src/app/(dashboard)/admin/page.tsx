@@ -103,10 +103,47 @@ type SkillEditDraft = {
   workflowSummary: string;
   inputSummary: string;
   outputSummary: string;
+  databaseInputs: DatabaseInputConfig[];
+  knowledgeInputs: KnowledgeInputConfig[];
+  customInputs: CustomInputConfig[];
   referenceAssetKeys: string[];
   scriptAssetKeys: string[];
   hasReferenceAssetSelection: boolean;
   hasScriptAssetSelection: boolean;
+};
+type DatabaseInputConfig = {
+  id: string;
+  parameterType: "INJECT_TOGGLE" | "SELECT_CHOICE";
+  parameterKey: string;
+  parameterLabel: string;
+  selectedValue: string;
+  remarks: string;
+};
+type KnowledgeInputConfig = {
+  id: string;
+  knowledgeBaseId: string;
+  knowledgeBaseName: string;
+  targetContentLabel: string;
+  remarks: string;
+};
+type CustomInputConfig = {
+  id: string;
+  inputType: "SELECT" | "TEXT" | "FILE";
+  label: string;
+  required: boolean;
+  options: string[];
+  placeholder: string;
+  acceptedFileTypes: string;
+  remarks: string;
+};
+type DatabaseInjectParameterOption = {
+  value: string;
+  label: string;
+};
+type DatabaseSelectParameterOption = {
+  value: string;
+  label: string;
+  options: string[];
 };
 type PromptEditDraft = {
   status: PromptTemplateRecord["status"];
@@ -277,6 +314,31 @@ const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
   FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
   SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
 };
+
+const DATABASE_INJECT_PARAMETER_OPTIONS: DatabaseInjectParameterOption[] = [
+  { value: "brand_profile", label: "品牌信息" },
+  { value: "product_library", label: "产品库" },
+  { value: "marketing_plan", label: "营销策划方案" },
+  { value: "campaign_strategy", label: "专项活动策略" },
+];
+
+const DATABASE_SELECT_PARAMETER_OPTIONS: DatabaseSelectParameterOption[] = [
+  {
+    value: "marketing_calendar",
+    label: "营销日历",
+    options: ["不使用营销日历", "品牌营销日历", "平台营销日历", "活动营销日历"],
+  },
+  {
+    value: "asset_library",
+    label: "素材库",
+    options: ["不使用素材库", "品牌素材库", "活动素材库", "场景素材库"],
+  },
+  {
+    value: "persona_library",
+    label: "账号角色库",
+    options: ["品牌官方号", "达人合作号", "门店本地号", "员工个人号"],
+  },
+];
 
 const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = DASHBOARD_SKILL_CENTER_TREE;
 
@@ -812,6 +874,132 @@ export default function AdminPage() {
     if (activeSkillConfig) {
       handleSkillDraftChange(activeSkillConfig.id, { pointsCost });
     }
+  }
+
+  function handleDatabaseInputChange(
+    inputId: string,
+    patch: Partial<DatabaseInputConfig>,
+  ) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      databaseInputs: draft.databaseInputs.map((item) => {
+        if (item.id !== inputId) {
+          return item;
+        }
+        const next = {
+          ...item,
+          ...patch,
+        };
+        if (patch.parameterKey) {
+          const meta = getDatabaseParameterMeta(next.parameterType, patch.parameterKey);
+          next.parameterLabel = meta?.label || patch.parameterKey;
+          const selectMeta = next.parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(patch.parameterKey) : undefined;
+          if (selectMeta?.options?.length && !selectMeta.options.includes(next.selectedValue)) {
+            next.selectedValue = selectMeta.options[0];
+          }
+        }
+        return next;
+      }),
+    });
+  }
+
+  function handleAddDatabaseInput(parameterType: DatabaseInputConfig["parameterType"]) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      databaseInputs: [...draft.databaseInputs, buildDatabaseInputConfig(parameterType)],
+    });
+  }
+
+  function handleRemoveDatabaseInput(inputId: string) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      databaseInputs: draft.databaseInputs.filter((item) => item.id !== inputId),
+    });
+  }
+
+  function handleKnowledgeInputChange(
+    inputId: string,
+    patch: Partial<KnowledgeInputConfig>,
+  ) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      knowledgeInputs: draft.knowledgeInputs.map((item) => {
+        if (item.id !== inputId) {
+          return item;
+        }
+        const next = { ...item, ...patch };
+        if (patch.knowledgeBaseId) {
+          const matched = knowledgeBases.find((entry) => entry.id === patch.knowledgeBaseId);
+          next.knowledgeBaseName = matched?.name || "";
+        }
+        return next;
+      }),
+    });
+  }
+
+  function handleAddKnowledgeInput() {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      knowledgeInputs: [...draft.knowledgeInputs, buildKnowledgeInputConfig(knowledgeBases[0])],
+    });
+  }
+
+  function handleRemoveKnowledgeInput(inputId: string) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      knowledgeInputs: draft.knowledgeInputs.filter((item) => item.id !== inputId),
+    });
+  }
+
+  function handleCustomInputChange(
+    inputId: string,
+    patch: Partial<CustomInputConfig>,
+  ) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      customInputs: draft.customInputs.map((item) => (item.id === inputId ? { ...item, ...patch } : item)),
+    });
+  }
+
+  function handleAddCustomInput(inputType: CustomInputConfig["inputType"]) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      customInputs: [...draft.customInputs, buildCustomInputConfig(inputType)],
+    });
+  }
+
+  function handleRemoveCustomInput(inputId: string) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      customInputs: draft.customInputs.filter((item) => item.id !== inputId),
+    });
   }
 
   function handleSkillCenterPromptChange(value: string) {
@@ -2055,6 +2243,9 @@ export default function AdminPage() {
   const activeSkillAssetSourceLabel = activePrimarySkillRelation?.packageName || activeSkillPackageLabel;
   const isLoadingActiveSkillAssets = !!activePrimarySkillRelation?.packageId && loadingSkillAssetPackageId === activePrimarySkillRelation.packageId;
   const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
+  const activeKnowledgeBaseOptions = knowledgeBases
+    .filter((item) => item.status !== "DISABLED")
+    .map((item) => ({ value: item.id, label: item.name }));
   const skillModelOptions = useMemo(
     () =>
       buildScopedModelOptions(
@@ -3344,12 +3535,255 @@ export default function AdminPage() {
                             <span>提示词场景</span>
                             <input value={resolvedActivePromptScene || "-"} readOnly />
                           </label>
+                          <div className="admin-skill-field admin-skill-field--full" style={{ display: "grid", gap: 12 }}>
+                            <div className="entity-card" style={{ padding: 12 }}>
+                              <div className="entity-card-head" style={{ marginBottom: 12 }}>
+                                <div>
+                                  <strong>数据库参数</strong>
+                                  <p className="personal-meta">支持多条创建。可配置“是否植入”参数，以及“下拉框选择”类数据库参数。</p>
+                                </div>
+                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                  <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("INJECT_TOGGLE")}>
+                                    新增植入参数
+                                  </button>
+                                  <button type="button" className="secondary-button" onClick={() => handleAddDatabaseInput("SELECT_CHOICE")}>
+                                    新增下拉参数
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={{ display: "grid", gap: 10 }}>
+                                {activeSkillDraft?.databaseInputs.length ? activeSkillDraft.databaseInputs.map((item) => {
+                                  const selectMeta = item.parameterType === "SELECT_CHOICE"
+                                    ? DATABASE_SELECT_PARAMETER_OPTIONS.find((entry) => entry.value === item.parameterKey)
+                                    : undefined;
+                                  return (
+                                    <div className="entity-card" style={{ padding: 12 }} key={item.id}>
+                                      <div className="admin-skill-simple-grid">
+                                        <label className="admin-skill-field">
+                                          <span>参数形式</span>
+                                          <input value={item.parameterType === "INJECT_TOGGLE" ? "是否植入" : "下拉框选择"} readOnly />
+                                        </label>
+                                        <label className="admin-skill-field">
+                                          <span>参数名称</span>
+                                          <select
+                                            value={item.parameterKey}
+                                            onChange={(event) => handleDatabaseInputChange(item.id, { parameterKey: event.target.value })}
+                                          >
+                                            {(item.parameterType === "INJECT_TOGGLE" ? DATABASE_INJECT_PARAMETER_OPTIONS : DATABASE_SELECT_PARAMETER_OPTIONS).map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                        <label className="admin-skill-field">
+                                          <span>{item.parameterType === "INJECT_TOGGLE" ? "植入方式" : "下拉选择值"}</span>
+                                          <select
+                                            value={item.selectedValue}
+                                            onChange={(event) => handleDatabaseInputChange(item.id, { selectedValue: event.target.value })}
+                                          >
+                                            {item.parameterType === "INJECT_TOGGLE" ? (
+                                              <>
+                                                <option value="INJECT">植入</option>
+                                                <option value="SKIP">不植入</option>
+                                              </>
+                                            ) : (
+                                              (selectMeta?.options || ["待配置"]).map((option) => (
+                                                <option key={option} value={option}>{option}</option>
+                                              ))
+                                            )}
+                                          </select>
+                                        </label>
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>备注</span>
+                                          <input
+                                            value={item.remarks}
+                                            placeholder="例如：正文阶段必须植入品牌信息；营销日历优先读取最近一期。"
+                                            onChange={(event) => handleDatabaseInputChange(item.id, { remarks: event.target.value })}
+                                          />
+                                        </label>
+                                      </div>
+                                      <div className="personal-actions" style={{ marginTop: 12 }}>
+                                        <button type="button" className="ghost-danger-button" onClick={() => handleRemoveDatabaseInput(item.id)}>
+                                          删除参数
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }) : (
+                                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                                    还没有配置数据库参数。可添加“品牌信息 / 产品库 / 营销策划方案”等植入参数，或“营销日历 / 素材库”等下拉参数。
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="entity-card" style={{ padding: 12 }}>
+                              <div className="entity-card-head" style={{ marginBottom: 12 }}>
+                                <div>
+                                  <strong>知识库参数</strong>
+                                  <p className="personal-meta">支持多条创建。当前先选择知识库来源，具体内容选择器等知识库内容模型接入后再补齐。</p>
+                                </div>
+                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => handleAddKnowledgeInput()}
+                                    disabled={!activeKnowledgeBaseOptions.length}
+                                  >
+                                    新增知识库参数
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={{ display: "grid", gap: 10 }}>
+                                {activeSkillDraft?.knowledgeInputs.length ? activeSkillDraft.knowledgeInputs.map((item) => (
+                                  <div className="entity-card" style={{ padding: 12 }} key={item.id}>
+                                    <div className="admin-skill-simple-grid">
+                                      <label className="admin-skill-field">
+                                        <span>知识库</span>
+                                        <select
+                                          value={item.knowledgeBaseId}
+                                          onChange={(event) => handleKnowledgeInputChange(item.id, { knowledgeBaseId: event.target.value })}
+                                        >
+                                          <option value="">请选择知识库</option>
+                                          {activeKnowledgeBaseOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label className="admin-skill-field">
+                                        <span>具体内容</span>
+                                        <input
+                                          value={item.targetContentLabel}
+                                          placeholder="知识库内容选择器待接入后，这里改为直接选择具体内容"
+                                          onChange={(event) => handleKnowledgeInputChange(item.id, { targetContentLabel: event.target.value })}
+                                        />
+                                      </label>
+                                      <label className="admin-skill-field admin-skill-field--wide">
+                                        <span>备注</span>
+                                        <input
+                                          value={item.remarks}
+                                          placeholder="例如：优先检索品牌FAQ；只读取活动资料。"
+                                          onChange={(event) => handleKnowledgeInputChange(item.id, { remarks: event.target.value })}
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="personal-actions" style={{ marginTop: 12 }}>
+                                      <button type="button" className="ghost-danger-button" onClick={() => handleRemoveKnowledgeInput(item.id)}>
+                                        删除参数
+                                      </button>
+                                    </div>
+                                  </div>
+                                )) : (
+                                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                                    {activeKnowledgeBaseOptions.length
+                                      ? `当前可选知识库：${activeKnowledgeBaseSummary.join(" / ")}。可按技能继续创建多条知识库输入项。`
+                                      : "当前还没有可用知识库；等知识库模块和内容选择器接入后，这里可直接为技能添加多条知识库输入。"}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="entity-card" style={{ padding: 12 }}>
+                              <div className="entity-card-head" style={{ marginBottom: 12 }}>
+                                <div>
+                                  <strong>自定义输入参数</strong>
+                                  <p className="personal-meta">支持多条创建。可配置下拉框参数、普通输入框参数和文件上传参数。</p>
+                                </div>
+                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
+                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("SELECT")}>
+                                    新增下拉参数
+                                  </button>
+                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("TEXT")}>
+                                    新增输入框
+                                  </button>
+                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("FILE")}>
+                                    新增文件参数
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={{ display: "grid", gap: 10 }}>
+                                {activeSkillDraft?.customInputs.length ? activeSkillDraft.customInputs.map((item) => (
+                                  <div className="entity-card" style={{ padding: 12 }} key={item.id}>
+                                    <div className="admin-skill-simple-grid">
+                                      <label className="admin-skill-field">
+                                        <span>参数形式</span>
+                                        <input
+                                          value={item.inputType === "SELECT" ? "下拉框选择" : item.inputType === "FILE" ? "文件上传" : "输入框"}
+                                          readOnly
+                                        />
+                                      </label>
+                                      <label className="admin-skill-field">
+                                        <span>参数名称</span>
+                                        <input
+                                          value={item.label}
+                                          placeholder="例如：剧本类型、用户要求、参考文件"
+                                          onChange={(event) => handleCustomInputChange(item.id, { label: event.target.value })}
+                                        />
+                                      </label>
+                                      <label className="admin-skill-field">
+                                        <span>是否必填</span>
+                                        <select
+                                          value={item.required ? "YES" : "NO"}
+                                          onChange={(event) => handleCustomInputChange(item.id, { required: event.target.value === "YES" })}
+                                        >
+                                          <option value="NO">非必填</option>
+                                          <option value="YES">必填</option>
+                                        </select>
+                                      </label>
+                                      {item.inputType === "SELECT" ? (
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>下拉选项</span>
+                                          <textarea
+                                            value={item.options.join("\n")}
+                                            placeholder="每行一个选项，例如：品牌宣传剧本"
+                                            onChange={(event) => handleCustomInputChange(item.id, { options: splitLines(event.target.value) })}
+                                          />
+                                        </label>
+                                      ) : null}
+                                      {item.inputType === "TEXT" ? (
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>输入框提示</span>
+                                          <input
+                                            value={item.placeholder}
+                                            placeholder="例如：请输入本次内容创作要求"
+                                            onChange={(event) => handleCustomInputChange(item.id, { placeholder: event.target.value })}
+                                          />
+                                        </label>
+                                      ) : null}
+                                      {item.inputType === "FILE" ? (
+                                        <label className="admin-skill-field admin-skill-field--wide">
+                                          <span>允许上传格式</span>
+                                          <input
+                                            value={item.acceptedFileTypes}
+                                            placeholder="例如：.pdf,.docx,image/*"
+                                            onChange={(event) => handleCustomInputChange(item.id, { acceptedFileTypes: event.target.value })}
+                                          />
+                                        </label>
+                                      ) : null}
+                                      <label className="admin-skill-field admin-skill-field--wide">
+                                        <span>备注</span>
+                                        <input
+                                          value={item.remarks}
+                                          placeholder="例如：文件上传后作为故事板参考图；文本输入用于补充创作要求。"
+                                          onChange={(event) => handleCustomInputChange(item.id, { remarks: event.target.value })}
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="personal-actions" style={{ marginTop: 12 }}>
+                                      <button type="button" className="ghost-danger-button" onClick={() => handleRemoveCustomInput(item.id)}>
+                                        删除参数
+                                      </button>
+                                    </div>
+                                  </div>
+                                )) : (
+                                  <div className="admin-skill-empty" style={{ marginTop: 0 }}>
+                                    还没有配置自定义输入参数。可继续为技能增加下拉框选择、输入框或文件上传参数。
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>数据库 / 知识库输入</span>
-                            <input value={activeKnowledgeBaseSummary.join(" / ") || "知识库完成后在这里按技能选择；当前 first pass 先读取系统已启用知识库"} readOnly />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>输入项草稿</span>
+                            <span>输入项补充说明</span>
                             <textarea
                               value={activeSkillDraft?.inputSummary || ""}
                               onChange={(event) => {
@@ -3357,16 +3791,8 @@ export default function AdminPage() {
                                   handleSkillDraftChange(activeSkillConfig.id, { inputSummary: event.target.value });
                                 }
                               }}
-                              placeholder="例如：品牌信息、营销日历、产品库、素材库、用户上传参考图、模型选择等。"
+                              placeholder="用于补充该技能的输入项规则、默认优先级和特殊处理说明。"
                             />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>系统预设项</span>
-                            <input value="账号角色 / 时长 / 风格 / 平台 / 任务模式（当前先以技能说明和分类继承）" readOnly />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>用户输入项</span>
-                            <input value="用户要求 / 上传素材 / 参考图 / 参考文档（当前先由前台工作流和上传入口承接）" readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
                             <span>上游技能输出</span>
@@ -4894,6 +5320,9 @@ function buildSkillDraft(item: SkillConfigRecord): SkillEditDraft {
     workflowSummary: parsed.workflowSummary,
     inputSummary: parsed.inputSummary,
     outputSummary: parsed.outputSummary,
+    databaseInputs: parsed.databaseInputs,
+    knowledgeInputs: parsed.knowledgeInputs,
+    customInputs: parsed.customInputs,
     referenceAssetKeys: parsed.referenceAssetKeys,
     scriptAssetKeys: parsed.scriptAssetKeys,
     hasReferenceAssetSelection: parsed.hasReferenceAssetSelection,
@@ -4912,6 +5341,9 @@ function parseSkillDescription(description: string) {
     workflowSummary: "",
     inputSummary: "",
     outputSummary: "",
+    databaseInputs: [] as DatabaseInputConfig[],
+    knowledgeInputs: [] as KnowledgeInputConfig[],
+    customInputs: [] as CustomInputConfig[],
     referenceAssetKeys: [] as string[],
     scriptAssetKeys: [] as string[],
     hasReferenceAssetSelection: false,
@@ -4923,6 +5355,9 @@ function parseSkillDescription(description: string) {
 
   const markers = [
     { key: "workflowSummary", title: "步骤摘要：" },
+    { key: "databaseInputs", title: "数据库参数：" },
+    { key: "knowledgeInputs", title: "知识库参数：" },
+    { key: "customInputs", title: "自定义输入参数：" },
     { key: "inputSummary", title: "输入要点：" },
     { key: "outputSummary", title: "输出要点：" },
     { key: "referenceAssetKeys", title: "References 资产：" },
@@ -4945,6 +5380,18 @@ function parseSkillDescription(description: string) {
     const body = source
       .slice(current.index + current.title.length, next?.index ?? source.length)
       .trim();
+    if (current.key === "databaseInputs") {
+      sections.databaseInputs = parseSkillJsonSection(body, []).map(normalizeDatabaseInputConfig);
+      continue;
+    }
+    if (current.key === "knowledgeInputs") {
+      sections.knowledgeInputs = parseSkillJsonSection(body, []).map(normalizeKnowledgeInputConfig);
+      continue;
+    }
+    if (current.key === "customInputs") {
+      sections.customInputs = parseSkillJsonSection(body, []).map(normalizeCustomInputConfig);
+      continue;
+    }
     if (current.key === "referenceAssetKeys" || current.key === "scriptAssetKeys") {
       const values = splitSkillAssetKeyLines(body);
       sections[current.key] = values;
@@ -4965,6 +5412,9 @@ function composeSkillDescription(draft: SkillEditDraft) {
   const blocks = [
     draft.descriptionIntro.trim(),
     draft.workflowSummary.trim() ? `步骤摘要：\n${draft.workflowSummary.trim()}` : "",
+    draft.databaseInputs.length ? `数据库参数：\n${JSON.stringify(draft.databaseInputs, null, 2)}` : "",
+    draft.knowledgeInputs.length ? `知识库参数：\n${JSON.stringify(draft.knowledgeInputs, null, 2)}` : "",
+    draft.customInputs.length ? `自定义输入参数：\n${JSON.stringify(draft.customInputs, null, 2)}` : "",
     draft.inputSummary.trim() ? `输入要点：\n${draft.inputSummary.trim()}` : "",
     draft.outputSummary.trim() ? `输出要点：\n${draft.outputSummary.trim()}` : "",
     draft.hasReferenceAssetSelection ? `References 资产：\n${draft.referenceAssetKeys.join("\n")}` : "",
@@ -4990,6 +5440,116 @@ function splitSkillAssetKeyLines(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+function parseSkillJsonSection<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function createSkillInputConfigId(prefix: string) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getDatabaseParameterMeta(parameterType: DatabaseInputConfig["parameterType"], parameterKey: string) {
+  if (parameterType === "INJECT_TOGGLE") {
+    return DATABASE_INJECT_PARAMETER_OPTIONS.find((item) => item.value === parameterKey);
+  }
+  return DATABASE_SELECT_PARAMETER_OPTIONS.find((item) => item.value === parameterKey);
+}
+
+function getDatabaseSelectParameterMeta(parameterKey: string) {
+  return DATABASE_SELECT_PARAMETER_OPTIONS.find((item) => item.value === parameterKey);
+}
+
+function buildDatabaseInputConfig(parameterType: DatabaseInputConfig["parameterType"]): DatabaseInputConfig {
+  const defaultKey = parameterType === "INJECT_TOGGLE" ? DATABASE_INJECT_PARAMETER_OPTIONS[0]?.value || "" : DATABASE_SELECT_PARAMETER_OPTIONS[0]?.value || "";
+  const meta = getDatabaseParameterMeta(parameterType, defaultKey);
+  const selectMeta = parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(defaultKey) : undefined;
+  return {
+    id: createSkillInputConfigId("db"),
+    parameterType,
+    parameterKey: meta?.value || "",
+    parameterLabel: meta?.label || "",
+    selectedValue: parameterType === "INJECT_TOGGLE" ? "INJECT" : selectMeta?.options?.[0] || "",
+    remarks: "",
+  };
+}
+
+function normalizeDatabaseInputConfig(value: unknown): DatabaseInputConfig {
+  const current = value && typeof value === "object" ? (value as Partial<DatabaseInputConfig>) : {};
+  const parameterType = current.parameterType === "SELECT_CHOICE" ? "SELECT_CHOICE" : "INJECT_TOGGLE";
+  const meta = getDatabaseParameterMeta(parameterType, String(current.parameterKey || ""));
+  const selectMeta = parameterType === "SELECT_CHOICE" ? getDatabaseSelectParameterMeta(String(current.parameterKey || meta?.value || "")) : undefined;
+  return {
+    id: String(current.id || createSkillInputConfigId("db")),
+    parameterType,
+    parameterKey: String(current.parameterKey || meta?.value || ""),
+    parameterLabel: String(current.parameterLabel || meta?.label || ""),
+    selectedValue: String(
+      current.selectedValue || (parameterType === "INJECT_TOGGLE" ? "INJECT" : selectMeta?.options?.[0] || ""),
+    ),
+    remarks: String(current.remarks || ""),
+  };
+}
+
+function buildKnowledgeInputConfig(knowledgeBase?: KnowledgeBaseRecord): KnowledgeInputConfig {
+  return {
+    id: createSkillInputConfigId("kb"),
+    knowledgeBaseId: knowledgeBase?.id || "",
+    knowledgeBaseName: knowledgeBase?.name || "",
+    targetContentLabel: "",
+    remarks: "",
+  };
+}
+
+function normalizeKnowledgeInputConfig(value: unknown): KnowledgeInputConfig {
+  const current = value && typeof value === "object" ? (value as Partial<KnowledgeInputConfig>) : {};
+  return {
+    id: String(current.id || createSkillInputConfigId("kb")),
+    knowledgeBaseId: String(current.knowledgeBaseId || ""),
+    knowledgeBaseName: String(current.knowledgeBaseName || ""),
+    targetContentLabel: String(current.targetContentLabel || ""),
+    remarks: String(current.remarks || ""),
+  };
+}
+
+function buildCustomInputConfig(inputType: CustomInputConfig["inputType"]): CustomInputConfig {
+  return {
+    id: createSkillInputConfigId("custom"),
+    inputType,
+    label: "",
+    required: false,
+    options: inputType === "SELECT" ? ["选项 A", "选项 B"] : [],
+    placeholder: inputType === "TEXT" ? "请输入内容" : "",
+    acceptedFileTypes: inputType === "FILE" ? ".pdf,.docx,.xlsx,.png,.jpg" : "",
+    remarks: "",
+  };
+}
+
+function normalizeCustomInputConfig(value: unknown): CustomInputConfig {
+  const current = value && typeof value === "object" ? (value as Partial<CustomInputConfig>) : {};
+  const inputType = current.inputType === "SELECT" || current.inputType === "FILE" ? current.inputType : "TEXT";
+  return {
+    id: String(current.id || createSkillInputConfigId("custom")),
+    inputType,
+    label: String(current.label || ""),
+    required: Boolean(current.required),
+    options: Array.isArray(current.options) ? current.options.map((item) => String(item).trim()).filter(Boolean) : [],
+    placeholder: String(current.placeholder || ""),
+    acceptedFileTypes: String(current.acceptedFileTypes || ""),
+    remarks: String(current.remarks || ""),
+  };
+}
+
+function splitLines(value: string) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function buildPromptDraft(item: PromptTemplateRecord): PromptEditDraft {
