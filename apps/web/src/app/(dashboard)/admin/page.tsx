@@ -4475,6 +4475,9 @@ export default function AdminPage() {
           <ModuleDefinitionsPanel
             modules={modules}
             skills={skills}
+            skillPackages={skillPackages}
+            knowledgeBases={knowledgeBases}
+            providers={providers}
             dataSource={dataSource}
             onModulesChange={setModules}
             onNotice={setNotice}

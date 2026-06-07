@@ -7,8 +7,11 @@ import {
   deleteModuleDefinition,
   getModuleDefinitions,
   type GetModuleDefinitionsQuery,
+  type ApiProviderRecord,
+  type KnowledgeBaseRecord,
   type ModuleDefinitionRecord,
   type SkillConfigRecord,
+  type SkillPackageRecord,
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackagesPanel } from "./skill-packages-panel";
@@ -19,6 +22,9 @@ import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
 type ModuleDefinitionsPanelProps = {
   modules: ModuleDefinitionRecord[];
   skills: SkillConfigRecord[];
+  skillPackages: SkillPackageRecord[];
+  knowledgeBases: KnowledgeBaseRecord[];
+  providers: ApiProviderRecord[];
   dataSource: "api" | "seed";
   onModulesChange: Dispatch<SetStateAction<ModuleDefinitionRecord[]>>;
   onNotice: (message: string) => void;
@@ -574,7 +580,13 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                 </div>
 
                 {selectedModule ? (
-                  <ModuleDraftForm draft={selectedDraft} onChange={setSelectedDraft} />
+                  <ModuleDraftForm
+                    draft={selectedDraft}
+                    onChange={setSelectedDraft}
+                    skillPackages={props.skillPackages}
+                    knowledgeBases={props.knowledgeBases}
+                    providers={props.providers}
+                  />
                 ) : (
                   <div className="personal-meta" style={{ paddingTop: 12 }}>
                     请选择一个模块进行编辑。
@@ -622,7 +634,13 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                 关闭
               </button>
             </div>
-            <ModuleDraftForm draft={createDraft} onChange={setCreateDraft} />
+            <ModuleDraftForm
+              draft={createDraft}
+              onChange={setCreateDraft}
+              skillPackages={props.skillPackages}
+              knowledgeBases={props.knowledgeBases}
+              providers={props.providers}
+            />
             <div className="personal-actions">
               <button type="button" className="secondary-button" onClick={handleCloseCreateModal} disabled={isCreating}>
                 取消
@@ -641,14 +659,69 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
 function ModuleDraftForm(props: {
   draft: ModuleDraft;
   onChange: Dispatch<SetStateAction<ModuleDraft>>;
+  skillPackages: SkillPackageRecord[];
+  knowledgeBases: KnowledgeBaseRecord[];
+  providers: ApiProviderRecord[];
 }) {
+  const selectedPackageKeys = useMemo(() => parseLines(props.draft.defaultSkillPackages), [props.draft.defaultSkillPackages]);
+  const selectedKnowledgeSpaceSlugs = useMemo(() => parseLines(props.draft.defaultKnowledgeSpaces), [props.draft.defaultKnowledgeSpaces]);
+  const selectedProviderPolicies = useMemo(() => parseLines(props.draft.defaultProviderPolicies), [props.draft.defaultProviderPolicies]);
+  const packageOptions = useMemo(
+    () =>
+      props.skillPackages
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((item) => ({
+          value: item.packageKey,
+          title: item.packageName,
+          description: `${item.packageKey} · ${item.status} · ${item.scope}`,
+        })),
+    [props.skillPackages],
+  );
+  const knowledgeOptions = useMemo(
+    () =>
+      props.knowledgeBases.slice().map((item) => ({
+        value: item.slug,
+        title: item.name,
+        description: `${item.slug} · ${item.status} · 文档 ${item.documentCount}`,
+      })),
+    [props.knowledgeBases],
+  );
+  const providerPolicyOptions = useMemo(
+    () =>
+      props.providers
+        .slice()
+        .filter((item) => item.status !== "DISABLED")
+        .map((item) => ({
+          value: item.id,
+          title: item.name,
+          description: `${item.providerType} · 默认模型 ${item.defaultModel || "-"} · ${item.status}`,
+        })),
+    [props.providers],
+  );
+
+  function updateMultiSelectField(field: "defaultSkillPackages" | "defaultKnowledgeSpaces" | "defaultProviderPolicies", value: string, checked: boolean) {
+    props.onChange((current) => {
+      const nextValues = new Set(parseLines(current[field]));
+      if (checked) {
+        nextValues.add(value);
+      } else {
+        nextValues.delete(value);
+      }
+      return {
+        ...current,
+        [field]: Array.from(nextValues).join("\n"),
+      };
+    });
+  }
+
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 12 }}>
       <section className="entity-card" style={{ padding: 16 }}>
         <div className="entity-card-head" style={{ marginBottom: 12 }}>
           <div>
             <strong>填写说明</strong>
-            <p className="personal-meta">先填基础信息与依赖，默认绑定项本轮仍以补充登记为主，后续再逐步切到后台真实选择器。</p>
+            <p className="personal-meta">先填基础信息与依赖；默认绑定项本轮已经接入后台真实列表选择，仍保留手工补充兜底以兼容旧数据。</p>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
@@ -662,7 +735,7 @@ function ModuleDraftForm(props: {
           </div>
           <div className="entity-card" style={{ padding: 12 }}>
             <strong>当前可不填</strong>
-            <p className="personal-meta">图标、排序、发布目标、默认知识空间、默认 Provider 策略、备注等，可后续补齐。</p>
+            <p className="personal-meta">图标、排序、发布目标、备注等，可后续补齐；默认绑定项现在优先从后台真实数据选择。</p>
           </div>
         </div>
       </section>
@@ -865,28 +938,59 @@ function ModuleDraftForm(props: {
         </div>
       </ModuleFormSection>
 
-      <ModuleFormSection title="默认绑定" description="这部分本质是模块与能力包、知识库、Provider 策略的默认关系。当前仍以登记为主，后续应切到后台真实选择器。">
-        <div className="admin-rule-grid">
-          <ModuleFormField label="默认能力包" badge="后续可带出" hint="当前仍需手工填写；后续建议直接从后台能力包数据选择。">
-            <textarea
-              value={props.draft.defaultSkillPackages}
-              placeholder={"例如：\nwechat-article-generation"}
-              onChange={(event) => props.onChange((current) => ({ ...current, defaultSkillPackages: event.target.value }))}
+      <ModuleFormSection title="默认绑定" description="这部分本质是模块与能力包、知识库、Provider 策略的默认关系。本轮已接入后台真实列表，并保留手工补充兜底。">
+        <div style={{ display: "grid", gap: 16 }}>
+          <ModuleFormField label="默认能力包" badge="真实可选" hint="直接从后台能力包选择；若历史值不在列表中，可在下方手工补充。" wide>
+            <ModuleMultiSelectCard
+              emptyText="当前还没有可选能力包，请先到能力包注册里创建。"
+              options={packageOptions}
+              selectedValues={selectedPackageKeys}
+              onToggle={(value, checked) => updateMultiSelectField("defaultSkillPackages", value, checked)}
             />
           </ModuleFormField>
-          <ModuleFormField label="默认知识空间" badge="可不填" hint="当前仍需手工填写；知识库闭环后应切成后台真实选择器。">
-            <textarea
-              value={props.draft.defaultKnowledgeSpaces}
-              placeholder={"例如：\nbrand-knowledge-space"}
-              onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaces: event.target.value }))}
+          <ModuleFormField label="默认知识空间" badge="真实可选" hint="直接从后台知识库选择；若暂未建知识库，可先留空或手工补充。" wide>
+            <ModuleMultiSelectCard
+              emptyText="当前还没有可选知识库，请先到知识库中心创建。"
+              options={knowledgeOptions}
+              selectedValues={selectedKnowledgeSpaceSlugs}
+              onToggle={(value, checked) => updateMultiSelectField("defaultKnowledgeSpaces", value, checked)}
             />
           </ModuleFormField>
-          <ModuleFormField label="默认 Provider 策略" badge="可不填" hint="当前仍需手工填写；后续 Provider 策略独立域完成后再切真实选择。">
-            <textarea
-              value={props.draft.defaultProviderPolicies}
-              placeholder={"例如：\ntext-default-policy"}
-              onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicies: event.target.value }))}
+          <ModuleFormField label="默认 Provider 策略" badge="first pass" hint="当前先复用 Provider 列表作为默认策略来源，后续再切到独立 Provider Policy 域。" wide>
+            <ModuleMultiSelectCard
+              emptyText="当前还没有可用 Provider，请先到接口供应商中配置。"
+              options={providerPolicyOptions}
+              selectedValues={selectedProviderPolicies}
+              onToggle={(value, checked) => updateMultiSelectField("defaultProviderPolicies", value, checked)}
             />
+          </ModuleFormField>
+          <ModuleFormField label="默认绑定手工补充" badge="兼容旧值" hint="若需要录入暂未进入后台选择器的历史值，可继续按每行一个补充。" wide>
+            <div className="admin-rule-grid">
+              <label style={{ display: "grid", gap: 6 }}>
+                <span>能力包补充值</span>
+                <textarea
+                  value={props.draft.defaultSkillPackages}
+                  placeholder={"例如：\nwechat-article-generation"}
+                  onChange={(event) => props.onChange((current) => ({ ...current, defaultSkillPackages: event.target.value }))}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span>知识空间补充值</span>
+                <textarea
+                  value={props.draft.defaultKnowledgeSpaces}
+                  placeholder={"例如：\nbrand-knowledge-space"}
+                  onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaces: event.target.value }))}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span>Provider 策略补充值</span>
+                <textarea
+                  value={props.draft.defaultProviderPolicies}
+                  placeholder={"例如：\nprovider_openai"}
+                  onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicies: event.target.value }))}
+                />
+              </label>
+            </div>
           </ModuleFormField>
         </div>
       </ModuleFormSection>
@@ -937,6 +1041,63 @@ function ModuleFormField(props: {
       <small className="personal-meta">{`${props.badge} · ${props.hint}`}</small>
       {props.children}
     </label>
+  );
+}
+
+function ModuleMultiSelectCard(props: {
+  options: Array<{
+    value: string;
+    title: string;
+    description: string;
+  }>;
+  selectedValues: string[];
+  emptyText: string;
+  onToggle: (value: string, checked: boolean) => void;
+}) {
+  if (!props.options.length) {
+    return (
+      <div className="entity-card" style={{ padding: 12 }}>
+        <p className="personal-meta">{props.emptyText}</p>
+      </div>
+    );
+  }
+
+  const selectedSet = new Set(props.selectedValues);
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div className="entity-card" style={{ padding: 12 }}>
+        <strong>已选 {props.selectedValues.length} 项</strong>
+        <p className="personal-meta">
+          {props.selectedValues.length ? props.selectedValues.join(" / ") : "当前未选择，保存时会按手工补充值或空值处理。"}
+        </p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+        {props.options.map((item) => {
+          const checked = selectedSet.has(item.value);
+          return (
+            <label
+              key={item.value}
+              className="entity-card"
+              style={{
+                padding: 12,
+                display: "grid",
+                gap: 6,
+                cursor: "pointer",
+                borderColor: checked ? "var(--primary)" : undefined,
+                boxShadow: checked ? "0 0 0 1px rgba(59, 130, 246, 0.18)" : undefined,
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={checked} onChange={(event) => props.onToggle(item.value, event.target.checked)} />
+                <strong>{item.title}</strong>
+              </span>
+              <small className="personal-meta">{item.description}</small>
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
