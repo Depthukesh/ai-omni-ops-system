@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { createId } from "../../common/mock-data";
-import type { SkillConfigRecord } from "../../common/mock-data";
+import type { PromptTemplateRecord, SkillConfigRecord } from "../../common/mock-data";
 import { SkillsPromptsService, type CreateSkillConfigPayload } from "./skills-prompts.service";
 
 type ZipEntryLike = {
@@ -39,6 +39,7 @@ export type InstallSkillPayload = {
 
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
+  initialPrompt?: PromptTemplateRecord;
   sourceType: InstallSkillPayload["sourceType"];
   sourceLabel: string;
   installRootPath: string;
@@ -126,9 +127,16 @@ export class SkillInstallerService {
     };
 
     const skill = await this.skillsPromptsService.createSkill(createPayload);
+    const initialPrompt = await this.createInitialPromptFromSkillMarkdown({
+      markdownText,
+      skill,
+      defaultModel,
+      detectedSkillName,
+    });
 
     return {
       skill,
+      initialPrompt,
       sourceType: payload.sourceType,
       sourceLabel: loaded.sourceLabel,
       installRootPath,
@@ -220,6 +228,51 @@ export class SkillInstallerService {
     }
     return `${normalizedBase}-${index}`;
   }
+
+  private async createInitialPromptFromSkillMarkdown(input: {
+    markdownText: string;
+    skill: SkillConfigRecord;
+    defaultModel: string;
+    detectedSkillName: string;
+  }) {
+    const promptScene = await this.resolveAvailablePromptScene(`导入技能-${input.skill.slug}`);
+    const prompt = await this.skillsPromptsService.createPrompt({
+      name: `${input.detectedSkillName}-安装导入提示词`,
+      scene: promptScene,
+      version: "v1.0",
+      status: "DRAFT",
+      modelName: input.defaultModel,
+      temperature: 0.7,
+      maxTokens: 4000,
+      content: buildInstalledSkillPromptContent(input.markdownText, input.detectedSkillName),
+    });
+    await this.skillsPromptsService.createSkillPromptBinding({
+      skillId: input.skill.id,
+      skillSlug: input.skill.slug,
+      promptId: prompt.id,
+      promptScene: prompt.scene,
+      bindingType: "PRIMARY",
+      isPrimary: true,
+      sortOrder: 100,
+      enabled: true,
+      remarks: "技能安装时自动生成的初始提示词绑定",
+    });
+    return prompt;
+  }
+
+  private async resolveAvailablePromptScene(baseScene: string) {
+    const normalizedBase = String(baseScene || "").trim() || "导入技能";
+    const prompts = await this.skillsPromptsService.listPrompts();
+    const used = new Set(prompts.map((item) => item.scene));
+    if (!used.has(normalizedBase)) {
+      return normalizedBase;
+    }
+    let index = 2;
+    while (used.has(`${normalizedBase}-${index}`)) {
+      index += 1;
+    }
+    return `${normalizedBase}-${index}`;
+  }
 }
 
 function parseGithubTreeUrl(urlValue?: string): GithubTreeSource {
@@ -274,6 +327,21 @@ function parseFrontmatter(content: string) {
 function deriveSkillDisplayName(content: string, fallback: string) {
   const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   return heading || humanizeSkillName(fallback);
+}
+
+function buildInstalledSkillPromptContent(content: string, skillName: string) {
+  const normalized = String(content || "").trim();
+  const workflowBlock =
+    normalized.match(/##\s+.*?(Workflow|工作流)[\s\S]*?(?=\n##\s+|$)/i)?.[0]
+    || normalized.match(/##\s+.*?(Step|步骤)[\s\S]*?(?=\n##\s+|$)/i)?.[0]
+    || normalized.slice(0, 6000);
+  return [
+    `你正在执行已安装技能「${skillName}」。`,
+    "请严格依据下面的技能说明、流程步骤、输入输出要求完成任务；缺少参数时先向用户补齐。",
+    "",
+    "=== 已安装技能说明 ===",
+    workflowBlock.trim(),
+  ].join("\n");
 }
 
 function humanizeSkillName(value: string) {

@@ -2481,6 +2481,7 @@ export async function createSkillConfig(
 
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
+  initialPrompt?: PromptTemplateRecord;
   sourceType: "GITHUB" | "ZIP_UPLOAD";
   sourceLabel: string;
   installRootPath: string;

@@ -2404,13 +2404,18 @@ export default function AdminPage() {
       });
       setSkills((current) => [result.skill, ...current]);
       setSkillDrafts((current) => ({ [result.skill.id]: buildSkillDraft(result.skill), ...current }));
-      await upsertSkillAssetBinding(result.skill, installSkillDraft.promptScene.trim() || undefined, {
+      if (result.initialPrompt) {
+        setPrompts((current) => [result.initialPrompt!, ...current.filter((item) => item.id !== result.initialPrompt!.id)]);
+        setPromptDrafts((current) => ({ [result.initialPrompt!.id]: buildPromptDraft(result.initialPrompt!), ...current }));
+      }
+      const resolvedPromptScene = installSkillDraft.promptScene.trim() || result.initialPrompt?.scene || undefined;
+      await upsertSkillAssetBinding(result.skill, resolvedPromptScene, {
         moduleKey: installSkillDraft.moduleKey,
         packageKey: installSkillDraft.packageKey,
         bindingRemarks: installSkillDraft.bindingRemarks,
       });
       setNotice(
-        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}）`,
+        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}${result.initialPrompt ? "，已生成初始提示词" : ""}）`,
       );
       setActiveAssetsWorkspaceTab("skillZone");
       setIsInstallSkillModalOpen(false);
