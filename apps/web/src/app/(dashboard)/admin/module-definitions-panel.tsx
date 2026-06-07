@@ -12,6 +12,7 @@ import {
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackagesPanel } from "./skill-packages-panel";
+import { SkillPackageKnowledgeSpacesPanel } from "./skill-package-knowledge-spaces-panel";
 import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
 import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
 
@@ -60,7 +61,7 @@ type ModuleDraft = {
   isAdminVisible: boolean;
 };
 
-type ModuleCenterSectionKey = "registry" | "packages" | "moduleRelations" | "skillRelations";
+type ModuleCenterSectionKey = "registry" | "packages" | "moduleRelations" | "skillRelations" | "knowledgeRelations";
 
 const DEFAULT_FILTERS: ModuleFilters = {
   keyword: "",
@@ -125,6 +126,11 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         key: "skillRelations" as const,
         label: "技能绑定",
         badge: String(props.skills.length),
+      },
+      {
+        key: "knowledgeRelations" as const,
+        label: "知识关系",
+        badge: "KS",
       },
     ],
     [props.modules.length, props.skills.length],
@@ -589,6 +595,10 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
 
         {activeSection === "skillRelations" ? (
           <SkillPackageSkillsPanel skills={props.skills} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+        ) : null}
+
+        {activeSection === "knowledgeRelations" ? (
+          <SkillPackageKnowledgeSpacesPanel dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
         ) : null}
       </div>
 

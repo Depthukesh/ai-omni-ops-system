@@ -426,6 +426,25 @@ export type SkillPackageSkillRecord = {
   updatedAt: string;
 };
 
+export type SkillPackageKnowledgeSpaceRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  knowledgeBaseId: string;
+  relationType: "DEFAULT" | "OPTIONAL" | "BRAND_OVERRIDE" | "USER_OVERRIDE";
+  priority: number;
+  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL";
+  isRequired: boolean;
+  enabled: boolean;
+  remarks?: string;
+  knowledgeBaseName?: string;
+  knowledgeBaseSlug?: string;
+  knowledgeBaseStatus?: KnowledgeBaseRecord["status"];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GetSkillPackageModulesQuery = {
   moduleKey?: string;
   packageKey?: string;
@@ -2040,6 +2059,63 @@ export const skillPackageSkillSeed: SkillPackageSkillRecord[] = [
   },
 ];
 
+export const skillPackageKnowledgeSpaceSeed: SkillPackageKnowledgeSpaceRecord[] = [
+  {
+    id: "spks_brand_growth_docs_default",
+    packageId: "sp_brand_growth_analysis",
+    packageKey: "brand-growth-analysis",
+    packageName: "品牌增长分析能力包",
+    knowledgeBaseId: "kb_brand_docs",
+    relationType: "DEFAULT",
+    priority: 10,
+    retrievalMode: "HYBRID",
+    isRequired: true,
+    enabled: true,
+    remarks: "品牌资料与案例库作为默认知识空间。",
+    knowledgeBaseName: "品牌资料知识库",
+    knowledgeBaseSlug: "brand-docs",
+    knowledgeBaseStatus: "ACTIVE",
+    createdAt: "2026-06-07T10:40:00.000Z",
+    updatedAt: "2026-06-07T10:40:00.000Z",
+  },
+  {
+    id: "spks_wechat_brand_docs_default",
+    packageId: "sp_wechat_article_generator",
+    packageKey: "wechat-article-generator",
+    packageName: "公众号文章生成能力包",
+    knowledgeBaseId: "kb_brand_docs",
+    relationType: "DEFAULT",
+    priority: 10,
+    retrievalMode: "SEMANTIC",
+    isRequired: true,
+    enabled: true,
+    remarks: "公众号文章生成默认引用品牌内容知识库。",
+    knowledgeBaseName: "品牌资料知识库",
+    knowledgeBaseSlug: "brand-docs",
+    knowledgeBaseStatus: "ACTIVE",
+    createdAt: "2026-06-07T10:40:00.000Z",
+    updatedAt: "2026-06-07T10:40:00.000Z",
+  },
+  {
+    id: "spks_wechat_ops_optional",
+    packageId: "sp_wechat_article_generator",
+    packageKey: "wechat-article-generator",
+    packageName: "公众号文章生成能力包",
+    knowledgeBaseId: "kb_feishu_ops",
+    relationType: "OPTIONAL",
+    priority: 30,
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
+    remarks: "可选补充运营 SOP 与历史纪要。",
+    knowledgeBaseName: "飞书运营知识库",
+    knowledgeBaseSlug: "feishu-ops",
+    knowledgeBaseStatus: "ACTIVE",
+    createdAt: "2026-06-07T10:40:00.000Z",
+    updatedAt: "2026-06-07T10:40:00.000Z",
+  },
+];
+
 export const skillAssetBindingSeed: SkillAssetBindingRecord[] = [
   {
     id: "sab_brand_growth_report",
@@ -2970,6 +3046,84 @@ export async function updateSkillPackageSkill(
 
 export async function deleteSkillPackageSkill(id: string) {
   return request<SkillPackageSkillRecord>(`/admin/skill-package-skills/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSkillPackageKnowledgeSpaces(query: {
+  packageKey?: string;
+  knowledgeBaseId?: string;
+  relationType?: "ALL" | SkillPackageKnowledgeSpaceRecord["relationType"];
+  enabled?: boolean;
+} = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.packageKey?.trim()) {
+    searchParams.set("packageKey", query.packageKey.trim());
+  }
+  if (query.knowledgeBaseId?.trim()) {
+    searchParams.set("knowledgeBaseId", query.knowledgeBaseId.trim());
+  }
+  if (query.relationType && query.relationType !== "ALL") {
+    searchParams.set("relationType", query.relationType);
+  }
+  if (typeof query.enabled === "boolean") {
+    searchParams.set("enabled", String(query.enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageKnowledgeSpaceRecord[]>(
+    suffix ? `/admin/skill-package-knowledge-spaces?${suffix}` : "/admin/skill-package-knowledge-spaces",
+  );
+}
+
+export async function getSkillPackageKnowledgeSpacesByPackage(packageKey: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageKnowledgeSpaceRecord[]>(
+    suffix
+      ? `/admin/skill-package-knowledge-spaces/by-package/${encodeURIComponent(packageKey)}?${suffix}`
+      : `/admin/skill-package-knowledge-spaces/by-package/${encodeURIComponent(packageKey)}`,
+  );
+}
+
+export async function getSkillPackageKnowledgeSpacesByKnowledgeSpace(knowledgeBaseId: string, enabled?: boolean) {
+  const searchParams = new URLSearchParams();
+  if (typeof enabled === "boolean") {
+    searchParams.set("enabled", String(enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<SkillPackageKnowledgeSpaceRecord[]>(
+    suffix
+      ? `/admin/skill-package-knowledge-spaces/by-knowledge-space/${encodeURIComponent(knowledgeBaseId)}?${suffix}`
+      : `/admin/skill-package-knowledge-spaces/by-knowledge-space/${encodeURIComponent(knowledgeBaseId)}`,
+  );
+}
+
+export async function createSkillPackageKnowledgeSpace(
+  payload: Omit<
+    SkillPackageKnowledgeSpaceRecord,
+    "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+  >,
+) {
+  return jsonRequest<SkillPackageKnowledgeSpaceRecord>("/admin/skill-package-knowledge-spaces", "POST", payload);
+}
+
+export async function updateSkillPackageKnowledgeSpace(
+  id: string,
+  payload: Partial<
+    Omit<
+      SkillPackageKnowledgeSpaceRecord,
+      "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+    >
+  >,
+) {
+  return jsonRequest<SkillPackageKnowledgeSpaceRecord>(`/admin/skill-package-knowledge-spaces/${id}`, "PATCH", payload);
+}
+
+export async function deleteSkillPackageKnowledgeSpace(id: string) {
+  return request<SkillPackageKnowledgeSpaceRecord>(`/admin/skill-package-knowledge-spaces/${id}`, {
     method: "DELETE",
   });
 }

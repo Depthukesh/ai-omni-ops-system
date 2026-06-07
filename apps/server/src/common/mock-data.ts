@@ -330,6 +330,22 @@ export type SkillPackageSkillRecord = {
   updatedAt: string;
 };
 
+export type SkillPackageKnowledgeSpaceRecord = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  knowledgeBaseId: string;
+  relationType: "DEFAULT" | "OPTIONAL" | "BRAND_OVERRIDE" | "USER_OVERRIDE";
+  priority: number;
+  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL";
+  isRequired: boolean;
+  enabled: boolean;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SkillPackageVersionRecord = {
   id: string;
   packageId: string;
@@ -789,6 +805,7 @@ export type MockDatabase = {
   moduleDefinitions: ModuleDefinitionRecord[];
   skillPackageModules: SkillPackageModuleRecord[];
   skillPackageSkills: SkillPackageSkillRecord[];
+  skillPackageKnowledgeSpaces: SkillPackageKnowledgeSpaceRecord[];
   apiProviders: ApiProviderRecord[];
   thirdPartyPlatforms: ThirdPartyPlatformRecord[];
   brandThirdPartyPlatformSecrets: Array<{
@@ -4146,6 +4163,53 @@ export const database: MockDatabase = {
       remarks: "抖音数字人口播脚本技能。",
       createdAt: "2026-06-07T10:30:00.000Z",
       updatedAt: "2026-06-07T10:30:00.000Z",
+    },
+  ],
+  skillPackageKnowledgeSpaces: [
+    {
+      id: "spks_brand_growth_docs_default",
+      packageId: "sp_brand_growth_analysis",
+      packageKey: "brand-growth-analysis",
+      packageName: "品牌增长分析能力包",
+      knowledgeBaseId: "kb_brand_docs",
+      relationType: "DEFAULT",
+      priority: 10,
+      retrievalMode: "HYBRID",
+      isRequired: true,
+      enabled: true,
+      remarks: "品牌资料与案例库作为默认知识空间。",
+      createdAt: "2026-06-07T10:40:00.000Z",
+      updatedAt: "2026-06-07T10:40:00.000Z",
+    },
+    {
+      id: "spks_wechat_brand_docs_default",
+      packageId: "sp_wechat_article_generator",
+      packageKey: "wechat-article-generator",
+      packageName: "公众号文章生成能力包",
+      knowledgeBaseId: "kb_brand_docs",
+      relationType: "DEFAULT",
+      priority: 10,
+      retrievalMode: "SEMANTIC",
+      isRequired: true,
+      enabled: true,
+      remarks: "公众号文章生成默认引用品牌内容知识库。",
+      createdAt: "2026-06-07T10:40:00.000Z",
+      updatedAt: "2026-06-07T10:40:00.000Z",
+    },
+    {
+      id: "spks_wechat_ops_optional",
+      packageId: "sp_wechat_article_generator",
+      packageKey: "wechat-article-generator",
+      packageName: "公众号文章生成能力包",
+      knowledgeBaseId: "kb_feishu_ops",
+      relationType: "OPTIONAL",
+      priority: 20,
+      retrievalMode: "HYBRID",
+      isRequired: false,
+      enabled: true,
+      remarks: "补充公众号运营规范与流程经验库。",
+      createdAt: "2026-06-07T10:40:00.000Z",
+      updatedAt: "2026-06-07T10:40:00.000Z",
     },
   ],
   apiProviders: SYSTEM_API_PROVIDER_SEEDS.map((item) => ({ ...item })),

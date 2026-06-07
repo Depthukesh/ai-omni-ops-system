@@ -935,6 +935,7 @@ model KnowledgeBase {
 
   files         KnowledgeBaseFile[]
   bindings      KnowledgeBinding[]
+  skillPackageKnowledgeSpaces SkillPackageKnowledgeSpace[]
   syncRuns      KnowledgeBaseSyncRun[]
 
   @@index([status, updatedAt])
@@ -1155,6 +1156,29 @@ model SkillPackageSkill {
   @@unique([packageKey, skillId, bindingType])
   @@index([packageKey, enabled, sortOrder])
   @@index([skillSlug, enabled, sortOrder])
+}
+
+
+model SkillPackageKnowledgeSpace {
+  id              String        @id
+  packageId       String
+  packageKey      String
+  packageName     String
+  knowledgeBaseId String
+  relationType    String        @default("DEFAULT")
+  priority        Int           @default(100)
+  retrievalMode   String        @default("HYBRID")
+  isRequired      Boolean       @default(false)
+  enabled         Boolean       @default(true)
+  remarks         String        @default("")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@unique([packageKey, knowledgeBaseId, relationType])
+  @@index([packageKey, enabled, priority])
+  @@index([knowledgeBaseId, enabled, priority])
 }
 
 model DigitalHumanFavoriteTemplate {

@@ -186,6 +186,26 @@
   - 当前统一技能中心详情中的 `scripts` 不再固定返回空数组；数据库和 `ScriptAsset` 表可用时优先读取 PostgreSQL，迁移未执行时回退到 `mock-data.scriptAssets`
   - 当前版本快照 `snapshotSummary.scriptCount` 已按真实 `ScriptAsset` 数量统计，后台能力包详情页也已可直接新增、编辑、删除脚本资产
 
+### 2.12 第二阶段能力包知识关系独立层启动
+
+- 当前已补入关系表：
+  - `SkillPackageKnowledgeSpace`
+- 配套迁移：
+  - `prisma/migrations/20260607_skill_package_knowledge_spaces_first_pass/migration.sql`
+- 当前接口：
+  - `GET /admin/skill-package-knowledge-spaces`
+  - `GET /admin/skill-package-knowledge-spaces/by-package/:packageKey`
+  - `GET /admin/skill-package-knowledge-spaces/by-knowledge-space/:knowledgeBaseId`
+  - `GET /admin/skill-package-knowledge-spaces/:id`
+  - `POST /admin/skill-package-knowledge-spaces`
+  - `PATCH /admin/skill-package-knowledge-spaces/:id`
+  - `DELETE /admin/skill-package-knowledge-spaces/:id`
+- 当前策略：
+  - 第二阶段先把能力包与知识空间的长期关系从第一阶段桥接层中拆出来，落成独立治理关系表
+  - 数据库和关系表可用时，后台“知识关系”页优先读写 PostgreSQL
+  - 若迁移未执行，则接口仍回退到 `mock-data.skillPackageKnowledgeSpaces`
+  - 当前不替换第一阶段 `KnowledgeBinding`，两层并行存在：`KnowledgeBinding` 继续服务通用桥接，`SkillPackageKnowledgeSpace` 负责能力包知识治理
+
 ## 3. 正式数据表分层
 
 ### 3.1 用户与交易域
@@ -300,6 +320,10 @@
   - 用途：能力包级脚本资产真源，承接统一技能中心详情里的 `scripts` 资产域
   - 关键字段：`packageId`、`scriptKey`、`scriptName`、`runtime`、`entry`、`argsSchemaJson`、`usageNote`、`sortOrder`
   - 当前约定：同一能力包内 `scriptKey` 唯一；数据库可用时后台能力包详情页直接对这一表做增改删，数据库不可用时回退到 `mock-data.scriptAssets`
+- `SkillPackageKnowledgeSpace`
+  - 用途：第二阶段能力包与知识空间的专用关系表，承接后台“知识关系”治理页
+  - 关键字段：`packageId`、`packageKey`、`packageName`、`knowledgeBaseId`、`relationType`、`priority`、`retrievalMode`、`isRequired`、`enabled`、`remarks`
+  - 当前约定：同一能力包下，同一知识库与同一关系类型只允许一条记录；数据库可用时后台独立关系页直接对这一表做增改删，数据库不可用时回退到 `mock-data.skillPackageKnowledgeSpaces`
 
 ### 3.7 接口供应商注册域
 
@@ -342,6 +366,9 @@
 - `SkillPromptBinding`
   - 用途：统一技能中心与运行时之间的技能-提示词桥接关系
   - 关键字段：`skillId`、`promptId`、`skillSlug`、`promptScene`、`bindingType`、`isPrimary`、`sortOrder`、`enabled`
+- `SkillPackageKnowledgeSpace`
+  - 用途：能力包与知识空间的专用关系层
+  - 关键字段：`packageId`、`packageKey`、`packageName`、`knowledgeBaseId`、`relationType`、`priority`、`retrievalMode`、`isRequired`、`enabled`
 
 ## 4. 业务板块与数据表映射
 
@@ -448,6 +475,9 @@
 - 统一技能中心能力包详情 Knowledge：
   - 桥接表：`KnowledgeBinding`
   - 当前策略：复用现有 `GET /admin/knowledge-bindings/by-target` 与 `POST/PATCH/DELETE /admin/knowledge-bindings`，先把能力包详情中的知识绑定区补成后台可维护闭环，不改现有业务运行链路
+- 第二阶段能力包知识关系治理：
+  - 正式表：`SkillPackageKnowledgeSpace`
+  - 当前策略：数据库优先、`mock-data` 兜底；后台模块中心新增 `知识关系` 子页，集中维护能力包与知识空间的长期关系，不替换第一阶段详情页桥接区块
 
 ### 4.5 认证 `/` + `/login` + `/register`
 
