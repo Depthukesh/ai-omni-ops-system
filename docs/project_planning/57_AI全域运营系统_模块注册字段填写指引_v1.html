@@ -152,7 +152,7 @@
       <li><code>defaultKnowledgeSpaces</code>：默认知识空间。</li>
       <li><code>defaultProviderPolicies</code>：默认 Provider 策略。</li>
     </ul>
-    <p><code>defaultSkillPackages</code> 已接入后台能力包真实列表，当前按 <code>packageKey</code> 保存；<code>defaultKnowledgeSpaces</code> 已接入后台知识库真实列表，当前按 <code>slug</code> 保存；<code>defaultProviderPolicies</code> 当前按 <code>Provider + 策略模板</code> 做 first pass 选择，当前按 <code>策略模板:providerId</code> 保存，例如 <code>PRIMARY:provider_openai</code>。</p>
+    <p><code>defaultSkillPackages</code> 已接入后台能力包真实列表，当前按 <code>packageKey</code> 保存，并已开始与 <code>模块绑定</code> 关系表做双向对照；如果模块摘要里声明了默认能力包但关系表缺失，后台会提示并支持一键补齐默认关系。<code>defaultKnowledgeSpaces</code> 已接入后台知识库真实列表，当前按 <code>slug</code> 保存；<code>defaultProviderPolicies</code> 当前按 <code>Provider + 策略模板</code> 做 first pass 选择，当前按 <code>策略模板:providerId</code> 保存，例如 <code>PRIMARY:provider_openai</code>。</p>
     <p>为了兼容旧数据和暂未纳入选择器的值，界面仍保留“手工补充”输入框，因此这一组现在是“优先用真实选择器，必要时再手工补充”。后续真正还要继续收口的是 <code>defaultProviderPolicies</code>，它目前是基于 Provider 列表派生策略模板，还不是真正独立的 Provider Policy 域。</p>
 
     <hr />

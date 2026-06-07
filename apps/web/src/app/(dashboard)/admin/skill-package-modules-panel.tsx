@@ -64,6 +64,8 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingDefaults, setIsSyncingDefaults] = useState(false);
+  const [syncingModuleKey, setSyncingModuleKey] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => {
@@ -73,6 +75,53 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
   const selectedRelation = useMemo(
     () => visibleRelations.find((item) => item.id === selectedRelationId) || relations.find((item) => item.id === selectedRelationId) || null,
     [relations, selectedRelationId, visibleRelations],
+  );
+
+  const defaultPackageReconciliation = useMemo(() => {
+    return props.modules
+      .map((module) => {
+        const declaredPackageKeys = Array.from(new Set(module.defaultSkillPackages.map((item) => String(item || "").trim()).filter(Boolean)));
+        const existingKeys = new Set(
+          relations.filter((item) => item.moduleKey === module.moduleKey).map((item) => item.packageKey),
+        );
+        const missingPackageKeys = declaredPackageKeys.filter((item) => !existingKeys.has(item));
+        const creatablePackages = missingPackageKeys
+          .map((packageKey) => props.skillPackages.find((item) => item.packageKey === packageKey) || null)
+          .filter((item): item is SkillPackageRecord => Boolean(item));
+        const unresolvedPackageKeys = missingPackageKeys.filter(
+          (packageKey) => !creatablePackages.some((item) => item.packageKey === packageKey),
+        );
+        return {
+          module,
+          declaredPackageKeys,
+          missingPackageKeys,
+          creatablePackages,
+          unresolvedPackageKeys,
+        };
+      })
+      .filter((item) => item.missingPackageKeys.length || item.unresolvedPackageKeys.length);
+  }, [props.modules, props.skillPackages, relations]);
+
+  const creatableDefaultBindings = useMemo(
+    () =>
+      defaultPackageReconciliation.flatMap((item) =>
+        item.creatablePackages.map((skillPackage) => ({
+          module: item.module,
+          skillPackage,
+        })),
+      ),
+    [defaultPackageReconciliation],
+  );
+
+  const unresolvedDefaultBindings = useMemo(
+    () =>
+      defaultPackageReconciliation.flatMap((item) =>
+        item.unresolvedPackageKeys.map((packageKey) => ({
+          module: item.module,
+          packageKey,
+        })),
+      ),
+    [defaultPackageReconciliation],
   );
 
   useEffect(() => {
@@ -290,6 +339,75 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     }
   }
 
+  async function handleSyncDefaultBindings(moduleKey?: string) {
+    const targetModules = defaultPackageReconciliation.filter((item) => !moduleKey || item.module.moduleKey === moduleKey);
+    const creatableEntries = targetModules.flatMap((item) =>
+      item.creatablePackages.map((skillPackage) => ({
+        module: item.module,
+        skillPackage,
+      })),
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!creatableEntries.length) {
+      props.onNotice(moduleKey ? "该模块当前没有可补齐的默认能力包关系。" : "当前没有可补齐的默认能力包关系。");
+      return;
+    }
+
+    setIsSyncingDefaults(true);
+    setSyncingModuleKey(moduleKey || "__all__");
+    try {
+      if (props.dataSource === "seed") {
+        const createdRecords = creatableEntries.map(({ module, skillPackage }, index) =>
+          buildSeedRelationRecord(module, skillPackage, index),
+        );
+        setRelations((current) => [...createdRecords, ...current]);
+        if (createdRecords[0]) {
+          setSelectedRelationId(createdRecords[0].id);
+        }
+        props.onNotice(
+          moduleKey
+            ? `已为模块「${targetModules[0]?.module.moduleName || moduleKey}」补齐 ${createdRecords.length} 条演示默认关系。`
+            : `已补齐 ${createdRecords.length} 条演示默认关系。`,
+        );
+        return;
+      }
+
+      const createdRecords: SkillPackageModuleRecord[] = [];
+      const failedEntries: string[] = [];
+      for (const entry of creatableEntries) {
+        try {
+          const created = await createSkillPackageModule(buildCreatePayload(entry.module, entry.skillPackage));
+          createdRecords.push(created);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "创建失败";
+          failedEntries.push(`${entry.module.moduleName} / ${entry.skillPackage.packageName}（${message}）`);
+        }
+      }
+
+      if (createdRecords.length) {
+        setRelations((current) => [...createdRecords, ...current.filter((item) => !createdRecords.some((created) => created.id === item.id))]);
+        setSelectedRelationId(createdRecords[0]?.id || "");
+      }
+
+      if (failedEntries.length) {
+        props.onError(`默认能力包关系补齐有 ${failedEntries.length} 条失败：${failedEntries.join("；")}`);
+      }
+      if (createdRecords.length) {
+        props.onNotice(
+          moduleKey
+            ? `已为模块「${targetModules[0]?.module.moduleName || moduleKey}」补齐 ${createdRecords.length} 条默认关系。`
+            : `已补齐 ${createdRecords.length} 条默认关系。`,
+        );
+      }
+    } finally {
+      setIsSyncingDefaults(false);
+      setSyncingModuleKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -377,6 +495,79 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
           <button type="button" className="primary-button" onClick={handleOpenCreateModal}>
             新增关系
           </button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <div
+            className="entity-card"
+            style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}
+          >
+            <div>
+              <span className="personal-meta">待补齐默认关系</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{creatableDefaultBindings.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">涉及模块</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {defaultPackageReconciliation.filter((item) => item.creatablePackages.length).length}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">未识别能力包</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{unresolvedDefaultBindings.length}</strong>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSyncDefaultBindings()}
+                disabled={!creatableDefaultBindings.length || isSyncingDefaults}
+              >
+                {isSyncingDefaults && syncingModuleKey === "__all__" ? "补齐中..." : "一键补齐默认关系"}
+              </button>
+            </div>
+          </div>
+
+          {defaultPackageReconciliation.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {defaultPackageReconciliation.map((item) => (
+                <div
+                  key={item.module.moduleKey}
+                  className="entity-card"
+                  style={{ padding: 12, display: "grid", gap: 8, gridTemplateColumns: "minmax(0, 1fr) auto" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{item.module.moduleName}</strong>
+                    <p className="personal-meta">
+                      默认能力包：{item.declaredPackageKeys.length ? item.declaredPackageKeys.join(" / ") : "未配置"}
+                    </p>
+                    <p className="personal-meta">
+                      {item.creatablePackages.length
+                        ? `可补齐：${item.creatablePackages.map((skillPackage) => skillPackage.packageName).join(" / ")}`
+                        : "当前没有可自动补齐的默认关系。"}
+                    </p>
+                    {item.unresolvedPackageKeys.length ? (
+                      <p className="personal-meta">未识别：{item.unresolvedPackageKeys.join(" / ")}</p>
+                    ) : null}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleSyncDefaultBindings(item.module.moduleKey)}
+                      disabled={!item.creatablePackages.length || isSyncingDefaults}
+                    >
+                      {isSyncingDefaults && syncingModuleKey === item.module.moduleKey ? "补齐中..." : "补齐该模块"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前模块注册中的默认能力包，已经和模块绑定关系表保持一致。</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -727,6 +918,37 @@ function toPayload(
     sortOrder: Number(draft.sortOrder || 100),
     enabled: draft.enabled,
     remarks: draft.remarks.trim() || undefined,
+  };
+}
+
+function buildCreatePayload(
+  module: ModuleDefinitionRecord,
+  skillPackage: SkillPackageRecord,
+): Omit<SkillPackageModuleRecord, "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt"> {
+  return {
+    packageId: skillPackage.id,
+    packageKey: skillPackage.packageKey,
+    packageName: skillPackage.packageName,
+    moduleKey: module.moduleKey,
+    bindingType: "DEFAULT",
+    isDefault: true,
+    sortOrder: skillPackage.sortOrder,
+    enabled: true,
+    remarks: "根据模块 defaultSkillPackages 自动补齐",
+  };
+}
+
+function buildSeedRelationRecord(module: ModuleDefinitionRecord, skillPackage: SkillPackageRecord, index: number): SkillPackageModuleRecord {
+  const payload = buildCreatePayload(module, skillPackage);
+  const timestamp = new Date().toISOString();
+  return {
+    ...payload,
+    id: `spm_sync_${Date.now()}_${index}`,
+    moduleName: module.moduleName,
+    moduleType: module.moduleType,
+    entryRoute: module.entryRoute,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
