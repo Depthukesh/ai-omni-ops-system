@@ -11,6 +11,7 @@ import {
   adminOrderSeed,
   billingRulesSeed,
   createApiProvider,
+  createPromptTemplate,
   createSkillConfig,
   createThirdPartyPlatform,
   createKnowledgeBase,
@@ -103,6 +104,18 @@ type CreateSkillDraft = {
   moduleKey: "NONE" | string;
   packageKey: "NONE" | string;
   promptScene: string;
+  bindingRemarks: string;
+};
+type CreatePromptDraft = {
+  name: string;
+  scene: string;
+  version: string;
+  status: PromptTemplateRecord["status"];
+  modelName: string;
+  temperature: string;
+  maxTokens: string;
+  content: string;
+  bindSkillSlug: "NONE" | string;
   bindingRemarks: string;
 };
 type KnowledgeBaseEditDraft = {
@@ -271,12 +284,14 @@ export default function AdminPage() {
     buildCreateThirdPartyPlatformDraft(),
   );
   const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
+  const [newPrompt, setNewPrompt] = useState<CreatePromptDraft>(buildCreatePromptDraft());
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
   const [createProviderSecretVisible, setCreateProviderSecretVisible] = useState(false);
   const [revealedProviderKeys, setRevealedProviderKeys] = useState<Record<string, boolean>>({});
   const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
+  const [isCreatePromptModalOpen, setIsCreatePromptModalOpen] = useState(false);
   const [dataSource, setDataSource] = useState<"api" | "seed">("api");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -288,6 +303,7 @@ export default function AdminPage() {
   const [updatingProviderId, setUpdatingProviderId] = useState("");
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isCreatingSkill, setIsCreatingSkill] = useState(false);
+  const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
@@ -1845,17 +1861,17 @@ export default function AdminPage() {
   const activeSkillPrimary = filteredSkillTree.find((item) => item.id === activeSkillPrimaryId) || filteredSkillTree[0];
   const activeSkillSection = activeSkillPrimary?.sections.find((item) => item.id === activeSkillSectionId) || activeSkillPrimary?.sections[0];
   const activeSkillLeaf = activeSkillSection?.items.find((item) => item.id === activeSkillLeafId) || activeSkillSection?.items[0];
-  const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
-  const activePromptConfig = activeSkillLeaf?.promptScene ? prompts.find((item) => item.scene === activeSkillLeaf.promptScene) : undefined;
-  const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
-  const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
   const activeSkillBindings = skillAssetBindings.filter(
     (item) =>
-      (activeSkillConfig?.slug && item.skillSlug === activeSkillConfig.slug) ||
       (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
-      (activePromptConfig?.scene && item.promptScene === activePromptConfig.scene) ||
       (activeSkillLeaf?.promptScene && item.promptScene === activeSkillLeaf.promptScene),
   );
+  const activeBoundPromptScene = activeSkillBindings.find((item) => item.skillSlug === activeSkillLeaf?.skillSlug && item.promptScene)?.promptScene;
+  const resolvedActivePromptScene = activeBoundPromptScene || activeSkillLeaf?.promptScene;
+  const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
+  const activePromptConfig = resolvedActivePromptScene ? prompts.find((item) => item.scene === resolvedActivePromptScene) : undefined;
+  const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
+  const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
   const activeSkillModuleKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.moduleKeys)));
   const activeSkillPackageKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.packageKeys)));
   const activeSkillModules = modules.filter((item) => activeSkillModuleKeys.includes(item.moduleKey));
@@ -1956,6 +1972,19 @@ export default function AdminPage() {
   }, [isCreateSkillModalOpen, isCreatingSkill]);
 
   useEffect(() => {
+    if (!isCreatePromptModalOpen) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isCreatingPrompt) {
+        handleCloseCreatePromptModal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreatePromptModalOpen, isCreatingPrompt]);
+
+  useEffect(() => {
     if (!filteredThirdPartyPlatforms.length) {
       return;
     }
@@ -2047,6 +2076,19 @@ export default function AdminPage() {
     setNewSkill(buildCreateSkillDraft());
   }
 
+  function handleOpenCreatePromptModal() {
+    setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
+    setIsCreatePromptModalOpen(true);
+  }
+
+  function handleCloseCreatePromptModal() {
+    if (isCreatingPrompt) {
+      return;
+    }
+    setIsCreatePromptModalOpen(false);
+    setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
+  }
+
   async function handleCreateSkill() {
     setIsCreatingSkill(true);
     setNotice("");
@@ -2108,6 +2150,85 @@ export default function AdminPage() {
       nextBinding,
       ...current.filter((item) => item.skillSlug !== created.slug),
     ]);
+  }
+
+  async function handleCreatePrompt() {
+    setIsCreatingPrompt(true);
+    setNotice("");
+    setErrorMessage("");
+    const payload = {
+      name: newPrompt.name.trim(),
+      scene: newPrompt.scene.trim(),
+      version: newPrompt.version.trim() || "v1.0",
+      status: newPrompt.status,
+      modelName: newPrompt.modelName.trim(),
+      temperature: Number(newPrompt.temperature || 0.7),
+      maxTokens: Number(newPrompt.maxTokens || 4000),
+      content: newPrompt.content,
+    };
+
+    try {
+      const created = await createPromptTemplate(payload);
+      setPrompts((current) => [created, ...current]);
+      setPromptDrafts((current) => ({ [created.id]: buildPromptDraft(created), ...current }));
+      if (newPrompt.bindSkillSlug !== "NONE") {
+        upsertPromptBinding(newPrompt.bindSkillSlug, created.scene, newPrompt.bindingRemarks);
+      }
+      setNotice(`提示词模板已创建：${created.name}`);
+      setIsCreatePromptModalOpen(false);
+      setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
+      return;
+    } catch (error) {
+      if (dataSource === "seed") {
+        const created: PromptTemplateRecord = {
+          id: `prompt_local_${Date.now()}`,
+          ...payload,
+          updatedAt: new Date().toISOString(),
+        };
+        setPrompts((current) => [created, ...current]);
+        setPromptDrafts((current) => ({ [created.id]: buildPromptDraft(created), ...current }));
+        if (newPrompt.bindSkillSlug !== "NONE") {
+          upsertPromptBinding(newPrompt.bindSkillSlug, created.scene, newPrompt.bindingRemarks);
+        }
+        setNotice(`演示提示词模板已创建：${created.name}`);
+        setIsCreatePromptModalOpen(false);
+        setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
+        return;
+      }
+      const message = error instanceof Error ? error.message : "创建提示词模板失败";
+      setErrorMessage(`创建提示词模板失败：${message}`);
+    } finally {
+      setIsCreatingPrompt(false);
+    }
+  }
+
+  function upsertPromptBinding(skillSlug: string, promptScene: string, remarks: string) {
+    setSkillAssetBindings((current) => {
+      const existed = current.find((item) => item.skillSlug === skillSlug);
+      if (!existed) {
+        return [
+          {
+            id: `sab_${skillSlug}_prompt`,
+            skillSlug,
+            promptScene,
+            moduleKeys: [],
+            packageKeys: [],
+            packageNames: [],
+            remarks: remarks.trim() || undefined,
+          },
+          ...current,
+        ];
+      }
+      return current.map((item) =>
+        item.skillSlug === skillSlug
+          ? {
+              ...item,
+              promptScene,
+              remarks: remarks.trim() || item.remarks,
+            }
+          : item,
+      );
+    });
   }
 
   if (isCheckingAccess) {
@@ -2414,6 +2535,9 @@ export default function AdminPage() {
                 <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
                   创建技能
                 </button>
+                <button type="button" className="secondary-button" onClick={handleOpenCreatePromptModal}>
+                  创建提示词
+                </button>
               </div>
               <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
                 <label>
@@ -2577,7 +2701,7 @@ export default function AdminPage() {
                     </label>
                     <label className="admin-skill-field">
                       <span>提示词场景</span>
-                      <input value={activePromptConfig?.scene || activeSkillLeaf.promptScene || "-"} readOnly />
+                      <input value={resolvedActivePromptScene || "-"} readOnly />
                     </label>
                     <label className="admin-skill-field">
                       <span>点数成本</span>
@@ -2657,6 +2781,46 @@ export default function AdminPage() {
                     <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
                     <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
                       {isCreatingSkill ? "创建中..." : "确认创建"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {isCreatePromptModalOpen ? (
+              <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreatePromptModal}>
+                <div
+                  className="entity-card admin-user-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="创建提示词模板"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="admin-user-modal-topbar">
+                    <div>
+                      <span className="archive-pill status-ready">提示词创建</span>
+                      <strong>创建提示词并绑定技能</strong>
+                      <p className="personal-meta">创建完成后，如果绑定到某个技能，会立即替换该技能当前使用的提示词场景。</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={handleCloseCreatePromptModal} disabled={isCreatingPrompt}>
+                      关闭
+                    </button>
+                  </div>
+                  <div className="admin-skill-simple-grid">
+                    <label className="admin-skill-field"><span>提示词名称</span><input value={newPrompt.name} onChange={(event) => setNewPrompt((current) => ({ ...current, name: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>提示词场景</span><input value={newPrompt.scene} onChange={(event) => setNewPrompt((current) => ({ ...current, scene: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>版本</span><input value={newPrompt.version} onChange={(event) => setNewPrompt((current) => ({ ...current, version: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>状态</span><select value={newPrompt.status} onChange={(event) => setNewPrompt((current) => ({ ...current, status: event.target.value as PromptTemplateRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
+                    <label className="admin-skill-field"><span>模型</span><input value={newPrompt.modelName} onChange={(event) => setNewPrompt((current) => ({ ...current, modelName: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>温度</span><input type="number" value={newPrompt.temperature} onChange={(event) => setNewPrompt((current) => ({ ...current, temperature: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>最大 Tokens</span><input type="number" value={newPrompt.maxTokens} onChange={(event) => setNewPrompt((current) => ({ ...current, maxTokens: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>绑定技能</span><select value={newPrompt.bindSkillSlug} onChange={(event) => setNewPrompt((current) => ({ ...current, bindSkillSlug: event.target.value }))}><option value="NONE">暂不绑定</option>{skills.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>提示词内容</span><textarea value={newPrompt.content} onChange={(event) => setNewPrompt((current) => ({ ...current, content: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>绑定说明</span><textarea value={newPrompt.bindingRemarks} onChange={(event) => setNewPrompt((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
+                  </div>
+                  <div className="personal-actions">
+                    <button type="button" className="secondary-button" onClick={handleCloseCreatePromptModal} disabled={isCreatingPrompt}>取消</button>
+                    <button type="button" className="primary-button" onClick={() => void handleCreatePrompt()} disabled={isCreatingPrompt || !newPrompt.name.trim() || !newPrompt.scene.trim() || !newPrompt.modelName.trim()}>
+                      {isCreatingPrompt ? "创建中..." : "确认创建"}
                     </button>
                   </div>
                 </div>
@@ -3845,6 +4009,21 @@ function buildCreateSkillDraft(): CreateSkillDraft {
     moduleKey: "NONE",
     packageKey: "NONE",
     promptScene: "",
+    bindingRemarks: "",
+  };
+}
+
+function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): CreatePromptDraft {
+  return {
+    name: "",
+    scene: "",
+    version: "v1.0",
+    status: "DRAFT",
+    modelName: "",
+    temperature: "0.7",
+    maxTokens: "4000",
+    content: "",
+    bindSkillSlug: bindSkillSlug || "NONE",
     bindingRemarks: "",
   };
 }

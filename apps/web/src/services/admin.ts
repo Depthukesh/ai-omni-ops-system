@@ -1781,6 +1781,12 @@ export async function getPromptTemplates() {
   return request<PromptTemplateRecord[]>("/admin/prompts");
 }
 
+export async function createPromptTemplate(
+  payload: Pick<PromptTemplateRecord, "name" | "scene" | "version" | "status" | "modelName" | "temperature" | "maxTokens" | "content">,
+) {
+  return jsonRequest<PromptTemplateRecord>("/admin/prompts", "POST", payload);
+}
+
 export async function updatePromptTemplate(
   promptId: string,
   payload: Partial<Pick<PromptTemplateRecord, "status" | "modelName" | "temperature" | "maxTokens" | "content">>,

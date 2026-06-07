@@ -61,6 +61,17 @@ export type UpdatePromptTemplatePayload = {
   content?: string;
 };
 
+export type CreatePromptTemplatePayload = {
+  name: string;
+  scene: string;
+  version?: string;
+  status?: PromptTemplateRecord["status"];
+  modelName: string;
+  temperature?: number;
+  maxTokens?: number;
+  content?: string;
+};
+
 type SkillPromptBindingRule = {
   promptIds?: string[];
   promptScenes?: string[];
@@ -839,6 +850,80 @@ export class SkillsPromptsService {
     return prompts.map((item) => this.hydratePromptTemplateRecord(item));
   }
 
+  async createPrompt(payload: CreatePromptTemplatePayload) {
+    const name = String(payload.name || "").trim();
+    const scene = String(payload.scene || "").trim();
+    const modelName = String(payload.modelName || "").trim();
+    const version = String(payload.version || "v1.0").trim() || "v1.0";
+    const content = this.normalizePromptContent(payload.content);
+
+    if (!name) {
+      throw new BadRequestException("提示词名称不能为空");
+    }
+    if (!scene) {
+      throw new BadRequestException("提示词场景不能为空");
+    }
+    if (!modelName) {
+      throw new BadRequestException("提示词模型不能为空");
+    }
+
+    const nextPrompt: PromptTemplateRecord = {
+      id: createId("prompt"),
+      name,
+      scene,
+      version,
+      status: payload.status || "DRAFT",
+      modelName,
+      temperature: Number(payload.temperature ?? 0.7),
+      maxTokens: Number(payload.maxTokens ?? 4000),
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const duplicated = await this.findPromptBySceneFromDatabase(scene);
+      if (duplicated) {
+        throw new BadRequestException("提示词场景已存在");
+      }
+      const createdRows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+        INSERT INTO "PromptTemplate" (
+          "id",
+          "name",
+          "scene",
+          "version",
+          "status",
+          "modelName",
+          "temperature",
+          "maxTokens",
+          "content",
+          "updatedAt"
+        )
+        VALUES (
+          ${nextPrompt.id},
+          ${nextPrompt.name},
+          ${nextPrompt.scene},
+          ${nextPrompt.version},
+          ${nextPrompt.status},
+          ${nextPrompt.modelName},
+          ${nextPrompt.temperature},
+          ${nextPrompt.maxTokens},
+          ${nextPrompt.content},
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+      `;
+      return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(createdRows[0] ?? nextPrompt));
+    }
+
+    const duplicated = database.promptTemplates.find((item) => item.scene === scene);
+    if (duplicated) {
+      throw new BadRequestException("提示词场景已存在");
+    }
+    database.promptTemplates.unshift(nextPrompt);
+    return { ...nextPrompt };
+  }
+
   async updatePrompt(id: string, payload: UpdatePromptTemplatePayload) {
     const normalizedSubmittedContent =
       payload.content !== undefined ? this.normalizePromptContent(payload.content) : undefined;
@@ -1238,6 +1323,16 @@ export class SkillsPromptsService {
       SELECT *
       FROM "PromptTemplate"
       WHERE "id" = ${id}
+      LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  private async findPromptBySceneFromDatabase(scene: string) {
+    const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
+      SELECT *
+      FROM "PromptTemplate"
+      WHERE "scene" = ${scene}
       LIMIT 1
     `;
     return rows[0];
