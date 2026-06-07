@@ -34,6 +34,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  getSkillPackages,
   getSkillPackageSkills,
   getSkillPromptBindings,
   getSkillPackageModules,
@@ -47,6 +48,7 @@ import {
   skillConfigSeed,
   skillAssetBindingSeed,
   skillPackageModuleSeed,
+  skillPackageSeed,
   skillPackageSkillSeed,
   startKnowledgeBaseSync,
   syncKnowledgeBaseFile,
@@ -74,6 +76,7 @@ import {
   type PromptTemplateRecord,
   type SkillAssetBindingRecord,
   type SkillConfigRecord,
+  type SkillPackageRecord,
   type SkillPackageModuleRecord,
   type SkillPackageSkillRecord,
   type ThirdPartyPlatformRecord,
@@ -81,6 +84,7 @@ import {
 import { getMe, logout as logoutSession, readAuthSession } from "../../../services/auth";
 import { cancelOrder, payOrder, type OrderRecord } from "../../../services/personal-center";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
+import { SkillPackageOverviewPanel } from "./skill-package-overview-panel";
 import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
@@ -264,6 +268,7 @@ export default function AdminPage() {
   const [skills, setSkills] = useState<SkillConfigRecord[]>(skillConfigSeed);
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
+  const [skillPackages, setSkillPackages] = useState<SkillPackageRecord[]>(skillPackageSeed);
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
   const [skillPackageSkills, setSkillPackageSkills] = useState<SkillPackageSkillRecord[]>(skillPackageSkillSeed);
   const [skillAssetBindings, setSkillAssetBindings] = useState<SkillAssetBindingRecord[]>(skillAssetBindingSeed);
@@ -385,6 +390,7 @@ export default function AdminPage() {
       usageResult,
       skillResult,
       promptResult,
+      skillPackageResult,
       skillPromptBindingResult,
       moduleDefinitionResult,
       skillPackageModuleResult,
@@ -402,6 +408,7 @@ export default function AdminPage() {
       canReadUsage ? getModelUsage() : Promise.resolve([]),
       canReadAssets ? getSkillConfigs() : Promise.resolve([]),
       canReadAssets ? getPromptTemplates() : Promise.resolve([]),
+      canReadAssets ? getSkillPackages() : Promise.resolve([]),
       canReadAssets ? getSkillPromptBindings() : Promise.resolve([]),
       canReadModules ? getModuleDefinitions() : Promise.resolve([]),
       canReadAssets ? getSkillPackageModules() : Promise.resolve([]),
@@ -457,6 +464,13 @@ export default function AdminPage() {
     } else {
       setPrompts(promptTemplateSeed);
       setPromptDrafts(buildPromptDrafts(promptTemplateSeed));
+      usingSeed = true;
+    }
+
+    if (skillPackageResult.status === "fulfilled") {
+      setSkillPackages(skillPackageResult.value);
+    } else {
+      setSkillPackages(skillPackageSeed);
       usingSeed = true;
     }
 
@@ -2723,6 +2737,9 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "assets" ? (
           <div className="admin-skill-center-layout">
+            <div style={{ gridColumn: "1 / -1" }}>
+              <SkillPackageOverviewPanel packages={skillPackages} modules={modules} />
+            </div>
             <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
               <div className="admin-skill-card-topline">
                 <span className="admin-skill-card-kicker">技能目录</span>

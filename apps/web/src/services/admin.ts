@@ -215,10 +215,28 @@ export type SkillPackageRecord = {
   remarks?: string;
   createdAt: string;
   updatedAt: string;
+  moduleSummaries?: Array<{
+    moduleKey: string;
+    moduleName: string;
+    moduleType?: string;
+    entryRoute?: string;
+    moduleStatus?: string;
+  }>;
+  currentVersionNumber?: string;
+  defaultProviderSummary?: {
+    providerType: string;
+    providerName?: string;
+    modelName?: string;
+  };
+  brandOverrideCount?: number;
+  userOverrideCount?: number;
+  promptCount?: number;
+  skillCount?: number;
 };
 
 export type GetSkillPackagesQuery = {
   keyword?: string;
+  moduleKey?: string;
   status?: "ALL" | SkillPackageRecord["status"];
   scope?: "ALL" | SkillPackageRecord["scope"];
 };
@@ -2420,6 +2438,9 @@ export async function getSkillPackages(query: GetSkillPackagesQuery = {}) {
   const searchParams = new URLSearchParams();
   if (query.keyword?.trim()) {
     searchParams.set("keyword", query.keyword.trim());
+  }
+  if (query.moduleKey?.trim()) {
+    searchParams.set("moduleKey", query.moduleKey.trim());
   }
   if (query.status && query.status !== "ALL") {
     searchParams.set("status", query.status);

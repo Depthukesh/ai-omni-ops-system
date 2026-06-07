@@ -18,6 +18,7 @@ export class SkillPackagesController {
   @Get()
   async listSkillPackages(
     @Query("keyword") keyword: string | undefined,
+    @Query("moduleKey") moduleKey: string | undefined,
     @Query("status") status: SkillPackageListQuery["status"],
     @Query("scope") scope: SkillPackageListQuery["scope"],
     @Headers() headers: Record<string, string | string[] | undefined>,
@@ -25,6 +26,7 @@ export class SkillPackagesController {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
     return this.skillPackagesService.listSkillPackages({
       keyword: keyword ? String(keyword).trim() : undefined,
+      moduleKey: moduleKey ? String(moduleKey).trim() : undefined,
       status,
       scope,
     });
