@@ -8,6 +8,7 @@ import {
   type SkillPackageDetailQuery,
   type SkillPackageListQuery,
   SkillPackagesService,
+  type UpdateSkillPackageBasicPayload,
   type UpdateSkillPackageProviderPayload,
   type UpdateSkillPackagePromptPayload,
   type UpdateSkillPackagePayload,
@@ -80,6 +81,16 @@ export class SkillPackagesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.updateSkillPackage(id, payload);
+  }
+
+  @Patch(":id/basic")
+  async updateSkillPackageBasic(
+    @Param("id") id: string,
+    @Body() payload: UpdateSkillPackageBasicPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.updateSkillPackageBasic(id, payload);
   }
 
   @Delete(":id")

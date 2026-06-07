@@ -11,6 +11,7 @@ import {
   type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  updateSkillPackageBasic,
   updateSkillPackageProvider,
   updateSkillPackagePrompt,
 } from "../../../services/admin";
@@ -47,8 +48,18 @@ type ProviderDraftRecord = {
   providerId: string;
   modelName: string;
 };
+type BasicDraftRecord = {
+  packageName: string;
+  packageKey: string;
+  status: SkillPackageRecord["status"];
+  scope: SkillPackageRecord["scope"];
+  description: string;
+  tags: string;
+  remarks: string;
+};
 
 export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps) {
+  const [packageRows, setPackageRows] = useState<SkillPackageRecord[]>(props.packages);
   const [filters, setFilters] = useState<OverviewFilters>(DEFAULT_FILTERS);
   const [selectedPackageId, setSelectedPackageId] = useState(props.packages[0]?.id || "");
   const [detail, setDetail] = useState<SkillPackageDetailRecord | null>(null);
@@ -63,11 +74,13 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ProviderDraftRecord>>({});
   const [availableProviders, setAvailableProviders] = useState<ApiProviderRecord[]>([]);
   const [savingProviderId, setSavingProviderId] = useState("");
+  const [basicDraft, setBasicDraft] = useState<BasicDraftRecord>(buildBasicDraft(props.packages[0]));
+  const [isBasicSaving, setIsBasicSaving] = useState(false);
 
   const moduleOptions = useMemo(() => {
     const moduleMap = new Map<string, string>();
     props.modules.forEach((item) => moduleMap.set(item.moduleKey, item.moduleName));
-    props.packages.forEach((item) => {
+    packageRows.forEach((item) => {
       item.moduleSummaries?.forEach((summary) => {
         if (!moduleMap.has(summary.moduleKey)) {
           moduleMap.set(summary.moduleKey, summary.moduleName);
@@ -82,10 +95,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     return Array.from(moduleMap.entries())
       .map(([value, label]) => ({ value, label }))
       .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
-  }, [props.modules, props.packages]);
+  }, [props.modules, packageRows]);
+
+  useEffect(() => {
+    setPackageRows(props.packages);
+  }, [props.packages]);
 
   const visiblePackages = useMemo(() => {
-    return props.packages.filter((item) => {
+    return packageRows.filter((item) => {
       if (filters.status !== "ALL" && item.status !== filters.status) {
         return false;
       }
@@ -111,9 +128,9 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
         item.defaultProviderSummary?.modelName,
       ].some((field) => String(field || "").toLowerCase().includes(keyword));
     });
-  }, [filters, props.packages]);
+  }, [filters, packageRows]);
 
-  const selectedPackage = visiblePackages.find((item) => item.id === selectedPackageId) || visiblePackages[0] || props.packages[0];
+  const selectedPackage = visiblePackages.find((item) => item.id === selectedPackageId) || visiblePackages[0] || packageRows[0];
   const selectedSummary = detail?.package.id === selectedPackage?.id ? detail.package : selectedPackage;
 
   async function loadPackageDetail(packageId: string) {
@@ -169,6 +186,10 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     ) as Record<string, ProviderDraftRecord>;
     setProviderDrafts(nextDrafts);
   }, [detail]);
+
+  useEffect(() => {
+    setBasicDraft(buildBasicDraft(selectedSummary));
+  }, [selectedSummary]);
 
   useEffect(() => {
     let cancelled = false;
@@ -346,6 +367,43 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     }
   }
 
+  async function handleSaveBasic() {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const packageName = basicDraft.packageName.trim();
+    const packageKey = basicDraft.packageKey.trim().toLowerCase();
+    if (!packageName) {
+      setDetailError("能力包名称不能为空");
+      return;
+    }
+    if (!packageKey) {
+      setDetailError("能力包标识不能为空");
+      return;
+    }
+
+    setIsBasicSaving(true);
+    setDetailError("");
+    try {
+      const updated = await updateSkillPackageBasic(selectedPackage.id, {
+        packageName,
+        packageKey,
+        status: basicDraft.status,
+        scope: basicDraft.scope,
+        description: basicDraft.description.trim() || undefined,
+        tags: splitDraftList(basicDraft.tags),
+        remarks: basicDraft.remarks.trim() || undefined,
+      });
+      setPackageRows((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存基础信息失败";
+      setDetailError(`保存基础信息失败：${message}`);
+    } finally {
+      setIsBasicSaving(false);
+    }
+  }
+
   return (
     <section className="entity-card admin-user-filter-card" style={{ marginBottom: 24 }}>
       <div className="admin-user-filter-head">
@@ -476,75 +534,22 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
           </div>
           {selectedSummary ? (
             <>
-            <div className="admin-skill-simple-grid">
-              <label className="admin-skill-field">
-                <span>能力包名称</span>
-                <input value={selectedSummary.packageName} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>能力包标识</span>
-                <input value={selectedSummary.packageKey} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>状态</span>
-                <input value={selectedSummary.status} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>作用域</span>
-                <input value={selectedSummary.scope} readOnly />
-              </label>
-              <label className="admin-skill-field admin-skill-field--wide">
-                <span>所属模块</span>
-                <input
-                  value={(detail?.moduleSummaries || selectedSummary.moduleSummaries || []).map((item) => item.moduleName).join(" / ") || selectedSummary.moduleKeys.join(" / ") || "-"}
-                  readOnly
-                />
-              </label>
-              <label className="admin-skill-field">
-                <span>技能数</span>
-                <input value={String(selectedSummary.skillCount || 0)} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>提示词数</span>
-                <input value={String(selectedSummary.promptCount || 0)} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>默认 Provider</span>
-                <input value={selectedSummary.defaultProviderSummary?.providerName || detail?.providerBindings?.find((item) => item.isDefault)?.providerName || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>默认模型</span>
-                <input value={selectedSummary.defaultProviderSummary?.modelName || detail?.providerBindings?.find((item) => item.isDefault)?.modelName || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>主技能</span>
-                <input value={detail?.skill?.skillName || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>执行模式</span>
-                <input value={detail?.skill?.executionMode || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>当前版本</span>
-                <input value={detail?.versions?.[0]?.versionNumber || selectedSummary.currentVersionNumber || selectedSummary.currentVersionId || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field">
-                <span>更新时间</span>
-                <input value={formatDateTime(selectedSummary.updatedAt)} readOnly />
-              </label>
-              <label className="admin-skill-field admin-skill-field--wide">
-                <span>默认知识空间</span>
-                <input value={(detail?.knowledgeBindings || []).map((item) => item.knowledgeBaseName).join(" / ") || selectedSummary.defaultKnowledgeSpaceIds.join(" / ") || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field admin-skill-field--wide">
-                <span>标签</span>
-                <input value={selectedSummary.tags.join(" / ") || "-"} readOnly />
-              </label>
-              <label className="admin-skill-field admin-skill-field--full">
-                <span>说明</span>
-                <textarea value={detail?.skill?.summary || selectedSummary.description || selectedSummary.remarks || "-"} readOnly />
-              </label>
-            </div>
+            <BasicBlock
+              draft={basicDraft}
+              isSaving={isBasicSaving}
+              moduleNames={(detail?.moduleSummaries || selectedSummary.moduleSummaries || []).map((item) => item.moduleName).join(" / ") || selectedSummary.moduleKeys.join(" / ") || "-"}
+              skillCount={String(selectedSummary.skillCount || 0)}
+              promptCount={String(selectedSummary.promptCount || 0)}
+              defaultProvider={selectedSummary.defaultProviderSummary?.providerName || detail?.providerBindings?.find((item) => item.isDefault)?.providerName || "-"}
+              defaultModel={selectedSummary.defaultProviderSummary?.modelName || detail?.providerBindings?.find((item) => item.isDefault)?.modelName || "-"}
+              skillName={detail?.skill?.skillName || "-"}
+              executionMode={detail?.skill?.executionMode || "-"}
+              currentVersion={detail?.versions?.[0]?.versionNumber || selectedSummary.currentVersionNumber || selectedSummary.currentVersionId || "-"}
+              updatedAt={formatDateTime(selectedSummary.updatedAt)}
+              defaultKnowledgeSpaces={(detail?.knowledgeBindings || []).map((item) => item.knowledgeBaseName).join(" / ") || selectedSummary.defaultKnowledgeSpaceIds.join(" / ") || "-"}
+              onChange={(field, value) => setBasicDraft((current) => ({ ...current, [field]: value }))}
+              onSave={() => void handleSaveBasic()}
+            />
             <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
               <PromptBlock
                 prompts={detail?.prompts || []}
@@ -683,6 +688,118 @@ function VersionBlock(props: VersionBlockProps) {
       ) : (
         <div className="personal-meta">当前能力包暂无版本摘要。</div>
       )}
+    </section>
+  );
+}
+
+type BasicBlockProps = {
+  draft: BasicDraftRecord;
+  isSaving: boolean;
+  moduleNames: string;
+  skillCount: string;
+  promptCount: string;
+  defaultProvider: string;
+  defaultModel: string;
+  skillName: string;
+  executionMode: string;
+  currentVersion: string;
+  updatedAt: string;
+  defaultKnowledgeSpaces: string;
+  onChange: (field: keyof BasicDraftRecord, value: string) => void;
+  onSave: () => void;
+};
+
+function BasicBlock(props: BasicBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>基础信息</strong>
+          <p className="personal-meta">first pass 先开放能力包主字段编辑，不改模块与知识绑定关系。</p>
+        </div>
+        <button type="button" className="primary-button" onClick={props.onSave} disabled={props.isSaving}>
+          {props.isSaving ? "保存中..." : "保存基础信息"}
+        </button>
+      </div>
+      <div className="admin-skill-simple-grid">
+        <label className="admin-skill-field">
+          <span>能力包名称</span>
+          <input value={props.draft.packageName} onChange={(event) => props.onChange("packageName", event.target.value)} />
+        </label>
+        <label className="admin-skill-field">
+          <span>能力包标识</span>
+          <input value={props.draft.packageKey} onChange={(event) => props.onChange("packageKey", event.target.value)} />
+        </label>
+        <label className="admin-skill-field">
+          <span>状态</span>
+          <select value={props.draft.status} onChange={(event) => props.onChange("status", event.target.value)}>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="DRAFT">DRAFT</option>
+            <option value="DISABLED">DISABLED</option>
+            <option value="ARCHIVED">ARCHIVED</option>
+          </select>
+        </label>
+        <label className="admin-skill-field">
+          <span>作用域</span>
+          <select value={props.draft.scope} onChange={(event) => props.onChange("scope", event.target.value)}>
+            <option value="PLATFORM">PLATFORM</option>
+            <option value="BRAND">BRAND</option>
+            <option value="USER">USER</option>
+          </select>
+        </label>
+        <label className="admin-skill-field admin-skill-field--wide">
+          <span>所属模块</span>
+          <input value={props.moduleNames} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>技能数</span>
+          <input value={props.skillCount} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>提示词数</span>
+          <input value={props.promptCount} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>默认 Provider</span>
+          <input value={props.defaultProvider} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>默认模型</span>
+          <input value={props.defaultModel} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>主技能</span>
+          <input value={props.skillName} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>执行模式</span>
+          <input value={props.executionMode} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>当前版本</span>
+          <input value={props.currentVersion} readOnly />
+        </label>
+        <label className="admin-skill-field">
+          <span>更新时间</span>
+          <input value={props.updatedAt} readOnly />
+        </label>
+        <label className="admin-skill-field admin-skill-field--wide">
+          <span>默认知识空间</span>
+          <input value={props.defaultKnowledgeSpaces} readOnly />
+        </label>
+        <label className="admin-skill-field admin-skill-field--wide">
+          <span>标签</span>
+          <input value={props.draft.tags} onChange={(event) => props.onChange("tags", event.target.value)} placeholder="用 / 或 , 分隔" />
+        </label>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>说明</span>
+          <textarea value={props.draft.description} onChange={(event) => props.onChange("description", event.target.value)} />
+        </label>
+        <label className="admin-skill-field admin-skill-field--full">
+          <span>备注</span>
+          <textarea value={props.draft.remarks} onChange={(event) => props.onChange("remarks", event.target.value)} />
+        </label>
+      </div>
     </section>
   );
 }
@@ -935,4 +1052,23 @@ function buildProviderDraft(binding?: ProviderBindingRecord): ProviderDraftRecor
     providerId: binding?.providerId || "",
     modelName: binding?.modelName || "",
   };
+}
+
+function buildBasicDraft(packageRecord?: SkillPackageRecord): BasicDraftRecord {
+  return {
+    packageName: packageRecord?.packageName || "",
+    packageKey: packageRecord?.packageKey || "",
+    status: packageRecord?.status || "DRAFT",
+    scope: packageRecord?.scope || "PLATFORM",
+    description: packageRecord?.description || "",
+    tags: packageRecord?.tags?.join(" / ") || "",
+    remarks: packageRecord?.remarks || "",
+  };
+}
+
+function splitDraftList(value: string) {
+  return String(value || "")
+    .split(/[\/,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

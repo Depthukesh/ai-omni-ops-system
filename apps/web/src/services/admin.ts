@@ -2583,6 +2583,13 @@ export async function updateSkillPackage(
   return jsonRequest<SkillPackageRecord>(`/admin/skill-packages/${id}`, "PATCH", payload);
 }
 
+export async function updateSkillPackageBasic(
+  id: string,
+  payload: Partial<Pick<SkillPackageRecord, "packageName" | "packageKey" | "description" | "status" | "scope" | "tags" | "remarks">>,
+) {
+  return jsonRequest<SkillPackageRecord>(`/admin/skill-packages/${id}/basic`, "PATCH", payload);
+}
+
 export async function deleteSkillPackage(id: string) {
   return request<SkillPackageRecord>(`/admin/skill-packages/${id}`, {
     method: "DELETE",

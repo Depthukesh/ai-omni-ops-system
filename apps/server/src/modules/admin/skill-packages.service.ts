@@ -182,6 +182,9 @@ type SkillPackageModuleSummaryRow = {
 
 export type CreateSkillPackagePayload = Omit<SkillPackageRecord, "id" | "createdAt" | "updatedAt">;
 export type UpdateSkillPackagePayload = Partial<Omit<SkillPackageRecord, "id" | "createdAt" | "updatedAt">>;
+export type UpdateSkillPackageBasicPayload = Partial<
+  Pick<SkillPackageRecord, "packageName" | "packageKey" | "description" | "status" | "scope" | "tags" | "remarks">
+>;
 
 @Injectable()
 export class SkillPackagesService {
@@ -372,6 +375,11 @@ export class SkillPackagesService {
     }
     const [deleted] = database.skillPackages.splice(index, 1);
     return { ...deleted };
+  }
+
+  async updateSkillPackageBasic(id: string, payload: UpdateSkillPackageBasicPayload) {
+    const normalizedPayload = this.normalizeUpdateBasicPayload(payload);
+    return this.updateSkillPackage(id, normalizedPayload);
   }
 
   async listSkillPackageVersions(packageId: string): Promise<{ items: SkillPackageVersionView[] }> {
@@ -605,6 +613,38 @@ export class SkillPackagesService {
 
   private normalizeStringArrayInput(value: string[] | undefined) {
     return Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean) : [];
+  }
+
+  private normalizeUpdateBasicPayload(payload: UpdateSkillPackageBasicPayload): UpdateSkillPackagePayload {
+    const normalized: UpdateSkillPackagePayload = {};
+
+    if (payload.packageName !== undefined) {
+      normalized.packageName = this.normalizePackageName(payload.packageName);
+    }
+    if (payload.packageKey !== undefined) {
+      normalized.packageKey = this.normalizePackageKey(payload.packageKey);
+    }
+    if (payload.description !== undefined) {
+      normalized.description = String(payload.description || "").trim() || undefined;
+    }
+    if (payload.status !== undefined) {
+      normalized.status = this.normalizeStatus(payload.status);
+    }
+    if (payload.scope !== undefined) {
+      normalized.scope = this.normalizeScope(payload.scope);
+    }
+    if (payload.tags !== undefined) {
+      normalized.tags = this.normalizeStringArrayInput(payload.tags);
+    }
+    if (payload.remarks !== undefined) {
+      normalized.remarks = String(payload.remarks || "").trim() || undefined;
+    }
+
+    if (!Object.keys(normalized).length) {
+      throw new BadRequestException("至少需要更新一个基础字段");
+    }
+
+    return normalized;
   }
 
   private normalizePackageKey(value: string) {

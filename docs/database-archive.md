@@ -178,6 +178,7 @@
   - 当前已继续补第一批版本域，新增 `SkillPackageVersion`，并接通 `GET /admin/skill-packages/:id/versions`、`POST /admin/skill-packages/:id/versions`、`POST /admin/skill-packages/:id/activate-version`，让统一技能中心具备版本列表、创建和激活的最小闭环
   - 当前已继续补第一批能力包维度 Prompt 管理，接通 `PATCH /admin/skill-packages/:packageId/prompts/:promptId`，后台能力包详情中的 Prompt 不再只是只读摘要，而是直接复用 `PromptTemplate` 真源完成内容与参数保存
   - 当前已继续补第一批能力包维度 Provider 管理，接通 `PATCH /admin/skill-packages/:packageId/providers/:bindingId`，先桥接更新对应 `SkillConfig` 的 `provider + defaultModel`，让能力包详情中的 Provider 卡片可以直接维护模型供应商与模型值
+  - 当前已继续补第一批能力包基础信息管理，接通 `PATCH /admin/skill-packages/:packageId/basic`，后台能力包详情中的名称、标识、状态、作用域、说明、标签、备注已可直接保存，同时保留模块、知识空间等关系字段只读展示
 
 ## 3. 正式数据表分层
 
