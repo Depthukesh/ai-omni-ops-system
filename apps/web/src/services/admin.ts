@@ -2479,6 +2479,32 @@ export async function createSkillConfig(
   return jsonRequest<SkillConfigRecord>("/admin/skills", "POST", payload);
 }
 
+export type InstallSkillResult = {
+  skill: SkillConfigRecord;
+  sourceType: "GITHUB" | "ZIP_UPLOAD";
+  sourceLabel: string;
+  installRootPath: string;
+  detectedSkillSlug: string;
+  detectedSkillName: string;
+  referenceFileCount: number;
+  scriptFileCount: number;
+};
+
+export async function installSkillConfig(payload: {
+  sourceType: InstallSkillResult["sourceType"];
+  githubUrl?: string;
+  archiveFileName?: string;
+  archiveBase64?: string;
+  category?: string;
+  provider: string;
+  defaultModel: string;
+  status?: SkillConfigRecord["status"];
+  pointsCost?: number;
+  descriptionPrefix?: string;
+}) {
+  return jsonRequest<InstallSkillResult>("/admin/skills/install", "POST", payload);
+}
+
 export async function updateSkillConfig(
   skillId: string,
   payload: Partial<Pick<SkillConfigRecord, "status" | "provider" | "defaultModel" | "pointsCost" | "description">>,

@@ -34,6 +34,7 @@ import {
   getBillingRules,
   getModelUsage,
   getSkillConfigs,
+  installSkillConfig,
   getSkillPackages,
   getSkillPackageSkills,
   getSkillPromptBindings,
@@ -111,6 +112,22 @@ type CreateSkillDraft = {
   defaultModel: string;
   pointsCost: string;
   description: string;
+  moduleKey: "NONE" | string;
+  packageKey: "NONE" | string;
+  promptScene: string;
+  bindingRemarks: string;
+};
+type InstallSkillDraft = {
+  sourceType: "GITHUB" | "ZIP_UPLOAD";
+  githubUrl: string;
+  archiveFileName: string;
+  archiveBase64: string;
+  category: string;
+  status: SkillConfigRecord["status"];
+  provider: string;
+  defaultModel: string;
+  pointsCost: string;
+  descriptionPrefix: string;
   moduleKey: "NONE" | string;
   packageKey: "NONE" | string;
   promptScene: string;
@@ -297,9 +314,11 @@ export default function AdminPage() {
     buildCreateThirdPartyPlatformDraft(),
   );
   const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
+  const [installSkillDraft, setInstallSkillDraft] = useState<InstallSkillDraft>(buildInstallSkillDraft());
   const [newPrompt, setNewPrompt] = useState<CreatePromptDraft>(buildCreatePromptDraft());
   const [activeAssetsWorkspaceTab, setActiveAssetsWorkspaceTab] = useState<AssetsWorkspaceTab>("overview");
   const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
+  const [isInstallSkillModalOpen, setIsInstallSkillModalOpen] = useState(false);
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
@@ -317,6 +336,7 @@ export default function AdminPage() {
   const [updatingProviderId, setUpdatingProviderId] = useState("");
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isCreatingSkill, setIsCreatingSkill] = useState(false);
+  const [isInstallingSkill, setIsInstallingSkill] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
@@ -2090,6 +2110,19 @@ export default function AdminPage() {
   }, [isCreateSkillModalOpen, isCreatingSkill]);
 
   useEffect(() => {
+    if (!isInstallSkillModalOpen) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isInstallingSkill) {
+        handleCloseInstallSkillModal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isInstallSkillModalOpen, isInstallingSkill]);
+
+  useEffect(() => {
     if (!isCreatePromptModalOpen) {
       return;
     }
@@ -2193,6 +2226,20 @@ export default function AdminPage() {
     }
     setIsCreateSkillModalOpen(false);
     setNewSkill(buildCreateSkillDraft());
+  }
+
+  function handleOpenInstallSkillModal() {
+    setActiveAssetsWorkspaceTab("skillZone");
+    setInstallSkillDraft(buildInstallSkillDraft());
+    setIsInstallSkillModalOpen(true);
+  }
+
+  function handleCloseInstallSkillModal() {
+    if (isInstallingSkill) {
+      return;
+    }
+    setIsInstallSkillModalOpen(false);
+    setInstallSkillDraft(buildInstallSkillDraft());
   }
 
   function handleOpenCreatePromptModal() {
@@ -2321,8 +2368,76 @@ export default function AdminPage() {
     }
   }
 
-  async function upsertSkillAssetBinding(created: SkillConfigRecord, promptSceneOverride?: string) {
-    const packageMeta = skillPackageFilterOptions.find((item) => item.value === newSkill.packageKey);
+  async function handleInstallSkillArchiveChange(file?: File | null) {
+    if (!file) {
+      setInstallSkillDraft((current) => ({
+        ...current,
+        archiveFileName: "",
+        archiveBase64: "",
+      }));
+      return;
+    }
+    const base64 = await readFileAsBase64(file);
+    setInstallSkillDraft((current) => ({
+      ...current,
+      archiveFileName: file.name,
+      archiveBase64: base64,
+    }));
+  }
+
+  async function handleInstallSkill() {
+    setIsInstallingSkill(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const result = await installSkillConfig({
+        sourceType: installSkillDraft.sourceType,
+        githubUrl: installSkillDraft.sourceType === "GITHUB" ? installSkillDraft.githubUrl.trim() : undefined,
+        archiveFileName: installSkillDraft.sourceType === "ZIP_UPLOAD" ? installSkillDraft.archiveFileName : undefined,
+        archiveBase64: installSkillDraft.sourceType === "ZIP_UPLOAD" ? installSkillDraft.archiveBase64 : undefined,
+        category: installSkillDraft.category.trim(),
+        provider: installSkillDraft.provider.trim(),
+        defaultModel: installSkillDraft.defaultModel.trim(),
+        status: installSkillDraft.status,
+        pointsCost: Number(installSkillDraft.pointsCost || 0),
+        descriptionPrefix: installSkillDraft.descriptionPrefix.trim() || undefined,
+      });
+      setSkills((current) => [result.skill, ...current]);
+      setSkillDrafts((current) => ({ [result.skill.id]: buildSkillDraft(result.skill), ...current }));
+      await upsertSkillAssetBinding(result.skill, installSkillDraft.promptScene.trim() || undefined, {
+        moduleKey: installSkillDraft.moduleKey,
+        packageKey: installSkillDraft.packageKey,
+        bindingRemarks: installSkillDraft.bindingRemarks,
+      });
+      setNotice(
+        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}）`,
+      );
+      setActiveAssetsWorkspaceTab("skillZone");
+      setIsInstallSkillModalOpen(false);
+      setInstallSkillDraft(buildInstallSkillDraft());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "安装技能失败";
+      setErrorMessage(`安装技能失败：${message}`);
+    } finally {
+      setIsInstallingSkill(false);
+    }
+  }
+
+  async function upsertSkillAssetBinding(
+    created: SkillConfigRecord,
+    promptSceneOverride?: string,
+    bindingOptions?: {
+      moduleKey: "NONE" | string;
+      packageKey: "NONE" | string;
+      bindingRemarks: string;
+    },
+  ) {
+    const resolvedBinding = bindingOptions || {
+      moduleKey: newSkill.moduleKey,
+      packageKey: newSkill.packageKey,
+      bindingRemarks: newSkill.bindingRemarks,
+    };
+    const packageMeta = skillPackageFilterOptions.find((item) => item.value === resolvedBinding.packageKey);
     const existingPrompt = promptSceneOverride ? prompts.find((item) => item.scene === promptSceneOverride) : undefined;
     const nextBinding = mergeSkillAssetBindingRecord(skillAssetBindings, {
       id: `sab_${created.slug}`,
@@ -2336,27 +2451,27 @@ export default function AdminPage() {
       isPrimary: true,
       sortOrder: 100,
       enabled: true,
-      moduleKeys: newSkill.moduleKey !== "NONE" ? [newSkill.moduleKey] : [],
-      packageKeys: newSkill.packageKey !== "NONE" ? [newSkill.packageKey] : [],
-      packageNames: newSkill.packageKey !== "NONE" ? [packageMeta?.label || newSkill.packageKey] : [],
-      remarks: newSkill.bindingRemarks.trim() || undefined,
+      moduleKeys: resolvedBinding.moduleKey !== "NONE" ? [resolvedBinding.moduleKey] : [],
+      packageKeys: resolvedBinding.packageKey !== "NONE" ? [resolvedBinding.packageKey] : [],
+      packageNames: resolvedBinding.packageKey !== "NONE" ? [packageMeta?.label || resolvedBinding.packageKey] : [],
+      remarks: resolvedBinding.bindingRemarks.trim() || undefined,
     });
     setSkillAssetBindings((current) => [
       nextBinding,
       ...current.filter((item) => item.skillSlug !== created.slug),
     ]);
-    if (newSkill.packageKey !== "NONE") {
+    if (resolvedBinding.packageKey !== "NONE") {
       await persistSkillPackageBinding({
-        packageId: packageMeta?.packageId || buildPackageIdFromKey(newSkill.packageKey),
-        packageKey: newSkill.packageKey,
-        packageName: packageMeta?.label || newSkill.packageKey,
+        packageId: packageMeta?.packageId || buildPackageIdFromKey(resolvedBinding.packageKey),
+        packageKey: resolvedBinding.packageKey,
+        packageName: packageMeta?.label || resolvedBinding.packageKey,
         skillId: created.id,
         skillSlug: created.slug,
         bindingType: "DEFAULT",
         isDefault: true,
         sortOrder: 100,
         enabled: true,
-        remarks: newSkill.bindingRemarks.trim() || undefined,
+        remarks: resolvedBinding.bindingRemarks.trim() || undefined,
       });
     }
     if (existingPrompt) {
@@ -2369,7 +2484,7 @@ export default function AdminPage() {
         isPrimary: true,
         sortOrder: 100,
         enabled: true,
-        remarks: newSkill.bindingRemarks.trim() || undefined,
+        remarks: resolvedBinding.bindingRemarks.trim() || undefined,
       });
     }
   }
@@ -2861,6 +2976,9 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <div className="personal-actions" style={{ marginBottom: 16 }}>
+                    <button type="button" className="secondary-button" onClick={handleOpenInstallSkillModal}>
+                      安装技能
+                    </button>
                     <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
                       创建技能
                     </button>
@@ -3191,6 +3309,177 @@ export default function AdminPage() {
                     <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
                     <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
                       {isCreatingSkill ? "创建中..." : "确认创建"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {isInstallSkillModalOpen ? (
+              <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseInstallSkillModal}>
+                <div
+                  className="entity-card admin-user-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="安装技能"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="admin-user-modal-topbar">
+                    <div>
+                      <span className="archive-pill status-ready">技能安装</span>
+                      <strong>上传 zip 或 GitHub 链接安装技能</strong>
+                      <p className="personal-meta">服务端会解析 `SKILL.md` 并自动创建技能，再按你的选择挂到模块、能力包和提示词场景。</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={handleCloseInstallSkillModal} disabled={isInstallingSkill}>
+                      关闭
+                    </button>
+                  </div>
+                  <div className="admin-skill-simple-grid">
+                    <label className="admin-skill-field">
+                      <span>安装来源</span>
+                      <select
+                        value={installSkillDraft.sourceType}
+                        onChange={(event) =>
+                          setInstallSkillDraft((current) => ({
+                            ...current,
+                            sourceType: event.target.value as InstallSkillDraft["sourceType"],
+                            githubUrl: "",
+                            archiveFileName: "",
+                            archiveBase64: "",
+                          }))
+                        }
+                      >
+                        <option value="GITHUB">GitHub 链接</option>
+                        <option value="ZIP_UPLOAD">技能压缩包</option>
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>分类</span>
+                      <select value={installSkillDraft.category} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, category: event.target.value }))}>
+                        {createSkillCategoryOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>状态</span>
+                      <select value={installSkillDraft.status} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}>
+                        <option value="ACTIVE">启用中</option>
+                        <option value="DRAFT">草稿</option>
+                        <option value="DISABLED">停用</option>
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>供应商</span>
+                      <select value={installSkillDraft.provider} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, provider: event.target.value }))}>
+                        <option value="">请选择供应商</option>
+                        {createSkillProviderOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>默认模型</span>
+                      <select value={installSkillDraft.defaultModel} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, defaultModel: event.target.value }))}>
+                        <option value="">请选择模型</option>
+                        {buildScopedModelOptions(providers, installSkillDraft.defaultModel).map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>点数成本</span>
+                      <input type="number" value={installSkillDraft.pointsCost} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, pointsCost: event.target.value }))} />
+                    </label>
+                    {installSkillDraft.sourceType === "GITHUB" ? (
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>GitHub 技能目录链接</span>
+                        <input
+                          value={installSkillDraft.githubUrl}
+                          placeholder="例如：https://github.com/JimLiu/baoyu-skills/tree/main/skills/baoyu-post-to-wechat"
+                          onChange={(event) => setInstallSkillDraft((current) => ({ ...current, githubUrl: event.target.value }))}
+                        />
+                      </label>
+                    ) : (
+                      <label className="admin-skill-field admin-skill-field--full">
+                        <span>技能压缩包</span>
+                        <input
+                          type="file"
+                          accept=".zip,application/zip,application/x-zip-compressed"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            void handleInstallSkillArchiveChange(file);
+                          }}
+                        />
+                        <small className="personal-meta">{installSkillDraft.archiveFileName || "请上传单个技能目录压缩包，压缩包中必须包含 SKILL.md"}</small>
+                      </label>
+                    )}
+                    <label className="admin-skill-field">
+                      <span>所属模块</span>
+                      <select value={installSkillDraft.moduleKey} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, moduleKey: event.target.value }))}>
+                        <option value="NONE">暂不绑定</option>
+                        {skillModuleFilterOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>所属能力包</span>
+                      <select value={installSkillDraft.packageKey} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, packageKey: event.target.value }))}>
+                        <option value="NONE">暂不绑定</option>
+                        {skillPackageFilterOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field">
+                      <span>提示词场景</span>
+                      <select value={installSkillDraft.promptScene} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, promptScene: event.target.value }))}>
+                        <option value="">稍后绑定</option>
+                        {createSkillPromptSceneOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-skill-field admin-skill-field--full">
+                      <span>安装补充说明</span>
+                      <textarea
+                        value={installSkillDraft.descriptionPrefix}
+                        placeholder="例如：从 AI CODING / GitHub 导入，用于后台技能中心自动安装。"
+                        onChange={(event) => setInstallSkillDraft((current) => ({ ...current, descriptionPrefix: event.target.value }))}
+                      />
+                    </label>
+                    <label className="admin-skill-field admin-skill-field--full">
+                      <span>归属说明</span>
+                      <textarea value={installSkillDraft.bindingRemarks} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, bindingRemarks: event.target.value }))} />
+                    </label>
+                  </div>
+                  <div className="personal-actions">
+                    <button type="button" className="secondary-button" onClick={handleCloseInstallSkillModal} disabled={isInstallingSkill}>取消</button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleInstallSkill()}
+                      disabled={
+                        isInstallingSkill
+                        || !installSkillDraft.provider.trim()
+                        || !installSkillDraft.defaultModel.trim()
+                        || (installSkillDraft.sourceType === "GITHUB" && !installSkillDraft.githubUrl.trim())
+                        || (installSkillDraft.sourceType === "ZIP_UPLOAD" && !installSkillDraft.archiveBase64.trim())
+                      }
+                    >
+                      {isInstallingSkill ? "安装中..." : "开始安装"}
                     </button>
                   </div>
                 </div>
@@ -4610,6 +4899,38 @@ function buildCreateSkillDraft(): CreateSkillDraft {
     promptScene: "",
     bindingRemarks: "",
   };
+}
+
+function buildInstallSkillDraft(): InstallSkillDraft {
+  return {
+    sourceType: "GITHUB",
+    githubUrl: "",
+    archiveFileName: "",
+    archiveBase64: "",
+    category: "内容生产",
+    status: "DRAFT",
+    provider: "",
+    defaultModel: "",
+    pointsCost: "120",
+    descriptionPrefix: "",
+    moduleKey: "NONE",
+    packageKey: "NONE",
+    promptScene: "",
+    bindingRemarks: "",
+  };
+}
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolvePromise, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = String(reader.result || "");
+      const [, base64 = ""] = raw.split(",");
+      resolvePromise(base64);
+    };
+    reader.onerror = () => reject(reader.error || new Error("读取压缩包失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): CreatePromptDraft {

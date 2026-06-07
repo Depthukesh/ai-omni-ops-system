@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
+import { SkillInstallerService, type InstallSkillPayload } from "./skill-installer.service";
 import {
   type CreateSkillPromptBindingPayload,
   type CreatePromptTemplatePayload,
@@ -15,6 +16,7 @@ import {
 export class SkillsPromptsController {
   constructor(
     private readonly skillsPromptsService: SkillsPromptsService,
+    private readonly skillInstallerService: SkillInstallerService,
     private readonly authService: AuthService,
   ) {}
 
@@ -31,6 +33,15 @@ export class SkillsPromptsController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillsPromptsService.createSkill(payload);
+  }
+
+  @Post("skills/install")
+  async installSkill(
+    @Body() payload: InstallSkillPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillInstallerService.installSkill(payload);
   }
 
   @Patch("skills/:id")
