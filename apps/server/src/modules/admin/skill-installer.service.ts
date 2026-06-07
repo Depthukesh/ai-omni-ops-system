@@ -40,6 +40,11 @@ export type InstallSkillPayload = {
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
   initialPrompt?: PromptTemplateRecord;
+  parsedOverview: {
+    stepSummaries: string[];
+    inputHints: string[];
+    outputHints: string[];
+  };
   references: Array<{
     referenceKey: string;
     title: string;
@@ -126,11 +131,13 @@ export class SkillInstallerService {
     const detectedSlugBase = slugify(frontmatter.name || loaded.skillFolderName || "imported-skill");
     const detectedSkillSlug = await this.resolveAvailableSlug(detectedSlugBase);
     const detectedSkillName = deriveSkillDisplayName(markdownText, frontmatter.name || loaded.skillFolderName || detectedSkillSlug);
-    const detectedDescription = [
-      String(payload.descriptionPrefix || "").trim(),
-      String(frontmatter.description || "").trim(),
-      `安装来源：${loaded.sourceLabel}`,
-    ].filter(Boolean).join("\n\n");
+    const parsedOverview = parseSkillMarkdownOverview(markdownText);
+    const detectedDescription = buildInstalledSkillDescription({
+      descriptionPrefix: String(payload.descriptionPrefix || "").trim(),
+      frontmatterDescription: String(frontmatter.description || "").trim(),
+      sourceLabel: loaded.sourceLabel,
+      parsedOverview,
+    });
 
     const createPayload: CreateSkillConfigPayload = {
       name: detectedSkillName,
@@ -156,6 +163,7 @@ export class SkillInstallerService {
     return {
       skill,
       initialPrompt,
+      parsedOverview,
       references,
       scripts,
       sourceType: payload.sourceType,
@@ -363,6 +371,131 @@ function buildInstalledSkillPromptContent(content: string, skillName: string) {
     "=== 已安装技能说明 ===",
     workflowBlock.trim(),
   ].join("\n");
+}
+
+function buildInstalledSkillDescription(input: {
+  descriptionPrefix: string;
+  frontmatterDescription: string;
+  sourceLabel: string;
+  parsedOverview: {
+    stepSummaries: string[];
+    inputHints: string[];
+    outputHints: string[];
+  };
+}) {
+  const blocks = [
+    input.descriptionPrefix,
+    input.frontmatterDescription,
+    `安装来源：${input.sourceLabel}`,
+    input.parsedOverview.stepSummaries.length
+      ? `步骤摘要：\n${input.parsedOverview.stepSummaries.map((item, index) => `${index + 1}. ${item}`).join("\n")}`
+      : "",
+    input.parsedOverview.inputHints.length
+      ? `输入要点：\n${input.parsedOverview.inputHints.map((item) => `- ${item}`).join("\n")}`
+      : "",
+    input.parsedOverview.outputHints.length
+      ? `输出要点：\n${input.parsedOverview.outputHints.map((item) => `- ${item}`).join("\n")}`
+      : "",
+  ].filter(Boolean);
+  return blocks.join("\n\n");
+}
+
+function parseSkillMarkdownOverview(content: string) {
+  const normalized = String(content || "").trim();
+  const headings = Array.from(normalized.matchAll(/^##\s+(.+)$/gm)).map((item) => item[1].trim());
+  const stepSummaries = dedupeStrings([
+    ...extractHeadingsByKeywords(headings, ["step", "步骤", "流程", "工作流", "phase", "stage"]),
+    ...extractListItemsFromKeywordSections(normalized, ["step", "步骤", "流程", "工作流", "phase", "stage"], 6),
+  ]).slice(0, 8);
+  const inputHints = dedupeStrings([
+    ...extractHeadingsByKeywords(headings, ["input", "输入", "参数", "前提", "requirements", "配置"]),
+    ...extractListItemsFromKeywordSections(normalized, ["input", "输入", "参数", "前提", "requirements", "配置"], 8),
+    ...extractInlineKeywordLines(normalized, ["输入", "参数", "上传", "选择", "知识库", "reference", "model"], 8),
+  ]).slice(0, 8);
+  const outputHints = dedupeStrings([
+    ...extractHeadingsByKeywords(headings, ["output", "输出", "结果", "产出", "deliverable"]),
+    ...extractListItemsFromKeywordSections(normalized, ["output", "输出", "结果", "产出", "deliverable"], 8),
+    ...extractInlineKeywordLines(normalized, ["输出", "结果", "生成", "产出", "html", "image", "视频"], 8),
+  ]).slice(0, 8);
+
+  return {
+    stepSummaries: stepSummaries.length ? stepSummaries : extractFallbackNumberedSteps(normalized, 6),
+    inputHints: inputHints.length ? inputHints : extractFallbackBullets(normalized, 5),
+    outputHints,
+  };
+}
+
+function extractHeadingsByKeywords(headings: string[], keywords: string[]) {
+  return headings.filter((item) => includesAnyKeyword(item, keywords));
+}
+
+function extractListItemsFromKeywordSections(content: string, keywords: string[], limit: number) {
+  const sections = content.match(/^##\s+.+?$(?:\r?\n(?!##\s).*)*/gm) || [];
+  const items: string[] = [];
+  for (const section of sections) {
+    const title = section.match(/^##\s+(.+)$/m)?.[1] || "";
+    if (!includesAnyKeyword(title, keywords)) {
+      continue;
+    }
+    const lines = section
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line))
+      .map((line) => line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "").trim())
+      .filter(Boolean);
+    items.push(...lines);
+    if (items.length >= limit) {
+      break;
+    }
+  }
+  return items.slice(0, limit);
+}
+
+function extractInlineKeywordLines(content: string, keywords: string[], limit: number) {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && includesAnyKeyword(line, keywords))
+    .map((line) => line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "").trim())
+    .filter((line) => line.length <= 120)
+    .slice(0, limit);
+}
+
+function extractFallbackNumberedSteps(content: string, limit: number) {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^\d+\.\s+/.test(line))
+    .map((line) => line.replace(/^\d+\.\s+/, "").trim())
+    .slice(0, limit);
+}
+
+function extractFallbackBullets(content: string, limit: number) {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+/.test(line))
+    .map((line) => line.replace(/^[-*]\s+/, "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function includesAnyKeyword(value: string, keywords: string[]) {
+  const normalized = String(value || "").toLowerCase();
+  return keywords.some((item) => normalized.includes(item.toLowerCase()));
+}
+
+function dedupeStrings(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values.map((item) => item.trim()).filter(Boolean)) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
 }
 
 function buildReferenceManifest(

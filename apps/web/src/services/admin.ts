@@ -2482,6 +2482,11 @@ export async function createSkillConfig(
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
   initialPrompt?: PromptTemplateRecord;
+  parsedOverview: {
+    stepSummaries: string[];
+    inputHints: string[];
+    outputHints: string[];
+  };
   references: Array<{
     referenceKey: string;
     title: string;
