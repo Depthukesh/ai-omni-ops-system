@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   activateSkillPackageVersion,
   createSkillPackageVersion,
+  getApiProviders,
   getSkillPackage,
+  type ApiProviderRecord,
   type ModuleDefinitionRecord,
   type PromptTemplateRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
+  updateSkillPackageProvider,
   updateSkillPackagePrompt,
 } from "../../../services/admin";
 
@@ -32,12 +35,17 @@ const DEFAULT_FILTERS: OverviewFilters = {
 };
 
 type PromptDetailRecord = NonNullable<SkillPackageDetailRecord["prompts"]>[number];
+type ProviderBindingRecord = NonNullable<SkillPackageDetailRecord["providerBindings"]>[number];
 type PromptDraftRecord = {
   status: PromptTemplateRecord["status"];
   modelName: string;
   temperature: string;
   maxTokens: string;
   content: string;
+};
+type ProviderDraftRecord = {
+  providerId: string;
+  modelName: string;
 };
 
 export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps) {
@@ -52,6 +60,9 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
   const [activatingVersionId, setActivatingVersionId] = useState("");
   const [promptDrafts, setPromptDrafts] = useState<Record<string, PromptDraftRecord>>({});
   const [savingPromptId, setSavingPromptId] = useState("");
+  const [providerDrafts, setProviderDrafts] = useState<Record<string, ProviderDraftRecord>>({});
+  const [availableProviders, setAvailableProviders] = useState<ApiProviderRecord[]>([]);
+  const [savingProviderId, setSavingProviderId] = useState("");
 
   const moduleOptions = useMemo(() => {
     const moduleMap = new Map<string, string>();
@@ -152,6 +163,33 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
     setPromptDrafts(nextDrafts);
   }, [detail]);
 
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      (detail?.providerBindings || []).map((item) => [item.id, buildProviderDraft(item)]),
+    ) as Record<string, ProviderDraftRecord>;
+    setProviderDrafts(nextDrafts);
+  }, [detail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProviders() {
+      try {
+        const result = await getApiProviders();
+        if (!cancelled) {
+          setAvailableProviders(result);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableProviders([]);
+        }
+      }
+    }
+    void loadProviders();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function handleCreateVersion() {
     if (!selectedPackage?.id || !versionNumber.trim()) {
       setDetailError("请先填写版本号");
@@ -249,6 +287,62 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
       setDetailError(`保存 Prompt 失败：${message}`);
     } finally {
       setSavingPromptId("");
+    }
+  }
+
+  function handleProviderDraftChange(bindingId: string, field: keyof ProviderDraftRecord, value: string) {
+    setProviderDrafts((current) => {
+      const binding = detail?.providerBindings?.find((item) => item.id === bindingId);
+      const base = current[bindingId] || buildProviderDraft(binding);
+      const nextDraft = {
+        ...base,
+        [field]: value,
+      };
+      if (field === "providerId") {
+        const provider = availableProviders.find((item) => item.id === value);
+        nextDraft.modelName = provider?.defaultModel || base.modelName;
+      }
+      return {
+        ...current,
+        [bindingId]: nextDraft,
+      };
+    });
+  }
+
+  async function handleSaveProvider(bindingId: string) {
+    if (!selectedPackage?.id) {
+      return;
+    }
+    const binding = detail?.providerBindings?.find((item) => item.id === bindingId);
+    if (!binding) {
+      return;
+    }
+    const draft = providerDrafts[bindingId] || buildProviderDraft(binding);
+    const providerId = draft.providerId.trim();
+    const modelName = draft.modelName.trim();
+
+    if (!providerId) {
+      setDetailError(`Provider「${binding.providerName || binding.id}」不能为空`);
+      return;
+    }
+    if (!modelName) {
+      setDetailError(`Provider「${binding.providerName || binding.id}」模型不能为空`);
+      return;
+    }
+
+    setSavingProviderId(bindingId);
+    setDetailError("");
+    try {
+      await updateSkillPackageProvider(selectedPackage.id, bindingId, {
+        providerId,
+        modelName,
+      });
+      await loadPackageDetail(selectedPackage.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存 Provider 失败";
+      setDetailError(`保存 Provider 失败：${message}`);
+    } finally {
+      setSavingProviderId("");
     }
   }
 
@@ -461,16 +555,14 @@ export function SkillPackageOverviewPanel(props: SkillPackageOverviewPanelProps)
                 onDraftChange={handlePromptDraftChange}
                 onSave={(promptId) => void handleSavePrompt(promptId)}
               />
-              <DetailBlock
-                title="Provider 绑定"
-                meta={`${detail?.providerBindings?.length || 0} 条`}
+              <ProviderBlock
+                bindings={detail?.providerBindings || []}
+                drafts={providerDrafts}
+                providers={availableProviders}
+                savingProviderId={savingProviderId}
                 emptyText="当前能力包暂无 Provider 绑定摘要。"
-                items={(detail?.providerBindings || []).map((item) => ({
-                  id: item.id,
-                  title: `${item.providerName || "-"}${item.isDefault ? "（默认）" : ""}`,
-                  subtitle: `${item.providerType} / ${item.modelName || "-"}`,
-                  body: `优先级 ${item.priority}；可用模型 ${item.modelWhitelist.join(" / ") || "-"}`,
-                }))}
+                onDraftChange={handleProviderDraftChange}
+                onSave={(bindingId) => void handleSaveProvider(bindingId)}
               />
               <VersionBlock
                 packageId={selectedPackage?.id || ""}
@@ -689,6 +781,84 @@ function PromptBlock(props: PromptBlockProps) {
   );
 }
 
+type ProviderBlockProps = {
+  bindings: ProviderBindingRecord[];
+  drafts: Record<string, ProviderDraftRecord>;
+  providers: ApiProviderRecord[];
+  savingProviderId: string;
+  emptyText: string;
+  onDraftChange: (bindingId: string, field: keyof ProviderDraftRecord, value: string) => void;
+  onSave: (bindingId: string) => void;
+};
+
+function ProviderBlock(props: ProviderBlockProps) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head">
+        <div>
+          <strong>Provider 绑定</strong>
+          <p className="personal-meta">{`${props.bindings.length} 条`}</p>
+        </div>
+      </div>
+      {props.bindings.length ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          {props.bindings.map((item) => {
+            const draft = props.drafts[item.id] || buildProviderDraft(item);
+            return (
+              <article
+                key={item.id}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "rgba(255, 255, 255, 0.72)",
+                }}
+              >
+                <div className="entity-card-head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="admin-user-row-title">{`${item.providerName || "-"}${item.isDefault ? "（默认）" : ""}`}</div>
+                    <div className="admin-user-row-meta">{`${item.providerType} / 优先级 ${item.priority}`}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => props.onSave(item.id)}
+                    disabled={props.savingProviderId === item.id}
+                  >
+                    {props.savingProviderId === item.id ? "保存中..." : "保存 Provider"}
+                  </button>
+                </div>
+                <div className="admin-user-filter-grid" style={{ marginBottom: 12 }}>
+                  <label>
+                    <span>Provider</span>
+                    <select value={draft.providerId} onChange={(event) => props.onDraftChange(item.id, "providerId", event.target.value)}>
+                      <option value="">请选择 Provider</option>
+                      {props.providers.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {`${provider.name} / ${provider.providerType} / ${provider.status}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ gridColumn: "span 3" }}>
+                    <span>模型</span>
+                    <input value={draft.modelName} onChange={(event) => props.onDraftChange(item.id, "modelName", event.target.value)} />
+                  </label>
+                </div>
+                <div className="personal-meta">
+                  {`可用模型 ${item.modelWhitelist.join(" / ") || "-"}；Fallback ${item.fallbackProviderIds.join(" / ") || "-"}`}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="personal-meta">{props.emptyText}</div>
+      )}
+    </section>
+  );
+}
+
 type DetailBlockProps = {
   title: string;
   meta: string;
@@ -757,5 +927,12 @@ function buildPromptDraft(prompt?: PromptDetailRecord): PromptDraftRecord {
     temperature: prompt?.temperature !== undefined ? String(prompt.temperature) : "",
     maxTokens: prompt?.maxTokens !== undefined ? String(prompt.maxTokens) : "",
     content: prompt?.content || "",
+  };
+}
+
+function buildProviderDraft(binding?: ProviderBindingRecord): ProviderDraftRecord {
+  return {
+    providerId: binding?.providerId || "",
+    modelName: binding?.modelName || "",
   };
 }

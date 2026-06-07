@@ -2368,7 +2368,7 @@ export async function createSkillConfig(
 
 export async function updateSkillConfig(
   skillId: string,
-  payload: Partial<Pick<SkillConfigRecord, "status" | "defaultModel" | "pointsCost" | "description">>,
+  payload: Partial<Pick<SkillConfigRecord, "status" | "provider" | "defaultModel" | "pointsCost" | "description">>,
 ) {
   return jsonRequest<SkillConfigRecord>(`/admin/skills/${skillId}`, "PATCH", payload);
 }
@@ -2610,6 +2610,21 @@ export async function updateSkillPackagePrompt(
 ) {
   return jsonRequest<NonNullable<SkillPackageDetailRecord["prompts"]>[number]>(
     `/admin/skill-packages/${packageId}/prompts/${promptId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function updateSkillPackageProvider(
+  packageId: string,
+  bindingId: string,
+  payload: {
+    providerId?: string;
+    modelName?: string;
+  },
+) {
+  return jsonRequest<NonNullable<SkillPackageDetailRecord["providerBindings"]>[number]>(
+    `/admin/skill-packages/${packageId}/providers/${bindingId}`,
     "PATCH",
     payload,
   );

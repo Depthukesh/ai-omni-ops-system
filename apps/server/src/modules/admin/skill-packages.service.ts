@@ -11,6 +11,7 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   SkillsPromptsService,
+  type UpdateSkillConfigPayload as BaseUpdateSkillPackageProviderPayload,
   type UpdatePromptTemplatePayload as BaseUpdateSkillPackagePromptPayload,
 } from "./skills-prompts.service";
 
@@ -86,6 +87,11 @@ export type ActivateSkillPackageVersionPayload = {
 };
 
 export type UpdateSkillPackagePromptPayload = BaseUpdateSkillPackagePromptPayload;
+
+export type UpdateSkillPackageProviderPayload = {
+  providerId?: string;
+  modelName?: string;
+};
 
 export type SkillPackageDetailRecord = {
   package: SkillPackageSummaryRecord;
@@ -526,6 +532,31 @@ export class SkillPackagesService {
     };
   }
 
+  async updateSkillPackageProvider(
+    packageId: string,
+    bindingId: string,
+    payload: UpdateSkillPackageProviderPayload,
+  ): Promise<NonNullable<SkillPackageDetailRecord["providerBindings"]>[number]> {
+    const packageRecord = await this.loadSkillPackageRecordById(packageId);
+    const providerBindings = await this.loadProviderBindingViewsByPackage(packageRecord);
+    const currentBinding = providerBindings.find((item) => item.id === bindingId);
+    if (!currentBinding) {
+      throw new NotFoundException("当前能力包下不存在该 Provider 绑定");
+    }
+
+    const skillPayload = await this.normalizeUpdateProviderPayload(payload, currentBinding);
+    await this.skillsPromptsService.updateSkill(currentBinding.skillId, skillPayload);
+
+    const refreshedBindings = await this.loadProviderBindingViewsByPackage(packageRecord);
+    const updatedBinding = refreshedBindings.find((item) => item.id === bindingId);
+    if (!updatedBinding) {
+      throw new NotFoundException("Provider 绑定不存在");
+    }
+
+    const { skillId: _skillId, skillSlug: _skillSlug, ...bindingView } = updatedBinding;
+    return bindingView;
+  }
+
   private normalizeSkillPackage(row: SkillPackage): SkillPackageRecord {
     return {
       id: row.id,
@@ -911,6 +942,89 @@ export class SkillPackagesService {
         modelWhitelist: provider?.modelWhitelist || (modelName ? [modelName] : []),
       };
     });
+  }
+
+  private async loadProviderBindingViewsByPackage(packageRecord: Pick<SkillPackageRecord, "packageKey">) {
+    const [packageSkills, skillConfigs, providers] = await Promise.all([
+      this.loadSkillPackageSkillsForSummary(),
+      this.loadSkillConfigsForSummary(),
+      this.loadApiProvidersForDetail(),
+    ]);
+    const relatedSkillBindings = packageSkills
+      .filter((relation) => relation.packageKey === packageRecord.packageKey && relation.enabled)
+      .sort((left, right) => {
+        if (left.isDefault !== right.isDefault) {
+          return left.isDefault ? -1 : 1;
+        }
+        return left.sortOrder - right.sortOrder;
+      });
+
+    return relatedSkillBindings.map((relation, index) => {
+      const skill = skillConfigs.find((item) => item.id === relation.skillId || item.slug === relation.skillSlug);
+      const scopedModel = this.parseScopedModel(skill?.defaultModel || relation.skillDefaultModel);
+      const modelName = scopedModel.modelName || skill?.defaultModel || relation.skillDefaultModel || undefined;
+      const provider = providers.find((item) => {
+        if (scopedModel.providerId && item.id === scopedModel.providerId) {
+          return true;
+        }
+        if (skill?.provider && item.name === skill.provider) {
+          return true;
+        }
+        return modelName ? item.modelWhitelist.includes(modelName) || item.defaultModel === modelName : false;
+      });
+
+      return {
+        id: relation.id,
+        skillId: relation.skillId,
+        skillSlug: relation.skillSlug,
+        providerType: this.inferProviderType(provider?.name || skill?.provider || relation.skillProvider, modelName) as
+          | "TEXT"
+          | "IMAGE"
+          | "VIDEO"
+          | "EMBEDDING"
+          | "RERANK",
+        providerId: provider?.id || scopedModel.providerId || undefined,
+        providerName: provider?.name || skill?.provider || relation.skillProvider || undefined,
+        modelName,
+        priority: relation.sortOrder || index + 1,
+        isDefault: relation.isDefault || index === 0,
+        fallbackProviderIds: [],
+        modelWhitelist: provider?.modelWhitelist || (modelName ? [modelName] : []),
+      };
+    });
+  }
+
+  private async normalizeUpdateProviderPayload(
+    payload: UpdateSkillPackageProviderPayload,
+    currentBinding: Awaited<ReturnType<SkillPackagesService["loadProviderBindingViewsByPackage"]>>[number],
+  ): Promise<BaseUpdateSkillPackageProviderPayload> {
+    const providerIdInput =
+      payload.providerId !== undefined ? String(payload.providerId || "").trim() : String(currentBinding.providerId || "").trim();
+    const nextModelName =
+      payload.modelName !== undefined ? String(payload.modelName || "").trim() : String(currentBinding.modelName || "").trim();
+    const providers = await this.loadApiProvidersForDetail();
+
+    let providerName = String(currentBinding.providerName || "").trim();
+    let providerId = providerIdInput;
+    if (!providerId) {
+      throw new BadRequestException("Provider 不能为空");
+    }
+
+    const provider = providers.find((item) => item.id === providerId);
+    if (!provider) {
+      throw new NotFoundException("Provider 不存在");
+    }
+    providerName = provider.name;
+
+    const modelName = nextModelName || provider.defaultModel || "";
+    if (!modelName) {
+      throw new BadRequestException("模型不能为空");
+    }
+
+    return {
+      provider: providerName,
+      defaultModel: `${providerId}::${modelName}`,
+    };
   }
 
   private async loadModuleDefinitionsForSummary() {

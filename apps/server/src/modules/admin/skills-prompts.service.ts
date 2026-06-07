@@ -54,6 +54,7 @@ type SkillPromptBindingRow = {
 
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
+  provider?: string;
   defaultModel?: string;
   pointsCost?: number;
   description?: string;
@@ -877,6 +878,7 @@ export class SkillsPromptsService {
         UPDATE "SkillConfig"
         SET
           "status" = ${payload.status ?? current.status},
+          "provider" = ${payload.provider ?? current.provider},
           "defaultModel" = ${payload.defaultModel ?? current.defaultModel},
           "pointsCost" = ${payload.pointsCost ?? current.pointsCost},
           "description" = ${payload.description ?? current.description},
@@ -893,6 +895,9 @@ export class SkillsPromptsService {
     }
     if (payload.status) {
       skill.status = payload.status;
+    }
+    if (payload.provider !== undefined) {
+      skill.provider = payload.provider;
     }
     if (payload.defaultModel !== undefined) {
       skill.defaultModel = payload.defaultModel;

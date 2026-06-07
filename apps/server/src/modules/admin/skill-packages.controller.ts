@@ -8,6 +8,7 @@ import {
   type SkillPackageDetailQuery,
   type SkillPackageListQuery,
   SkillPackagesService,
+  type UpdateSkillPackageProviderPayload,
   type UpdateSkillPackagePromptPayload,
   type UpdateSkillPackagePayload,
 } from "./skill-packages.service";
@@ -122,6 +123,17 @@ export class SkillPackagesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.skillPackagesService.updateSkillPackagePrompt(packageId, promptId, payload);
+  }
+
+  @Patch(":packageId/providers/:bindingId")
+  async updateSkillPackageProvider(
+    @Param("packageId") packageId: string,
+    @Param("bindingId") bindingId: string,
+    @Body() payload: UpdateSkillPackageProviderPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillPackagesService.updateSkillPackageProvider(packageId, bindingId, payload);
   }
 
   private parseBooleanQuery(value: string | undefined): SkillPackageDetailQuery[keyof SkillPackageDetailQuery] {
