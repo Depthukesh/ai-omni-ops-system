@@ -8,12 +8,15 @@ import {
   getModuleDefinitions,
   type GetModuleDefinitionsQuery,
   type ModuleDefinitionRecord,
+  type SkillConfigRecord,
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
+import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
 
 type ModuleDefinitionsPanelProps = {
   modules: ModuleDefinitionRecord[];
+  skills: SkillConfigRecord[];
   dataSource: "api" | "seed";
   onModulesChange: Dispatch<SetStateAction<ModuleDefinitionRecord[]>>;
   onNotice: (message: string) => void;
@@ -553,6 +556,12 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
 
       <SkillPackageModulesPanel
         modules={props.modules}
+        dataSource={props.dataSource}
+        onNotice={props.onNotice}
+        onError={props.onError}
+      />
+      <SkillPackageSkillsPanel
+        skills={props.skills}
         dataSource={props.dataSource}
         onNotice={props.onNotice}
         onError={props.onError}

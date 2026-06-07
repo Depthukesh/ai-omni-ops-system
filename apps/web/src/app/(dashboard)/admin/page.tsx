@@ -3029,6 +3029,7 @@ export default function AdminPage() {
         ) : activeTab === "modules" ? (
           <ModuleDefinitionsPanel
             modules={modules}
+            skills={skills}
             dataSource={dataSource}
             onModulesChange={setModules}
             onNotice={setNotice}
