@@ -90,6 +90,29 @@ const MODULE_STATUS_OPTIONS: ModuleDefinitionRecord["moduleStatus"][] = [
   "ARCHIVED",
 ];
 
+const PROVIDER_POLICY_TEMPLATE_OPTIONS = [
+  {
+    key: "PRIMARY",
+    label: "首选直连",
+    description: "默认优先使用该 Provider 作为主调用来源。",
+  },
+  {
+    key: "BALANCED",
+    label: "平衡策略",
+    description: "在质量、速度和成本之间做均衡选择。",
+  },
+  {
+    key: "COST",
+    label: "成本优先",
+    description: "在可接受效果下优先控制调用成本。",
+  },
+  {
+    key: "FALLBACK",
+    label: "降级兜底",
+    description: "仅在主链路不可用时作为兜底策略。",
+  },
+] as const;
+
 export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   const [filters, setFilters] = useState<ModuleFilters>(DEFAULT_FILTERS);
   const [activeSection, setActiveSection] = useState<ModuleCenterSectionKey>("registry");
@@ -692,11 +715,13 @@ function ModuleDraftForm(props: {
       props.providers
         .slice()
         .filter((item) => item.status !== "DISABLED")
-        .map((item) => ({
-          value: item.id,
-          title: item.name,
-          description: `${item.providerType} · 默认模型 ${item.defaultModel || "-"} · ${item.status}`,
-        })),
+        .flatMap((item) =>
+          PROVIDER_POLICY_TEMPLATE_OPTIONS.map((policy) => ({
+            value: `${policy.key}:${item.id}`,
+            title: `${item.name} / ${policy.label}`,
+            description: `${item.providerType} · 默认模型 ${item.defaultModel || "-"} · ${policy.description}`,
+          })),
+        ),
     [props.providers],
   );
 
@@ -956,7 +981,7 @@ function ModuleDraftForm(props: {
               onToggle={(value, checked) => updateMultiSelectField("defaultKnowledgeSpaces", value, checked)}
             />
           </ModuleFormField>
-          <ModuleFormField label="默认 Provider 策略" badge="first pass" hint="当前先复用 Provider 列表作为默认策略来源，后续再切到独立 Provider Policy 域。" wide>
+          <ModuleFormField label="默认 Provider 策略" badge="策略模板" hint="当前按 Provider + 策略模板组合选择，更接近真实策略语义；后续再切到独立 Provider Policy 域。" wide>
             <ModuleMultiSelectCard
               emptyText="当前还没有可用 Provider，请先到接口供应商中配置。"
               options={providerPolicyOptions}
@@ -986,7 +1011,7 @@ function ModuleDraftForm(props: {
                 <span>Provider 策略补充值</span>
                 <textarea
                   value={props.draft.defaultProviderPolicies}
-                  placeholder={"例如：\nprovider_openai"}
+                  placeholder={"例如：\nPRIMARY:provider_openai"}
                   onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicies: event.target.value }))}
                 />
               </label>
@@ -1063,13 +1088,14 @@ function ModuleMultiSelectCard(props: {
   }
 
   const selectedSet = new Set(props.selectedValues);
+  const selectedLabels = props.selectedValues.map((value) => props.options.find((item) => item.value === value)?.title || value);
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div className="entity-card" style={{ padding: 12 }}>
         <strong>已选 {props.selectedValues.length} 项</strong>
         <p className="personal-meta">
-          {props.selectedValues.length ? props.selectedValues.join(" / ") : "当前未选择，保存时会按手工补充值或空值处理。"}
+          {selectedLabels.length ? selectedLabels.join(" / ") : "当前未选择，保存时会按手工补充值或空值处理。"}
         </p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>

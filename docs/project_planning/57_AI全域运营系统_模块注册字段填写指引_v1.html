@@ -143,8 +143,8 @@
       <li><code>defaultKnowledgeSpaces</code>：默认知识空间。</li>
       <li><code>defaultProviderPolicies</code>：默认 Provider 策略。</li>
     </ul>
-    <p><code>defaultSkillPackages</code> 已接入后台能力包真实列表，当前按 <code>packageKey</code> 保存；<code>defaultKnowledgeSpaces</code> 已接入后台知识库真实列表，当前按 <code>slug</code> 保存；<code>defaultProviderPolicies</code> 当前先复用后台 Provider 列表做 first pass 选择，当前按 provider <code>id</code> 保存。</p>
-    <p>为了兼容旧数据和暂未纳入选择器的值，界面仍保留“手工补充”输入框，因此这一组现在是“优先用真实选择器，必要时再手工补充”。后续真正还要继续收口的是 <code>defaultProviderPolicies</code>，它目前还不是真正独立的 Provider Policy 域。</p>
+    <p><code>defaultSkillPackages</code> 已接入后台能力包真实列表，当前按 <code>packageKey</code> 保存；<code>defaultKnowledgeSpaces</code> 已接入后台知识库真实列表，当前按 <code>slug</code> 保存；<code>defaultProviderPolicies</code> 当前按 <code>Provider + 策略模板</code> 做 first pass 选择，当前按 <code>策略模板:providerId</code> 保存，例如 <code>PRIMARY:provider_openai</code>。</p>
+    <p>为了兼容旧数据和暂未纳入选择器的值，界面仍保留“手工补充”输入框，因此这一组现在是“优先用真实选择器，必要时再手工补充”。后续真正还要继续收口的是 <code>defaultProviderPolicies</code>，它目前是基于 Provider 列表派生策略模板，还不是真正独立的 Provider Policy 域。</p>
 
     <hr />
 
@@ -177,7 +177,7 @@
       <li>已经可直接选的，是模块类型、模块状态、优先级、可见性。</li>
       <li>当前可以先不填的，是图标、备注、发布目标、存储依赖、第三方平台依赖等。</li>
       <li>默认能力包、默认知识空间已经进入真实选择器阶段。</li>
-      <li>默认 Provider 策略当前为 first pass，先复用 Provider 列表，后续仍应升级为独立策略选择器。</li>
+      <li>默认 Provider 策略当前为 first pass，已升级为 <code>Provider + 策略模板</code> 选择，后续仍应升级为独立策略选择器。</li>
     </ul>
   </main>
 </body>
