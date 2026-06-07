@@ -606,6 +606,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                   <ModuleDraftForm
                     draft={selectedDraft}
                     onChange={setSelectedDraft}
+                    modules={props.modules}
                     skillPackages={props.skillPackages}
                     knowledgeBases={props.knowledgeBases}
                     providers={props.providers}
@@ -660,6 +661,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
             <ModuleDraftForm
               draft={createDraft}
               onChange={setCreateDraft}
+              modules={props.modules}
               skillPackages={props.skillPackages}
               knowledgeBases={props.knowledgeBases}
               providers={props.providers}
@@ -682,6 +684,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
 function ModuleDraftForm(props: {
   draft: ModuleDraft;
   onChange: Dispatch<SetStateAction<ModuleDraft>>;
+  modules: ModuleDefinitionRecord[];
   skillPackages: SkillPackageRecord[];
   knowledgeBases: KnowledgeBaseRecord[];
   providers: ApiProviderRecord[];
@@ -689,6 +692,31 @@ function ModuleDraftForm(props: {
   const selectedPackageKeys = useMemo(() => parseLines(props.draft.defaultSkillPackages), [props.draft.defaultSkillPackages]);
   const selectedKnowledgeSpaceSlugs = useMemo(() => parseLines(props.draft.defaultKnowledgeSpaces), [props.draft.defaultKnowledgeSpaces]);
   const selectedProviderPolicies = useMemo(() => parseLines(props.draft.defaultProviderPolicies), [props.draft.defaultProviderPolicies]);
+  const selectedPermissions = useMemo(() => parseLines(props.draft.requiredPermissions), [props.draft.requiredPermissions]);
+  const selectedCapabilities = useMemo(() => parseLines(props.draft.requiredCapabilities), [props.draft.requiredCapabilities]);
+  const selectedTaskTypes = useMemo(() => parseLines(props.draft.taskTypes), [props.draft.taskTypes]);
+  const selectedMediaTypes = useMemo(() => parseLines(props.draft.mediaTypes), [props.draft.mediaTypes]);
+  const selectedWorkflowTypes = useMemo(() => parseLines(props.draft.workflowTypes), [props.draft.workflowTypes]);
+  const permissionOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredPermissions), "权限", "来自已注册模块的权限项"),
+    [props.modules],
+  );
+  const capabilityOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.requiredCapabilities), "能力域", "来自已注册模块的能力域"),
+    [props.modules],
+  );
+  const taskTypeOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.taskTypes), "任务类型", "来自已注册模块的任务类型"),
+    [props.modules],
+  );
+  const mediaTypeOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.mediaTypes), "媒体类型", "来自已注册模块的媒体类型"),
+    [props.modules],
+  );
+  const workflowTypeOptions = useMemo(
+    () => buildStructuredOptions(props.modules.flatMap((item) => item.workflowTypes), "工作流", "来自已注册模块的工作流类型"),
+    [props.modules],
+  );
   const packageOptions = useMemo(
     () =>
       props.skillPackages
@@ -740,6 +768,25 @@ function ModuleDraftForm(props: {
     });
   }
 
+  function updateStructuredField(
+    field: "requiredPermissions" | "requiredCapabilities" | "taskTypes" | "mediaTypes" | "workflowTypes",
+    value: string,
+    checked: boolean,
+  ) {
+    props.onChange((current) => {
+      const nextValues = new Set(parseLines(current[field]));
+      if (checked) {
+        nextValues.add(value);
+      } else {
+        nextValues.delete(value);
+      }
+      return {
+        ...current,
+        [field]: Array.from(nextValues).join("\n"),
+      };
+    });
+  }
+
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 12 }}>
       <section className="entity-card" style={{ padding: 16 }}>
@@ -751,8 +798,8 @@ function ModuleDraftForm(props: {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
           <div className="entity-card" style={{ padding: 12 }}>
-            <strong>必填手工录入</strong>
-            <p className="personal-meta">模块名称、模块标识、模块类型、模块状态、入口路由、所需权限、依赖能力域、任务类型。</p>
+            <strong>基础必填区</strong>
+            <p className="personal-meta">模块名称、模块标识、入口路由必须明确；权限、能力域、任务类型当前改为结构化优先，仍可手工补充。</p>
           </div>
           <div className="entity-card" style={{ padding: 12 }}>
             <strong>系统直接可选</strong>
@@ -885,19 +932,35 @@ function ModuleDraftForm(props: {
 
       <ModuleFormSection title="权限与依赖" description="这部分决定模块运行时依赖什么能力、权限、Provider、表和第三方平台。">
         <div className="admin-rule-grid">
-          <ModuleFormField label="所需权限" badge="必填" hint="当前需手工填写，每行一个；这是访问控制的主字段。" wide>
-            <textarea
-              value={props.draft.requiredPermissions}
-              placeholder={"例如：\nmodule:wechat:read\nmodule:wechat:write"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredPermissions: event.target.value }))}
-            />
+          <ModuleFormField label="所需权限" badge="结构化" hint="先勾选已有权限项，再按每行一个补充特殊权限；这是访问控制主字段。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用权限项，请先录入一个模块后再沉淀。"
+                options={permissionOptions}
+                selectedValues={selectedPermissions}
+                onToggle={(value, checked) => updateStructuredField("requiredPermissions", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredPermissions}
+                placeholder={"例如：\nmodule:wechat:read\nmodule:wechat:write"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredPermissions: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="依赖能力域" badge="必填" hint="当前需手工填写，每行一个；描述模块依赖的业务能力。" wide>
-            <textarea
-              value={props.draft.requiredCapabilities}
-              placeholder={"例如：\ncontent-domain\npublish-domain"}
-              onChange={(event) => props.onChange((current) => ({ ...current, requiredCapabilities: event.target.value }))}
-            />
+          <ModuleFormField label="依赖能力域" badge="结构化" hint="先选已有能力域，再按每行一个补充新能力；用于描述模块依赖的业务能力。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用能力域，请先沉淀已有模块能力域。"
+                options={capabilityOptions}
+                selectedValues={selectedCapabilities}
+                onToggle={(value, checked) => updateStructuredField("requiredCapabilities", value, checked)}
+              />
+              <textarea
+                value={props.draft.requiredCapabilities}
+                placeholder={"例如：\ncontent-domain\npublish-domain"}
+                onChange={(event) => props.onChange((current) => ({ ...current, requiredCapabilities: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
           <ModuleFormField label="Provider 依赖" badge="推荐" hint="当前可手工填写；如果模块明确依赖文本/图片/视频模型，建议补上。">
             <textarea
@@ -932,26 +995,50 @@ function ModuleDraftForm(props: {
 
       <ModuleFormSection title="任务与流程" description="这里说明模块会产出什么任务、媒体、流程和发布目标。">
         <div className="admin-rule-grid">
-          <ModuleFormField label="任务类型" badge="必填" hint="当前需手工填写，每行一个；用于描述模块会创建的任务。">
-            <textarea
-              value={props.draft.taskTypes}
-              placeholder={"例如：\nwechat_article_generate"}
-              onChange={(event) => props.onChange((current) => ({ ...current, taskTypes: event.target.value }))}
-            />
+          <ModuleFormField label="任务类型" badge="结构化" hint="优先从已有模块任务类型中复用，再按每行一个补充。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用任务类型，请先创建示例模块。"
+                options={taskTypeOptions}
+                selectedValues={selectedTaskTypes}
+                onToggle={(value, checked) => updateStructuredField("taskTypes", value, checked)}
+              />
+              <textarea
+                value={props.draft.taskTypes}
+                placeholder={"例如：\nwechat_article_generate"}
+                onChange={(event) => props.onChange((current) => ({ ...current, taskTypes: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="媒体类型" badge="推荐" hint="如果模块会生成图文、视频、HTML 等内容，建议补上。">
-            <textarea
-              value={props.draft.mediaTypes}
-              placeholder={"例如：\narticle\nhtml"}
-              onChange={(event) => props.onChange((current) => ({ ...current, mediaTypes: event.target.value }))}
-            />
+          <ModuleFormField label="媒体类型" badge="结构化" hint="如果模块会生成图文、视频、HTML 等内容，优先从已有媒体类型中复用。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用媒体类型，可直接在下方补充。"
+                options={mediaTypeOptions}
+                selectedValues={selectedMediaTypes}
+                onToggle={(value, checked) => updateStructuredField("mediaTypes", value, checked)}
+              />
+              <textarea
+                value={props.draft.mediaTypes}
+                placeholder={"例如：\narticle\nhtml"}
+                onChange={(event) => props.onChange((current) => ({ ...current, mediaTypes: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
-          <ModuleFormField label="工作流类型" badge="推荐" hint="当前可手工填写；用于和后续工作流编排对齐。">
-            <textarea
-              value={props.draft.workflowTypes}
-              placeholder={"例如：\ncontent-production"}
-              onChange={(event) => props.onChange((current) => ({ ...current, workflowTypes: event.target.value }))}
-            />
+          <ModuleFormField label="工作流类型" badge="结构化" hint="当前用于和后续工作流编排对齐，优先复用已有工作流类型。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <ModuleMultiSelectCard
+                emptyText="当前还没有可复用工作流类型，可直接在下方补充。"
+                options={workflowTypeOptions}
+                selectedValues={selectedWorkflowTypes}
+                onToggle={(value, checked) => updateStructuredField("workflowTypes", value, checked)}
+              />
+              <textarea
+                value={props.draft.workflowTypes}
+                placeholder={"例如：\ncontent-production"}
+                onChange={(event) => props.onChange((current) => ({ ...current, workflowTypes: event.target.value }))}
+              />
+            </div>
           </ModuleFormField>
           <ModuleFormField label="发布目标" badge="可不填" hint="只有存在明确发布端时再填，如公众号、抖音等。">
             <textarea
@@ -1125,6 +1212,16 @@ function ModuleMultiSelectCard(props: {
       </div>
     </div>
   );
+}
+
+function buildStructuredOptions(values: string[], titlePrefix: string, description: string) {
+  return Array.from(new Set(values.map((item) => String(item || "").trim()).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right, "zh-CN"))
+    .map((item) => ({
+      value: item,
+      title: item,
+      description: `${titlePrefix} · ${description}`,
+    }));
 }
 
 function buildCreateDraft(): ModuleDraft {

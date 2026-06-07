@@ -105,12 +105,12 @@
     <hr />
 
     <h2>5. 权限与依赖区</h2>
-    <h3>5.1 必填手工录入</h3>
+    <h3>5.1 当前已升级为结构化优先</h3>
     <ul>
       <li><code>requiredPermissions</code>：所需权限。</li>
       <li><code>requiredCapabilities</code>：依赖能力域。</li>
     </ul>
-    <p>这是模块注册最关键的运行约束字段。</p>
+    <p>这是模块注册最关键的运行约束字段。当前已支持优先从已注册模块中复用建议项，如果建议项还不够，再按每行一个手工补充。</p>
 
     <h3>5.2 推荐填写</h3>
     <ul>
@@ -127,11 +127,21 @@
     <hr />
 
     <h2>6. 任务与流程区</h2>
+    <h3>6.1 当前已升级为结构化优先</h3>
     <ul>
-      <li><code>taskTypes</code>：必填，任务类型。</li>
-      <li><code>mediaTypes</code>：推荐，媒体类型。</li>
-      <li><code>workflowTypes</code>：推荐，工作流类型。</li>
-      <li><code>publishTargets</code>：当前可不填，发布目标。</li>
+      <li><code>taskTypes</code>：任务类型。</li>
+    </ul>
+
+    <h3>6.2 推荐填写</h3>
+    <ul>
+      <li><code>mediaTypes</code>：媒体类型。</li>
+      <li><code>workflowTypes</code>：工作流类型。</li>
+    </ul>
+    <p><code>taskTypes</code>、<code>mediaTypes</code>、<code>workflowTypes</code> 当前都已支持从已注册模块沉淀项中复用，如果当前建议项里没有需要的值，仍然可以继续按每行一个手工补充。</p>
+
+    <h3>6.3 当前可不填</h3>
+    <ul>
+      <li><code>publishTargets</code>：发布目标。</li>
     </ul>
 
     <hr />
@@ -176,6 +186,7 @@
       <li>真正必须用户自己填的，主要是模块基础信息、权限依赖、任务类型。</li>
       <li>已经可直接选的，是模块类型、模块状态、优先级、可见性。</li>
       <li>当前可以先不填的，是图标、备注、发布目标、存储依赖、第三方平台依赖等。</li>
+      <li>所需权限、依赖能力域、任务类型、媒体类型、工作流类型已进入“结构化建议项 + 手工补充”阶段。</li>
       <li>默认能力包、默认知识空间已经进入真实选择器阶段。</li>
       <li>默认 Provider 策略当前为 first pass，已升级为 <code>Provider + 策略模板</code> 选择，后续仍应升级为独立策略选择器。</li>
     </ul>
