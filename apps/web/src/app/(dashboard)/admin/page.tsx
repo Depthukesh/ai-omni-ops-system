@@ -11,6 +11,7 @@ import {
   adminOrderSeed,
   billingRulesSeed,
   createApiProvider,
+  createSkillConfig,
   createThirdPartyPlatform,
   createKnowledgeBase,
   createKnowledgeBaseFile,
@@ -65,6 +66,7 @@ import {
   type ModuleDefinitionRecord,
   type PointsPackageRule,
   type PromptTemplateRecord,
+  type SkillAssetBindingRecord,
   type SkillConfigRecord,
   type SkillPackageModuleRecord,
   type ThirdPartyPlatformRecord,
@@ -88,6 +90,20 @@ type PromptEditDraft = {
   temperature: string;
   maxTokens: string;
   content: string;
+};
+type CreateSkillDraft = {
+  name: string;
+  slug: string;
+  category: string;
+  status: SkillConfigRecord["status"];
+  provider: string;
+  defaultModel: string;
+  pointsCost: string;
+  description: string;
+  moduleKey: "NONE" | string;
+  packageKey: "NONE" | string;
+  promptScene: string;
+  bindingRemarks: string;
 };
 type KnowledgeBaseEditDraft = {
   status: KnowledgeBaseRecord["status"];
@@ -230,6 +246,7 @@ export default function AdminPage() {
   const [prompts, setPrompts] = useState<PromptTemplateRecord[]>(promptTemplateSeed);
   const [modules, setModules] = useState<ModuleDefinitionRecord[]>(moduleDefinitionSeed);
   const [skillPackageModules, setSkillPackageModules] = useState<SkillPackageModuleRecord[]>(skillPackageModuleSeed);
+  const [skillAssetBindings, setSkillAssetBindings] = useState<SkillAssetBindingRecord[]>(skillAssetBindingSeed);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
@@ -253,11 +270,13 @@ export default function AdminPage() {
   const [newThirdPartyPlatform, setNewThirdPartyPlatform] = useState<CreateThirdPartyPlatformDraft>(
     buildCreateThirdPartyPlatformDraft(),
   );
+  const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
   const [providerSearch, setProviderSearch] = useState("");
   const [providerStatusFilter, setProviderStatusFilter] = useState<ApiProviderRecord["status"] | "ALL">("ALL");
   const [providerTypeFilter, setProviderTypeFilter] = useState<ApiProviderRecord["providerType"] | "ALL">("ALL");
   const [createProviderSecretVisible, setCreateProviderSecretVisible] = useState(false);
   const [revealedProviderKeys, setRevealedProviderKeys] = useState<Record<string, boolean>>({});
+  const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
   const [dataSource, setDataSource] = useState<"api" | "seed">("api");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -268,6 +287,7 @@ export default function AdminPage() {
   const [updatingKnowledgeBaseSyncRunId, setUpdatingKnowledgeBaseSyncRunId] = useState("");
   const [updatingProviderId, setUpdatingProviderId] = useState("");
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
+  const [isCreatingSkill, setIsCreatingSkill] = useState(false);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
@@ -426,6 +446,7 @@ export default function AdminPage() {
       setSkillPackageModules(skillPackageModuleSeed);
       usingSeed = true;
     }
+    setSkillAssetBindings(skillAssetBindingSeed);
 
     if (knowledgeBaseResult.status === "fulfilled") {
       setKnowledgeBases(knowledgeBaseResult.value);
@@ -1783,7 +1804,7 @@ export default function AdminPage() {
           .map((section) => ({
             ...section,
             items: section.items.filter((leaf) => {
-              const bindings = skillAssetBindingSeed.filter(
+              const bindings = skillAssetBindings.filter(
                 (item) =>
                   (leaf.skillSlug && item.skillSlug === leaf.skillSlug) ||
                   (leaf.promptScene && item.promptScene === leaf.promptScene),
@@ -1809,7 +1830,7 @@ export default function AdminPage() {
           }))
           .filter((section) => section.items.length > 0),
       })).filter((primary) => primary.sections.length > 0),
-    [modules, skillKeywordFilter, skillModuleFilter, skillPackageFilter, skillPackageModules],
+    [skillAssetBindings, skillKeywordFilter, skillModuleFilter, skillPackageFilter, skillPackageModules],
   );
   const filteredSkillLeafCount = useMemo(
     () => filteredSkillTree.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0),
@@ -1828,7 +1849,7 @@ export default function AdminPage() {
   const activePromptConfig = activeSkillLeaf?.promptScene ? prompts.find((item) => item.scene === activeSkillLeaf.promptScene) : undefined;
   const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
   const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
-  const activeSkillBindings = skillAssetBindingSeed.filter(
+  const activeSkillBindings = skillAssetBindings.filter(
     (item) =>
       (activeSkillConfig?.slug && item.skillSlug === activeSkillConfig.slug) ||
       (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
@@ -1922,6 +1943,19 @@ export default function AdminPage() {
   }, [activeSkillLeafId, activeSkillPrimaryId, activeSkillSectionId, filteredSkillTree]);
 
   useEffect(() => {
+    if (!isCreateSkillModalOpen) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isCreatingSkill) {
+        handleCloseCreateSkillModal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreateSkillModalOpen, isCreatingSkill]);
+
+  useEffect(() => {
     if (!filteredThirdPartyPlatforms.length) {
       return;
     }
@@ -1998,6 +2032,82 @@ export default function AdminPage() {
       ...current,
       [key]: !current[key],
     }));
+  }
+
+  function handleOpenCreateSkillModal() {
+    setNewSkill(buildCreateSkillDraft());
+    setIsCreateSkillModalOpen(true);
+  }
+
+  function handleCloseCreateSkillModal() {
+    if (isCreatingSkill) {
+      return;
+    }
+    setIsCreateSkillModalOpen(false);
+    setNewSkill(buildCreateSkillDraft());
+  }
+
+  async function handleCreateSkill() {
+    setIsCreatingSkill(true);
+    setNotice("");
+    setErrorMessage("");
+    const payload = {
+      name: newSkill.name.trim(),
+      slug: newSkill.slug.trim().toLowerCase(),
+      category: newSkill.category.trim(),
+      status: newSkill.status,
+      provider: newSkill.provider.trim(),
+      defaultModel: newSkill.defaultModel.trim(),
+      pointsCost: Number(newSkill.pointsCost || 0),
+      description: newSkill.description.trim(),
+    };
+
+    try {
+      const created = await createSkillConfig(payload);
+      setSkills((current) => [created, ...current]);
+      setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
+      upsertSkillAssetBinding(created);
+      setNotice(`技能已创建：${created.name}`);
+      setIsCreateSkillModalOpen(false);
+      setNewSkill(buildCreateSkillDraft());
+      return;
+    } catch (error) {
+      if (dataSource === "seed") {
+        const created: SkillConfigRecord = {
+          id: `skill_local_${Date.now()}`,
+          ...payload,
+          updatedAt: new Date().toISOString(),
+        };
+        setSkills((current) => [created, ...current]);
+        setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
+        upsertSkillAssetBinding(created);
+        setNotice(`演示技能已创建：${created.name}`);
+        setIsCreateSkillModalOpen(false);
+        setNewSkill(buildCreateSkillDraft());
+        return;
+      }
+      const message = error instanceof Error ? error.message : "创建技能失败";
+      setErrorMessage(`创建技能失败：${message}`);
+    } finally {
+      setIsCreatingSkill(false);
+    }
+  }
+
+  function upsertSkillAssetBinding(created: SkillConfigRecord) {
+    const packageMeta = skillPackageFilterOptions.find((item) => item.value === newSkill.packageKey);
+    const nextBinding: SkillAssetBindingRecord = {
+      id: `sab_${created.slug}`,
+      skillSlug: created.slug,
+      promptScene: newSkill.promptScene.trim() || undefined,
+      moduleKeys: newSkill.moduleKey !== "NONE" ? [newSkill.moduleKey] : [],
+      packageKeys: newSkill.packageKey !== "NONE" ? [newSkill.packageKey] : [],
+      packageNames: newSkill.packageKey !== "NONE" ? [packageMeta?.label || newSkill.packageKey] : [],
+      remarks: newSkill.bindingRemarks.trim() || undefined,
+    };
+    setSkillAssetBindings((current) => [
+      nextBinding,
+      ...current.filter((item) => item.skillSlug !== created.slug),
+    ]);
   }
 
   if (isCheckingAccess) {
@@ -2300,6 +2410,11 @@ export default function AdminPage() {
                   {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
                 </span>
               </div>
+              <div className="personal-actions" style={{ marginBottom: 16 }}>
+                <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
+                  创建技能
+                </button>
+              </div>
               <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
                 <label>
                   <span>模块筛选</span>
@@ -2505,6 +2620,48 @@ export default function AdminPage() {
                 <div className="admin-skill-empty">请先从右侧选择一个三级技能项。</div>
               )}
             </section>
+            {isCreateSkillModalOpen ? (
+              <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateSkillModal}>
+                <div
+                  className="entity-card admin-user-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="创建技能"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="admin-user-modal-topbar">
+                    <div>
+                      <span className="archive-pill status-ready">技能创建</span>
+                      <strong>创建技能并登记归属</strong>
+                      <p className="personal-meta">先创建技能本体，再同步记录所属模块与能力包，后续继续补正式关系真源表。</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>
+                      关闭
+                    </button>
+                  </div>
+                  <div className="admin-skill-simple-grid">
+                    <label className="admin-skill-field"><span>技能名称</span><input value={newSkill.name} onChange={(event) => setNewSkill((current) => ({ ...current, name: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>技能标识</span><input value={newSkill.slug} onChange={(event) => setNewSkill((current) => ({ ...current, slug: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>分类</span><input value={newSkill.category} onChange={(event) => setNewSkill((current) => ({ ...current, category: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>状态</span><select value={newSkill.status} onChange={(event) => setNewSkill((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
+                    <label className="admin-skill-field"><span>供应商</span><input value={newSkill.provider} onChange={(event) => setNewSkill((current) => ({ ...current, provider: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>默认模型</span><input value={newSkill.defaultModel} onChange={(event) => setNewSkill((current) => ({ ...current, defaultModel: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>点数成本</span><input type="number" value={newSkill.pointsCost} onChange={(event) => setNewSkill((current) => ({ ...current, pointsCost: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>所属模块</span><select value={newSkill.moduleKey} onChange={(event) => setNewSkill((current) => ({ ...current, moduleKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillModuleFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>所属能力包</span><select value={newSkill.packageKey} onChange={(event) => setNewSkill((current) => ({ ...current, packageKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillPackageFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>提示词场景</span><input value={newSkill.promptScene} onChange={(event) => setNewSkill((current) => ({ ...current, promptScene: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>技能说明</span><textarea value={newSkill.description} onChange={(event) => setNewSkill((current) => ({ ...current, description: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>归属说明</span><textarea value={newSkill.bindingRemarks} onChange={(event) => setNewSkill((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
+                  </div>
+                  <div className="personal-actions">
+                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
+                    <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
+                      {isCreatingSkill ? "创建中..." : "确认创建"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : activeTab === "modules" ? (
           <ModuleDefinitionsPanel
@@ -3672,6 +3829,23 @@ function buildCreateApiProviderDraft(): CreateApiProviderDraft {
     customHeadersJson: "{}",
     extraParamsJson: "{}",
     remark: "",
+  };
+}
+
+function buildCreateSkillDraft(): CreateSkillDraft {
+  return {
+    name: "",
+    slug: "",
+    category: "内容生产",
+    status: "DRAFT",
+    provider: "",
+    defaultModel: "",
+    pointsCost: "120",
+    description: "",
+    moduleKey: "NONE",
+    packageKey: "NONE",
+    promptScene: "",
+    bindingRemarks: "",
   };
 }
 

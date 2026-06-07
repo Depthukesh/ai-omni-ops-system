@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
+import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import {
   PROMPT_SOURCE_CANDIDATES,
   readPromptSourceBundle,
@@ -38,6 +38,17 @@ type PromptTemplateRow = {
 export type UpdateSkillConfigPayload = {
   status?: SkillConfigRecord["status"];
   defaultModel?: string;
+  pointsCost?: number;
+  description?: string;
+};
+
+export type CreateSkillConfigPayload = {
+  name: string;
+  slug: string;
+  category: string;
+  status?: SkillConfigRecord["status"];
+  provider: string;
+  defaultModel: string;
   pointsCost?: number;
   description?: string;
 };
@@ -705,6 +716,83 @@ export class SkillsPromptsService {
     return this.listSkillRows();
   }
 
+  async createSkill(payload: CreateSkillConfigPayload) {
+    const name = String(payload.name || "").trim();
+    const slug = this.normalizeSkillSlug(payload.slug);
+    const category = String(payload.category || "").trim();
+    const provider = String(payload.provider || "").trim();
+    const defaultModel = String(payload.defaultModel || "").trim();
+
+    if (!name) {
+      throw new BadRequestException("技能名称不能为空");
+    }
+    if (!category) {
+      throw new BadRequestException("技能分类不能为空");
+    }
+    if (!provider) {
+      throw new BadRequestException("供应商不能为空");
+    }
+    if (!defaultModel) {
+      throw new BadRequestException("默认模型不能为空");
+    }
+
+    const nextSkill: SkillConfigRecord = {
+      id: createId("skill"),
+      name,
+      slug,
+      category,
+      status: payload.status || "DRAFT",
+      provider,
+      defaultModel,
+      pointsCost: Math.max(0, Number(payload.pointsCost || 0)),
+      description: String(payload.description || "").trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureRegistryTablesReady();
+      const duplicated = await this.findSkillBySlugFromDatabase(slug);
+      if (duplicated) {
+        throw new BadRequestException("技能标识已存在");
+      }
+      const createdRows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+        INSERT INTO "SkillConfig" (
+          "id",
+          "name",
+          "slug",
+          "category",
+          "status",
+          "provider",
+          "defaultModel",
+          "pointsCost",
+          "description",
+          "updatedAt"
+        )
+        VALUES (
+          ${nextSkill.id},
+          ${nextSkill.name},
+          ${nextSkill.slug},
+          ${nextSkill.category},
+          ${nextSkill.status},
+          ${nextSkill.provider},
+          ${nextSkill.defaultModel},
+          ${nextSkill.pointsCost},
+          ${nextSkill.description},
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+      `;
+      return this.normalizeSkillConfigRow(createdRows[0] ?? nextSkill);
+    }
+
+    const duplicated = database.skillConfigs.find((item) => item.slug === slug);
+    if (duplicated) {
+      throw new BadRequestException("技能标识已存在");
+    }
+    database.skillConfigs.unshift(nextSkill);
+    return { ...nextSkill };
+  }
+
   async updateSkill(id: string, payload: UpdateSkillConfigPayload) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
@@ -1229,5 +1317,18 @@ export class SkillsPromptsService {
       return VOLCENGINE_VIDEO_NOTE_DEFAULT_MODEL;
     }
     return value;
+  }
+
+  private normalizeSkillSlug(value: unknown) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      throw new BadRequestException("技能标识不能为空");
+    }
+    if (!/^[a-z0-9-]+$/.test(normalized)) {
+      throw new BadRequestException("技能标识只能使用英文小写、数字和短横线");
+    }
+    return normalized;
   }
 }

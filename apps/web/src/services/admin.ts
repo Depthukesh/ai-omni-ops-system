@@ -1764,6 +1764,12 @@ export async function getSkillConfigs() {
   return request<SkillConfigRecord[]>("/admin/skills");
 }
 
+export async function createSkillConfig(
+  payload: Pick<SkillConfigRecord, "name" | "slug" | "category" | "status" | "provider" | "defaultModel" | "pointsCost" | "description">,
+) {
+  return jsonRequest<SkillConfigRecord>("/admin/skills", "POST", payload);
+}
+
 export async function updateSkillConfig(
   skillId: string,
   payload: Partial<Pick<SkillConfigRecord, "status" | "defaultModel" | "pointsCost" | "description">>,
