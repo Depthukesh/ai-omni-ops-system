@@ -60,6 +60,8 @@ type ModuleDraft = {
   isAdminVisible: boolean;
 };
 
+type ModuleCenterSectionKey = "registry" | "packages" | "moduleRelations" | "skillRelations";
+
 const DEFAULT_FILTERS: ModuleFilters = {
   keyword: "",
   moduleType: "ALL",
@@ -83,6 +85,7 @@ const MODULE_STATUS_OPTIONS: ModuleDefinitionRecord["moduleStatus"][] = [
 
 export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   const [filters, setFilters] = useState<ModuleFilters>(DEFAULT_FILTERS);
+  const [activeSection, setActiveSection] = useState<ModuleCenterSectionKey>("registry");
   const [selectedModuleId, setSelectedModuleId] = useState("");
   const [selectedDraft, setSelectedDraft] = useState<ModuleDraft>(buildCreateDraft());
   const [createDraft, setCreateDraft] = useState<ModuleDraft>(buildCreateDraft());
@@ -99,6 +102,36 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   const selectedModule = useMemo(
     () => visibleModules.find((item) => item.id === selectedModuleId) || props.modules.find((item) => item.id === selectedModuleId) || null,
     [props.modules, selectedModuleId, visibleModules],
+  );
+
+  const centerSections = useMemo(
+    () => [
+      {
+        key: "registry" as const,
+        label: "模块注册",
+        description: "维护模块定义、入口路由、依赖能力与默认接线。",
+        badge: String(props.modules.length),
+      },
+      {
+        key: "packages" as const,
+        label: "能力包注册",
+        description: "维护 SkillPackage 主对象与默认资产摘要。",
+        badge: "SP",
+      },
+      {
+        key: "moduleRelations" as const,
+        label: "模块绑定",
+        description: "维护模块与能力包的默认挂载关系。",
+        badge: "MP",
+      },
+      {
+        key: "skillRelations" as const,
+        label: "技能绑定",
+        description: "维护能力包与技能的归属与默认关系。",
+        badge: String(props.skills.length),
+      },
+    ],
+    [props.modules.length, props.skills.length],
   );
 
   useEffect(() => {
@@ -314,214 +347,249 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   }
 
   return (
-    <div className="admin-user-management">
-      <section className="entity-card admin-user-filter-card">
-        <div className="admin-user-filter-head">
-          <div>
-            <span className="archive-pill status-ready">模块</span>
-            <h3>模块注册中心</h3>
-            <p>维护模块定义、路由入口、能力依赖、默认能力包摘要字段，为后续模块化接线提供注册底座。</p>
-          </div>
-          <div className="admin-user-filter-summary">
-            <div>
-              <span>当前结果</span>
-              <strong>{visibleModules.length}</strong>
-            </div>
-            <div>
-              <span>已启用</span>
-              <strong>{visibleModules.filter((item) => item.moduleStatus === "ACTIVE").length}</strong>
-            </div>
-            <div>
-              <span>工作台模块</span>
-              <strong>{visibleModules.filter((item) => item.moduleType === "WORKBENCH").length}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="admin-user-filter-grid">
-          <label>
-            <span>关键词</span>
-            <input
-              value={filters.keyword}
-              placeholder="模块名称 / moduleKey / 描述"
-              onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-            />
-          </label>
-          <label>
-            <span>模块类型</span>
-            <select
-              value={filters.moduleType}
-              onChange={(event) => setFilters((current) => ({ ...current, moduleType: event.target.value as ModuleFilters["moduleType"] }))}
+    <div className="strategy-layout" style={{ alignItems: "flex-start" }}>
+      <aside className="strategy-level-panel strategy-level-panel--directory">
+        <div className="strategy-level-button-list">
+          {centerSections.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              className={`strategy-level-button${activeSection === section.key ? " is-active" : ""}`}
+              onClick={() => setActiveSection(section.key)}
             >
-              <option value="ALL">全部</option>
-              {MODULE_TYPE_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>模块状态</span>
-            <select
-              value={filters.moduleStatus}
-              onChange={(event) => setFilters((current) => ({ ...current, moduleStatus: event.target.value as ModuleFilters["moduleStatus"] }))}
-            >
-              <option value="ALL">全部</option>
-              {MODULE_STATUS_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
+              <strong>{section.label}</strong>
+              <span>{section.description}</span>
+              <small>{section.badge}</small>
+            </button>
+          ))}
         </div>
+      </aside>
 
-        <div className="admin-user-filter-actions">
-          <button type="button" className="primary-button" onClick={() => void handleApplyFilters()} disabled={isApplyingFilters}>
-            {isApplyingFilters ? "筛选中..." : "筛选"}
-          </button>
-          <button type="button" className="secondary-button" onClick={() => void handleResetFilters()} disabled={isApplyingFilters}>
-            重置
-          </button>
-        </div>
-      </section>
+      <div className="strategy-content-panel xiaohongshu-content-panel">
+        {activeSection === "registry" ? (
+          <div className="admin-user-management">
+            <section className="entity-card admin-user-filter-card">
+              <div className="admin-user-filter-head">
+                <div>
+                  <span className="archive-pill status-ready">模块</span>
+                  <h3>模块注册中心</h3>
+                  <p>维护模块定义、路由入口、能力依赖、默认能力包摘要字段，为后续模块化接线提供注册底座。</p>
+                </div>
+                <div className="admin-user-filter-summary">
+                  <div>
+                    <span>当前结果</span>
+                    <strong>{visibleModules.length}</strong>
+                  </div>
+                  <div>
+                    <span>已启用</span>
+                    <strong>{visibleModules.filter((item) => item.moduleStatus === "ACTIVE").length}</strong>
+                  </div>
+                  <div>
+                    <span>工作台模块</span>
+                    <strong>{visibleModules.filter((item) => item.moduleType === "WORKBENCH").length}</strong>
+                  </div>
+                </div>
+              </div>
 
-      <section className="entity-card admin-rule-card">
-        <div className="entity-card-head">
-          <div>
-            <strong>新建模块</strong>
-            <p className="personal-meta">点击按钮后弹窗录入模块资料，避免后台页面首屏直接展开整块创建表单。</p>
-          </div>
-          <button type="button" className="primary-button" onClick={handleOpenCreateModal}>
-            创建模块
-          </button>
-        </div>
-        <div className="personal-meta" style={{ paddingTop: 12 }}>
-          先录入模块定义，再逐步接能力包关系、知识空间和页面入口。
-        </div>
-      </section>
+              <div className="admin-user-filter-grid">
+                <label>
+                  <span>关键词</span>
+                  <input
+                    value={filters.keyword}
+                    placeholder="模块名称 / moduleKey / 描述"
+                    onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>模块类型</span>
+                  <select
+                    value={filters.moduleType}
+                    onChange={(event) => setFilters((current) => ({ ...current, moduleType: event.target.value as ModuleFilters["moduleType"] }))}
+                  >
+                    <option value="ALL">全部</option>
+                    {MODULE_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>模块状态</span>
+                  <select
+                    value={filters.moduleStatus}
+                    onChange={(event) => setFilters((current) => ({ ...current, moduleStatus: event.target.value as ModuleFilters["moduleStatus"] }))}
+                  >
+                    <option value="ALL">全部</option>
+                    {MODULE_STATUS_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
-      <section className="admin-user-layout">
-        <article className="entity-card admin-user-list-card">
-          <div className="entity-card-head">
-            <div>
-              <strong>模块列表</strong>
-              <p className="personal-meta">支持选择模块进入编辑，也可以直接归档或删除。</p>
-            </div>
-          </div>
+              <div className="admin-user-filter-actions">
+                <button type="button" className="primary-button" onClick={() => void handleApplyFilters()} disabled={isApplyingFilters}>
+                  {isApplyingFilters ? "筛选中..." : "筛选"}
+                </button>
+                <button type="button" className="secondary-button" onClick={() => void handleResetFilters()} disabled={isApplyingFilters}>
+                  重置
+                </button>
+              </div>
+            </section>
 
-          <div className="admin-user-table-wrapper">
-            <table className="admin-user-table">
-              <thead>
-                <tr>
-                  <th>模块</th>
-                  <th>类型</th>
-                  <th>状态</th>
-                  <th>入口路由</th>
-                  <th>优先级</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleModules.length ? (
-                  visibleModules.map((item) => (
-                    <tr key={item.id} className={selectedModuleId === item.id ? "is-active" : ""}>
-                      <td>
-                        <button type="button" className="admin-user-row-button" onClick={() => setSelectedModuleId(item.id)}>
-                          <span className="admin-user-row-title">{item.moduleName}</span>
-                          <span className="admin-user-row-meta">
-                            {item.moduleKey} · {item.description || "暂无描述"}
-                          </span>
-                        </button>
-                      </td>
-                      <td>{item.moduleType}</td>
-                      <td>
-                        <span
-                          className={`archive-pill ${
-                            item.moduleStatus === "ACTIVE"
-                              ? "status-ready"
-                              : item.moduleStatus === "PLANNING"
-                                ? "status-in_progress"
-                                : "status-paused"
-                          }`}
-                        >
-                          {item.moduleStatus}
-                        </span>
-                      </td>
-                      <td>{item.entryRoute}</td>
-                      <td>{item.phasePriority || "-"}</td>
-                      <td>{formatDateTime(item.updatedAt)}</td>
-                      <td>
-                        <div className="personal-actions" style={{ justifyContent: "flex-start" }}>
-                          <button type="button" className="secondary-button" onClick={() => setSelectedModuleId(item.id)}>
-                            编辑
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => void handleArchiveModule(item.id)}
-                            disabled={busyModuleId === item.id}
-                          >
-                            归档
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() => void handleDeleteModule(item.id)}
-                            disabled={busyModuleId === item.id}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+            <section className="entity-card admin-rule-card">
+              <div className="entity-card-head">
+                <div>
+                  <strong>新建模块</strong>
+                  <p className="personal-meta">点击按钮后弹窗录入模块资料，避免后台页面首屏直接展开整块创建表单。</p>
+                </div>
+                <button type="button" className="primary-button" onClick={handleOpenCreateModal}>
+                  创建模块
+                </button>
+              </div>
+              <div className="personal-meta" style={{ paddingTop: 12 }}>
+                先录入模块定义，再逐步接能力包关系、知识空间和页面入口。
+              </div>
+            </section>
+
+            <section className="admin-user-layout">
+              <article className="entity-card admin-user-list-card">
+                <div className="entity-card-head">
+                  <div>
+                    <strong>模块列表</strong>
+                    <p className="personal-meta">支持选择模块进入编辑，也可以直接归档或删除。</p>
+                  </div>
+                </div>
+
+                <div className="admin-user-table-wrapper">
+                  <table className="admin-user-table">
+                    <thead>
+                      <tr>
+                        <th>模块</th>
+                        <th>类型</th>
+                        <th>状态</th>
+                        <th>入口路由</th>
+                        <th>优先级</th>
+                        <th>更新时间</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleModules.length ? (
+                        visibleModules.map((item) => (
+                          <tr key={item.id} className={selectedModuleId === item.id ? "is-active" : ""}>
+                            <td>
+                              <button type="button" className="admin-user-row-button" onClick={() => setSelectedModuleId(item.id)}>
+                                <span className="admin-user-row-title">{item.moduleName}</span>
+                                <span className="admin-user-row-meta">
+                                  {item.moduleKey} · {item.description || "暂无描述"}
+                                </span>
+                              </button>
+                            </td>
+                            <td>{item.moduleType}</td>
+                            <td>
+                              <span
+                                className={`archive-pill ${
+                                  item.moduleStatus === "ACTIVE"
+                                    ? "status-ready"
+                                    : item.moduleStatus === "PLANNING"
+                                      ? "status-in_progress"
+                                      : "status-paused"
+                                }`}
+                              >
+                                {item.moduleStatus}
+                              </span>
+                            </td>
+                            <td>{item.entryRoute}</td>
+                            <td>{item.phasePriority || "-"}</td>
+                            <td>{formatDateTime(item.updatedAt)}</td>
+                            <td>
+                              <div className="personal-actions" style={{ justifyContent: "flex-start" }}>
+                                <button type="button" className="secondary-button" onClick={() => setSelectedModuleId(item.id)}>
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => void handleArchiveModule(item.id)}
+                                  disabled={busyModuleId === item.id}
+                                >
+                                  归档
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-button"
+                                  onClick={() => void handleDeleteModule(item.id)}
+                                  disabled={busyModuleId === item.id}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                            当前没有符合条件的模块定义。
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article className="entity-card admin-user-list-card">
+                <div className="entity-card-head">
+                  <div>
+                    <strong>模块编辑</strong>
+                    <p className="personal-meta">
+                      {selectedModule ? `当前编辑：${selectedModule.moduleName}` : "从左侧模块列表中选择一个模块后再编辑。"}
+                    </p>
+                  </div>
+                  <div className="personal-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => setSelectedDraft(selectedModule ? buildDraftFromRecord(selectedModule) : buildCreateDraft())}
+                      disabled={!selectedModule || isSaving}
+                    >
+                      重置
+                    </button>
+                    <button type="button" className="primary-button" onClick={() => void handleSaveModule()} disabled={!selectedModule || isSaving}>
+                      {isSaving ? "保存中..." : "保存模块"}
+                    </button>
+                  </div>
+                </div>
+
+                {selectedModule ? (
+                  <ModuleDraftForm draft={selectedDraft} onChange={setSelectedDraft} />
                 ) : (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
-                      当前没有符合条件的模块定义。
-                    </td>
-                  </tr>
+                  <div className="personal-meta" style={{ paddingTop: 12 }}>
+                    请选择一个模块进行编辑。
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </article>
+            </section>
           </div>
-        </article>
+        ) : null}
 
-        <article className="entity-card admin-user-list-card">
-          <div className="entity-card-head">
-            <div>
-              <strong>模块编辑</strong>
-              <p className="personal-meta">
-                {selectedModule ? `当前编辑：${selectedModule.moduleName}` : "从左侧模块列表中选择一个模块后再编辑。"}
-              </p>
-            </div>
-            <div className="personal-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setSelectedDraft(selectedModule ? buildDraftFromRecord(selectedModule) : buildCreateDraft())}
-                disabled={!selectedModule || isSaving}
-              >
-                重置
-              </button>
-              <button type="button" className="primary-button" onClick={() => void handleSaveModule()} disabled={!selectedModule || isSaving}>
-                {isSaving ? "保存中..." : "保存模块"}
-              </button>
-            </div>
-          </div>
+        {activeSection === "packages" ? (
+          <SkillPackagesPanel modules={props.modules} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+        ) : null}
 
-          {selectedModule ? (
-            <ModuleDraftForm draft={selectedDraft} onChange={setSelectedDraft} />
-          ) : (
-            <div className="personal-meta" style={{ paddingTop: 12 }}>
-              请选择一个模块进行编辑。
-            </div>
-          )}
-        </article>
-      </section>
+        {activeSection === "moduleRelations" ? (
+          <SkillPackageModulesPanel modules={props.modules} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+        ) : null}
+
+        {activeSection === "skillRelations" ? (
+          <SkillPackageSkillsPanel skills={props.skills} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+        ) : null}
+      </div>
 
       {isCreateModalOpen ? (
         <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateModal}>
@@ -554,25 +622,6 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
           </div>
         </div>
       ) : null}
-
-      <SkillPackagesPanel
-        modules={props.modules}
-        dataSource={props.dataSource}
-        onNotice={props.onNotice}
-        onError={props.onError}
-      />
-      <SkillPackageModulesPanel
-        modules={props.modules}
-        dataSource={props.dataSource}
-        onNotice={props.onNotice}
-        onError={props.onError}
-      />
-      <SkillPackageSkillsPanel
-        skills={props.skills}
-        dataSource={props.dataSource}
-        onNotice={props.onNotice}
-        onError={props.onError}
-      />
     </div>
   );
 }
