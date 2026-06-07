@@ -40,6 +40,23 @@ export type InstallSkillPayload = {
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
   initialPrompt?: PromptTemplateRecord;
+  references: Array<{
+    referenceKey: string;
+    title: string;
+    sourceType: "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes?: string[];
+    sortOrder?: number;
+  }>;
+  scripts: Array<{
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    usageNote?: string;
+    sortOrder?: number;
+  }>;
   sourceType: InstallSkillPayload["sourceType"];
   sourceLabel: string;
   installRootPath: string;
@@ -133,17 +150,21 @@ export class SkillInstallerService {
       defaultModel,
       detectedSkillName,
     });
+    const references = buildReferenceManifest(relativeFiles, detectedSkillSlug);
+    const scripts = buildScriptManifest(relativeFiles, detectedSkillSlug);
 
     return {
       skill,
       initialPrompt,
+      references,
+      scripts,
       sourceType: payload.sourceType,
       sourceLabel: loaded.sourceLabel,
       installRootPath,
       detectedSkillSlug,
       detectedSkillName,
-      referenceFileCount: relativeFiles.filter((item) => normalizeZipPath(item.relativePath).startsWith("references/")).length,
-      scriptFileCount: relativeFiles.filter((item) => normalizeZipPath(item.relativePath).startsWith("scripts/")).length,
+      referenceFileCount: references.length,
+      scriptFileCount: scripts.length,
     };
   }
 
@@ -342,6 +363,66 @@ function buildInstalledSkillPromptContent(content: string, skillName: string) {
     "=== 已安装技能说明 ===",
     workflowBlock.trim(),
   ].join("\n");
+}
+
+function buildReferenceManifest(
+  files: Array<{ relativePath: string; buffer: Buffer }>,
+  detectedSkillSlug: string,
+) {
+  return files
+    .filter((item) => normalizeZipPath(item.relativePath).startsWith("references/"))
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    .map((item, index) => {
+      const normalized = normalizeZipPath(item.relativePath);
+      const ext = normalized.split(".").pop()?.toLowerCase() || "";
+      const fileName = basenamePosix(normalized);
+      const titleBase = fileName.replace(/\.[^.]+$/, "");
+      return {
+        referenceKey: slugify(`${detectedSkillSlug}-${titleBase}`),
+        title: humanizeSkillName(titleBase),
+        sourceType: ext === "md" ? "MARKDOWN" as const : ["doc", "docx", "pdf"].includes(ext) ? "DOC" as const : "FILE" as const,
+        sourceUri: `installed-skill://${detectedSkillSlug}/${normalized}`,
+        usageNote: `技能安装自动导入，源文件：${normalized}`,
+        applicableScopes: ["SKILL_INSTALL", detectedSkillSlug],
+        sortOrder: (index + 1) * 10,
+      };
+    });
+}
+
+function buildScriptManifest(
+  files: Array<{ relativePath: string; buffer: Buffer }>,
+  detectedSkillSlug: string,
+) {
+  return files
+    .filter((item) => normalizeZipPath(item.relativePath).startsWith("scripts/"))
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    .map((item, index) => {
+      const normalized = normalizeZipPath(item.relativePath);
+      const fileName = basenamePosix(normalized);
+      const scriptBase = fileName.replace(/\.[^.]+$/, "");
+      return {
+        scriptKey: slugify(`${detectedSkillSlug}-${scriptBase}`),
+        scriptName: humanizeSkillName(scriptBase),
+        runtime: detectScriptRuntime(normalized),
+        entry: normalized,
+        usageNote: `技能安装自动导入，源文件：${normalized}`,
+        sortOrder: (index + 1) * 10,
+      };
+    });
+}
+
+function detectScriptRuntime(pathValue: string): "TS" | "JS" | "PYTHON" | "SHELL" {
+  const ext = normalizeZipPath(pathValue).split(".").pop()?.toLowerCase() || "";
+  if (ext === "ts") {
+    return "TS";
+  }
+  if (ext === "py") {
+    return "PYTHON";
+  }
+  if (ext === "sh" || ext === "bash") {
+    return "SHELL";
+  }
+  return "JS";
 }
 
 function humanizeSkillName(value: string) {

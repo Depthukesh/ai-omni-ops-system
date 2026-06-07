@@ -2482,6 +2482,23 @@ export async function createSkillConfig(
 export type InstallSkillResult = {
   skill: SkillConfigRecord;
   initialPrompt?: PromptTemplateRecord;
+  references: Array<{
+    referenceKey: string;
+    title: string;
+    sourceType: "FILE" | "DOC" | "MARKDOWN";
+    sourceUri?: string;
+    usageNote?: string;
+    applicableScopes?: string[];
+    sortOrder?: number;
+  }>;
+  scripts: Array<{
+    scriptKey: string;
+    scriptName: string;
+    runtime: "TS" | "JS" | "PYTHON" | "SHELL";
+    entry?: string;
+    usageNote?: string;
+    sortOrder?: number;
+  }>;
   sourceType: "GITHUB" | "ZIP_UPLOAD";
   sourceLabel: string;
   installRootPath: string;

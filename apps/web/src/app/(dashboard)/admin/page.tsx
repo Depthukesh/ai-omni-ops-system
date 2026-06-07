@@ -23,6 +23,8 @@ import {
   deleteKnowledgeBase,
   deleteKnowledgeBaseFile,
   completeKnowledgeBaseSyncRun,
+  createReferenceAsset,
+  createScriptAsset,
   getAdminOrders,
   getApiProviders,
   getKnowledgeBases,
@@ -2414,8 +2416,9 @@ export default function AdminPage() {
         packageKey: installSkillDraft.packageKey,
         bindingRemarks: installSkillDraft.bindingRemarks,
       });
+      const importedAssets = await importInstalledAssetsToPackage(installSkillDraft.packageKey, result);
       setNotice(
-        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}${result.initialPrompt ? "，已生成初始提示词" : ""}）`,
+        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}${result.initialPrompt ? "，已生成初始提示词" : ""}${installSkillDraft.packageKey !== "NONE" ? `，已导入能力包资产 ${importedAssets.importedReferenceCount}/${result.referenceFileCount} References，${importedAssets.importedScriptCount}/${result.scriptFileCount} Scripts` : ""}）`,
       );
       setActiveAssetsWorkspaceTab("skillZone");
       setIsInstallSkillModalOpen(false);
@@ -2492,6 +2495,60 @@ export default function AdminPage() {
         remarks: resolvedBinding.bindingRemarks.trim() || undefined,
       });
     }
+  }
+
+  async function importInstalledAssetsToPackage(
+    packageKey: string,
+    result: Awaited<ReturnType<typeof installSkillConfig>>,
+  ) {
+    if (packageKey === "NONE") {
+      return {
+        importedReferenceCount: 0,
+        importedScriptCount: 0,
+      };
+    }
+    const packageMeta = skillPackageFilterOptions.find((item) => item.value === packageKey);
+    const packageId = packageMeta?.packageId || buildPackageIdFromKey(packageKey);
+    let importedReferenceCount = 0;
+    let importedScriptCount = 0;
+
+    for (const reference of result.references) {
+      try {
+        await createReferenceAsset(packageId, {
+          referenceKey: reference.referenceKey,
+          title: reference.title,
+          sourceType: reference.sourceType,
+          sourceUri: reference.sourceUri,
+          usageNote: reference.usageNote,
+          applicableScopes: reference.applicableScopes,
+          sortOrder: reference.sortOrder,
+        });
+        importedReferenceCount += 1;
+      } catch {
+        // Duplicate keys or package state issues should not break the whole install flow.
+      }
+    }
+
+    for (const script of result.scripts) {
+      try {
+        await createScriptAsset(packageId, {
+          scriptKey: script.scriptKey,
+          scriptName: script.scriptName,
+          runtime: script.runtime,
+          entry: script.entry,
+          usageNote: script.usageNote,
+          sortOrder: script.sortOrder,
+        });
+        importedScriptCount += 1;
+      } catch {
+        // Duplicate keys or package state issues should not break the whole install flow.
+      }
+    }
+
+    return {
+      importedReferenceCount,
+      importedScriptCount,
+    };
   }
 
   async function handleCreatePrompt() {

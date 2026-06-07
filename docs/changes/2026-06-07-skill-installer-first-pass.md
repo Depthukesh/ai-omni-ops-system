@@ -34,6 +34,9 @@
 - 当前已继续扩展：
   - 从 `SKILL.md` 自动生成一个初始 `PromptTemplate`
   - 自动建立该技能与初始 Prompt 的主绑定
+- 当前已继续扩展：
+  - 安装接口返回 `references/` 与 `scripts/` 清单
+  - 如果安装时已选择所属能力包，前端会自动把这些清单导入到该能力包资产区
 - 安装成功后，前端继续复用现有逻辑自动挂接：
   - 所属模块
   - 所属能力包
@@ -52,8 +55,8 @@
 
 - 本次只做“安装并创建技能” first pass
 - 当前已经支持自动生成 1 个安装导入 Prompt，但还没有自动解析导入这些技能级对象：
-  - References
-  - Scripts
+  - 技能级 References 真源对象
+  - 技能级 Scripts 真源对象
   - Knowledge
   - Input / Output Schema
 - GitHub 当前仅支持公开仓库
