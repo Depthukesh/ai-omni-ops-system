@@ -81,6 +81,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   const [selectedModuleId, setSelectedModuleId] = useState("");
   const [selectedDraft, setSelectedDraft] = useState<ModuleDraft>(buildCreateDraft());
   const [createDraft, setCreateDraft] = useState<ModuleDraft>(buildCreateDraft());
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -107,6 +108,21 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
     }
     setSelectedDraft(buildDraftFromRecord(selectedModule));
   }, [selectedModule, selectedModuleId]);
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isCreating) {
+        handleCloseCreateModal();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreateModalOpen, isCreating]);
 
   async function handleApplyFilters() {
     setIsApplyingFilters(true);
@@ -171,6 +187,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         props.onModulesChange((current) => [created, ...current]);
         setCreateDraft(buildCreateDraft());
         setSelectedModuleId(created.id);
+        setIsCreateModalOpen(false);
         props.onNotice(`演示模块已创建：${created.moduleName}`);
         return;
       }
@@ -178,6 +195,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
       props.onModulesChange((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       setCreateDraft(buildCreateDraft());
       setSelectedModuleId(created.id);
+      setIsCreateModalOpen(false);
       props.onNotice(`模块已创建：${created.moduleName}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "创建模块失败";
@@ -185,6 +203,19 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
     } finally {
       setIsCreating(false);
     }
+  }
+
+  function handleOpenCreateModal() {
+    setCreateDraft(buildCreateDraft());
+    setIsCreateModalOpen(true);
+  }
+
+  function handleCloseCreateModal() {
+    if (isCreating) {
+      return;
+    }
+    setIsCreateModalOpen(false);
+    setCreateDraft(buildCreateDraft());
   }
 
   async function handleSaveModule() {
@@ -355,13 +386,15 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         <div className="entity-card-head">
           <div>
             <strong>新建模块</strong>
-            <p className="personal-meta">先录入模块定义，再逐步接能力包关系、知识空间和页面入口。</p>
+            <p className="personal-meta">点击按钮后弹窗录入模块资料，避免后台页面首屏直接展开整块创建表单。</p>
           </div>
-          <button type="button" className="primary-button" onClick={() => void handleCreateModule()} disabled={isCreating}>
-            {isCreating ? "创建中..." : "创建模块"}
+          <button type="button" className="primary-button" onClick={handleOpenCreateModal}>
+            创建模块
           </button>
         </div>
-        <ModuleDraftForm draft={createDraft} onChange={setCreateDraft} />
+        <div className="personal-meta" style={{ paddingTop: 12 }}>
+          先录入模块定义，再逐步接能力包关系、知识空间和页面入口。
+        </div>
       </section>
 
       <section className="admin-user-layout">
@@ -484,6 +517,38 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
           )}
         </article>
       </section>
+
+      {isCreateModalOpen ? (
+        <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateModal}>
+          <div
+            className="entity-card admin-user-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="新建模块"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="admin-user-modal-topbar">
+              <div>
+                <span className="archive-pill status-ready">模块创建</span>
+                <strong>新建模块</strong>
+                <p className="personal-meta">录入模块定义、路由入口和能力依赖，创建后即可进入右侧编辑区继续调整。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={handleCloseCreateModal} disabled={isCreating}>
+                关闭
+              </button>
+            </div>
+            <ModuleDraftForm draft={createDraft} onChange={setCreateDraft} />
+            <div className="personal-actions">
+              <button type="button" className="secondary-button" onClick={handleCloseCreateModal} disabled={isCreating}>
+                取消
+              </button>
+              <button type="button" className="primary-button" onClick={() => void handleCreateModule()} disabled={isCreating}>
+                {isCreating ? "创建中..." : "确认创建"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

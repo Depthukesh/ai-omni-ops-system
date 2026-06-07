@@ -18,13 +18,17 @@
 - 当前已提供的页面能力：
   - 模块列表查看
   - 关键词 / 类型 / 状态筛选
-  - 新建模块
+  - 点击按钮弹窗新建模块
   - 编辑模块
   - 归档模块
   - 删除模块
 - 组件内部兼容两种模式：
   - `api`
   - `seed`
+- 本轮补充的交互调整：
+  - 新建模块不再默认展开整块表单
+  - 改为点击“创建模块”后打开弹窗填写资料
+  - 支持遮罩关闭、按钮关闭和 `Esc` 关闭
 
 ### 2. 后台 `/admin` 正式挂入模块标签
 
@@ -66,6 +70,7 @@
 ## 当前效果
 
 - 后台 `/admin` 已可直接进入“模块注册中心”标签页。
+- 新建模块改为弹窗录入，后台首屏信息密度更稳定。
 - 若接口可用，则页面直接读写 `ModuleDefinition` 正式接口。
 - 若接口不可用，则页面自动回退到 `moduleDefinitionSeed`，保证后台仍可演示和继续联调。
 
@@ -83,5 +88,4 @@
   - `apps/web/src/app/(dashboard)/admin/page.tsx`
   - `apps/web/src/app/(dashboard)/admin/module-definitions-panel.tsx`
   - `apps/web/src/services/admin.ts`
-- 本轮计划继续执行：
-  - `npm run build:web`
+- `npm --workspace apps/web exec tsc --noEmit`
