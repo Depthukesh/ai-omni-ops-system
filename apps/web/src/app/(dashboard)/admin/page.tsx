@@ -103,6 +103,10 @@ type SkillEditDraft = {
   workflowSummary: string;
   inputSummary: string;
   outputSummary: string;
+  referenceAssetKeys: string[];
+  scriptAssetKeys: string[];
+  hasReferenceAssetSelection: boolean;
+  hasScriptAssetSelection: boolean;
 };
 type PromptEditDraft = {
   status: PromptTemplateRecord["status"];
@@ -814,6 +818,40 @@ export default function AdminPage() {
     if (activePromptConfig) {
       handlePromptDraftChange(activePromptConfig.id, { content: value });
     }
+  }
+
+  function handleToggleInheritedReference(referenceKey: string, checked: boolean) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    const currentKeys = draft.hasReferenceAssetSelection
+      ? draft.referenceAssetKeys
+      : activeReferenceAssets.map((item) => item.referenceKey);
+    const nextKeys = checked
+      ? Array.from(new Set([...currentKeys, referenceKey]))
+      : currentKeys.filter((item) => item !== referenceKey);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      referenceAssetKeys: nextKeys,
+      hasReferenceAssetSelection: true,
+    });
+  }
+
+  function handleToggleInheritedScript(scriptKey: string, checked: boolean) {
+    if (!activeSkillConfig) {
+      return;
+    }
+    const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
+    const currentKeys = draft.hasScriptAssetSelection
+      ? draft.scriptAssetKeys
+      : activeScriptAssets.map((item) => item.scriptKey);
+    const nextKeys = checked
+      ? Array.from(new Set([...currentKeys, scriptKey]))
+      : currentKeys.filter((item) => item !== scriptKey);
+    handleSkillDraftChange(activeSkillConfig.id, {
+      scriptAssetKeys: nextKeys,
+      hasScriptAssetSelection: true,
+    });
   }
 
   async function handleSaveSkillCenter() {
@@ -2006,6 +2044,14 @@ export default function AdminPage() {
     : "当前技能输出为能力包终态输出，或进入人工审核 / 发布环节。";
   const activeReferenceAssets = activeSkillPackageDetail?.references || [];
   const activeScriptAssets = activeSkillPackageDetail?.scripts || [];
+  const effectiveReferenceAssetKeys =
+    activeSkillDraft?.hasReferenceAssetSelection
+      ? activeSkillDraft.referenceAssetKeys
+      : activeReferenceAssets.map((item) => item.referenceKey);
+  const effectiveScriptAssetKeys =
+    activeSkillDraft?.hasScriptAssetSelection
+      ? activeSkillDraft.scriptAssetKeys
+      : activeScriptAssets.map((item) => item.scriptKey);
   const activeSkillAssetSourceLabel = activePrimarySkillRelation?.packageName || activeSkillPackageLabel;
   const isLoadingActiveSkillAssets = !!activePrimarySkillRelation?.packageId && loadingSkillAssetPackageId === activePrimarySkillRelation.packageId;
   const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
@@ -3350,7 +3396,7 @@ export default function AdminPage() {
                             <input
                               value={
                                 activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 项`
+                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 项 / ${activeSkillDraft?.hasReferenceAssetSelection ? `已选 ${effectiveReferenceAssetKeys.length} 项` : "默认全继承"}`
                                   : "当前技能尚未绑定能力包，暂无可继承 References 资产"
                               }
                               readOnly
@@ -3361,7 +3407,7 @@ export default function AdminPage() {
                             <input
                               value={
                                 activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 项`
+                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 项 / ${activeSkillDraft?.hasScriptAssetSelection ? `已选 ${effectiveScriptAssetKeys.length} 项` : "默认全继承"}`
                                   : "当前技能尚未绑定能力包，暂无可继承 Scripts 资产"
                               }
                               readOnly
@@ -3393,16 +3439,28 @@ export default function AdminPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                               <SkillAssetListCard
                                 title="References 资产"
+                                summary={activeSkillDraft?.hasReferenceAssetSelection ? "当前技能已从所属能力包资产中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 References 资产；勾选后可收口为技能级选择。"}
                                 emptyText="所属能力包当前还没有参考资料资产。"
                                 items={activeReferenceAssets.map((item) => (
-                                  <SkillReferenceAssetItem key={item.id} item={item} />
+                                  <SkillReferenceAssetItem
+                                    key={item.id}
+                                    item={item}
+                                    checked={effectiveReferenceAssetKeys.includes(item.referenceKey)}
+                                    onChange={(checked) => handleToggleInheritedReference(item.referenceKey, checked)}
+                                  />
                                 ))}
                               />
                               <SkillAssetListCard
                                 title="Scripts 资产"
+                                summary={activeSkillDraft?.hasScriptAssetSelection ? "当前技能已从所属能力包脚本中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 Scripts 资产；勾选后可收口为技能级选择。"}
                                 emptyText="所属能力包当前还没有脚本资产。"
                                 items={activeScriptAssets.map((item) => (
-                                  <SkillScriptAssetItem key={item.id} item={item} />
+                                  <SkillScriptAssetItem
+                                    key={item.id}
+                                    item={item}
+                                    checked={effectiveScriptAssetKeys.includes(item.scriptKey)}
+                                    onChange={(checked) => handleToggleInheritedScript(item.scriptKey, checked)}
+                                  />
                                 ))}
                               />
                             </div>
@@ -4836,6 +4894,10 @@ function buildSkillDraft(item: SkillConfigRecord): SkillEditDraft {
     workflowSummary: parsed.workflowSummary,
     inputSummary: parsed.inputSummary,
     outputSummary: parsed.outputSummary,
+    referenceAssetKeys: parsed.referenceAssetKeys,
+    scriptAssetKeys: parsed.scriptAssetKeys,
+    hasReferenceAssetSelection: parsed.hasReferenceAssetSelection,
+    hasScriptAssetSelection: parsed.hasScriptAssetSelection,
   };
 }
 
@@ -4850,6 +4912,10 @@ function parseSkillDescription(description: string) {
     workflowSummary: "",
     inputSummary: "",
     outputSummary: "",
+    referenceAssetKeys: [] as string[],
+    scriptAssetKeys: [] as string[],
+    hasReferenceAssetSelection: false,
+    hasScriptAssetSelection: false,
   };
   if (!source) {
     return sections;
@@ -4859,6 +4925,8 @@ function parseSkillDescription(description: string) {
     { key: "workflowSummary", title: "步骤摘要：" },
     { key: "inputSummary", title: "输入要点：" },
     { key: "outputSummary", title: "输出要点：" },
+    { key: "referenceAssetKeys", title: "References 资产：" },
+    { key: "scriptAssetKeys", title: "Scripts 资产：" },
   ] as const;
 
   const positions = markers
@@ -4877,6 +4945,17 @@ function parseSkillDescription(description: string) {
     const body = source
       .slice(current.index + current.title.length, next?.index ?? source.length)
       .trim();
+    if (current.key === "referenceAssetKeys" || current.key === "scriptAssetKeys") {
+      const values = splitSkillAssetKeyLines(body);
+      sections[current.key] = values;
+      if (current.key === "referenceAssetKeys") {
+        sections.hasReferenceAssetSelection = true;
+      }
+      if (current.key === "scriptAssetKeys") {
+        sections.hasScriptAssetSelection = true;
+      }
+      continue;
+    }
     sections[current.key] = normalizeSkillSectionBody(body);
   }
   return sections;
@@ -4888,6 +4967,8 @@ function composeSkillDescription(draft: SkillEditDraft) {
     draft.workflowSummary.trim() ? `步骤摘要：\n${draft.workflowSummary.trim()}` : "",
     draft.inputSummary.trim() ? `输入要点：\n${draft.inputSummary.trim()}` : "",
     draft.outputSummary.trim() ? `输出要点：\n${draft.outputSummary.trim()}` : "",
+    draft.hasReferenceAssetSelection ? `References 资产：\n${draft.referenceAssetKeys.join("\n")}` : "",
+    draft.hasScriptAssetSelection ? `Scripts 资产：\n${draft.scriptAssetKeys.join("\n")}` : "",
   ].filter(Boolean);
   return blocks.join("\n\n");
 }
@@ -4898,6 +4979,17 @@ function normalizeSkillSectionBody(value: string) {
     .map((line) => line.trim())
     .join("\n")
     .trim();
+}
+
+function splitSkillAssetKeyLines(value: string) {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function buildPromptDraft(item: PromptTemplateRecord): PromptEditDraft {
@@ -4988,6 +5080,7 @@ function SkillDimensionMetric(props: { label: string; value: string }) {
 
 function SkillAssetListCard(props: {
   title: string;
+  summary?: string;
   emptyText: string;
   items: ReactNode[];
 }) {
@@ -4996,7 +5089,7 @@ function SkillAssetListCard(props: {
       <div className="entity-card-head" style={{ marginBottom: 12 }}>
         <div>
           <strong>{props.title}</strong>
-          <p className="personal-meta">当前展示的是技能所属能力包中的真实资产，后续再下沉为技能级真源对象。</p>
+          <p className="personal-meta">{props.summary || "当前展示的是技能所属能力包中的真实资产，后续再下沉为技能级真源对象。"}</p>
         </div>
       </div>
       <div style={{ display: "grid", gap: 8 }}>
@@ -5008,6 +5101,8 @@ function SkillAssetListCard(props: {
 
 function SkillReferenceAssetItem(props: {
   item: NonNullable<SkillPackageDetailRecord["references"]>[number];
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
 }) {
   const metaParts = [
     props.item.referenceKey,
@@ -5018,17 +5113,30 @@ function SkillReferenceAssetItem(props: {
 
   return (
     <div className="entity-card" style={{ padding: 12 }}>
-      <div style={{ display: "grid", gap: 6 }}>
-        <strong>{props.item.title}</strong>
+      <label style={{ display: "grid", gap: 6, cursor: props.onChange ? "pointer" : "default" }}>
+        {props.onChange ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(props.checked)}
+              onChange={(event) => props.onChange?.(event.target.checked)}
+            />
+            <strong>{props.item.title}</strong>
+          </span>
+        ) : (
+          <strong>{props.item.title}</strong>
+        )}
         <span className="personal-meta">{metaParts.join(" · ")}</span>
         <span className="personal-meta">{props.item.usageNote || props.item.sourceUri || "暂无使用说明"}</span>
-      </div>
+      </label>
     </div>
   );
 }
 
 function SkillScriptAssetItem(props: {
   item: NonNullable<SkillPackageDetailRecord["scripts"]>[number];
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
 }) {
   const metaParts = [
     props.item.scriptKey,
@@ -5043,11 +5151,22 @@ function SkillScriptAssetItem(props: {
 
   return (
     <div className="entity-card" style={{ padding: 12 }}>
-      <div style={{ display: "grid", gap: 6 }}>
-        <strong>{props.item.scriptName}</strong>
+      <label style={{ display: "grid", gap: 6, cursor: props.onChange ? "pointer" : "default" }}>
+        {props.onChange ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(props.checked)}
+              onChange={(event) => props.onChange?.(event.target.checked)}
+            />
+            <strong>{props.item.scriptName}</strong>
+          </span>
+        ) : (
+          <strong>{props.item.scriptName}</strong>
+        )}
         <span className="personal-meta">{metaParts.join(" · ")}</span>
         <span className="personal-meta">{props.item.usageNote || argsSummary}</span>
-      </div>
+      </label>
     </div>
   );
 }
