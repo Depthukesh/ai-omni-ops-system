@@ -3946,20 +3946,20 @@ export default function AdminPage() {
                                   <strong>自定义输入参数</strong>
                                   <p className="personal-meta">支持多条创建。可配置下拉框参数、普通输入框参数和文件上传参数。</p>
                                 </div>
-                                <div className="personal-actions" style={{ marginLeft: "auto" }}>
-                                  <button type="button" className="secondary-button" onClick={() => handleApplyRecommendedCustomInputs()}>
+                                <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleApplyRecommendedCustomInputs()}>
                                     一键补齐常用项
                                   </button>
-                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("SELECT")}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("SELECT")}>
                                     新增下拉参数
                                   </button>
-                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("TEXT")}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("TEXT")}>
                                     新增输入框
                                   </button>
-                                  <button type="button" className="secondary-button" onClick={() => handleAddCustomInput("FILE")}>
+                                  <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("FILE")}>
                                     新增文件参数
                                   </button>
-                                  <button type="button" className="ghost-danger-button" onClick={() => handleClearCustomInputs()}>
+                                  <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearCustomInputs()}>
                                     清空
                                   </button>
                                 </div>
@@ -4197,34 +4197,6 @@ export default function AdminPage() {
                           <label className="admin-skill-field admin-skill-field--wide">
                             <span>下游输出去向</span>
                             <input value={activeOutputSummary} readOnly />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>输出项草稿</span>
-                            <textarea
-                              value={activeSkillDraft?.outputSummary || ""}
-                              onChange={(event) => {
-                                if (activeSkillConfig) {
-                                  handleSkillDraftChange(activeSkillConfig.id, { outputSummary: event.target.value });
-                                }
-                              }}
-                              placeholder="例如：输出视频剧本、故事板提示词、故事板图片、短视频成片等。"
-                            />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>技能说明前言</span>
-                            <textarea
-                              value={activeSkillDraft?.descriptionIntro || ""}
-                              onChange={(event) => {
-                                if (activeSkillConfig) {
-                                  handleSkillDraftChange(activeSkillConfig.id, { descriptionIntro: event.target.value });
-                                }
-                              }}
-                              placeholder="用于补充技能定位、来源和通用说明。"
-                            />
-                          </label>
-                          <label className="admin-skill-field admin-skill-field--wide">
-                            <span>归属说明</span>
-                            <input value={activeSkillBindingLabel} readOnly />
                           </label>
                         </div>
                       </section>
