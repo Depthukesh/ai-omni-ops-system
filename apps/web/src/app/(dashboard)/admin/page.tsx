@@ -97,6 +97,10 @@ type SkillEditDraft = {
   defaultModel: string;
   pointsCost: string;
   description: string;
+  descriptionIntro: string;
+  workflowSummary: string;
+  inputSummary: string;
+  outputSummary: string;
 };
 type PromptEditDraft = {
   status: PromptTemplateRecord["status"];
@@ -655,6 +659,7 @@ export default function AdminPage() {
     if (!draft) {
       return;
     }
+    const nextDescription = composeSkillDescription(draft);
 
     setUpdatingSkillId(skillId);
     setNotice("");
@@ -665,7 +670,7 @@ export default function AdminPage() {
         status: draft.status,
         defaultModel: draft.defaultModel,
         pointsCost: Number(draft.pointsCost || 0),
-        description: draft.description,
+        description: nextDescription,
       });
 
       setSkills((current) => current.map((item) => (item.id === skillId ? updated : item)));
@@ -685,7 +690,7 @@ export default function AdminPage() {
                   status: draft.status,
                   defaultModel: draft.defaultModel,
                   pointsCost: Number(draft.pointsCost || 0),
-                  description: draft.description,
+                  description: nextDescription,
                   updatedAt,
                 }
               : item,
@@ -803,10 +808,6 @@ export default function AdminPage() {
   function handleSkillCenterPromptChange(value: string) {
     if (activePromptConfig) {
       handlePromptDraftChange(activePromptConfig.id, { content: value });
-      return;
-    }
-    if (activeSkillConfig) {
-      handleSkillDraftChange(activeSkillConfig.id, { description: value });
     }
   }
 
@@ -3239,6 +3240,18 @@ export default function AdminPage() {
                             <input value={activeKnowledgeBaseSummary.join(" / ") || "知识库完成后在这里按技能选择；当前 first pass 先读取系统已启用知识库"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
+                            <span>输入项草稿</span>
+                            <textarea
+                              value={activeSkillDraft?.inputSummary || ""}
+                              onChange={(event) => {
+                                if (activeSkillConfig) {
+                                  handleSkillDraftChange(activeSkillConfig.id, { inputSummary: event.target.value });
+                                }
+                              }}
+                              placeholder="例如：品牌信息、营销日历、产品库、素材库、用户上传参考图、模型选择等。"
+                            />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
                             <span>系统预设项</span>
                             <input value="账号角色 / 时长 / 风格 / 平台 / 任务模式（当前先以技能说明和分类继承）" readOnly />
                           </label>
@@ -3283,6 +3296,7 @@ export default function AdminPage() {
                           <textarea
                             value={skillCenterPromptValue}
                             onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
+                            disabled={!activePromptConfig}
                             placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
                           />
                         </label>
@@ -3301,19 +3315,43 @@ export default function AdminPage() {
                             <input value={activeSkillFlow.map((item) => item.skillName || item.skillSlug).join(" -> ") || "当前还没有配置能力包技能链路"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
+                            <span>步骤摘要</span>
+                            <textarea
+                              value={activeSkillDraft?.workflowSummary || ""}
+                              onChange={(event) => {
+                                if (activeSkillConfig) {
+                                  handleSkillDraftChange(activeSkillConfig.id, { workflowSummary: event.target.value });
+                                }
+                              }}
+                              placeholder="例如：1. 生成视频剧本 2. 生成故事板提示词 3. 生成故事板图片 4. 生成短视频。"
+                            />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
                             <span>下游输出去向</span>
                             <input value={activeOutputSummary} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>输入 / 输出补充说明</span>
+                            <span>输出项草稿</span>
                             <textarea
-                              value={activeSkillDraft?.description || activeSkillConfig?.description || ""}
+                              value={activeSkillDraft?.outputSummary || ""}
                               onChange={(event) => {
                                 if (activeSkillConfig) {
-                                  handleSkillDraftChange(activeSkillConfig.id, { description: event.target.value });
+                                  handleSkillDraftChange(activeSkillConfig.id, { outputSummary: event.target.value });
                                 }
                               }}
-                              placeholder="例如：输出故事板提示词，供后续生图技能直接调用。"
+                              placeholder="例如：输出视频剧本、故事板提示词、故事板图片、短视频成片等。"
+                            />
+                          </label>
+                          <label className="admin-skill-field admin-skill-field--wide">
+                            <span>技能说明前言</span>
+                            <textarea
+                              value={activeSkillDraft?.descriptionIntro || ""}
+                              onChange={(event) => {
+                                if (activeSkillConfig) {
+                                  handleSkillDraftChange(activeSkillConfig.id, { descriptionIntro: event.target.value });
+                                }
+                              }}
+                              placeholder="用于补充技能定位、来源和通用说明。"
                             />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
@@ -4671,16 +4709,78 @@ function updatePointsPackage(list: PointsPackageRule[], index: number, nextItem:
 }
 
 function buildSkillDraft(item: SkillConfigRecord): SkillEditDraft {
+  const parsed = parseSkillDescription(item.description);
   return {
     status: item.status,
     defaultModel: item.defaultModel,
     pointsCost: String(item.pointsCost),
     description: item.description,
+    descriptionIntro: parsed.descriptionIntro,
+    workflowSummary: parsed.workflowSummary,
+    inputSummary: parsed.inputSummary,
+    outputSummary: parsed.outputSummary,
   };
 }
 
 function buildSkillDrafts(list: SkillConfigRecord[]) {
   return Object.fromEntries(list.map((item) => [item.id, buildSkillDraft(item)])) as Record<string, SkillEditDraft>;
+}
+
+function parseSkillDescription(description: string) {
+  const source = String(description || "").trim();
+  const sections = {
+    descriptionIntro: source,
+    workflowSummary: "",
+    inputSummary: "",
+    outputSummary: "",
+  };
+  if (!source) {
+    return sections;
+  }
+
+  const markers = [
+    { key: "workflowSummary", title: "步骤摘要：" },
+    { key: "inputSummary", title: "输入要点：" },
+    { key: "outputSummary", title: "输出要点：" },
+  ] as const;
+
+  const positions = markers
+    .map((item) => ({ ...item, index: source.indexOf(item.title) }))
+    .filter((item) => item.index >= 0)
+    .sort((left, right) => left.index - right.index);
+
+  if (!positions.length) {
+    return sections;
+  }
+
+  sections.descriptionIntro = source.slice(0, positions[0].index).trim();
+  for (let index = 0; index < positions.length; index += 1) {
+    const current = positions[index];
+    const next = positions[index + 1];
+    const body = source
+      .slice(current.index + current.title.length, next?.index ?? source.length)
+      .trim();
+    sections[current.key] = normalizeSkillSectionBody(body);
+  }
+  return sections;
+}
+
+function composeSkillDescription(draft: SkillEditDraft) {
+  const blocks = [
+    draft.descriptionIntro.trim(),
+    draft.workflowSummary.trim() ? `步骤摘要：\n${draft.workflowSummary.trim()}` : "",
+    draft.inputSummary.trim() ? `输入要点：\n${draft.inputSummary.trim()}` : "",
+    draft.outputSummary.trim() ? `输出要点：\n${draft.outputSummary.trim()}` : "",
+  ].filter(Boolean);
+  return blocks.join("\n\n");
+}
+
+function normalizeSkillSectionBody(value: string) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .join("\n")
+    .trim();
 }
 
 function buildPromptDraft(item: PromptTemplateRecord): PromptEditDraft {
