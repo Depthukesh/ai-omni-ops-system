@@ -68,6 +68,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingBindings, setIsSyncingBindings] = useState(false);
   const [syncingSkillId, setSyncingSkillId] = useState("");
+  const [busyActionKey, setBusyActionKey] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => relations.filter((item) => matchesFilters(item, filters)), [filters, relations]);
@@ -436,6 +437,151 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     }
   }
 
+  async function handleDeduplicateSkillRelations(skillId: string) {
+    const targetRelations = relations.filter((item) => item.skillId === skillId);
+    const idsToDelete = new Set<string>();
+    const duplicatePackageKeys = Array.from(new Set(targetRelations.map((item) => item.packageKey))).filter(
+      (packageKey) => targetRelations.filter((item) => item.packageKey === packageKey).length > 1,
+    );
+
+    duplicatePackageKeys.forEach((packageKey) => {
+      const grouped = targetRelations.filter((item) => item.packageKey === packageKey);
+      const keep = pickPreferredSkillRelation(grouped);
+      grouped.forEach((item) => {
+        if (item.id !== keep.id) {
+          idsToDelete.add(item.id);
+        }
+      });
+    });
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!idsToDelete.size) {
+      props.onNotice("当前没有可去重的技能关系。");
+      return;
+    }
+
+    setBusyActionKey(`dedupe:${skillId}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      } else {
+        for (const relationId of idsToDelete) {
+          await deleteSkillPackageSkill(relationId);
+        }
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      }
+      if (selectedRelationId && idsToDelete.has(selectedRelationId)) {
+        setSelectedRelationId("");
+      }
+      props.onNotice(`已清理 ${idsToDelete.size} 条重复技能关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "技能关系去重失败";
+      props.onError(`技能关系去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeSkillDefaults(skillId: string) {
+    const conflict = skillConflictInsights.find((item) => item.skill.id === skillId);
+    const targetRelations = relations.filter((item) => item.skillId === skillId);
+    const primaryPackageKeys = new Set(conflict?.primaryPackageKeys || []);
+    const relationsToUpdate = targetRelations
+      .map((relation) => {
+        const shouldDefault = primaryPackageKeys.has(relation.packageKey);
+        const nextPatch: Partial<
+          Omit<
+            SkillPackageSkillRecord,
+            | "id"
+            | "skillName"
+            | "skillCategory"
+            | "skillStatus"
+            | "skillProvider"
+            | "skillDefaultModel"
+            | "createdAt"
+            | "updatedAt"
+          >
+        > = {};
+
+        if (primaryPackageKeys.size) {
+          if (shouldDefault) {
+            if (relation.bindingType !== "DEFAULT") {
+              nextPatch.bindingType = "DEFAULT";
+            }
+            if (!relation.isDefault) {
+              nextPatch.isDefault = true;
+            }
+            if (!relation.enabled) {
+              nextPatch.enabled = true;
+            }
+          } else {
+            if (relation.isDefault) {
+              nextPatch.isDefault = false;
+            }
+            if (relation.bindingType === "DEFAULT") {
+              nextPatch.bindingType = "OPTIONAL";
+            }
+          }
+        } else if (relation.enabled && relation.isDefault && relation.bindingType !== "DEFAULT") {
+          nextPatch.bindingType = "DEFAULT";
+        }
+
+        return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+      })
+      .filter(Boolean) as Array<{
+      relation: SkillPackageSkillRecord;
+      patch: Partial<
+        Omit<
+          SkillPackageSkillRecord,
+          | "id"
+          | "skillName"
+          | "skillCategory"
+          | "skillStatus"
+          | "skillProvider"
+          | "skillDefaultModel"
+          | "createdAt"
+          | "updatedAt"
+        >
+      >;
+    }>;
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!relationsToUpdate.length) {
+      props.onNotice("当前没有可修正的技能默认挂载。");
+      return;
+    }
+
+    setBusyActionKey(`normalize:${skillId}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) =>
+          current.map((item) => {
+            const target = relationsToUpdate.find((entry) => entry.relation.id === item.id);
+            return target ? { ...item, ...target.patch } : item;
+          }),
+        );
+      } else {
+        const updatedRecords: SkillPackageSkillRecord[] = [];
+        for (const entry of relationsToUpdate) {
+          updatedRecords.push(await updateSkillPackageSkill(entry.relation.id, entry.patch));
+        }
+        setRelations((current) =>
+          current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      props.onNotice(`已修正 ${relationsToUpdate.length} 条技能默认挂载。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "修正技能默认挂载失败";
+      props.onError(`修正技能默认挂载失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -566,6 +712,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                         ? `可同步：${item.creatablePackages.map((skillPackage) => skillPackage.packageName).join(" / ")}`
                         : "当前没有可自动同步的技能关系。"}
                     </p>
+                    <p className="personal-meta">同步来源：技能资产绑定 `skillAssetBinding` 到 能力包技能关系表</p>
                     {item.unresolvedPackageKeys.length ? <p className="personal-meta">未识别：{item.unresolvedPackageKeys.join(" / ")}</p> : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center" }}>
@@ -623,6 +770,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                   <p className="personal-meta">
                     关系表默认挂载：{item.relationDefaultKeys.length ? item.relationDefaultKeys.join(" / ") : "未配置"}
                   </p>
+                  <p className="personal-meta">冲突来源：技能资产绑定主绑定与能力包技能关系表默认挂载对照结果</p>
                   {item.primaryPackageKeys.length > 1 ? <p className="personal-meta">主绑定过多：{item.primaryPackageKeys.join(" / ")}</p> : null}
                   {item.duplicatePackageKeys.length ? <p className="personal-meta">重复挂载：{item.duplicatePackageKeys.join(" / ")}</p> : null}
                   {item.invalidDefaultBindings.length ? (
@@ -630,6 +778,41 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                       默认标记异常：{item.invalidDefaultBindings.map((relation) => `${relation.packageName} (${relation.bindingType})`).join(" / ")}
                     </p>
                   ) : null}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {(item.hasMismatch || item.primaryPackageKeys.length > 1) ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleSyncBindings(item.skill.id)}
+                        disabled={isSyncingBindings}
+                      >
+                        {isSyncingBindings && syncingSkillId === item.skill.id ? "同步中..." : "按主绑定补齐关系"}
+                      </button>
+                    ) : null}
+                    {(item.hasMismatch || item.primaryPackageKeys.length > 1 || item.invalidDefaultBindings.length) ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleNormalizeSkillDefaults(item.skill.id)}
+                        disabled={busyActionKey === `normalize:${item.skill.id}`}
+                      >
+                        {busyActionKey === `normalize:${item.skill.id}` ? "处理中..." : "按主绑定修正默认"}
+                      </button>
+                    ) : null}
+                    {item.duplicatePackageKeys.length ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleDeduplicateSkillRelations(item.skill.id)}
+                        disabled={busyActionKey === `dedupe:${item.skill.id}`}
+                      >
+                        {busyActionKey === `dedupe:${item.skill.id}` ? "处理中..." : "删除重复关系"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {item.primaryPackageKeys.length > 1 ? <p className="personal-meta">处理建议：技能资产绑定里只保留一个主能力包，其余改为非主绑定。</p> : null}
+                  {item.duplicatePackageKeys.length ? <p className="personal-meta">处理建议：删除重复技能关系，只保留当前真正生效的一条。</p> : null}
+                  {item.invalidDefaultBindings.length ? <p className="personal-meta">处理建议：默认挂载应统一成 `bindingType=DEFAULT`，否则请取消默认标记。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一技能资产主绑定与关系表默认挂载，再继续自动同步。</p> : null}
                 </div>
               ))}
@@ -1087,6 +1270,22 @@ function buildCreateSkillPayload(
     enabled: bindingEntry?.enabled ?? true,
     remarks: "根据技能资产绑定自动补齐",
   };
+}
+
+function pickPreferredSkillRelation(relations: SkillPackageSkillRecord[]) {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const leftScore = Number(left.enabled) * 100 + Number(left.isDefault) * 10 + Number(left.bindingType === "DEFAULT");
+      const rightScore = Number(right.enabled) * 100 + Number(right.isDefault) * 10 + Number(right.bindingType === "DEFAULT");
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+      return String(left.id).localeCompare(String(right.id));
+    })[0];
 }
 
 function buildSeedSkillRelationRecord(

@@ -71,6 +71,7 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingDefaults, setIsSyncingDefaults] = useState(false);
   const [syncingPackageId, setSyncingPackageId] = useState("");
+  const [busyActionKey, setBusyActionKey] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => relations.filter((item) => matchesFilters(item, filters)), [filters, relations]);
@@ -454,6 +455,126 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     }
   }
 
+  async function handleDeduplicateKnowledgeRelations(packageId: string) {
+    const targetRelations = relations.filter((item) => item.packageId === packageId);
+    const idsToDelete = new Set<string>();
+    const duplicateKnowledgeBaseIds = Array.from(new Set(targetRelations.map((item) => item.knowledgeBaseId))).filter(
+      (knowledgeBaseId) => targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId).length > 1,
+    );
+
+    duplicateKnowledgeBaseIds.forEach((knowledgeBaseId) => {
+      const grouped = targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId);
+      const keep = pickPreferredKnowledgeRelation(grouped);
+      grouped.forEach((item) => {
+        if (item.id !== keep.id) {
+          idsToDelete.add(item.id);
+        }
+      });
+    });
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!idsToDelete.size) {
+      props.onNotice("当前没有可去重的知识关系。");
+      return;
+    }
+
+    setBusyActionKey(`dedupe:${packageId}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      } else {
+        for (const relationId of idsToDelete) {
+          await deleteSkillPackageKnowledgeSpace(relationId);
+        }
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      }
+      if (selectedRelationId && idsToDelete.has(selectedRelationId)) {
+        setSelectedRelationId("");
+      }
+      props.onNotice(`已清理 ${idsToDelete.size} 条重复知识关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "知识关系去重失败";
+      props.onError(`知识关系去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeKnowledgeDefaults(packageId: string) {
+    const targetPackage = packages.find((item) => item.id === packageId);
+    const declaredKnowledgeBaseIds = new Set(targetPackage?.defaultKnowledgeSpaceIds || []);
+    const targetRelations = relations.filter((item) => item.packageId === packageId);
+    const relationsToUpdate = targetRelations
+      .map((relation) => {
+        if (!declaredKnowledgeBaseIds.size) {
+          return null;
+        }
+        const shouldDefault = declaredKnowledgeBaseIds.has(relation.knowledgeBaseId);
+        const nextPatch: Partial<
+          Omit<
+            SkillPackageKnowledgeSpaceRecord,
+            "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+          >
+        > = {};
+        if (shouldDefault) {
+          if (relation.relationType !== "DEFAULT") {
+            nextPatch.relationType = "DEFAULT";
+          }
+          if (!relation.enabled) {
+            nextPatch.enabled = true;
+          }
+        } else if (relation.relationType === "DEFAULT") {
+          nextPatch.relationType = "OPTIONAL";
+        }
+        return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+      })
+      .filter(Boolean) as Array<{
+      relation: SkillPackageKnowledgeSpaceRecord;
+      patch: Partial<
+        Omit<
+          SkillPackageKnowledgeSpaceRecord,
+          "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+        >
+      >;
+    }>;
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!relationsToUpdate.length) {
+      props.onNotice("当前没有可修正的默认知识关系。");
+      return;
+    }
+
+    setBusyActionKey(`normalize:${packageId}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) =>
+          current.map((item) => {
+            const target = relationsToUpdate.find((entry) => entry.relation.id === item.id);
+            return target ? { ...item, ...target.patch } : item;
+          }),
+        );
+      } else {
+        const updatedRecords: SkillPackageKnowledgeSpaceRecord[] = [];
+        for (const entry of relationsToUpdate) {
+          updatedRecords.push(await updateSkillPackageKnowledgeSpace(entry.relation.id, entry.patch));
+        }
+        setRelations((current) =>
+          current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      props.onNotice(`已修正 ${relationsToUpdate.length} 条默认知识关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "修正默认知识关系失败";
+      props.onError(`修正默认知识关系失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -592,6 +713,7 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                         ? `可同步：${item.creatableKnowledgeBases.map((knowledgeBase) => knowledgeBase.name).join(" / ")}`
                         : "当前没有可自动同步的知识关系。"}
                     </p>
+                    <p className="personal-meta">同步来源：能力包主数据 `defaultKnowledgeSpaceIds` 到 能力包知识关系表</p>
                     {item.unresolvedKnowledgeBaseIds.length ? (
                       <p className="personal-meta">未识别：{item.unresolvedKnowledgeBaseIds.join(" / ")}</p>
                     ) : null}
@@ -651,6 +773,7 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                   <p className="personal-meta">
                     关系表默认知识关系：{item.relationDefaultKnowledgeBaseIds.length ? item.relationDefaultKnowledgeBaseIds.join(" / ") : "未配置"}
                   </p>
+                  <p className="personal-meta">冲突来源：能力包默认知识空间与知识关系表默认关系对照结果</p>
                   {item.duplicateKnowledgeBaseIds.length ? (
                     <p className="personal-meta">重复挂载：{item.duplicateKnowledgeBaseIds.join(" / ")}</p>
                   ) : null}
@@ -659,6 +782,40 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                       强制覆盖：{item.requiredNonDefaultRelations.map((relation) => `${relation.knowledgeBaseName || relation.knowledgeBaseId} (${relation.relationType})`).join(" / ")}
                     </p>
                   ) : null}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {item.hasMismatch ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleSyncDefaultKnowledgeRelations(item.skillPackage.id)}
+                        disabled={isSyncingDefaults}
+                      >
+                        {isSyncingDefaults && syncingPackageId === item.skillPackage.id ? "同步中..." : "按默认知识补齐"}
+                      </button>
+                    ) : null}
+                    {item.hasMismatch ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleNormalizeKnowledgeDefaults(item.skillPackage.id)}
+                        disabled={busyActionKey === `normalize:${item.skillPackage.id}`}
+                      >
+                        {busyActionKey === `normalize:${item.skillPackage.id}` ? "处理中..." : "修正默认知识关系"}
+                      </button>
+                    ) : null}
+                    {item.duplicateKnowledgeBaseIds.length ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleDeduplicateKnowledgeRelations(item.skillPackage.id)}
+                        disabled={busyActionKey === `dedupe:${item.skillPackage.id}`}
+                      >
+                        {busyActionKey === `dedupe:${item.skillPackage.id}` ? "处理中..." : "删除重复关系"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {item.duplicateKnowledgeBaseIds.length ? <p className="personal-meta">处理建议：删除重复知识关系，只保留当前真正参与检索的一条。</p> : null}
+                  {item.requiredNonDefaultRelations.length ? <p className="personal-meta">处理建议：先确认这些强制覆盖关系是否应替代默认知识关系，再决定是否继续批量同步。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一能力包默认知识空间与关系表默认知识关系，再继续自动同步。</p> : null}
                 </div>
               ))}
@@ -1018,6 +1175,22 @@ function buildCreateKnowledgePayload(
     enabled: true,
     remarks: "根据能力包默认知识空间自动补齐",
   };
+}
+
+function pickPreferredKnowledgeRelation(relations: SkillPackageKnowledgeSpaceRecord[]) {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const leftScore = Number(left.enabled) * 100 + Number(left.relationType === "DEFAULT") * 10 + Number(left.isRequired);
+      const rightScore = Number(right.enabled) * 100 + Number(right.relationType === "DEFAULT") * 10 + Number(right.isRequired);
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.priority !== right.priority) {
+        return left.priority - right.priority;
+      }
+      return String(left.id).localeCompare(String(right.id));
+    })[0];
 }
 
 function buildSeedKnowledgeRelationRecord(

@@ -70,6 +70,7 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
   const [syncingModuleKey, setSyncingModuleKey] = useState("");
   const [isBackfillingDefaults, setIsBackfillingDefaults] = useState(false);
   const [backfillingModuleKey, setBackfillingModuleKey] = useState("");
+  const [busyActionKey, setBusyActionKey] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => {
@@ -561,6 +562,92 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     }
   }
 
+  async function handleDeduplicateModuleRelations(moduleKey: string) {
+    const targetRelations = relations.filter((item) => item.moduleKey === moduleKey);
+    const idsToDelete = new Set<string>();
+    const duplicatePackageKeys = Array.from(new Set(targetRelations.map((item) => item.packageKey))).filter(
+      (packageKey) => targetRelations.filter((item) => item.packageKey === packageKey).length > 1,
+    );
+
+    duplicatePackageKeys.forEach((packageKey) => {
+      const grouped = targetRelations.filter((item) => item.packageKey === packageKey);
+      const keep = pickPreferredModuleRelation(grouped);
+      grouped.forEach((item) => {
+        if (item.id !== keep.id) {
+          idsToDelete.add(item.id);
+        }
+      });
+    });
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!idsToDelete.size) {
+      props.onNotice("当前没有可去重的模块能力包关系。");
+      return;
+    }
+
+    setBusyActionKey(`dedupe:${moduleKey}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      } else {
+        for (const relationId of idsToDelete) {
+          await deleteSkillPackageModule(relationId);
+        }
+        setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+      }
+      if (selectedRelationId && idsToDelete.has(selectedRelationId)) {
+        setSelectedRelationId("");
+      }
+      props.onNotice(`已清理 ${idsToDelete.size} 条重复模块能力包关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "模块能力包去重失败";
+      props.onError(`模块能力包去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeModuleDefaults(moduleKey: string) {
+    const invalidRelations = relations.filter(
+      (item) => item.moduleKey === moduleKey && item.enabled && item.isDefault && item.bindingType !== "DEFAULT",
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!invalidRelations.length) {
+      props.onNotice("当前没有可修正的模块默认标记。");
+      return;
+    }
+
+    setBusyActionKey(`normalize:${moduleKey}`);
+    try {
+      if (props.dataSource === "seed") {
+        setRelations((current) =>
+          current.map((item) =>
+            invalidRelations.some((relation) => relation.id === item.id) ? { ...item, bindingType: "DEFAULT" } : item,
+          ),
+        );
+      } else {
+        const updatedRecords: SkillPackageModuleRecord[] = [];
+        for (const relation of invalidRelations) {
+          updatedRecords.push(await updateSkillPackageModule(relation.id, { bindingType: "DEFAULT" }));
+        }
+        setRelations((current) =>
+          current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      props.onNotice(`已修正 ${invalidRelations.length} 条模块默认标记异常关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "修正模块默认标记失败";
+      props.onError(`修正模块默认标记失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -699,6 +786,7 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                         ? `可补齐：${item.creatablePackages.map((skillPackage) => skillPackage.packageName).join(" / ")}`
                         : "当前没有可自动补齐的默认关系。"}
                     </p>
+                    <p className="personal-meta">同步来源：模块注册摘要 `defaultSkillPackages` 到 模块绑定关系表</p>
                     {item.unresolvedPackageKeys.length ? (
                       <p className="personal-meta">未识别：{item.unresolvedPackageKeys.join(" / ")}</p>
                     ) : null}
@@ -771,6 +859,7 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                     <p className="personal-meta">
                       待回填：{item.missingInModuleDefaults.length ? item.missingInModuleDefaults.join(" / ") : "无"}
                     </p>
+                    <p className="personal-meta">同步来源：模块绑定关系表默认挂载 到 模块注册摘要 `defaultSkillPackages`</p>
                   </div>
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <button
@@ -830,6 +919,7 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                   <p className="personal-meta">
                     关系表默认挂载：{item.relationDefaultKeys.length ? item.relationDefaultKeys.join(" / ") : "未配置"}
                   </p>
+                  <p className="personal-meta">冲突来源：模块注册摘要与模块绑定关系表对照结果</p>
                   {item.duplicatePackageKeys.length ? (
                     <p className="personal-meta">重复挂载：{item.duplicatePackageKeys.join(" / ")}</p>
                   ) : null}
@@ -838,6 +928,50 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                       默认标记异常：{item.invalidDefaultBindings.map((relation) => `${relation.packageName} (${relation.bindingType})`).join(" / ")}
                     </p>
                   ) : null}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {item.hasMismatch ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleSyncDefaultBindings(item.module.moduleKey)}
+                        disabled={isSyncingDefaults}
+                      >
+                        {isSyncingDefaults && syncingModuleKey === item.module.moduleKey ? "补齐中..." : "按摘要补齐关系"}
+                      </button>
+                    ) : null}
+                    {item.hasMismatch ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleBackfillModuleDefaults(item.module.moduleKey)}
+                        disabled={isBackfillingDefaults}
+                      >
+                        {isBackfillingDefaults && backfillingModuleKey === item.module.moduleKey ? "回填中..." : "按关系回填摘要"}
+                      </button>
+                    ) : null}
+                    {item.duplicatePackageKeys.length ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleDeduplicateModuleRelations(item.module.moduleKey)}
+                        disabled={busyActionKey === `dedupe:${item.module.moduleKey}`}
+                      >
+                        {busyActionKey === `dedupe:${item.module.moduleKey}` ? "处理中..." : "删除重复挂载"}
+                      </button>
+                    ) : null}
+                    {item.invalidDefaultBindings.length ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleNormalizeModuleDefaults(item.module.moduleKey)}
+                        disabled={busyActionKey === `normalize:${item.module.moduleKey}`}
+                      >
+                        {busyActionKey === `normalize:${item.module.moduleKey}` ? "处理中..." : "修正默认标记"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {item.duplicatePackageKeys.length ? <p className="personal-meta">处理建议：先删除重复关系，只保留一条有效挂载记录。</p> : null}
+                  {item.invalidDefaultBindings.length ? <p className="personal-meta">处理建议：默认关系应改为 `bindingType=DEFAULT`，否则请取消默认标记。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一模块摘要与关系表默认挂载，再继续批量同步。</p> : null}
                 </div>
               ))}
@@ -1215,6 +1349,22 @@ function buildCreatePayload(
     enabled: true,
     remarks: "根据模块 defaultSkillPackages 自动补齐",
   };
+}
+
+function pickPreferredModuleRelation(relations: SkillPackageModuleRecord[]) {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const leftScore = Number(left.enabled) * 100 + Number(left.isDefault) * 10 + Number(left.bindingType === "DEFAULT");
+      const rightScore = Number(right.enabled) * 100 + Number(right.isDefault) * 10 + Number(right.bindingType === "DEFAULT");
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+      return String(left.id).localeCompare(String(right.id));
+    })[0];
 }
 
 function buildSeedRelationRecord(module: ModuleDefinitionRecord, skillPackage: SkillPackageRecord, index: number): SkillPackageModuleRecord {
