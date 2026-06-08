@@ -687,93 +687,107 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
             <div style={{ display: "grid", gap: 16 }}>
               <SkillPackageDraftForm draft={selectedDraft} modules={props.modules} onChange={setSelectedDraft} />
 
-              <section className="entity-card" style={{ padding: 16 }}>
-                <div className="entity-card-head">
+              <section className="entity-card package-assembly-panel">
+                <div className="entity-card-head package-assembly-head">
                   <div>
                     <strong>技能装配区</strong>
                     <p className="personal-meta">技能页结构保持不变，这里只做技能的安装、默认项设置、启停和卸载。</p>
                   </div>
-                  <div className="personal-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))", minWidth: 280 }}>
-                    <div>
+                </div>
+
+                <div className="package-assembly-top">
+                  <div className="package-assembly-form-card">
+                    <div className="package-assembly-section-head">
+                      <strong>安装技能</strong>
+                      <p className="personal-meta">从技能库选择技能，复制后安装到当前能力包，再决定默认项和启用状态。</p>
+                    </div>
+                    <div className="admin-rule-grid package-assembly-grid">
+                      <PackageFormField label="从技能库安装" badge="复制后安装" hint="技能是最小安装单元；这里只负责安装到当前能力包。">
+                        <select
+                          value={assemblyDraft.skillId}
+                          onChange={(event) => setAssemblyDraft((current) => ({ ...current, skillId: event.target.value }))}
+                        >
+                          <option value="">请选择技能</option>
+                          {installableSkills.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name} · {item.category} · {item.status}
+                            </option>
+                          ))}
+                        </select>
+                      </PackageFormField>
+                      <PackageFormField label="安装类型" badge="系统可选" hint="默认技能通常用 DEFAULT，补充技能用 OPTIONAL。">
+                        <select
+                          value={assemblyDraft.bindingType}
+                          onChange={(event) =>
+                            setAssemblyDraft((current) => ({ ...current, bindingType: event.target.value as SkillPackageSkillRecord["bindingType"] }))
+                          }
+                        >
+                          <option value="DEFAULT">DEFAULT</option>
+                          <option value="OPTIONAL">OPTIONAL</option>
+                          <option value="SYSTEM_REQUIRED">SYSTEM_REQUIRED</option>
+                          <option value="EXPERIMENTAL">EXPERIMENTAL</option>
+                        </select>
+                      </PackageFormField>
+                      <PackageFormField label="排序" badge="推荐" hint="默认每 10 递增，后续可继续调序。">
+                        <input
+                          value={assemblyDraft.sortOrder}
+                          onChange={(event) => setAssemblyDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                        />
+                      </PackageFormField>
+                      <PackageFormField label="备注" badge="可选" hint="记录这次安装的用途或上下游说明。" wide>
+                        <input
+                          value={assemblyDraft.remarks}
+                          onChange={(event) => setAssemblyDraft((current) => ({ ...current, remarks: event.target.value }))}
+                        />
+                      </PackageFormField>
+                    </div>
+
+                    <div className="personal-actions personal-actions--tight package-assembly-actions">
+                      <label className="package-assembly-toggle">
+                        <input
+                          type="checkbox"
+                          checked={assemblyDraft.isDefault}
+                          onChange={(event) => setAssemblyDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+                        />
+                        <span>安装后设为默认技能</span>
+                      </label>
+                      <label className="package-assembly-toggle">
+                        <input
+                          type="checkbox"
+                          checked={assemblyDraft.enabled}
+                          onChange={(event) => setAssemblyDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                        />
+                        <span>安装后立即启用</span>
+                      </label>
+                      <button type="button" className="primary-button" onClick={() => void handleInstallSkill()} disabled={isInstallingSkill || !assemblyDraft.skillId}>
+                        {isInstallingSkill ? "安装中..." : "安装技能到能力包"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="package-assembly-summary">
+                    <div className="package-assembly-metric">
                       <span className="personal-meta">已装技能</span>
                       <strong>{packageSkills.length}</strong>
                     </div>
-                    <div>
+                    <div className="package-assembly-metric">
                       <span className="personal-meta">默认技能</span>
                       <strong>{activeDefaultSkill?.skillName || "-"}</strong>
                     </div>
-                    <div>
+                    <div className="package-assembly-metric">
                       <span className="personal-meta">可安装技能</span>
                       <strong>{installableSkills.length}</strong>
                     </div>
                   </div>
                 </div>
 
-                <div className="admin-rule-grid" style={{ marginBottom: 16 }}>
-                  <PackageFormField label="从技能库安装" badge="复制后安装" hint="技能是最小安装单元；这里只负责安装到当前能力包。">
-                    <select
-                      value={assemblyDraft.skillId}
-                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, skillId: event.target.value }))}
-                    >
-                      <option value="">请选择技能</option>
-                      {installableSkills.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} · {item.category} · {item.status}
-                        </option>
-                      ))}
-                    </select>
-                  </PackageFormField>
-                  <PackageFormField label="安装类型" badge="系统可选" hint="默认技能通常用 DEFAULT，补充技能用 OPTIONAL。">
-                    <select
-                      value={assemblyDraft.bindingType}
-                      onChange={(event) =>
-                        setAssemblyDraft((current) => ({ ...current, bindingType: event.target.value as SkillPackageSkillRecord["bindingType"] }))
-                      }
-                    >
-                      <option value="DEFAULT">DEFAULT</option>
-                      <option value="OPTIONAL">OPTIONAL</option>
-                      <option value="SYSTEM_REQUIRED">SYSTEM_REQUIRED</option>
-                      <option value="EXPERIMENTAL">EXPERIMENTAL</option>
-                    </select>
-                  </PackageFormField>
-                  <PackageFormField label="排序" badge="推荐" hint="默认每 10 递增，后续可继续调序。">
-                    <input
-                      value={assemblyDraft.sortOrder}
-                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, sortOrder: event.target.value }))}
-                    />
-                  </PackageFormField>
-                  <PackageFormField label="备注" badge="可选" hint="记录这次安装的用途或上下游说明。" wide>
-                    <input
-                      value={assemblyDraft.remarks}
-                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, remarks: event.target.value }))}
-                    />
-                  </PackageFormField>
-                </div>
-
-                <div className="personal-actions" style={{ marginBottom: 16 }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={assemblyDraft.isDefault}
-                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, isDefault: event.target.checked }))}
-                    />
-                    <span>安装后设为默认技能</span>
-                  </label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={assemblyDraft.enabled}
-                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, enabled: event.target.checked }))}
-                    />
-                    <span>安装后立即启用</span>
-                  </label>
-                  <button type="button" className="primary-button" onClick={() => void handleInstallSkill()} disabled={isInstallingSkill || !assemblyDraft.skillId}>
-                    {isInstallingSkill ? "安装中..." : "安装技能到能力包"}
-                  </button>
-                </div>
-
-                <div className="admin-user-table-wrapper">
-                  <table className="admin-user-table">
+                <div className="package-assembly-table-card">
+                  <div className="package-assembly-section-head">
+                    <strong>已装技能</strong>
+                    <p className="personal-meta">在这里管理默认项、启停状态和卸载操作，技能详细逻辑仍在技能页维护。</p>
+                  </div>
+                  <div className="admin-user-table-wrapper">
+                    <table className="admin-user-table">
                     <thead>
                       <tr>
                         <th>技能</th>
@@ -805,7 +819,7 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
                             <td>{relation.sortOrder}</td>
                             <td>{relation.skillDefaultModel || "-"}</td>
                             <td>
-                              <div className="personal-actions" style={{ justifyContent: "flex-start" }}>
+                                  <div className="personal-actions personal-actions--tight" style={{ justifyContent: "flex-start" }}>
                                 <button
                                   type="button"
                                   className="secondary-button"
@@ -842,7 +856,8 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
                         </tr>
                       )}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </div>
               </section>
             </div>

@@ -6448,6 +6448,88 @@ button {
   overflow: auto;
 }
 
+.package-assembly-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.package-assembly-head {
+  align-items: flex-start;
+}
+
+.package-assembly-top {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(240px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.package-assembly-form-card,
+.package-assembly-table-card,
+.package-assembly-metric {
+  border: 1px solid rgba(140, 154, 187, 0.2);
+  border-radius: 18px;
+  background: rgba(248, 250, 255, 0.78);
+}
+
+.package-assembly-form-card,
+.package-assembly-table-card {
+  padding: 16px;
+}
+
+.package-assembly-section-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.package-assembly-section-head strong {
+  font-size: 15px;
+  color: #24324e;
+}
+
+.package-assembly-grid {
+  margin-bottom: 12px;
+}
+
+.package-assembly-actions {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.package-assembly-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(91, 109, 255, 0.06);
+  color: #24324e;
+}
+
+.package-assembly-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.package-assembly-metric {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.package-assembly-metric strong {
+  font-size: 18px;
+  color: #223050;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 .admin-user-table {
   width: 100%;
   border-collapse: collapse;
@@ -9593,6 +9675,10 @@ button {
   }
 
   .admin-rule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .package-assembly-top {
     grid-template-columns: 1fr;
   }
 }
