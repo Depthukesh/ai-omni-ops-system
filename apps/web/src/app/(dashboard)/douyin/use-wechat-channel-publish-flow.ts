@@ -130,8 +130,9 @@ export function useWechatChannelPublishFlow() {
         setIsLaunching(false);
         return;
       }
-      setNotice("已通知视频号扩展打开视频号助手并执行页面探测，请等待左上角 PoC 浮层和本弹窗回执。");
+      setNotice("已打开视频号助手。请在打开的页面手动点击首页右侧“发表视频”，进入真正发布页后，扩展会自动继续探测并回传结果。");
       notifyWechatChannelExtensionStartPublish(buildWechatChannelSession(publishingTarget));
+      setIsLaunching(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "视频号 PoC 启动失败。");
       setIsLaunching(false);

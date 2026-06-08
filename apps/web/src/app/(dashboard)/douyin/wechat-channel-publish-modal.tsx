@@ -56,13 +56,13 @@ export function WechatChannelPublishModal(props: WechatChannelPublishModalProps)
                 onClick={() => void props.onStartPublishProbe()}
                 disabled={props.isLaunching}
               >
-                {props.isLaunching ? "验证中..." : "打开视频号助手并验证"}
+                {props.isLaunching ? "打开中..." : "打开视频号助手"}
               </button>
               <div className="publish-dialog-hint">
-                这一轮先接入视频号独立插件 PoC，用于在线验证浏览器扩展是否能打开 `channels.weixin.qq.com`、注入页面并识别上传控件与文案区域。
+                当前改为半自动链路：先由扩展打开 `channels.weixin.qq.com/platform`，你手动点击一次首页右侧 `发表视频`，进入真正发布页后，再由扩展自动接管探测与后续上传准备。
               </div>
               <div className="publish-dialog-hint">
-                当前不是正式发布链路，不会自动上传视频，也不会自动点击发表。
+                当前不是正式发布链路，不会自动点击首页入口，也不会自动点击最终发表。
               </div>
               <div className="publish-dialog-link-row">
                 <a className="secondary-button" href={EXTENSION_DOWNLOAD_URL} download>

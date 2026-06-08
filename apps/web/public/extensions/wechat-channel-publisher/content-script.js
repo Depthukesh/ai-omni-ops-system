@@ -4,6 +4,7 @@ const PENDING_PUBLISH_KEY = "aiOmniPendingWechatChannelPublish";
 const CREATOR_BADGE_ID = "ai-omni-wechat-channel-extension-badge";
 const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 let isRunningProbe = false;
+let manualComposerWatch = null;
 
 if (location.hostname === "channels.weixin.qq.com") {
   setupCreatorBridge();
@@ -111,18 +112,22 @@ function setupCreatorBridge() {
 
   void resumePendingPublish();
   void queryPendingPublishFromBackground();
-  void probeFromLocationHash();
 }
 
 async function runCreatorProbe(payload) {
+  const session = payload?.session || {};
+  if (String(session?.mode || "VIDEO") === "VIDEO" && !isVideoComposerReady()) {
+    startManualComposerWatch(payload);
+    return;
+  }
+
   if (isRunningProbe) {
     return;
   }
   isRunningProbe = true;
-  const session = payload?.session || {};
+  stopManualComposerWatch();
   try {
-    updateCreatorBadge("正在探测视频号页面结构");
-    await ensureExpectedPage(session);
+    updateCreatorBadge("已进入视频号发布页，正在探测页面结构");
     await sleep(1200);
     const result = collectProbeResult(session);
     updateCreatorBadge(
@@ -141,36 +146,6 @@ async function runCreatorProbe(payload) {
     });
   } finally {
     isRunningProbe = false;
-  }
-}
-
-async function ensureExpectedPage(session) {
-  const expectedMode = String(session?.mode || "VIDEO");
-  if (expectedMode !== "VIDEO") {
-    return;
-  }
-  if (isVideoComposerReady()) {
-    return;
-  }
-
-  updateCreatorBadge("已进入视频号后台，正在尝试打开发表视频页");
-  for (let index = 0; index < 8; index += 1) {
-    if (isVideoComposerReady()) {
-      return;
-    }
-    const trigger = findPublishVideoTrigger();
-    if (trigger) {
-      const jumped = tryDirectNavigateFromTrigger(trigger);
-      if (jumped) {
-        updateCreatorBadge(`已命中“发表视频”入口，正在直达发布页（第 ${index + 1} 次）`);
-      } else {
-        triggerPublishVideo(trigger);
-        updateCreatorBadge(`已命中“发表视频”入口，正在尝试进入发布页（第 ${index + 1} 次）`);
-      }
-    } else {
-      updateCreatorBadge(`未找到“发表视频”入口，继续重试中（第 ${index + 1} 次）`);
-    }
-    await sleep(1500);
   }
 }
 
@@ -471,19 +446,59 @@ async function queryPendingPublishFromBackground() {
   }
 }
 
-async function probeFromLocationHash() {
-  const hash = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
-  const mode = hash.get("ai_omni_mode");
-  if (!mode) {
+function startManualComposerWatch(payload) {
+  const session = payload?.session || {};
+  if (String(session?.mode || "VIDEO") !== "VIDEO") {
     return;
   }
-  await runCreatorProbe({
-    session: {
-      mode,
-      title: hash.get("ai_omni_title") || "",
-      content: hash.get("ai_omni_content") || "",
-    },
+
+  if (isVideoComposerReady()) {
+    void runCreatorProbe(payload);
+    return;
+  }
+
+  stopManualComposerWatch();
+  updateCreatorBadge("已打开视频号后台，请手动点击首页右侧“发表视频”。进入发布页后扩展会自动继续接管。");
+
+  const deadline = Date.now() + PENDING_MAX_AGE_MS;
+  const tick = () => {
+    if (isRunningProbe) {
+      return;
+    }
+    if (isVideoComposerReady()) {
+      stopManualComposerWatch();
+      void runCreatorProbe(payload);
+      return;
+    }
+    if (Date.now() >= deadline) {
+      stopManualComposerWatch();
+      updateCreatorBadge("等待手动进入发布页已超时，请回到工作台重新发起视频号任务。");
+    }
+  };
+
+  const observer = new MutationObserver(() => {
+    tick();
   });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+  });
+
+  const intervalId = window.setInterval(() => {
+    tick();
+  }, 1000);
+
+  manualComposerWatch = { observer, intervalId };
+}
+
+function stopManualComposerWatch() {
+  if (!manualComposerWatch) {
+    return;
+  }
+  manualComposerWatch.observer.disconnect();
+  window.clearInterval(manualComposerWatch.intervalId);
+  manualComposerWatch = null;
 }
 
 function updateCreatorBadge(message) {
