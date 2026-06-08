@@ -16,6 +16,7 @@ import {
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackagesPanel } from "./skill-packages-panel";
+import { SkillPackageGovernanceOverviewPanel } from "./skill-package-governance-overview-panel";
 import { SkillPackageKnowledgeSpacesPanel } from "./skill-package-knowledge-spaces-panel";
 import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
 import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
@@ -69,7 +70,7 @@ type ModuleDraft = {
   isAdminVisible: boolean;
 };
 
-type ModuleCenterSectionKey = "registry" | "packages" | "moduleRelations" | "skillRelations" | "knowledgeRelations";
+type ModuleCenterSectionKey = "registry" | "governanceOverview" | "packages" | "moduleRelations" | "skillRelations" | "knowledgeRelations";
 
 const DEFAULT_FILTERS: ModuleFilters = {
   keyword: "",
@@ -142,6 +143,11 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         key: "registry" as const,
         label: "模块注册",
         badge: String(props.modules.length),
+      },
+      {
+        key: "governanceOverview" as const,
+        label: "治理总览",
+        badge: "GV",
       },
       {
         key: "packages" as const,
@@ -625,6 +631,20 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
 
         {activeSection === "packages" ? (
           <SkillPackagesPanel modules={props.modules} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+        ) : null}
+
+        {activeSection === "governanceOverview" ? (
+          <SkillPackageGovernanceOverviewPanel
+            modules={props.modules}
+            skills={props.skills}
+            skillPackages={props.skillPackages}
+            skillAssetBindings={props.skillAssetBindings}
+            knowledgeBases={props.knowledgeBases}
+            dataSource={props.dataSource}
+            onNotice={props.onNotice}
+            onError={props.onError}
+            onOpenSection={setActiveSection}
+          />
         ) : null}
 
         {activeSection === "moduleRelations" ? (
