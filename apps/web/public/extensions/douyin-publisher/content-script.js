@@ -5,6 +5,7 @@ const CREATOR_BADGE_ID = "ai-omni-douyin-extension-badge";
 const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 let isRunningPendingPublish = false;
 const DEBUG_SESSION_ID = "unified-publisher-bug";
+const DEBUG_RUN_ID = "post-fix";
 
 function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
   const debugUrl = resolveDebugUrl(apiBaseUrl);
@@ -16,7 +17,7 @@ function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       sessionId: DEBUG_SESSION_ID,
-      runId: "pre-fix",
+      runId: DEBUG_RUN_ID,
       hypothesisId,
       location,
       msg,
@@ -163,7 +164,6 @@ async function runCreatorPublish(payload) {
   const session = payload?.session;
   const apiBaseUrl = String(payload?.apiBaseUrl || "").trim();
   const appTabId = typeof payload?.appTabId === "number" ? payload.appTabId : undefined;
-  const videoFile = payload?.videoFile;
   if (!session?.token) {
     isRunningPendingPublish = false;
     throw new Error("缺少发布会话 token。");
@@ -173,16 +173,18 @@ async function runCreatorPublish(payload) {
     // #region debug-point D:run-publish-start
     reportDebug(apiBaseUrl, "D", "douyin-publisher/content-script.js:runCreatorPublish", "[DEBUG] runCreatorPublish start", {
       hasToken: Boolean(session?.token),
-      hasVideoFile: Boolean(videoFile),
-      videoFileName: videoFile?.fileName || null,
-      videoFileBytes: Array.isArray(videoFile?.buffer) ? videoFile.buffer.length : null,
+      hasVideoUrl: Boolean(session?.videoUrl),
+      videoUrl: session?.videoUrl || null,
       hasTitle: Boolean(session?.title),
       hasContent: Boolean(session?.content),
     });
     // #endregion
+    updateCreatorBadge("正在下载视频素材");
+    await notifyProgress(appTabId, session.token, "已接管创作者页，正在下载待发布视频。");
+    const videoFile = await downloadVideoFile(session.videoUrl, session.title || "douyin-video", apiBaseUrl);
     updateCreatorBadge("正在查找视频上传控件");
-    await notifyProgress(appTabId, session.token, "已接管创作者页，正在准备上传视频。");
-    await uploadVideo(videoFile, session.title || "douyin-video");
+    await notifyProgress(appTabId, session.token, "视频素材下载完成，正在查找上传控件。");
+    await uploadVideo(videoFile);
     updateCreatorBadge("视频上传中，等待表单可编辑");
     await notifyProgress(appTabId, session.token, "视频已开始上传，正在等待抖音创作者中心解析素材。");
     await waitForEditorReady();
@@ -224,15 +226,14 @@ async function runCreatorPublish(payload) {
   }
 }
 
-async function uploadVideo(videoFile, title) {
+async function uploadVideo(videoFile) {
   if (!videoFile) {
     throw new Error("当前作品没有可上传的视频。");
   }
 
   const input = await waitFor(() => findVideoFileInput(), 30000, 600, "未找到视频上传控件");
-  const file = createFileFromTransferable(videoFile, `${sanitizeFileName(title)}.mp4`);
   const dataTransfer = new DataTransfer();
-  dataTransfer.items.add(file);
+  dataTransfer.items.add(videoFile);
 
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "files")?.set;
   if (!setter) {
@@ -337,15 +338,54 @@ function setElementValue(element, value) {
   }
 }
 
-function createFileFromTransferable(item, fallbackName) {
-  const buffer = Array.isArray(item?.buffer) ? new Uint8Array(item.buffer) : new Uint8Array();
-  const blob = new Blob([buffer], {
-    type: String(item?.mimeType || "video/mp4"),
+async function downloadVideoFile(videoUrl, title, apiBaseUrl) {
+  if (!videoUrl) {
+    throw new Error("当前作品没有可下载的视频地址。");
+  }
+  // #region debug-point C:creator-download-start
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/content-script.js:downloadVideoFile", "[DEBUG] creator downloadVideoFile start", {
+    videoUrl,
+    title,
   });
-  const fileName = String(item?.fileName || fallbackName || "douyin-video.mp4");
+  // #endregion
+  const response = await fetch(videoUrl);
+  // #region debug-point C:creator-download-response
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/content-script.js:downloadVideoFile", "[DEBUG] creator downloadVideoFile fetched remote asset", {
+    status: response.status,
+    ok: response.ok,
+    contentType: response.headers.get("content-type"),
+  });
+  // #endregion
+  if (!response.ok) {
+    throw new Error(`视频素材下载失败：${response.status}`);
+  }
+  const blob = await response.blob();
+  const extension = guessFileExtension(blob.type || "video/mp4", videoUrl);
+  const fileName = `${sanitizeFileName(title || "douyin-video")}.${extension}`;
   return new File([blob], fileName, {
     type: blob.type || "video/mp4",
   });
+}
+
+function guessFileExtension(mimeType, videoUrl) {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.includes("quicktime")) {
+    return "mov";
+  }
+  if (normalized.includes("webm")) {
+    return "webm";
+  }
+  try {
+    const parsed = new URL(String(videoUrl || ""));
+    const lastPart = parsed.pathname.split("/").filter(Boolean).pop() || "";
+    const matched = lastPart.match(/\.([a-z0-9]+)$/i);
+    if (matched?.[1]) {
+      return matched[1].toLowerCase();
+    }
+  } catch {
+    // Ignore invalid url and fall back to mp4.
+  }
+  return "mp4";
 }
 
 async function resumePendingPublish() {

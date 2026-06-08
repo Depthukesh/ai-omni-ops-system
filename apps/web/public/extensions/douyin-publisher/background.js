@@ -2,6 +2,7 @@ const EXTENSION_SOURCE = "ai-omni-douyin-extension";
 const CREATOR_URL = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web";
 const PENDING_PUBLISH_KEY = "aiOmniPendingDouyinPublish";
 const DEBUG_SESSION_ID = "unified-publisher-bug";
+const DEBUG_RUN_ID = "post-fix";
 
 function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
   const debugUrl = resolveDebugUrl(apiBaseUrl);
@@ -13,7 +14,7 @@ function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       sessionId: DEBUG_SESSION_ID,
-      runId: "pre-fix",
+      runId: DEBUG_RUN_ID,
       hypothesisId,
       location,
       msg,
@@ -175,20 +176,16 @@ async function buildPublishPayload(payload) {
   if (!session?.token || !apiBaseUrl) {
     throw new Error("发布任务描述不完整。");
   }
-
-  const videoFile = await downloadFileAsTransferable(session.videoUrl, "douyin-video.mp4", "video/mp4");
   // #region debug-point C:build-payload-done
-  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:buildPublishPayload", "[DEBUG] buildPublishPayload resolved video file", {
-    fileName: videoFile?.fileName || null,
-    mimeType: videoFile?.mimeType || null,
-    byteLength: Array.isArray(videoFile?.buffer) ? videoFile.buffer.length : null,
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:buildPublishPayload", "[DEBUG] buildPublishPayload resolved lightweight session payload", {
+    hasVideoUrl: Boolean(session?.videoUrl),
+    videoUrl: session?.videoUrl || null,
   });
   // #endregion
   return {
     apiBaseUrl,
     appTabId,
     session,
-    videoFile,
   };
 }
 
@@ -264,58 +261,6 @@ async function notifyApp(tabId, message) {
   } catch {
     // Ignore app tab notification failures.
   }
-}
-
-async function downloadFileAsTransferable(url, fallbackName, fallbackMimeType) {
-  const apiBaseUrl = extractApiBaseUrlFromAsset(url);
-  // #region debug-point C:download-start
-  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:downloadFileAsTransferable", "[DEBUG] downloadFileAsTransferable start", {
-    url,
-    fallbackName,
-    fallbackMimeType,
-  });
-  // #endregion
-  const response = await fetch(url);
-  // #region debug-point C:download-response
-  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:downloadFileAsTransferable", "[DEBUG] downloadFileAsTransferable fetched remote asset", {
-    status: response.status,
-    ok: response.ok,
-    contentType: response.headers.get("content-type"),
-  });
-  // #endregion
-  if (!response.ok) {
-    throw new Error(`素材下载失败：${response.status}`);
-  }
-
-  const blob = await response.blob();
-  const buffer = await blob.arrayBuffer();
-  return {
-    buffer: Array.from(new Uint8Array(buffer)),
-    fileName: guessFileName(url, fallbackName),
-    mimeType: blob.type || fallbackMimeType,
-  };
-}
-
-function extractApiBaseUrlFromAsset(url) {
-  try {
-    const parsed = new URL(String(url || ""));
-    return `${parsed.protocol}//${parsed.host}/api`;
-  } catch {
-    return "";
-  }
-}
-
-function guessFileName(url, fallbackName) {
-  try {
-    const parsed = new URL(url);
-    const lastPart = parsed.pathname.split("/").filter(Boolean).pop() || "";
-    if (lastPart.includes(".")) {
-      return lastPart;
-    }
-  } catch {
-    // Ignore invalid url and fall back to default name.
-  }
-  return fallbackName;
 }
 
 async function waitForTabComplete(tabId, timeoutMs = 20000) {
