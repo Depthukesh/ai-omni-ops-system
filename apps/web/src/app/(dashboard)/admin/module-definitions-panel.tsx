@@ -3,16 +3,22 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   archiveModuleDefinition,
+  createSkillPackageModule,
   createModuleDefinition,
+  deleteSkillPackageModule,
   deleteModuleDefinition,
   getModuleDefinitions,
+  getSkillPackageModulesByModule,
+  skillPackageModuleSeed,
   type GetModuleDefinitionsQuery,
   type ApiProviderRecord,
   type KnowledgeBaseRecord,
   type ModuleDefinitionRecord,
   type SkillAssetBindingRecord,
   type SkillConfigRecord,
+  type SkillPackageModuleRecord,
   type SkillPackageRecord,
+  updateSkillPackageModule,
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackagesPanel } from "./skill-packages-panel";
@@ -64,6 +70,15 @@ type ModuleDraft = {
   isPlatformVisible: boolean;
   isBrandVisible: boolean;
   isAdminVisible: boolean;
+};
+
+type ModulePackageAssemblyDraft = {
+  packageId: string;
+  bindingType: SkillPackageModuleRecord["bindingType"];
+  isDefault: boolean;
+  sortOrder: string;
+  enabled: boolean;
+  remarks: string;
 };
 
 type ModuleCenterSectionKey = "registry" | "packages";
@@ -123,6 +138,11 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [busyModuleId, setBusyModuleId] = useState("");
+  const [modulePackages, setModulePackages] = useState<SkillPackageModuleRecord[]>([]);
+  const [isLoadingModulePackages, setIsLoadingModulePackages] = useState(false);
+  const [isInstallingPackage, setIsInstallingPackage] = useState(false);
+  const [busyPackageRelationId, setBusyPackageRelationId] = useState("");
+  const [packageAssemblyDraft, setPackageAssemblyDraft] = useState<ModulePackageAssemblyDraft>(buildModulePackageAssemblyDraft());
 
   const visibleModules = useMemo(() => {
     return props.modules.filter((item) => matchesFilters(item, filters));
@@ -152,15 +172,23 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
   useEffect(() => {
     if (!selectedModuleId) {
       setSelectedDraft(buildCreateDraft());
+      setModulePackages([]);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft());
       return;
     }
     if (!selectedModule) {
       setSelectedModuleId("");
       setSelectedDraft(buildCreateDraft());
+      setModulePackages([]);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft());
       return;
     }
     setSelectedDraft(buildDraftFromRecord(selectedModule));
   }, [selectedModule, selectedModuleId]);
+
+  useEffect(() => {
+    void loadModulePackages();
+  }, [props.dataSource, selectedModule?.id, selectedModule?.moduleKey]);
 
   useEffect(() => {
     if (!isCreateModalOpen) {
@@ -360,6 +388,208 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
       setBusyModuleId("");
     }
   }
+
+  async function loadModulePackages() {
+    if (!selectedModule) {
+      setModulePackages([]);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft());
+      return;
+    }
+    if (props.dataSource === "seed") {
+      const next = sortModulePackages(skillPackageModuleSeed.filter((item) => item.moduleKey === selectedModule.moduleKey));
+      setModulePackages(next);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft(next.length));
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(next) }));
+      return;
+    }
+    setIsLoadingModulePackages(true);
+    try {
+      const next = sortModulePackages(await getSkillPackageModulesByModule(selectedModule.moduleKey));
+      setModulePackages(next);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft(next.length));
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(next) }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "读取模块能力包失败";
+      props.onError(`读取模块能力包失败：${message}`);
+      setModulePackages([]);
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft());
+    } finally {
+      setIsLoadingModulePackages(false);
+    }
+  }
+
+  async function handleInstallPackage() {
+    if (!selectedModule || !packageAssemblyDraft.packageId) {
+      props.onError("请先选择要安装的能力包。");
+      return;
+    }
+    const selectedPackage = props.skillPackages.find((item) => item.id === packageAssemblyDraft.packageId);
+    if (!selectedPackage) {
+      props.onError("当前选择的能力包不存在，请刷新后重试。");
+      return;
+    }
+    setIsInstallingPackage(true);
+    props.onNotice("");
+    props.onError("");
+    try {
+      const payload = {
+        packageId: selectedPackage.id,
+        packageKey: selectedPackage.packageKey,
+        packageName: selectedPackage.packageName,
+        moduleKey: selectedModule.moduleKey,
+        bindingType: packageAssemblyDraft.bindingType,
+        isDefault: packageAssemblyDraft.isDefault,
+        sortOrder: Number(packageAssemblyDraft.sortOrder || (modulePackages.length + 1) * 10),
+        enabled: packageAssemblyDraft.enabled,
+        remarks: packageAssemblyDraft.remarks.trim() || undefined,
+      } satisfies Omit<
+        SkillPackageModuleRecord,
+        "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt"
+      >;
+
+      const created =
+        props.dataSource === "seed"
+          ? buildLocalModulePackageRelation(payload, selectedModule)
+          : await createSkillPackageModule(payload);
+      let nextRelations = sortModulePackages([...modulePackages, created]);
+      if (created.isDefault) {
+        nextRelations = await applyDefaultModulePackage(nextRelations, created.id);
+      } else {
+        setModulePackages(nextRelations);
+      }
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(nextRelations) }));
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft(nextRelations.length));
+      props.onNotice(`能力包已安装到模块：${selectedPackage.packageName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "安装能力包失败";
+      props.onError(`安装能力包失败：${message}`);
+    } finally {
+      setIsInstallingPackage(false);
+    }
+  }
+
+  async function handleSetDefaultModulePackage(relationId: string) {
+    props.onNotice("");
+    props.onError("");
+    try {
+      const next = await applyDefaultModulePackage(modulePackages, relationId);
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(next) }));
+      props.onNotice("模块默认能力包已更新。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "设置默认能力包失败";
+      props.onError(`设置默认能力包失败：${message}`);
+    }
+  }
+
+  async function handleToggleModulePackageEnabled(relation: SkillPackageModuleRecord, enabled: boolean) {
+    setBusyPackageRelationId(relation.id);
+    props.onNotice("");
+    props.onError("");
+    try {
+      const updated =
+        props.dataSource === "seed"
+          ? {
+              ...relation,
+              enabled,
+              isDefault: enabled ? relation.isDefault : false,
+              updatedAt: new Date().toISOString(),
+            }
+          : await updateSkillPackageModule(relation.id, {
+              enabled,
+              isDefault: enabled ? relation.isDefault : false,
+            });
+      const next = sortModulePackages(modulePackages.map((item) => (item.id === relation.id ? updated : item)));
+      setModulePackages(next);
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(next) }));
+      props.onNotice(enabled ? `能力包已启用：${relation.packageName}` : `能力包已停用：${relation.packageName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新能力包状态失败";
+      props.onError(`更新能力包状态失败：${message}`);
+    } finally {
+      setBusyPackageRelationId("");
+    }
+  }
+
+  async function handleRemoveModulePackage(relation: SkillPackageModuleRecord) {
+    if (!window.confirm(`确认从模块中卸载能力包「${relation.packageName}」吗？`)) {
+      return;
+    }
+    setBusyPackageRelationId(relation.id);
+    props.onNotice("");
+    props.onError("");
+    try {
+      if (props.dataSource !== "seed") {
+        await deleteSkillPackageModule(relation.id);
+      }
+      const next = sortModulePackages(modulePackages.filter((item) => item.id !== relation.id));
+      setModulePackages(next);
+      setSelectedDraft((current) => ({ ...current, defaultSkillPackages: deriveDefaultPackageKeys(next) }));
+      setPackageAssemblyDraft(buildModulePackageAssemblyDraft(next.length));
+      props.onNotice(`能力包已从模块卸载：${relation.packageName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "卸载能力包失败";
+      props.onError(`卸载能力包失败：${message}`);
+    } finally {
+      setBusyPackageRelationId("");
+    }
+  }
+
+  async function applyDefaultModulePackage(relations: SkillPackageModuleRecord[], relationId: string) {
+    const updatedRelations = await Promise.all(
+      relations.map(async (item) => {
+        const shouldDefault = item.id === relationId;
+        const nextPatch: Partial<
+          Omit<SkillPackageModuleRecord, "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt">
+        > = {};
+        if (shouldDefault) {
+          if (!item.enabled) {
+            nextPatch.enabled = true;
+          }
+          if (!item.isDefault) {
+            nextPatch.isDefault = true;
+          }
+          if (item.bindingType !== "DEFAULT") {
+            nextPatch.bindingType = "DEFAULT";
+          }
+        } else {
+          if (item.isDefault) {
+            nextPatch.isDefault = false;
+          }
+          if (item.bindingType === "DEFAULT") {
+            nextPatch.bindingType = "OPTIONAL";
+          }
+        }
+        if (!Object.keys(nextPatch).length) {
+          return item;
+        }
+        if (props.dataSource === "seed") {
+          return {
+            ...item,
+            ...nextPatch,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return updateSkillPackageModule(item.id, nextPatch);
+      }),
+    );
+    const next = sortModulePackages(updatedRelations);
+    setModulePackages(next);
+    return next;
+  }
+
+  const installedPackageIds = useMemo(() => new Set(modulePackages.map((item) => item.packageId)), [modulePackages]);
+  const installablePackages = useMemo(
+    () =>
+      props.skillPackages
+        .filter((item) => !installedPackageIds.has(item.id))
+        .slice()
+        .sort((left, right) => String(left.packageName).localeCompare(String(right.packageName), "zh-CN")),
+    [installedPackageIds, props.skillPackages],
+  );
+  const activeDefaultPackage = useMemo(
+    () => modulePackages.find((item) => item.enabled && item.isDefault) || modulePackages.find((item) => item.isDefault) || null,
+    [modulePackages],
+  );
 
   return (
     <div
@@ -587,14 +817,183 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                 </div>
 
                 {selectedModule ? (
-                  <ModuleDraftForm
-                    draft={selectedDraft}
-                    onChange={setSelectedDraft}
-                    modules={props.modules}
-                    skillPackages={props.skillPackages}
-                    knowledgeBases={props.knowledgeBases}
-                    providers={props.providers}
-                  />
+                  <div style={{ display: "grid", gap: 16 }}>
+                    <ModuleDraftForm
+                      draft={selectedDraft}
+                      onChange={setSelectedDraft}
+                      modules={props.modules}
+                      skillPackages={props.skillPackages}
+                      knowledgeBases={props.knowledgeBases}
+                      providers={props.providers}
+                    />
+
+                    <section className="entity-card" style={{ padding: 16 }}>
+                      <div className="entity-card-head">
+                        <div>
+                          <strong>能力包装配区</strong>
+                          <p className="personal-meta">模块页只负责安装、默认项设置、启停和卸载；能力包内部技能继续在能力包页装配。</p>
+                        </div>
+                        <div className="personal-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))", minWidth: 280 }}>
+                          <div>
+                            <span className="personal-meta">已装能力包</span>
+                            <strong>{modulePackages.length}</strong>
+                          </div>
+                          <div>
+                            <span className="personal-meta">默认能力包</span>
+                            <strong>{activeDefaultPackage?.packageName || "-"}</strong>
+                          </div>
+                          <div>
+                            <span className="personal-meta">可安装能力包</span>
+                            <strong>{installablePackages.length}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="admin-rule-grid" style={{ marginBottom: 16 }}>
+                        <ModuleFormField label="从能力包页安装" badge="复制后安装" hint="能力包作为技能组合层，这里只负责装到当前模块。">
+                          <select
+                            value={packageAssemblyDraft.packageId}
+                            onChange={(event) => setPackageAssemblyDraft((current) => ({ ...current, packageId: event.target.value }))}
+                          >
+                            <option value="">请选择能力包</option>
+                            {installablePackages.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.packageName} · {item.scope} · {item.status}
+                              </option>
+                            ))}
+                          </select>
+                        </ModuleFormField>
+                        <ModuleFormField label="安装类型" badge="系统可选" hint="默认能力包通常用 DEFAULT，补充能力包用 OPTIONAL。">
+                          <select
+                            value={packageAssemblyDraft.bindingType}
+                            onChange={(event) =>
+                              setPackageAssemblyDraft((current) => ({
+                                ...current,
+                                bindingType: event.target.value as SkillPackageModuleRecord["bindingType"],
+                              }))
+                            }
+                          >
+                            <option value="DEFAULT">DEFAULT</option>
+                            <option value="OPTIONAL">OPTIONAL</option>
+                            <option value="SYSTEM_REQUIRED">SYSTEM_REQUIRED</option>
+                            <option value="EXPERIMENTAL">EXPERIMENTAL</option>
+                          </select>
+                        </ModuleFormField>
+                        <ModuleFormField label="排序" badge="推荐" hint="默认每 10 递增，后续可继续调序。">
+                          <input
+                            value={packageAssemblyDraft.sortOrder}
+                            onChange={(event) => setPackageAssemblyDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                          />
+                        </ModuleFormField>
+                        <ModuleFormField label="备注" badge="可选" hint="记录这次装配的用途或业务说明。" wide>
+                          <input
+                            value={packageAssemblyDraft.remarks}
+                            onChange={(event) => setPackageAssemblyDraft((current) => ({ ...current, remarks: event.target.value }))}
+                          />
+                        </ModuleFormField>
+                      </div>
+
+                      <div className="personal-actions" style={{ marginBottom: 16 }}>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={packageAssemblyDraft.isDefault}
+                            onChange={(event) => setPackageAssemblyDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+                          />
+                          <span>安装后设为默认能力包</span>
+                        </label>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={packageAssemblyDraft.enabled}
+                            onChange={(event) => setPackageAssemblyDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                          />
+                          <span>安装后立即启用</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={() => void handleInstallPackage()}
+                          disabled={isInstallingPackage || !packageAssemblyDraft.packageId}
+                        >
+                          {isInstallingPackage ? "安装中..." : "安装能力包到模块"}
+                        </button>
+                      </div>
+
+                      <div className="admin-user-table-wrapper">
+                        <table className="admin-user-table">
+                          <thead>
+                            <tr>
+                              <th>能力包</th>
+                              <th>类型</th>
+                              <th>默认</th>
+                              <th>状态</th>
+                              <th>排序</th>
+                              <th>说明</th>
+                              <th>操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {isLoadingModulePackages ? (
+                              <tr>
+                                <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                                  正在加载已装能力包...
+                                </td>
+                              </tr>
+                            ) : modulePackages.length ? (
+                              modulePackages.map((relation) => (
+                                <tr key={relation.id}>
+                                  <td>
+                                    <span className="admin-user-row-title">{relation.packageName}</span>
+                                    <span className="admin-user-row-meta">{relation.packageKey}</span>
+                                  </td>
+                                  <td>{relation.bindingType}</td>
+                                  <td>{relation.isDefault ? "是" : "否"}</td>
+                                  <td>{relation.enabled ? "启用中" : "已停用"}</td>
+                                  <td>{relation.sortOrder}</td>
+                                  <td>{relation.remarks || "-"}</td>
+                                  <td>
+                                    <div className="personal-actions" style={{ justifyContent: "flex-start" }}>
+                                      <button
+                                        type="button"
+                                        className="secondary-button"
+                                        onClick={() => void handleSetDefaultModulePackage(relation.id)}
+                                        disabled={busyPackageRelationId === relation.id || (relation.isDefault && relation.bindingType === "DEFAULT" && relation.enabled)}
+                                      >
+                                        设为默认
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="secondary-button"
+                                        onClick={() => void handleToggleModulePackageEnabled(relation, !relation.enabled)}
+                                        disabled={busyPackageRelationId === relation.id}
+                                      >
+                                        {relation.enabled ? "停用" : "启用"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="danger-button"
+                                        onClick={() => void handleRemoveModulePackage(relation)}
+                                        disabled={busyPackageRelationId === relation.id}
+                                      >
+                                        卸载
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                                  当前模块还没有安装能力包，请先从能力包页装配。
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
                 ) : (
                   <div className="personal-meta" style={{ paddingTop: 12 }}>
                     请选择一个模块进行编辑。
@@ -1325,6 +1724,17 @@ function buildCreateDraft(): ModuleDraft {
   };
 }
 
+function buildModulePackageAssemblyDraft(installedCount = 0): ModulePackageAssemblyDraft {
+  return {
+    packageId: "",
+    bindingType: "OPTIONAL",
+    isDefault: installedCount === 0,
+    sortOrder: String((installedCount + 1) * 10),
+    enabled: true,
+    remarks: "",
+  };
+}
+
 function buildDraftFromRecord(record: ModuleDefinitionRecord): ModuleDraft {
   return {
     moduleKey: record.moduleKey,
@@ -1354,6 +1764,45 @@ function buildDraftFromRecord(record: ModuleDefinitionRecord): ModuleDraft {
     isPlatformVisible: record.isPlatformVisible,
     isBrandVisible: record.isBrandVisible,
     isAdminVisible: record.isAdminVisible,
+  };
+}
+
+function deriveDefaultPackageKeys(relations: SkillPackageModuleRecord[]) {
+  return relations
+    .filter((item) => item.enabled && item.isDefault)
+    .map((item) => item.packageKey)
+    .join("\n");
+}
+
+function sortModulePackages(relations: SkillPackageModuleRecord[]) {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const leftScore = Number(left.enabled) * 100 + Number(left.isDefault) * 10 + Number(left.bindingType === "DEFAULT");
+      const rightScore = Number(right.enabled) * 100 + Number(right.isDefault) * 10 + Number(right.bindingType === "DEFAULT");
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+      return String(left.packageName).localeCompare(String(right.packageName), "zh-CN");
+    });
+}
+
+function buildLocalModulePackageRelation(
+  payload: Omit<SkillPackageModuleRecord, "id" | "moduleName" | "moduleType" | "entryRoute" | "createdAt" | "updatedAt">,
+  module: ModuleDefinitionRecord,
+): SkillPackageModuleRecord {
+  const now = new Date().toISOString();
+  return {
+    ...payload,
+    id: `spm_local_${Date.now()}_${payload.packageId}`,
+    moduleName: module.moduleName,
+    moduleType: module.moduleType,
+    entryRoute: module.entryRoute,
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
