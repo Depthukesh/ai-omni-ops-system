@@ -18,6 +18,7 @@ import { type OptionalDateFormatter, type ProductOption, type SelectOption } fro
 import { VideoCreateBasicFields } from "../xiaohongshu/video-create-basic-fields";
 import { VideoWorkspaceDetailPanel } from "../xiaohongshu/video-workspace-detail-panel";
 import { VideoWorkCardGrid } from "../xiaohongshu/work-card-grids";
+import { type DouyinPublishableWorkTarget } from "./publish-types";
 
 const PAGE_SIZE = 20;
 const CUSTOM_TOPIC_OPTION = "__custom_topic__";
@@ -93,6 +94,7 @@ export interface DouyinVideoStoryboardWorkspaceProps {
     providerTaskId: string;
     requestedVideoProvider?: string;
   }) => Promise<boolean>;
+  onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -338,6 +340,15 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
     });
   }
 
+  function openPublishModal(item: DouyinVideoWorkRecord) {
+    props.onOpenPublishModal({
+      id: item.id,
+      workKind: "VIDEO_STORYBOARD",
+      title: item.title,
+      sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频（故事板）",
+    });
+  }
+
   return (
     <>
       <article className="workspace-panel strategy-page-card">
@@ -389,6 +400,8 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
               setEditingStoryboardPrompt(item.storyboardPrompt || "");
             }}
             onPreview={props.onPreview}
+            onPublish={openPublishModal}
+            getPublishLabel={() => "发布到抖音"}
             onEdit={openEditor}
             onDelete={(workId) => void handleDelete(workId)}
             formatDateTime={props.formatDateTime}
@@ -408,6 +421,16 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
             onGenerateVideo={handleGenerateVideo}
             onRecoverVideo={() => handleRecoverVideo()}
             onPreview={props.onPreview}
+            extraActions={(
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => openPublishModal(selectedWork)}
+                disabled={!selectedWork.videoUrl}
+              >
+                发布到抖音
+              </button>
+            )}
             getOriginalTaskStatusClass={getTaskStatusClass}
             getOriginalTaskStatusText={getTaskStatusText}
             formatDateTime={props.formatDateTime}

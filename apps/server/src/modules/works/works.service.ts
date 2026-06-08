@@ -1938,6 +1938,21 @@ export type XiaohongshuPublishableWorkRecord = {
   updatedAt: string;
 };
 
+export type DouyinPublishableWorkRecord = {
+  id: string;
+  brandId?: string;
+  taskId: string;
+  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN";
+  title: string;
+  content: string;
+  coverImageUrl?: string;
+  videoUrl: string;
+  hashtags: string[];
+  sourceLabel: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type OriginalCopyModelResult = {
   title: string;
   content: string;
@@ -5464,6 +5479,72 @@ export class WorksService {
       hashtags: record.hashtags,
       productName: record.productName,
       sourceLabel: record.sourceMaterialTitle || "二创素材",
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  async getDouyinPublishableWork(brandId: string, workId: string): Promise<DouyinPublishableWorkRecord> {
+    try {
+      const target = await this.getVideoWorkRowById(brandId, workId);
+      const meta = this.readVideoWorkMeta(this.getMediaMetadata(target));
+      const record = this.mapVideoWorkRecord(
+        target.id,
+        target.brandId ?? undefined,
+        target.taskId ?? meta.taskId,
+        meta,
+        targetTaskStatus(target),
+        normalizeMaybeDate(target.createdAt),
+        normalizeMaybeDate(target.updatedAt),
+      );
+      if (!record.videoUrl) {
+        throw new BadRequestException("当前作品还没有生成最终短视频，请先完成视频生成后再发布到抖音。");
+      }
+      return {
+        id: record.id,
+        brandId: record.brandId,
+        taskId: record.taskId,
+        workKind: meta.kind === "DOUYIN_DIRECT_VIDEO" ? "VIDEO_DIRECT" : "VIDEO_STORYBOARD",
+        title: record.title,
+        content: record.content,
+        coverImageUrl: record.coverImageUrl || record.storyboardImageUrl || record.referenceImageUrl,
+        videoUrl: record.videoUrl,
+        hashtags: [],
+        sourceLabel: record.calendarLabel || record.customTopicName || "抖音视频",
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      };
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) {
+        throw error;
+      }
+    }
+
+    const target = await this.getDigitalHumanWorkRowById(brandId, workId);
+    const meta = this.readDigitalHumanVideoWorkMeta(this.getMediaMetadata(target));
+    const record = this.mapDigitalHumanVideoWorkRecord(
+      target.id,
+      target.brandId ?? undefined,
+      target.taskId ?? meta.taskId,
+      meta,
+      targetTaskStatus(target),
+      normalizeMaybeDate(target.createdAt),
+      normalizeMaybeDate(target.updatedAt),
+    );
+    if (!record.videoUrl) {
+      throw new BadRequestException("当前数字人作品还没有生成最终视频，请先完成视频生成后再发布到抖音。");
+    }
+    return {
+      id: record.id,
+      brandId: record.brandId,
+      taskId: record.taskId,
+      workKind: "DIGITAL_HUMAN",
+      title: record.title,
+      content: record.content,
+      coverImageUrl: record.coverImageUrl,
+      videoUrl: record.videoUrl,
+      hashtags: [],
+      sourceLabel: record.personName || "数字人作品",
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     };

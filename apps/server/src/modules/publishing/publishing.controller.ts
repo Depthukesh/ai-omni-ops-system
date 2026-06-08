@@ -34,9 +34,28 @@ export class PublishingController {
     return this.publishingService.createXiaohongshuDesktopDraftSession(brandId, workId, payload);
   }
 
+  @Post("brands/:brandId/douyin/works/:workId/mobile-publish-session")
+  createDouyinMobilePublishSession(
+    @Param("brandId") brandId: string,
+    @Param("workId") workId: string,
+    @Body() payload: CreateMobileDraftSessionPayload,
+  ) {
+    return this.publishingService.createDouyinMobilePublishSession(brandId, workId, payload);
+  }
+
   @Get("xiaohongshu/mobile-sessions/:token")
   getXiaohongshuMobileDraftSession(@Param("token") token: string) {
     return this.publishingService.getXiaohongshuMobileDraftSession(token);
+  }
+
+  @Get("douyin/mobile-sessions/:token")
+  getDouyinMobilePublishSession(@Param("token") token: string) {
+    return this.publishingService.getDouyinMobilePublishSession(token);
+  }
+
+  @Get("mobile-sessions/:token")
+  getMobilePublishSession(@Param("token") token: string) {
+    return this.publishingService.getMobilePublishSession(token);
   }
 
   @Get("xiaohongshu/desktop-sessions/:token")
@@ -50,6 +69,22 @@ export class PublishingController {
     @Body() payload: CompleteMobileDraftSessionPayload,
   ) {
     return this.publishingService.completeXiaohongshuMobileDraftSession(token, payload);
+  }
+
+  @Post("douyin/mobile-sessions/:token/complete")
+  completeDouyinMobilePublishSession(
+    @Param("token") token: string,
+    @Body() payload: CompleteMobileDraftSessionPayload,
+  ) {
+    return this.publishingService.completeDouyinMobilePublishSession(token, payload);
+  }
+
+  @Post("mobile-sessions/:token/complete")
+  completeMobilePublishSession(
+    @Param("token") token: string,
+    @Body() payload: CompleteMobileDraftSessionPayload,
+  ) {
+    return this.publishingService.completeMobilePublishSession(token, payload);
   }
 
   @Post("xiaohongshu/desktop-sessions/:token/complete")

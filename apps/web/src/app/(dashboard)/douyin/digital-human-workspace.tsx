@@ -26,6 +26,7 @@ import { DigitalHumanTemplateLibrary } from "./digital-human-template-library";
 import { DigitalHumanVoiceLibraryWorkspace } from "./digital-human-voice-library-workspace";
 import { DigitalHumanVideoPanel } from "./digital-human-video-panel";
 import { DigitalHumanWorksCenterPanel } from "./digital-human-works-center-panel";
+import { type DouyinPublishableWorkTarget } from "./publish-types";
 import { WorkspaceSectionHeader } from "../xiaohongshu/note-workspace-shared-panels";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
@@ -283,6 +284,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   ) => Promise<DouyinDigitalHumanScriptTemplateRecord | null>;
   onDeleteScriptTemplate: (templateId: string) => Promise<boolean>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
+  onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
   onCreate: (payload: GenerateDouyinDigitalHumanVideoForm) => Promise<boolean>;
   onCreateCompleteVideo: (payload: GenerateDouyinDigitalHumanCompleteVideoForm) => Promise<boolean>;
   onCreateCustomPerson: (payload: {
@@ -2305,6 +2307,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onBackfillSelectedWork={handleBackfillSelectedWork}
           onRecoverVideo={props.onRecoverVideo}
           onRetrySelectedWork={handleRetrySelectedWork}
+          onPublish={props.onOpenPublishModal}
           onPreview={props.onPreview}
           onDelete={props.onDelete}
         />

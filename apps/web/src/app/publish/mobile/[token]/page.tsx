@@ -15,10 +15,14 @@ export const revalidate = 0;
 type MobileSessionPayload = {
   taskId: string;
   token: string;
+  platform: "XIAOHONGSHU" | "DOUYIN";
+  mode: "SAVE_DRAFT" | "PUBLISH_VIDEO";
+  channel: "MOBILE_QR";
   status: "QUEUED" | "SUCCESS" | "FAILED";
   title: string;
   content: string;
-  imageUrls: string[];
+  imageUrls?: string[];
+  videoUrl?: string;
   coverImageUrl?: string;
   hashtags: string[];
   accountName?: string;
@@ -38,19 +42,23 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
 
   try {
     const session = await loadSession(token, apiBaseUrl);
+    const platformLabel = session.platform === "DOUYIN" ? "抖音" : "小红书";
+    const isDouyin = session.platform === "DOUYIN";
     return (
       <main style={styles.page}>
         <section style={styles.card}>
           <div style={styles.badge}>手机扫码接力</div>
-          <h1 style={styles.title}>小红书草稿接力页</h1>
+          <h1 style={styles.title}>{isDouyin ? "抖音发布接力页" : "小红书草稿接力页"}</h1>
           <p style={styles.description}>
-            这一步不会自动公开发布，只用于把当前笔记素材快速接力到手机，方便你在小红书 App 里保存到草稿箱。
+            {isDouyin
+              ? "这一步不会替你自动点击最终发布按钮，只用于把当前视频素材快速接力到手机，方便你在抖音 App 里补充信息后完成发布。"
+              : "这一步不会自动公开发布，只用于把当前笔记素材快速接力到手机，方便你在小红书 App 里保存到草稿箱。"}
           </p>
           <div style={styles.metaRow}>
             <span style={styles.metaTag}>{session.status === "SUCCESS" ? "已完成" : session.status === "FAILED" ? "失败" : "待接力"}</span>
             {session.accountName ? <span style={styles.metaTag}>账号：{session.accountName}</span> : null}
             <span style={styles.metaTag}>来源：{session.sourceLabel}</span>
-            <span style={styles.metaTag}>手机接力 v2</span>
+            <span style={styles.metaTag}>{platformLabel} 手机接力</span>
           </div>
           {session.accessHint ? <p style={styles.hint}>{session.accessHint}</p> : null}
         </section>
@@ -58,10 +66,21 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
         <section style={styles.card}>
           <h2 style={styles.sectionTitle}>操作步骤</h2>
           <ol style={styles.list}>
-            <li>优先点击下方“一键保存到草稿箱”，尝试把标题、正文和配图一起交给系统分享。</li>
-            <li>如果系统分享面板里出现小红书，请直接选择它。</li>
-            <li>如果当前浏览器不支持文件分享，页面会退化为复制文案并拉起小红书。</li>
-            <li>进入 App 后确认图片、标题和正文无误，再保存到草稿箱。</li>
+            {isDouyin ? (
+              <>
+                <li>优先点击下方“一键接力到抖音”，尝试把标题、正文和视频一起交给系统分享。</li>
+                <li>如果系统分享面板里出现抖音，请直接选择它。</li>
+                <li>如果当前浏览器不支持文件分享，页面会退化为复制文案并拉起抖音。</li>
+                <li>进入 App 后确认视频、标题和正文无误，再补充话题或定位后发布。</li>
+              </>
+            ) : (
+              <>
+                <li>优先点击下方“一键保存到草稿箱”，尝试把标题、正文和配图一起交给系统分享。</li>
+                <li>如果系统分享面板里出现小红书，请直接选择它。</li>
+                <li>如果当前浏览器不支持文件分享，页面会退化为复制文案并拉起小红书。</li>
+                <li>进入 App 后确认图片、标题和正文无误，再保存到草稿箱。</li>
+              </>
+            )}
           </ol>
         </section>
 
@@ -86,24 +105,43 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
           ) : null}
         </section>
 
-        <section style={styles.card}>
-          <h2 style={styles.sectionTitle}>配图素材</h2>
-          <p style={styles.description}>按顺序长按图片即可保存到手机相册。第一张通常是封面；如果当前页面长按不好保存，可先点“查看原图”再长按。</p>
-          <div style={styles.imageGrid}>
-            {session.imageUrls.map((item, index) => (
-              <figure key={`${item}-${index}`} style={styles.figure}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item} alt={`配图 ${index + 1}`} style={styles.image} />
-                <figcaption style={styles.caption}>图片 {index + 1}</figcaption>
+        {isDouyin ? (
+          <section style={styles.card}>
+            <h2 style={styles.sectionTitle}>视频素材</h2>
+            <p style={styles.description}>推荐先下载或系统分享下方视频，再回到抖音 App 上传并发布。</p>
+            {session.videoUrl ? (
+              <div style={styles.videoCard}>
+                <video controls preload="metadata" src={session.videoUrl} style={styles.video} />
                 <div style={styles.figureActionRow}>
-                  <a href={item} target="_blank" rel="noreferrer" style={styles.figureActionLink}>
-                    查看原图
+                  <a href={session.videoUrl} target="_blank" rel="noreferrer" style={styles.figureActionLink}>
+                    下载视频
                   </a>
                 </div>
-              </figure>
-            ))}
-          </div>
-        </section>
+              </div>
+            ) : (
+              <div style={styles.copyBlock}>当前会话未返回视频素材，请回到电脑端重新生成接力二维码。</div>
+            )}
+          </section>
+        ) : (
+          <section style={styles.card}>
+            <h2 style={styles.sectionTitle}>配图素材</h2>
+            <p style={styles.description}>按顺序长按图片即可保存到手机相册。第一张通常是封面；如果当前页面长按不好保存，可先点“查看原图”再长按。</p>
+            <div style={styles.imageGrid}>
+              {(session.imageUrls || []).map((item, index) => (
+                <figure key={`${item}-${index}`} style={styles.figure}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item} alt={`配图 ${index + 1}`} style={styles.image} />
+                  <figcaption style={styles.caption}>图片 {index + 1}</figcaption>
+                  <div style={styles.figureActionRow}>
+                    <a href={item} target="_blank" rel="noreferrer" style={styles.figureActionLink}>
+                      查看原图
+                    </a>
+                  </div>
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     );
   } catch (error) {
@@ -120,7 +158,7 @@ export default async function MobilePublishPage({ params }: MobilePublishPagePro
 }
 
 async function loadSession(token: string, apiBaseUrl: string): Promise<MobileSessionPayload> {
-  const response = await fetch(`${apiBaseUrl}/publishing/xiaohongshu/mobile-sessions/${encodeURIComponent(token)}`, {
+  const response = await fetch(`${apiBaseUrl}/publishing/mobile-sessions/${encodeURIComponent(token)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -320,5 +358,15 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "12px",
     fontWeight: 700,
     textDecoration: "none",
+  },
+  videoCard: {
+    display: "grid",
+    gap: "12px",
+  },
+  video: {
+    width: "100%",
+    borderRadius: "18px",
+    background: "#0f1525",
+    border: "1px solid #dfe5f2",
   },
 };

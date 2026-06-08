@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { type XiaohongshuVideoWorkRecord } from "../../../services/works";
 import { type OptionalDateFormatter } from "./shared-types";
 
@@ -18,6 +19,7 @@ export interface VideoWorkspaceDetailPanelProps {
   getOriginalTaskStatusClass: (status?: XiaohongshuVideoWorkRecord["taskStatus"]) => string;
   getOriginalTaskStatusText: (status?: XiaohongshuVideoWorkRecord["taskStatus"]) => string;
   formatDateTime: OptionalDateFormatter;
+  extraActions?: ReactNode;
 }
 
 export function VideoWorkspaceDetailPanel(props: VideoWorkspaceDetailPanelProps) {
@@ -141,6 +143,7 @@ export function VideoWorkspaceDetailPanel(props: VideoWorkspaceDetailPanelProps)
         <button type="button" className="secondary-button" onClick={() => props.onPreview(selectedItem)}>
           预览媒体
         </button>
+        {props.extraActions}
       </div>
     </article>
   );

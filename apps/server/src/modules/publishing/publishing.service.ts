@@ -4,11 +4,12 @@ import { createId, database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { BrandsService } from "../brands/brands.service";
-import { WorksService, type XiaohongshuPublishableWorkRecord } from "../works/works.service";
+import { WorksService, type DouyinPublishableWorkRecord, type XiaohongshuPublishableWorkRecord } from "../works/works.service";
 
 const DRAFT_SESSION_EXPIRE_MS = 24 * 60 * 60 * 1000;
 const MOBILE_DRAFT_TASK_TYPE = "XHS_PUBLISH_MOBILE_DRAFT";
 const DESKTOP_DRAFT_TASK_TYPE = "XHS_PUBLISH_DESKTOP_DRAFT";
+const DOUYIN_MOBILE_PUBLISH_TASK_TYPE = "DOUYIN_PUBLISH_MOBILE_HANDOFF";
 
 export type CreateMobileDraftSessionPayload = {
   accountId?: string;
@@ -58,6 +59,26 @@ type MobileDraftTaskInput = BaseDraftTaskInput & {
 
 type DesktopDraftTaskInput = BaseDraftTaskInput & {
   channel: "BROWSER_EXTENSION";
+};
+
+type DouyinMobilePublishTaskInput = {
+  sessionToken: string;
+  channel: "MOBILE_QR";
+  platform: "DOUYIN";
+  mode: "PUBLISH_VIDEO";
+  workId: string;
+  workKind: DouyinPublishableWorkRecord["workKind"];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  title: string;
+  content: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  hashtags: string[];
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
 };
 
 type DraftTaskOutput = {
@@ -177,6 +198,53 @@ export class PublishingService {
     };
   }
 
+  async createDouyinMobilePublishSession(brandId: string, workId: string, payload: CreateMobileDraftSessionPayload) {
+    const work = await this.worksService.getDouyinPublishableWork(brandId, workId);
+    await this.assertDouyinVideoAccessible(work);
+    const archive = await this.brandsService.getArchive(brandId);
+    const douyinAccounts = archive.platformAccounts.filter((item) => item.platform === "DOUYIN");
+    const selectedAccount = payload.accountId
+      ? douyinAccounts.find((item) => item.id === payload.accountId)
+      : douyinAccounts[0];
+
+    const sessionToken = createSessionToken("dy_publish");
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + DRAFT_SESSION_EXPIRE_MS);
+    const taskTitle = `手机接力发布抖音视频：${work.title}`;
+    const inputJson: DouyinMobilePublishTaskInput = {
+      sessionToken,
+      channel: "MOBILE_QR",
+      platform: "DOUYIN",
+      mode: "PUBLISH_VIDEO",
+      workId: work.id,
+      workKind: work.workKind,
+      accountId: selectedAccount?.id,
+      accountName: selectedAccount?.accountName || undefined,
+      accountLink: selectedAccount?.accountLink,
+      title: work.title,
+      content: work.content,
+      videoUrl: work.videoUrl,
+      coverImageUrl: work.coverImageUrl,
+      hashtags: work.hashtags,
+      sourceLabel: work.sourceLabel,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+
+    const task = await this.createDraftTask({
+      brandId,
+      userId: await this.getBrandOwnerUserId(brandId),
+      taskTitle,
+      taskType: DOUYIN_MOBILE_PUBLISH_TASK_TYPE,
+      inputJson,
+    });
+
+    return {
+      task: this.mapTaskSummary(task),
+      session: this.buildDouyinMobileSessionResponse(task.id, inputJson, "QUEUED"),
+    };
+  }
+
   async getXiaohongshuMobileDraftSession(token: string) {
     const task = await this.findDraftTaskByToken(token, MOBILE_DRAFT_TASK_TYPE);
     const inputJson = this.readMobileDraftTaskInput(task.inputJson);
@@ -197,6 +265,30 @@ export class PublishingService {
     };
   }
 
+  async getDouyinMobilePublishSession(token: string) {
+    const task = await this.findDraftTaskByToken(token, DOUYIN_MOBILE_PUBLISH_TASK_TYPE);
+    const inputJson = this.readDouyinMobilePublishTaskInput(task.inputJson);
+    const outputJson = this.readDraftTaskOutput(task.outputJson);
+    const taskStatus = mapPublishTaskStatus(task.taskStatus, outputJson?.status);
+    return {
+      session: this.buildDouyinMobileSessionResponse(task.id, inputJson, taskStatus, outputJson),
+    };
+  }
+
+  async getMobilePublishSession(token: string) {
+    const task = await this.findAnyMobileTaskByToken(token);
+    const outputJson = this.readDraftTaskOutput(task.outputJson);
+    const taskStatus = mapPublishTaskStatus(task.taskStatus, outputJson?.status);
+    if (task.taskType === DOUYIN_MOBILE_PUBLISH_TASK_TYPE) {
+      return {
+        session: this.buildDouyinMobileSessionResponse(task.id, this.readDouyinMobilePublishTaskInput(task.inputJson), taskStatus, outputJson),
+      };
+    }
+    return {
+      session: this.buildMobileSessionResponse(task.id, this.readMobileDraftTaskInput(task.inputJson), taskStatus, outputJson),
+    };
+  }
+
   async completeXiaohongshuMobileDraftSession(token: string, payload: CompleteMobileDraftSessionPayload) {
     const task = await this.findDraftTaskByToken(token, MOBILE_DRAFT_TASK_TYPE);
     return this.completeDraftTask(task, payload, MOBILE_DRAFT_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
@@ -208,6 +300,25 @@ export class PublishingService {
     const task = await this.findDraftTaskByToken(token, DESKTOP_DRAFT_TASK_TYPE);
     return this.completeDraftTask(task, payload, DESKTOP_DRAFT_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
       this.buildDesktopSessionResponse(taskId, this.readDesktopDraftTaskInput(taskInput), taskStatus, outputJson),
+    );
+  }
+
+  async completeDouyinMobilePublishSession(token: string, payload: CompleteMobileDraftSessionPayload) {
+    const task = await this.findDraftTaskByToken(token, DOUYIN_MOBILE_PUBLISH_TASK_TYPE);
+    return this.completeDraftTask(task, payload, DOUYIN_MOBILE_PUBLISH_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
+      this.buildDouyinMobileSessionResponse(taskId, this.readDouyinMobilePublishTaskInput(taskInput), taskStatus, outputJson),
+    );
+  }
+
+  async completeMobilePublishSession(token: string, payload: CompleteMobileDraftSessionPayload) {
+    const task = await this.findAnyMobileTaskByToken(token);
+    if (task.taskType === DOUYIN_MOBILE_PUBLISH_TASK_TYPE) {
+      return this.completeDraftTask(task, payload, DOUYIN_MOBILE_PUBLISH_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
+        this.buildDouyinMobileSessionResponse(taskId, this.readDouyinMobilePublishTaskInput(taskInput), taskStatus, outputJson),
+      );
+    }
+    return this.completeDraftTask(task, payload, MOBILE_DRAFT_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
+      this.buildMobileSessionResponse(taskId, this.readMobileDraftTaskInput(taskInput), taskStatus, outputJson),
     );
   }
 
@@ -316,7 +427,7 @@ export class PublishingService {
     userId: string;
     taskTitle: string;
     taskType: string;
-    inputJson: MobileDraftTaskInput | DesktopDraftTaskInput;
+    inputJson: MobileDraftTaskInput | DesktopDraftTaskInput | DouyinMobilePublishTaskInput;
   }) {
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
@@ -381,6 +492,41 @@ export class PublishingService {
     return matched;
   }
 
+  private async findAnyMobileTaskByToken(token: string) {
+    const mobileTaskTypes = [DOUYIN_MOBILE_PUBLISH_TASK_TYPE, MOBILE_DRAFT_TASK_TYPE];
+    if (await this.prismaService.canUseDatabase()) {
+      const candidates = await this.prismaService.task.findMany({
+        where: {
+          taskType: {
+            in: mobileTaskTypes,
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 400,
+      });
+      const matched = candidates.find((item) => {
+        const inputJson = asRecord(item.inputJson);
+        return String(inputJson?.sessionToken ?? "").trim() === token;
+      });
+      if (!matched) {
+        throw new NotFoundException("手机接力会话不存在或已失效");
+      }
+      return matched;
+    }
+
+    const matched = database.tasks.find((item) => {
+      if (!mobileTaskTypes.includes(item.taskType)) {
+        return false;
+      }
+      const inputJson = asRecord(item.inputJson);
+      return String(inputJson?.sessionToken ?? "").trim() === token;
+    });
+    if (!matched) {
+      throw new NotFoundException("手机接力会话不存在或已失效");
+    }
+    return matched;
+  }
+
   private buildMobileSessionResponse(
     taskId: string,
     inputJson: MobileDraftTaskInput,
@@ -414,6 +560,43 @@ export class PublishingService {
       apiBaseUrl: mobileApiBaseUrl,
       mobileUrl: `${this.resolveMobileWebBaseUrl()}/publish/mobile/${encodeURIComponent(inputJson.sessionToken)}?v=${encodeURIComponent(inputJson.createdAt)}`,
       openAppUrl: "xhsdiscover://",
+      completedAt: outputJson?.completedAt,
+      note: outputJson?.note,
+      accessHint: buildAccessHint(this.resolveMobileWebBaseUrl()),
+    };
+  }
+
+  private buildDouyinMobileSessionResponse(
+    taskId: string,
+    inputJson: DouyinMobilePublishTaskInput,
+    taskStatus: "QUEUED" | "SUCCESS" | "FAILED",
+    outputJson?: DraftTaskOutput,
+  ) {
+    const mobileApiBaseUrl = this.resolveMobileApiBaseUrl();
+    const mobileApiOrigin = mobileApiBaseUrl.replace(/\/api$/, "");
+    return {
+      taskId,
+      token: inputJson.sessionToken,
+      platform: inputJson.platform,
+      mode: inputJson.mode,
+      channel: inputJson.channel,
+      status: taskStatus,
+      title: inputJson.title,
+      content: inputJson.content,
+      videoUrl: this.toMobileAccessibleUrl(inputJson.videoUrl, mobileApiOrigin),
+      coverImageUrl: inputJson.coverImageUrl ? this.toMobileAccessibleUrl(inputJson.coverImageUrl, mobileApiOrigin) : undefined,
+      hashtags: inputJson.hashtags,
+      accountId: inputJson.accountId,
+      accountName: inputJson.accountName,
+      accountLink: inputJson.accountLink,
+      workId: inputJson.workId,
+      workKind: inputJson.workKind,
+      sourceLabel: inputJson.sourceLabel,
+      createdAt: inputJson.createdAt,
+      expiresAt: inputJson.expiresAt,
+      apiBaseUrl: mobileApiBaseUrl,
+      mobileUrl: `${this.resolveMobileWebBaseUrl()}/publish/mobile/${encodeURIComponent(inputJson.sessionToken)}?v=${encodeURIComponent(inputJson.createdAt)}`,
+      openAppUrl: "snssdk1128://feed",
       completedAt: outputJson?.completedAt,
       note: outputJson?.note,
       accessHint: buildAccessHint(this.resolveMobileWebBaseUrl()),
@@ -504,6 +687,41 @@ export class PublishingService {
       title: String(record.title ?? "").trim(),
       content: String(record.content ?? "").trim(),
       imageUrls: normalizeStringArray(record.imageUrls, [], 12),
+      coverImageUrl: readOptionalString(record.coverImageUrl),
+      hashtags: normalizeStringArray(record.hashtags, [], 12),
+      sourceLabel: String(record.sourceLabel ?? "").trim(),
+      createdAt: readOptionalString(record.createdAt) || new Date().toISOString(),
+      expiresAt: readOptionalString(record.expiresAt) || new Date(Date.now() + DRAFT_SESSION_EXPIRE_MS).toISOString(),
+    };
+  }
+
+  private readDouyinMobilePublishTaskInput(value: unknown): DouyinMobilePublishTaskInput {
+    const record = asRecord(value);
+    if (!record || record.channel !== "MOBILE_QR" || record.platform !== "DOUYIN") {
+      throw new BadRequestException("发布任务数据无效");
+    }
+    const videoUrl = String(record.videoUrl ?? "").trim();
+    if (!videoUrl) {
+      throw new BadRequestException("当前抖音发布任务缺少视频地址");
+    }
+    return {
+      sessionToken: String(record.sessionToken ?? "").trim(),
+      channel: "MOBILE_QR",
+      platform: "DOUYIN",
+      mode: "PUBLISH_VIDEO",
+      workId: String(record.workId ?? "").trim(),
+      workKind:
+        record.workKind === "DIGITAL_HUMAN"
+          ? "DIGITAL_HUMAN"
+          : record.workKind === "VIDEO_DIRECT"
+            ? "VIDEO_DIRECT"
+            : "VIDEO_STORYBOARD",
+      accountId: readOptionalString(record.accountId),
+      accountName: readOptionalString(record.accountName),
+      accountLink: readOptionalString(record.accountLink),
+      title: String(record.title ?? "").trim(),
+      content: String(record.content ?? "").trim(),
+      videoUrl,
       coverImageUrl: readOptionalString(record.coverImageUrl),
       hashtags: normalizeStringArray(record.hashtags, [], 12),
       sourceLabel: String(record.sourceLabel ?? "").trim(),
@@ -657,10 +875,21 @@ export class PublishingService {
     }
     return false;
   }
+
+  private async assertDouyinVideoAccessible(work: DouyinPublishableWorkRecord) {
+    const videoUrl = String(work.videoUrl || "").trim();
+    if (!videoUrl) {
+      throw new BadRequestException("当前作品还没有可发布的视频，请先完成视频生成后再发布。");
+    }
+    const videoAccessible = await this.checkRemoteAssetAccessible(videoUrl);
+    if (!videoAccessible) {
+      throw new BadRequestException("当前作品的视频地址已失效，暂时无法接力发布。请重新生成视频后再试。");
+    }
+  }
 }
 
-function createSessionToken() {
-  return `xhs_draft_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+function createSessionToken(prefix = "xhs_draft") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function asRecord(value: unknown) {
@@ -713,5 +942,11 @@ function buildAccessHint(baseUrl: string) {
 }
 
 function buildDraftFailureMessage(taskType: string) {
-  return taskType === DESKTOP_DRAFT_TASK_TYPE ? "电脑端一键发布到草稿箱失败" : "手机接力保存草稿失败";
+  if (taskType === DESKTOP_DRAFT_TASK_TYPE) {
+    return "电脑端一键发布到草稿箱失败";
+  }
+  if (taskType === DOUYIN_MOBILE_PUBLISH_TASK_TYPE) {
+    return "手机接力发布抖音失败";
+  }
+  return "手机接力保存草稿失败";
 }

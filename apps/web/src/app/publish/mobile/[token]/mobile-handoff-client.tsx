@@ -6,10 +6,14 @@ import { useMemo, useState } from "react";
 type MobileSessionPayload = {
   taskId: string;
   token: string;
+  platform: "XIAOHONGSHU" | "DOUYIN";
+  mode: "SAVE_DRAFT" | "PUBLISH_VIDEO";
+  channel: "MOBILE_QR";
   status: "QUEUED" | "SUCCESS" | "FAILED";
   title: string;
   content: string;
-  imageUrls: string[];
+  imageUrls?: string[];
+  videoUrl?: string;
   coverImageUrl?: string;
   hashtags: string[];
   accountName?: string;
@@ -34,20 +38,22 @@ export function MobileHandoffClient({ session, apiBaseUrl }: MobileHandoffClient
   const [copyOpenState, setCopyOpenState] = useState<"idle" | "running" | "done" | "failed">("idle");
 
   const shareText = useMemo(() => buildShareText(session), [session]);
+  const platformLabel = session.platform === "DOUYIN" ? "抖音" : "小红书";
+  const primaryActionLabel = session.platform === "DOUYIN" ? "一键接力到抖音" : "一键保存到草稿箱";
 
   async function handleOneClickHandoff() {
     setActionState("preparing");
-    setActionMessage("正在准备标题、正文和配图素材...");
+    setActionMessage(session.platform === "DOUYIN" ? "正在准备标题、正文和视频素材..." : "正在准备标题、正文和配图素材...");
 
     try {
       await tryCopyText(shareText);
 
       let files: File[] = [];
-      let imageDownloadFailed = false;
+      let mediaDownloadFailed = false;
       try {
-        files = await fetchImageFiles(session.imageUrls, session.title);
+        files = await fetchMediaFiles(session);
       } catch {
-        imageDownloadFailed = true;
+        mediaDownloadFailed = true;
       }
 
       const shareSucceeded = await trySystemShare(session.title, shareText, files, session.openAppUrl);
@@ -57,23 +63,42 @@ export function MobileHandoffClient({ session, apiBaseUrl }: MobileHandoffClient
           resolveApiBaseUrl(apiBaseUrl),
           session.token,
           "SUCCESS",
-          imageDownloadFailed
-            ? "手机浏览器未能直接下载配图，已退化为分享标题正文并准备打开小红书。"
-            : "已从手机端发起系统分享，准备保存到小红书草稿箱。",
+          session.platform === "DOUYIN"
+            ? mediaDownloadFailed
+              ? "手机浏览器未能直接下载视频，已退化为分享标题正文并准备打开抖音。"
+              : "已从手机端发起系统分享，准备打开抖音完成发布。"
+            : mediaDownloadFailed
+              ? "手机浏览器未能直接下载配图，已退化为分享标题正文并准备打开小红书。"
+              : "已从手机端发起系统分享，准备保存到小红书草稿箱。",
         );
         setActionState("success");
         setActionMessage(
-          imageDownloadFailed
-            ? "当前浏览器未能直接读取配图，已优先分享标题正文。请在分享面板中选择小红书，进入 App 后补选图片再保存草稿。"
-            : "系统分享已唤起。请在分享面板中选择小红书，进入 App 后保存到草稿箱。",
+          session.platform === "DOUYIN"
+            ? mediaDownloadFailed
+              ? "当前浏览器未能直接读取视频，已优先分享标题正文。请在抖音 App 里手动上传下方视频，再补充文案发布。"
+              : "系统分享已唤起。请在分享面板中选择抖音，进入 App 后补充话题或定位后发布。"
+            : mediaDownloadFailed
+              ? "当前浏览器未能直接读取配图，已优先分享标题正文。请在分享面板中选择小红书，进入 App 后补选图片再保存草稿。"
+              : "系统分享已唤起。请在分享面板中选择小红书，进入 App 后保存到草稿箱。",
         );
         return;
       }
 
-      await tryOpenXiaohongshuApp(session.openAppUrl);
-      await markCompleted(resolveApiBaseUrl(apiBaseUrl), session.token, "SUCCESS", "当前浏览器不支持文件分享，已复制文案并尝试拉起小红书。");
+      await tryOpenPlatformApp(session.platform, session.openAppUrl);
+      await markCompleted(
+        resolveApiBaseUrl(apiBaseUrl),
+        session.token,
+        "SUCCESS",
+        session.platform === "DOUYIN"
+          ? "当前浏览器不支持文件分享，已复制文案并尝试拉起抖音。"
+          : "当前浏览器不支持文件分享，已复制文案并尝试拉起小红书。",
+      );
       setActionState("success");
-      setActionMessage("已复制标题正文，并尝试拉起小红书。请在 App 中选择图片后保存到草稿箱。");
+      setActionMessage(
+        session.platform === "DOUYIN"
+          ? "已复制标题正文，并尝试拉起抖音。请在 App 中上传下方视频后完成发布。"
+          : "已复制标题正文，并尝试拉起小红书。请在 App 中选择图片后保存到草稿箱。",
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "手机一键接力失败";
       setActionState("error");
@@ -94,14 +119,14 @@ export function MobileHandoffClient({ session, apiBaseUrl }: MobileHandoffClient
   async function handleOpenApp() {
     setOpenAppState("opening");
     try {
-      await tryOpenXiaohongshuApp(session.openAppUrl);
+      await tryOpenPlatformApp(session.platform, session.openAppUrl);
       setOpenAppState("idle");
       setActionState("success");
-      setActionMessage("已尝试拉起小红书 App。如果当前浏览器拦截了 Scheme，请点击右上角使用系统浏览器打开后重试。");
+      setActionMessage(`已尝试拉起${platformLabel} App。如果当前浏览器拦截了 Scheme，请点击右上角使用系统浏览器打开后重试。`);
     } catch (error) {
       setOpenAppState("failed");
       setActionState("error");
-      setActionMessage(error instanceof Error ? error.message : "打开小红书失败");
+      setActionMessage(error instanceof Error ? error.message : `打开${platformLabel}失败`);
     }
   }
 
@@ -109,27 +134,33 @@ export function MobileHandoffClient({ session, apiBaseUrl }: MobileHandoffClient
     setCopyOpenState("running");
     try {
       await tryCopyText(shareText);
-      await tryOpenXiaohongshuApp(session.openAppUrl);
+      await tryOpenPlatformApp(session.platform, session.openAppUrl);
       setCopiedState("done");
       setCopyOpenState("done");
       setActionState("success");
-      setActionMessage("已复制标题正文并打开小红书。现在去小红书新建图文，长按保存下方配图后上传，再把文案粘贴进去即可。");
+      setActionMessage(
+        session.platform === "DOUYIN"
+          ? "已复制标题正文并打开抖音。现在去抖音新建作品，下载或分享下方视频后上传，再把文案粘贴进去即可。"
+          : "已复制标题正文并打开小红书。现在去小红书新建图文，长按保存下方配图后上传，再把文案粘贴进去即可。",
+      );
     } catch (error) {
       setCopyOpenState("failed");
       setActionState("error");
-      setActionMessage(error instanceof Error ? error.message : "复制文案并打开小红书失败");
+      setActionMessage(error instanceof Error ? error.message : `复制文案并打开${platformLabel}失败`);
     }
   }
 
   return (
     <section style={styles.card}>
-      <h2 style={styles.sectionTitle}>一键接力到小红书</h2>
+      <h2 style={styles.sectionTitle}>{session.platform === "DOUYIN" ? "一键接力到抖音" : "一键接力到小红书"}</h2>
       <p style={styles.description}>
-        点击下面按钮后，页面会优先调用手机系统分享，把标题、正文和配图一起交给小红书；如果当前浏览器不支持文件分享，则退化为复制文案并打开小红书 App。
+        {session.platform === "DOUYIN"
+          ? "点击下面按钮后，页面会优先调用手机系统分享，把标题、正文和视频一起交给抖音；如果当前浏览器不支持文件分享，则退化为复制文案并打开抖音 App。"
+          : "点击下面按钮后，页面会优先调用手机系统分享，把标题、正文和配图一起交给小红书；如果当前浏览器不支持文件分享，则退化为复制文案并打开小红书 App。"}
       </p>
       <div style={styles.actionStack}>
         <button type="button" style={styles.primaryButton} onClick={() => void handleOneClickHandoff()} disabled={actionState === "preparing"}>
-          {actionState === "preparing" ? "准备中..." : "一键保存到草稿箱"}
+          {actionState === "preparing" ? "准备中..." : primaryActionLabel}
         </button>
         <button
           type="button"
@@ -140,28 +171,43 @@ export function MobileHandoffClient({ session, apiBaseUrl }: MobileHandoffClient
           {copyOpenState === "running"
             ? "正在复制并打开..."
             : copyOpenState === "done"
-              ? "已复制并打开小红书"
-              : "复制文案并打开小红书"}
+              ? `已复制并打开${platformLabel}`
+              : `复制文案并打开${platformLabel}`}
         </button>
         <button type="button" style={styles.secondaryButton} onClick={() => void handleCopyText()}>
           {copiedState === "done" ? "标题正文已复制" : copiedState === "failed" ? "复制失败，请手动复制" : "复制标题和正文"}
         </button>
         <button type="button" style={styles.linkButton} onClick={() => void handleOpenApp()} disabled={openAppState === "opening"}>
-          {openAppState === "opening" ? "正在打开小红书..." : "仅打开小红书"}
+          {openAppState === "opening" ? `正在打开${platformLabel}...` : `仅打开${platformLabel}`}
         </button>
       </div>
       {actionMessage ? (
         <p style={actionState === "error" ? styles.errorText : styles.successText}>{actionMessage}</p>
       ) : (
-        <p style={styles.helperText}>推荐在手机浏览器中直接点“一键保存到草稿箱”，优先尝试系统分享到小红书。</p>
+        <p style={styles.helperText}>
+          {session.platform === "DOUYIN"
+            ? "推荐在手机浏览器中直接点“一键接力到抖音”，优先尝试系统分享视频到抖音。"
+            : "推荐在手机浏览器中直接点“一键保存到草稿箱”，优先尝试系统分享到小红书。"}
+        </p>
       )}
       <div style={styles.tipPanel}>
         <strong style={styles.tipTitle}>手机端最佳操作顺序</strong>
         <ol style={styles.tipList}>
-          <li>先点“复制文案并打开小红书”。</li>
-          <li>进入小红书后新建图文笔记。</li>
-          <li>回到本页下方逐张长按保存图片，或点“查看原图”后保存。</li>
-          <li>回到小红书粘贴标题正文，再保存到草稿箱。</li>
+          {session.platform === "DOUYIN" ? (
+            <>
+              <li>先点“复制文案并打开抖音”。</li>
+              <li>进入抖音后新建视频作品。</li>
+              <li>回到本页下载或分享下方视频，再上传到抖音。</li>
+              <li>回到抖音粘贴标题正文，补充话题、定位后完成发布。</li>
+            </>
+          ) : (
+            <>
+              <li>先点“复制文案并打开小红书”。</li>
+              <li>进入小红书后新建图文笔记。</li>
+              <li>回到本页下方逐张长按保存图片，或点“查看原图”后保存。</li>
+              <li>回到小红书粘贴标题正文，再保存到草稿箱。</li>
+            </>
+          )}
         </ol>
       </div>
     </section>
@@ -183,6 +229,13 @@ async function tryCopyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
+async function fetchMediaFiles(session: MobileSessionPayload) {
+  if (session.platform === "DOUYIN") {
+    return fetchVideoFiles(session.videoUrl ? [session.videoUrl] : [], session.title);
+  }
+  return fetchImageFiles(session.imageUrls || [], session.title);
+}
+
 async function fetchImageFiles(imageUrls: string[], title: string) {
   const files: File[] = [];
   for (let index = 0; index < imageUrls.length; index += 1) {
@@ -194,6 +247,21 @@ async function fetchImageFiles(imageUrls: string[], title: string) {
     const blob = await response.blob();
     const extension = inferExtension(blob.type);
     files.push(new File([blob], `${sanitizeFileName(title)}-${index + 1}.${extension}`, { type: blob.type || "image/png" }));
+  }
+  return files;
+}
+
+async function fetchVideoFiles(videoUrls: string[], title: string) {
+  const files: File[] = [];
+  for (let index = 0; index < videoUrls.length; index += 1) {
+    const url = videoUrls[index];
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`下载视频失败：${response.status}`);
+    }
+    const blob = await response.blob();
+    const extension = inferVideoExtension(blob.type);
+    files.push(new File([blob], `${sanitizeFileName(title)}-${index + 1}.${extension}`, { type: blob.type || "video/mp4" }));
   }
   return files;
 }
@@ -227,15 +295,11 @@ async function trySystemShare(title: string, text: string, files: File[], openAp
   }
 }
 
-async function tryOpenXiaohongshuApp(openAppUrl: string) {
-  const candidates = Array.from(
-    new Set(
-      [openAppUrl, "xhsdiscover://home", "xhsdiscover://", "xiaohongshu://home", "xiaohongshu://"].filter((item) => Boolean(item?.trim())),
-    ),
-  );
+async function tryOpenPlatformApp(platform: MobileSessionPayload["platform"], openAppUrl: string) {
+  const candidates = Array.from(new Set([openAppUrl, ...getPlatformAppCandidates(platform)].filter((item) => Boolean(item?.trim()))));
 
   if (!candidates.length) {
-    throw new Error("当前没有可用的小红书拉起地址。");
+    throw new Error(`当前没有可用的${platform === "DOUYIN" ? "抖音" : "小红书"}拉起地址。`);
   }
 
   for (const candidate of candidates) {
@@ -246,11 +310,13 @@ async function tryOpenXiaohongshuApp(openAppUrl: string) {
     }
   }
 
-  throw new Error("当前浏览器未成功拉起小红书。请尝试在系统浏览器中打开本页，或先复制文案后手动进入小红书。");
+  throw new Error(
+    `当前浏览器未成功拉起${platform === "DOUYIN" ? "抖音" : "小红书"}。请尝试在系统浏览器中打开本页，或先复制文案后手动进入${platform === "DOUYIN" ? "抖音" : "小红书"}。`,
+  );
 }
 
 async function markCompleted(apiBaseUrl: string, token: string, result: "SUCCESS" | "FAILED", note: string) {
-  await fetch(`${apiBaseUrl.replace(/\/$/, "")}/publishing/xiaohongshu/mobile-sessions/${encodeURIComponent(token)}/complete`, {
+  await fetch(`${apiBaseUrl.replace(/\/$/, "")}/publishing/mobile-sessions/${encodeURIComponent(token)}/complete`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -316,6 +382,23 @@ function inferExtension(mimeType: string) {
     return "webp";
   }
   return "png";
+}
+
+function inferVideoExtension(mimeType: string) {
+  if (mimeType === "video/quicktime") {
+    return "mov";
+  }
+  if (mimeType === "video/webm") {
+    return "webm";
+  }
+  return "mp4";
+}
+
+function getPlatformAppCandidates(platform: MobileSessionPayload["platform"]) {
+  if (platform === "DOUYIN") {
+    return ["snssdk1128://feed", "snssdk1128://", "aweme://main", "aweme://"];
+  }
+  return ["xhsdiscover://home", "xhsdiscover://", "xiaohongshu://home", "xiaohongshu://"];
 }
 
 function sleep(ms: number) {

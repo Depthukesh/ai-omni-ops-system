@@ -5,6 +5,7 @@ import {
   type DouyinDigitalHumanVideoWorkRecord,
 } from "../../../services/works";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
+import { type DouyinPublishableWorkTarget } from "./publish-types";
 
 type DigitalHumanEditorDiffEntry = {
   key: string;
@@ -40,6 +41,7 @@ export interface DigitalHumanWorksCenterPanelProps {
   onBackfillSelectedWork: () => void;
   onRecoverVideo: (payload: { workId?: string; providerTaskId?: string }) => Promise<boolean>;
   onRetrySelectedWork: () => Promise<void> | void;
+  onPublish: (target: DouyinPublishableWorkTarget) => void;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
   onDelete: (workId: string) => Promise<boolean>;
 }
@@ -125,6 +127,22 @@ export function DigitalHumanWorksCenterPanel(props: DigitalHumanWorksCenterPanel
                     <strong>{item.title}</strong>
                     <p>{item.personName} · {props.getFigureTypeLabel(item.figureType)}</p>
                     <p>{props.formatDateTime(item.createdAt)}</p>
+                    <div className="xhs-material-card-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          props.onPublish({
+                            id: item.id,
+                            workKind: "DIGITAL_HUMAN",
+                            title: item.title,
+                            sourceLabel: item.personName || "数字人作品",
+                          })}
+                        disabled={!item.videoUrl}
+                      >
+                        发布到抖音
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -275,6 +293,21 @@ export function DigitalHumanWorksCenterPanel(props: DigitalHumanWorksCenterPanel
                   disabled={!props.selectedWork.videoUrl && !props.selectedWork.coverImageUrl}
                 >
                   预览媒体
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    props.selectedWork
+                    && props.onPublish({
+                      id: props.selectedWork.id,
+                      workKind: "DIGITAL_HUMAN",
+                      title: props.selectedWork.title,
+                      sourceLabel: props.selectedWork.personName || "数字人作品",
+                    })}
+                  disabled={!props.selectedWork.videoUrl}
+                >
+                  发布到抖音
                 </button>
                 <button
                   type="button"

@@ -15,6 +15,7 @@ import {
 } from "../xiaohongshu/note-workspace-shared-panels";
 import { type OptionalDateFormatter, type ProductOption, type SelectOption } from "../xiaohongshu/shared-types";
 import { VideoCreateBasicFields } from "../xiaohongshu/video-create-basic-fields";
+import { type DouyinPublishableWorkTarget } from "./publish-types";
 
 const PAGE_SIZE = 20;
 const CUSTOM_TOPIC_OPTION = "__custom_topic__";
@@ -91,6 +92,7 @@ export interface DouyinDirectVideoWorkspaceProps {
     providerTaskId: string;
     requestedVideoProvider?: string;
   }) => Promise<boolean>;
+  onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -216,6 +218,7 @@ function DirectVideoWorkCardGrid(props: {
   deletingWorkId?: string;
   onSelect: (item: DouyinDirectVideoWorkRecord) => void;
   onPreview: (item: DouyinDirectVideoWorkRecord) => void;
+  onPublish: (item: DouyinDirectVideoWorkRecord) => void;
   onDelete: (workId: string) => void;
   formatDateTime: OptionalDateFormatter;
 }) {
@@ -250,6 +253,9 @@ function DirectVideoWorkCardGrid(props: {
                   <button type="button" className="primary-button" onClick={() => props.onSelect(item)}>
                     {isActive ? "查看中" : "查看详情"}
                   </button>
+                  <button type="button" className="secondary-button" onClick={() => props.onPublish(item)}>
+                    发布到抖音
+                  </button>
                   <button type="button" className="secondary-button" onClick={() => props.onPreview(item)}>
                     预览媒体
                   </button>
@@ -283,6 +289,7 @@ function DirectVideoDetailPanel(props: {
   onGenerateVideo: () => void | Promise<void>;
   onRecoverVideo: () => void | Promise<void>;
   onPreview: (item: DouyinDirectVideoWorkRecord) => void;
+  onPublish: () => void;
   formatDateTime: OptionalDateFormatter;
 }) {
   const { selectedItem } = props;
@@ -379,6 +386,14 @@ function DirectVideoDetailPanel(props: {
         </button>
         <button type="button" className="secondary-button" onClick={() => props.onPreview(selectedItem)}>
           预览媒体
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={props.onPublish}
+          disabled={!selectedItem.videoUrl}
+        >
+          发布到抖音
         </button>
       </div>
     </article>
@@ -547,6 +562,15 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
     });
   }
 
+  function openPublishModal(item: DouyinDirectVideoWorkRecord) {
+    props.onOpenPublishModal({
+      id: item.id,
+      workKind: "VIDEO_DIRECT",
+      title: item.title,
+      sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频",
+    });
+  }
+
   return (
     <>
       <article className="workspace-panel strategy-page-card">
@@ -595,6 +619,7 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
             deletingWorkId={props.isSubmitting ? selectedWork?.id : undefined}
             onSelect={(item) => setSelectedWorkId(item.id)}
             onPreview={props.onPreview}
+            onPublish={openPublishModal}
             onDelete={(workId) => void handleDelete(workId)}
             formatDateTime={props.formatDateTime}
           />
@@ -613,6 +638,7 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
             onGenerateVideo={handleGenerateVideo}
             onRecoverVideo={handleRecoverVideo}
             onPreview={props.onPreview}
+            onPublish={() => openPublishModal(selectedWork)}
             formatDateTime={props.formatDateTime}
           />
         ) : null}

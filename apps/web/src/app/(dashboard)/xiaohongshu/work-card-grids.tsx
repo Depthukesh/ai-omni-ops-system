@@ -182,6 +182,8 @@ export interface VideoWorkCardGridProps {
   selectedWorkId?: string;
   onSelect: (item: XiaohongshuVideoWorkRecord) => void;
   onPreview: (item: XiaohongshuVideoWorkRecord) => void;
+  onPublish?: (item: XiaohongshuVideoWorkRecord) => void;
+  getPublishLabel?: (workId: string) => string;
   onEdit: (item: XiaohongshuVideoWorkRecord) => void;
   onDelete: (workId: string) => void;
   deletingWorkId?: string;
@@ -228,6 +230,11 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
                   <button type="button" className="primary-button" onClick={() => props.onSelect(item)}>
                     {isActive ? "查看中" : "查看详情"}
                   </button>
+                  {props.onPublish ? (
+                    <button type="button" className="secondary-button" onClick={() => props.onPublish?.(item)}>
+                      {props.getPublishLabel?.(item.id) || "发布"}
+                    </button>
+                  ) : null}
                   <button type="button" className="secondary-button" onClick={() => props.onPreview(item)}>
                     预览媒体
                   </button>

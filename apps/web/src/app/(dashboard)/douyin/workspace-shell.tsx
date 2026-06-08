@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
-import { getBrandPermissionSettings, DEMO_BRAND_ID, type BrandPermissionKey, type BrandPermissionSettingsRecord } from "../../../services/brand-growth";
+import {
+  brandArchiveSeed,
+  DEMO_BRAND_ID,
+  getBrandArchive,
+  getBrandPermissionSettings,
+  type BrandArchiveBundle,
+  type BrandPermissionKey,
+  type BrandPermissionSettingsRecord,
+} from "../../../services/brand-growth";
 import { douyinCollectionSeed, getDouyinCollectionWorkspace, type DouyinCollectionWorkspace } from "../../../services/collectors";
 import {
   annualMarketingPlanSeed,
@@ -105,8 +113,10 @@ import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
 import { DouyinHotTopicCandidatesWorkspace as DouyinHotTopicCandidatesWorkspacePanel } from "./hot-topic-candidates-workspace";
 import { DouyinOriginalCopyWorkspace as DouyinOriginalCopyWorkspacePanel } from "./original-copy-workspace";
+import { DouyinPublishModal } from "./publish-modal";
 import { DouyinRemixCopyWorkspace as DouyinRemixCopyWorkspacePanel } from "./remix-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
+import { useDouyinPublishFlow } from "./use-douyin-publish-flow";
 import { DouyinDirectVideoWorkspace } from "./video-direct-workspace";
 import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
 
@@ -197,6 +207,7 @@ export function DouyinWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<DouyinSectionKey>("plan");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [brandArchive, setBrandArchive] = useState<BrandArchiveBundle>(brandArchiveSeed);
   const [brandPermissionSettings, setBrandPermissionSettings] = useState<BrandPermissionSettingsRecord | null>(null);
   const [collectionWorkspace, setCollectionWorkspace] = useState<DouyinCollectionWorkspace>(douyinCollectionSeed);
   const [growthReportWorkspace, setGrowthReportWorkspace] = useState(growthReportSeed);
@@ -292,6 +303,10 @@ export function DouyinWorkspaceShell() {
   const canEditVideo = brandPermissionSettings ? (permissionMap?.["douyin.video"]?.edit ?? false) : true;
   const canEditDirectVideo = brandPermissionSettings ? (permissionMap?.["douyin.videoDirect"]?.edit ?? false) : true;
   const canEditDigitalHuman = brandPermissionSettings ? (permissionMap?.["douyin.digitalHuman"]?.edit ?? false) : true;
+  const defaultDouyinAccountId = useMemo(
+    () => brandArchive.platformAccounts.find((item) => item.platform === "DOUYIN")?.id || "",
+    [brandArchive.platformAccounts],
+  );
   const canEditCurrentSection = brandPermissionSettings
     ? Boolean(permissionMap?.[douyinSectionPermissionMap[activeSection]]?.edit)
     : true;
@@ -862,9 +877,56 @@ export function DouyinWorkspaceShell() {
     setIsLoading(false);
   }, [activeBrandId, digitalHumanCurrentSpeechTaskId, digitalHumanTemplateTagId]);
 
+  const refreshPublishingWorkspace = useCallback(async () => {
+    await Promise.all([
+      loadWorkspace(),
+      getBrandArchive(activeBrandId)
+        .then((archive) => {
+          setBrandArchive(archive);
+          return archive;
+        })
+        .catch(() => brandArchiveSeed),
+    ]);
+  }, [activeBrandId, loadWorkspace]);
+
+  const {
+    publishingTarget,
+    publishingAccountValue,
+    setPublishingAccountValue,
+    isCreatingMobilePublishSession,
+    activeMobilePublishSession,
+    mobilePublishQrDataUrl,
+    isCompletingMobilePublishSession,
+    openPublishModal: handleOpenPublishModal,
+    closePublishModal: handleClosePublishModal,
+    createMobilePublishSession: handleCreateMobilePublishSession,
+    completeMobilePublishSession: handleCompleteMobilePublishSession,
+  } = useDouyinPublishFlow({
+    brandId: activeBrandId,
+    defaultAccountId: defaultDouyinAccountId,
+    platformAccounts: brandArchive.platformAccounts,
+    onRefreshWorkspace: refreshPublishingWorkspace,
+    setNotice,
+    setErrorMessage,
+  });
+
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getBrandArchive(activeBrandId)
+      .then((archive) => {
+        if (!cancelled) {
+          setBrandArchive(archive);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBrandId]);
 
   useEffect(() => {
     if (!visibleSections.length) {
@@ -2376,6 +2438,7 @@ export function DouyinWorkspaceShell() {
                     onRegenerateStoryboard={handleRegenerateVideoStoryboard}
                     onGenerateVideo={handleGenerateVideo}
                     onRecoverVideo={handleRecoverVideo}
+                    onOpenPublishModal={handleOpenPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "videoDirect" ? (
@@ -2401,6 +2464,7 @@ export function DouyinWorkspaceShell() {
                     onDelete={handleDeleteDirectVideo}
                     onGenerateVideo={handleGenerateDirectVideo}
                     onRecoverVideo={handleRecoverDirectVideo}
+                    onOpenPublishModal={handleOpenPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "digitalHuman" ? (
@@ -2467,6 +2531,7 @@ export function DouyinWorkspaceShell() {
                     onRefreshSpeechTask={handleRefreshDigitalHumanSpeechTask}
                     onCreateOriginalCopy={handleCreateOriginalCopy}
                     onCreateRemixCopy={handleCreateRemixCopy}
+                    onOpenPublishModal={handleOpenPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : (
@@ -2571,6 +2636,22 @@ export function DouyinWorkspaceShell() {
           )}
         </div>
       </section>
+      <DouyinPublishModal
+        publishTarget={publishingTarget}
+        platformAccounts={brandArchive.platformAccounts}
+        publishingAccountValue={publishingAccountValue}
+        isCreatingMobilePublishSession={isCreatingMobilePublishSession}
+        activeMobilePublishSession={activeMobilePublishSession}
+        mobilePublishQrDataUrl={mobilePublishQrDataUrl}
+        isCompletingMobilePublishSession={isCompletingMobilePublishSession}
+        notice={notice}
+        errorMessage={errorMessage}
+        onClose={handleClosePublishModal}
+        onAccountChange={setPublishingAccountValue}
+        onCreateMobileSession={handleCreateMobilePublishSession}
+        onCompleteMobileSession={handleCompleteMobilePublishSession}
+        formatDateTime={formatDateTime}
+      />
     </main>
   );
 }

@@ -60,6 +60,34 @@ export type XiaohongshuDesktopDraftSession = {
   accessHint?: string;
 };
 
+export type DouyinMobilePublishSession = {
+  taskId: string;
+  token: string;
+  platform: "DOUYIN";
+  mode: "PUBLISH_VIDEO";
+  channel: "MOBILE_QR";
+  status: "QUEUED" | "SUCCESS" | "FAILED";
+  title: string;
+  content: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  hashtags: string[];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  workId: string;
+  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN";
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
+  apiBaseUrl: string;
+  mobileUrl: string;
+  openAppUrl: string;
+  completedAt?: string;
+  note?: string;
+  accessHint?: string;
+};
+
 export type WechatOfficialArticlePublishResult = {
   task: { id: string; taskStatus: string; taskTitle: string };
   item: WechatArticleDraftRecord;
@@ -120,6 +148,33 @@ export async function completeXiaohongshuDesktopDraftSession(
 ) {
   return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: XiaohongshuDesktopDraftSession }>(
     `/publishing/xiaohongshu/desktop-sessions/${token}/complete`,
+    "POST",
+    payload,
+  );
+}
+
+export async function createDouyinMobilePublishSession(
+  brandId: string,
+  workId: string,
+  payload: { accountId?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinMobilePublishSession }>(
+    `/publishing/brands/${brandId}/douyin/works/${workId}/mobile-publish-session`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getDouyinMobilePublishSession(token: string) {
+  return request<{ session: DouyinMobilePublishSession }>(`/publishing/douyin/mobile-sessions/${token}`);
+}
+
+export async function completeDouyinMobilePublishSession(
+  token: string,
+  payload: { result?: "SUCCESS" | "FAILED"; note?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinMobilePublishSession }>(
+    `/publishing/douyin/mobile-sessions/${token}/complete`,
     "POST",
     payload,
   );
