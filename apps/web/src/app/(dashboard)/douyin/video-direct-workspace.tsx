@@ -93,6 +93,7 @@ export interface DouyinDirectVideoWorkspaceProps {
     requestedVideoProvider?: string;
   }) => Promise<boolean>;
   onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
+  onOpenWechatChannelPublishModal: (target: DouyinPublishableWorkTarget) => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -219,6 +220,7 @@ function DirectVideoWorkCardGrid(props: {
   onSelect: (item: DouyinDirectVideoWorkRecord) => void;
   onPreview: (item: DouyinDirectVideoWorkRecord) => void;
   onPublish: (item: DouyinDirectVideoWorkRecord) => void;
+  onWechatChannelPublish: (item: DouyinDirectVideoWorkRecord) => void;
   onDelete: (workId: string) => void;
   formatDateTime: OptionalDateFormatter;
 }) {
@@ -256,6 +258,9 @@ function DirectVideoWorkCardGrid(props: {
                   <button type="button" className="secondary-button" onClick={() => props.onPublish(item)}>
                     发布到抖音
                   </button>
+                  <button type="button" className="secondary-button" onClick={() => props.onWechatChannelPublish(item)}>
+                    发布到视频号
+                  </button>
                   <button type="button" className="secondary-button" onClick={() => props.onPreview(item)}>
                     预览媒体
                   </button>
@@ -290,6 +295,7 @@ function DirectVideoDetailPanel(props: {
   onRecoverVideo: () => void | Promise<void>;
   onPreview: (item: DouyinDirectVideoWorkRecord) => void;
   onPublish: () => void;
+  onWechatChannelPublish: () => void;
   formatDateTime: OptionalDateFormatter;
 }) {
   const { selectedItem } = props;
@@ -394,6 +400,14 @@ function DirectVideoDetailPanel(props: {
           disabled={!selectedItem.videoUrl}
         >
           发布到抖音
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={props.onWechatChannelPublish}
+          disabled={!selectedItem.videoUrl}
+        >
+          发布到视频号
         </button>
       </div>
     </article>
@@ -568,6 +582,19 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
       workKind: "VIDEO_DIRECT",
       title: item.title,
       sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频",
+      content: item.content,
+      videoUrl: item.videoUrl,
+    });
+  }
+
+  function openWechatChannelPublishModal(item: DouyinDirectVideoWorkRecord) {
+    props.onOpenWechatChannelPublishModal({
+      id: item.id,
+      workKind: "VIDEO_DIRECT",
+      title: item.title,
+      sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频",
+      content: item.content,
+      videoUrl: item.videoUrl,
     });
   }
 
@@ -620,6 +647,7 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
             onSelect={(item) => setSelectedWorkId(item.id)}
             onPreview={props.onPreview}
             onPublish={openPublishModal}
+            onWechatChannelPublish={openWechatChannelPublishModal}
             onDelete={(workId) => void handleDelete(workId)}
             formatDateTime={props.formatDateTime}
           />
@@ -639,6 +667,7 @@ export function DouyinDirectVideoWorkspace(props: DouyinDirectVideoWorkspaceProp
             onRecoverVideo={handleRecoverVideo}
             onPreview={props.onPreview}
             onPublish={() => openPublishModal(selectedWork)}
+            onWechatChannelPublish={() => openWechatChannelPublishModal(selectedWork)}
             formatDateTime={props.formatDateTime}
           />
         ) : null}

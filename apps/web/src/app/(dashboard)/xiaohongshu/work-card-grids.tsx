@@ -184,6 +184,8 @@ export interface VideoWorkCardGridProps {
   onPreview: (item: XiaohongshuVideoWorkRecord) => void;
   onPublish?: (item: XiaohongshuVideoWorkRecord) => void;
   getPublishLabel?: (workId: string) => string;
+  onSecondaryPublish?: (item: XiaohongshuVideoWorkRecord) => void;
+  getSecondaryPublishLabel?: (workId: string) => string;
   onEdit: (item: XiaohongshuVideoWorkRecord) => void;
   onDelete: (workId: string) => void;
   deletingWorkId?: string;
@@ -233,6 +235,11 @@ export function VideoWorkCardGrid(props: VideoWorkCardGridProps) {
                   {props.onPublish ? (
                     <button type="button" className="secondary-button" onClick={() => props.onPublish?.(item)}>
                       {props.getPublishLabel?.(item.id) || "发布"}
+                    </button>
+                  ) : null}
+                  {props.onSecondaryPublish ? (
+                    <button type="button" className="secondary-button" onClick={() => props.onSecondaryPublish?.(item)}>
+                      {props.getSecondaryPublishLabel?.(item.id) || "第二发布"}
                     </button>
                   ) : null}
                   <button type="button" className="secondary-button" onClick={() => props.onPreview(item)}>

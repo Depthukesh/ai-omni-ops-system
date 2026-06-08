@@ -42,6 +42,7 @@ export interface DigitalHumanWorksCenterPanelProps {
   onRecoverVideo: (payload: { workId?: string; providerTaskId?: string }) => Promise<boolean>;
   onRetrySelectedWork: () => Promise<void> | void;
   onPublish: (target: DouyinPublishableWorkTarget) => void;
+  onWechatChannelPublish: (target: DouyinPublishableWorkTarget) => void;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
   onDelete: (workId: string) => Promise<boolean>;
 }
@@ -137,10 +138,28 @@ export function DigitalHumanWorksCenterPanel(props: DigitalHumanWorksCenterPanel
                             workKind: "DIGITAL_HUMAN",
                             title: item.title,
                             sourceLabel: item.personName || "数字人作品",
+                            content: item.content,
+                            videoUrl: item.videoUrl,
                           })}
                         disabled={!item.videoUrl}
                       >
                         发布到抖音
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          props.onWechatChannelPublish({
+                            id: item.id,
+                            workKind: "DIGITAL_HUMAN",
+                            title: item.title,
+                            sourceLabel: item.personName || "数字人作品",
+                            content: item.content,
+                            videoUrl: item.videoUrl,
+                          })}
+                        disabled={!item.videoUrl}
+                      >
+                        发布到视频号
                       </button>
                     </div>
                   </div>
@@ -304,10 +323,29 @@ export function DigitalHumanWorksCenterPanel(props: DigitalHumanWorksCenterPanel
                       workKind: "DIGITAL_HUMAN",
                       title: props.selectedWork.title,
                       sourceLabel: props.selectedWork.personName || "数字人作品",
+                      content: props.selectedWork.content,
+                      videoUrl: props.selectedWork.videoUrl,
                     })}
                   disabled={!props.selectedWork.videoUrl}
                 >
                   发布到抖音
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    props.selectedWork
+                    && props.onWechatChannelPublish({
+                      id: props.selectedWork.id,
+                      workKind: "DIGITAL_HUMAN",
+                      title: props.selectedWork.title,
+                      sourceLabel: props.selectedWork.personName || "数字人作品",
+                      content: props.selectedWork.content,
+                      videoUrl: props.selectedWork.videoUrl,
+                    })}
+                  disabled={!props.selectedWork?.videoUrl}
+                >
+                  发布到视频号
                 </button>
                 <button
                   type="button"

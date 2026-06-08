@@ -117,8 +117,10 @@ import { DouyinPublishModal } from "./publish-modal";
 import { DouyinRemixCopyWorkspace as DouyinRemixCopyWorkspacePanel } from "./remix-copy-workspace";
 import { DouyinTopicLibraryWorkspace } from "./topic-library-workspace";
 import { useDouyinPublishFlow } from "./use-douyin-publish-flow";
+import { useWechatChannelPublishFlow } from "./use-wechat-channel-publish-flow";
 import { DouyinDirectVideoWorkspace } from "./video-direct-workspace";
 import { DouyinVideoStoryboardWorkspace } from "./video-storyboard-workspace";
+import { WechatChannelPublishModal } from "./wechat-channel-publish-modal";
 
 type LoadState = "loading" | "api" | "partial";
 type DouyinSectionKey =
@@ -907,6 +909,18 @@ export function DouyinWorkspaceShell() {
     setNotice,
     setErrorMessage,
   });
+  const {
+    publishingTarget: wechatChannelPublishingTarget,
+    isExtensionReady: isWechatChannelExtensionReady,
+    isLaunching: isLaunchingWechatChannelProbe,
+    notice: wechatChannelNotice,
+    errorMessage: wechatChannelErrorMessage,
+    probeResult: wechatChannelProbeResult,
+    activeSession: activeWechatChannelSession,
+    openPublishModal: handleOpenWechatChannelPublishModal,
+    closePublishModal: handleCloseWechatChannelPublishModal,
+    startPublishProbe: handleStartWechatChannelPublishProbe,
+  } = useWechatChannelPublishFlow();
 
   useEffect(() => {
     void loadWorkspace();
@@ -2437,6 +2451,7 @@ export function DouyinWorkspaceShell() {
                     onGenerateVideo={handleGenerateVideo}
                     onRecoverVideo={handleRecoverVideo}
                     onOpenPublishModal={handleOpenPublishModal}
+                    onOpenWechatChannelPublishModal={handleOpenWechatChannelPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "videoDirect" ? (
@@ -2463,6 +2478,7 @@ export function DouyinWorkspaceShell() {
                     onGenerateVideo={handleGenerateDirectVideo}
                     onRecoverVideo={handleRecoverDirectVideo}
                     onOpenPublishModal={handleOpenPublishModal}
+                    onOpenWechatChannelPublishModal={handleOpenWechatChannelPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : activeSection === "digitalHuman" ? (
@@ -2530,6 +2546,7 @@ export function DouyinWorkspaceShell() {
                     onCreateOriginalCopy={handleCreateOriginalCopy}
                     onCreateRemixCopy={handleCreateRemixCopy}
                     onOpenPublishModal={handleOpenPublishModal}
+                    onOpenWechatChannelPublishModal={handleOpenWechatChannelPublishModal}
                     formatDateTime={formatDateTime}
                   />
                 ) : (
@@ -2647,6 +2664,17 @@ export function DouyinWorkspaceShell() {
         onAccountChange={setPublishingAccountValue}
         onCreateDesktopSession={handleCreateDesktopPublishSession}
         formatDateTime={formatDateTime}
+      />
+      <WechatChannelPublishModal
+        publishTarget={wechatChannelPublishingTarget}
+        isExtensionReady={isWechatChannelExtensionReady}
+        isLaunching={isLaunchingWechatChannelProbe}
+        notice={wechatChannelNotice}
+        errorMessage={wechatChannelErrorMessage}
+        probeResult={wechatChannelProbeResult}
+        activeSession={activeWechatChannelSession}
+        onClose={handleCloseWechatChannelPublishModal}
+        onStartPublishProbe={handleStartWechatChannelPublishProbe}
       />
     </main>
   );

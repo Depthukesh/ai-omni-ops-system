@@ -285,6 +285,7 @@ export interface DouyinDigitalHumanWorkspaceProps {
   onDeleteScriptTemplate: (templateId: string) => Promise<boolean>;
   onPreview: (item: DouyinDigitalHumanVideoWorkRecord) => void;
   onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
+  onOpenWechatChannelPublishModal: (target: DouyinPublishableWorkTarget) => void;
   onCreate: (payload: GenerateDouyinDigitalHumanVideoForm) => Promise<boolean>;
   onCreateCompleteVideo: (payload: GenerateDouyinDigitalHumanCompleteVideoForm) => Promise<boolean>;
   onCreateCustomPerson: (payload: {
@@ -2308,6 +2309,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onRecoverVideo={props.onRecoverVideo}
           onRetrySelectedWork={handleRetrySelectedWork}
           onPublish={props.onOpenPublishModal}
+          onWechatChannelPublish={props.onOpenWechatChannelPublishModal}
           onPreview={props.onPreview}
           onDelete={props.onDelete}
         />

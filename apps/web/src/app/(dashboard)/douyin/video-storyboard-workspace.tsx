@@ -95,6 +95,7 @@ export interface DouyinVideoStoryboardWorkspaceProps {
     requestedVideoProvider?: string;
   }) => Promise<boolean>;
   onOpenPublishModal: (target: DouyinPublishableWorkTarget) => void;
+  onOpenWechatChannelPublishModal: (target: DouyinPublishableWorkTarget) => void;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -346,6 +347,19 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
       workKind: "VIDEO_STORYBOARD",
       title: item.title,
       sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频（故事板）",
+      content: item.content,
+      videoUrl: item.videoUrl,
+    });
+  }
+
+  function openWechatChannelPublishModal(item: DouyinVideoWorkRecord) {
+    props.onOpenWechatChannelPublishModal({
+      id: item.id,
+      workKind: "VIDEO_STORYBOARD",
+      title: item.title,
+      sourceLabel: item.calendarLabel || item.customTopicName || "AI生视频（故事板）",
+      content: item.content,
+      videoUrl: item.videoUrl,
     });
   }
 
@@ -402,6 +416,8 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
             onPreview={props.onPreview}
             onPublish={openPublishModal}
             getPublishLabel={() => "发布到抖音"}
+            onSecondaryPublish={openWechatChannelPublishModal}
+            getSecondaryPublishLabel={() => "发布到视频号"}
             onEdit={openEditor}
             onDelete={(workId) => void handleDelete(workId)}
             formatDateTime={props.formatDateTime}
@@ -422,14 +438,24 @@ export function DouyinVideoStoryboardWorkspace(props: DouyinVideoStoryboardWorks
             onRecoverVideo={() => handleRecoverVideo()}
             onPreview={props.onPreview}
             extraActions={(
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => openPublishModal(selectedWork)}
-                disabled={!selectedWork.videoUrl}
-              >
-                发布到抖音
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => openPublishModal(selectedWork)}
+                  disabled={!selectedWork.videoUrl}
+                >
+                  发布到抖音
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => openWechatChannelPublishModal(selectedWork)}
+                  disabled={!selectedWork.videoUrl}
+                >
+                  发布到视频号
+                </button>
+              </>
             )}
             getOriginalTaskStatusClass={getTaskStatusClass}
             getOriginalTaskStatusText={getTaskStatusText}
