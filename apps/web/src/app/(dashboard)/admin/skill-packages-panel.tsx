@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   createSkillPackage,
   deleteSkillPackage,
@@ -448,6 +448,7 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
             aria-modal="true"
             aria-label="新建能力包"
             onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(1120px, calc(100vw - 40px))", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
           >
             <div className="admin-user-modal-topbar">
               <div>
@@ -480,82 +481,203 @@ function SkillPackageDraftForm(props: {
   modules: ModuleDefinitionRecord[];
   onChange: Dispatch<SetStateAction<SkillPackageDraft>>;
 }) {
+  const selectedModuleKeys = useMemo(() => splitList(props.draft.moduleKeys), [props.draft.moduleKeys]);
+  const moduleOptions = useMemo(
+    () =>
+      props.modules
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((item) => ({
+          value: item.moduleKey,
+          title: item.moduleName,
+          description: `${item.moduleKey} · ${item.moduleType} · ${item.entryRoute}`,
+        })),
+    [props.modules],
+  );
+
+  function updateModuleSelection(moduleKey: string, checked: boolean) {
+    props.onChange((current) => {
+      const nextValues = new Set(splitList(current.moduleKeys));
+      if (checked) {
+        nextValues.add(moduleKey);
+      } else {
+        nextValues.delete(moduleKey);
+      }
+      return {
+        ...current,
+        moduleKeys: Array.from(nextValues).join(", "),
+      };
+    });
+  }
+
   return (
-    <div className="admin-rule-grid">
-      <label>
-        <span>能力包名称</span>
-        <input value={props.draft.packageName} onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))} />
-      </label>
-      <label>
-        <span>能力包标识</span>
-        <input value={props.draft.packageKey} onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))} />
-      </label>
-      <label>
-        <span>状态</span>
-        <select value={props.draft.status} onChange={(event) => props.onChange((current) => ({ ...current, status: event.target.value as SkillPackageRecord["status"] }))}>
-          {STATUS_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>作用域</span>
-        <select value={props.draft.scope} onChange={(event) => props.onChange((current) => ({ ...current, scope: event.target.value as SkillPackageRecord["scope"] }))}>
-          {SCOPE_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>排序</span>
-        <input value={props.draft.sortOrder} onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))} />
-      </label>
-      <label>
-        <span>当前版本 ID</span>
-        <input value={props.draft.currentVersionId} onChange={(event) => props.onChange((current) => ({ ...current, currentVersionId: event.target.value }))} />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>说明</span>
-        <textarea value={props.draft.description} onChange={(event) => props.onChange((current) => ({ ...current, description: event.target.value }))} />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>所属模块</span>
-        <input
-          value={props.draft.moduleKeys}
-          placeholder={`例如：${props.modules.map((item) => item.moduleKey).slice(0, 3).join(", ")}`}
-          onChange={(event) => props.onChange((current) => ({ ...current, moduleKeys: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>工作流步骤</span>
-        <input value={props.draft.workflowStepKeys} onChange={(event) => props.onChange((current) => ({ ...current, workflowStepKeys: event.target.value }))} />
-      </label>
-      <label>
-        <span>标签</span>
-        <input value={props.draft.tags} onChange={(event) => props.onChange((current) => ({ ...current, tags: event.target.value }))} />
-      </label>
-      <label>
-        <span>默认知识空间</span>
-        <input
-          value={props.draft.defaultKnowledgeSpaceIds}
-          onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaceIds: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>默认 Provider 策略</span>
-        <input
-          value={props.draft.defaultProviderPolicyIds}
-          onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicyIds: event.target.value }))}
-        />
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>备注</span>
-        <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
-      </label>
+    <div style={{ display: "grid", gap: 16 }}>
+      <div className="entity-card" style={{ padding: 12 }}>
+        <strong>填写规则</strong>
+        <p className="personal-meta">先确定能力包主体，再挂模块、工作流和默认资源。能直接同步系统主数据的字段优先选，不建议继续靠自由文本硬填。</p>
+      </div>
+
+      <PackageFormSection title="基础信息" description="先把能力包主键、展示名、状态和作用域收口，这是后续所有关系的主对象。">
+        <div className="admin-rule-grid">
+          <PackageFormField label="能力包名称" badge="必填" hint="中文展示名，后续会出现在关系面板和技能中心。">
+            <input value={props.draft.packageName} onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="能力包标识" badge="必填" hint="建议英文短横线命名，作为 packageKey 真源。">
+            <input value={props.draft.packageKey} onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="状态" badge="系统可选" hint="当前直接从固定状态枚举中选择。">
+            <select value={props.draft.status} onChange={(event) => props.onChange((current) => ({ ...current, status: event.target.value as SkillPackageRecord["status"] }))}>
+              {STATUS_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </PackageFormField>
+          <PackageFormField label="作用域" badge="系统可选" hint="决定能力包更偏平台级、品牌级还是用户级。">
+            <select value={props.draft.scope} onChange={(event) => props.onChange((current) => ({ ...current, scope: event.target.value as SkillPackageRecord["scope"] }))}>
+              {SCOPE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </PackageFormField>
+          <PackageFormField label="排序" badge="推荐" hint="用于列表与推荐顺序，默认 100 即可。">
+            <input value={props.draft.sortOrder} onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="当前版本 ID" badge="可选" hint="如果版本中心还没真源化，可以先留空。">
+            <input value={props.draft.currentVersionId} onChange={(event) => props.onChange((current) => ({ ...current, currentVersionId: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="说明" badge="推荐" hint="用一句话讲清能力包解决什么问题。" wide>
+            <textarea value={props.draft.description} onChange={(event) => props.onChange((current) => ({ ...current, description: event.target.value }))} />
+          </PackageFormField>
+        </div>
+      </PackageFormSection>
+
+      <PackageFormSection title="系统同步" description="这些字段已经能从当前系统主数据里带出或优先复用，先选再补充。">
+        <div style={{ display: "grid", gap: 12 }}>
+          <PackageFormField label="所属模块" badge="系统同步" hint="优先从模块注册中心勾选真实模块；文本框仅用于兼容历史值。" wide>
+            <div style={{ display: "grid", gap: 10 }}>
+              <PackageMultiSelectCard
+                options={moduleOptions}
+                selectedValues={selectedModuleKeys}
+                emptyText="当前还没有可复用模块，请先在模块注册中心建立模块。"
+                onToggle={updateModuleSelection}
+              />
+              <input
+                value={props.draft.moduleKeys}
+                placeholder={`例如：${props.modules.map((item) => item.moduleKey).slice(0, 3).join(", ")}`}
+                onChange={(event) => props.onChange((current) => ({ ...current, moduleKeys: event.target.value }))}
+              />
+            </div>
+          </PackageFormField>
+          <div className="admin-rule-grid">
+            <PackageFormField label="默认知识空间" badge="后续同步" hint="目前先兼容文本，下一步建议接知识关系真源。">
+              <input
+                value={props.draft.defaultKnowledgeSpaceIds}
+                onChange={(event) => props.onChange((current) => ({ ...current, defaultKnowledgeSpaceIds: event.target.value }))}
+              />
+            </PackageFormField>
+            <PackageFormField label="默认 Provider 策略" badge="后续同步" hint="当前仍是兼容字段，后续建议与 Provider Policy 真源联动。">
+              <input
+                value={props.draft.defaultProviderPolicyIds}
+                onChange={(event) => props.onChange((current) => ({ ...current, defaultProviderPolicyIds: event.target.value }))}
+              />
+            </PackageFormField>
+          </div>
+        </div>
+      </PackageFormSection>
+
+      <PackageFormSection title="编排与扩展" description="工作流步骤、标签和补充说明属于治理增强字段，不影响 first pass 建档。">
+        <div className="admin-rule-grid">
+          <PackageFormField label="工作流步骤" badge="推荐" hint="按逗号或换行填写，用于编排和排序提示。">
+            <input value={props.draft.workflowStepKeys} onChange={(event) => props.onChange((current) => ({ ...current, workflowStepKeys: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="标签" badge="可选" hint="用于后续筛选和检索，可多值。">
+            <input value={props.draft.tags} onChange={(event) => props.onChange((current) => ({ ...current, tags: event.target.value }))} />
+          </PackageFormField>
+          <PackageFormField label="备注" badge="可选" hint="只写额外限制、上下游依赖或交接说明。" wide>
+            <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
+          </PackageFormField>
+        </div>
+      </PackageFormSection>
+    </div>
+  );
+}
+
+function PackageFormSection(props: { title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="entity-card" style={{ padding: 16 }}>
+      <div className="entity-card-head" style={{ marginBottom: 12 }}>
+        <div>
+          <strong>{props.title}</strong>
+          <p className="personal-meta">{props.description}</p>
+        </div>
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
+function PackageFormField(props: { label: string; badge: string; hint: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <label style={props.wide ? { gridColumn: "1 / -1", display: "grid", gap: 6 } : { display: "grid", gap: 6 }}>
+      <span>{props.label}</span>
+      <small className="personal-meta">{`${props.badge} · ${props.hint}`}</small>
+      {props.children}
+    </label>
+  );
+}
+
+function PackageMultiSelectCard(props: {
+  options: Array<{ value: string; title: string; description: string }>;
+  selectedValues: string[];
+  emptyText: string;
+  onToggle: (value: string, checked: boolean) => void;
+}) {
+  if (!props.options.length) {
+    return (
+      <div className="entity-card" style={{ padding: 12 }}>
+        <p className="personal-meta">{props.emptyText}</p>
+      </div>
+    );
+  }
+
+  const selectedSet = new Set(props.selectedValues);
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div className="entity-card" style={{ padding: 12 }}>
+        <strong>已选模块 {props.selectedValues.length} 个</strong>
+        <p className="personal-meta">
+          {props.selectedValues.length ? props.selectedValues.join(" / ") : "当前未选择，保存时会按手工补充值或空值处理。"}
+        </p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+        {props.options.map((item) => {
+          const checked = selectedSet.has(item.value);
+          return (
+            <label
+              key={item.value}
+              className="entity-card"
+              style={{
+                padding: 12,
+                display: "grid",
+                gap: 6,
+                cursor: "pointer",
+                borderColor: checked ? "var(--primary)" : undefined,
+                boxShadow: checked ? "0 0 0 1px rgba(59, 130, 246, 0.18)" : undefined,
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={checked} onChange={(event) => props.onToggle(item.value, event.target.checked)} />
+                <strong>{item.title}</strong>
+              </span>
+              <small className="personal-meta">{item.description}</small>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

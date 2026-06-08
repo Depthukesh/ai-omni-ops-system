@@ -66,12 +66,48 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingBindings, setIsSyncingBindings] = useState(false);
+  const [syncingSkillId, setSyncingSkillId] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => relations.filter((item) => matchesFilters(item, filters)), [filters, relations]);
   const selectedRelation = useMemo(
     () => visibleRelations.find((item) => item.id === selectedRelationId) || relations.find((item) => item.id === selectedRelationId) || null,
     [relations, selectedRelationId, visibleRelations],
+  );
+  const bindingReconciliation = useMemo(() => {
+    return props.skills
+      .map((skill) => {
+        const bindingEntries = props.skillAssetBindings.filter((item) => item.skillId === skill.id || item.skillSlug === skill.slug);
+        const declaredPackageKeys = Array.from(new Set(bindingEntries.flatMap((item) => item.packageKeys).filter(Boolean)));
+        const existingKeys = new Set(relations.filter((item) => item.skillId === skill.id).map((item) => item.packageKey));
+        const missingPackageKeys = declaredPackageKeys.filter((item) => !existingKeys.has(item));
+        const creatablePackages = missingPackageKeys
+          .map((packageKey) => props.skillPackages.find((item) => item.packageKey === packageKey) || null)
+          .filter((item): item is SkillPackageRecord => Boolean(item));
+        const unresolvedPackageKeys = missingPackageKeys.filter(
+          (packageKey) => !creatablePackages.some((item) => item.packageKey === packageKey),
+        );
+        return {
+          skill,
+          bindingEntries,
+          declaredPackageKeys,
+          creatablePackages,
+          unresolvedPackageKeys,
+        };
+      })
+      .filter((item) => item.creatablePackages.length || item.unresolvedPackageKeys.length);
+  }, [props.skillAssetBindings, props.skillPackages, props.skills, relations]);
+  const syncableBindings = useMemo(
+    () =>
+      bindingReconciliation.flatMap((item) =>
+        item.creatablePackages.map((skillPackage) => ({
+          skill: item.skill,
+          skillPackage,
+          bindingEntry: item.bindingEntries.find((entry) => entry.packageKeys.includes(skillPackage.packageKey)),
+        })),
+      ),
+    [bindingReconciliation],
   );
 
   useEffect(() => {
@@ -291,6 +327,65 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     }
   }
 
+  async function handleSyncBindings(skillId?: string) {
+    const targets = bindingReconciliation.filter((item) => !skillId || item.skill.id === skillId);
+    const creatableEntries = targets.flatMap((item) =>
+      item.creatablePackages.map((skillPackage) => ({
+        skill: item.skill,
+        skillPackage,
+        bindingEntry: item.bindingEntries.find((entry) => entry.packageKeys.includes(skillPackage.packageKey)),
+      })),
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!creatableEntries.length) {
+      props.onNotice(skillId ? "该技能当前没有可自动补齐的能力包关系。" : "当前没有可自动补齐的能力包技能关系。");
+      return;
+    }
+
+    setIsSyncingBindings(true);
+    setSyncingSkillId(skillId || "__all__");
+    try {
+      if (props.dataSource === "seed") {
+        const createdRecords = creatableEntries.map((entry, index) => buildSeedSkillRelationRecord(entry.skill, entry.skillPackage, entry.bindingEntry, index));
+        setRelations((current) => [...createdRecords, ...current]);
+        if (createdRecords[0]) {
+          setSelectedRelationId(createdRecords[0].id);
+        }
+        props.onNotice(skillId ? `已为该技能补齐 ${createdRecords.length} 条演示能力包技能关系。` : `已补齐 ${createdRecords.length} 条演示能力包技能关系。`);
+        return;
+      }
+
+      const createdRecords: SkillPackageSkillRecord[] = [];
+      const failedEntries: string[] = [];
+      for (const entry of creatableEntries) {
+        try {
+          const created = await createSkillPackageSkill(buildCreateSkillPayload(entry.skill, entry.skillPackage, entry.bindingEntry));
+          createdRecords.push(created);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "创建失败";
+          failedEntries.push(`${entry.skill.name} / ${entry.skillPackage.packageName}（${message}）`);
+        }
+      }
+
+      if (createdRecords.length) {
+        setRelations((current) => [...createdRecords, ...current.filter((item) => !createdRecords.some((created) => created.id === item.id))]);
+        setSelectedRelationId(createdRecords[0]?.id || "");
+      }
+      if (failedEntries.length) {
+        props.onError(`技能关系自动补齐有 ${failedEntries.length} 条失败：${failedEntries.join("；")}`);
+      }
+      if (createdRecords.length) {
+        props.onNotice(skillId ? `已为该技能补齐 ${createdRecords.length} 条能力包技能关系。` : `已补齐 ${createdRecords.length} 条能力包技能关系。`);
+      }
+    } finally {
+      setIsSyncingBindings(false);
+      setSyncingSkillId("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -375,6 +470,72 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
           <button type="button" className="primary-button" onClick={handleOpenCreateModal} disabled={!props.skills.length}>
             新增关系
           </button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <div className="entity-card" style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            <div>
+              <span className="personal-meta">待同步技能关系</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{syncableBindings.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">涉及技能</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{bindingReconciliation.filter((item) => item.creatablePackages.length).length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">未识别能力包</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {bindingReconciliation.reduce((sum, item) => sum + item.unresolvedPackageKeys.length, 0)}
+              </strong>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSyncBindings()}
+                disabled={!syncableBindings.length || isSyncingBindings}
+              >
+                {isSyncingBindings && syncingSkillId === "__all__" ? "同步中..." : "一键同步技能关系"}
+              </button>
+            </div>
+          </div>
+
+          {bindingReconciliation.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {bindingReconciliation.map((item) => (
+                <div
+                  key={item.skill.id}
+                  className="entity-card"
+                  style={{ padding: 12, display: "grid", gap: 8, gridTemplateColumns: "minmax(0, 1fr) auto" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{item.skill.name}</strong>
+                    <p className="personal-meta">系统绑定：{item.declaredPackageKeys.length ? item.declaredPackageKeys.join(" / ") : "未配置"}</p>
+                    <p className="personal-meta">
+                      {item.creatablePackages.length
+                        ? `可同步：${item.creatablePackages.map((skillPackage) => skillPackage.packageName).join(" / ")}`
+                        : "当前没有可自动同步的技能关系。"}
+                    </p>
+                    {item.unresolvedPackageKeys.length ? <p className="personal-meta">未识别：{item.unresolvedPackageKeys.join(" / ")}</p> : null}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleSyncBindings(item.skill.id)}
+                      disabled={!item.creatablePackages.length || isSyncingBindings}
+                    >
+                      {isSyncingBindings && syncingSkillId === item.skill.id ? "同步中..." : "同步该技能"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前技能资产绑定与能力包技能关系表已经基本一致。</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -498,6 +659,7 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
             aria-modal="true"
             aria-label="新建能力包技能关系"
             onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(1120px, calc(100vw - 40px))", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
           >
             <div className="admin-user-modal-topbar">
               <div>
@@ -593,111 +755,145 @@ function SkillPackageSkillDraftForm(props: {
   }
 
   return (
-    <div className="admin-rule-grid">
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>能力包选择</span>
-        <select value={packageSelectValue} onChange={(event) => handlePackageChange(event.target.value)}>
-          <option value="__manual__">手工填写 / 历史值兼容</option>
-          {packageOptions.map((item) => (
-            <option key={item.id} value={item.id}>
-              {recommendedPackages.some((recommended) => recommended.id === item.id) ? `推荐 · ${item.packageName}` : item.packageName}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
-        <strong>当前技能推荐能力包 {recommendedPackages.length} 个</strong>
-        <p className="personal-meta">
-          {recommendedPackages.length
-            ? recommendedPackages.map((item) => item.packageName).join(" / ")
-            : "当前技能还没有命中已登记的推荐能力包，可继续手工选择或录入历史值。"}
-        </p>
+    <div style={{ display: "grid", gap: 16 }}>
+      <div className="entity-card" style={{ padding: 12 }}>
+        <strong>填写规则</strong>
+        <p className="personal-meta">能力包和技能都优先选系统真源对象；绑定类型、默认挂载和启用状态才是需要你决策的治理字段。</p>
       </div>
-      {selectedPackage ? (
-        <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
-          <strong>{selectedPackage.packageName}</strong>
-          <p className="personal-meta">
-            {selectedPackage.packageKey} · {selectedPackage.status} · {selectedPackage.scope}
-          </p>
+      <section className="entity-card" style={{ padding: 16 }}>
+        <div className="entity-card-head" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>系统同步区</strong>
+            <p className="personal-meta">优先选择真实能力包和真实技能，系统会按现有绑定关系给出推荐。</p>
+          </div>
         </div>
-      ) : null}
-      <label>
-        <span>能力包名称</span>
-        <input
-          value={props.draft.packageName}
-          readOnly={Boolean(selectedPackage)}
-          onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>能力包 ID</span>
-        <input
-          value={props.draft.packageId}
-          readOnly={Boolean(selectedPackage)}
-          onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>能力包标识</span>
-        <input
-          value={props.draft.packageKey}
-          readOnly={Boolean(selectedPackage)}
-          onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))}
-        />
-      </label>
-      <label>
-        <span>所属技能</span>
-        <select value={props.draft.skillId} onChange={(event) => props.onChange((current) => ({ ...current, skillId: event.target.value }))}>
-          {props.skills.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>绑定类型</span>
-        <select
-          value={props.draft.bindingType}
-          onChange={(event) =>
-            props.onChange((current) => ({ ...current, bindingType: event.target.value as SkillPackageSkillRecord["bindingType"] }))
-          }
-        >
-          {BINDING_TYPE_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>排序</span>
-        <input value={props.draft.sortOrder} onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))} />
-      </label>
-      <label>
-        <span>默认挂载</span>
-        <select
-          value={String(props.draft.isDefault)}
-          onChange={(event) => props.onChange((current) => ({ ...current, isDefault: event.target.value === "true" }))}
-        >
-          <option value="true">是</option>
-          <option value="false">否</option>
-        </select>
-      </label>
-      <label>
-        <span>启用状态</span>
-        <select
-          value={String(props.draft.enabled)}
-          onChange={(event) => props.onChange((current) => ({ ...current, enabled: event.target.value === "true" }))}
-        >
-          <option value="true">启用</option>
-          <option value="false">停用</option>
-        </select>
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>备注</span>
-        <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
-      </label>
+        <div className="admin-rule-grid">
+          <label style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
+            <span>能力包选择</span>
+            <small className="personal-meta">系统同步 · 先选真实能力包，手工字段只用于兼容历史值。</small>
+            <select value={packageSelectValue} onChange={(event) => handlePackageChange(event.target.value)}>
+              <option value="__manual__">手工填写 / 历史值兼容</option>
+              {packageOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {recommendedPackages.some((recommended) => recommended.id === item.id) ? `推荐 · ${item.packageName}` : item.packageName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
+            <strong>当前技能推荐能力包 {recommendedPackages.length} 个</strong>
+            <p className="personal-meta">
+              {recommendedPackages.length
+                ? recommendedPackages.map((item) => item.packageName).join(" / ")
+                : "当前技能还没有命中已登记的推荐能力包，可继续手工选择或录入历史值。"}
+            </p>
+          </div>
+          {selectedPackage ? (
+            <div className="entity-card" style={{ gridColumn: "1 / -1", padding: 12 }}>
+              <strong>{selectedPackage.packageName}</strong>
+              <p className="personal-meta">
+                {selectedPackage.packageKey} · {selectedPackage.status} · {selectedPackage.scope}
+              </p>
+            </div>
+          ) : null}
+          <label>
+            <span>能力包名称</span>
+            <small className="personal-meta">系统同步 · 选中真实能力包后自动带出。</small>
+            <input
+              value={props.draft.packageName}
+              readOnly={Boolean(selectedPackage)}
+              onChange={(event) => props.onChange((current) => ({ ...current, packageName: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span>能力包 ID</span>
+            <small className="personal-meta">系统同步 · 选中真实能力包后自动带出。</small>
+            <input
+              value={props.draft.packageId}
+              readOnly={Boolean(selectedPackage)}
+              onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span>能力包标识</span>
+            <small className="personal-meta">系统同步 · 选中真实能力包后自动带出。</small>
+            <input
+              value={props.draft.packageKey}
+              readOnly={Boolean(selectedPackage)}
+              onChange={(event) => props.onChange((current) => ({ ...current, packageKey: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span>所属技能</span>
+            <small className="personal-meta">必填 · 当前从技能主数据中选择。</small>
+            <select value={props.draft.skillId} onChange={(event) => props.onChange((current) => ({ ...current, skillId: event.target.value }))}>
+              {props.skills.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+      <section className="entity-card" style={{ padding: 16 }}>
+        <div className="entity-card-head" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>治理设置</strong>
+            <p className="personal-meta">这几项决定技能在能力包里的角色、优先级和是否默认启用。</p>
+          </div>
+        </div>
+        <div className="admin-rule-grid">
+          <label>
+            <span>绑定类型</span>
+            <small className="personal-meta">必填 · 建议主技能用 DEFAULT，补充技能用 OPTIONAL。</small>
+            <select
+              value={props.draft.bindingType}
+              onChange={(event) =>
+                props.onChange((current) => ({ ...current, bindingType: event.target.value as SkillPackageSkillRecord["bindingType"] }))
+              }
+            >
+              {BINDING_TYPE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>排序</span>
+            <small className="personal-meta">推荐 · 用于同能力包内的技能执行顺序。</small>
+            <input value={props.draft.sortOrder} onChange={(event) => props.onChange((current) => ({ ...current, sortOrder: event.target.value }))} />
+          </label>
+          <label>
+            <span>默认挂载</span>
+            <small className="personal-meta">推荐 · 默认挂载会进入后续双向对照与补齐逻辑。</small>
+            <select
+              value={String(props.draft.isDefault)}
+              onChange={(event) => props.onChange((current) => ({ ...current, isDefault: event.target.value === "true" }))}
+            >
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </label>
+          <label>
+            <span>启用状态</span>
+            <small className="personal-meta">系统可选 · 只有启用关系才参与默认推荐与回填。</small>
+            <select
+              value={String(props.draft.enabled)}
+              onChange={(event) => props.onChange((current) => ({ ...current, enabled: event.target.value === "true" }))}
+            >
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </label>
+          <label style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
+            <span>备注</span>
+            <small className="personal-meta">可选 · 只补充为什么挂这个技能，或有什么特殊限制。</small>
+            <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
+          </label>
+        </div>
+      </section>
     </div>
   );
 }
@@ -757,6 +953,57 @@ function toPayload(
     sortOrder: Number(draft.sortOrder || 100),
     enabled: draft.enabled,
     remarks: draft.remarks.trim() || undefined,
+  };
+}
+
+function buildCreateSkillPayload(
+  skill: SkillConfigRecord,
+  skillPackage: SkillPackageRecord,
+  bindingEntry?: SkillAssetBindingRecord,
+): Omit<
+  SkillPackageSkillRecord,
+  | "id"
+  | "skillName"
+  | "skillCategory"
+  | "skillStatus"
+  | "skillProvider"
+  | "skillDefaultModel"
+  | "createdAt"
+  | "updatedAt"
+> {
+  const isPrimary = bindingEntry?.isPrimary || bindingEntry?.bindingType === "PRIMARY";
+  return {
+    packageId: skillPackage.id,
+    packageKey: skillPackage.packageKey,
+    packageName: skillPackage.packageName,
+    skillId: skill.id,
+    skillSlug: skill.slug,
+    bindingType: isPrimary ? "DEFAULT" : "OPTIONAL",
+    isDefault: Boolean(isPrimary),
+    sortOrder: bindingEntry?.sortOrder || skillPackage.sortOrder || 100,
+    enabled: bindingEntry?.enabled ?? true,
+    remarks: "根据技能资产绑定自动补齐",
+  };
+}
+
+function buildSeedSkillRelationRecord(
+  skill: SkillConfigRecord,
+  skillPackage: SkillPackageRecord,
+  bindingEntry: SkillAssetBindingRecord | undefined,
+  index: number,
+): SkillPackageSkillRecord {
+  const payload = buildCreateSkillPayload(skill, skillPackage, bindingEntry);
+  const timestamp = new Date().toISOString();
+  return {
+    ...payload,
+    id: `sps_sync_${Date.now()}_${index}`,
+    skillName: skill.name,
+    skillCategory: skill.category,
+    skillStatus: skill.status,
+    skillProvider: skill.provider,
+    skillDefaultModel: skill.defaultModel,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 

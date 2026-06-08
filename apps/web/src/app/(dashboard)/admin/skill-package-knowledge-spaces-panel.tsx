@@ -69,12 +69,47 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingDefaults, setIsSyncingDefaults] = useState(false);
+  const [syncingPackageId, setSyncingPackageId] = useState("");
   const [busyRelationId, setBusyRelationId] = useState("");
 
   const visibleRelations = useMemo(() => relations.filter((item) => matchesFilters(item, filters)), [filters, relations]);
   const selectedRelation = useMemo(
     () => visibleRelations.find((item) => item.id === selectedRelationId) || relations.find((item) => item.id === selectedRelationId) || null,
     [relations, selectedRelationId, visibleRelations],
+  );
+  const defaultKnowledgeReconciliation = useMemo(() => {
+    return packages
+      .map((skillPackage) => {
+        const declaredKnowledgeBaseIds = Array.from(new Set(skillPackage.defaultKnowledgeSpaceIds.filter(Boolean)));
+        const existingKnowledgeBaseIds = new Set(
+          relations.filter((item) => item.packageId === skillPackage.id).map((item) => item.knowledgeBaseId),
+        );
+        const missingKnowledgeBaseIds = declaredKnowledgeBaseIds.filter((item) => !existingKnowledgeBaseIds.has(item));
+        const creatableKnowledgeBases = missingKnowledgeBaseIds
+          .map((knowledgeBaseId) => knowledgeBases.find((item) => item.id === knowledgeBaseId) || null)
+          .filter((item): item is KnowledgeBaseRecord => Boolean(item));
+        const unresolvedKnowledgeBaseIds = missingKnowledgeBaseIds.filter(
+          (knowledgeBaseId) => !creatableKnowledgeBases.some((item) => item.id === knowledgeBaseId),
+        );
+        return {
+          skillPackage,
+          declaredKnowledgeBaseIds,
+          creatableKnowledgeBases,
+          unresolvedKnowledgeBaseIds,
+        };
+      })
+      .filter((item) => item.creatableKnowledgeBases.length || item.unresolvedKnowledgeBaseIds.length);
+  }, [knowledgeBases, packages, relations]);
+  const syncableKnowledgeRelations = useMemo(
+    () =>
+      defaultKnowledgeReconciliation.flatMap((item) =>
+        item.creatableKnowledgeBases.map((knowledgeBase) => ({
+          skillPackage: item.skillPackage,
+          knowledgeBase,
+        })),
+      ),
+    [defaultKnowledgeReconciliation],
   );
 
   useEffect(() => {
@@ -312,6 +347,64 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     }
   }
 
+  async function handleSyncDefaultKnowledgeRelations(packageId?: string) {
+    const targets = defaultKnowledgeReconciliation.filter((item) => !packageId || item.skillPackage.id === packageId);
+    const creatableEntries = targets.flatMap((item) =>
+      item.creatableKnowledgeBases.map((knowledgeBase) => ({
+        skillPackage: item.skillPackage,
+        knowledgeBase,
+      })),
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!creatableEntries.length) {
+      props.onNotice(packageId ? "该能力包当前没有可自动补齐的知识关系。" : "当前没有可自动补齐的能力包知识关系。");
+      return;
+    }
+
+    setIsSyncingDefaults(true);
+    setSyncingPackageId(packageId || "__all__");
+    try {
+      if (props.dataSource === "seed") {
+        const createdRecords = creatableEntries.map((entry, index) => buildSeedKnowledgeRelationRecord(entry.skillPackage, entry.knowledgeBase, index));
+        setRelations((current) => [...createdRecords, ...current]);
+        if (createdRecords[0]) {
+          setSelectedRelationId(createdRecords[0].id);
+        }
+        props.onNotice(packageId ? `已为该能力包补齐 ${createdRecords.length} 条演示知识关系。` : `已补齐 ${createdRecords.length} 条演示知识关系。`);
+        return;
+      }
+
+      const createdRecords: SkillPackageKnowledgeSpaceRecord[] = [];
+      const failedEntries: string[] = [];
+      for (const entry of creatableEntries) {
+        try {
+          const created = await createSkillPackageKnowledgeSpace(buildCreateKnowledgePayload(entry.skillPackage, entry.knowledgeBase));
+          createdRecords.push(created);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "创建失败";
+          failedEntries.push(`${entry.skillPackage.packageName} / ${entry.knowledgeBase.name}（${message}）`);
+        }
+      }
+
+      if (createdRecords.length) {
+        setRelations((current) => [...createdRecords, ...current.filter((item) => !createdRecords.some((created) => created.id === item.id))]);
+        setSelectedRelationId(createdRecords[0]?.id || "");
+      }
+      if (failedEntries.length) {
+        props.onError(`知识关系自动补齐有 ${failedEntries.length} 条失败：${failedEntries.join("；")}`);
+      }
+      if (createdRecords.length) {
+        props.onNotice(packageId ? `已为该能力包补齐 ${createdRecords.length} 条知识关系。` : `已补齐 ${createdRecords.length} 条知识关系。`);
+      }
+    } finally {
+      setIsSyncingDefaults(false);
+      setSyncingPackageId("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -402,6 +495,76 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
           <button type="button" className="primary-button" onClick={handleOpenCreateModal}>
             新增关系
           </button>
+        </div>
+
+        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <div className="entity-card" style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            <div>
+              <span className="personal-meta">待同步知识关系</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{syncableKnowledgeRelations.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">涉及能力包</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{defaultKnowledgeReconciliation.filter((item) => item.creatableKnowledgeBases.length).length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">未识别知识库</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {defaultKnowledgeReconciliation.reduce((sum, item) => sum + item.unresolvedKnowledgeBaseIds.length, 0)}
+              </strong>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSyncDefaultKnowledgeRelations()}
+                disabled={!syncableKnowledgeRelations.length || isSyncingDefaults}
+              >
+                {isSyncingDefaults && syncingPackageId === "__all__" ? "同步中..." : "一键同步知识关系"}
+              </button>
+            </div>
+          </div>
+
+          {defaultKnowledgeReconciliation.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {defaultKnowledgeReconciliation.map((item) => (
+                <div
+                  key={item.skillPackage.id}
+                  className="entity-card"
+                  style={{ padding: 12, display: "grid", gap: 8, gridTemplateColumns: "minmax(0, 1fr) auto" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{item.skillPackage.packageName}</strong>
+                    <p className="personal-meta">
+                      默认知识空间：{item.declaredKnowledgeBaseIds.length ? item.declaredKnowledgeBaseIds.join(" / ") : "未配置"}
+                    </p>
+                    <p className="personal-meta">
+                      {item.creatableKnowledgeBases.length
+                        ? `可同步：${item.creatableKnowledgeBases.map((knowledgeBase) => knowledgeBase.name).join(" / ")}`
+                        : "当前没有可自动同步的知识关系。"}
+                    </p>
+                    {item.unresolvedKnowledgeBaseIds.length ? (
+                      <p className="personal-meta">未识别：{item.unresolvedKnowledgeBaseIds.join(" / ")}</p>
+                    ) : null}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleSyncDefaultKnowledgeRelations(item.skillPackage.id)}
+                      disabled={!item.creatableKnowledgeBases.length || isSyncingDefaults}
+                    >
+                      {isSyncingDefaults && syncingPackageId === item.skillPackage.id ? "同步中..." : "同步该能力包"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前能力包默认知识空间与知识关系表已经基本一致。</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -521,6 +684,7 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
             aria-modal="true"
             aria-label="新建能力包知识关系"
             onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(1120px, calc(100vw - 40px))", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
           >
             <div className="admin-user-modal-topbar">
               <div>
@@ -560,88 +724,120 @@ function SkillPackageKnowledgeSpaceDraftForm(props: {
   onChange: Dispatch<SetStateAction<SkillPackageKnowledgeSpaceDraft>>;
 }) {
   return (
-    <div className="admin-rule-grid">
-      <label>
-        <span>能力包</span>
-        <select value={props.draft.packageId} onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))}>
-          {props.packages.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.packageName}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>知识库</span>
-        <select
-          value={props.draft.knowledgeBaseId}
-          onChange={(event) => props.onChange((current) => ({ ...current, knowledgeBaseId: event.target.value }))}
-        >
-          {props.knowledgeBases.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>关系类型</span>
-        <select
-          value={props.draft.relationType}
-          onChange={(event) =>
-            props.onChange((current) => ({ ...current, relationType: event.target.value as SkillPackageKnowledgeSpaceRecord["relationType"] }))
-          }
-        >
-          {RELATION_TYPE_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>检索模式</span>
-        <select
-          value={props.draft.retrievalMode}
-          onChange={(event) =>
-            props.onChange((current) => ({ ...current, retrievalMode: event.target.value as SkillPackageKnowledgeSpaceRecord["retrievalMode"] }))
-          }
-        >
-          {RETRIEVAL_MODE_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>优先级</span>
-        <input value={props.draft.priority} onChange={(event) => props.onChange((current) => ({ ...current, priority: event.target.value }))} />
-      </label>
-      <label>
-        <span>必选关系</span>
-        <select
-          value={String(props.draft.isRequired)}
-          onChange={(event) => props.onChange((current) => ({ ...current, isRequired: event.target.value === "true" }))}
-        >
-          <option value="true">是</option>
-          <option value="false">否</option>
-        </select>
-      </label>
-      <label>
-        <span>启用状态</span>
-        <select
-          value={String(props.draft.enabled)}
-          onChange={(event) => props.onChange((current) => ({ ...current, enabled: event.target.value === "true" }))}
-        >
-          <option value="true">启用</option>
-          <option value="false">停用</option>
-        </select>
-      </label>
-      <label style={{ gridColumn: "1 / -1" }}>
-        <span>备注</span>
-        <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
-      </label>
+    <div style={{ display: "grid", gap: 16 }}>
+      <div className="entity-card" style={{ padding: 12 }}>
+        <strong>填写规则</strong>
+        <p className="personal-meta">能力包和知识库都优先选系统主数据；关系类型、检索模式和是否必选才是当前需要你决策的配置。</p>
+      </div>
+      <section className="entity-card" style={{ padding: 16 }}>
+        <div className="entity-card-head" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>系统同步区</strong>
+            <p className="personal-meta">先选择真实能力包与真实知识库，避免后续知识关系和能力包主数据脱节。</p>
+          </div>
+        </div>
+        <div className="admin-rule-grid">
+          <label>
+            <span>能力包</span>
+            <small className="personal-meta">系统同步 · 当前直接从能力包主数据选择。</small>
+            <select value={props.draft.packageId} onChange={(event) => props.onChange((current) => ({ ...current, packageId: event.target.value }))}>
+              {props.packages.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.packageName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>知识库</span>
+            <small className="personal-meta">系统同步 · 当前直接从知识库主数据选择。</small>
+            <select
+              value={props.draft.knowledgeBaseId}
+              onChange={(event) => props.onChange((current) => ({ ...current, knowledgeBaseId: event.target.value }))}
+            >
+              {props.knowledgeBases.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+      <section className="entity-card" style={{ padding: 16 }}>
+        <div className="entity-card-head" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>治理设置</strong>
+            <p className="personal-meta">这里定义知识空间对能力包的角色、检索模式和优先级。</p>
+          </div>
+        </div>
+        <div className="admin-rule-grid">
+          <label>
+            <span>关系类型</span>
+            <small className="personal-meta">必填 · 默认、可选或覆盖关系从这里定义。</small>
+            <select
+              value={props.draft.relationType}
+              onChange={(event) =>
+                props.onChange((current) => ({ ...current, relationType: event.target.value as SkillPackageKnowledgeSpaceRecord["relationType"] }))
+              }
+            >
+              {RELATION_TYPE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>检索模式</span>
+            <small className="personal-meta">系统可选 · 当前直接从固定检索模式枚举中选择。</small>
+            <select
+              value={props.draft.retrievalMode}
+              onChange={(event) =>
+                props.onChange((current) => ({ ...current, retrievalMode: event.target.value as SkillPackageKnowledgeSpaceRecord["retrievalMode"] }))
+              }
+            >
+              {RETRIEVAL_MODE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>优先级</span>
+            <small className="personal-meta">推荐 · 多个知识空间同时挂载时用来排序。</small>
+            <input value={props.draft.priority} onChange={(event) => props.onChange((current) => ({ ...current, priority: event.target.value }))} />
+          </label>
+          <label>
+            <span>必选关系</span>
+            <small className="personal-meta">推荐 · 只有确实不可缺省时才设为是。</small>
+            <select
+              value={String(props.draft.isRequired)}
+              onChange={(event) => props.onChange((current) => ({ ...current, isRequired: event.target.value === "true" }))}
+            >
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </label>
+          <label>
+            <span>启用状态</span>
+            <small className="personal-meta">系统可选 · 停用关系不会参与默认同步与检索推荐。</small>
+            <select
+              value={String(props.draft.enabled)}
+              onChange={(event) => props.onChange((current) => ({ ...current, enabled: event.target.value === "true" }))}
+            >
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </label>
+          <label style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
+            <span>备注</span>
+            <small className="personal-meta">可选 · 记录知识空间用途、检索范围或为什么需要覆盖。</small>
+            <textarea value={props.draft.remarks} onChange={(event) => props.onChange((current) => ({ ...current, remarks: event.target.value }))} />
+          </label>
+        </div>
+      </section>
     </div>
   );
 }
@@ -697,6 +893,45 @@ function toPayload(
     isRequired: draft.isRequired,
     enabled: draft.enabled,
     remarks: draft.remarks.trim() || undefined,
+  };
+}
+
+function buildCreateKnowledgePayload(
+  skillPackage: SkillPackageRecord,
+  knowledgeBase: KnowledgeBaseRecord,
+): Omit<
+  SkillPackageKnowledgeSpaceRecord,
+  "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+> {
+  return {
+    packageId: skillPackage.id,
+    packageKey: skillPackage.packageKey,
+    packageName: skillPackage.packageName,
+    knowledgeBaseId: knowledgeBase.id,
+    relationType: "DEFAULT",
+    priority: 100,
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
+    remarks: "根据能力包默认知识空间自动补齐",
+  };
+}
+
+function buildSeedKnowledgeRelationRecord(
+  skillPackage: SkillPackageRecord,
+  knowledgeBase: KnowledgeBaseRecord,
+  index: number,
+): SkillPackageKnowledgeSpaceRecord {
+  const payload = buildCreateKnowledgePayload(skillPackage, knowledgeBase);
+  const timestamp = new Date().toISOString();
+  return {
+    ...payload,
+    id: `spks_sync_${Date.now()}_${index}`,
+    knowledgeBaseName: knowledgeBase.name,
+    knowledgeBaseSlug: knowledgeBase.slug,
+    knowledgeBaseStatus: knowledgeBase.status,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
