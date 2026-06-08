@@ -153,12 +153,13 @@ function collectProbeResult(session) {
   const titleElement = findTitleElement();
   const contentElement = findContentElement();
   const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+  const uploadZone = findVideoUploadZone();
   const buttons = Array.from(document.querySelectorAll("button"))
     .map((element) => element.textContent?.trim())
     .filter(Boolean);
   const pageKind = detectPageKind();
   return {
-    ready: Boolean(titleElement || contentElement || fileInputs.length > 0),
+    ready: Boolean(titleElement || contentElement || uploadZone || fileInputs.length > 0 || pageKind === "VIDEO"),
     pageKind,
     pageKindLabel: pageKind === "IMAGE_TEXT" ? "图文" : pageKind === "VIDEO" ? "视频" : "未知",
     expectedMode: String(session?.mode || "VIDEO"),
@@ -245,6 +246,7 @@ function triggerPublishVideo(element) {
 function findTitleElement() {
   const selectors = [
     'input[placeholder*="标题"]',
+    'input[placeholder*="填写"]',
     'textarea[placeholder*="标题"]',
     '[contenteditable="true"][data-placeholder*="标题"]',
     '[contenteditable="true"][placeholder*="标题"]',
@@ -254,6 +256,7 @@ function findTitleElement() {
 
 function findContentElement() {
   const selectors = [
+    'textarea[placeholder*="添加描述"]',
     'textarea[placeholder*="描述"]',
     'textarea[placeholder*="正文"]',
     'textarea[placeholder*="内容"]',
@@ -271,12 +274,20 @@ function isVideoComposerReady() {
   const titleElement = findTitleElement();
   const contentElement = findContentElement();
   const visibleFileInput = findVisibleElement(['input[type="file"]']);
+  const uploadZone = findVideoUploadZone();
   const bodyText = String(document.body?.innerText || "");
+  const pathName = String(location.pathname || "");
   return Boolean(
-    visibleFileInput
+    pathName.includes("/platform/post/create")
+    || visibleFileInput
+    || uploadZone
     || titleElement
     || contentElement
     || bodyText.includes("上传视频")
+    || bodyText.includes("发表动态")
+    || bodyText.includes("视频管理")
+    || bodyText.includes("视频描述")
+    || bodyText.includes("短标题")
     || bodyText.includes("拖拽视频到此处")
     || bodyText.includes("添加描述")
     || bodyText.includes("视频简介"),
@@ -302,6 +313,39 @@ function findVisibleElement(selectors) {
       }
     }
   }
+  return null;
+}
+
+function findVideoUploadZone() {
+  const selectors = [
+    'input[type="file"][accept*="video"]',
+    'input[type="file"]',
+    '[class*="upload"]',
+    '[class*="Upload"]',
+    '[data-testid*="upload"]',
+  ];
+
+  const zone = findVisibleElement(selectors);
+  if (zone) {
+    return zone;
+  }
+
+  const textCandidates = Array.from(document.querySelectorAll("div, span, p"));
+  for (const element of textCandidates) {
+    if (!(element instanceof HTMLElement) || !isVisible(element)) {
+      continue;
+    }
+    const text = String(element.innerText || element.textContent || "").replace(/\s+/g, "");
+    if (
+      text.includes("上传时长")
+      || text.includes("格式为MP4")
+      || text.includes("小于2G")
+      || text.includes("上传视频")
+    ) {
+      return element;
+    }
+  }
+
   return null;
 }
 
