@@ -8,8 +8,8 @@ import {
 } from "../../../services/publishing";
 import { ManagedImage } from "./managed-image";
 
-const EXTENSION_DOWNLOAD_URL = "/extensions/omni-publisher.zip";
-const EXTENSION_GUIDE_URL = "/help/publisher";
+const EXTENSION_DOWNLOAD_URL = "/extensions/xhs-draft-publisher.zip";
+const EXTENSION_GUIDE_URL = "/help/xhs-draft-publisher";
 
 export interface PublishModalProps {
   publishTarget: PublishableWorkTarget | null;
@@ -95,6 +95,9 @@ export function PublishModal(props: PublishModalProps) {
               <div className="publish-dialog-hint">
                 电脑端一键发布会调用本地浏览器扩展，自动把标题、正文和配图写入小红书草稿箱。手机扫码接力保留为备用方案。
               </div>
+              <div className="publish-dialog-hint">
+                当前小红书电脑端发布仅支持图文笔记草稿箱，不支持视频笔记直发。
+              </div>
               <div className="publish-dialog-link-row">
                 <a className="secondary-button" href={EXTENSION_DOWNLOAD_URL} download>
                   下载扩展插件
@@ -105,7 +108,7 @@ export function PublishModal(props: PublishModalProps) {
               </div>
               {!props.isDesktopExtensionReady ? (
                 <div className="publish-dialog-hint">
-                  若当前仍提示未检测到统一扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
+                  若当前仍提示未检测到扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
                   `creator.xiaohongshu.com`。线上 `https://17ai.site` 与本地 `localhost/127.0.0.1` 需要分别授权。
                 </div>
               ) : null}

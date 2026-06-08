@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-const EXTENSION_DOWNLOAD_URL = "/extensions/omni-publisher.zip";
-const EXTENSION_README_URL = "/extensions/omni-publisher/README.md";
+const EXTENSION_DOWNLOAD_URL = "/extensions/xhs-draft-publisher.zip";
+const EXTENSION_README_URL = "/extensions/xhs-draft-publisher/README.md";
 
 export default function XhsDraftPublisherHelpPage() {
   return (
@@ -11,10 +11,10 @@ export default function XhsDraftPublisherHelpPage() {
       <section className="dashboard-page personal-center-page">
         <div className="page-header">
           <div>
-            <p className="page-kicker">统一发布扩展</p>
+            <p className="page-kicker">小红书电脑端一键发布扩展</p>
             <h1>扩展下载与安装教程</h1>
             <p className="page-description">
-              该扩展同时支持小红书与抖音的电脑端辅助发布。安装一次后，工作台会按平台自动接管对应的创作者发布页面。
+              该扩展用于接收 AI 全域运营系统里的“小红书一键发布”指令，自动打开创作者中心并把标题、正文、配图写入草稿箱。
             </p>
           </div>
           <div className="personal-actions">
@@ -37,9 +37,9 @@ export default function XhsDraftPublisherHelpPage() {
           <ol className="publish-help-list">
             <li>下载并解压扩展压缩包。</li>
             <li>打开 Chrome 或 Edge 的扩展管理页，开启“开发者模式”。</li>
-            <li>点击“加载已解压的扩展程序”，选择解压后的 `omni-publisher` 目录。</li>
-            <li>进入扩展详情页，确认站点访问权限已允许当前工作台域名以及 `creator.xiaohongshu.com`、`creator.douyin.com`。</li>
-            <li>确保浏览器已经登录对应平台创作者中心，再回到工作台重新打开发布弹窗。</li>
+            <li>点击“加载已解压的扩展程序”，选择解压后的 `xhs-draft-publisher` 目录。</li>
+            <li>进入扩展详情页，确认站点访问权限已允许当前工作台域名以及 `creator.xiaohongshu.com`。</li>
+            <li>确保浏览器已经登录小红书创作者中心，再回到工作台重新打开“一键发布”弹窗。</li>
           </ol>
         </article>
 
@@ -55,7 +55,6 @@ export default function XhsDraftPublisherHelpPage() {
             <li>`http://127.0.0.1:3001/*`</li>
             <li>`https://17ai.site/*`</li>
             <li>`https://creator.xiaohongshu.com/*`</li>
-            <li>`https://creator.douyin.com/*`</li>
           </ul>
         </article>
 
@@ -69,7 +68,7 @@ export default function XhsDraftPublisherHelpPage() {
           <ul className="publish-help-list">
             <li>扩展只加载到了本地 `localhost`，但你当前打开的是 `https://17ai.site`。</li>
             <li>扩展详情页里“站点访问权限”仍是“点击时”，没有放开当前站点。</li>
-            <li>浏览器未登录对应平台创作者中心，扩展只能打开页面但无法自动执行发布辅助。</li>
+            <li>浏览器未登录小红书创作者中心，扩展只能打开页面但无法自动写入草稿。</li>
             <li>更新扩展代码后没有在扩展管理页点击“刷新”，导致工作台和扩展版本不一致。</li>
           </ul>
           <div className="personal-actions">

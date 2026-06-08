@@ -4,8 +4,8 @@ import { type DouyinDesktopPublishSession } from "../../../services/publishing";
 import { type OptionalDateFormatter, type PlatformAccount } from "../xiaohongshu/shared-types";
 import { type DouyinPublishableWorkTarget } from "./publish-types";
 
-const EXTENSION_DOWNLOAD_URL = "/extensions/omni-publisher.zip";
-const EXTENSION_GUIDE_URL = "/help/publisher";
+const EXTENSION_DOWNLOAD_URL = "/extensions/douyin-publisher.zip";
+const EXTENSION_GUIDE_URL = "/help/douyin-publisher";
 
 export interface DouyinPublishModalProps {
   publishTarget: DouyinPublishableWorkTarget | null;
@@ -85,6 +85,9 @@ export function DouyinPublishModal(props: DouyinPublishModalProps) {
               <div className="publish-dialog-hint">
                 电脑端辅助发布会调用本地浏览器扩展，自动打开抖音创作者中心上传页，上传视频并填写标题、描述与话题。最后一步发布由你人工确认。
               </div>
+              <div className="publish-dialog-hint">
+                当前抖音电脑端发布仅支持视频，不支持图文笔记。
+              </div>
               <div className="publish-dialog-link-row">
                 <a className="secondary-button" href={EXTENSION_DOWNLOAD_URL} download>
                   下载扩展插件
@@ -95,7 +98,7 @@ export function DouyinPublishModal(props: DouyinPublishModalProps) {
               </div>
               {!props.isDesktopExtensionReady ? (
                 <div className="publish-dialog-hint">
-                  若当前仍提示未检测到统一扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
+                  若当前仍提示未检测到扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
                   `creator.douyin.com`。
                 </div>
               ) : null}
