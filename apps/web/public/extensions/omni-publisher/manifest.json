@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "AI全域运营 - 统一发布扩展",
+  "version": "0.2.0",
+  "description": "同时支持小红书和抖音的电脑端辅助发布，接收工作台指令后自动打开创作者中心并填写发布素材。",
+  "permissions": ["tabs", "storage", "scripting"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://17ai.site/*",
+    "https://www.17ai.site/*",
+    "https://creator.xiaohongshu.com/*",
+    "https://creator.douyin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://17ai.site/*",
+        "https://www.17ai.site/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://creator.xiaohongshu.com/*", "https://creator.douyin.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AI全域运营统一发布扩展"
+  }
+}

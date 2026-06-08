@@ -4,8 +4,8 @@ import { type DouyinDesktopPublishSession } from "../../../services/publishing";
 import { type OptionalDateFormatter, type PlatformAccount } from "../xiaohongshu/shared-types";
 import { type DouyinPublishableWorkTarget } from "./publish-types";
 
-const EXTENSION_DOWNLOAD_URL = "/extensions/douyin-publisher.zip";
-const EXTENSION_GUIDE_URL = "/help/douyin-publisher";
+const EXTENSION_DOWNLOAD_URL = "/extensions/omni-publisher.zip";
+const EXTENSION_GUIDE_URL = "/help/publisher";
 
 export interface DouyinPublishModalProps {
   publishTarget: DouyinPublishableWorkTarget | null;
@@ -95,7 +95,7 @@ export function DouyinPublishModal(props: DouyinPublishModalProps) {
               </div>
               {!props.isDesktopExtensionReady ? (
                 <div className="publish-dialog-hint">
-                  若当前仍提示未检测到扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
+                  若当前仍提示未检测到统一扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
                   `creator.douyin.com`。
                 </div>
               ) : null}

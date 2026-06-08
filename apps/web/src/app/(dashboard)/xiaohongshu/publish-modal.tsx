@@ -8,8 +8,8 @@ import {
 } from "../../../services/publishing";
 import { ManagedImage } from "./managed-image";
 
-const EXTENSION_DOWNLOAD_URL = "/extensions/xhs-draft-publisher.zip";
-const EXTENSION_GUIDE_URL = "/help/xhs-draft-publisher";
+const EXTENSION_DOWNLOAD_URL = "/extensions/omni-publisher.zip";
+const EXTENSION_GUIDE_URL = "/help/publisher";
 
 export interface PublishModalProps {
   publishTarget: PublishableWorkTarget | null;
@@ -105,7 +105,7 @@ export function PublishModal(props: PublishModalProps) {
               </div>
               {!props.isDesktopExtensionReady ? (
                 <div className="publish-dialog-hint">
-                  若当前仍提示未检测到扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
+                  若当前仍提示未检测到统一扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
                   `creator.xiaohongshu.com`。线上 `https://17ai.site` 与本地 `localhost/127.0.0.1` 需要分别授权。
                 </div>
               ) : null}
