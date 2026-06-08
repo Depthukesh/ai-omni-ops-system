@@ -359,6 +359,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
+  private readonly dailyHotspotCatchUpInFlight = new Set<string>();
 
   constructor(
     @Inject(PrismaService)
@@ -829,7 +830,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   async getDailyHotspotWorkspace(
     brandId: string,
     targetDate?: string,
-    options?: { skipAutoCatchUp?: boolean },
+    options?: { skipAutoCatchUp?: boolean; blockOnAutoCatchUp?: boolean },
   ): Promise<DailyHotspotWorkspace> {
     const workspace = await this.readDailyHotspotWorkspace(brandId, targetDate);
     if (targetDate || options?.skipAutoCatchUp) {
@@ -839,14 +840,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return workspace;
     }
 
-    try {
-      await this.syncDailyHotspots(brandId, []);
-      return this.readDailyHotspotWorkspace(brandId, targetDate);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      console.error(`每日热点工作区自动补抓失败: ${brandId} - ${message}`);
-      return workspace;
+    if (options?.blockOnAutoCatchUp) {
+      try {
+        await this.syncDailyHotspots(brandId, []);
+        return this.readDailyHotspotWorkspace(brandId, targetDate);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "未知错误";
+        console.error(`每日热点工作区自动补抓失败: ${brandId} - ${message}`);
+        return workspace;
+      }
     }
+
+    this.triggerDailyHotspotCatchUpInBackground(brandId);
+    return workspace;
   }
 
   private async readDailyHotspotWorkspace(brandId: string, targetDate?: string): Promise<DailyHotspotWorkspace> {
@@ -3528,6 +3534,15 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return this.mapDailyHotspotPlatform(asset);
     } catch (error) {
       const message = error instanceof Error ? error.message : "热点采集失败";
+      const existing = await this.findDailyHotspotAsset(brandId, config.platformKey, snapshotDate);
+      if (existing) {
+        const meta = this.asMeta(existing.metadataJson);
+        const existingStatus = (this.readMetaString(meta, "syncStatus") as DailyHotspotSyncStatus) || "IDLE";
+        if (existingStatus === "SUCCESS") {
+          this.logger.warn(`每日热点采集失败，保留既有成功快照: ${brandId} / ${config.platformKey} / ${snapshotDate} - ${message}`);
+          return this.mapDailyHotspotPlatform(existing);
+        }
+      }
       const asset = await this.upsertDailyHotspotAsset({
         brandId,
         config,
@@ -3980,6 +3995,51 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return asset;
+  }
+
+  private async findDailyHotspotAsset(brandId: string, platformKey: string, snapshotDate: string): Promise<AssetRecord | null> {
+    if (await this.prismaService.canUseDatabase()) {
+      const assets = await this.prismaService.businessAsset.findMany({
+        where: {
+          brandId,
+          category: AssetCategory.PLATFORM_EXPORT,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      const matched = assets.find((item) => {
+        const meta = this.asMeta(item.metadataJson);
+        return (
+          this.readMetaString(meta, "kind") === "DAILY_HOTSPOT_PLATFORM"
+          && this.readMetaString(meta, "platformKey") === platformKey
+          && this.getDailyHotspotSnapshotDate(meta) === snapshotDate
+        );
+      });
+      if (!matched) {
+        return null;
+      }
+      return {
+        id: matched.id,
+        brandId: matched.brandId,
+        category: "PLATFORM_EXPORT",
+        title: matched.title,
+        description: matched.description ?? "",
+        sourceName: "每日热点采集",
+        fileUrl: matched.fileUrl ?? undefined,
+        metadataJson: this.asMeta(matched.metadataJson),
+      };
+    }
+
+    const matched = database.assets.find((item) => {
+      const meta = this.asMeta(item.metadataJson);
+      return (
+        item.brandId === brandId
+        && item.category === "PLATFORM_EXPORT"
+        && this.readMetaString(meta, "kind") === "DAILY_HOTSPOT_PLATFORM"
+        && this.readMetaString(meta, "platformKey") === platformKey
+        && this.getDailyHotspotSnapshotDate(meta) === snapshotDate
+      );
+    });
+    return matched ?? null;
   }
 
   private async getConfiguredAccounts(
@@ -5112,6 +5172,22 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return false;
+  }
+
+  private triggerDailyHotspotCatchUpInBackground(brandId: string) {
+    if (this.dailyHotspotCatchUpInFlight.has(brandId)) {
+      return;
+    }
+
+    this.dailyHotspotCatchUpInFlight.add(brandId);
+    void this.syncDailyHotspots(brandId, [])
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "未知错误";
+        this.logger.warn(`每日热点工作区后台补抓失败: ${brandId} - ${message}`);
+      })
+      .finally(() => {
+        this.dailyHotspotCatchUpInFlight.delete(brandId);
+      });
   }
 
   private async getDailyHotspotBrandIds() {
