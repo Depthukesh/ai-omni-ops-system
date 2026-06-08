@@ -62,7 +62,6 @@ async function handleStartPublish(payload, appTabId) {
   });
 
   await waitForTabComplete(creatorTabId);
-  await injectCreatorContentScript(creatorTabId);
   await sendMessageWithRetry(
     creatorTabId,
     {
@@ -108,13 +107,6 @@ async function waitForTabComplete(tabId, timeoutMs = 20000) {
     await sleep(500);
   }
   throw new Error("视频号页面加载超时。");
-}
-
-async function injectCreatorContentScript(tabId) {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ["content-script.js"],
-  });
 }
 
 async function notifyApp(tabId, message) {
