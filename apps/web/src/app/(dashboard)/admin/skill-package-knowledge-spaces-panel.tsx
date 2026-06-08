@@ -575,6 +575,141 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     }
   }
 
+  async function handleDeduplicateAllKnowledgeRelations() {
+    const targetPackageIds = knowledgeConflictInsights
+      .filter((item) => item.duplicateKnowledgeBaseIds.length)
+      .map((item) => item.skillPackage.id);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetPackageIds.length) {
+      props.onNotice("当前没有可批量去重的知识关系。");
+      return;
+    }
+
+    setBusyActionKey("dedupe:__all__");
+    try {
+      for (const packageId of targetPackageIds) {
+        const targetRelations = relations.filter((item) => item.packageId === packageId);
+        const idsToDelete = new Set<string>();
+        const duplicateKnowledgeBaseIds = Array.from(new Set(targetRelations.map((item) => item.knowledgeBaseId))).filter(
+          (knowledgeBaseId) => targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId).length > 1,
+        );
+
+        duplicateKnowledgeBaseIds.forEach((knowledgeBaseId) => {
+          const grouped = targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId);
+          const keep = pickPreferredKnowledgeRelation(grouped);
+          grouped.forEach((item) => {
+            if (item.id !== keep.id) {
+              idsToDelete.add(item.id);
+            }
+          });
+        });
+
+        if (!idsToDelete.size) {
+          continue;
+        }
+
+        if (props.dataSource === "seed") {
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        } else {
+          for (const relationId of idsToDelete) {
+            await deleteSkillPackageKnowledgeSpace(relationId);
+          }
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        }
+      }
+      props.onNotice(`已按当前冲突列表批量清理 ${targetPackageIds.length} 个能力包的重复知识关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量知识关系去重失败";
+      props.onError(`批量知识关系去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeAllKnowledgeDefaults() {
+    const targetPackageIds = knowledgeConflictInsights.filter((item) => item.hasMismatch).map((item) => item.skillPackage.id);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetPackageIds.length) {
+      props.onNotice("当前没有可批量修正的默认知识关系。");
+      return;
+    }
+
+    setBusyActionKey("normalize:__all__");
+    try {
+      for (const packageId of targetPackageIds) {
+        const targetPackage = packages.find((item) => item.id === packageId);
+        const declaredKnowledgeBaseIds = new Set(targetPackage?.defaultKnowledgeSpaceIds || []);
+        const targetRelations = relations.filter((item) => item.packageId === packageId);
+        const relationsToUpdate = targetRelations
+          .map((relation) => {
+            if (!declaredKnowledgeBaseIds.size) {
+              return null;
+            }
+            const shouldDefault = declaredKnowledgeBaseIds.has(relation.knowledgeBaseId);
+            const nextPatch: Partial<
+              Omit<
+                SkillPackageKnowledgeSpaceRecord,
+                "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+              >
+            > = {};
+            if (shouldDefault) {
+              if (relation.relationType !== "DEFAULT") {
+                nextPatch.relationType = "DEFAULT";
+              }
+              if (!relation.enabled) {
+                nextPatch.enabled = true;
+              }
+            } else if (relation.relationType === "DEFAULT") {
+              nextPatch.relationType = "OPTIONAL";
+            }
+            return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+          })
+          .filter(Boolean) as Array<{
+          relation: SkillPackageKnowledgeSpaceRecord;
+          patch: Partial<
+            Omit<
+              SkillPackageKnowledgeSpaceRecord,
+              "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+            >
+          >;
+        }>;
+
+        if (!relationsToUpdate.length) {
+          continue;
+        }
+
+        if (props.dataSource === "seed") {
+          setRelations((current) =>
+            current.map((item) => {
+              const target = relationsToUpdate.find((entry) => entry.relation.id === item.id);
+              return target ? { ...item, ...target.patch } : item;
+            }),
+          );
+        } else {
+          const updatedRecords: SkillPackageKnowledgeSpaceRecord[] = [];
+          for (const entry of relationsToUpdate) {
+            updatedRecords.push(await updateSkillPackageKnowledgeSpace(entry.relation.id, entry.patch));
+          }
+          setRelations((current) =>
+            current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+          );
+        }
+      }
+      props.onNotice(`已按当前冲突列表批量修正 ${targetPackageIds.length} 个能力包的默认知识关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量修正默认知识关系失败";
+      props.onError(`批量修正默认知识关系失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -761,6 +896,34 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
               </strong>
             </div>
           </div>
+          {knowledgeConflictInsights.length ? (
+            <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSyncDefaultKnowledgeRelations()}
+                disabled={!syncableKnowledgeRelations.length || isSyncingDefaults}
+              >
+                {isSyncingDefaults && syncingPackageId === "__all__" ? "处理中..." : "全部按默认知识补齐"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleNormalizeAllKnowledgeDefaults()}
+                disabled={!knowledgeConflictInsights.some((item) => item.hasMismatch) || busyActionKey === "normalize:__all__"}
+              >
+                {busyActionKey === "normalize:__all__" ? "处理中..." : "全部修正默认知识关系"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleDeduplicateAllKnowledgeRelations()}
+                disabled={!knowledgeConflictInsights.some((item) => item.duplicateKnowledgeBaseIds.length) || busyActionKey === "dedupe:__all__"}
+              >
+                {busyActionKey === "dedupe:__all__" ? "处理中..." : "全部删除重复关系"}
+              </button>
+            </div>
+          ) : null}
 
           {knowledgeConflictInsights.length ? (
             <div style={{ display: "grid", gap: 8 }}>

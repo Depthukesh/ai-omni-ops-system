@@ -648,6 +648,94 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     }
   }
 
+  async function handleDeduplicateAllModuleRelations() {
+    const targetModuleKeys = moduleConflictInsights.filter((item) => item.duplicatePackageKeys.length).map((item) => item.module.moduleKey);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetModuleKeys.length) {
+      props.onNotice("当前没有可批量去重的模块能力包关系。");
+      return;
+    }
+
+    setBusyActionKey("dedupe:__all__");
+    try {
+      for (const moduleKey of targetModuleKeys) {
+        const targetRelations = relations.filter((item) => item.moduleKey === moduleKey);
+        const idsToDelete = new Set<string>();
+        const duplicatePackageKeys = Array.from(new Set(targetRelations.map((item) => item.packageKey))).filter(
+          (packageKey) => targetRelations.filter((item) => item.packageKey === packageKey).length > 1,
+        );
+
+        duplicatePackageKeys.forEach((packageKey) => {
+          const grouped = targetRelations.filter((item) => item.packageKey === packageKey);
+          const keep = pickPreferredModuleRelation(grouped);
+          grouped.forEach((item) => {
+            if (item.id !== keep.id) {
+              idsToDelete.add(item.id);
+            }
+          });
+        });
+
+        if (!idsToDelete.size) {
+          continue;
+        }
+
+        if (props.dataSource === "seed") {
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        } else {
+          for (const relationId of idsToDelete) {
+            await deleteSkillPackageModule(relationId);
+          }
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        }
+      }
+      props.onNotice(`已按当前冲突列表批量清理 ${targetModuleKeys.length} 个模块的重复挂载。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量模块能力包去重失败";
+      props.onError(`批量模块能力包去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeAllModuleDefaults() {
+    const invalidRelations = moduleConflictInsights.flatMap((item) => item.invalidDefaultBindings);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!invalidRelations.length) {
+      props.onNotice("当前没有可批量修正的模块默认标记。");
+      return;
+    }
+
+    setBusyActionKey("normalize:__all__");
+    try {
+      if (props.dataSource === "seed") {
+        const invalidIds = new Set(invalidRelations.map((item) => item.id));
+        setRelations((current) =>
+          current.map((item) => (invalidIds.has(item.id) ? { ...item, bindingType: "DEFAULT" } : item)),
+        );
+      } else {
+        const updatedRecords: SkillPackageModuleRecord[] = [];
+        for (const relation of invalidRelations) {
+          updatedRecords.push(await updateSkillPackageModule(relation.id, { bindingType: "DEFAULT" }));
+        }
+        setRelations((current) =>
+          current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      props.onNotice(`已批量修正 ${invalidRelations.length} 条模块默认标记异常关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量修正模块默认标记失败";
+      props.onError(`批量修正模块默认标记失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -907,6 +995,42 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
               </strong>
             </div>
           </div>
+          {moduleConflictInsights.length ? (
+            <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSyncDefaultBindings()}
+                disabled={!creatableDefaultBindings.length || isSyncingDefaults}
+              >
+                {isSyncingDefaults && syncingModuleKey === "__all__" ? "处理中..." : "全部按摘要补齐关系"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleBackfillModuleDefaults()}
+                disabled={!backfillableModuleDefaults.length || isBackfillingDefaults}
+              >
+                {isBackfillingDefaults && backfillingModuleKey === "__all__" ? "处理中..." : "全部按关系回填摘要"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleDeduplicateAllModuleRelations()}
+                disabled={!moduleConflictInsights.some((item) => item.duplicatePackageKeys.length) || busyActionKey === "dedupe:__all__"}
+              >
+                {busyActionKey === "dedupe:__all__" ? "处理中..." : "全部删除重复挂载"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleNormalizeAllModuleDefaults()}
+                disabled={!moduleConflictInsights.some((item) => item.invalidDefaultBindings.length) || busyActionKey === "normalize:__all__"}
+              >
+                {busyActionKey === "normalize:__all__" ? "处理中..." : "全部修正默认标记"}
+              </button>
+            </div>
+          ) : null}
 
           {moduleConflictInsights.length ? (
             <div style={{ display: "grid", gap: 8 }}>

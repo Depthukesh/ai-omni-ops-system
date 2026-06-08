@@ -582,6 +582,166 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     }
   }
 
+  async function handleDeduplicateAllSkillRelations() {
+    const targetSkillIds = skillConflictInsights.filter((item) => item.duplicatePackageKeys.length).map((item) => item.skill.id);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetSkillIds.length) {
+      props.onNotice("当前没有可批量去重的技能关系。");
+      return;
+    }
+
+    setBusyActionKey("dedupe:__all__");
+    try {
+      for (const skillId of targetSkillIds) {
+        const targetRelations = relations.filter((item) => item.skillId === skillId);
+        const idsToDelete = new Set<string>();
+        const duplicatePackageKeys = Array.from(new Set(targetRelations.map((item) => item.packageKey))).filter(
+          (packageKey) => targetRelations.filter((item) => item.packageKey === packageKey).length > 1,
+        );
+
+        duplicatePackageKeys.forEach((packageKey) => {
+          const grouped = targetRelations.filter((item) => item.packageKey === packageKey);
+          const keep = pickPreferredSkillRelation(grouped);
+          grouped.forEach((item) => {
+            if (item.id !== keep.id) {
+              idsToDelete.add(item.id);
+            }
+          });
+        });
+
+        if (!idsToDelete.size) {
+          continue;
+        }
+
+        if (props.dataSource === "seed") {
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        } else {
+          for (const relationId of idsToDelete) {
+            await deleteSkillPackageSkill(relationId);
+          }
+          setRelations((current) => current.filter((item) => !idsToDelete.has(item.id)));
+        }
+      }
+      props.onNotice(`已按当前冲突列表批量清理 ${targetSkillIds.length} 个技能的重复关系。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量技能关系去重失败";
+      props.onError(`批量技能关系去重失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
+  async function handleNormalizeAllSkillDefaults() {
+    const targetSkillIds = skillConflictInsights
+      .filter((item) => item.hasMismatch || item.primaryPackageKeys.length > 1 || item.invalidDefaultBindings.length)
+      .map((item) => item.skill.id);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targetSkillIds.length) {
+      props.onNotice("当前没有可批量修正的技能默认挂载。");
+      return;
+    }
+
+    setBusyActionKey("normalize:__all__");
+    try {
+      for (const skillId of targetSkillIds) {
+        const conflict = skillConflictInsights.find((item) => item.skill.id === skillId);
+        const targetRelations = relations.filter((item) => item.skillId === skillId);
+        const primaryPackageKeys = new Set(conflict?.primaryPackageKeys || []);
+        const relationsToUpdate = targetRelations
+          .map((relation) => {
+            const shouldDefault = primaryPackageKeys.has(relation.packageKey);
+            const nextPatch: Partial<
+              Omit<
+                SkillPackageSkillRecord,
+                | "id"
+                | "skillName"
+                | "skillCategory"
+                | "skillStatus"
+                | "skillProvider"
+                | "skillDefaultModel"
+                | "createdAt"
+                | "updatedAt"
+              >
+            > = {};
+
+            if (primaryPackageKeys.size) {
+              if (shouldDefault) {
+                if (relation.bindingType !== "DEFAULT") {
+                  nextPatch.bindingType = "DEFAULT";
+                }
+                if (!relation.isDefault) {
+                  nextPatch.isDefault = true;
+                }
+                if (!relation.enabled) {
+                  nextPatch.enabled = true;
+                }
+              } else {
+                if (relation.isDefault) {
+                  nextPatch.isDefault = false;
+                }
+                if (relation.bindingType === "DEFAULT") {
+                  nextPatch.bindingType = "OPTIONAL";
+                }
+              }
+            } else if (relation.enabled && relation.isDefault && relation.bindingType !== "DEFAULT") {
+              nextPatch.bindingType = "DEFAULT";
+            }
+
+            return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+          })
+          .filter(Boolean) as Array<{
+          relation: SkillPackageSkillRecord;
+          patch: Partial<
+            Omit<
+              SkillPackageSkillRecord,
+              | "id"
+              | "skillName"
+              | "skillCategory"
+              | "skillStatus"
+              | "skillProvider"
+              | "skillDefaultModel"
+              | "createdAt"
+              | "updatedAt"
+            >
+          >;
+        }>;
+
+        if (!relationsToUpdate.length) {
+          continue;
+        }
+
+        if (props.dataSource === "seed") {
+          setRelations((current) =>
+            current.map((item) => {
+              const target = relationsToUpdate.find((entry) => entry.relation.id === item.id);
+              return target ? { ...item, ...target.patch } : item;
+            }),
+          );
+        } else {
+          const updatedRecords: SkillPackageSkillRecord[] = [];
+          for (const entry of relationsToUpdate) {
+            updatedRecords.push(await updateSkillPackageSkill(entry.relation.id, entry.patch));
+          }
+          setRelations((current) =>
+            current.map((item) => updatedRecords.find((updated) => updated.id === item.id) || item),
+          );
+        }
+      }
+      props.onNotice(`已按当前冲突列表批量修正 ${targetSkillIds.length} 个技能的默认挂载。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "批量修正技能默认挂载失败";
+      props.onError(`批量修正技能默认挂载失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -758,6 +918,37 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
               </strong>
             </div>
           </div>
+          {skillConflictInsights.length ? (
+            <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSyncBindings()}
+                disabled={!syncableBindings.length || isSyncingBindings}
+              >
+                {isSyncingBindings && syncingSkillId === "__all__" ? "处理中..." : "全部按主绑定补齐关系"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleNormalizeAllSkillDefaults()}
+                disabled={
+                  !skillConflictInsights.some((item) => item.hasMismatch || item.primaryPackageKeys.length > 1 || item.invalidDefaultBindings.length) ||
+                  busyActionKey === "normalize:__all__"
+                }
+              >
+                {busyActionKey === "normalize:__all__" ? "处理中..." : "全部按主绑定修正默认"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleDeduplicateAllSkillRelations()}
+                disabled={!skillConflictInsights.some((item) => item.duplicatePackageKeys.length) || busyActionKey === "dedupe:__all__"}
+              >
+                {busyActionKey === "dedupe:__all__" ? "处理中..." : "全部删除重复关系"}
+              </button>
+            </div>
+          ) : null}
 
           {skillConflictInsights.length ? (
             <div style={{ display: "grid", gap: 8 }}>
