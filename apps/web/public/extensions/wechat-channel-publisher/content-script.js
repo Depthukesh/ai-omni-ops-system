@@ -149,20 +149,23 @@ async function ensureExpectedPage(session) {
   if (expectedMode !== "VIDEO") {
     return;
   }
-  if (detectPageKind() === "VIDEO") {
+  if (isVideoComposerReady()) {
     return;
   }
 
   updateCreatorBadge("已进入视频号后台，正在尝试打开发表视频页");
-  for (let index = 0; index < 6; index += 1) {
-    if (detectPageKind() === "VIDEO") {
+  for (let index = 0; index < 8; index += 1) {
+    if (isVideoComposerReady()) {
       return;
     }
     const trigger = findPublishVideoTrigger();
     if (trigger) {
-      trigger.click();
+      triggerPublishVideo(trigger);
+      updateCreatorBadge(`已命中“发表视频”入口，正在尝试进入发布页（第 ${index + 1} 次）`);
+    } else {
+      updateCreatorBadge(`未找到“发表视频”入口，继续重试中（第 ${index + 1} 次）`);
     }
-    await sleep(1200);
+    await sleep(1500);
   }
 }
 
@@ -189,11 +192,14 @@ function collectProbeResult(session) {
 
 function detectPageKind() {
   const bodyText = String(document.body?.innerText || "");
-  if (bodyText.includes("发表图文") || bodyText.includes("图文")) {
+  if (isImageTextComposerReady()) {
     return "IMAGE_TEXT";
   }
-  if (bodyText.includes("发表视频") || bodyText.includes("视频")) {
+  if (isVideoComposerReady()) {
     return "VIDEO";
+  }
+  if (bodyText.includes("发表图文") || bodyText.includes("图文")) {
+    return "IMAGE_TEXT";
   }
   return "UNKNOWN";
 }
@@ -213,6 +219,17 @@ function findPublishVideoTrigger() {
     }
   }
   return null;
+}
+
+function triggerPublishVideo(element) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+  element.scrollIntoView({ block: "center", inline: "center" });
+  element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
+  element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+  element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+  element.click();
 }
 
 function findTitleElement() {
@@ -238,6 +255,32 @@ function findContentElement() {
     '[contenteditable="true"][placeholder*="内容"]',
   ];
   return findVisibleElement(selectors);
+}
+
+function isVideoComposerReady() {
+  const titleElement = findTitleElement();
+  const contentElement = findContentElement();
+  const visibleFileInput = findVisibleElement(['input[type="file"]']);
+  const bodyText = String(document.body?.innerText || "");
+  return Boolean(
+    visibleFileInput
+    || titleElement
+    || contentElement
+    || bodyText.includes("上传视频")
+    || bodyText.includes("拖拽视频到此处")
+    || bodyText.includes("添加描述")
+    || bodyText.includes("视频简介"),
+  );
+}
+
+function isImageTextComposerReady() {
+  const bodyText = String(document.body?.innerText || "");
+  return Boolean(
+    bodyText.includes("上传图片")
+    || bodyText.includes("拖拽图片到此处")
+    || bodyText.includes("添加图片")
+    || bodyText.includes("发表图文"),
+  );
 }
 
 function findVisibleElement(selectors) {
