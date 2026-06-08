@@ -2,17 +2,25 @@
 
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
+  createSkillPackageSkill,
   createSkillPackage,
+  deleteSkillPackageSkill,
   deleteSkillPackage,
+  getSkillPackageSkillsByPackage,
   getSkillPackages,
+  skillPackageSkillSeed,
   skillPackageSeed,
+  updateSkillPackageSkill,
   updateSkillPackage,
   type ModuleDefinitionRecord,
+  type SkillConfigRecord,
   type SkillPackageRecord,
+  type SkillPackageSkillRecord,
 } from "../../../services/admin";
 
 type SkillPackagesPanelProps = {
   modules: ModuleDefinitionRecord[];
+  skills: SkillConfigRecord[];
   dataSource: "api" | "seed";
   onNotice: (message: string) => void;
   onError: (message: string) => void;
@@ -40,6 +48,15 @@ type SkillPackageDraft = {
   remarks: string;
 };
 
+type SkillAssemblyDraft = {
+  skillId: string;
+  bindingType: SkillPackageSkillRecord["bindingType"];
+  isDefault: boolean;
+  sortOrder: string;
+  enabled: boolean;
+  remarks: string;
+};
+
 const DEFAULT_FILTERS: SkillPackageFilters = {
   keyword: "",
   status: "ALL",
@@ -61,6 +78,11 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [busyPackageId, setBusyPackageId] = useState("");
+  const [packageSkills, setPackageSkills] = useState<SkillPackageSkillRecord[]>([]);
+  const [isLoadingPackageSkills, setIsLoadingPackageSkills] = useState(false);
+  const [isInstallingSkill, setIsInstallingSkill] = useState(false);
+  const [busyRelationId, setBusyRelationId] = useState("");
+  const [assemblyDraft, setAssemblyDraft] = useState<SkillAssemblyDraft>(buildSkillAssemblyDraft());
 
   const visiblePackages = useMemo(() => packages.filter((item) => matchesFilters(item, filters)), [filters, packages]);
   const selectedPackage = useMemo(
@@ -75,15 +97,23 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
   useEffect(() => {
     if (!selectedPackageId) {
       setSelectedDraft(buildCreateDraft());
+      setPackageSkills([]);
+      setAssemblyDraft(buildSkillAssemblyDraft());
       return;
     }
     if (!selectedPackage) {
       setSelectedPackageId("");
       setSelectedDraft(buildCreateDraft());
+      setPackageSkills([]);
+      setAssemblyDraft(buildSkillAssemblyDraft());
       return;
     }
     setSelectedDraft(buildDraftFromRecord(selectedPackage));
   }, [selectedPackage, selectedPackageId]);
+
+  useEffect(() => {
+    void loadPackageSkills();
+  }, [props.dataSource, selectedPackage?.id, selectedPackage?.packageKey]);
 
   useEffect(() => {
     if (!isCreateModalOpen) {
@@ -270,14 +300,237 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
     }
   }
 
+  async function loadPackageSkills() {
+    if (!selectedPackage) {
+      setPackageSkills([]);
+      setAssemblyDraft(buildSkillAssemblyDraft());
+      return;
+    }
+    if (props.dataSource === "seed") {
+      const next = sortPackageSkills(skillPackageSkillSeed.filter((item) => item.packageKey === selectedPackage.packageKey));
+      setPackageSkills(next);
+      setAssemblyDraft(buildSkillAssemblyDraft(next.length));
+      return;
+    }
+    setIsLoadingPackageSkills(true);
+    try {
+      const next = sortPackageSkills(await getSkillPackageSkillsByPackage(selectedPackage.packageKey));
+      setPackageSkills(next);
+      setAssemblyDraft(buildSkillAssemblyDraft(next.length));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "读取能力包技能失败";
+      props.onError(`读取能力包技能失败：${message}`);
+      setPackageSkills([]);
+      setAssemblyDraft(buildSkillAssemblyDraft());
+    } finally {
+      setIsLoadingPackageSkills(false);
+    }
+  }
+
+  async function handleInstallSkill() {
+    if (!selectedPackage || !assemblyDraft.skillId) {
+      props.onError("请先选择要安装的技能。");
+      return;
+    }
+    const selectedSkill = props.skills.find((item) => item.id === assemblyDraft.skillId);
+    if (!selectedSkill) {
+      props.onError("当前选择的技能不存在，请刷新后重试。");
+      return;
+    }
+    setIsInstallingSkill(true);
+    props.onNotice("");
+    props.onError("");
+    try {
+      const payload = {
+        packageId: selectedPackage.id,
+        packageKey: selectedPackage.packageKey,
+        packageName: selectedPackage.packageName,
+        skillId: selectedSkill.id,
+        skillSlug: selectedSkill.slug,
+        bindingType: assemblyDraft.bindingType,
+        isDefault: assemblyDraft.isDefault,
+        sortOrder: Number(assemblyDraft.sortOrder || (packageSkills.length + 1) * 10),
+        enabled: assemblyDraft.enabled,
+        remarks: assemblyDraft.remarks.trim() || undefined,
+      } satisfies Omit<
+        SkillPackageSkillRecord,
+        | "id"
+        | "skillName"
+        | "skillCategory"
+        | "skillStatus"
+        | "skillProvider"
+        | "skillDefaultModel"
+        | "createdAt"
+        | "updatedAt"
+      >;
+
+      const created =
+        props.dataSource === "seed"
+          ? buildLocalPackageSkillRelation(payload, selectedSkill)
+          : await createSkillPackageSkill(payload);
+      let nextRelations = sortPackageSkills([...packageSkills, created]);
+      if (created.isDefault) {
+        nextRelations = await applyDefaultSkillRelation(nextRelations, created.id);
+      } else {
+        setPackageSkills(nextRelations);
+      }
+      setAssemblyDraft(buildSkillAssemblyDraft(nextRelations.length));
+      props.onNotice(`技能已安装到能力包：${selectedSkill.name}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "安装技能失败";
+      props.onError(`安装技能失败：${message}`);
+    } finally {
+      setIsInstallingSkill(false);
+    }
+  }
+
+  async function handleSetDefaultRelation(relationId: string) {
+    props.onNotice("");
+    props.onError("");
+    try {
+      const next = await applyDefaultSkillRelation(packageSkills, relationId);
+      setPackageSkills(next);
+      props.onNotice("默认技能已更新。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "设置默认技能失败";
+      props.onError(`设置默认技能失败：${message}`);
+    }
+  }
+
+  async function handleToggleRelationEnabled(relation: SkillPackageSkillRecord, enabled: boolean) {
+    setBusyRelationId(relation.id);
+    props.onNotice("");
+    props.onError("");
+    try {
+      const updated =
+        props.dataSource === "seed"
+          ? {
+              ...relation,
+              enabled,
+              isDefault: enabled ? relation.isDefault : false,
+              updatedAt: new Date().toISOString(),
+            }
+          : await updateSkillPackageSkill(relation.id, {
+              enabled,
+              isDefault: enabled ? relation.isDefault : false,
+            });
+      const next = sortPackageSkills(packageSkills.map((item) => (item.id === relation.id ? updated : item)));
+      setPackageSkills(next);
+      props.onNotice(enabled ? `技能已启用：${relation.skillName || relation.skillSlug}` : `技能已停用：${relation.skillName || relation.skillSlug}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新技能状态失败";
+      props.onError(`更新技能状态失败：${message}`);
+    } finally {
+      setBusyRelationId("");
+    }
+  }
+
+  async function handleRemoveRelation(relation: SkillPackageSkillRecord) {
+    if (!window.confirm(`确认从能力包中卸载技能「${relation.skillName || relation.skillSlug}」吗？`)) {
+      return;
+    }
+    setBusyRelationId(relation.id);
+    props.onNotice("");
+    props.onError("");
+    try {
+      if (props.dataSource === "seed") {
+        const next = sortPackageSkills(packageSkills.filter((item) => item.id !== relation.id));
+        setPackageSkills(next);
+        setAssemblyDraft(buildSkillAssemblyDraft(next.length));
+      } else {
+        await deleteSkillPackageSkill(relation.id);
+        const next = sortPackageSkills(packageSkills.filter((item) => item.id !== relation.id));
+        setPackageSkills(next);
+        setAssemblyDraft(buildSkillAssemblyDraft(next.length));
+      }
+      props.onNotice(`技能已从能力包卸载：${relation.skillName || relation.skillSlug}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "卸载技能失败";
+      props.onError(`卸载技能失败：${message}`);
+    } finally {
+      setBusyRelationId("");
+    }
+  }
+
+  async function applyDefaultSkillRelation(relations: SkillPackageSkillRecord[], relationId: string) {
+    const target = relations.find((item) => item.id === relationId);
+    if (!target) {
+      return relations;
+    }
+    const updatedRelations = await Promise.all(
+      relations.map(async (item) => {
+        const shouldDefault = item.id === relationId;
+        const nextPatch: Partial<
+          Omit<
+            SkillPackageSkillRecord,
+            | "id"
+            | "skillName"
+            | "skillCategory"
+            | "skillStatus"
+            | "skillProvider"
+            | "skillDefaultModel"
+            | "createdAt"
+            | "updatedAt"
+          >
+        > = {};
+        if (shouldDefault) {
+          if (!item.enabled) {
+            nextPatch.enabled = true;
+          }
+          if (!item.isDefault) {
+            nextPatch.isDefault = true;
+          }
+          if (item.bindingType !== "DEFAULT") {
+            nextPatch.bindingType = "DEFAULT";
+          }
+        } else {
+          if (item.isDefault) {
+            nextPatch.isDefault = false;
+          }
+          if (item.bindingType === "DEFAULT") {
+            nextPatch.bindingType = "OPTIONAL";
+          }
+        }
+        if (!Object.keys(nextPatch).length) {
+          return item;
+        }
+        if (props.dataSource === "seed") {
+          return {
+            ...item,
+            ...nextPatch,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return updateSkillPackageSkill(item.id, nextPatch);
+      }),
+    );
+    const next = sortPackageSkills(updatedRelations);
+    setPackageSkills(next);
+    return next;
+  }
+
+  const installedSkillIds = useMemo(() => new Set(packageSkills.map((item) => item.skillId)), [packageSkills]);
+  const installableSkills = useMemo(
+    () =>
+      props.skills
+        .filter((item) => !installedSkillIds.has(item.id))
+        .slice()
+        .sort((left, right) => String(left.name).localeCompare(String(right.name), "zh-CN")),
+    [installedSkillIds, props.skills],
+  );
+  const activeDefaultSkill = useMemo(
+    () => packageSkills.find((item) => item.enabled && item.isDefault) || packageSkills.find((item) => item.isDefault) || null,
+    [packageSkills],
+  );
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
         <div className="admin-user-filter-head">
           <div>
-            <span className="archive-pill status-ready">能力包主数据</span>
-            <h3>SkillPackage 注册中心</h3>
-            <p>统一维护能力包主体信息，作为模块关系、技能关系和后续统一技能中心的主对象基座。</p>
+            <span className="archive-pill status-ready">能力包装配</span>
+            <h3>能力包页</h3>
+            <p>统一维护能力包主体信息，向上给模块安装，向下装配技能，技能仍在顶部技能中心维护。</p>
           </div>
           <div className="admin-user-filter-summary">
             <div>
@@ -431,7 +684,168 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
           </div>
 
           {selectedPackage ? (
-            <SkillPackageDraftForm draft={selectedDraft} modules={props.modules} onChange={setSelectedDraft} />
+            <div style={{ display: "grid", gap: 16 }}>
+              <SkillPackageDraftForm draft={selectedDraft} modules={props.modules} onChange={setSelectedDraft} />
+
+              <section className="entity-card" style={{ padding: 16 }}>
+                <div className="entity-card-head">
+                  <div>
+                    <strong>技能装配区</strong>
+                    <p className="personal-meta">技能页结构保持不变，这里只做技能的安装、默认项设置、启停和卸载。</p>
+                  </div>
+                  <div className="personal-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))", minWidth: 280 }}>
+                    <div>
+                      <span className="personal-meta">已装技能</span>
+                      <strong>{packageSkills.length}</strong>
+                    </div>
+                    <div>
+                      <span className="personal-meta">默认技能</span>
+                      <strong>{activeDefaultSkill?.skillName || "-"}</strong>
+                    </div>
+                    <div>
+                      <span className="personal-meta">可安装技能</span>
+                      <strong>{installableSkills.length}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-rule-grid" style={{ marginBottom: 16 }}>
+                  <PackageFormField label="从技能库安装" badge="复制后安装" hint="技能是最小安装单元；这里只负责安装到当前能力包。">
+                    <select
+                      value={assemblyDraft.skillId}
+                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, skillId: event.target.value }))}
+                    >
+                      <option value="">请选择技能</option>
+                      {installableSkills.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} · {item.category} · {item.status}
+                        </option>
+                      ))}
+                    </select>
+                  </PackageFormField>
+                  <PackageFormField label="安装类型" badge="系统可选" hint="默认技能通常用 DEFAULT，补充技能用 OPTIONAL。">
+                    <select
+                      value={assemblyDraft.bindingType}
+                      onChange={(event) =>
+                        setAssemblyDraft((current) => ({ ...current, bindingType: event.target.value as SkillPackageSkillRecord["bindingType"] }))
+                      }
+                    >
+                      <option value="DEFAULT">DEFAULT</option>
+                      <option value="OPTIONAL">OPTIONAL</option>
+                      <option value="SYSTEM_REQUIRED">SYSTEM_REQUIRED</option>
+                      <option value="EXPERIMENTAL">EXPERIMENTAL</option>
+                    </select>
+                  </PackageFormField>
+                  <PackageFormField label="排序" badge="推荐" hint="默认每 10 递增，后续可继续调序。">
+                    <input
+                      value={assemblyDraft.sortOrder}
+                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                    />
+                  </PackageFormField>
+                  <PackageFormField label="备注" badge="可选" hint="记录这次安装的用途或上下游说明。" wide>
+                    <input
+                      value={assemblyDraft.remarks}
+                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, remarks: event.target.value }))}
+                    />
+                  </PackageFormField>
+                </div>
+
+                <div className="personal-actions" style={{ marginBottom: 16 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={assemblyDraft.isDefault}
+                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+                    />
+                    <span>安装后设为默认技能</span>
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={assemblyDraft.enabled}
+                      onChange={(event) => setAssemblyDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                    />
+                    <span>安装后立即启用</span>
+                  </label>
+                  <button type="button" className="primary-button" onClick={() => void handleInstallSkill()} disabled={isInstallingSkill || !assemblyDraft.skillId}>
+                    {isInstallingSkill ? "安装中..." : "安装技能到能力包"}
+                  </button>
+                </div>
+
+                <div className="admin-user-table-wrapper">
+                  <table className="admin-user-table">
+                    <thead>
+                      <tr>
+                        <th>技能</th>
+                        <th>类型</th>
+                        <th>默认</th>
+                        <th>状态</th>
+                        <th>排序</th>
+                        <th>模型</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPackage && isLoadingPackageSkills ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                            正在加载已装技能...
+                          </td>
+                        </tr>
+                      ) : packageSkills.length ? (
+                        packageSkills.map((relation) => (
+                          <tr key={relation.id}>
+                            <td>
+                              <span className="admin-user-row-title">{relation.skillName || relation.skillSlug}</span>
+                              <span className="admin-user-row-meta">{relation.skillCategory || relation.skillId}</span>
+                            </td>
+                            <td>{relation.bindingType}</td>
+                            <td>{relation.isDefault ? "是" : "否"}</td>
+                            <td>{relation.enabled ? "启用中" : "已停用"}</td>
+                            <td>{relation.sortOrder}</td>
+                            <td>{relation.skillDefaultModel || "-"}</td>
+                            <td>
+                              <div className="personal-actions" style={{ justifyContent: "flex-start" }}>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => void handleSetDefaultRelation(relation.id)}
+                                  disabled={busyRelationId === relation.id || (relation.isDefault && relation.bindingType === "DEFAULT" && relation.enabled)}
+                                >
+                                  设为默认
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => void handleToggleRelationEnabled(relation, !relation.enabled)}
+                                  disabled={busyRelationId === relation.id}
+                                >
+                                  {relation.enabled ? "停用" : "启用"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-button"
+                                  onClick={() => void handleRemoveRelation(relation)}
+                                  disabled={busyRelationId === relation.id}
+                                >
+                                  卸载
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--muted)" }}>
+                            当前能力包还没有安装技能，请先从技能库安装。
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
           ) : (
             <div className="personal-meta" style={{ paddingTop: 12 }}>
               请选择一条能力包记录进行编辑。
@@ -454,7 +868,7 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
               <div>
                 <span className="archive-pill status-ready">能力包创建</span>
                 <strong>新增 SkillPackage</strong>
-                <p className="personal-meta">先录入能力包主体，再逐步挂模块、技能、Prompt、知识和 Provider。</p>
+                <p className="personal-meta">先录入能力包主体，再逐步给模块安装能力包、给能力包装配技能，并维护默认知识与 Provider。</p>
               </div>
               <button type="button" className="secondary-button" onClick={handleCloseCreateModal} disabled={isCreating}>
                 关闭
@@ -514,7 +928,7 @@ function SkillPackageDraftForm(props: {
     <div style={{ display: "grid", gap: 16 }}>
       <div className="entity-card" style={{ padding: 12 }}>
         <strong>填写规则</strong>
-        <p className="personal-meta">先确定能力包主体，再挂模块、工作流和默认资源。能直接同步系统主数据的字段优先选，不建议继续靠自由文本硬填。</p>
+        <p className="personal-meta">先确定能力包主体，再维护模块归属、技能装配和默认资源。治理逻辑逐步内化，普通用户只处理业务装配内容。</p>
       </div>
 
       <PackageFormSection title="基础信息" description="先把能力包主键、展示名、状态和作用域收口，这是后续所有关系的主对象。">
@@ -700,6 +1114,17 @@ function buildCreateDraft(): SkillPackageDraft {
   };
 }
 
+function buildSkillAssemblyDraft(installedCount = 0): SkillAssemblyDraft {
+  return {
+    skillId: "",
+    bindingType: "OPTIONAL",
+    isDefault: installedCount === 0,
+    sortOrder: String((installedCount + 1) * 10),
+    enabled: true,
+    remarks: "",
+  };
+}
+
 function buildDraftFromRecord(record: SkillPackageRecord): SkillPackageDraft {
   return {
     packageKey: record.packageKey,
@@ -741,6 +1166,50 @@ function splitList(value: string) {
     .split(/[,\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function sortPackageSkills(relations: SkillPackageSkillRecord[]) {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const leftScore = Number(left.enabled) * 100 + Number(left.isDefault) * 10 + Number(left.bindingType === "DEFAULT");
+      const rightScore = Number(right.enabled) * 100 + Number(right.isDefault) * 10 + Number(right.bindingType === "DEFAULT");
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+      return String(left.skillName || left.skillSlug).localeCompare(String(right.skillName || right.skillSlug), "zh-CN");
+    });
+}
+
+function buildLocalPackageSkillRelation(
+  payload: Omit<
+    SkillPackageSkillRecord,
+    | "id"
+    | "skillName"
+    | "skillCategory"
+    | "skillStatus"
+    | "skillProvider"
+    | "skillDefaultModel"
+    | "createdAt"
+    | "updatedAt"
+  >,
+  skill: SkillConfigRecord,
+): SkillPackageSkillRecord {
+  const now = new Date().toISOString();
+  return {
+    ...payload,
+    id: `sps_local_${Date.now()}_${skill.id}`,
+    skillName: skill.name,
+    skillCategory: skill.category,
+    skillStatus: skill.status,
+    skillProvider: skill.provider,
+    skillDefaultModel: skill.defaultModel,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function matchesFilters(record: SkillPackageRecord, filters: SkillPackageFilters) {

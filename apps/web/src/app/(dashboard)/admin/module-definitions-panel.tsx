@@ -16,10 +16,6 @@ import {
   updateModuleDefinition,
 } from "../../../services/admin";
 import { SkillPackagesPanel } from "./skill-packages-panel";
-import { SkillPackageGovernanceOverviewPanel } from "./skill-package-governance-overview-panel";
-import { SkillPackageKnowledgeSpacesPanel } from "./skill-package-knowledge-spaces-panel";
-import { SkillPackageModulesPanel } from "./skill-package-modules-panel";
-import { SkillPackageSkillsPanel } from "./skill-package-skills-panel";
 
 type ModuleDefinitionsPanelProps = {
   modules: ModuleDefinitionRecord[];
@@ -70,7 +66,7 @@ type ModuleDraft = {
   isAdminVisible: boolean;
 };
 
-type ModuleCenterSectionKey = "registry" | "governanceOverview" | "packages" | "moduleRelations" | "skillRelations" | "knowledgeRelations";
+type ModuleCenterSectionKey = "registry" | "packages";
 
 const DEFAULT_FILTERS: ModuleFilters = {
   keyword: "",
@@ -141,36 +137,16 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
     () => [
       {
         key: "registry" as const,
-        label: "模块注册",
+        label: "模块页",
         badge: String(props.modules.length),
       },
       {
-        key: "governanceOverview" as const,
-        label: "治理总览",
-        badge: "GV",
-      },
-      {
         key: "packages" as const,
-        label: "能力包注册",
+        label: "能力包页",
         badge: "SP",
       },
-      {
-        key: "moduleRelations" as const,
-        label: "模块绑定",
-        badge: "MP",
-      },
-      {
-        key: "skillRelations" as const,
-        label: "技能绑定",
-        badge: String(props.skills.length),
-      },
-      {
-        key: "knowledgeRelations" as const,
-        label: "知识关系",
-        badge: "KS",
-      },
     ],
-    [props.modules.length, props.skills.length],
+    [props.modules.length],
   );
 
   useEffect(() => {
@@ -416,8 +392,8 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
               <div className="admin-user-filter-head">
                 <div>
                   <span className="archive-pill status-ready">模块</span>
-                  <h3>模块注册中心</h3>
-                  <p>维护模块定义、路由入口、能力依赖、默认能力包摘要字段，为后续模块化接线提供注册底座。</p>
+                  <h3>模块页</h3>
+                  <p>维护模块定义、路由入口和默认能力包；模块负责装能力包，技能请在顶部技能中心管理。</p>
                 </div>
                 <div className="admin-user-filter-summary">
                   <div>
@@ -630,47 +606,7 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
         ) : null}
 
         {activeSection === "packages" ? (
-          <SkillPackagesPanel modules={props.modules} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
-        ) : null}
-
-        {activeSection === "governanceOverview" ? (
-          <SkillPackageGovernanceOverviewPanel
-            modules={props.modules}
-            skills={props.skills}
-            skillPackages={props.skillPackages}
-            skillAssetBindings={props.skillAssetBindings}
-            knowledgeBases={props.knowledgeBases}
-            dataSource={props.dataSource}
-            onNotice={props.onNotice}
-            onError={props.onError}
-            onOpenSection={setActiveSection}
-          />
-        ) : null}
-
-        {activeSection === "moduleRelations" ? (
-          <SkillPackageModulesPanel
-            modules={props.modules}
-            skillPackages={props.skillPackages}
-            onModulesChange={props.onModulesChange}
-            dataSource={props.dataSource}
-            onNotice={props.onNotice}
-            onError={props.onError}
-          />
-        ) : null}
-
-        {activeSection === "skillRelations" ? (
-          <SkillPackageSkillsPanel
-            skills={props.skills}
-            skillPackages={props.skillPackages}
-            skillAssetBindings={props.skillAssetBindings}
-            dataSource={props.dataSource}
-            onNotice={props.onNotice}
-            onError={props.onError}
-          />
-        ) : null}
-
-        {activeSection === "knowledgeRelations" ? (
-          <SkillPackageKnowledgeSpacesPanel dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
+          <SkillPackagesPanel modules={props.modules} skills={props.skills} dataSource={props.dataSource} onNotice={props.onNotice} onError={props.onError} />
         ) : null}
       </div>
 
