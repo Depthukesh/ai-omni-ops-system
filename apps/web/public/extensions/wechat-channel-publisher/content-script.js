@@ -205,7 +205,7 @@ function detectPageKind() {
 }
 
 function findPublishVideoTrigger() {
-  const candidates = Array.from(document.querySelectorAll("button, a, [role='button']"));
+  const candidates = Array.from(document.querySelectorAll("button, a, [role='button'], div, span"));
   for (const element of candidates) {
     if (!(element instanceof HTMLElement) || !isVisible(element)) {
       continue;
@@ -214,11 +214,31 @@ function findPublishVideoTrigger() {
     if (!text) {
       continue;
     }
-    if (text.includes("发表视频")) {
-      return element;
+    if (text === "发表视频" || text.includes("发表视频")) {
+      return findClickableAncestor(element);
     }
   }
-  return null;
+
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = String(node.textContent || "").replace(/\s+/g, "");
+      return text.includes("发表视频") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    },
+  });
+
+  let currentNode = walker.nextNode();
+  while (currentNode) {
+    const parent = currentNode.parentElement;
+    if (parent && isVisible(parent)) {
+      const clickable = findClickableAncestor(parent);
+      if (clickable) {
+        return clickable;
+      }
+    }
+    currentNode = walker.nextNode();
+  }
+
+  return findPublishVideoByViewportHint();
 }
 
 function triggerPublishVideo(element) {
@@ -226,6 +246,8 @@ function triggerPublishVideo(element) {
     return;
   }
   element.scrollIntoView({ block: "center", inline: "center" });
+  element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "mouse" }));
+  element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "mouse" }));
   element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
   element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
   element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
@@ -293,6 +315,62 @@ function findVisibleElement(selectors) {
     }
   }
   return null;
+}
+
+function findClickableAncestor(element) {
+  let current = element;
+  while (current && current !== document.body) {
+    if (isClickableElement(current) && isVisible(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return element instanceof HTMLElement && isVisible(element) ? element : null;
+}
+
+function isClickableElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const role = String(element.getAttribute("role") || "").toLowerCase();
+  const tagName = element.tagName.toLowerCase();
+  const style = window.getComputedStyle(element);
+  return Boolean(
+    tagName === "button"
+    || tagName === "a"
+    || role === "button"
+    || typeof element.onclick === "function"
+    || element.tabIndex >= 0
+    || style.cursor === "pointer",
+  );
+}
+
+function findPublishVideoByViewportHint() {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const candidates = Array.from(document.querySelectorAll("*"));
+  let bestMatch = null;
+
+  for (const element of candidates) {
+    if (!(element instanceof HTMLElement) || !isVisible(element)) {
+      continue;
+    }
+    const text = String(element.innerText || element.textContent || "").replace(/\s+/g, "");
+    if (!text.includes("发表视频")) {
+      continue;
+    }
+    const rect = element.getBoundingClientRect();
+    const clickable = findClickableAncestor(element);
+    if (!clickable) {
+      continue;
+    }
+    if (rect.left < viewportWidth * 0.55) {
+      continue;
+    }
+    bestMatch = clickable;
+    break;
+  }
+
+  return bestMatch;
 }
 
 function isVisible(element) {
