@@ -89,11 +89,6 @@ function normalizeSession(session) {
 
 function buildCreatorUrl(session) {
   const url = new URL(CREATOR_URL);
-  url.hash = new URLSearchParams({
-    ai_omni_mode: session.mode,
-    ai_omni_title: session.title,
-    ai_omni_content: session.content,
-  }).toString();
   return url.toString();
 }
 

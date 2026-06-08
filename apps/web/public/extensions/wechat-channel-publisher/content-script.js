@@ -160,8 +160,13 @@ async function ensureExpectedPage(session) {
     }
     const trigger = findPublishVideoTrigger();
     if (trigger) {
-      triggerPublishVideo(trigger);
-      updateCreatorBadge(`已命中“发表视频”入口，正在尝试进入发布页（第 ${index + 1} 次）`);
+      const jumped = tryDirectNavigateFromTrigger(trigger);
+      if (jumped) {
+        updateCreatorBadge(`已命中“发表视频”入口，正在直达发布页（第 ${index + 1} 次）`);
+      } else {
+        triggerPublishVideo(trigger);
+        updateCreatorBadge(`已命中“发表视频”入口，正在尝试进入发布页（第 ${index + 1} 次）`);
+      }
     } else {
       updateCreatorBadge(`未找到“发表视频”入口，继续重试中（第 ${index + 1} 次）`);
     }
@@ -246,12 +251,20 @@ function triggerPublishVideo(element) {
     return;
   }
   element.scrollIntoView({ block: "center", inline: "center" });
+  const rect = element.getBoundingClientRect();
+  const target = document.elementFromPoint(
+    Math.min(Math.max(rect.left + rect.width / 2, 1), window.innerWidth - 1),
+    Math.min(Math.max(rect.top + rect.height / 2, 1), window.innerHeight - 1),
+  );
+  const clickableTarget = target instanceof HTMLElement ? findClickableAncestor(target) || target : element;
+  clickableTarget.focus?.();
+  clickableTarget.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, view: window }));
   element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "mouse" }));
   element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "mouse" }));
   element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
   element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
   element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
-  element.click();
+  clickableTarget.click();
 }
 
 function findTitleElement() {
@@ -326,6 +339,50 @@ function findClickableAncestor(element) {
     current = current.parentElement;
   }
   return element instanceof HTMLElement && isVisible(element) ? element : null;
+}
+
+function tryDirectNavigateFromTrigger(element) {
+  const target = extractNavigationTarget(element);
+  if (!target) {
+    return false;
+  }
+  try {
+    const url = new URL(target, location.origin);
+    if (url.origin !== location.origin) {
+      return false;
+    }
+    if (url.href === location.href) {
+      return false;
+    }
+    location.assign(url.href);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function extractNavigationTarget(element) {
+  let current = element;
+  while (current && current !== document.body) {
+    if (!(current instanceof HTMLElement)) {
+      break;
+    }
+    const attrNames = ["href", "data-href", "data-url", "data-link", "data-route", "to"];
+    for (const attrName of attrNames) {
+      const value = String(current.getAttribute(attrName) || "").trim();
+      if (!value) {
+        continue;
+      }
+      if (value.startsWith("/") || value.startsWith("http")) {
+        return value;
+      }
+    }
+    if (current instanceof HTMLAnchorElement && current.href) {
+      return current.href;
+    }
+    current = current.parentElement;
+  }
+  return null;
 }
 
 function isClickableElement(element) {
