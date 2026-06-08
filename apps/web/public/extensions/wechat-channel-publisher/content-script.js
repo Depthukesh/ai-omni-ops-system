@@ -122,6 +122,7 @@ async function runCreatorProbe(payload) {
   const session = payload?.session || {};
   try {
     updateCreatorBadge("正在探测视频号页面结构");
+    await ensureExpectedPage(session);
     await sleep(1200);
     const result = collectProbeResult(session);
     updateCreatorBadge(
@@ -140,6 +141,28 @@ async function runCreatorProbe(payload) {
     });
   } finally {
     isRunningProbe = false;
+  }
+}
+
+async function ensureExpectedPage(session) {
+  const expectedMode = String(session?.mode || "VIDEO");
+  if (expectedMode !== "VIDEO") {
+    return;
+  }
+  if (detectPageKind() === "VIDEO") {
+    return;
+  }
+
+  updateCreatorBadge("已进入视频号后台，正在尝试打开发表视频页");
+  for (let index = 0; index < 6; index += 1) {
+    if (detectPageKind() === "VIDEO") {
+      return;
+    }
+    const trigger = findPublishVideoTrigger();
+    if (trigger) {
+      trigger.click();
+    }
+    await sleep(1200);
   }
 }
 
@@ -173,6 +196,23 @@ function detectPageKind() {
     return "VIDEO";
   }
   return "UNKNOWN";
+}
+
+function findPublishVideoTrigger() {
+  const candidates = Array.from(document.querySelectorAll("button, a, [role='button']"));
+  for (const element of candidates) {
+    if (!(element instanceof HTMLElement) || !isVisible(element)) {
+      continue;
+    }
+    const text = String(element.innerText || element.textContent || "").replace(/\s+/g, "");
+    if (!text) {
+      continue;
+    }
+    if (text.includes("发表视频")) {
+      return element;
+    }
+  }
+  return null;
 }
 
 function findTitleElement() {

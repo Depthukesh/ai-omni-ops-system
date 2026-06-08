@@ -1,5 +1,5 @@
 const EXTENSION_SOURCE = "ai-omni-wechat-channel-extension";
-const CREATOR_URL = "https://channels.weixin.qq.com/";
+const CREATOR_URL = "https://channels.weixin.qq.com/platform";
 const PENDING_PUBLISH_KEY = "aiOmniPendingWechatChannelPublish";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
