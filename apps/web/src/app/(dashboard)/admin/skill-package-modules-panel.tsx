@@ -165,6 +165,47 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     [relationDefaultReconciliation],
   );
 
+  const moduleConflictInsights = useMemo(() => {
+    return props.modules
+      .map((module) => {
+        const declaredPackageKeys = Array.from(new Set(module.defaultSkillPackages.map((item) => String(item || "").trim()).filter(Boolean))).sort();
+        const moduleRelations = relations.filter((item) => item.moduleKey === module.moduleKey);
+        const enabledDefaultRelations = moduleRelations.filter((item) => item.enabled && item.isDefault);
+        const relationDefaultKeys = Array.from(new Set(enabledDefaultRelations.map((item) => item.packageKey))).sort();
+        const duplicatePackageKeys = Array.from(
+          new Set(
+            moduleRelations
+              .map((item) => item.packageKey)
+              .filter((packageKey) => moduleRelations.filter((item) => item.packageKey === packageKey).length > 1),
+          ),
+        ).sort();
+        const invalidDefaultBindings = enabledDefaultRelations.filter((item) => item.bindingType !== "DEFAULT");
+        const hasMismatch =
+          declaredPackageKeys.length > 0 &&
+          relationDefaultKeys.length > 0 &&
+          declaredPackageKeys.join("|") !== relationDefaultKeys.join("|");
+        if (!duplicatePackageKeys.length && !invalidDefaultBindings.length && !hasMismatch) {
+          return null;
+        }
+        return {
+          module,
+          declaredPackageKeys,
+          relationDefaultKeys,
+          duplicatePackageKeys,
+          invalidDefaultBindings,
+          hasMismatch,
+        };
+      })
+      .filter(Boolean) as Array<{
+      module: ModuleDefinitionRecord;
+      declaredPackageKeys: string[];
+      relationDefaultKeys: string[];
+      duplicatePackageKeys: string[];
+      invalidDefaultBindings: SkillPackageModuleRecord[];
+      hasMismatch: boolean;
+    }>;
+  }, [props.modules, relations]);
+
   useEffect(() => {
     void loadRelations();
   }, [props.dataSource]);
@@ -747,6 +788,63 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
           ) : (
             <div className="entity-card" style={{ padding: 12 }}>
               <p className="personal-meta">当前关系表中的默认挂载，已经同步回模块注册摘要。</p>
+            </div>
+          )}
+
+          <div
+            className="entity-card"
+            style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}
+          >
+            <div>
+              <span className="personal-meta">待人工处理冲突</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{moduleConflictInsights.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">重复挂载包</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {moduleConflictInsights.reduce((sum, item) => sum + item.duplicatePackageKeys.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">默认标记异常</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {moduleConflictInsights.reduce((sum, item) => sum + item.invalidDefaultBindings.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">摘要不一致</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {moduleConflictInsights.filter((item) => item.hasMismatch).length}
+              </strong>
+            </div>
+          </div>
+
+          {moduleConflictInsights.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {moduleConflictInsights.map((item) => (
+                <div key={`conflict-${item.module.moduleKey}`} className="entity-card" style={{ padding: 12, display: "grid", gap: 6 }}>
+                  <strong>{item.module.moduleName}</strong>
+                  <p className="personal-meta">
+                    模块摘要默认能力包：{item.declaredPackageKeys.length ? item.declaredPackageKeys.join(" / ") : "未配置"}
+                  </p>
+                  <p className="personal-meta">
+                    关系表默认挂载：{item.relationDefaultKeys.length ? item.relationDefaultKeys.join(" / ") : "未配置"}
+                  </p>
+                  {item.duplicatePackageKeys.length ? (
+                    <p className="personal-meta">重复挂载：{item.duplicatePackageKeys.join(" / ")}</p>
+                  ) : null}
+                  {item.invalidDefaultBindings.length ? (
+                    <p className="personal-meta">
+                      默认标记异常：{item.invalidDefaultBindings.map((relation) => `${relation.packageName} (${relation.bindingType})`).join(" / ")}
+                    </p>
+                  ) : null}
+                  {item.hasMismatch ? <p className="personal-meta">建议先统一模块摘要与关系表默认挂载，再继续批量同步。</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前模块绑定里没有发现明显的重复挂载、默认标记异常或摘要不一致冲突。</p>
             </div>
           )}
         </div>

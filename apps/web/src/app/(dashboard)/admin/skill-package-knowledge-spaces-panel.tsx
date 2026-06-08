@@ -112,6 +112,55 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     [defaultKnowledgeReconciliation],
   );
 
+  const knowledgeConflictInsights = useMemo(() => {
+    return packages
+      .map((skillPackage) => {
+        const declaredKnowledgeBaseIds = Array.from(new Set(skillPackage.defaultKnowledgeSpaceIds.filter(Boolean))).sort();
+        const packageRelations = relations.filter((item) => item.packageId === skillPackage.id);
+        const relationDefaultKnowledgeBaseIds = Array.from(
+          new Set(
+            packageRelations
+              .filter((item) => item.enabled && item.relationType === "DEFAULT")
+              .map((item) => item.knowledgeBaseId)
+              .filter(Boolean),
+          ),
+        ).sort();
+        const duplicateKnowledgeBaseIds = Array.from(
+          new Set(
+            packageRelations
+              .map((item) => item.knowledgeBaseId)
+              .filter((knowledgeBaseId) => packageRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId).length > 1),
+          ),
+        ).sort();
+        const requiredNonDefaultRelations = packageRelations.filter(
+          (item) => item.enabled && item.isRequired && item.relationType !== "DEFAULT",
+        );
+        const hasMismatch =
+          declaredKnowledgeBaseIds.length > 0 &&
+          relationDefaultKnowledgeBaseIds.length > 0 &&
+          declaredKnowledgeBaseIds.join("|") !== relationDefaultKnowledgeBaseIds.join("|");
+        if (!duplicateKnowledgeBaseIds.length && !requiredNonDefaultRelations.length && !hasMismatch) {
+          return null;
+        }
+        return {
+          skillPackage,
+          declaredKnowledgeBaseIds,
+          relationDefaultKnowledgeBaseIds,
+          duplicateKnowledgeBaseIds,
+          requiredNonDefaultRelations,
+          hasMismatch,
+        };
+      })
+      .filter(Boolean) as Array<{
+      skillPackage: SkillPackageRecord;
+      declaredKnowledgeBaseIds: string[];
+      relationDefaultKnowledgeBaseIds: string[];
+      duplicateKnowledgeBaseIds: string[];
+      requiredNonDefaultRelations: SkillPackageKnowledgeSpaceRecord[];
+      hasMismatch: boolean;
+    }>;
+  }, [packages, relations]);
+
   useEffect(() => {
     void loadBaseOptions();
     void loadRelations();
@@ -563,6 +612,60 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
           ) : (
             <div className="entity-card" style={{ padding: 12 }}>
               <p className="personal-meta">当前能力包默认知识空间与知识关系表已经基本一致。</p>
+            </div>
+          )}
+
+          <div className="entity-card" style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            <div>
+              <span className="personal-meta">待人工处理冲突</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{knowledgeConflictInsights.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">重复知识库挂载</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {knowledgeConflictInsights.reduce((sum, item) => sum + item.duplicateKnowledgeBaseIds.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">强制覆盖关系</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {knowledgeConflictInsights.reduce((sum, item) => sum + item.requiredNonDefaultRelations.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">默认知识不一致</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {knowledgeConflictInsights.filter((item) => item.hasMismatch).length}
+              </strong>
+            </div>
+          </div>
+
+          {knowledgeConflictInsights.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {knowledgeConflictInsights.map((item) => (
+                <div key={`conflict-${item.skillPackage.id}`} className="entity-card" style={{ padding: 12, display: "grid", gap: 6 }}>
+                  <strong>{item.skillPackage.packageName}</strong>
+                  <p className="personal-meta">
+                    能力包默认知识空间：{item.declaredKnowledgeBaseIds.length ? item.declaredKnowledgeBaseIds.join(" / ") : "未配置"}
+                  </p>
+                  <p className="personal-meta">
+                    关系表默认知识关系：{item.relationDefaultKnowledgeBaseIds.length ? item.relationDefaultKnowledgeBaseIds.join(" / ") : "未配置"}
+                  </p>
+                  {item.duplicateKnowledgeBaseIds.length ? (
+                    <p className="personal-meta">重复挂载：{item.duplicateKnowledgeBaseIds.join(" / ")}</p>
+                  ) : null}
+                  {item.requiredNonDefaultRelations.length ? (
+                    <p className="personal-meta">
+                      强制覆盖：{item.requiredNonDefaultRelations.map((relation) => `${relation.knowledgeBaseName || relation.knowledgeBaseId} (${relation.relationType})`).join(" / ")}
+                    </p>
+                  ) : null}
+                  {item.hasMismatch ? <p className="personal-meta">建议先统一能力包默认知识空间与关系表默认知识关系，再继续自动同步。</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前知识关系里没有发现明显的默认知识不一致、重复挂载或强制覆盖冲突。</p>
             </div>
           )}
         </div>

@@ -151,7 +151,31 @@
 
     <hr />
 
-    <h2>9. 下一步建议</h2>
+    <h2>9. 当前已加入的冲突提示</h2>
+    <p>为了避免“一键补齐”把原本已经有冲突的数据继续放大，当前后台已开始把下面这些情况单独列为待人工处理。</p>
+    <h3>9.1 模块绑定</h3>
+    <ul>
+      <li>同一模块下同一个能力包重复挂载。</li>
+      <li><code>isDefault = true</code> 但 <code>bindingType</code> 不是 <code>DEFAULT</code>。</li>
+      <li>模块摘要中的 <code>defaultSkillPackages</code> 与关系表默认挂载不一致。</li>
+    </ul>
+    <h3>9.2 技能绑定</h3>
+    <ul>
+      <li>同一技能下同一个能力包重复挂载。</li>
+      <li>技能资产绑定里的主绑定与关系表默认挂载不一致。</li>
+      <li><code>isDefault = true</code> 但 <code>bindingType</code> 不是 <code>DEFAULT</code>。</li>
+      <li>主绑定候选过多。</li>
+    </ul>
+    <h3>9.3 知识关系</h3>
+    <ul>
+      <li>同一能力包下同一个知识库重复挂载。</li>
+      <li>能力包默认知识空间与关系表默认知识关系不一致。</li>
+      <li>存在启用中的强制覆盖关系。</li>
+    </ul>
+
+    <hr />
+
+    <h2>10. 下一步建议</h2>
     <ol>
       <li>冲突检测面板。</li>
       <li>同步来源标记。</li>

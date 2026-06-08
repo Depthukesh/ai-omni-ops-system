@@ -110,6 +110,56 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     [bindingReconciliation],
   );
 
+  const skillConflictInsights = useMemo(() => {
+    return props.skills
+      .map((skill) => {
+        const bindingEntries = props.skillAssetBindings.filter((item) => item.skillId === skill.id || item.skillSlug === skill.slug);
+        const primaryPackageKeys = Array.from(
+          new Set(
+            bindingEntries
+              .filter((item) => item.isPrimary || item.bindingType === "PRIMARY")
+              .flatMap((item) => item.packageKeys)
+              .filter(Boolean),
+          ),
+        ).sort();
+        const skillRelations = relations.filter((item) => item.skillId === skill.id);
+        const relationDefaultKeys = Array.from(
+          new Set(skillRelations.filter((item) => item.enabled && item.isDefault).map((item) => item.packageKey).filter(Boolean)),
+        ).sort();
+        const duplicatePackageKeys = Array.from(
+          new Set(
+            skillRelations
+              .map((item) => item.packageKey)
+              .filter((packageKey) => skillRelations.filter((item) => item.packageKey === packageKey).length > 1),
+          ),
+        ).sort();
+        const invalidDefaultBindings = skillRelations.filter((item) => item.enabled && item.isDefault && item.bindingType !== "DEFAULT");
+        const hasMismatch =
+          primaryPackageKeys.length > 0 &&
+          relationDefaultKeys.length > 0 &&
+          primaryPackageKeys.join("|") !== relationDefaultKeys.join("|");
+        if (!duplicatePackageKeys.length && !invalidDefaultBindings.length && !hasMismatch && primaryPackageKeys.length <= 1) {
+          return null;
+        }
+        return {
+          skill,
+          primaryPackageKeys,
+          relationDefaultKeys,
+          duplicatePackageKeys,
+          invalidDefaultBindings,
+          hasMismatch,
+        };
+      })
+      .filter(Boolean) as Array<{
+      skill: SkillConfigRecord;
+      primaryPackageKeys: string[];
+      relationDefaultKeys: string[];
+      duplicatePackageKeys: string[];
+      invalidDefaultBindings: SkillPackageSkillRecord[];
+      hasMismatch: boolean;
+    }>;
+  }, [props.skillAssetBindings, props.skills, relations]);
+
   useEffect(() => {
     void loadRelations();
   }, [props.dataSource]);
@@ -534,6 +584,59 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
           ) : (
             <div className="entity-card" style={{ padding: 12 }}>
               <p className="personal-meta">当前技能资产绑定与能力包技能关系表已经基本一致。</p>
+            </div>
+          )}
+
+          <div className="entity-card" style={{ padding: 12, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            <div>
+              <span className="personal-meta">待人工处理冲突</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{skillConflictInsights.length}</strong>
+            </div>
+            <div>
+              <span className="personal-meta">重复挂载包</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {skillConflictInsights.reduce((sum, item) => sum + item.duplicatePackageKeys.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">默认标记异常</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {skillConflictInsights.reduce((sum, item) => sum + item.invalidDefaultBindings.length, 0)}
+              </strong>
+            </div>
+            <div>
+              <span className="personal-meta">主绑定不一致</span>
+              <strong style={{ display: "block", marginTop: 4 }}>
+                {skillConflictInsights.filter((item) => item.hasMismatch).length}
+              </strong>
+            </div>
+          </div>
+
+          {skillConflictInsights.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {skillConflictInsights.map((item) => (
+                <div key={`conflict-${item.skill.id}`} className="entity-card" style={{ padding: 12, display: "grid", gap: 6 }}>
+                  <strong>{item.skill.name}</strong>
+                  <p className="personal-meta">
+                    技能资产主绑定：{item.primaryPackageKeys.length ? item.primaryPackageKeys.join(" / ") : "未配置"}
+                  </p>
+                  <p className="personal-meta">
+                    关系表默认挂载：{item.relationDefaultKeys.length ? item.relationDefaultKeys.join(" / ") : "未配置"}
+                  </p>
+                  {item.primaryPackageKeys.length > 1 ? <p className="personal-meta">主绑定过多：{item.primaryPackageKeys.join(" / ")}</p> : null}
+                  {item.duplicatePackageKeys.length ? <p className="personal-meta">重复挂载：{item.duplicatePackageKeys.join(" / ")}</p> : null}
+                  {item.invalidDefaultBindings.length ? (
+                    <p className="personal-meta">
+                      默认标记异常：{item.invalidDefaultBindings.map((relation) => `${relation.packageName} (${relation.bindingType})`).join(" / ")}
+                    </p>
+                  ) : null}
+                  {item.hasMismatch ? <p className="personal-meta">建议先统一技能资产主绑定与关系表默认挂载，再继续自动同步。</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="entity-card" style={{ padding: 12 }}>
+              <p className="personal-meta">当前技能绑定里没有发现明显的主绑定冲突、重复挂载或默认标记异常。</p>
             </div>
           )}
         </div>
