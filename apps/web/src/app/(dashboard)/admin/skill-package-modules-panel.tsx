@@ -166,6 +166,31 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     [relationDefaultReconciliation],
   );
 
+  const relationSourceReconciliation = useMemo(() => {
+    return props.modules
+      .map((module) => {
+        const declaredPackageKeys = Array.from(new Set(module.defaultSkillPackages.map((item) => String(item || "").trim()).filter(Boolean)));
+        const relationDefaultKeys = Array.from(
+          new Set(
+            relations
+              .filter(
+                (item) =>
+                  item.moduleKey === module.moduleKey && item.bindingType === "DEFAULT" && item.isDefault && item.enabled,
+              )
+              .sort((left, right) => left.sortOrder - right.sortOrder)
+              .map((item) => item.packageKey),
+          ),
+        );
+        return {
+          module,
+          declaredPackageKeys,
+          relationDefaultKeys,
+          hasDrift: declaredPackageKeys.join("|") !== relationDefaultKeys.join("|"),
+        };
+      })
+      .filter((item) => item.hasDrift);
+  }, [props.modules, relations]);
+
   const moduleConflictInsights = useMemo(() => {
     return props.modules
       .map((module) => {
@@ -736,6 +761,75 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
     }
   }
 
+  async function handleOverwriteModuleDefaultsFromRelations(moduleKey?: string) {
+    const targets = relationSourceReconciliation.filter((item) => !moduleKey || item.module.moduleKey === moduleKey);
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!targets.length) {
+      props.onNotice(moduleKey ? "该模块当前已经按关系真源同步到模块摘要。" : "当前所有模块摘要都已按关系真源同步。");
+      return;
+    }
+
+    setBusyActionKey(`source:${moduleKey || "__all__"}`);
+    try {
+      if (props.dataSource === "seed") {
+        props.onModulesChange((current) =>
+          current.map((item) => {
+            const target = targets.find((entry) => entry.module.id === item.id);
+            if (!target) {
+              return item;
+            }
+            return {
+              ...item,
+              defaultSkillPackages: target.relationDefaultKeys,
+              updatedAt: new Date().toISOString(),
+            };
+          }),
+        );
+        props.onNotice(
+          moduleKey
+            ? `已按关系真源覆盖模块「${targets[0]?.module.moduleName || moduleKey}」的默认能力包摘要。`
+            : `已按关系真源覆盖 ${targets.length} 个模块的默认能力包摘要。`,
+        );
+        return;
+      }
+
+      const updatedModules: ModuleDefinitionRecord[] = [];
+      const failedModules: string[] = [];
+      for (const entry of targets) {
+        try {
+          const updated = await updateModuleDefinition(entry.module.id, {
+            defaultSkillPackages: entry.relationDefaultKeys,
+          });
+          updatedModules.push(updated);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "更新失败";
+          failedModules.push(`${entry.module.moduleName}（${message}）`);
+        }
+      }
+
+      if (updatedModules.length) {
+        props.onModulesChange((current) =>
+          current.map((item) => updatedModules.find((updated) => updated.id === item.id) || item),
+        );
+      }
+      if (failedModules.length) {
+        props.onError(`按关系真源覆盖模块摘要有 ${failedModules.length} 个失败：${failedModules.join("；")}`);
+      }
+      if (updatedModules.length) {
+        props.onNotice(
+          moduleKey
+            ? `已按关系真源覆盖模块「${targets[0]?.module.moduleName || moduleKey}」的默认能力包摘要。`
+            : `已按关系真源覆盖 ${updatedModules.length} 个模块的默认能力包摘要。`,
+        );
+      }
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -994,6 +1088,10 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                 {moduleConflictInsights.filter((item) => item.hasMismatch).length}
               </strong>
             </div>
+            <div>
+              <span className="personal-meta">真源漂移模块</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{relationSourceReconciliation.length}</strong>
+            </div>
           </div>
           {moduleConflictInsights.length ? (
             <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1028,6 +1126,14 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                 disabled={!moduleConflictInsights.some((item) => item.invalidDefaultBindings.length) || busyActionKey === "normalize:__all__"}
               >
                 {busyActionKey === "normalize:__all__" ? "处理中..." : "全部修正默认标记"}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleOverwriteModuleDefaultsFromRelations()}
+                disabled={!relationSourceReconciliation.length || busyActionKey === "source:__all__"}
+              >
+                {busyActionKey === "source:__all__" ? "处理中..." : "全部按关系真源覆盖摘要"}
               </button>
             </div>
           ) : null}
@@ -1093,10 +1199,23 @@ export function SkillPackageModulesPanel(props: SkillPackageModulesPanelProps) {
                         {busyActionKey === `normalize:${item.module.moduleKey}` ? "处理中..." : "修正默认标记"}
                       </button>
                     ) : null}
+                    {item.declaredPackageKeys.join("|") !== item.relationDefaultKeys.join("|") ? (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleOverwriteModuleDefaultsFromRelations(item.module.moduleKey)}
+                        disabled={busyActionKey === `source:${item.module.moduleKey}`}
+                      >
+                        {busyActionKey === `source:${item.module.moduleKey}` ? "处理中..." : "按关系真源覆盖摘要"}
+                      </button>
+                    ) : null}
                   </div>
                   {item.duplicatePackageKeys.length ? <p className="personal-meta">处理建议：先删除重复关系，只保留一条有效挂载记录。</p> : null}
                   {item.invalidDefaultBindings.length ? <p className="personal-meta">处理建议：默认关系应改为 `bindingType=DEFAULT`，否则请取消默认标记。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一模块摘要与关系表默认挂载，再继续批量同步。</p> : null}
+                  {item.declaredPackageKeys.join("|") !== item.relationDefaultKeys.join("|") ? (
+                    <p className="personal-meta">真源口径：模块绑定关系表为准，需要时可以直接覆盖模块摘要，避免摘要继续漂移。</p>
+                  ) : null}
                 </div>
               ))}
             </div>

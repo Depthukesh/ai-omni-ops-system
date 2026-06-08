@@ -162,6 +162,85 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     }>;
   }, [packages, relations]);
 
+  const knowledgeSourcePlans = useMemo(() => {
+    return packages
+      .map((skillPackage) => {
+        const declaredKnowledgeBaseIds = Array.from(new Set(skillPackage.defaultKnowledgeSpaceIds.filter(Boolean)));
+        const targetRelations = relations.filter((item) => item.packageId === skillPackage.id);
+        const idsToDelete = new Set<string>();
+        Array.from(new Set(targetRelations.map((item) => item.knowledgeBaseId)))
+          .filter((knowledgeBaseId) => targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId).length > 1)
+          .forEach((knowledgeBaseId) => {
+            const grouped = targetRelations.filter((item) => item.knowledgeBaseId === knowledgeBaseId);
+            const keep = pickPreferredKnowledgeRelation(grouped);
+            grouped.forEach((item) => {
+              if (item.id !== keep.id) {
+                idsToDelete.add(item.id);
+              }
+            });
+          });
+
+        const existingKnowledgeBaseIds = new Set(targetRelations.map((item) => item.knowledgeBaseId));
+        const creatableEntries = declaredKnowledgeBaseIds
+          .filter((knowledgeBaseId) => !existingKnowledgeBaseIds.has(knowledgeBaseId))
+          .map((knowledgeBaseId) => ({
+            skillPackage,
+            knowledgeBase: knowledgeBases.find((item) => item.id === knowledgeBaseId) || null,
+            knowledgeBaseId,
+          }));
+        const unresolvedKnowledgeBaseIds = creatableEntries.filter((item) => !item.knowledgeBase).map((item) => item.knowledgeBaseId);
+        const declaredKnowledgeBaseIdSet = new Set(declaredKnowledgeBaseIds);
+        const remainingRelations = targetRelations.filter((item) => !idsToDelete.has(item.id));
+        const relationsToUpdate = remainingRelations
+          .map((relation) => {
+            if (!declaredKnowledgeBaseIdSet.size) {
+              return null;
+            }
+            const shouldDefault = declaredKnowledgeBaseIdSet.has(relation.knowledgeBaseId);
+            const nextPatch: Partial<
+              Omit<
+                SkillPackageKnowledgeSpaceRecord,
+                "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+              >
+            > = {};
+
+            if (shouldDefault) {
+              if (relation.relationType !== "DEFAULT") {
+                nextPatch.relationType = "DEFAULT";
+              }
+              if (!relation.enabled) {
+                nextPatch.enabled = true;
+              }
+            } else if (relation.relationType === "DEFAULT") {
+              nextPatch.relationType = "OPTIONAL";
+            }
+
+            return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+          })
+          .filter(Boolean) as Array<{
+          relation: SkillPackageKnowledgeSpaceRecord;
+          patch: Partial<
+            Omit<
+              SkillPackageKnowledgeSpaceRecord,
+              "id" | "knowledgeBaseName" | "knowledgeBaseSlug" | "knowledgeBaseStatus" | "createdAt" | "updatedAt"
+            >
+          >;
+        }>;
+
+        return {
+          skillPackage,
+          creatableEntries: creatableEntries.filter((item): item is typeof item & { knowledgeBase: KnowledgeBaseRecord } => Boolean(item.knowledgeBase)),
+          unresolvedKnowledgeBaseIds,
+          relationIdsToDelete: Array.from(idsToDelete),
+          relationsToUpdate,
+        };
+      })
+      .filter(
+        (item) =>
+          item.creatableEntries.length || item.unresolvedKnowledgeBaseIds.length || item.relationIdsToDelete.length || item.relationsToUpdate.length,
+      );
+  }, [knowledgeBases, packages, relations]);
+
   useEffect(() => {
     void loadBaseOptions();
     void loadRelations();
@@ -710,6 +789,97 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
     }
   }
 
+  async function handleReconcileKnowledgeRelationsBySource(packageId?: string) {
+    const targets = knowledgeSourcePlans.filter((item) => !packageId || item.skillPackage.id === packageId);
+    const actionableTargets = targets.filter(
+      (item) => item.creatableEntries.length || item.relationIdsToDelete.length || item.relationsToUpdate.length,
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!actionableTargets.length) {
+      props.onNotice(packageId ? "该能力包当前已经按默认知识真源收口。" : "当前知识关系已经按默认知识真源收口。");
+      return;
+    }
+
+    setBusyActionKey(`source:${packageId || "__all__"}`);
+    try {
+      let nextRelations = relations.slice();
+      const createdRecords: SkillPackageKnowledgeSpaceRecord[] = [];
+      let totalDeleted = 0;
+      let totalUpdated = 0;
+
+      for (const target of actionableTargets) {
+        if (props.dataSource === "seed") {
+          if (target.relationIdsToDelete.length) {
+            const deleteIds = new Set(target.relationIdsToDelete);
+            nextRelations = nextRelations.filter((item) => !deleteIds.has(item.id));
+            if (selectedRelationId && deleteIds.has(selectedRelationId)) {
+              setSelectedRelationId("");
+            }
+            totalDeleted += target.relationIdsToDelete.length;
+          }
+
+          if (target.relationsToUpdate.length) {
+            const patchMap = new Map(target.relationsToUpdate.map((item) => [item.relation.id, item.patch]));
+            nextRelations = nextRelations.map((item) => (patchMap.has(item.id) ? { ...item, ...patchMap.get(item.id) } : item));
+            totalUpdated += target.relationsToUpdate.length;
+          }
+
+          if (target.creatableEntries.length) {
+            const created = target.creatableEntries.map((entry, index) =>
+              buildSeedKnowledgeRelationRecord(entry.skillPackage, entry.knowledgeBase, index),
+            );
+            nextRelations = [...created, ...nextRelations];
+            createdRecords.push(...created);
+          }
+          continue;
+        }
+
+        for (const relationId of target.relationIdsToDelete) {
+          await deleteSkillPackageKnowledgeSpace(relationId);
+          nextRelations = nextRelations.filter((item) => item.id !== relationId);
+          if (selectedRelationId === relationId) {
+            setSelectedRelationId("");
+          }
+          totalDeleted += 1;
+        }
+
+        for (const entry of target.relationsToUpdate) {
+          const updated = await updateSkillPackageKnowledgeSpace(entry.relation.id, entry.patch);
+          nextRelations = nextRelations.map((item) => (item.id === updated.id ? updated : item));
+          totalUpdated += 1;
+        }
+
+        for (const entry of target.creatableEntries) {
+          const created = await createSkillPackageKnowledgeSpace(buildCreateKnowledgePayload(entry.skillPackage, entry.knowledgeBase));
+          createdRecords.push(created);
+          nextRelations = [created, ...nextRelations.filter((item) => item.id !== created.id)];
+        }
+      }
+
+      setRelations(nextRelations);
+      if (createdRecords[0]) {
+        setSelectedRelationId(createdRecords[0].id);
+      }
+      const unresolvedCount = targets.reduce((sum, item) => sum + item.unresolvedKnowledgeBaseIds.length, 0);
+      if (unresolvedCount) {
+        props.onError(`按默认知识真源收口时仍有 ${unresolvedCount} 个未识别知识库，需先补齐知识库主数据。`);
+      }
+      props.onNotice(
+        packageId
+          ? `已按默认知识真源收口：新增 ${createdRecords.length} 条，修正 ${totalUpdated} 条，清理 ${totalDeleted} 条。`
+          : `已按默认知识真源批量收口 ${actionableTargets.length} 个能力包：新增 ${createdRecords.length} 条，修正 ${totalUpdated} 条，清理 ${totalDeleted} 条。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "按默认知识真源收口失败";
+      props.onError(`按默认知识真源收口失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -895,8 +1065,12 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                 {knowledgeConflictInsights.filter((item) => item.hasMismatch).length}
               </strong>
             </div>
+            <div>
+              <span className="personal-meta">待真源收口</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{knowledgeSourcePlans.length}</strong>
+            </div>
           </div>
-          {knowledgeConflictInsights.length ? (
+          {knowledgeConflictInsights.length || knowledgeSourcePlans.length ? (
             <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button
                 type="button"
@@ -921,6 +1095,14 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                 disabled={!knowledgeConflictInsights.some((item) => item.duplicateKnowledgeBaseIds.length) || busyActionKey === "dedupe:__all__"}
               >
                 {busyActionKey === "dedupe:__all__" ? "处理中..." : "全部删除重复关系"}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleReconcileKnowledgeRelationsBySource()}
+                disabled={!knowledgeSourcePlans.length || busyActionKey === "source:__all__"}
+              >
+                {busyActionKey === "source:__all__" ? "处理中..." : "全部按默认知识真源收口"}
               </button>
             </div>
           ) : null}
@@ -976,10 +1158,23 @@ export function SkillPackageKnowledgeSpacesPanel(props: SkillPackageKnowledgeSpa
                         {busyActionKey === `dedupe:${item.skillPackage.id}` ? "处理中..." : "删除重复关系"}
                       </button>
                     ) : null}
+                    {knowledgeSourcePlans.some((plan) => plan.skillPackage.id === item.skillPackage.id) ? (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleReconcileKnowledgeRelationsBySource(item.skillPackage.id)}
+                        disabled={busyActionKey === `source:${item.skillPackage.id}`}
+                      >
+                        {busyActionKey === `source:${item.skillPackage.id}` ? "处理中..." : "按默认知识真源收口"}
+                      </button>
+                    ) : null}
                   </div>
                   {item.duplicateKnowledgeBaseIds.length ? <p className="personal-meta">处理建议：删除重复知识关系，只保留当前真正参与检索的一条。</p> : null}
                   {item.requiredNonDefaultRelations.length ? <p className="personal-meta">处理建议：先确认这些强制覆盖关系是否应替代默认知识关系，再决定是否继续批量同步。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一能力包默认知识空间与关系表默认知识关系，再继续自动同步。</p> : null}
+                  {knowledgeSourcePlans.some((plan) => plan.skillPackage.id === item.skillPackage.id) ? (
+                    <p className="personal-meta">真源口径：能力包默认知识空间为准，可一键补齐缺失知识关系、修正默认项并清理重复挂载。</p>
+                  ) : null}
                 </div>
               ))}
             </div>

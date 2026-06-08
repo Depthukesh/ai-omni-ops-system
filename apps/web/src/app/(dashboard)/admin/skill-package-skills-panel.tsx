@@ -161,6 +161,120 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     }>;
   }, [props.skillAssetBindings, props.skills, relations]);
 
+  const skillSourcePlans = useMemo(() => {
+    return props.skills
+      .map((skill) => {
+        const bindingEntries = props.skillAssetBindings.filter((item) => item.skillId === skill.id || item.skillSlug === skill.slug);
+        const desiredPackageKeys = Array.from(new Set(bindingEntries.flatMap((item) => item.packageKeys).filter(Boolean)));
+        const primaryPackageKeys = Array.from(
+          new Set(
+            bindingEntries
+              .filter((item) => item.isPrimary || item.bindingType === "PRIMARY")
+              .flatMap((item) => item.packageKeys)
+              .filter(Boolean),
+          ),
+        );
+        const targetRelations = relations.filter((item) => item.skillId === skill.id);
+        const idsToDelete = new Set<string>();
+        Array.from(new Set(targetRelations.map((item) => item.packageKey)))
+          .filter((packageKey) => targetRelations.filter((item) => item.packageKey === packageKey).length > 1)
+          .forEach((packageKey) => {
+            const grouped = targetRelations.filter((item) => item.packageKey === packageKey);
+            const keep = pickPreferredSkillRelation(grouped);
+            grouped.forEach((item) => {
+              if (item.id !== keep.id) {
+                idsToDelete.add(item.id);
+              }
+            });
+          });
+
+        const existingPackageKeys = new Set(targetRelations.map((item) => item.packageKey));
+        const creatableEntries = desiredPackageKeys
+          .filter((packageKey) => !existingPackageKeys.has(packageKey))
+          .map((packageKey) => ({
+            skill,
+            skillPackage: props.skillPackages.find((item) => item.packageKey === packageKey) || null,
+            bindingEntry: bindingEntries.find((item) => item.packageKeys.includes(packageKey)),
+            packageKey,
+          }));
+        const unresolvedPackageKeys = creatableEntries.filter((item) => !item.skillPackage).map((item) => item.packageKey);
+        const remainingRelations = targetRelations.filter((item) => !idsToDelete.has(item.id));
+        const primaryPackageKeySet = new Set(primaryPackageKeys);
+        const relationsToUpdate = remainingRelations
+          .map((relation) => {
+            const shouldDefault = primaryPackageKeySet.has(relation.packageKey);
+            const nextPatch: Partial<
+              Omit<
+                SkillPackageSkillRecord,
+                | "id"
+                | "skillName"
+                | "skillCategory"
+                | "skillStatus"
+                | "skillProvider"
+                | "skillDefaultModel"
+                | "createdAt"
+                | "updatedAt"
+              >
+            > = {};
+
+            if (primaryPackageKeySet.size) {
+              if (shouldDefault) {
+                if (relation.bindingType !== "DEFAULT") {
+                  nextPatch.bindingType = "DEFAULT";
+                }
+                if (!relation.isDefault) {
+                  nextPatch.isDefault = true;
+                }
+                if (!relation.enabled) {
+                  nextPatch.enabled = true;
+                }
+              } else {
+                if (relation.isDefault) {
+                  nextPatch.isDefault = false;
+                }
+                if (relation.bindingType === "DEFAULT") {
+                  nextPatch.bindingType = "OPTIONAL";
+                }
+              }
+            } else if (relation.enabled && relation.isDefault && relation.bindingType !== "DEFAULT") {
+              nextPatch.bindingType = "DEFAULT";
+            }
+
+            return Object.keys(nextPatch).length ? { relation, patch: nextPatch } : null;
+          })
+          .filter(Boolean) as Array<{
+          relation: SkillPackageSkillRecord;
+          patch: Partial<
+            Omit<
+              SkillPackageSkillRecord,
+              | "id"
+              | "skillName"
+              | "skillCategory"
+              | "skillStatus"
+              | "skillProvider"
+              | "skillDefaultModel"
+              | "createdAt"
+              | "updatedAt"
+            >
+          >;
+        }>;
+
+        return {
+          skill,
+          desiredPackageKeys,
+          primaryPackageKeys,
+          creatableEntries: creatableEntries.filter((item): item is typeof item & { skillPackage: SkillPackageRecord } => Boolean(item.skillPackage)),
+          unresolvedPackageKeys,
+          relationIdsToDelete: Array.from(idsToDelete),
+          relationsToUpdate,
+        };
+      })
+      .filter(
+        (item) =>
+          item.creatableEntries.length || item.unresolvedPackageKeys.length || item.relationIdsToDelete.length || item.relationsToUpdate.length,
+      );
+  }, [props.skillAssetBindings, props.skillPackages, props.skills, relations]);
+
   useEffect(() => {
     void loadRelations();
   }, [props.dataSource]);
@@ -742,6 +856,97 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
     }
   }
 
+  async function handleReconcileSkillRelationsBySource(skillId?: string) {
+    const targets = skillSourcePlans.filter((item) => !skillId || item.skill.id === skillId);
+    const actionableTargets = targets.filter(
+      (item) => item.creatableEntries.length || item.relationIdsToDelete.length || item.relationsToUpdate.length,
+    );
+
+    props.onNotice("");
+    props.onError("");
+
+    if (!actionableTargets.length) {
+      props.onNotice(skillId ? "该技能当前已经按主绑定真源收口。" : "当前技能关系已经按主绑定真源收口。");
+      return;
+    }
+
+    setBusyActionKey(`source:${skillId || "__all__"}`);
+    try {
+      let nextRelations = relations.slice();
+      const createdRecords: SkillPackageSkillRecord[] = [];
+      let totalDeleted = 0;
+      let totalUpdated = 0;
+
+      for (const target of actionableTargets) {
+        if (props.dataSource === "seed") {
+          if (target.relationIdsToDelete.length) {
+            const deleteIds = new Set(target.relationIdsToDelete);
+            nextRelations = nextRelations.filter((item) => !deleteIds.has(item.id));
+            if (selectedRelationId && deleteIds.has(selectedRelationId)) {
+              setSelectedRelationId("");
+            }
+            totalDeleted += target.relationIdsToDelete.length;
+          }
+
+          if (target.relationsToUpdate.length) {
+            const patchMap = new Map(target.relationsToUpdate.map((item) => [item.relation.id, item.patch]));
+            nextRelations = nextRelations.map((item) => (patchMap.has(item.id) ? { ...item, ...patchMap.get(item.id) } : item));
+            totalUpdated += target.relationsToUpdate.length;
+          }
+
+          if (target.creatableEntries.length) {
+            const created = target.creatableEntries.map((entry, index) =>
+              buildSeedSkillRelationRecord(entry.skill, entry.skillPackage, entry.bindingEntry, index),
+            );
+            nextRelations = [...created, ...nextRelations];
+            createdRecords.push(...created);
+          }
+          continue;
+        }
+
+        for (const relationId of target.relationIdsToDelete) {
+          await deleteSkillPackageSkill(relationId);
+          nextRelations = nextRelations.filter((item) => item.id !== relationId);
+          if (selectedRelationId === relationId) {
+            setSelectedRelationId("");
+          }
+          totalDeleted += 1;
+        }
+
+        for (const entry of target.relationsToUpdate) {
+          const updated = await updateSkillPackageSkill(entry.relation.id, entry.patch);
+          nextRelations = nextRelations.map((item) => (item.id === updated.id ? updated : item));
+          totalUpdated += 1;
+        }
+
+        for (const entry of target.creatableEntries) {
+          const created = await createSkillPackageSkill(buildCreateSkillPayload(entry.skill, entry.skillPackage, entry.bindingEntry));
+          createdRecords.push(created);
+          nextRelations = [created, ...nextRelations.filter((item) => item.id !== created.id)];
+        }
+      }
+
+      setRelations(nextRelations);
+      if (createdRecords[0]) {
+        setSelectedRelationId(createdRecords[0].id);
+      }
+      const unresolvedCount = targets.reduce((sum, item) => sum + item.unresolvedPackageKeys.length, 0);
+      if (unresolvedCount) {
+        props.onError(`按主绑定真源收口时仍有 ${unresolvedCount} 个未识别能力包，需先补齐能力包主数据。`);
+      }
+      props.onNotice(
+        skillId
+          ? `已按主绑定真源收口技能关系：新增 ${createdRecords.length} 条，修正 ${totalUpdated} 条，清理 ${totalDeleted} 条。`
+          : `已按主绑定真源批量收口 ${actionableTargets.length} 个技能：新增 ${createdRecords.length} 条，修正 ${totalUpdated} 条，清理 ${totalDeleted} 条。`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "按主绑定真源收口失败";
+      props.onError(`按主绑定真源收口失败：${message}`);
+    } finally {
+      setBusyActionKey("");
+    }
+  }
+
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
       <section className="entity-card admin-user-filter-card">
@@ -917,8 +1122,12 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                 {skillConflictInsights.filter((item) => item.hasMismatch).length}
               </strong>
             </div>
+            <div>
+              <span className="personal-meta">待真源收口</span>
+              <strong style={{ display: "block", marginTop: 4 }}>{skillSourcePlans.length}</strong>
+            </div>
           </div>
-          {skillConflictInsights.length ? (
+          {skillConflictInsights.length || skillSourcePlans.length ? (
             <div className="entity-card" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button
                 type="button"
@@ -946,6 +1155,14 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                 disabled={!skillConflictInsights.some((item) => item.duplicatePackageKeys.length) || busyActionKey === "dedupe:__all__"}
               >
                 {busyActionKey === "dedupe:__all__" ? "处理中..." : "全部删除重复关系"}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleReconcileSkillRelationsBySource()}
+                disabled={!skillSourcePlans.length || busyActionKey === "source:__all__"}
+              >
+                {busyActionKey === "source:__all__" ? "处理中..." : "全部按主绑定真源收口"}
               </button>
             </div>
           ) : null}
@@ -1000,11 +1217,24 @@ export function SkillPackageSkillsPanel(props: SkillPackageSkillsPanelProps) {
                         {busyActionKey === `dedupe:${item.skill.id}` ? "处理中..." : "删除重复关系"}
                       </button>
                     ) : null}
+                    {skillSourcePlans.some((plan) => plan.skill.id === item.skill.id) ? (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleReconcileSkillRelationsBySource(item.skill.id)}
+                        disabled={busyActionKey === `source:${item.skill.id}`}
+                      >
+                        {busyActionKey === `source:${item.skill.id}` ? "处理中..." : "按主绑定真源收口"}
+                      </button>
+                    ) : null}
                   </div>
                   {item.primaryPackageKeys.length > 1 ? <p className="personal-meta">处理建议：技能资产绑定里只保留一个主能力包，其余改为非主绑定。</p> : null}
                   {item.duplicatePackageKeys.length ? <p className="personal-meta">处理建议：删除重复技能关系，只保留当前真正生效的一条。</p> : null}
                   {item.invalidDefaultBindings.length ? <p className="personal-meta">处理建议：默认挂载应统一成 `bindingType=DEFAULT`，否则请取消默认标记。</p> : null}
                   {item.hasMismatch ? <p className="personal-meta">建议先统一技能资产主绑定与关系表默认挂载，再继续自动同步。</p> : null}
+                  {skillSourcePlans.some((plan) => plan.skill.id === item.skill.id) ? (
+                    <p className="personal-meta">真源口径：技能资产绑定为准，可一键补齐缺失关系、修正默认挂载并清理重复记录。</p>
+                  ) : null}
                 </div>
               ))}
             </div>
