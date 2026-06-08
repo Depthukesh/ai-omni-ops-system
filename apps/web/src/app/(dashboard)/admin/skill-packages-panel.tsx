@@ -522,6 +522,8 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
     () => packageSkills.find((item) => item.enabled && item.isDefault) || packageSkills.find((item) => item.isDefault) || null,
     [packageSkills],
   );
+  const enabledPackageSkills = useMemo(() => packageSkills.filter((item) => item.enabled), [packageSkills]);
+  const selectedPackageModuleKeys = useMemo(() => splitList(selectedDraft.moduleKeys), [selectedDraft.moduleKeys]);
 
   return (
     <div className="admin-user-management" style={{ marginTop: 24 }}>
@@ -693,6 +695,40 @@ export function SkillPackagesPanel(props: SkillPackagesPanelProps) {
                     <strong>技能装配区</strong>
                     <p className="personal-meta">技能页结构保持不变，这里只做技能的安装、默认项设置、启停和卸载。</p>
                   </div>
+                </div>
+
+                <div className="assembly-guidance-list">
+                  {packageSkills.length === 0 ? (
+                    <div className="assembly-guidance-card assembly-guidance-card--warning">
+                      <div>
+                        <strong>当前能力包还没有安装技能</strong>
+                        <p>建议先安装至少一个技能，否则这个能力包虽然存在，但还不能真正执行业务。</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {packageSkills.length > 0 && !activeDefaultSkill && enabledPackageSkills.length ? (
+                    <div className="assembly-guidance-card assembly-guidance-card--warning">
+                      <div>
+                        <strong>当前能力包还没有默认技能</strong>
+                        <p>建议指定一个默认技能，避免能力包运行时没有明确的主执行入口。</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleSetDefaultRelation(enabledPackageSkills[0].id)}
+                      >
+                        设首个启用项为默认
+                      </button>
+                    </div>
+                  ) : null}
+                  {selectedPackageModuleKeys.length === 0 ? (
+                    <div className="assembly-guidance-card">
+                      <div>
+                        <strong>当前能力包还没有挂到任何模块</strong>
+                        <p>如果这个能力包准备投入业务使用，建议在模块页把它安装到目标模块中。</p>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="package-assembly-top">

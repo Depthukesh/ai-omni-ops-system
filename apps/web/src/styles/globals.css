@@ -6530,6 +6530,40 @@ button {
   word-break: break-word;
 }
 
+.assembly-guidance-list {
+  display: grid;
+  gap: 10px;
+}
+
+.assembly-guidance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(91, 109, 255, 0.16);
+  background: rgba(91, 109, 255, 0.06);
+}
+
+.assembly-guidance-card--warning {
+  border-color: rgba(224, 145, 56, 0.22);
+  background: rgba(255, 244, 229, 0.9);
+}
+
+.assembly-guidance-card strong {
+  display: block;
+  font-size: 14px;
+  color: #24324e;
+}
+
+.assembly-guidance-card p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #66738f;
+}
+
 .admin-user-table {
   width: 100%;
   border-collapse: collapse;
@@ -9680,5 +9714,10 @@ button {
 
   .package-assembly-top {
     grid-template-columns: 1fr;
+  }
+
+  .assembly-guidance-card {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

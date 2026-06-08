@@ -590,6 +590,12 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
     () => modulePackages.find((item) => item.enabled && item.isDefault) || modulePackages.find((item) => item.isDefault) || null,
     [modulePackages],
   );
+  const draftDefaultPackageKeys = useMemo(() => parseLines(selectedDraft.defaultSkillPackages), [selectedDraft.defaultSkillPackages]);
+  const installedDefaultPackageKeys = useMemo(
+    () => modulePackages.filter((item) => item.enabled && item.isDefault).map((item) => item.packageKey),
+    [modulePackages],
+  );
+  const enabledModulePackages = useMemo(() => modulePackages.filter((item) => item.enabled), [modulePackages]);
 
   return (
     <div
@@ -847,6 +853,53 @@ export function ModuleDefinitionsPanel(props: ModuleDefinitionsPanelProps) {
                             <strong>{installablePackages.length}</strong>
                           </div>
                         </div>
+                      </div>
+
+                      <div className="assembly-guidance-list">
+                        {modulePackages.length === 0 ? (
+                          <div className="assembly-guidance-card assembly-guidance-card--warning">
+                            <div>
+                              <strong>当前模块还没有安装能力包</strong>
+                              <p>建议先安装至少一个能力包，否则模块启用后不会具备可执行业务能力。</p>
+                            </div>
+                          </div>
+                        ) : null}
+                        {modulePackages.length > 0 && !activeDefaultPackage && enabledModulePackages.length ? (
+                          <div className="assembly-guidance-card assembly-guidance-card--warning">
+                            <div>
+                              <strong>当前模块还没有默认能力包</strong>
+                              <p>建议先指定一个默认能力包，避免模块运行时没有明确的主能力入口。</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => void handleSetDefaultModulePackage(enabledModulePackages[0].id)}
+                            >
+                              设首个启用项为默认
+                            </button>
+                          </div>
+                        ) : null}
+                        {selectedModule &&
+                        draftDefaultPackageKeys.join("|") !== installedDefaultPackageKeys.join("|") ? (
+                          <div className="assembly-guidance-card">
+                            <div>
+                              <strong>默认能力包摘要与已装关系不一致</strong>
+                              <p>当前模块摘要和实际已装默认能力包存在差异，建议先同步摘要再继续保存模块。</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                setSelectedDraft((current) => ({
+                                  ...current,
+                                  defaultSkillPackages: deriveDefaultPackageKeys(modulePackages),
+                                }))
+                              }
+                            >
+                              按已装关系同步摘要
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="admin-rule-grid" style={{ marginBottom: 16 }}>
