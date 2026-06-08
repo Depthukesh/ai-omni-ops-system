@@ -10,6 +10,7 @@ const DRAFT_SESSION_EXPIRE_MS = 24 * 60 * 60 * 1000;
 const MOBILE_DRAFT_TASK_TYPE = "XHS_PUBLISH_MOBILE_DRAFT";
 const DESKTOP_DRAFT_TASK_TYPE = "XHS_PUBLISH_DESKTOP_DRAFT";
 const DOUYIN_MOBILE_PUBLISH_TASK_TYPE = "DOUYIN_PUBLISH_MOBILE_HANDOFF";
+const DOUYIN_DESKTOP_PUBLISH_TASK_TYPE = "DOUYIN_PUBLISH_DESKTOP_AUTOFILL";
 
 export type CreateMobileDraftSessionPayload = {
   accountId?: string;
@@ -66,6 +67,26 @@ type DouyinMobilePublishTaskInput = {
   channel: "MOBILE_QR";
   platform: "DOUYIN";
   mode: "PUBLISH_VIDEO";
+  workId: string;
+  workKind: DouyinPublishableWorkRecord["workKind"];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  title: string;
+  content: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  hashtags: string[];
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+type DouyinDesktopPublishTaskInput = {
+  sessionToken: string;
+  channel: "BROWSER_EXTENSION";
+  platform: "DOUYIN";
+  mode: "PREPARE_PUBLISH";
   workId: string;
   workKind: DouyinPublishableWorkRecord["workKind"];
   accountId?: string;
@@ -245,6 +266,53 @@ export class PublishingService {
     };
   }
 
+  async createDouyinDesktopPublishSession(brandId: string, workId: string, payload: CreateMobileDraftSessionPayload) {
+    const work = await this.worksService.getDouyinPublishableWork(brandId, workId);
+    await this.assertDouyinVideoAccessible(work);
+    const archive = await this.brandsService.getArchive(brandId);
+    const douyinAccounts = archive.platformAccounts.filter((item) => item.platform === "DOUYIN");
+    const selectedAccount = payload.accountId
+      ? douyinAccounts.find((item) => item.id === payload.accountId)
+      : douyinAccounts[0];
+
+    const sessionToken = createSessionToken("dy_desktop");
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + DRAFT_SESSION_EXPIRE_MS);
+    const taskTitle = `电脑端辅助发布抖音视频：${work.title}`;
+    const inputJson: DouyinDesktopPublishTaskInput = {
+      sessionToken,
+      channel: "BROWSER_EXTENSION",
+      platform: "DOUYIN",
+      mode: "PREPARE_PUBLISH",
+      workId: work.id,
+      workKind: work.workKind,
+      accountId: selectedAccount?.id,
+      accountName: selectedAccount?.accountName || undefined,
+      accountLink: selectedAccount?.accountLink,
+      title: work.title,
+      content: work.content,
+      videoUrl: work.videoUrl,
+      coverImageUrl: work.coverImageUrl,
+      hashtags: work.hashtags,
+      sourceLabel: work.sourceLabel,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+
+    const task = await this.createDraftTask({
+      brandId,
+      userId: await this.getBrandOwnerUserId(brandId),
+      taskTitle,
+      taskType: DOUYIN_DESKTOP_PUBLISH_TASK_TYPE,
+      inputJson,
+    });
+
+    return {
+      task: this.mapTaskSummary(task),
+      session: this.buildDouyinDesktopSessionResponse(task.id, inputJson, "QUEUED"),
+    };
+  }
+
   async getXiaohongshuMobileDraftSession(token: string) {
     const task = await this.findDraftTaskByToken(token, MOBILE_DRAFT_TASK_TYPE);
     const inputJson = this.readMobileDraftTaskInput(task.inputJson);
@@ -272,6 +340,16 @@ export class PublishingService {
     const taskStatus = mapPublishTaskStatus(task.taskStatus, outputJson?.status);
     return {
       session: this.buildDouyinMobileSessionResponse(task.id, inputJson, taskStatus, outputJson),
+    };
+  }
+
+  async getDouyinDesktopPublishSession(token: string) {
+    const task = await this.findDraftTaskByToken(token, DOUYIN_DESKTOP_PUBLISH_TASK_TYPE);
+    const inputJson = this.readDouyinDesktopPublishTaskInput(task.inputJson);
+    const outputJson = this.readDraftTaskOutput(task.outputJson);
+    const taskStatus = mapPublishTaskStatus(task.taskStatus, outputJson?.status);
+    return {
+      session: this.buildDouyinDesktopSessionResponse(task.id, inputJson, taskStatus, outputJson),
     };
   }
 
@@ -307,6 +385,13 @@ export class PublishingService {
     const task = await this.findDraftTaskByToken(token, DOUYIN_MOBILE_PUBLISH_TASK_TYPE);
     return this.completeDraftTask(task, payload, DOUYIN_MOBILE_PUBLISH_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
       this.buildDouyinMobileSessionResponse(taskId, this.readDouyinMobilePublishTaskInput(taskInput), taskStatus, outputJson),
+    );
+  }
+
+  async completeDouyinDesktopPublishSession(token: string, payload: CompleteMobileDraftSessionPayload) {
+    const task = await this.findDraftTaskByToken(token, DOUYIN_DESKTOP_PUBLISH_TASK_TYPE);
+    return this.completeDraftTask(task, payload, DOUYIN_DESKTOP_PUBLISH_TASK_TYPE, (taskId, taskInput, taskStatus, outputJson) =>
+      this.buildDouyinDesktopSessionResponse(taskId, this.readDouyinDesktopPublishTaskInput(taskInput), taskStatus, outputJson),
     );
   }
 
@@ -427,8 +512,10 @@ export class PublishingService {
     userId: string;
     taskTitle: string;
     taskType: string;
-    inputJson: MobileDraftTaskInput | DesktopDraftTaskInput | DouyinMobilePublishTaskInput;
+    inputJson: MobileDraftTaskInput | DesktopDraftTaskInput | DouyinMobilePublishTaskInput | DouyinDesktopPublishTaskInput;
   }) {
+    const channel = asRecord(params.inputJson)?.channel;
+    const modelName = channel === "BROWSER_EXTENSION" ? "browser-extension-autofill" : "mobile-qr-handoff";
     if (await this.prismaService.canUseDatabase()) {
       return this.prismaService.task.create({
         data: {
@@ -437,7 +524,7 @@ export class PublishingService {
           taskType: params.taskType,
           taskTitle: params.taskTitle,
           taskStatus: TaskStatus.QUEUED,
-          modelName: params.taskType === DESKTOP_DRAFT_TASK_TYPE ? "browser-extension-autofill" : "mobile-qr-handoff",
+          modelName,
           pointsCost: 0,
           inputJson: params.inputJson as Prisma.InputJsonValue,
         },
@@ -452,7 +539,7 @@ export class PublishingService {
       taskType: params.taskType,
       taskTitle: params.taskTitle,
       taskStatus: "QUEUED" as const,
-      modelName: params.taskType === DESKTOP_DRAFT_TASK_TYPE ? "browser-extension-autofill" : "mobile-qr-handoff",
+      modelName,
       pointsCost: 0,
       inputJson: params.inputJson,
       createdAt: now,
@@ -639,6 +726,40 @@ export class PublishingService {
     };
   }
 
+  private buildDouyinDesktopSessionResponse(
+    taskId: string,
+    inputJson: DouyinDesktopPublishTaskInput,
+    taskStatus: "QUEUED" | "SUCCESS" | "FAILED",
+    outputJson?: DraftTaskOutput,
+  ) {
+    return {
+      taskId,
+      token: inputJson.sessionToken,
+      platform: inputJson.platform,
+      mode: inputJson.mode,
+      channel: inputJson.channel,
+      status: taskStatus,
+      title: inputJson.title,
+      content: inputJson.content,
+      videoUrl: inputJson.videoUrl,
+      coverImageUrl: inputJson.coverImageUrl,
+      hashtags: inputJson.hashtags,
+      accountId: inputJson.accountId,
+      accountName: inputJson.accountName,
+      accountLink: inputJson.accountLink,
+      workId: inputJson.workId,
+      workKind: inputJson.workKind,
+      sourceLabel: inputJson.sourceLabel,
+      createdAt: inputJson.createdAt,
+      expiresAt: inputJson.expiresAt,
+      creatorUrl: "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web",
+      launchStrategy: "BROWSER_EXTENSION_AUTOFILL",
+      completedAt: outputJson?.completedAt,
+      note: outputJson?.note,
+      accessHint: "请先在当前浏览器安装 AI 全域运营抖音发布扩展，并确认浏览器已登录抖音创作者中心。",
+    };
+  }
+
   private readMobileDraftTaskInput(value: unknown): MobileDraftTaskInput {
     const record = asRecord(value);
     if (!record || record.channel !== "MOBILE_QR" || record.platform !== "XIAOHONGSHU") {
@@ -709,6 +830,41 @@ export class PublishingService {
       channel: "MOBILE_QR",
       platform: "DOUYIN",
       mode: "PUBLISH_VIDEO",
+      workId: String(record.workId ?? "").trim(),
+      workKind:
+        record.workKind === "DIGITAL_HUMAN"
+          ? "DIGITAL_HUMAN"
+          : record.workKind === "VIDEO_DIRECT"
+            ? "VIDEO_DIRECT"
+            : "VIDEO_STORYBOARD",
+      accountId: readOptionalString(record.accountId),
+      accountName: readOptionalString(record.accountName),
+      accountLink: readOptionalString(record.accountLink),
+      title: String(record.title ?? "").trim(),
+      content: String(record.content ?? "").trim(),
+      videoUrl,
+      coverImageUrl: readOptionalString(record.coverImageUrl),
+      hashtags: normalizeStringArray(record.hashtags, [], 12),
+      sourceLabel: String(record.sourceLabel ?? "").trim(),
+      createdAt: readOptionalString(record.createdAt) || new Date().toISOString(),
+      expiresAt: readOptionalString(record.expiresAt) || new Date(Date.now() + DRAFT_SESSION_EXPIRE_MS).toISOString(),
+    };
+  }
+
+  private readDouyinDesktopPublishTaskInput(value: unknown): DouyinDesktopPublishTaskInput {
+    const record = asRecord(value);
+    if (!record || record.channel !== "BROWSER_EXTENSION" || record.platform !== "DOUYIN") {
+      throw new BadRequestException("发布任务数据无效");
+    }
+    const videoUrl = String(record.videoUrl ?? "").trim();
+    if (!videoUrl) {
+      throw new BadRequestException("当前抖音发布任务缺少视频地址");
+    }
+    return {
+      sessionToken: String(record.sessionToken ?? "").trim(),
+      channel: "BROWSER_EXTENSION",
+      platform: "DOUYIN",
+      mode: "PREPARE_PUBLISH",
       workId: String(record.workId ?? "").trim(),
       workKind:
         record.workKind === "DIGITAL_HUMAN"
@@ -944,6 +1100,9 @@ function buildAccessHint(baseUrl: string) {
 function buildDraftFailureMessage(taskType: string) {
   if (taskType === DESKTOP_DRAFT_TASK_TYPE) {
     return "电脑端一键发布到草稿箱失败";
+  }
+  if (taskType === DOUYIN_DESKTOP_PUBLISH_TASK_TYPE) {
+    return "电脑端辅助发布抖音失败";
   }
   if (taskType === DOUYIN_MOBILE_PUBLISH_TASK_TYPE) {
     return "手机接力发布抖音失败";

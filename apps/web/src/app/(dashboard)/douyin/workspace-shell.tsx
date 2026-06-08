@@ -893,14 +893,12 @@ export function DouyinWorkspaceShell() {
     publishingTarget,
     publishingAccountValue,
     setPublishingAccountValue,
-    isCreatingMobilePublishSession,
-    activeMobilePublishSession,
-    mobilePublishQrDataUrl,
-    isCompletingMobilePublishSession,
+    isDesktopExtensionReady,
+    isCreatingDesktopPublishSession,
+    activeDesktopPublishSession,
     openPublishModal: handleOpenPublishModal,
     closePublishModal: handleClosePublishModal,
-    createMobilePublishSession: handleCreateMobilePublishSession,
-    completeMobilePublishSession: handleCompleteMobilePublishSession,
+    createDesktopPublishSession: handleCreateDesktopPublishSession,
   } = useDouyinPublishFlow({
     brandId: activeBrandId,
     defaultAccountId: defaultDouyinAccountId,
@@ -2640,16 +2638,14 @@ export function DouyinWorkspaceShell() {
         publishTarget={publishingTarget}
         platformAccounts={brandArchive.platformAccounts}
         publishingAccountValue={publishingAccountValue}
-        isCreatingMobilePublishSession={isCreatingMobilePublishSession}
-        activeMobilePublishSession={activeMobilePublishSession}
-        mobilePublishQrDataUrl={mobilePublishQrDataUrl}
-        isCompletingMobilePublishSession={isCompletingMobilePublishSession}
+        isDesktopExtensionReady={isDesktopExtensionReady}
+        isCreatingDesktopPublishSession={isCreatingDesktopPublishSession}
+        activeDesktopPublishSession={activeDesktopPublishSession}
         notice={notice}
         errorMessage={errorMessage}
         onClose={handleClosePublishModal}
         onAccountChange={setPublishingAccountValue}
-        onCreateMobileSession={handleCreateMobilePublishSession}
-        onCompleteMobileSession={handleCompleteMobilePublishSession}
+        onCreateDesktopSession={handleCreateDesktopPublishSession}
         formatDateTime={formatDateTime}
       />
     </main>

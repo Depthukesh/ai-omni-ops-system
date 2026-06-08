@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "AI全域运营 - 抖音辅助发布扩展",
+  "version": "0.1.0",
+  "description": "接收 AI全域运营工作台里的抖音发布指令，自动上传视频并填写抖音创作者中心发布表单。",
+  "permissions": ["tabs", "storage", "scripting"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://17ai.site/*",
+    "https://www.17ai.site/*",
+    "https://creator.douyin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://17ai.site/*",
+        "https://www.17ai.site/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://creator.douyin.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AI全域运营抖音辅助发布扩展"
+  }
+}

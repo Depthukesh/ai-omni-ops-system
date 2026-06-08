@@ -1,24 +1,24 @@
 "use client";
 
-import { type DouyinMobilePublishSession } from "../../../services/publishing";
-import { ManagedImage } from "../xiaohongshu/managed-image";
+import { type DouyinDesktopPublishSession } from "../../../services/publishing";
 import { type OptionalDateFormatter, type PlatformAccount } from "../xiaohongshu/shared-types";
 import { type DouyinPublishableWorkTarget } from "./publish-types";
+
+const EXTENSION_DOWNLOAD_URL = "/extensions/douyin-publisher.zip";
+const EXTENSION_GUIDE_URL = "/help/douyin-publisher";
 
 export interface DouyinPublishModalProps {
   publishTarget: DouyinPublishableWorkTarget | null;
   platformAccounts: PlatformAccount[];
   publishingAccountValue: string;
-  isCreatingMobilePublishSession: boolean;
-  activeMobilePublishSession: DouyinMobilePublishSession | null;
-  mobilePublishQrDataUrl: string;
-  isCompletingMobilePublishSession: boolean;
+  isDesktopExtensionReady: boolean;
+  isCreatingDesktopPublishSession: boolean;
+  activeDesktopPublishSession: DouyinDesktopPublishSession | null;
   notice: string;
   errorMessage: string;
   onClose: () => void;
   onAccountChange: (value: string) => void;
-  onCreateMobileSession: () => void | Promise<void>;
-  onCompleteMobileSession: () => void | Promise<void>;
+  onCreateDesktopSession: () => void | Promise<void>;
   formatDateTime: OptionalDateFormatter;
 }
 
@@ -46,7 +46,10 @@ export function DouyinPublishModal(props: DouyinPublishModalProps) {
             </div>
             <div className="report-editor-actions">
               <span className="archive-pill status-ready">抖音</span>
-              <span className="archive-pill status-pending">手机接力</span>
+              <span className="archive-pill status-pending">电脑端辅助发布</span>
+              <span className={`archive-pill ${props.isDesktopExtensionReady ? "status-ready" : "status-in_progress"}`}>
+                {props.isDesktopExtensionReady ? "电脑端扩展已连接" : "等待电脑端扩展"}
+              </span>
             </div>
           </div>
 
@@ -74,54 +77,51 @@ export function DouyinPublishModal(props: DouyinPublishModalProps) {
               <button
                 type="button"
                 className="primary-button"
-                onClick={() => void props.onCreateMobileSession()}
-                disabled={props.isCreatingMobilePublishSession}
+                onClick={() => void props.onCreateDesktopSession()}
+                disabled={props.isCreatingDesktopPublishSession}
               >
-                {props.isCreatingMobilePublishSession ? "生成中..." : "生成手机扫码接力码"}
+                {props.isCreatingDesktopPublishSession ? "准备中..." : "电脑端辅助发布到抖音"}
               </button>
               <div className="publish-dialog-hint">
-                手机扫码后会打开抖音接力页，自动准备标题正文、视频素材和打开 App 的入口，适合当前先做的接力发布链路。
+                电脑端辅助发布会调用本地浏览器扩展，自动打开抖音创作者中心上传页，上传视频并填写标题、描述与话题。最后一步发布由你人工确认。
               </div>
+              <div className="publish-dialog-link-row">
+                <a className="secondary-button" href={EXTENSION_DOWNLOAD_URL} download>
+                  下载扩展插件
+                </a>
+                <a className="secondary-button" href={EXTENSION_GUIDE_URL} target="_blank" rel="noreferrer">
+                  查看安装教程
+                </a>
+              </div>
+              {!props.isDesktopExtensionReady ? (
+                <div className="publish-dialog-hint">
+                  若当前仍提示未检测到扩展，请先确认两件事：一是已在 Chrome/Edge 的开发者模式里加载扩展；二是扩展详情里的“站点访问权限”已同时放开当前工作台域名和
+                  `creator.douyin.com`。
+                </div>
+              ) : null}
               {!douyinAccounts.length ? (
                 <div className="publish-dialog-hint">
-                  当前品牌还没有配置抖音账号，本次仍可先生成接力页；后续建议去品牌资料里补齐账号，便于多账号发布时选择目标账号。
+                  当前品牌还没有配置抖音账号，本次仍可先打开创作者中心辅助发布；后续建议去品牌资料里补齐账号，便于多账号发布时选择目标账号。
                 </div>
               ) : null}
             </div>
 
-            {props.activeMobilePublishSession ? (
+            {props.activeDesktopPublishSession ? (
               <div className="publish-qr-panel">
-                <div className="publish-qr-code">
-                  {props.mobilePublishQrDataUrl ? (
-                    <ManagedImage src={props.mobilePublishQrDataUrl} alt="抖音手机扫码接力二维码" loadingMode="eager" />
-                  ) : (
-                    <div className="publish-qr-placeholder">二维码生成中</div>
-                  )}
-                </div>
-                <div className="publish-qr-copy">
-                  <strong>手机扫码接力发布抖音</strong>
+                <div className="publish-qr-copy publish-qr-copy--single">
+                  <strong>电脑端自动准备发布中</strong>
                   <p>
-                    用手机扫码后，会打开接力页，里面已准备好标题、正文和最终视频。你只需要在抖音 App 中补充话题或定位后完成发布。
+                    扩展会自动打开抖音创作者中心上传页，上传最终视频并填写标题、描述和话题。你只需要检查内容、补充定位等设置，然后手动点击发布。
                   </p>
-                  <p className="publish-qr-meta">会话有效期至：{props.formatDateTime(props.activeMobilePublishSession.expiresAt)}</p>
-                  {props.activeMobilePublishSession.accessHint ? (
-                    <p className="publish-qr-meta publish-qr-meta--warn">{props.activeMobilePublishSession.accessHint}</p>
+                  <p className="publish-qr-meta">会话有效期至：{props.formatDateTime(props.activeDesktopPublishSession.expiresAt)}</p>
+                  {props.activeDesktopPublishSession.accessHint ? (
+                    <p className="publish-qr-meta publish-qr-meta--warn">{props.activeDesktopPublishSession.accessHint}</p>
                   ) : null}
                   {props.notice ? <p className="publish-qr-meta">{props.notice}</p> : null}
                   {props.errorMessage ? <p className="publish-qr-meta publish-qr-meta--warn">{props.errorMessage}</p> : null}
-                  <a className="xhs-material-detail-button" href={props.activeMobilePublishSession.mobileUrl} target="_blank" rel="noreferrer">
-                    打开手机接力页
+                  <a className="xhs-material-detail-button" href={props.activeDesktopPublishSession.creatorUrl} target="_blank" rel="noreferrer">
+                    手动打开抖音创作者页
                   </a>
-                  <div className="strategy-inline-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void props.onCompleteMobileSession()}
-                      disabled={props.isCompletingMobilePublishSession}
-                    >
-                      {props.isCompletingMobilePublishSession ? "更新中..." : "我已在手机完成发布"}
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : null}

@@ -88,6 +88,33 @@ export type DouyinMobilePublishSession = {
   accessHint?: string;
 };
 
+export type DouyinDesktopPublishSession = {
+  taskId: string;
+  token: string;
+  platform: "DOUYIN";
+  mode: "PREPARE_PUBLISH";
+  channel: "BROWSER_EXTENSION";
+  status: "QUEUED" | "SUCCESS" | "FAILED";
+  title: string;
+  content: string;
+  videoUrl: string;
+  coverImageUrl?: string;
+  hashtags: string[];
+  accountId?: string;
+  accountName?: string;
+  accountLink?: string;
+  workId: string;
+  workKind: "VIDEO_STORYBOARD" | "VIDEO_DIRECT" | "DIGITAL_HUMAN";
+  sourceLabel: string;
+  createdAt: string;
+  expiresAt: string;
+  creatorUrl: string;
+  launchStrategy: "BROWSER_EXTENSION_AUTOFILL";
+  completedAt?: string;
+  note?: string;
+  accessHint?: string;
+};
+
 export type WechatOfficialArticlePublishResult = {
   task: { id: string; taskStatus: string; taskTitle: string };
   item: WechatArticleDraftRecord;
@@ -169,12 +196,39 @@ export async function getDouyinMobilePublishSession(token: string) {
   return request<{ session: DouyinMobilePublishSession }>(`/publishing/douyin/mobile-sessions/${token}`);
 }
 
+export async function createDouyinDesktopPublishSession(
+  brandId: string,
+  workId: string,
+  payload: { accountId?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinDesktopPublishSession }>(
+    `/publishing/brands/${brandId}/douyin/works/${workId}/desktop-publish-session`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getDouyinDesktopPublishSession(token: string) {
+  return request<{ session: DouyinDesktopPublishSession }>(`/publishing/douyin/desktop-sessions/${token}`);
+}
+
 export async function completeDouyinMobilePublishSession(
   token: string,
   payload: { result?: "SUCCESS" | "FAILED"; note?: string } = {},
 ) {
   return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinMobilePublishSession }>(
     `/publishing/douyin/mobile-sessions/${token}/complete`,
+    "POST",
+    payload,
+  );
+}
+
+export async function completeDouyinDesktopPublishSession(
+  token: string,
+  payload: { result?: "SUCCESS" | "FAILED"; note?: string } = {},
+) {
+  return jsonRequest<{ task: { id: string; taskStatus: string; taskTitle: string }; session: DouyinDesktopPublishSession }>(
+    `/publishing/douyin/desktop-sessions/${token}/complete`,
     "POST",
     payload,
   );

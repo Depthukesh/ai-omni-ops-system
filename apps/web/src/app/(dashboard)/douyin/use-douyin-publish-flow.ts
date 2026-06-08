@@ -1,12 +1,16 @@
 "use client";
 
-import QRCode from "qrcode";
 import { useEffect, useState } from "react";
+import {
+  buildDesktopCreatorLaunchUrl,
+  notifyExtensionStartDraft,
+  probeDesktopPublisher,
+  startDesktopPublisherBridge,
+} from "./desktop-publish-bridge";
 import { type PlatformAccount } from "../xiaohongshu/shared-types";
 import {
-  completeDouyinMobilePublishSession,
-  createDouyinMobilePublishSession,
-  type DouyinMobilePublishSession,
+  createDouyinDesktopPublishSession,
+  type DouyinDesktopPublishSession,
 } from "../../../services/publishing";
 import { type DouyinPublishableWorkTarget } from "./publish-types";
 
@@ -20,10 +24,9 @@ export function useDouyinPublishFlow(options: {
 }) {
   const [publishingTarget, setPublishingTarget] = useState<DouyinPublishableWorkTarget | null>(null);
   const [publishingAccountValue, setPublishingAccountValue] = useState(options.defaultAccountId || "");
-  const [isCreatingMobilePublishSession, setIsCreatingMobilePublishSession] = useState(false);
-  const [activeMobilePublishSession, setActiveMobilePublishSession] = useState<DouyinMobilePublishSession | null>(null);
-  const [mobilePublishQrDataUrl, setMobilePublishQrDataUrl] = useState("");
-  const [isCompletingMobilePublishSession, setIsCompletingMobilePublishSession] = useState(false);
+  const [isDesktopExtensionReady, setIsDesktopExtensionReady] = useState(false);
+  const [isCreatingDesktopPublishSession, setIsCreatingDesktopPublishSession] = useState(false);
+  const [activeDesktopPublishSession, setActiveDesktopPublishSession] = useState<DouyinDesktopPublishSession | null>(null);
 
   useEffect(() => {
     if (!publishingAccountValue && options.defaultAccountId) {
@@ -32,96 +35,129 @@ export function useDouyinPublishFlow(options: {
   }, [options.defaultAccountId, publishingAccountValue]);
 
   useEffect(() => {
-    if (!activeMobilePublishSession?.mobileUrl) {
-      setMobilePublishQrDataUrl("");
+    return startDesktopPublisherBridge({
+      onReady: () => {
+        setIsDesktopExtensionReady(true);
+      },
+      onDraftStarted: () => {
+        options.setNotice("抖音电脑端发布扩展已接管本次任务，正在打开创作者中心并自动上传视频。");
+        options.setErrorMessage("");
+      },
+      onDraftProgress: (note?: string) => {
+        const detail = typeof note === "string" && note.trim() ? note.trim() : "抖音电脑端发布扩展正在执行。";
+        options.setNotice(detail);
+        options.setErrorMessage("");
+      },
+      onDraftSuccess: () => {
+        options.setNotice("抖音电脑端辅助发布已准备完成，视频、标题和描述已自动写入创作者中心，请人工确认后点击发布。");
+        options.setErrorMessage("");
+        void options.onRefreshWorkspace();
+      },
+      onDraftFailed: (note?: string) => {
+        const detail = typeof note === "string" && note.trim() ? note.trim() : "请检查扩展日志和抖音创作者中心登录状态。";
+        options.setErrorMessage(`抖音电脑端辅助发布失败：${detail}`);
+        void options.onRefreshWorkspace();
+      },
+    });
+  }, [options]);
+
+  useEffect(() => {
+    if (!publishingTarget || isDesktopExtensionReady) {
       return;
     }
-
     let cancelled = false;
-    void QRCode.toDataURL(activeMobilePublishSession.mobileUrl, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 220,
-    })
-      .then((value: string) => {
-        if (!cancelled) {
-          setMobilePublishQrDataUrl(value);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMobilePublishQrDataUrl("");
-        }
+    const probe = async () => {
+      const installed = await probeDesktopPublisher({
+        timeoutMs: 2400,
+        onReady: () => {
+          if (!cancelled) {
+            setIsDesktopExtensionReady(true);
+          }
+        },
+        onMissing: () => {
+          if (!cancelled) {
+            setIsDesktopExtensionReady(false);
+          }
+        },
       });
-
+      if (!cancelled && installed) {
+        setIsDesktopExtensionReady(true);
+      }
+    };
+    void probe();
+    const timer = window.setInterval(() => {
+      void probe();
+    }, 3000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [activeMobilePublishSession?.mobileUrl]);
+  }, [isDesktopExtensionReady, publishingTarget]);
 
   function openPublishModal(target: DouyinPublishableWorkTarget) {
     setPublishingTarget(target);
     setPublishingAccountValue(options.defaultAccountId || options.platformAccounts.find((item) => item.platform === "DOUYIN")?.id || "");
-    setActiveMobilePublishSession(null);
-    setMobilePublishQrDataUrl("");
+    setActiveDesktopPublishSession(null);
     options.setNotice("");
     options.setErrorMessage("");
+    void probeDesktopPublisher({
+      timeoutMs: 2400,
+      onReady: () => setIsDesktopExtensionReady(true),
+      onMissing: () => setIsDesktopExtensionReady(false),
+    });
   }
 
   function closePublishModal() {
     setPublishingTarget(null);
-    setActiveMobilePublishSession(null);
-    setMobilePublishQrDataUrl("");
-    setIsCreatingMobilePublishSession(false);
-    setIsCompletingMobilePublishSession(false);
+    setActiveDesktopPublishSession(null);
+    setIsCreatingDesktopPublishSession(false);
   }
 
-  async function createMobilePublishSession() {
+  async function createDesktopPublishSession() {
     if (!publishingTarget) {
       return;
     }
 
-    setIsCreatingMobilePublishSession(true);
+    const creatorPopup = typeof window !== "undefined" ? window.open("", "_blank", "noopener") : null;
+    setIsCreatingDesktopPublishSession(true);
     options.setNotice("");
     options.setErrorMessage("");
 
     try {
-      const result = await createDouyinMobilePublishSession(options.brandId, publishingTarget.id, {
+      const result = await createDouyinDesktopPublishSession(options.brandId, publishingTarget.id, {
         accountId: publishingAccountValue || undefined,
       });
-      setActiveMobilePublishSession(result.session);
-      options.setNotice(`抖音作品「${publishingTarget.title}」的手机接力二维码已生成。`);
-      await options.onRefreshWorkspace();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "生成抖音手机接力二维码失败";
-      options.setErrorMessage(`生成失败：${message}`);
-    } finally {
-      setIsCreatingMobilePublishSession(false);
-    }
-  }
+      setActiveDesktopPublishSession(result.session);
 
-  async function completeMobilePublishSession() {
-    if (!activeMobilePublishSession?.token) {
-      return;
-    }
-
-    setIsCompletingMobilePublishSession(true);
-    options.setNotice("");
-    options.setErrorMessage("");
-
-    try {
-      const result = await completeDouyinMobilePublishSession(activeMobilePublishSession.token, {
-        result: "SUCCESS",
-        note: "已在手机端完成抖音接力发布",
+      const installed = await probeDesktopPublisher({
+        timeoutMs: 2400,
+        onReady: () => setIsDesktopExtensionReady(true),
+        onMissing: () => setIsDesktopExtensionReady(false),
       });
-      setActiveMobilePublishSession(result.session);
-      options.setNotice("已将本次抖音手机接力发布标记为完成。");
+      if (installed) {
+        if (creatorPopup && !creatorPopup.closed) {
+          creatorPopup.close();
+        }
+        options.setNotice(`抖音作品「${publishingTarget.title}」的电脑端辅助发布任务已创建，正在自动上传视频并填写发布信息。`);
+        notifyExtensionStartDraft(result.session);
+      } else {
+        const creatorLaunchUrl = buildDesktopCreatorLaunchUrl(result.session);
+        if (creatorPopup && !creatorPopup.closed) {
+          creatorPopup.location.href = creatorLaunchUrl;
+        } else if (typeof window !== "undefined") {
+          window.open(creatorLaunchUrl, "_blank", "noopener");
+        }
+        options.setNotice("已打开抖音创作者中心上传页。若扩展已正确安装，页面会自动接管并填写视频与描述；若未自动执行，请先刷新扩展后重试。");
+      }
       await options.onRefreshWorkspace();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "更新抖音发布状态失败";
-      options.setErrorMessage(`更新失败：${message}`);
+      if (creatorPopup && !creatorPopup.closed) {
+        creatorPopup.close();
+      }
+      const message = error instanceof Error ? error.message : "抖音电脑端辅助发布失败";
+      options.setErrorMessage(`发布失败：${message}`);
     } finally {
-      setIsCompletingMobilePublishSession(false);
+      setIsCreatingDesktopPublishSession(false);
     }
   }
 
@@ -129,13 +165,11 @@ export function useDouyinPublishFlow(options: {
     publishingTarget,
     publishingAccountValue,
     setPublishingAccountValue,
-    isCreatingMobilePublishSession,
-    activeMobilePublishSession,
-    mobilePublishQrDataUrl,
-    isCompletingMobilePublishSession,
+    isDesktopExtensionReady,
+    isCreatingDesktopPublishSession,
+    activeDesktopPublishSession,
     openPublishModal,
     closePublishModal,
-    createMobilePublishSession,
-    completeMobilePublishSession,
+    createDesktopPublishSession,
   };
 }
