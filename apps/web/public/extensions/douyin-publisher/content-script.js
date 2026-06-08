@@ -4,6 +4,32 @@ const PENDING_PUBLISH_KEY = "aiOmniPendingDouyinPublish";
 const CREATOR_BADGE_ID = "ai-omni-douyin-extension-badge";
 const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 let isRunningPendingPublish = false;
+const DEBUG_SESSION_ID = "unified-publisher-bug";
+
+function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
+  const debugUrl = resolveDebugUrl(apiBaseUrl);
+  if (!debugUrl) {
+    return;
+  }
+  fetch(debugUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: DEBUG_SESSION_ID,
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      msg,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+
+function resolveDebugUrl(apiBaseUrl) {
+  const base = String(apiBaseUrl || "").trim().replace(/\/$/, "");
+  return base ? `${base}/debug/browser-event` : "";
+}
 
 if (location.hostname === "creator.douyin.com") {
   setupCreatorBridge();
@@ -144,6 +170,16 @@ async function runCreatorPublish(payload) {
   }
 
   try {
+    // #region debug-point D:run-publish-start
+    reportDebug(apiBaseUrl, "D", "douyin-publisher/content-script.js:runCreatorPublish", "[DEBUG] runCreatorPublish start", {
+      hasToken: Boolean(session?.token),
+      hasVideoFile: Boolean(videoFile),
+      videoFileName: videoFile?.fileName || null,
+      videoFileBytes: Array.isArray(videoFile?.buffer) ? videoFile.buffer.length : null,
+      hasTitle: Boolean(session?.title),
+      hasContent: Boolean(session?.content),
+    });
+    // #endregion
     updateCreatorBadge("正在查找视频上传控件");
     await notifyProgress(appTabId, session.token, "已接管创作者页，正在准备上传视频。");
     await uploadVideo(videoFile, session.title || "douyin-video");
@@ -380,11 +416,30 @@ async function queryPendingPublishFromBackground() {
 async function resolveAndRunPublish(payload) {
   try {
     updateCreatorBadge("正在向扩展后台获取完整发布素材");
+    // #region debug-point D:resolve-start
+    reportDebug(payload?.apiBaseUrl, "D", "douyin-publisher/content-script.js:resolveAndRunPublish", "[DEBUG] resolveAndRunPublish request background payload", {
+      hasPayload: Boolean(payload),
+      hasSession: Boolean(payload?.session),
+      hasSessionToken: Boolean(payload?.session?.token),
+      sessionToken: payload?.session?.token || null,
+      apiBaseUrl: payload?.apiBaseUrl || null,
+      appTabId: typeof payload?.appTabId === "number" ? payload.appTabId : null,
+    });
+    // #endregion
     const response = await chrome.runtime.sendMessage({
       source: EXTENSION_SOURCE,
       type: "AI_OMNI_DOUYIN_RESOLVE_PUBLISH_PAYLOAD",
       payload,
     });
+    // #region debug-point D:resolve-response
+    reportDebug(payload?.apiBaseUrl, "D", "douyin-publisher/content-script.js:resolveAndRunPublish", "[DEBUG] resolveAndRunPublish got background response", {
+      hasError: Boolean(response?.error),
+      error: response?.error || null,
+      hasPublishPayload: Boolean(response?.publishPayload),
+      hasPayloadSession: Boolean(response?.publishPayload?.session),
+      hasPayloadVideoFile: Boolean(response?.publishPayload?.videoFile),
+    });
+    // #endregion
     if (response?.error) {
       throw new Error(String(response.error));
     }
@@ -404,6 +459,14 @@ async function resolvePublishFromLocation() {
     const sessionToken = hash.get("ai_omni_token") || "";
     const apiBaseUrl = hash.get("ai_omni_api") || "";
     const appTabIdRaw = hash.get("ai_omni_app_tab_id") || "";
+    // #region debug-point A:resolve-location
+    reportDebug(apiBaseUrl, "A", "douyin-publisher/content-script.js:resolvePublishFromLocation", "[DEBUG] resolvePublishFromLocation parsed creator hash", {
+      sessionToken,
+      apiBaseUrl,
+      appTabIdRaw,
+      hash: String(location.hash || ""),
+    });
+    // #endregion
     if (!sessionToken || !apiBaseUrl) {
       return;
     }

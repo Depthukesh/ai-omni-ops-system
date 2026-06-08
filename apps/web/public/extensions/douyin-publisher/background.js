@@ -1,6 +1,32 @@
 const EXTENSION_SOURCE = "ai-omni-douyin-extension";
 const CREATOR_URL = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web";
 const PENDING_PUBLISH_KEY = "aiOmniPendingDouyinPublish";
+const DEBUG_SESSION_ID = "unified-publisher-bug";
+
+function reportDebug(apiBaseUrl, hypothesisId, location, msg, data) {
+  const debugUrl = resolveDebugUrl(apiBaseUrl);
+  if (!debugUrl) {
+    return;
+  }
+  fetch(debugUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: DEBUG_SESSION_ID,
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      msg,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+
+function resolveDebugUrl(apiBaseUrl) {
+  const base = String(apiBaseUrl || "").trim().replace(/\/$/, "");
+  return base ? `${base}/debug/browser-event` : "";
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.source !== EXTENSION_SOURCE) {
@@ -64,6 +90,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleStartPublish(payload, appTabId) {
   const session = payload?.session;
   const apiBaseUrl = String(payload?.apiBaseUrl || "").trim();
+  // #region debug-point B:start-publish
+  reportDebug(apiBaseUrl, "B", "douyin-publisher/background.js:handleStartPublish", "[DEBUG] handleStartPublish received publish session", {
+    hasApiBaseUrl: Boolean(apiBaseUrl),
+    hasSession: Boolean(session),
+    hasToken: Boolean(session?.token),
+    hasVideoUrl: Boolean(session?.videoUrl),
+    appTabId: typeof appTabId === "number" ? appTabId : null,
+    creatorUrl: session?.creatorUrl || null,
+  });
+  // #endregion
   if (!session?.token || !apiBaseUrl) {
     throw new Error("发布会话数据不完整。");
   }
@@ -127,11 +163,27 @@ async function buildPublishPayload(payload) {
   const session = payload?.session;
   const apiBaseUrl = String(payload?.apiBaseUrl || "").trim();
   const appTabId = typeof payload?.appTabId === "number" ? payload.appTabId : undefined;
+  // #region debug-point B:build-payload
+  reportDebug(apiBaseUrl, "B", "douyin-publisher/background.js:buildPublishPayload", "[DEBUG] buildPublishPayload start", {
+    hasApiBaseUrl: Boolean(apiBaseUrl),
+    hasSession: Boolean(session),
+    hasToken: Boolean(session?.token),
+    videoUrl: session?.videoUrl || null,
+    appTabId: typeof appTabId === "number" ? appTabId : null,
+  });
+  // #endregion
   if (!session?.token || !apiBaseUrl) {
     throw new Error("发布任务描述不完整。");
   }
 
   const videoFile = await downloadFileAsTransferable(session.videoUrl, "douyin-video.mp4", "video/mp4");
+  // #region debug-point C:build-payload-done
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:buildPublishPayload", "[DEBUG] buildPublishPayload resolved video file", {
+    fileName: videoFile?.fileName || null,
+    mimeType: videoFile?.mimeType || null,
+    byteLength: Array.isArray(videoFile?.buffer) ? videoFile.buffer.length : null,
+  });
+  // #endregion
   return {
     apiBaseUrl,
     appTabId,
@@ -144,11 +196,24 @@ async function resolvePublishPayloadByToken(payload) {
   const apiBaseUrl = String(payload?.apiBaseUrl || "").trim().replace(/\/$/, "");
   const sessionToken = String(payload?.sessionToken || "").trim();
   const appTabId = typeof payload?.appTabId === "number" ? payload.appTabId : undefined;
+  // #region debug-point B:resolve-by-token
+  reportDebug(apiBaseUrl, "B", "douyin-publisher/background.js:resolvePublishPayloadByToken", "[DEBUG] resolvePublishPayloadByToken start", {
+    apiBaseUrl,
+    hasSessionToken: Boolean(sessionToken),
+    appTabId: typeof appTabId === "number" ? appTabId : null,
+  });
+  // #endregion
   if (!apiBaseUrl || !sessionToken) {
     throw new Error("按 token 解析发布任务缺少必要字段。");
   }
 
   const response = await fetch(`${apiBaseUrl}/publishing/douyin/desktop-sessions/${encodeURIComponent(sessionToken)}`);
+  // #region debug-point B:resolve-by-token-response
+  reportDebug(apiBaseUrl, "B", "douyin-publisher/background.js:resolvePublishPayloadByToken", "[DEBUG] resolvePublishPayloadByToken fetched desktop session", {
+    status: response.status,
+    ok: response.ok,
+  });
+  // #endregion
   if (!response.ok) {
     throw new Error(`读取桌面发布会话失败：${response.status}`);
   }
@@ -202,7 +267,22 @@ async function notifyApp(tabId, message) {
 }
 
 async function downloadFileAsTransferable(url, fallbackName, fallbackMimeType) {
+  const apiBaseUrl = extractApiBaseUrlFromAsset(url);
+  // #region debug-point C:download-start
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:downloadFileAsTransferable", "[DEBUG] downloadFileAsTransferable start", {
+    url,
+    fallbackName,
+    fallbackMimeType,
+  });
+  // #endregion
   const response = await fetch(url);
+  // #region debug-point C:download-response
+  reportDebug(apiBaseUrl, "C", "douyin-publisher/background.js:downloadFileAsTransferable", "[DEBUG] downloadFileAsTransferable fetched remote asset", {
+    status: response.status,
+    ok: response.ok,
+    contentType: response.headers.get("content-type"),
+  });
+  // #endregion
   if (!response.ok) {
     throw new Error(`素材下载失败：${response.status}`);
   }
@@ -214,6 +294,15 @@ async function downloadFileAsTransferable(url, fallbackName, fallbackMimeType) {
     fileName: guessFileName(url, fallbackName),
     mimeType: blob.type || fallbackMimeType,
   };
+}
+
+function extractApiBaseUrlFromAsset(url) {
+  try {
+    const parsed = new URL(String(url || ""));
+    return `${parsed.protocol}//${parsed.host}/api`;
+  } catch {
+    return "";
+  }
 }
 
 function guessFileName(url, fallbackName) {
