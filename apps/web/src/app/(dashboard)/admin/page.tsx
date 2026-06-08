@@ -97,7 +97,6 @@ import {
   getXiaohongshuMarketingCalendarWorkspace,
 } from "../../../services/reports";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
-import { SkillPackageOverviewPanel } from "./skill-package-overview-panel";
 import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
@@ -205,7 +204,7 @@ type InstallSkillDraft = {
   promptScene: string;
   bindingRemarks: string;
 };
-type AssetsWorkspaceTab = "overview" | "skillZone";
+type AssetsWorkspaceTab = "skillZone";
 type CreatePromptDraft = {
   name: string;
   scene: string;
@@ -413,7 +412,7 @@ export default function AdminPage() {
   const [newSkill, setNewSkill] = useState<CreateSkillDraft>(buildCreateSkillDraft());
   const [installSkillDraft, setInstallSkillDraft] = useState<InstallSkillDraft>(buildInstallSkillDraft());
   const [newPrompt, setNewPrompt] = useState<CreatePromptDraft>(buildCreatePromptDraft());
-  const [activeAssetsWorkspaceTab, setActiveAssetsWorkspaceTab] = useState<AssetsWorkspaceTab>("overview");
+  const [, setActiveAssetsWorkspaceTab] = useState<AssetsWorkspaceTab>("skillZone");
   const [isCreateSkillModalOpen, setIsCreateSkillModalOpen] = useState(false);
   const [isInstallSkillModalOpen, setIsInstallSkillModalOpen] = useState(false);
   const [providerSearch, setProviderSearch] = useState("");
@@ -3482,58 +3481,14 @@ export default function AdminPage() {
           </div>
         ) : activeTab === "assets" ? (
           <div
+            className="admin-skill-center-layout"
             style={{
               display: "grid",
-              gridTemplateColumns: "220px minmax(0, 1fr)",
+              gridTemplateColumns: "minmax(320px, 360px) minmax(0, 1fr)",
               gap: 16,
               alignItems: "start",
             }}
           >
-            <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished">
-              <div className="admin-skill-card-topline">
-                <span className="admin-skill-card-kicker">菜单</span>
-                <span className="archive-pill status-ready">2 个板块</span>
-              </div>
-              <div style={{ display: "grid", gap: 12 }}>
-                <button
-                  type="button"
-                  className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "overview" ? " active" : ""}`}
-                  onClick={() => setActiveAssetsWorkspaceTab("overview")}
-                >
-                  <span className="admin-skill-primary-mark">摘</span>
-                  <span className="admin-skill-primary-button-copy">
-                    <strong>能力包摘要</strong>
-                    <small>仅查看能力包摘要</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`admin-skill-primary-button${activeAssetsWorkspaceTab === "skillZone" ? " active" : ""}`}
-                  onClick={() => setActiveAssetsWorkspaceTab("skillZone")}
-                >
-                  <span className="admin-skill-primary-mark">技</span>
-                  <span className="admin-skill-primary-button-copy">
-                    <strong>技能专区</strong>
-                    <small>技能目录与技能呈现</small>
-                  </span>
-                </button>
-              </div>
-            </aside>
-
-            {activeAssetsWorkspaceTab === "overview" ? (
-              <div>
-                <SkillPackageOverviewPanel packages={skillPackages} modules={modules} skillPackageSkills={skillPackageSkills} />
-              </div>
-            ) : (
-              <div
-                className="admin-skill-center-layout"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(320px, 360px) minmax(0, 1fr)",
-                  gap: 16,
-                  alignItems: "start",
-                }}
-              >
                 <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
                   <div className="admin-skill-card-topline">
                     <span className="admin-skill-card-kicker">技能专区</span>
@@ -4215,8 +4170,6 @@ export default function AdminPage() {
                     <div className="admin-skill-empty">请先从左侧选择一个三级技能项。</div>
                   )}
                 </section>
-              </div>
-            )}
             {isCreateSkillModalOpen ? (
               <div className="admin-user-modal-overlay" role="presentation" onClick={handleCloseCreateSkillModal}>
                 <div
@@ -5537,9 +5490,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-            </section>
-          )}
         </section>
+      )}
+      </section>
     </main>
   );
 }
