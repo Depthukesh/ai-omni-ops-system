@@ -18,15 +18,18 @@ import {
   createThirdPartyPlatform,
   createKnowledgeBase,
   createKnowledgeBaseFile,
+  createKnowledgeBinding,
   deleteApiProvider,
   deleteThirdPartyPlatform,
   deleteKnowledgeBase,
   deleteKnowledgeBaseFile,
+  deleteKnowledgeBinding,
   completeKnowledgeBaseSyncRun,
   createReferenceAsset,
   createScriptAsset,
   getAdminOrders,
   getApiProviders,
+  getKnowledgeBindings,
   getKnowledgeBases,
   getKnowledgeBaseFiles,
   getKnowledgeBaseSyncRuns,
@@ -44,6 +47,7 @@ import {
   getSkillPackageModules,
   getThirdPartyPlatforms,
   knowledgeBaseFileSeed,
+  knowledgeBindingSeed,
   knowledgeBaseSyncRunSeed,
   knowledgeBaseSeed,
   moduleDefinitionSeed,
@@ -58,6 +62,7 @@ import {
   syncKnowledgeBaseFile,
   updateApiProvider,
   updateKnowledgeBaseFile,
+  updateKnowledgeBinding,
   updateKnowledgeBase,
   updatePromptTemplate,
   updateSkillConfig,
@@ -68,6 +73,7 @@ import {
   type BillingRules,
   type KnowledgeBaseFileMutationResult,
   type KnowledgeBaseFileRecord,
+  type KnowledgeBindingRecord,
   type KnowledgeBaseRecord,
   type KnowledgeBaseSyncMutationResult,
   type KnowledgeBaseRunMutationResult,
@@ -223,6 +229,14 @@ type KnowledgeBaseEditDraft = {
   sourceType: KnowledgeBaseRecord["sourceType"];
   description: string;
 };
+type KnowledgeBindingEditDraft = {
+  targetKey: string;
+  targetName: string;
+  priority: string;
+  retrievalMode: KnowledgeBindingRecord["retrievalMode"];
+  isRequired: boolean;
+  enabled: boolean;
+};
 type ScopedModelOption = {
   value: string;
   label: string;
@@ -290,6 +304,16 @@ type CreateKnowledgeBaseFileDraft = {
   fileType: KnowledgeBaseFileRecord["fileType"];
   sourceName: string;
   chunkCount: string;
+};
+type CreateKnowledgeBindingDraft = {
+  bindingType: KnowledgeBindingRecord["bindingType"];
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  priority: string;
+  retrievalMode: KnowledgeBindingRecord["retrievalMode"];
+  isRequired: boolean;
+  enabled: boolean;
 };
 type SyncRunEditDraft = {
   summary: string;
@@ -388,6 +412,7 @@ export default function AdminPage() {
   const [skillPackageDetailMap, setSkillPackageDetailMap] = useState<Record<string, SkillPackageDetailRecord>>({});
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
+  const [knowledgeBindings, setKnowledgeBindings] = useState<KnowledgeBindingRecord[]>(knowledgeBindingSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
   const [knowledgeBaseSyncRunDrafts, setKnowledgeBaseSyncRunDrafts] = useState<Record<string, SyncRunEditDraft>>(
     buildSyncRunDrafts(knowledgeBaseSyncRunSeed),
@@ -399,11 +424,17 @@ export default function AdminPage() {
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
     buildKnowledgeBaseDrafts(knowledgeBaseSeed),
   );
+  const [knowledgeBindingDrafts, setKnowledgeBindingDrafts] = useState<Record<string, KnowledgeBindingEditDraft>>(
+    buildKnowledgeBindingDrafts(knowledgeBindingSeed),
+  );
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ApiProviderEditDraft>>(buildProviderDrafts(apiProviderSeed));
   const [platformDrafts, setPlatformDrafts] = useState<Record<string, ThirdPartyPlatformEditDraft>>({});
   const [newKnowledgeBase, setNewKnowledgeBase] = useState<CreateKnowledgeBaseDraft>(buildCreateKnowledgeBaseDraft());
   const [newKnowledgeBaseFileDrafts, setNewKnowledgeBaseFileDrafts] = useState<Record<string, CreateKnowledgeBaseFileDraft>>(
     buildKnowledgeBaseFileCreateDrafts(knowledgeBaseSeed),
+  );
+  const [newKnowledgeBindingDrafts, setNewKnowledgeBindingDrafts] = useState<Record<string, CreateKnowledgeBindingDraft>>(
+    buildKnowledgeBindingCreateDrafts(knowledgeBaseSeed),
   );
   const [newProvider, setNewProvider] = useState<CreateApiProviderDraft>(buildCreateApiProviderDraft());
   const [newThirdPartyPlatform, setNewThirdPartyPlatform] = useState<CreateThirdPartyPlatformDraft>(
@@ -428,9 +459,11 @@ export default function AdminPage() {
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
   const [updatingKnowledgeBaseFileId, setUpdatingKnowledgeBaseFileId] = useState("");
+  const [updatingKnowledgeBindingId, setUpdatingKnowledgeBindingId] = useState("");
   const [updatingKnowledgeBaseSyncRunId, setUpdatingKnowledgeBaseSyncRunId] = useState("");
   const [updatingProviderId, setUpdatingProviderId] = useState("");
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
+  const [creatingKnowledgeBindingForBaseId, setCreatingKnowledgeBindingForBaseId] = useState("");
   const [isCreatingSkill, setIsCreatingSkill] = useState(false);
   const [isInstallingSkill, setIsInstallingSkill] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
@@ -524,6 +557,7 @@ export default function AdminPage() {
       skillPackageSkillResult,
       knowledgeBaseResult,
       knowledgeBaseFilesResult,
+      knowledgeBindingsResult,
       knowledgeBaseSyncRunsResult,
       providerResult,
       thirdPartyPlatformResult,
@@ -542,6 +576,7 @@ export default function AdminPage() {
       canReadAssets ? getSkillPackageSkills() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeBindings() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
       canReadProviders ? getApiProviders() : Promise.resolve([]),
       canReadProviders ? getThirdPartyPlatforms() : Promise.resolve([]),
@@ -649,6 +684,15 @@ export default function AdminPage() {
       setKnowledgeBaseFiles(knowledgeBaseFilesResult.value);
     } else {
       setKnowledgeBaseFiles(knowledgeBaseFileSeed);
+      usingSeed = true;
+    }
+
+    if (knowledgeBindingsResult.status === "fulfilled") {
+      setKnowledgeBindings(knowledgeBindingsResult.value);
+      setKnowledgeBindingDrafts(buildKnowledgeBindingDrafts(knowledgeBindingsResult.value));
+    } else {
+      setKnowledgeBindings(knowledgeBindingSeed);
+      setKnowledgeBindingDrafts(buildKnowledgeBindingDrafts(knowledgeBindingSeed));
       usingSeed = true;
     }
 
@@ -1525,7 +1569,7 @@ export default function AdminPage() {
       const result = await syncKnowledgeBaseFile(fileId);
       applyKnowledgeBaseFileMutation(result, "update");
       applyKnowledgeBaseSyncRun(result);
-      setNotice(`知识库文件同步任务已创建：${result.file.fileName}`);
+      setNotice(`知识库文件同步已完成：${result.file.fileName}，当前分片 ${result.file.chunkCount}`);
     } catch (error) {
       if (dataSource === "seed") {
         const file = knowledgeBaseFiles.find((item) => item.id === fileId);
@@ -1576,7 +1620,7 @@ export default function AdminPage() {
     try {
       const result = await startKnowledgeBaseSync(knowledgeBaseId);
       applyKnowledgeBaseRunMutation(result);
-      setNotice(`知识库全量同步任务已创建：${result.knowledgeBase.name}`);
+      setNotice(`知识库全量同步已完成：${result.knowledgeBase.name}，当前累计分片 ${result.knowledgeBase.chunkCount}`);
     } catch (error) {
       if (dataSource === "seed") {
         const knowledgeBase = knowledgeBases.find((item) => item.id === knowledgeBaseId);
@@ -1727,6 +1771,201 @@ export default function AdminPage() {
       ...current,
       [result.run.id]: buildSyncRunDraft(result.run),
     }));
+  }
+
+  function handleKnowledgeBindingDraftChange(bindingId: string, patch: Partial<KnowledgeBindingEditDraft>) {
+    setKnowledgeBindingDrafts((current) => ({
+      ...current,
+      [bindingId]: {
+        ...(current[bindingId] || buildKnowledgeBindingDraft(knowledgeBindingSeed[0])),
+        ...patch,
+      },
+    }));
+  }
+
+  function handleCreateKnowledgeBindingDraftChange(
+    knowledgeBaseId: string,
+    patch: Partial<CreateKnowledgeBindingDraft>,
+  ) {
+    setNewKnowledgeBindingDrafts((current) => ({
+      ...current,
+      [knowledgeBaseId]: {
+        ...(current[knowledgeBaseId] || buildCreateKnowledgeBindingDraft()),
+        ...patch,
+      },
+    }));
+  }
+
+  async function handleCreateKnowledgeBinding(knowledgeBaseId: string) {
+    const draft = newKnowledgeBindingDrafts[knowledgeBaseId] || buildCreateKnowledgeBindingDraft();
+    if (!draft.targetId.trim()) {
+      setErrorMessage("知识绑定目标 ID 不能为空。");
+      return;
+    }
+
+    setCreatingKnowledgeBindingForBaseId(knowledgeBaseId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const created = await createKnowledgeBinding({
+        knowledgeBaseId,
+        bindingType: draft.bindingType,
+        targetId: draft.targetId.trim(),
+        targetKey: draft.targetKey.trim() || undefined,
+        targetName: draft.targetName.trim() || undefined,
+        priority: Math.max(1, Number(draft.priority || 1)),
+        retrievalMode: draft.retrievalMode,
+        isRequired: draft.isRequired,
+        enabled: draft.enabled,
+      });
+      setKnowledgeBindings((current) =>
+        [...current, created].sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority)),
+      );
+      setKnowledgeBindingDrafts((current) => ({
+        ...current,
+        [created.id]: buildKnowledgeBindingDraft(created),
+      }));
+      setNewKnowledgeBindingDrafts((current) => ({
+        ...current,
+        [knowledgeBaseId]: buildCreateKnowledgeBindingDraft(),
+      }));
+      setNotice(`知识绑定已创建：${created.targetName || created.targetId}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const now = new Date().toISOString();
+        const knowledgeBase = knowledgeBases.find((item) => item.id === knowledgeBaseId);
+        const created: KnowledgeBindingRecord = {
+          id: `kbb_local_${Date.now()}`,
+          knowledgeBaseId,
+          knowledgeBaseName: knowledgeBase?.name,
+          knowledgeBaseSlug: knowledgeBase?.slug,
+          bindingType: draft.bindingType,
+          targetId: draft.targetId.trim(),
+          targetKey: draft.targetKey.trim() || undefined,
+          targetName: draft.targetName.trim() || undefined,
+          priority: Math.max(1, Number(draft.priority || 1)),
+          retrievalMode: draft.retrievalMode,
+          isRequired: draft.isRequired,
+          enabled: draft.enabled,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setKnowledgeBindings((current) =>
+          [...current, created].sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority)),
+        );
+        setKnowledgeBindingDrafts((current) => ({
+          ...current,
+          [created.id]: buildKnowledgeBindingDraft(created),
+        }));
+        setNewKnowledgeBindingDrafts((current) => ({
+          ...current,
+          [knowledgeBaseId]: buildCreateKnowledgeBindingDraft(),
+        }));
+        setNotice("知识绑定已创建到本地演示数据。");
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "知识绑定创建失败";
+      setErrorMessage(`知识绑定创建失败：${message}`);
+    } finally {
+      setCreatingKnowledgeBindingForBaseId("");
+    }
+  }
+
+  async function handleSaveKnowledgeBinding(bindingId: string) {
+    const draft = knowledgeBindingDrafts[bindingId];
+    if (!draft) {
+      return;
+    }
+
+    setUpdatingKnowledgeBindingId(bindingId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const updated = await updateKnowledgeBinding(bindingId, {
+        targetKey: draft.targetKey.trim() || undefined,
+        targetName: draft.targetName.trim() || undefined,
+        priority: Math.max(1, Number(draft.priority || 1)),
+        retrievalMode: draft.retrievalMode,
+        isRequired: draft.isRequired,
+        enabled: draft.enabled,
+      });
+      setKnowledgeBindings((current) =>
+        current
+          .map((item) => (item.id === bindingId ? updated : item))
+          .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority)),
+      );
+      setKnowledgeBindingDrafts((current) => ({
+        ...current,
+        [bindingId]: buildKnowledgeBindingDraft(updated),
+      }));
+      setNotice(`知识绑定已更新：${updated.targetName || updated.targetId}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const updatedAt = new Date().toISOString();
+        setKnowledgeBindings((current) =>
+          current
+            .map((item) =>
+              item.id === bindingId
+                ? {
+                    ...item,
+                    targetKey: draft.targetKey.trim() || undefined,
+                    targetName: draft.targetName.trim() || undefined,
+                    priority: Math.max(1, Number(draft.priority || 1)),
+                    retrievalMode: draft.retrievalMode,
+                    isRequired: draft.isRequired,
+                    enabled: draft.enabled,
+                    updatedAt,
+                  }
+                : item,
+            )
+            .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority)),
+        );
+        setNotice("知识绑定已更新到本地演示数据。");
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "知识绑定更新失败";
+      setErrorMessage(`知识绑定更新失败：${message}`);
+    } finally {
+      setUpdatingKnowledgeBindingId("");
+    }
+  }
+
+  async function handleDeleteKnowledgeBinding(bindingId: string) {
+    setUpdatingKnowledgeBindingId(bindingId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const removed = await deleteKnowledgeBinding(bindingId);
+      setKnowledgeBindings((current) => current.filter((item) => item.id !== bindingId));
+      setKnowledgeBindingDrafts((current) => {
+        const next = { ...current };
+        delete next[bindingId];
+        return next;
+      });
+      setNotice(`知识绑定已删除：${removed.targetName || removed.targetId}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const removed = knowledgeBindings.find((item) => item.id === bindingId);
+        setKnowledgeBindings((current) => current.filter((item) => item.id !== bindingId));
+        setKnowledgeBindingDrafts((current) => {
+          const next = { ...current };
+          delete next[bindingId];
+          return next;
+        });
+        setNotice(`知识绑定已从本地演示数据删除：${removed?.targetName || removed?.targetId || bindingId}`);
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "知识绑定删除失败";
+      setErrorMessage(`知识绑定删除失败：${message}`);
+    } finally {
+      setUpdatingKnowledgeBindingId("");
+    }
   }
 
   async function handleSaveProvider(providerId: string) {
@@ -4516,7 +4755,11 @@ export default function AdminPage() {
             {knowledgeBases.map((item) => {
               const draft = knowledgeBaseDrafts[item.id] || buildKnowledgeBaseDraft(item);
               const fileDraft = newKnowledgeBaseFileDrafts[item.id] || buildCreateKnowledgeBaseFileDraft();
+              const bindingCreateDraft = newKnowledgeBindingDrafts[item.id] || buildCreateKnowledgeBindingDraft();
               const files = knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === item.id);
+              const bindings = knowledgeBindings
+                .filter((binding) => binding.knowledgeBaseId === item.id)
+                .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority));
               const syncRuns = knowledgeBaseSyncRuns.filter((run) => run.knowledgeBaseId === item.id);
               const latestSyncRun = syncRuns[0];
               const hasRunningSyncRun = syncRuns.some((run) => run.result === "RUNNING");
@@ -4673,6 +4916,256 @@ export default function AdminPage() {
 
                   <div className="admin-rules-stack">
                     <div className="panel-header">
+                      <h2>绑定关系</h2>
+                      <span>{bindings.length} Bindings</span>
+                    </div>
+                    <div className="personal-meta">把知识库绑定到模块、能力包、提示词或工作流步骤，先完成治理层的长期接入。</div>
+                    <div className="admin-rule-grid">
+                      <label>
+                        <span>绑定类型</span>
+                        <select
+                          value={bindingCreateDraft.bindingType}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              bindingType: event.target.value as KnowledgeBindingRecord["bindingType"],
+                            })
+                          }
+                        >
+                          <option value="MODULE">MODULE</option>
+                          <option value="SKILL_PACKAGE">SKILL_PACKAGE</option>
+                          <option value="PROMPT">PROMPT</option>
+                          <option value="WORKFLOW_STEP">WORKFLOW_STEP</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>目标 ID</span>
+                        <input
+                          value={bindingCreateDraft.targetId}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              targetId: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>目标 Key</span>
+                        <input
+                          value={bindingCreateDraft.targetKey}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              targetKey: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>目标名称</span>
+                        <input
+                          value={bindingCreateDraft.targetName}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              targetName: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>优先级</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={bindingCreateDraft.priority}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              priority: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>检索模式</span>
+                        <select
+                          value={bindingCreateDraft.retrievalMode}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
+                            })
+                          }
+                        >
+                          <option value="SEMANTIC">SEMANTIC</option>
+                          <option value="HYBRID">HYBRID</option>
+                          <option value="MANUAL">MANUAL</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="admin-rule-grid">
+                      <label>
+                        <span>必须命中</span>
+                        <select
+                          value={bindingCreateDraft.isRequired ? "YES" : "NO"}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              isRequired: event.target.value === "YES",
+                            })
+                          }
+                        >
+                          <option value="NO">NO</option>
+                          <option value="YES">YES</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>启用</span>
+                        <select
+                          value={bindingCreateDraft.enabled ? "YES" : "NO"}
+                          onChange={(event) =>
+                            handleCreateKnowledgeBindingDraftChange(item.id, {
+                              enabled: event.target.value === "YES",
+                            })
+                          }
+                        >
+                          <option value="YES">YES</option>
+                          <option value="NO">NO</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="personal-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleCreateKnowledgeBinding(item.id)}
+                        disabled={creatingKnowledgeBindingForBaseId === item.id || !bindingCreateDraft.targetId.trim()}
+                      >
+                        {creatingKnowledgeBindingForBaseId === item.id ? "创建中..." : "新增绑定"}
+                      </button>
+                    </div>
+                    <div className="admin-rules-stack">
+                      {bindings.length ? (
+                        bindings.map((binding) => {
+                          const bindingDraft = knowledgeBindingDrafts[binding.id] || buildKnowledgeBindingDraft(binding);
+                          return (
+                            <article className="entity-card admin-rule-card" key={binding.id}>
+                              <div className="entity-card-head">
+                                <div>
+                                  <strong>{binding.targetName || binding.targetId}</strong>
+                                  <p className="personal-meta">
+                                    {binding.bindingType} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
+                                  </p>
+                                </div>
+                                <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
+                                  {binding.enabled ? "ENABLED" : "DISABLED"}
+                                </span>
+                              </div>
+                              <div className="admin-rule-grid">
+                                <label>
+                                  <span>目标 Key</span>
+                                  <input
+                                    value={bindingDraft.targetKey}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        targetKey: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  <span>目标名称</span>
+                                  <input
+                                    value={bindingDraft.targetName}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        targetName: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  <span>优先级</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={bindingDraft.priority}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        priority: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  <span>检索模式</span>
+                                  <select
+                                    value={bindingDraft.retrievalMode}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
+                                      })
+                                    }
+                                  >
+                                    <option value="SEMANTIC">SEMANTIC</option>
+                                    <option value="HYBRID">HYBRID</option>
+                                    <option value="MANUAL">MANUAL</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>必须命中</span>
+                                  <select
+                                    value={bindingDraft.isRequired ? "YES" : "NO"}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        isRequired: event.target.value === "YES",
+                                      })
+                                    }
+                                  >
+                                    <option value="NO">NO</option>
+                                    <option value="YES">YES</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>启用</span>
+                                  <select
+                                    value={bindingDraft.enabled ? "YES" : "NO"}
+                                    onChange={(event) =>
+                                      handleKnowledgeBindingDraftChange(binding.id, {
+                                        enabled: event.target.value === "YES",
+                                      })
+                                    }
+                                  >
+                                    <option value="YES">YES</option>
+                                    <option value="NO">NO</option>
+                                  </select>
+                                </label>
+                              </div>
+                              <div className="personal-actions">
+                                <span className="personal-meta">更新于 {formatDateTime(binding.updatedAt)}</span>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => void handleSaveKnowledgeBinding(binding.id)}
+                                  disabled={updatingKnowledgeBindingId === binding.id}
+                                >
+                                  {updatingKnowledgeBindingId === binding.id ? "保存中..." : "保存绑定"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-button"
+                                  onClick={() => void handleDeleteKnowledgeBinding(binding.id)}
+                                  disabled={updatingKnowledgeBindingId === binding.id}
+                                >
+                                  删除绑定
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })
+                      ) : (
+                        <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或提示词。</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="admin-rules-stack">
+                    <div className="panel-header">
                       <h2>知识库文件</h2>
                       <span>{files.length} Files</span>
                     </div>
@@ -4804,9 +5297,9 @@ export default function AdminPage() {
                                   type="button"
                                   className="secondary-button"
                                   onClick={() => void handleSyncKnowledgeBaseFile(file.id)}
-                                  disabled={updatingKnowledgeBaseFileId === file.id || file.status === "INDEXED"}
+                                  disabled={updatingKnowledgeBaseFileId === file.id}
                                 >
-                                  {file.status === "FAILED" ? "重试同步" : "触发同步"}
+                                  {file.status === "FAILED" ? "重试同步" : file.status === "INDEXED" ? "重新同步" : "触发同步"}
                                 </button>
                               </label>
                             </div>
@@ -5948,6 +6441,44 @@ function buildCreateKnowledgeBaseDraft(): CreateKnowledgeBaseDraft {
     sourceType: "MANUAL",
     description: "",
   };
+}
+
+function buildKnowledgeBindingDraft(item: KnowledgeBindingRecord): KnowledgeBindingEditDraft {
+  return {
+    targetKey: item.targetKey || "",
+    targetName: item.targetName || "",
+    priority: String(item.priority || 1),
+    retrievalMode: item.retrievalMode,
+    isRequired: item.isRequired,
+    enabled: item.enabled,
+  };
+}
+
+function buildKnowledgeBindingDrafts(list: KnowledgeBindingRecord[]) {
+  return Object.fromEntries(list.map((item) => [item.id, buildKnowledgeBindingDraft(item)])) as Record<
+    string,
+    KnowledgeBindingEditDraft
+  >;
+}
+
+function buildCreateKnowledgeBindingDraft(): CreateKnowledgeBindingDraft {
+  return {
+    bindingType: "MODULE",
+    targetId: "",
+    targetKey: "",
+    targetName: "",
+    priority: "100",
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
+  };
+}
+
+function buildKnowledgeBindingCreateDrafts(list: KnowledgeBaseRecord[]) {
+  return Object.fromEntries(list.map((item) => [item.id, buildCreateKnowledgeBindingDraft()])) as Record<
+    string,
+    CreateKnowledgeBindingDraft
+  >;
 }
 
 function SkillDimensionMetric(props: { label: string; value: string }) {

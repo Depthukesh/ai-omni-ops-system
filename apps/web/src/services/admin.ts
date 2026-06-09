@@ -1383,6 +1383,57 @@ export const knowledgeBaseSyncRunSeed: KnowledgeBaseSyncRunRecord[] = [
   },
 ];
 
+export const knowledgeBindingSeed: KnowledgeBindingRecord[] = [
+  {
+    id: "kbb_brand_docs_module",
+    knowledgeBaseId: "kb_brand_docs",
+    knowledgeBaseName: "品牌资料知识库",
+    knowledgeBaseSlug: "brand-docs",
+    bindingType: "MODULE",
+    targetId: "wechat-workbench",
+    targetKey: "wechat-workbench",
+    targetName: "公众号工作台",
+    priority: 10,
+    retrievalMode: "HYBRID",
+    isRequired: true,
+    enabled: true,
+    createdAt: "2026-05-02T09:40:00.000Z",
+    updatedAt: "2026-05-02T09:40:00.000Z",
+  },
+  {
+    id: "kbb_brand_docs_prompt",
+    knowledgeBaseId: "kb_brand_docs",
+    knowledgeBaseName: "品牌资料知识库",
+    knowledgeBaseSlug: "brand-docs",
+    bindingType: "PROMPT",
+    targetId: "prompt_wechat_article_compose",
+    targetKey: "prompt_wechat_article_compose",
+    targetName: "公众号文章生成提示词",
+    priority: 20,
+    retrievalMode: "SEMANTIC",
+    isRequired: false,
+    enabled: true,
+    createdAt: "2026-05-02T09:45:00.000Z",
+    updatedAt: "2026-05-02T09:45:00.000Z",
+  },
+  {
+    id: "kbb_feishu_ops_workflow",
+    knowledgeBaseId: "kb_feishu_ops",
+    knowledgeBaseName: "飞书运营知识库",
+    knowledgeBaseSlug: "feishu-ops",
+    bindingType: "WORKFLOW_STEP",
+    targetId: "wechat-article-generate-step",
+    targetKey: "wechat-article-generate-step",
+    targetName: "公众号文章生成步骤",
+    priority: 30,
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
+    createdAt: "2026-05-02T10:00:00.000Z",
+    updatedAt: "2026-05-02T10:00:00.000Z",
+  },
+];
+
 export const moduleDefinitionSeed: ModuleDefinitionRecord[] = [
   {
     id: "module_brand_growth_workbench",
@@ -2663,6 +2714,29 @@ export async function completeKnowledgeBaseSyncRun(
   },
 ) {
   return jsonRequest<KnowledgeBaseRunMutationResult>(`/admin/knowledge-bases/sync-runs/${runId}`, "PATCH", payload);
+}
+
+export async function getKnowledgeBindings(query: {
+  knowledgeBaseId?: string;
+  bindingType?: KnowledgeBindingRecord["bindingType"];
+  targetId?: string;
+  enabled?: boolean;
+} = {}) {
+  const searchParams = new URLSearchParams();
+  if (query.knowledgeBaseId?.trim()) {
+    searchParams.set("knowledgeBaseId", query.knowledgeBaseId.trim());
+  }
+  if (query.bindingType) {
+    searchParams.set("bindingType", query.bindingType);
+  }
+  if (query.targetId?.trim()) {
+    searchParams.set("targetId", query.targetId.trim());
+  }
+  if (typeof query.enabled === "boolean") {
+    searchParams.set("enabled", String(query.enabled));
+  }
+  const suffix = searchParams.toString();
+  return request<KnowledgeBindingRecord[]>(suffix ? `/admin/knowledge-bindings?${suffix}` : "/admin/knowledge-bindings");
 }
 
 export async function getKnowledgeBindingsByTarget(

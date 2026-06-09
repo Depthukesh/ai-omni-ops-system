@@ -571,6 +571,34 @@ export class KnowledgeBasesService {
     return knowledgeBase;
   }
 
+  private estimateChunkCount(file: Pick<KnowledgeBaseFileRecord, "fileName" | "fileType" | "sourceName" | "chunkCount">) {
+    if (file.chunkCount > 0) {
+      return file.chunkCount;
+    }
+
+    const basis = `${file.fileName || ""} ${file.sourceName || ""}`.trim();
+    const signalLength = basis.replace(/\s+/g, "").length;
+    const baselineByType: Record<KnowledgeBaseFileRecord["fileType"], number> = {
+      PDF: 24,
+      DOCX: 18,
+      XLSX: 12,
+      MD: 10,
+      LINK: 8,
+    };
+    const lengthBoost = Math.max(1, Math.ceil(signalLength / 8));
+    return baselineByType[file.fileType] + lengthBoost;
+  }
+
+  private buildFileSyncSummary(file: Pick<KnowledgeBaseFileRecord, "fileName" | "fileType">, chunkCount: number) {
+    return `文件 ${file.fileName} 已完成最小解析，按 ${file.fileType} 规则生成 ${chunkCount} 个分片，当前仍为执行骨架，待后续接入真实解析器与向量索引。`;
+  }
+
+  private buildFullSyncSummary(fileCount: number, chunkCount: number) {
+    return fileCount > 0
+      ? `全量同步已完成，共处理 ${fileCount} 个文件，累计生成 ${chunkCount} 个分片，当前为最小 ingestion 骨架。`
+      : "全量同步已完成，但当前知识库暂无可处理文件。";
+  }
+
   private async refreshKnowledgeBaseSummaryInDatabase(knowledgeBaseId: string, updatedAt = new Date().toISOString()) {
     const files = await this.prismaService.knowledgeBaseFile.findMany({
       where: { knowledgeBaseId },
@@ -611,6 +639,32 @@ export class KnowledgeBasesService {
 
     database.knowledgeBaseSyncRuns.unshift(run);
     return run;
+  }
+
+  private completeSyncRunFromMock(runId: string, payload: CompleteKnowledgeBaseSyncRunPayload) {
+    const run = this.getKnowledgeBaseSyncRunOrThrowFromMock(runId);
+    run.result = payload.result;
+    run.summary =
+      payload.summary ||
+      (payload.result === "SUCCESS" ? "同步任务执行成功。" : "同步任务执行失败，请查看失败原因。");
+    run.errorDetail = payload.result === "FAILED" ? payload.errorDetail || "未提供失败原因。" : undefined;
+    run.completedAt = new Date().toISOString();
+    return run;
+  }
+
+  private async completeSyncRunInDatabase(runId: string, payload: CompleteKnowledgeBaseSyncRunPayload) {
+    const run = await this.prismaService.knowledgeBaseSyncRun.update({
+      where: { id: runId },
+      data: {
+        result: payload.result,
+        summary:
+          payload.summary ||
+          (payload.result === "SUCCESS" ? "同步任务执行成功。" : "同步任务执行失败，请查看失败原因。"),
+        errorDetail: payload.result === "FAILED" ? payload.errorDetail || "未提供失败原因。" : null,
+        completedAt: new Date(),
+      },
+    });
+    return this.normalizeKnowledgeBaseSyncRun(run);
   }
 
   private async createSyncRunInDatabase(
@@ -1029,7 +1083,7 @@ export class KnowledgeBasesService {
   async startKnowledgeBaseFileSync(fileId: string): Promise<KnowledgeBaseSyncMutationResult> {
     if (await this.canUseKnowledgeBaseStorage()) {
       await this.ensureKnowledgeBaseStorageSeeded();
-      await this.getKnowledgeBaseFileOrThrow(fileId);
+      const currentFile = await this.getKnowledgeBaseFileOrThrow(fileId);
       const updatedAt = new Date().toISOString();
       const file = await this.prismaService.knowledgeBaseFile.update({
         where: { id: fileId },
@@ -1045,26 +1099,45 @@ export class KnowledgeBasesService {
           updatedAt: new Date(updatedAt),
         },
       });
-      const knowledgeBase = await this.getKnowledgeBaseOrThrow(file.knowledgeBaseId);
       const run = await this.createSyncRunInDatabase(file.knowledgeBaseId, {
         scope: "FILE",
         operator: "后台管理员",
         fileId: file.id,
         fileName: file.fileName,
         result: "RUNNING",
-        summary: "文件同步任务已创建，等待索引完成。",
+        summary: "文件同步任务已创建，正在执行最小解析骨架。",
       });
+      const normalizedCurrentFile = this.normalizeKnowledgeBaseFile(currentFile);
+      const chunkCount = this.estimateChunkCount({
+        fileName: normalizedCurrentFile.fileName,
+        fileType: normalizedCurrentFile.fileType,
+        sourceName: normalizedCurrentFile.sourceName,
+        chunkCount: normalizedCurrentFile.chunkCount,
+      });
+      const completedFile = await this.prismaService.knowledgeBaseFile.update({
+        where: { id: file.id },
+        data: {
+          status: "INDEXED",
+          chunkCount,
+          updatedAt: new Date(),
+        },
+      });
+      const completedRun = await this.completeSyncRunInDatabase(run.id, {
+        result: "SUCCESS",
+        summary: this.buildFileSyncSummary(this.normalizeKnowledgeBaseFile(completedFile), chunkCount),
+      });
+      const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(file.knowledgeBaseId);
 
       return {
-        file: this.normalizeKnowledgeBaseFile(file),
-        knowledgeBase: this.normalizeKnowledgeBase(knowledgeBase),
-        run,
+        file: this.normalizeKnowledgeBaseFile(completedFile),
+        knowledgeBase: refreshedKnowledgeBase,
+        run: completedRun,
       };
     }
 
     const file = this.getKnowledgeBaseFileOrThrowFromMock(fileId);
-    const knowledgeBase = this.getKnowledgeBaseOrThrowFromMock(file.knowledgeBaseId);
     file.status = "PENDING";
+    const knowledgeBase = this.getKnowledgeBaseOrThrowFromMock(file.knowledgeBaseId);
     knowledgeBase.syncStatus = "SYNCING";
     knowledgeBase.updatedAt = new Date().toISOString();
 
@@ -1074,9 +1147,17 @@ export class KnowledgeBasesService {
       fileId: file.id,
       fileName: file.fileName,
       result: "RUNNING",
-      summary: "文件同步任务已创建，等待索引完成。",
+      summary: "文件同步任务已创建，正在执行最小解析骨架。",
     });
-    return { file, knowledgeBase, run };
+    const chunkCount = this.estimateChunkCount(file);
+    file.chunkCount = chunkCount;
+    file.status = "INDEXED";
+    const completedRun = this.completeSyncRunFromMock(run.id, {
+      result: "SUCCESS",
+      summary: this.buildFileSyncSummary(file, chunkCount),
+    });
+    const refreshedKnowledgeBase = this.refreshKnowledgeBaseSummary(file.knowledgeBaseId, completedRun.completedAt);
+    return { file, knowledgeBase: refreshedKnowledgeBase, run: completedRun };
   }
 
   async startKnowledgeBaseFullSync(id: string): Promise<KnowledgeBaseRunMutationResult> {
@@ -1093,12 +1174,35 @@ export class KnowledgeBasesService {
         scope: "FULL",
         operator: "后台管理员",
         result: "RUNNING",
-        summary: "全量同步任务已创建，正在扫描知识库文件。",
+        summary: "全量同步任务已创建，正在执行最小 ingestion 骨架。",
       });
+      const files = await this.prismaService.knowledgeBaseFile.findMany({
+        where: { knowledgeBaseId: id },
+        orderBy: { uploadedAt: "desc" },
+      });
+      let totalChunks = 0;
+      for (const item of files) {
+        const normalized = this.normalizeKnowledgeBaseFile(item);
+        const chunkCount = this.estimateChunkCount(normalized);
+        totalChunks += chunkCount;
+        await this.prismaService.knowledgeBaseFile.update({
+          where: { id: item.id },
+          data: {
+            status: "INDEXED",
+            chunkCount,
+            updatedAt: new Date(),
+          },
+        });
+      }
+      const completedRun = await this.completeSyncRunInDatabase(run.id, {
+        result: "SUCCESS",
+        summary: this.buildFullSyncSummary(files.length, totalChunks),
+      });
+      const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(id);
 
       return {
-        knowledgeBase: this.normalizeKnowledgeBase(knowledgeBase),
-        run,
+        knowledgeBase: refreshedKnowledgeBase,
+        run: completedRun,
       };
     }
 
@@ -1110,10 +1214,23 @@ export class KnowledgeBasesService {
       scope: "FULL",
       operator: "后台管理员",
       result: "RUNNING",
-      summary: "全量同步任务已创建，正在扫描知识库文件。",
+      summary: "全量同步任务已创建，正在执行最小 ingestion 骨架。",
     });
+    const relatedFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId === id);
+    let totalChunks = 0;
+    relatedFiles.forEach((item) => {
+      const chunkCount = this.estimateChunkCount(item);
+      item.chunkCount = chunkCount;
+      item.status = "INDEXED";
+      totalChunks += chunkCount;
+    });
+    const completedRun = this.completeSyncRunFromMock(run.id, {
+      result: "SUCCESS",
+      summary: this.buildFullSyncSummary(relatedFiles.length, totalChunks),
+    });
+    const refreshedKnowledgeBase = this.refreshKnowledgeBaseSummary(id, completedRun.completedAt);
 
-    return { knowledgeBase, run };
+    return { knowledgeBase: refreshedKnowledgeBase, run: completedRun };
   }
 
   async completeKnowledgeBaseSyncRun(

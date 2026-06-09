@@ -94,6 +94,14 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-06-09-knowledge-base-bindings-and-sync-skeleton.md`
+  - 知识库后台页已补齐绑定关系列表/创建/编辑/删除，并把文件同步与全量同步从“只创建运行中记录”推进为可自动产出最小分片数和执行摘要的 ingestion 骨架
+- `docs/changes/2026-06-08-wechat-channel-publisher-poc.md`
+  - 新增视频号独立插件 PoC 骨架，包括扩展目录、帮助页与最小探测能力，当前只用于验证网页端是否可被扩展接管
+- `docs/changes/2026-06-08-wechat-channel-minimum-validation-plan.md`
+  - 梳理视频号浏览器辅助发布的最小验证方案，明确官方网页入口、验证边界、通过标准、风险点，以及为什么当前不应先做统一插件
+- `docs/changes/2026-06-08-desktop-publish-status-and-wechat-channel-evaluation.md`
+  - 记录小红书图文与抖音视频的桌面发布当前真实支持范围、统一插件为何暂时拆回独立插件，以及视频号浏览器辅助发布的可行性判断
 - `docs/changes/2026-06-03-design-workspace-real-data-and-provider-integration.md`
   - 设计工作台已接入真实品牌档案、营销日历和第三方模型配置，`/more-features` 入口重定向到 `/more-features/design` 后可直接创建图片/HTML/PPT/视频四类设计任务
 - `docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
