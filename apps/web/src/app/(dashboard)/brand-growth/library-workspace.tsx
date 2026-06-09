@@ -308,7 +308,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
   }
 
   const assetTarget = props.activeBrandPage;
-  const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业经营数据";
+  const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业知识库";
 
   return (
     <article className="workspace-panel strategy-page-card">
@@ -318,7 +318,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
           <p>
             {assetTarget === "industryFeeds"
               ? "这里维护行业报告、市场资料与外部数据。"
-              : "这里维护经营报表、业务系统和门店经营数据，保存页面后会自动同步到知识库。"}
+              : "这里维护经营报表、业务系统、门店资料与内部知识文档，保存页面后会自动同步到知识库。"}
           </p>
         </div>
         <button type="button" className="primary-button" onClick={() => props.onAddAsset(assetTarget)}>
@@ -377,7 +377,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                       />
                       <span className="brand-asset-upload-card__title">本地文档</span>
                       <span className="brand-asset-upload-card__desc">
-                        上传 PDF、Word、Excel、CSV、TXT 等文档，保存页面后自动进入企业经营数据知识库。
+                        上传 PDF、Word、Excel、CSV、TXT 等文档，保存页面后自动进入企业知识库。
                       </span>
                       <span className="brand-asset-upload-card__action">
                         {props.uploadingAssetKey === `${assetTarget}:${asset.id ?? `${assetTarget}-${index}`}`
@@ -390,7 +390,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                       <span className="brand-asset-upload-card__desc">
                         当前资料保存后会自动桥接到后台知识库，方便后续统一同步、检索和治理。
                       </span>
-                      <span className="brand-asset-upload-card__meta">目标板块：企业经营数据知识库</span>
+                      <span className="brand-asset-upload-card__meta">目标板块：企业知识库</span>
                     </div>
                   </div>
                 ) : null}

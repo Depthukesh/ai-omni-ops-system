@@ -275,7 +275,7 @@
 - `BusinessAsset`
   - 用途：品牌经营资产、收集结果、生成报告索引
   - 关键字段：`brandId`、`category`、`title`、`description`、`fileUrl`、`metadataJson`
-  - 当前 `category = BUSINESS_DATA` 的企业经营数据在保存后，会自动桥接到对应品牌的经营数据知识库，便于后台继续同步和治理
+  - 当前 `category = BUSINESS_DATA` 的企业知识库资料在保存后，会自动桥接到对应品牌的企业知识库，便于后台继续同步和治理
   - 当前报告 HTML 与品牌资料附件会把 `fileUrl` 指向站内可访问路径，并用 `metadataJson` / 关联记录保存 `storageKey`
 
 ### 3.4 任务与生成结果域

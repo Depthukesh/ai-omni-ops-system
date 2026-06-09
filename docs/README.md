@@ -95,7 +95,7 @@
 ## 近期重点变更
 
 - `docs/changes/2026-06-09-knowledge-bridge-and-admin-simplify.md`
-  - 企业经营数据保存后会自动桥接到品牌经营数据知识库，后台知识库管理页同步改成左侧菜单 + 右侧内容的简化布局
+  - 企业知识库保存后会自动桥接到品牌企业知识库，后台知识库管理页同步改成左侧菜单 + 右侧内容的简化布局
 - `docs/changes/2026-06-09-knowledge-retrieval-configs-first-pass.md`
   - 知识库后台页已新增“检索配置”区块，支持维护默认 TopK、召回模式、重排开关、切片大小/重叠和检索阈值，并把这层正式落到 `KnowledgeRetrievalConfig`
 - `docs/changes/2026-06-09-knowledge-base-bindings-and-sync-skeleton.md`

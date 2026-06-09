@@ -145,7 +145,7 @@ const strategySections: Array<{
       { key: "products", label: "产品资料库", description: "沉淀品牌产品、价格与场景信息。" },
       { key: "survey", label: "品牌运营情况", description: "记录品牌人货场、运营诊断与核心问题。" },
       { key: "industryFeeds", label: "第三方数据", description: "归集行业报告、市场信息与评论洞察。" },
-      { key: "businessAssets", label: "企业经营数据", description: "归集经营报表、业务系统和门店数据。" },
+      { key: "businessAssets", label: "企业知识库", description: "归集经营报表、业务系统、门店资料与内部知识文档。" },
     ],
   },
   {

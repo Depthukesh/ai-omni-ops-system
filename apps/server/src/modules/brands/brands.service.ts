@@ -2937,7 +2937,7 @@ export class BrandsService {
   }
 
   private buildBusinessAssetsKnowledgeBaseName(brandName: string) {
-    return `${brandName}企业经营数据知识库`;
+    return `${brandName}企业知识库`;
   }
 
   private mapBusinessAssetToKnowledgeFile(
@@ -2946,14 +2946,14 @@ export class BrandsService {
     uploadedAt: string,
     index: number,
   ) {
-    const fileName = (item.title || item.fileUrl || `经营数据资料 ${index + 1}`).trim();
+    const fileName = (item.title || item.fileUrl || `企业知识资料 ${index + 1}`).trim();
     const fileType = this.inferKnowledgeFileType(fileName, item.fileUrl);
     return {
       id: createId("kbf"),
       knowledgeBaseId: this.buildBusinessAssetsKnowledgeBaseId(brandId),
       fileName,
       fileType,
-      sourceName: `企业经营数据桥接 / ${item.sourceName?.trim() || "品牌增长工作台"}`,
+      sourceName: `企业知识库桥接 / ${item.sourceName?.trim() || "品牌增长工作台"}`,
       chunkCount: 0,
       status: "PENDING" as const,
       uploadedAt,
@@ -3008,7 +3008,7 @@ export class BrandsService {
         syncStatus: "IDLE",
         documentCount: items.length,
         chunkCount: 0,
-        description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+        description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
         updatedAt: now,
       },
       create: {
@@ -3020,7 +3020,7 @@ export class BrandsService {
         syncStatus: "IDLE",
         documentCount: items.length,
         chunkCount: 0,
-        description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+        description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
         createdAt: now,
         updatedAt: now,
       },
@@ -3101,7 +3101,7 @@ export class BrandsService {
       syncStatus: "IDLE",
       documentCount: items.length,
       chunkCount: 0,
-      description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+      description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
       updatedAt: uploadedAt,
     };
 
@@ -3235,9 +3235,9 @@ export class BrandsService {
       },
       {
         key: "businessAssets",
-        name: "企业经营数据投喂",
+        name: "企业知识库投喂",
         status: businessAssets.length > 0 ? "ready" : "pending",
-        description: "经营报表与业务数据输入，为增长测算做准备。",
+        description: "经营报表、业务资料与内部知识输入，为增长分析与知识沉淀做准备。",
       },
     ];
   }
