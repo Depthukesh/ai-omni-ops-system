@@ -318,7 +318,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
           <p>
             {assetTarget === "industryFeeds"
               ? "这里维护行业报告、市场资料与外部数据。"
-              : "这里维护经营报表、业务系统和门店经营数据。"}
+              : "这里维护经营报表、业务系统和门店经营数据，保存页面后会自动同步到知识库。"}
           </p>
         </div>
         <button type="button" className="primary-button" onClick={() => props.onAddAsset(assetTarget)}>
@@ -360,6 +360,40 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
               </label>
               <label className="field field-full">
                 <span>文件地址</span>
+                {assetTarget === "businessAssets" ? (
+                  <div className="brand-asset-upload-grid">
+                    <label className="brand-asset-upload-card product-upload-trigger">
+                      <input
+                        type="file"
+                        className="sr-only-file-input"
+                        onChange={(event) => {
+                          void props.onUploadAssetFile(
+                            assetTarget,
+                            asset.id ?? `${assetTarget}-${index}`,
+                            event.target.files?.[0] ?? null,
+                          );
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                      <span className="brand-asset-upload-card__title">本地文档</span>
+                      <span className="brand-asset-upload-card__desc">
+                        上传 PDF、Word、Excel、CSV、TXT 等文档，保存页面后自动进入企业经营数据知识库。
+                      </span>
+                      <span className="brand-asset-upload-card__action">
+                        {props.uploadingAssetKey === `${assetTarget}:${asset.id ?? `${assetTarget}-${index}`}`
+                          ? "上传中..."
+                          : "点击上传"}
+                      </span>
+                    </label>
+                    <div className="brand-asset-upload-card brand-asset-upload-card--info">
+                      <span className="brand-asset-upload-card__title">知识库同步</span>
+                      <span className="brand-asset-upload-card__desc">
+                        当前资料保存后会自动桥接到后台知识库，方便后续统一同步、检索和治理。
+                      </span>
+                      <span className="brand-asset-upload-card__meta">目标板块：企业经营数据知识库</span>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="asset-file-upload-row">
                   <label className="secondary-button product-upload-trigger">
                     <input
@@ -388,6 +422,12 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                   value={asset.fileUrl ?? ""}
                   onChange={(event) => props.onUpdateAsset(assetTarget, index, "fileUrl", event.target.value)}
                 />
+                {asset.fileUrl ? (
+                  <div className="brand-asset-upload-preview">
+                    <strong>{extractFileName(asset.fileUrl)}</strong>
+                    <span>{assetTarget === "businessAssets" ? "保存页面后自动同步到知识库。" : "当前资料已关联文件地址。"}</span>
+                  </div>
+                ) : null}
                 <span className="field-hint">
                   支持上传 PDF、Word、Excel、PPT、CSV、TXT、ZIP 等文档，上传后会自动回填文件地址。
                 </span>
@@ -398,4 +438,13 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
       </div>
     </article>
   );
+}
+
+function extractFileName(fileUrl: string) {
+  try {
+    const normalized = decodeURIComponent(fileUrl.split("?")[0] || "");
+    return normalized.split("/").filter(Boolean).pop() || fileUrl;
+  } catch {
+    return fileUrl;
+  }
 }

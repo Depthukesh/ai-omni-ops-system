@@ -66,6 +66,7 @@
   - 因此前台现有 `/admin` 知识库管理页在本次改造后不需要更换接口即可继续工作
   - 当前文件同步与全量同步已进入“最小 ingestion 骨架”阶段：触发同步后会自动补齐估算分片数、回写文件状态并生成执行摘要，但尚未接入真实解析器与向量索引
   - 当前后台页已可直接维护知识库默认检索配置，包括 `TopK / Recall Mode / Rerank / Chunk Size / Chunk Overlap / Threshold`
+  - 当前后台页已改成“左侧知识库/板块菜单 + 右侧当前内容”的工作台式布局，隐藏了同步状态手改、文件状态手改和同步结果手工标记等非必要操作
 
 ### 2.6 知识绑定桥接层
 
@@ -274,6 +275,7 @@
 - `BusinessAsset`
   - 用途：品牌经营资产、收集结果、生成报告索引
   - 关键字段：`brandId`、`category`、`title`、`description`、`fileUrl`、`metadataJson`
+  - 当前 `category = BUSINESS_DATA` 的企业经营数据在保存后，会自动桥接到对应品牌的经营数据知识库，便于后台继续同步和治理
   - 当前报告 HTML 与品牌资料附件会把 `fileUrl` 指向站内可访问路径，并用 `metadataJson` / 关联记录保存 `storageKey`
 
 ### 3.4 任务与生成结果域

@@ -15,12 +15,14 @@ import {
   type BrandPermissionConfig,
   type BrandPermissionMap,
 } from "../../../../../packages/shared/src/brand-permissions";
-import { createId, database } from "../../common/mock-data";
+import { createId, database, type KnowledgeBaseRecord } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 
 const execFileAsync = promisify(execFile);
+const BRAND_GROWTH_KNOWLEDGE_TARGET_ID = "brand-growth-workbench";
+const BRAND_GROWTH_KNOWLEDGE_TARGET_NAME = "品牌增长工作台";
 
 export type CreateBrandPayload = {
   ownerUserId?: string;
@@ -1509,6 +1511,8 @@ export class BrandsService {
         ),
       ]);
 
+      await this.syncBusinessAssetsToKnowledgeBaseInDatabase(id, payload.items);
+
       return payload.items.map((item) => ({
         id: item.id ?? createId("ast"),
         title: item.title,
@@ -2899,7 +2903,250 @@ export class BrandsService {
   }
 
   private replaceBusinessAssetsFromMock(id: string, payload: CreateAssetPayload) {
-    return this.replaceAssets(id, "BUSINESS_DATA", payload.items);
+    const rows = this.replaceAssets(id, "BUSINESS_DATA", payload.items);
+    this.syncBusinessAssetsToKnowledgeBaseFromMock(id, payload.items);
+    return rows;
+  }
+
+  private async canUseKnowledgeBridgeStorage() {
+    if (!(await this.prismaService.canUseDatabase())) {
+      return false;
+    }
+
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<
+        Array<{ knowledgeBase: string | null; knowledgeBaseFile: string | null; knowledgeBinding: string | null }>
+      >(
+        `SELECT
+          to_regclass('"KnowledgeBase"') AS "knowledgeBase",
+          to_regclass('"KnowledgeBaseFile"') AS "knowledgeBaseFile",
+          to_regclass('"KnowledgeBinding"') AS "knowledgeBinding"`,
+      );
+      return Boolean(rows[0]?.knowledgeBase && rows[0]?.knowledgeBaseFile && rows[0]?.knowledgeBinding);
+    } catch {
+      return false;
+    }
+  }
+
+  private buildBusinessAssetsKnowledgeBaseId(brandId: string) {
+    return `kb_brand_business_assets_${brandId}`;
+  }
+
+  private buildBusinessAssetsKnowledgeBaseSlug(brandId: string) {
+    return `brand-business-assets-${brandId}`;
+  }
+
+  private buildBusinessAssetsKnowledgeBaseName(brandName: string) {
+    return `${brandName}企业经营数据知识库`;
+  }
+
+  private mapBusinessAssetToKnowledgeFile(
+    brandId: string,
+    item: CreateAssetPayload["items"][number],
+    uploadedAt: string,
+    index: number,
+  ) {
+    const fileName = (item.title || item.fileUrl || `经营数据资料 ${index + 1}`).trim();
+    const fileType = this.inferKnowledgeFileType(fileName, item.fileUrl);
+    return {
+      id: createId("kbf"),
+      knowledgeBaseId: this.buildBusinessAssetsKnowledgeBaseId(brandId),
+      fileName,
+      fileType,
+      sourceName: `企业经营数据桥接 / ${item.sourceName?.trim() || "品牌增长工作台"}`,
+      chunkCount: 0,
+      status: "PENDING" as const,
+      uploadedAt,
+    };
+  }
+
+  private inferKnowledgeFileType(fileName?: string, fileUrl?: string): "PDF" | "DOCX" | "XLSX" | "MD" | "LINK" {
+    const target = String(fileName || fileUrl || "").trim().toLowerCase();
+    if (target.endsWith(".pdf")) {
+      return "PDF";
+    }
+    if (target.endsWith(".doc") || target.endsWith(".docx")) {
+      return "DOCX";
+    }
+    if (target.endsWith(".xls") || target.endsWith(".xlsx") || target.endsWith(".csv")) {
+      return "XLSX";
+    }
+    if (target.endsWith(".md") || target.endsWith(".markdown") || target.endsWith(".txt")) {
+      return "MD";
+    }
+    return "LINK";
+  }
+
+  private async syncBusinessAssetsToKnowledgeBaseInDatabase(
+    brandId: string,
+    items: CreateAssetPayload["items"],
+  ) {
+    if (!(await this.canUseKnowledgeBridgeStorage())) {
+      return;
+    }
+
+    const brand = await this.prismaService.brand.findUnique({
+      where: { id: brandId },
+      select: { brandName: true },
+    });
+    if (!brand) {
+      return;
+    }
+
+    const knowledgeBaseId = this.buildBusinessAssetsKnowledgeBaseId(brandId);
+    const now = new Date();
+    const uploadedAt = now.toISOString();
+    const knowledgeBaseName = this.buildBusinessAssetsKnowledgeBaseName(brand.brandName);
+
+    await this.prismaService.knowledgeBase.upsert({
+      where: { id: knowledgeBaseId },
+      update: {
+        name: knowledgeBaseName,
+        slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
+        sourceType: "OSS",
+        status: items.length ? "ACTIVE" : "DRAFT",
+        syncStatus: "IDLE",
+        documentCount: items.length,
+        chunkCount: 0,
+        description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+        updatedAt: now,
+      },
+      create: {
+        id: knowledgeBaseId,
+        name: knowledgeBaseName,
+        slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
+        sourceType: "OSS",
+        status: items.length ? "ACTIVE" : "DRAFT",
+        syncStatus: "IDLE",
+        documentCount: items.length,
+        chunkCount: 0,
+        description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    await this.prismaService.knowledgeBinding.upsert({
+      where: {
+        knowledgeBaseId_bindingType_targetId: {
+          knowledgeBaseId,
+          bindingType: "MODULE",
+          targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        },
+      },
+      update: {
+        targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
+        priority: 1,
+        retrievalMode: "HYBRID",
+        isRequired: false,
+        enabled: true,
+        updatedAt: now,
+      },
+      create: {
+        id: createId("kbb"),
+        knowledgeBaseId,
+        bindingType: "MODULE",
+        targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
+        priority: 1,
+        retrievalMode: "HYBRID",
+        isRequired: false,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    await this.prismaService.knowledgeBaseFile.deleteMany({
+      where: { knowledgeBaseId },
+    });
+
+    if (!items.length) {
+      return;
+    }
+
+    await this.prismaService.knowledgeBaseFile.createMany({
+      data: items.map((item, index) => {
+        const file = this.mapBusinessAssetToKnowledgeFile(brandId, item, uploadedAt, index);
+        return {
+          id: file.id,
+          knowledgeBaseId: file.knowledgeBaseId,
+          fileName: file.fileName,
+          fileType: file.fileType,
+          sourceName: file.sourceName,
+          chunkCount: file.chunkCount,
+          status: file.status,
+          uploadedAt: new Date(file.uploadedAt),
+        };
+      }),
+    });
+  }
+
+  private syncBusinessAssetsToKnowledgeBaseFromMock(
+    brandId: string,
+    items: CreateAssetPayload["items"],
+  ) {
+    const brand = this.getBrand(brandId);
+    const knowledgeBaseId = this.buildBusinessAssetsKnowledgeBaseId(brandId);
+    const uploadedAt = new Date().toISOString();
+    const existingIndex = database.knowledgeBases.findIndex((item) => item.id === knowledgeBaseId);
+    const knowledgeBaseRecord: KnowledgeBaseRecord = {
+      id: knowledgeBaseId,
+      name: this.buildBusinessAssetsKnowledgeBaseName(brand.brandName),
+      slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
+      sourceType: "OSS",
+      status: items.length ? "ACTIVE" : "DRAFT",
+      syncStatus: "IDLE",
+      documentCount: items.length,
+      chunkCount: 0,
+      description: `由前端“企业经营数据”页面自动同步，当前对应品牌：${brand.brandName}。`,
+      updatedAt: uploadedAt,
+    };
+
+    if (existingIndex >= 0) {
+      database.knowledgeBases[existingIndex] = {
+        ...database.knowledgeBases[existingIndex],
+        ...knowledgeBaseRecord,
+      };
+    } else {
+      database.knowledgeBases.unshift(knowledgeBaseRecord);
+    }
+
+    const bindingIndex = database.knowledgeBindings.findIndex(
+      (item) =>
+        item.knowledgeBaseId === knowledgeBaseId &&
+        item.bindingType === "MODULE" &&
+        item.targetId === BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+    );
+    const bindingRecord = {
+      id: bindingIndex >= 0 ? database.knowledgeBindings[bindingIndex].id : createId("kbb"),
+      knowledgeBaseId,
+      bindingType: "MODULE" as const,
+      targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+      targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+      targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
+      priority: 1,
+      retrievalMode: "HYBRID" as const,
+      isRequired: false,
+      enabled: true,
+      createdAt: bindingIndex >= 0 ? database.knowledgeBindings[bindingIndex].createdAt : uploadedAt,
+      updatedAt: uploadedAt,
+    };
+    if (bindingIndex >= 0) {
+      database.knowledgeBindings[bindingIndex] = bindingRecord;
+    } else {
+      database.knowledgeBindings.unshift(bindingRecord);
+    }
+
+    database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId !== knowledgeBaseId);
+    if (!items.length) {
+      return;
+    }
+    database.knowledgeBaseFiles.unshift(
+      ...items.map((item, index) => this.mapBusinessAssetToKnowledgeFile(brandId, item, uploadedAt, index)),
+    );
   }
 
   private replaceAccounts(

@@ -111,6 +111,7 @@ import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
+type KnowledgeWorkspaceSection = "overview" | "files" | "retrieval" | "bindings" | "history";
 type SkillEditDraft = {
   status: SkillConfigRecord["status"];
   defaultModel: string;
@@ -494,6 +495,8 @@ export default function AdminPage() {
     summary: [],
   });
   const [isLoadingDatabaseParameters, setIsLoadingDatabaseParameters] = useState(false);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState("");
+  const [knowledgeWorkspaceSection, setKnowledgeWorkspaceSection] = useState<KnowledgeWorkspaceSection>("overview");
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -1344,6 +1347,7 @@ export default function AdminPage() {
     try {
       const removed = await deleteKnowledgeBase(knowledgeBaseId);
       setKnowledgeBases((current) => current.filter((item) => item.id !== knowledgeBaseId));
+      setSelectedKnowledgeBaseId((current) => (current === knowledgeBaseId ? "" : current));
       setKnowledgeBaseFiles((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
       setKnowledgeRetrievalConfigs((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
       setKnowledgeBaseDrafts((current) => {
@@ -1366,6 +1370,7 @@ export default function AdminPage() {
       if (dataSource === "seed") {
         const removed = knowledgeBases.find((item) => item.id === knowledgeBaseId);
         setKnowledgeBases((current) => current.filter((item) => item.id !== knowledgeBaseId));
+        setSelectedKnowledgeBaseId((current) => (current === knowledgeBaseId ? "" : current));
         setKnowledgeBaseFiles((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
         setKnowledgeRetrievalConfigs((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
         setKnowledgeBaseDrafts((current) => {
@@ -1408,6 +1413,8 @@ export default function AdminPage() {
       });
 
       setKnowledgeBases((current) => [created, ...current]);
+      setSelectedKnowledgeBaseId(created.id);
+      setKnowledgeWorkspaceSection("overview");
       const defaultRetrievalConfig = buildDefaultKnowledgeRetrievalConfig(created.id);
       setKnowledgeBaseDrafts((current) => ({
         [created.id]: buildKnowledgeBaseDraft(created),
@@ -1440,6 +1447,8 @@ export default function AdminPage() {
           updatedAt: createdAt,
         };
         setKnowledgeBases((current) => [created, ...current]);
+        setSelectedKnowledgeBaseId(created.id);
+        setKnowledgeWorkspaceSection("overview");
         const defaultRetrievalConfig = buildDefaultKnowledgeRetrievalConfig(created.id, createdAt);
         setKnowledgeBaseDrafts((current) => ({
           [created.id]: buildKnowledgeBaseDraft(created),
@@ -2790,6 +2799,52 @@ export default function AdminPage() {
   const selectedThirdPartyPlatformDraft = selectedThirdPartyPlatform
     ? platformDrafts[selectedThirdPartyPlatform.id] || buildThirdPartyPlatformDraft(selectedThirdPartyPlatform)
     : undefined;
+  const selectedKnowledgeBase = useMemo(
+    () => knowledgeBases.find((item) => item.id === selectedKnowledgeBaseId) ?? knowledgeBases[0],
+    [knowledgeBases, selectedKnowledgeBaseId],
+  );
+  const knowledgeWorkspaceSections: Array<{
+    id: KnowledgeWorkspaceSection;
+    label: string;
+    description: string;
+  }> = [
+    { id: "overview", label: "基础信息", description: "查看总览、启停状态和说明。" },
+    { id: "files", label: "资料上传", description: "上传资料并触发同步。" },
+    { id: "retrieval", label: "检索配置", description: "维护 TopK、召回和重排。" },
+    { id: "bindings", label: "接入对象", description: "绑定模块、能力包和提示词。" },
+    { id: "history", label: "同步记录", description: "回看最近同步状态和摘要。" },
+  ];
+  const selectedKnowledgeBaseDraft = selectedKnowledgeBase
+    ? knowledgeBaseDrafts[selectedKnowledgeBase.id] || buildKnowledgeBaseDraft(selectedKnowledgeBase)
+    : undefined;
+  const selectedKnowledgeFileDraft = selectedKnowledgeBase
+    ? newKnowledgeBaseFileDrafts[selectedKnowledgeBase.id] || buildCreateKnowledgeBaseFileDraft()
+    : undefined;
+  const selectedKnowledgeBindingCreateDraft = selectedKnowledgeBase
+    ? newKnowledgeBindingDrafts[selectedKnowledgeBase.id] || buildCreateKnowledgeBindingDraft()
+    : undefined;
+  const selectedKnowledgeRetrievalConfig = selectedKnowledgeBase
+    ? knowledgeRetrievalConfigs.find((config) => config.knowledgeBaseId === selectedKnowledgeBase.id) ||
+      buildDefaultKnowledgeRetrievalConfig(selectedKnowledgeBase.id)
+    : undefined;
+  const selectedKnowledgeRetrievalDraft =
+    selectedKnowledgeBase && selectedKnowledgeRetrievalConfig
+      ? knowledgeRetrievalConfigDrafts[selectedKnowledgeBase.id] ||
+        buildKnowledgeRetrievalConfigDraft(selectedKnowledgeRetrievalConfig)
+      : undefined;
+  const selectedKnowledgeFiles = selectedKnowledgeBase
+    ? knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === selectedKnowledgeBase.id)
+    : [];
+  const selectedKnowledgeBindings = selectedKnowledgeBase
+    ? knowledgeBindings
+        .filter((binding) => binding.knowledgeBaseId === selectedKnowledgeBase.id)
+        .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority))
+    : [];
+  const selectedKnowledgeSyncRuns = selectedKnowledgeBase
+    ? knowledgeBaseSyncRuns.filter((run) => run.knowledgeBaseId === selectedKnowledgeBase.id)
+    : [];
+  const selectedKnowledgeLatestSyncRun = selectedKnowledgeSyncRuns[0];
+  const selectedKnowledgeHasRunningSyncRun = selectedKnowledgeSyncRuns.some((run) => run.result === "RUNNING");
 
   useEffect(() => {
     const nextPrimary = filteredSkillTree[0];
@@ -3008,6 +3063,19 @@ export default function AdminPage() {
       setSelectedThirdPartyPlatformId(filteredThirdPartyPlatforms[0]?.id || "");
     }
   }, [filteredThirdPartyPlatforms, selectedThirdPartyPlatformId]);
+
+  useEffect(() => {
+    if (!knowledgeBases.length) {
+      if (selectedKnowledgeBaseId) {
+        setSelectedKnowledgeBaseId("");
+      }
+      return;
+    }
+
+    if (!knowledgeBases.find((item) => item.id === selectedKnowledgeBaseId)) {
+      setSelectedKnowledgeBaseId(knowledgeBases[0]?.id || "");
+    }
+  }, [knowledgeBases, selectedKnowledgeBaseId]);
 
   function handleSelectSkillPrimary(primaryId: string) {
     const nextPrimary = filteredSkillTree.find((item) => item.id === primaryId);
@@ -4803,744 +4871,452 @@ export default function AdminPage() {
             onError={setErrorMessage}
           />
         ) : activeTab === "knowledge" ? (
-          <div className="personal-list">
-            <article className="entity-card personal-card">
-              <div className="entity-card-head">
-                <div>
-                  <strong>新建知识库</strong>
-                  <p className="personal-meta">先创建知识库基础信息，后续再继续上传文件和配置同步。</p>
+          <div className="admin-provider-layout knowledge-admin-layout">
+            <div className="admin-provider-stack">
+              <article className="panel admin-provider-filter-card">
+                <div className="admin-provider-filter-head">
+                  <div>
+                    <strong>新建知识库</strong>
+                    <p>先创建知识空间，再继续上传资料和做检索配置。同步状态、历史回执和高级绑定改为右侧分板块维护。</p>
+                  </div>
+                  <span className="archive-pill status-in_progress">CREATE</span>
                 </div>
-                <span className="archive-pill status-in_progress">CREATE</span>
-              </div>
-              <div className="admin-rule-grid">
-                <label>
-                  <span>知识库名称</span>
-                  <input
-                    value={newKnowledgeBase.name}
-                    onChange={(event) =>
-                      setNewKnowledgeBase((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Slug</span>
-                  <input
-                    value={newKnowledgeBase.slug}
-                    onChange={(event) =>
-                      setNewKnowledgeBase((current) => ({
-                        ...current,
-                        slug: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>数据源类型</span>
-                  <select
-                    value={newKnowledgeBase.sourceType}
-                    onChange={(event) =>
-                      setNewKnowledgeBase((current) => ({
-                        ...current,
-                        sourceType: event.target.value as KnowledgeBaseRecord["sourceType"],
-                      }))
-                    }
-                  >
-                    <option value="MANUAL">MANUAL</option>
-                    <option value="FEISHU">FEISHU</option>
-                    <option value="NOTION">NOTION</option>
-                    <option value="OSS">OSS</option>
-                  </select>
-                </label>
-              </div>
-              <label className="admin-rule-description">
-                <span>知识库说明</span>
-                <textarea
-                  value={newKnowledgeBase.description}
-                  onChange={(event) =>
-                    setNewKnowledgeBase((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <div className="personal-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => void handleCreateKnowledgeBase()}
-                  disabled={isCreatingKnowledgeBase || !newKnowledgeBase.name.trim() || !newKnowledgeBase.slug.trim()}
-                >
-                  {isCreatingKnowledgeBase ? "创建中..." : "新建知识库"}
-                </button>
-              </div>
-            </article>
-            {knowledgeBases.map((item) => {
-              const draft = knowledgeBaseDrafts[item.id] || buildKnowledgeBaseDraft(item);
-              const fileDraft = newKnowledgeBaseFileDrafts[item.id] || buildCreateKnowledgeBaseFileDraft();
-              const bindingCreateDraft = newKnowledgeBindingDrafts[item.id] || buildCreateKnowledgeBindingDraft();
-              const retrievalConfig =
-                knowledgeRetrievalConfigs.find((config) => config.knowledgeBaseId === item.id) ||
-                buildDefaultKnowledgeRetrievalConfig(item.id);
-              const retrievalDraft =
-                knowledgeRetrievalConfigDrafts[item.id] || buildKnowledgeRetrievalConfigDraft(retrievalConfig);
-              const files = knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === item.id);
-              const bindings = knowledgeBindings
-                .filter((binding) => binding.knowledgeBaseId === item.id)
-                .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority));
-              const syncRuns = knowledgeBaseSyncRuns.filter((run) => run.knowledgeBaseId === item.id);
-              const latestSyncRun = syncRuns[0];
-              const hasRunningSyncRun = syncRuns.some((run) => run.result === "RUNNING");
-
-              return (
-                <article className="entity-card personal-card" key={item.id}>
-                  <div className="entity-card-head">
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p className="personal-meta">
-                        {item.slug} · {item.sourceType} · 文档 {item.documentCount} 篇 · 分片 {item.chunkCount}
-                      </p>
-                    </div>
-                    <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
-                  </div>
-
-                  <div className="personal-grid">
-                    <div>
-                      <span>同步状态</span>
-                      <strong>{item.syncStatus}</strong>
-                    </div>
-                    <div>
-                      <span>数据源类型</span>
-                      <strong>{item.sourceType}</strong>
-                    </div>
-                    <div>
-                      <span>文档数</span>
-                      <strong>{item.documentCount}</strong>
-                    </div>
-                    <div>
-                      <span>分片数</span>
-                      <strong>{item.chunkCount}</strong>
-                    </div>
-                    <div>
-                      <span>更新时间</span>
-                      <strong>{formatDateTime(item.updatedAt)}</strong>
-                    </div>
-                    <div>
-                      <span>最近同步结果</span>
-                      <strong>{latestSyncRun ? latestSyncRun.result : "NO_RUNS"}</strong>
-                    </div>
-                  </div>
-
-                  <div className="admin-rules-stack">
-                    <div className="panel-header">
-                      <h2>最近一次同步</h2>
-                      <span>{latestSyncRun ? formatDateTime(latestSyncRun.startedAt) : "暂无记录"}</span>
-                    </div>
-                    {latestSyncRun ? (
-                      <article className="entity-card admin-rule-card">
-                        <div className="entity-card-head">
-                          <div>
-                            <strong>{getSyncRunTitle(latestSyncRun)}</strong>
-                            <p className="personal-meta">{latestSyncRun.summary}</p>
-                          </div>
-                          <span
-                            className={`archive-pill ${
-                              latestSyncRun.result === "SUCCESS"
-                                ? "status-ready"
-                                : latestSyncRun.result === "FAILED"
-                                  ? "status-paused"
-                                  : "status-in_progress"
-                            }`}
-                          >
-                            {latestSyncRun.result}
-                          </span>
-                        </div>
-                        <div className="personal-grid">
-                          <div>
-                            <span>开始时间</span>
-                            <strong>{formatDateTime(latestSyncRun.startedAt)}</strong>
-                          </div>
-                          <div>
-                            <span>完成时间</span>
-                            <strong>{latestSyncRun.completedAt ? formatDateTime(latestSyncRun.completedAt) : "进行中"}</strong>
-                          </div>
-                          <div>
-                            <span>执行人</span>
-                            <strong>{latestSyncRun.operator}</strong>
-                          </div>
-                        </div>
-                        {latestSyncRun.errorDetail ? (
-                          <p className="personal-meta">失败详情：{latestSyncRun.errorDetail}</p>
-                        ) : null}
-                      </article>
-                    ) : (
-                      <p className="personal-meta">当前还没有同步记录，先触发一次文件同步。</p>
-                    )}
-                  </div>
-
-                  <div className="admin-rules-stack">
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>启用状态</span>
-                        <select
-                          value={draft.status}
-                          onChange={(event) =>
-                            handleKnowledgeBaseDraftChange(item.id, {
-                              status: event.target.value as KnowledgeBaseRecord["status"],
-                            })
-                          }
-                        >
-                          <option value="ACTIVE">ACTIVE</option>
-                          <option value="DRAFT">DRAFT</option>
-                          <option value="DISABLED">DISABLED</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>同步状态</span>
-                        <select
-                          value={draft.syncStatus}
-                          onChange={(event) =>
-                            handleKnowledgeBaseDraftChange(item.id, {
-                              syncStatus: event.target.value as KnowledgeBaseRecord["syncStatus"],
-                            })
-                          }
-                        >
-                          <option value="IDLE">IDLE</option>
-                          <option value="SYNCING">SYNCING</option>
-                          <option value="FAILED">FAILED</option>
-                          <option value="SUCCESS">SUCCESS</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>数据源类型</span>
-                        <select
-                          value={draft.sourceType}
-                          onChange={(event) =>
-                            handleKnowledgeBaseDraftChange(item.id, {
-                              sourceType: event.target.value as KnowledgeBaseRecord["sourceType"],
-                            })
-                          }
-                        >
-                          <option value="MANUAL">MANUAL</option>
-                          <option value="FEISHU">FEISHU</option>
-                          <option value="NOTION">NOTION</option>
-                          <option value="OSS">OSS</option>
-                        </select>
-                      </label>
-                    </div>
-                  </div>
-
-                  <label className="admin-rule-description">
-                    <span>知识库说明</span>
-                    <textarea
-                      value={draft.description}
+                <div className="admin-provider-filter-grid">
+                  <label className="admin-provider-field">
+                    <span>知识库名称</span>
+                    <input
+                      value={newKnowledgeBase.name}
                       onChange={(event) =>
-                        handleKnowledgeBaseDraftChange(item.id, {
-                          description: event.target.value,
-                        })
+                        setNewKnowledgeBase((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
                       }
                     />
                   </label>
+                  <label className="admin-provider-field">
+                    <span>Slug</span>
+                    <input
+                      value={newKnowledgeBase.slug}
+                      onChange={(event) =>
+                        setNewKnowledgeBase((current) => ({
+                          ...current,
+                          slug: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>数据源类型</span>
+                    <select
+                      value={newKnowledgeBase.sourceType}
+                      onChange={(event) =>
+                        setNewKnowledgeBase((current) => ({
+                          ...current,
+                          sourceType: event.target.value as KnowledgeBaseRecord["sourceType"],
+                        }))
+                      }
+                    >
+                      <option value="MANUAL">MANUAL</option>
+                      <option value="FEISHU">FEISHU</option>
+                      <option value="NOTION">NOTION</option>
+                      <option value="OSS">OSS</option>
+                    </select>
+                  </label>
+                  <label className="admin-provider-field">
+                    <span>知识库说明</span>
+                    <textarea
+                      value={newKnowledgeBase.description}
+                      onChange={(event) =>
+                        setNewKnowledgeBase((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="admin-provider-actions">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleCreateKnowledgeBase()}
+                    disabled={isCreatingKnowledgeBase || !newKnowledgeBase.name.trim() || !newKnowledgeBase.slug.trim()}
+                  >
+                    {isCreatingKnowledgeBase ? "创建中..." : "新建知识库"}
+                  </button>
+                </div>
+              </article>
 
-                  <div className="admin-rules-stack">
-                    <div className="panel-header">
-                      <h2>检索配置</h2>
-                      <span>TopK / Recall / Rerank</span>
-                    </div>
-                    <div className="personal-meta">
-                      这一层先沉淀知识库默认召回策略，后续再把真实向量检索、重排模型和日志监控接进执行链路。
-                    </div>
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>默认 TopK</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={retrievalDraft.defaultTopK}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              defaultTopK: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>召回模式</span>
-                        <select
-                          value={retrievalDraft.recallMode}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              recallMode: event.target.value as KnowledgeRetrievalConfigRecord["recallMode"],
-                            })
-                          }
+              <article className="panel admin-provider-filter-card">
+                <div className="admin-provider-filter-head">
+                  <div>
+                    <strong>知识库列表</strong>
+                    <p>左侧按知识库和板块切换，右侧只维护当前项目内容，减少无关治理项干扰。</p>
+                  </div>
+                  <span className="archive-pill status_success">{knowledgeBases.length}</span>
+                </div>
+                <div className="knowledge-admin-list">
+                  {knowledgeBases.length ? (
+                    knowledgeBases.map((item) => {
+                      const latestRun = knowledgeBaseSyncRuns.find((run) => run.knowledgeBaseId === item.id);
+                      return (
+                        <button
+                          type="button"
+                          key={item.id}
+                          className="knowledge-admin-list-item"
+                          data-active={selectedKnowledgeBase?.id === item.id}
+                          onClick={() => setSelectedKnowledgeBaseId(item.id)}
                         >
-                          <option value="SEMANTIC">SEMANTIC</option>
-                          <option value="HYBRID">HYBRID</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>启用重排</span>
-                        <select
-                          value={retrievalDraft.rerankEnabled ? "YES" : "NO"}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              rerankEnabled: event.target.value === "YES",
-                            })
-                          }
-                        >
-                          <option value="NO">NO</option>
-                          <option value="YES">YES</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>重排模型</span>
-                        <input
-                          value={retrievalDraft.rerankModelName}
-                          placeholder={retrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              rerankModelName: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>切片大小</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={retrievalDraft.chunkSize}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              chunkSize: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>切片重叠</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={retrievalDraft.chunkOverlap}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              chunkOverlap: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>检索阈值</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={retrievalDraft.retrievalThreshold}
-                          onChange={(event) =>
-                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
-                              retrievalThreshold: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p>
+                              {item.slug} · 文档 {item.documentCount} · 分片 {item.chunkCount}
+                            </p>
+                          </div>
+                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
+                          <span className="knowledge-admin-list-meta">
+                            最近同步：{latestRun ? latestRun.result : item.syncStatus}
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="personal-meta">暂无知识库，先创建一个新的知识空间。</p>
+                  )}
+                </div>
+              </article>
+
+              {selectedKnowledgeBase ? (
+                <article className="panel admin-provider-filter-card">
+                  <div className="admin-provider-filter-head">
+                    <div>
+                      <strong>当前板块</strong>
+                      <p>按左侧板块切换后，右侧仅展示当前知识库的当前内容。</p>
                     </div>
-                    <div className="personal-actions">
-                      <span className="personal-meta">上次更新时间 {formatDateTime(retrievalConfig.updatedAt)}</span>
+                    <span className="archive-pill status_ready">{knowledgeWorkspaceSection.toUpperCase()}</span>
+                  </div>
+                  <div className="knowledge-admin-section-list">
+                    {knowledgeWorkspaceSections.map((section) => (
                       <button
                         type="button"
-                        className="secondary-button"
-                        onClick={() => void handleSaveKnowledgeRetrievalConfig(item.id)}
-                        disabled={updatingKnowledgeRetrievalBaseId === item.id}
+                        key={section.id}
+                        className="knowledge-admin-section-item"
+                        data-active={knowledgeWorkspaceSection === section.id}
+                        onClick={() => setKnowledgeWorkspaceSection(section.id)}
                       >
-                        {updatingKnowledgeRetrievalBaseId === item.id ? "保存中..." : "保存检索配置"}
+                        <strong>{section.label}</strong>
+                        <span>{section.description}</span>
                       </button>
+                    ))}
+                  </div>
+                </article>
+              ) : null}
+            </div>
+
+            <section className="admin-provider-stack">
+              {selectedKnowledgeBase && selectedKnowledgeBaseDraft ? (
+                <article className="panel admin-provider-card knowledge-admin-card">
+                  <div className="admin-provider-card-head">
+                    <div>
+                      <div className="admin-provider-title">
+                        <strong>{selectedKnowledgeBase.name}</strong>
+                        <span className="admin-provider-type">{selectedKnowledgeBase.sourceType}</span>
+                      </div>
+                      <p className="admin-provider-meta">
+                        {selectedKnowledgeBase.slug} · 更新时间 {formatDateTime(selectedKnowledgeBase.updatedAt)}
+                      </p>
+                    </div>
+                    <span className={`archive-pill ${getStatusClassName(selectedKnowledgeBase.status)}`}>
+                      {selectedKnowledgeBase.status}
+                    </span>
+                  </div>
+
+                  <div className="knowledge-admin-summary-grid">
+                    <div className="knowledge-admin-summary-card">
+                      <span>同步状态</span>
+                      <strong>{selectedKnowledgeBase.syncStatus}</strong>
+                    </div>
+                    <div className="knowledge-admin-summary-card">
+                      <span>文档数</span>
+                      <strong>{selectedKnowledgeBase.documentCount}</strong>
+                    </div>
+                    <div className="knowledge-admin-summary-card">
+                      <span>分片数</span>
+                      <strong>{selectedKnowledgeBase.chunkCount}</strong>
+                    </div>
+                    <div className="knowledge-admin-summary-card">
+                      <span>最近同步</span>
+                      <strong>{selectedKnowledgeLatestSyncRun ? selectedKnowledgeLatestSyncRun.result : "NO_RUNS"}</strong>
                     </div>
                   </div>
 
-                  <div className="admin-rules-stack">
-                    <div className="panel-header">
-                      <h2>绑定关系</h2>
-                      <span>{bindings.length} Bindings</span>
-                    </div>
-                    <div className="personal-meta">把知识库绑定到模块、能力包、提示词或工作流步骤，先完成治理层的长期接入。</div>
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>绑定类型</span>
-                        <select
-                          value={bindingCreateDraft.bindingType}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              bindingType: event.target.value as KnowledgeBindingRecord["bindingType"],
-                            })
-                          }
-                        >
-                          <option value="MODULE">MODULE</option>
-                          <option value="SKILL_PACKAGE">SKILL_PACKAGE</option>
-                          <option value="PROMPT">PROMPT</option>
-                          <option value="WORKFLOW_STEP">WORKFLOW_STEP</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>目标 ID</span>
-                        <input
-                          value={bindingCreateDraft.targetId}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              targetId: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>目标 Key</span>
-                        <input
-                          value={bindingCreateDraft.targetKey}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              targetKey: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>目标名称</span>
-                        <input
-                          value={bindingCreateDraft.targetName}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              targetName: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>优先级</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={bindingCreateDraft.priority}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              priority: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>检索模式</span>
-                        <select
-                          value={bindingCreateDraft.retrievalMode}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
-                            })
-                          }
-                        >
-                          <option value="SEMANTIC">SEMANTIC</option>
-                          <option value="HYBRID">HYBRID</option>
-                          <option value="MANUAL">MANUAL</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="admin-rule-grid">
-                      <label>
-                        <span>必须命中</span>
-                        <select
-                          value={bindingCreateDraft.isRequired ? "YES" : "NO"}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              isRequired: event.target.value === "YES",
-                            })
-                          }
-                        >
-                          <option value="NO">NO</option>
-                          <option value="YES">YES</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>启用</span>
-                        <select
-                          value={bindingCreateDraft.enabled ? "YES" : "NO"}
-                          onChange={(event) =>
-                            handleCreateKnowledgeBindingDraftChange(item.id, {
-                              enabled: event.target.value === "YES",
-                            })
-                          }
-                        >
-                          <option value="YES">YES</option>
-                          <option value="NO">NO</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="personal-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleCreateKnowledgeBinding(item.id)}
-                        disabled={creatingKnowledgeBindingForBaseId === item.id || !bindingCreateDraft.targetId.trim()}
-                      >
-                        {creatingKnowledgeBindingForBaseId === item.id ? "创建中..." : "新增绑定"}
-                      </button>
-                    </div>
-                    <div className="admin-rules-stack">
-                      {bindings.length ? (
-                        bindings.map((binding) => {
-                          const bindingDraft = knowledgeBindingDrafts[binding.id] || buildKnowledgeBindingDraft(binding);
-                          return (
-                            <article className="entity-card admin-rule-card" key={binding.id}>
-                              <div className="entity-card-head">
-                                <div>
-                                  <strong>{binding.targetName || binding.targetId}</strong>
-                                  <p className="personal-meta">
-                                    {binding.bindingType} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
-                                  </p>
-                                </div>
-                                <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
-                                  {binding.enabled ? "ENABLED" : "DISABLED"}
-                                </span>
-                              </div>
-                              <div className="admin-rule-grid">
-                                <label>
-                                  <span>目标 Key</span>
-                                  <input
-                                    value={bindingDraft.targetKey}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        targetKey: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  <span>目标名称</span>
-                                  <input
-                                    value={bindingDraft.targetName}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        targetName: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  <span>优先级</span>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={bindingDraft.priority}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        priority: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  <span>检索模式</span>
-                                  <select
-                                    value={bindingDraft.retrievalMode}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
-                                      })
-                                    }
-                                  >
-                                    <option value="SEMANTIC">SEMANTIC</option>
-                                    <option value="HYBRID">HYBRID</option>
-                                    <option value="MANUAL">MANUAL</option>
-                                  </select>
-                                </label>
-                                <label>
-                                  <span>必须命中</span>
-                                  <select
-                                    value={bindingDraft.isRequired ? "YES" : "NO"}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        isRequired: event.target.value === "YES",
-                                      })
-                                    }
-                                  >
-                                    <option value="NO">NO</option>
-                                    <option value="YES">YES</option>
-                                  </select>
-                                </label>
-                                <label>
-                                  <span>启用</span>
-                                  <select
-                                    value={bindingDraft.enabled ? "YES" : "NO"}
-                                    onChange={(event) =>
-                                      handleKnowledgeBindingDraftChange(binding.id, {
-                                        enabled: event.target.value === "YES",
-                                      })
-                                    }
-                                  >
-                                    <option value="YES">YES</option>
-                                    <option value="NO">NO</option>
-                                  </select>
-                                </label>
-                              </div>
-                              <div className="personal-actions">
-                                <span className="personal-meta">更新于 {formatDateTime(binding.updatedAt)}</span>
-                                <button
-                                  type="button"
-                                  className="secondary-button"
-                                  onClick={() => void handleSaveKnowledgeBinding(binding.id)}
-                                  disabled={updatingKnowledgeBindingId === binding.id}
-                                >
-                                  {updatingKnowledgeBindingId === binding.id ? "保存中..." : "保存绑定"}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="danger-button"
-                                  onClick={() => void handleDeleteKnowledgeBinding(binding.id)}
-                                  disabled={updatingKnowledgeBindingId === binding.id}
-                                >
-                                  删除绑定
-                                </button>
-                              </div>
-                            </article>
-                          );
-                        })
-                      ) : (
-                        <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或提示词。</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="admin-rules-stack">
-                    <div className="panel-header">
-                      <h2>知识库文件</h2>
-                      <span>{files.length} Files</span>
-                    </div>
-                    <div className="personal-actions">
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={() => void handleStartKnowledgeBaseSync(item.id)}
-                        disabled={updatingKnowledgeBaseId === item.id || hasRunningSyncRun}
-                      >
-                        {updatingKnowledgeBaseId === item.id ? "同步中..." : "触发全量同步"}
-                      </button>
-                    </div>
-                    <div className="personal-meta">支持先选择本地文件，自动带入文件名、类型和来源；当前阶段会先登记文件元数据。</div>
-                    <div className="admin-rule-grid">
-                      <label style={{ gridColumn: "span 2" }}>
-                        <span>选择文件</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.doc,.docx,.xlsx,.xls,.md,.markdown,.txt,.csv,.ppt,.pptx"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            if (!file) {
-                              return;
+                  {knowledgeWorkspaceSection === "overview" ? (
+                    <div className="admin-provider-stack">
+                      <article className="entity-card admin-rule-card">
+                        <div className="panel-header">
+                          <h2>基础信息</h2>
+                          <span>{selectedKnowledgeBase.slug}</span>
+                        </div>
+                        <div className="admin-rule-grid">
+                          <label>
+                            <span>启用状态</span>
+                            <select
+                              value={selectedKnowledgeBaseDraft.status}
+                              onChange={(event) =>
+                                handleKnowledgeBaseDraftChange(selectedKnowledgeBase.id, {
+                                  status: event.target.value as KnowledgeBaseRecord["status"],
+                                })
+                              }
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="DRAFT">DRAFT</option>
+                              <option value="DISABLED">DISABLED</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>数据源类型</span>
+                            <select
+                              value={selectedKnowledgeBaseDraft.sourceType}
+                              onChange={(event) =>
+                                handleKnowledgeBaseDraftChange(selectedKnowledgeBase.id, {
+                                  sourceType: event.target.value as KnowledgeBaseRecord["sourceType"],
+                                })
+                              }
+                            >
+                              <option value="MANUAL">MANUAL</option>
+                              <option value="FEISHU">FEISHU</option>
+                              <option value="NOTION">NOTION</option>
+                              <option value="OSS">OSS</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label className="admin-rule-description">
+                          <span>知识库说明</span>
+                          <textarea
+                            value={selectedKnowledgeBaseDraft.description}
+                            onChange={(event) =>
+                              handleKnowledgeBaseDraftChange(selectedKnowledgeBase.id, {
+                                description: event.target.value,
+                              })
                             }
-                            handleKnowledgeBaseFileDraftChange(item.id, buildKnowledgeBaseFileDraftFromFile(file));
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <label>
-                        <span>文件名</span>
-                        <input
-                          value={fileDraft.fileName}
-                          onChange={(event) =>
-                            handleKnowledgeBaseFileDraftChange(item.id, {
-                              fileName: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>文件类型</span>
-                        <select
-                          value={fileDraft.fileType}
-                          onChange={(event) =>
-                            handleKnowledgeBaseFileDraftChange(item.id, {
-                              fileType: event.target.value as KnowledgeBaseFileRecord["fileType"],
-                            })
-                          }
-                        >
-                          <option value="PDF">PDF</option>
-                          <option value="DOCX">DOCX</option>
-                          <option value="XLSX">XLSX</option>
-                          <option value="MD">MD</option>
-                          <option value="LINK">LINK</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>来源</span>
-                        <input
-                          value={fileDraft.sourceName}
-                          onChange={(event) =>
-                            handleKnowledgeBaseFileDraftChange(item.id, {
-                              sourceName: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>分片数</span>
-                        <input
-                          type="number"
-                          value={fileDraft.chunkCount}
-                          onChange={(event) =>
-                            handleKnowledgeBaseFileDraftChange(item.id, {
-                              chunkCount: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                    </div>
-                    <div className="personal-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleCreateKnowledgeBaseFile(item.id)}
-                        disabled={updatingKnowledgeBaseFileId === item.id || !fileDraft.fileName.trim()}
-                      >
-                        {updatingKnowledgeBaseFileId === item.id ? "新增中..." : "新增文件"}
-                      </button>
-                    </div>
-                    <div className="admin-rules-stack">
-                      {files.length ? (
-                        files.map((file) => (
-                          <article className="entity-card admin-rule-card" key={file.id}>
+                          />
+                        </label>
+                        <div className="personal-actions">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleSaveKnowledgeBase(selectedKnowledgeBase.id)}
+                            disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id}
+                          >
+                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存基础信息"}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleArchiveKnowledgeBase(selectedKnowledgeBase.id)}
+                            disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id || selectedKnowledgeBase.status === "DISABLED"}
+                          >
+                            归档知识库
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => void handleDeleteKnowledgeBase(selectedKnowledgeBase.id)}
+                            disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id}
+                          >
+                            删除知识库
+                          </button>
+                        </div>
+                      </article>
+
+                      <article className="entity-card admin-rule-card">
+                        <div className="panel-header">
+                          <h2>最近一次同步</h2>
+                          <span>
+                            {selectedKnowledgeLatestSyncRun ? formatDateTime(selectedKnowledgeLatestSyncRun.startedAt) : "暂无记录"}
+                          </span>
+                        </div>
+                        {selectedKnowledgeLatestSyncRun ? (
+                          <>
                             <div className="entity-card-head">
                               <div>
-                                <strong>{file.fileName}</strong>
-                                <p className="personal-meta">
-                                  {file.fileType} · {file.sourceName} · 分片 {file.chunkCount}
-                                </p>
+                                <strong>{getSyncRunTitle(selectedKnowledgeLatestSyncRun)}</strong>
+                                <p className="personal-meta">{selectedKnowledgeLatestSyncRun.summary}</p>
                               </div>
-                              <span className={`archive-pill ${file.status === "INDEXED" ? "status-ready" : file.status === "FAILED" ? "status-paused" : "status-in_progress"}`}>
-                                {file.status}
+                              <span
+                                className={`archive-pill ${
+                                  selectedKnowledgeLatestSyncRun.result === "SUCCESS"
+                                    ? "status-ready"
+                                    : selectedKnowledgeLatestSyncRun.result === "FAILED"
+                                      ? "status-paused"
+                                      : "status-in_progress"
+                                }`}
+                              >
+                                {selectedKnowledgeLatestSyncRun.result}
                               </span>
                             </div>
-                            <div className="admin-rule-grid">
-                              <label>
-                                <span>文件状态</span>
-                                <select
-                                  value={file.status}
-                                  onChange={(event) =>
-                                    void handleUpdateKnowledgeBaseFileStatus(
-                                      file.id,
-                                      event.target.value as KnowledgeBaseFileRecord["status"],
-                                    )
-                                  }
-                                  disabled={updatingKnowledgeBaseFileId === file.id}
+                            <div className="personal-grid">
+                              <div>
+                                <span>开始时间</span>
+                                <strong>{formatDateTime(selectedKnowledgeLatestSyncRun.startedAt)}</strong>
+                              </div>
+                              <div>
+                                <span>完成时间</span>
+                                <strong>
+                                  {selectedKnowledgeLatestSyncRun.completedAt
+                                    ? formatDateTime(selectedKnowledgeLatestSyncRun.completedAt)
+                                    : "进行中"}
+                                </strong>
+                              </div>
+                              <div>
+                                <span>执行人</span>
+                                <strong>{selectedKnowledgeLatestSyncRun.operator}</strong>
+                              </div>
+                            </div>
+                            {selectedKnowledgeLatestSyncRun.errorDetail ? (
+                              <p className="personal-meta">失败详情：{selectedKnowledgeLatestSyncRun.errorDetail}</p>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="personal-meta">当前还没有同步记录，先进入“资料上传”板块录入资料。</p>
+                        )}
+                      </article>
+                    </div>
+                  ) : null}
+
+                  {knowledgeWorkspaceSection === "files" && selectedKnowledgeFileDraft ? (
+                    <div className="admin-provider-stack">
+                      <article className="entity-card admin-rule-card">
+                        <div className="panel-header">
+                          <h2>资料上传</h2>
+                          <span>{selectedKnowledgeFiles.length} Files</span>
+                        </div>
+                        <div className="knowledge-upload-choice-grid">
+                          <label className="knowledge-upload-choice knowledge-upload-choice--active product-upload-trigger">
+                            <input
+                              type="file"
+                              className="sr-only-file-input"
+                              accept=".pdf,.doc,.docx,.xlsx,.xls,.md,.markdown,.txt,.csv,.ppt,.pptx"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (!file) {
+                                  return;
+                                }
+                                handleKnowledgeBaseFileDraftChange(
+                                  selectedKnowledgeBase.id,
+                                  buildKnowledgeBaseFileDraftFromFile(file),
+                                );
+                                event.currentTarget.value = "";
+                              }}
+                            />
+                            <strong>本地文档</strong>
+                            <span>上传 PDF、Word、Excel、Markdown 等资料，自动回填文件名与类型。</span>
+                            <em>点击上传</em>
+                          </label>
+                          <div className="knowledge-upload-choice">
+                            <strong>前端桥接导入</strong>
+                            <span>企业经营数据页保存后会自动进入对应知识库，这里只负责补充资料和手动同步。</span>
+                            <em>自动同步</em>
+                          </div>
+                        </div>
+                        <div className="knowledge-upload-preview">
+                          <strong>{selectedKnowledgeFileDraft.fileName || "尚未选择文件"}</strong>
+                          <p>
+                            {selectedKnowledgeFileDraft.fileName
+                              ? `${selectedKnowledgeFileDraft.fileType} · ${selectedKnowledgeFileDraft.sourceName || "未填写来源"}`
+                              : "支持先选择文件，再按需修改资料名称和来源说明。"}
+                          </p>
+                        </div>
+                        <div className="admin-rule-grid">
+                          <label>
+                            <span>文件名</span>
+                            <input
+                              value={selectedKnowledgeFileDraft.fileName}
+                              onChange={(event) =>
+                                handleKnowledgeBaseFileDraftChange(selectedKnowledgeBase.id, {
+                                  fileName: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>文件类型</span>
+                            <select
+                              value={selectedKnowledgeFileDraft.fileType}
+                              onChange={(event) =>
+                                handleKnowledgeBaseFileDraftChange(selectedKnowledgeBase.id, {
+                                  fileType: event.target.value as KnowledgeBaseFileRecord["fileType"],
+                                })
+                              }
+                            >
+                              <option value="PDF">PDF</option>
+                              <option value="DOCX">DOCX</option>
+                              <option value="XLSX">XLSX</option>
+                              <option value="MD">MD</option>
+                              <option value="LINK">LINK</option>
+                            </select>
+                          </label>
+                          <label style={{ gridColumn: "span 2" }}>
+                            <span>来源说明</span>
+                            <input
+                              value={selectedKnowledgeFileDraft.sourceName}
+                              onChange={(event) =>
+                                handleKnowledgeBaseFileDraftChange(selectedKnowledgeBase.id, {
+                                  sourceName: event.target.value,
+                                })
+                              }
+                              placeholder="例如 品牌部上传 / 企业经营数据桥接"
+                            />
+                          </label>
+                        </div>
+                        <div className="personal-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleCreateKnowledgeBaseFile(selectedKnowledgeBase.id)}
+                            disabled={
+                              updatingKnowledgeBaseFileId === selectedKnowledgeBase.id || !selectedKnowledgeFileDraft.fileName.trim()
+                            }
+                          >
+                            {updatingKnowledgeBaseFileId === selectedKnowledgeBase.id ? "新增中..." : "新增资料"}
+                          </button>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleStartKnowledgeBaseSync(selectedKnowledgeBase.id)}
+                            disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id || selectedKnowledgeHasRunningSyncRun}
+                          >
+                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "同步中..." : "触发全量同步"}
+                          </button>
+                        </div>
+                      </article>
+
+                      <div className="admin-rules-stack">
+                        {selectedKnowledgeFiles.length ? (
+                          selectedKnowledgeFiles.map((file) => (
+                            <article className="entity-card admin-rule-card" key={file.id}>
+                              <div className="entity-card-head">
+                                <div>
+                                  <strong>{file.fileName}</strong>
+                                  <p className="personal-meta">
+                                    {file.fileType} · {file.sourceName} · 分片 {file.chunkCount}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`archive-pill ${
+                                    file.status === "INDEXED"
+                                      ? "status-ready"
+                                      : file.status === "FAILED"
+                                        ? "status-paused"
+                                        : "status-in_progress"
+                                  }`}
                                 >
-                                  <option value="PENDING">PENDING</option>
-                                  <option value="INDEXED">INDEXED</option>
-                                  <option value="FAILED">FAILED</option>
-                                </select>
-                              </label>
-                              <label>
-                                <span>同步动作</span>
+                                  {file.status}
+                                </span>
+                              </div>
+                              <div className="personal-actions">
+                                <span className="personal-meta">上传时间 {formatDateTime(file.uploadedAt)}</span>
                                 <button
                                   type="button"
                                   className="secondary-button"
@@ -5549,154 +5325,462 @@ export default function AdminPage() {
                                 >
                                   {file.status === "FAILED" ? "重试同步" : file.status === "INDEXED" ? "重新同步" : "触发同步"}
                                 </button>
-                              </label>
-                            </div>
-                            <div className="personal-actions">
-                              <span className="personal-meta">上传时间 {formatDateTime(file.uploadedAt)}</span>
-                              <button
-                                type="button"
-                                className="danger-button"
-                                onClick={() => void handleDeleteKnowledgeBaseFile(file.id)}
-                                disabled={updatingKnowledgeBaseFileId === file.id}
-                              >
-                                删除文件
-                              </button>
-                            </div>
-                          </article>
-                        ))
-                      ) : (
-                        <p className="personal-meta">暂无知识库文件，先从上方录入一条文件信息。</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="admin-rules-stack">
-                    <div className="panel-header">
-                      <h2>同步记录</h2>
-                      <span>{syncRuns.length} Runs</span>
-                    </div>
-                    {syncRuns.length ? (
-                      syncRuns.slice(0, 5).map((run) => {
-                        const runDraft = knowledgeBaseSyncRunDrafts[run.id] || buildSyncRunDraft(run);
-
-                        return (
-                          <article className="entity-card admin-rule-card" key={run.id}>
-                          <div className="entity-card-head">
-                            <div>
-                              <strong>{getSyncRunTitle(run)}</strong>
-                              <p className="personal-meta">{run.summary}</p>
-                            </div>
-                            <span
-                              className={`archive-pill ${
-                                run.result === "SUCCESS"
-                                  ? "status-ready"
-                                  : run.result === "FAILED"
-                                    ? "status-paused"
-                                    : "status-in_progress"
-                              }`}
-                            >
-                              {run.result}
-                            </span>
-                          </div>
-                          <div className="personal-grid">
-                            <div>
-                              <span>开始时间</span>
-                              <strong>{formatDateTime(run.startedAt)}</strong>
-                            </div>
-                            <div>
-                              <span>完成时间</span>
-                              <strong>{run.completedAt ? formatDateTime(run.completedAt) : "进行中"}</strong>
-                            </div>
-                            <div>
-                              <span>执行人</span>
-                              <strong>{run.operator}</strong>
-                            </div>
-                          </div>
-                          {run.result === "RUNNING" ? (
-                            <>
-                              <div className="admin-rule-grid">
-                                <label>
-                                  <span>成功摘要</span>
-                                  <input
-                                    value={runDraft.summary}
-                                    onChange={(event) =>
-                                      handleSyncRunDraftChange(run.id, {
-                                        summary: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </label>
-                              </div>
-                              <label className="admin-rule-description">
-                                <span>失败原因详情</span>
-                                <textarea
-                                  value={runDraft.errorDetail}
-                                  onChange={(event) =>
-                                    handleSyncRunDraftChange(run.id, {
-                                      errorDetail: event.target.value,
-                                    })
-                                  }
-                                />
-                              </label>
-                              <div className="personal-actions">
-                                <button
-                                  type="button"
-                                  className="secondary-button"
-                                  onClick={() => void handleCompleteKnowledgeBaseSyncRun(run.id, "SUCCESS")}
-                                  disabled={updatingKnowledgeBaseSyncRunId === run.id}
-                                >
-                                  标记成功
-                                </button>
                                 <button
                                   type="button"
                                   className="danger-button"
-                                  onClick={() => void handleCompleteKnowledgeBaseSyncRun(run.id, "FAILED")}
-                                  disabled={updatingKnowledgeBaseSyncRunId === run.id}
+                                  onClick={() => void handleDeleteKnowledgeBaseFile(file.id)}
+                                  disabled={updatingKnowledgeBaseFileId === file.id}
                                 >
-                                  标记失败
+                                  删除资料
                                 </button>
                               </div>
-                            </>
-                          ) : run.errorDetail ? (
-                            <p className="personal-meta">失败详情：{run.errorDetail}</p>
-                          ) : null}
-                          </article>
-                        );
-                      })
-                    ) : (
-                      <p className="personal-meta">暂无同步记录。</p>
-                    )}
-                  </div>
+                            </article>
+                          ))
+                        ) : (
+                          <p className="personal-meta">暂无知识库资料，先从上方上传一份文档，或从前端企业经营数据页自动桥接。</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
 
-                  <div className="personal-actions">
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void handleSaveKnowledgeBase(item.id)}
-                      disabled={updatingKnowledgeBaseId === item.id}
-                    >
-                      {updatingKnowledgeBaseId === item.id ? "保存中..." : "保存知识库配置"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleArchiveKnowledgeBase(item.id)}
-                      disabled={updatingKnowledgeBaseId === item.id || item.status === "DISABLED"}
-                    >
-                      归档知识库
-                    </button>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={() => void handleDeleteKnowledgeBase(item.id)}
-                      disabled={updatingKnowledgeBaseId === item.id}
-                    >
-                      删除知识库
-                    </button>
+                  {knowledgeWorkspaceSection === "retrieval" &&
+                  selectedKnowledgeRetrievalDraft &&
+                  selectedKnowledgeRetrievalConfig ? (
+                    <article className="entity-card admin-rule-card">
+                      <div className="panel-header">
+                        <h2>检索配置</h2>
+                        <span>TopK / Recall / Rerank</span>
+                      </div>
+                      <div className="personal-meta">
+                        这里先维护默认召回策略，不再暴露同步状态、人为标记结果等治理细节，避免和业务录入混在一起。
+                      </div>
+                      <div className="admin-rule-grid">
+                        <label>
+                          <span>默认 TopK</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={selectedKnowledgeRetrievalDraft.defaultTopK}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                defaultTopK: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>召回模式</span>
+                          <select
+                            value={selectedKnowledgeRetrievalDraft.recallMode}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                recallMode: event.target.value as KnowledgeRetrievalConfigRecord["recallMode"],
+                              })
+                            }
+                          >
+                            <option value="SEMANTIC">SEMANTIC</option>
+                            <option value="HYBRID">HYBRID</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>启用重排</span>
+                          <select
+                            value={selectedKnowledgeRetrievalDraft.rerankEnabled ? "YES" : "NO"}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                rerankEnabled: event.target.value === "YES",
+                              })
+                            }
+                          >
+                            <option value="NO">NO</option>
+                            <option value="YES">YES</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>重排模型</span>
+                          <input
+                            value={selectedKnowledgeRetrievalDraft.rerankModelName}
+                            placeholder={selectedKnowledgeRetrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                rerankModelName: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>切片大小</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={selectedKnowledgeRetrievalDraft.chunkSize}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                chunkSize: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>切片重叠</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={selectedKnowledgeRetrievalDraft.chunkOverlap}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                chunkOverlap: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>检索阈值</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={selectedKnowledgeRetrievalDraft.retrievalThreshold}
+                            onChange={(event) =>
+                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                retrievalThreshold: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="personal-actions">
+                        <span className="personal-meta">上次更新时间 {formatDateTime(selectedKnowledgeRetrievalConfig.updatedAt)}</span>
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={() => void handleSaveKnowledgeRetrievalConfig(selectedKnowledgeBase.id)}
+                          disabled={updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
+                        >
+                          {updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存检索配置"}
+                        </button>
+                      </div>
+                    </article>
+                  ) : null}
+
+                  {knowledgeWorkspaceSection === "bindings" && selectedKnowledgeBindingCreateDraft ? (
+                    <div className="admin-provider-stack">
+                      <article className="entity-card admin-rule-card">
+                        <div className="panel-header">
+                          <h2>接入对象</h2>
+                          <span>{selectedKnowledgeBindings.length} Bindings</span>
+                        </div>
+                        <div className="personal-meta">
+                          这里只保留“绑定到谁”的治理能力。系统桥接会默认把企业经营数据知识库挂到品牌增长工作台，你也可以继续补其他对象。
+                        </div>
+                        <div className="admin-rule-grid">
+                          <label>
+                            <span>绑定类型</span>
+                            <select
+                              value={selectedKnowledgeBindingCreateDraft.bindingType}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  bindingType: event.target.value as KnowledgeBindingRecord["bindingType"],
+                                })
+                              }
+                            >
+                              <option value="MODULE">MODULE</option>
+                              <option value="SKILL_PACKAGE">SKILL_PACKAGE</option>
+                              <option value="PROMPT">PROMPT</option>
+                              <option value="WORKFLOW_STEP">WORKFLOW_STEP</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>目标 ID</span>
+                            <input
+                              value={selectedKnowledgeBindingCreateDraft.targetId}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  targetId: event.target.value,
+                                })
+                              }
+                              placeholder="例如 brand-growth-workbench"
+                            />
+                          </label>
+                          <label>
+                            <span>目标 Key</span>
+                            <input
+                              value={selectedKnowledgeBindingCreateDraft.targetKey}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  targetKey: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>目标名称</span>
+                            <input
+                              value={selectedKnowledgeBindingCreateDraft.targetName}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  targetName: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>优先级</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={selectedKnowledgeBindingCreateDraft.priority}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  priority: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>检索模式</span>
+                            <select
+                              value={selectedKnowledgeBindingCreateDraft.retrievalMode}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
+                                })
+                              }
+                            >
+                              <option value="SEMANTIC">SEMANTIC</option>
+                              <option value="HYBRID">HYBRID</option>
+                              <option value="MANUAL">MANUAL</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="admin-rule-grid">
+                          <label>
+                            <span>必须命中</span>
+                            <select
+                              value={selectedKnowledgeBindingCreateDraft.isRequired ? "YES" : "NO"}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  isRequired: event.target.value === "YES",
+                                })
+                              }
+                            >
+                              <option value="NO">NO</option>
+                              <option value="YES">YES</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>启用</span>
+                            <select
+                              value={selectedKnowledgeBindingCreateDraft.enabled ? "YES" : "NO"}
+                              onChange={(event) =>
+                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
+                                  enabled: event.target.value === "YES",
+                                })
+                              }
+                            >
+                              <option value="YES">YES</option>
+                              <option value="NO">NO</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="personal-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleCreateKnowledgeBinding(selectedKnowledgeBase.id)}
+                            disabled={
+                              creatingKnowledgeBindingForBaseId === selectedKnowledgeBase.id ||
+                              !selectedKnowledgeBindingCreateDraft.targetId.trim()
+                            }
+                          >
+                            {creatingKnowledgeBindingForBaseId === selectedKnowledgeBase.id ? "创建中..." : "新增绑定"}
+                          </button>
+                        </div>
+                      </article>
+
+                      <div className="admin-rules-stack">
+                        {selectedKnowledgeBindings.length ? (
+                          selectedKnowledgeBindings.map((binding) => {
+                            const bindingDraft = knowledgeBindingDrafts[binding.id] || buildKnowledgeBindingDraft(binding);
+                            return (
+                              <article className="entity-card admin-rule-card" key={binding.id}>
+                                <div className="entity-card-head">
+                                  <div>
+                                    <strong>{binding.targetName || binding.targetId}</strong>
+                                    <p className="personal-meta">
+                                      {binding.bindingType} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
+                                    </p>
+                                  </div>
+                                  <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
+                                    {binding.enabled ? "ENABLED" : "DISABLED"}
+                                  </span>
+                                </div>
+                                <div className="admin-rule-grid">
+                                  <label>
+                                    <span>目标 Key</span>
+                                    <input
+                                      value={bindingDraft.targetKey}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          targetKey: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>目标名称</span>
+                                    <input
+                                      value={bindingDraft.targetName}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          targetName: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>优先级</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={bindingDraft.priority}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          priority: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>检索模式</span>
+                                    <select
+                                      value={bindingDraft.retrievalMode}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          retrievalMode: event.target.value as KnowledgeBindingRecord["retrievalMode"],
+                                        })
+                                      }
+                                    >
+                                      <option value="SEMANTIC">SEMANTIC</option>
+                                      <option value="HYBRID">HYBRID</option>
+                                      <option value="MANUAL">MANUAL</option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <span>必须命中</span>
+                                    <select
+                                      value={bindingDraft.isRequired ? "YES" : "NO"}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          isRequired: event.target.value === "YES",
+                                        })
+                                      }
+                                    >
+                                      <option value="NO">NO</option>
+                                      <option value="YES">YES</option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <span>启用</span>
+                                    <select
+                                      value={bindingDraft.enabled ? "YES" : "NO"}
+                                      onChange={(event) =>
+                                        handleKnowledgeBindingDraftChange(binding.id, {
+                                          enabled: event.target.value === "YES",
+                                        })
+                                      }
+                                    >
+                                      <option value="YES">YES</option>
+                                      <option value="NO">NO</option>
+                                    </select>
+                                  </label>
+                                </div>
+                                <div className="personal-actions">
+                                  <span className="personal-meta">更新于 {formatDateTime(binding.updatedAt)}</span>
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => void handleSaveKnowledgeBinding(binding.id)}
+                                    disabled={updatingKnowledgeBindingId === binding.id}
+                                  >
+                                    {updatingKnowledgeBindingId === binding.id ? "保存中..." : "保存绑定"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="danger-button"
+                                    onClick={() => void handleDeleteKnowledgeBinding(binding.id)}
+                                    disabled={updatingKnowledgeBindingId === binding.id}
+                                  >
+                                    删除绑定
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })
+                        ) : (
+                          <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或提示词。</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {knowledgeWorkspaceSection === "history" ? (
+                    <div className="admin-rules-stack">
+                      {selectedKnowledgeSyncRuns.length ? (
+                        selectedKnowledgeSyncRuns.slice(0, 8).map((run) => (
+                          <article className="entity-card admin-rule-card" key={run.id}>
+                            <div className="entity-card-head">
+                              <div>
+                                <strong>{getSyncRunTitle(run)}</strong>
+                                <p className="personal-meta">{run.summary}</p>
+                              </div>
+                              <span
+                                className={`archive-pill ${
+                                  run.result === "SUCCESS"
+                                    ? "status-ready"
+                                    : run.result === "FAILED"
+                                      ? "status-paused"
+                                      : "status-in_progress"
+                                }`}
+                              >
+                                {run.result}
+                              </span>
+                            </div>
+                            <div className="personal-grid">
+                              <div>
+                                <span>开始时间</span>
+                                <strong>{formatDateTime(run.startedAt)}</strong>
+                              </div>
+                              <div>
+                                <span>完成时间</span>
+                                <strong>{run.completedAt ? formatDateTime(run.completedAt) : "进行中"}</strong>
+                              </div>
+                              <div>
+                                <span>执行人</span>
+                                <strong>{run.operator}</strong>
+                              </div>
+                            </div>
+                            {run.errorDetail ? <p className="personal-meta">失败详情：{run.errorDetail}</p> : null}
+                          </article>
+                        ))
+                      ) : (
+                        <p className="personal-meta">暂无同步记录。</p>
+                      )}
+                    </div>
+                  ) : null}
+                </article>
+              ) : (
+                <article className="panel admin-provider-card">
+                  <div className="admin-provider-card-head">
+                    <div>
+                      <strong>知识库详情</strong>
+                      <p className="admin-provider-meta">左侧先创建或选择一个知识库，右侧再进入对应板块继续管理。</p>
+                    </div>
                   </div>
                 </article>
-              );
-            })}
+              )}
+            </section>
           </div>
         ) : activeTab === "providers" ? (
           <div className="admin-provider-layout">
