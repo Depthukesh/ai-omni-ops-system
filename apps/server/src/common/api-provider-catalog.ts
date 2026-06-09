@@ -59,6 +59,20 @@ type VolcengineArkVideoSeedInput = {
   durationOptions?: number[];
 };
 
+type VolcengineArkEmbeddingSeedInput = {
+  id: string;
+  name: string;
+  tutorialUrl: string;
+  modelId: string;
+  displayOrder: number;
+  remark: string;
+  dimensions?: number[];
+  supportsText?: boolean;
+  supportsImage?: boolean;
+  supportsVideo?: boolean;
+  supportsSparseEmbedding?: boolean;
+};
+
 type ApizTaskImageSeedInput = {
   id: string;
   name: string;
@@ -125,6 +139,41 @@ function createVolcengineArkVideoSeed(input: VolcengineArkVideoSeedInput) {
       supportsImageToVideo: true,
       durationOptions: input.durationOptions || [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
       sourceFolder: "火山方舟 Seedance 视频生成",
+    },
+    remark: input.remark,
+  });
+}
+
+function createVolcengineArkEmbeddingSeed(input: VolcengineArkEmbeddingSeedInput) {
+  return createSeed({
+    id: input.id,
+    name: input.name,
+    providerType: "DOUBAO",
+    status: "ACTIVE",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    tutorialUrl: input.tutorialUrl,
+    modelWhitelist: [input.modelId],
+    apiKey: "",
+    defaultModel: input.modelId,
+    organization: "",
+    project: "",
+    timeoutMs: 180000,
+    streamEnabled: false,
+    customHeaders: {},
+    extraParams: {
+      runtimeKey: "embedding-multimodal",
+      runtimeTags: ["embedding", "knowledge-runtime", "rag-runtime", "multimodal-embedding"],
+      baseUrls: ["https://ark.cn-beijing.volces.com/api/v3"],
+      embeddingPath: "/embeddings/multimodal",
+      requestMode: "multimodal-embeddings",
+      encodingFormat: "float",
+      displayOrder: input.displayOrder,
+      supportsText: input.supportsText !== false,
+      supportsImage: input.supportsImage !== false,
+      supportsVideo: input.supportsVideo !== false,
+      supportsSparseEmbedding: input.supportsSparseEmbedding === true,
+      dimensions: input.dimensions || [256, 512, 1024],
+      sourceFolder: "火山方舟 Doubao 多模态向量化",
     },
     remark: input.remark,
   });
@@ -232,6 +281,23 @@ const VOLCENGINE_ARK_VIDEO_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     recommended: true,
     remark: "火山方舟 Seedance 2.0 Fast 视频生成接口；平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
     durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  }),
+];
+
+const VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
+  createVolcengineArkEmbeddingSeed({
+    id: "provider_runtime_embedding_volcengine_doubao_embedding_vision_250615",
+    name: "火山方舟 · Doubao Embedding Vision 250615",
+    tutorialUrl: "https://www.volcengine.com/docs/82379/1409291?lang=zh",
+    modelId: "doubao-embedding-vision-250615",
+    displayOrder: 40,
+    remark:
+      "火山方舟 Doubao 多模态向量化接口，支持文本、图片、视频混合输入；用于知识库/RAG 的多模态 embedding。平台 Key 由品牌 Owner 在个人中心第三方接口配置维护。",
+    dimensions: [256, 512, 1024],
+    supportsText: true,
+    supportsImage: true,
+    supportsVideo: true,
+    supportsSparseEmbedding: true,
   }),
 ];
 
@@ -593,6 +659,7 @@ export const SYSTEM_API_PROVIDER_SEEDS: ApiProviderSeedRecord[] = [
     },
     remark: "系统按用户提供的火山方舟接口资料初始化，兼容文生文与参考图分析场景。",
   }),
+  ...VOLCENGINE_ARK_EMBEDDING_PROVIDER_SEEDS,
   createSeed({
     id: "provider_runtime_text_kimi",
     name: "国内文生文 · Kimi",
