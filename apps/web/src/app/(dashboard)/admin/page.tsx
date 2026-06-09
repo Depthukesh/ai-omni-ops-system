@@ -329,6 +329,12 @@ type CreateKnowledgeBindingDraft = {
   isRequired: boolean;
   enabled: boolean;
 };
+type KnowledgeBindingTargetOption = {
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  description?: string;
+};
 
 function isBrandBridgeKnowledgeBase(knowledgeBase?: KnowledgeBaseRecord) {
   if (!knowledgeBase) {
@@ -347,6 +353,89 @@ function getKnowledgeBaseContainerLabel(knowledgeBase: KnowledgeBaseRecord) {
 
 function getKnowledgeBindingDisplayName(binding: KnowledgeBindingRecord) {
   return binding.targetName || binding.targetKey || binding.targetId;
+}
+
+function getKnowledgeBaseStatusLabel(status: KnowledgeBaseRecord["status"]) {
+  if (status === "ACTIVE") {
+    return "启用中";
+  }
+  if (status === "DISABLED") {
+    return "已停用";
+  }
+  return "草稿";
+}
+
+function getKnowledgeSourceTypeLabel(sourceType: KnowledgeBaseRecord["sourceType"]) {
+  if (sourceType === "FEISHU") {
+    return "飞书";
+  }
+  if (sourceType === "NOTION") {
+    return "Notion";
+  }
+  if (sourceType === "OSS") {
+    return "对象存储";
+  }
+  return "手动维护";
+}
+
+function getKnowledgeSyncStatusLabel(status: KnowledgeBaseRecord["syncStatus"]) {
+  if (status === "SUCCESS") {
+    return "同步成功";
+  }
+  if (status === "SYNCING") {
+    return "同步中";
+  }
+  if (status === "FAILED") {
+    return "同步失败";
+  }
+  return "待同步";
+}
+
+function getKnowledgeRunResultLabel(result: KnowledgeBaseSyncRunRecord["result"]) {
+  if (result === "SUCCESS") {
+    return "成功";
+  }
+  if (result === "FAILED") {
+    return "失败";
+  }
+  return "进行中";
+}
+
+function getKnowledgeBindingTypeLabel(bindingType: KnowledgeBindingRecord["bindingType"]) {
+  if (bindingType === "SKILL_PACKAGE") {
+    return "能力包";
+  }
+  if (bindingType === "PROMPT") {
+    return "提示词";
+  }
+  if (bindingType === "WORKFLOW_STEP") {
+    return "工作流步骤";
+  }
+  return "模块";
+}
+
+function getKnowledgeRetrievalModeLabel(mode: KnowledgeBindingRecord["retrievalMode"] | KnowledgeRetrievalConfigRecord["recallMode"]) {
+  if (mode === "SEMANTIC") {
+    return "语义召回";
+  }
+  if (mode === "MANUAL") {
+    return "人工指定";
+  }
+  return "混合召回";
+}
+
+function getKnowledgeYesNoLabel(value: boolean) {
+  return value ? "是" : "否";
+}
+
+function getKnowledgeFileStatusLabel(status: KnowledgeBaseFileRecord["status"]) {
+  if (status === "INDEXED") {
+    return "已入库";
+  }
+  if (status === "FAILED") {
+    return "失败";
+  }
+  return "待同步";
 }
 type SyncRunEditDraft = {
   summary: string;
@@ -1878,6 +1967,51 @@ export default function AdminPage() {
     }));
   }
 
+  function handleSelectKnowledgeBindingTarget(
+    knowledgeBaseId: string,
+    bindingType: KnowledgeBindingRecord["bindingType"],
+    targetId: string,
+  ) {
+    const optionMap: Record<KnowledgeBindingRecord["bindingType"], KnowledgeBindingTargetOption[]> = {
+      MODULE: modules.map((item) => ({
+        targetId: item.moduleKey,
+        targetKey: item.moduleKey,
+        targetName: item.moduleName,
+      })),
+      SKILL_PACKAGE: skillPackages.map((item) => ({
+        targetId: item.packageKey,
+        targetKey: item.packageKey,
+        targetName: item.packageName,
+      })),
+      PROMPT: prompts.map((item) => ({
+        targetId: item.id,
+        targetKey: item.id,
+        targetName: item.name,
+      })),
+      WORKFLOW_STEP: Array.from(
+        new Map(
+          [...knowledgeBindings]
+            .filter((item) => item.bindingType === "WORKFLOW_STEP" && item.targetId.trim())
+            .map((item) => [
+              item.targetId,
+              {
+                targetId: item.targetId,
+                targetKey: item.targetKey || item.targetId,
+                targetName: item.targetName || item.targetId,
+              } satisfies KnowledgeBindingTargetOption,
+            ]),
+        ).values(),
+      ),
+    };
+
+    const matched = optionMap[bindingType].find((item) => item.targetId === targetId);
+    handleCreateKnowledgeBindingDraftChange(knowledgeBaseId, {
+      targetId,
+      targetKey: matched?.targetKey || targetId,
+      targetName: matched?.targetName || targetId,
+    });
+  }
+
   function handleKnowledgeRetrievalConfigDraftChange(
     knowledgeBaseId: string,
     patch: Partial<KnowledgeRetrievalConfigEditDraft>,
@@ -2841,6 +2975,81 @@ export default function AdminPage() {
     : undefined;
   const selectedKnowledgeBindingCreateDraft = selectedKnowledgeBase
     ? newKnowledgeBindingDrafts[selectedKnowledgeBase.id] || buildCreateKnowledgeBindingDraft()
+    : undefined;
+  const knowledgeBindingTargetOptions = useMemo(() => {
+    const workflowNameMap = new Map<string, string>();
+    knowledgeBindings
+      .filter((item) => item.bindingType === "WORKFLOW_STEP" && item.targetId.trim())
+      .forEach((item) => {
+        workflowNameMap.set(item.targetId, item.targetName || item.targetKey || item.targetId);
+      });
+
+    const workflowStepOptions = Array.from(
+      new Map(
+        skillPackages.flatMap((item) =>
+          item.workflowStepKeys.map((workflowStepKey) => [
+            workflowStepKey,
+            {
+              targetId: workflowStepKey,
+              targetKey: workflowStepKey,
+              targetName: workflowNameMap.get(workflowStepKey) || `${item.packageName}步骤`,
+              description: `${item.packageName} · 工作流步骤`,
+            } satisfies KnowledgeBindingTargetOption,
+          ]),
+        ),
+      ).values(),
+    );
+
+    const optionMap: Record<KnowledgeBindingRecord["bindingType"], KnowledgeBindingTargetOption[]> = {
+      MODULE: modules
+        .filter((item) => item.moduleStatus !== "ARCHIVED")
+        .map((item) => ({
+          targetId: item.moduleKey,
+          targetKey: item.moduleKey,
+          targetName: item.moduleName,
+          description: item.entryRoute || item.description,
+        })),
+      SKILL_PACKAGE: skillPackages
+        .filter((item) => item.status !== "ARCHIVED")
+        .map((item) => ({
+          targetId: item.packageKey,
+          targetKey: item.packageKey,
+          targetName: item.packageName,
+          description: item.description || `作用模块：${item.moduleKeys.join(" / ") || "未设置"}`,
+        })),
+      PROMPT: prompts.map((item) => ({
+        targetId: item.id,
+        targetKey: item.id,
+        targetName: item.name,
+        description: item.scene ? `场景：${item.scene}` : `版本：${item.version}`,
+      })),
+      WORKFLOW_STEP: workflowStepOptions,
+    };
+
+    if (!selectedKnowledgeBindingCreateDraft) {
+      return optionMap;
+    }
+
+    const currentOptions = optionMap[selectedKnowledgeBindingCreateDraft.bindingType];
+    if (
+      selectedKnowledgeBindingCreateDraft.targetId.trim()
+      && !currentOptions.some((item) => item.targetId === selectedKnowledgeBindingCreateDraft.targetId)
+    ) {
+      currentOptions.unshift({
+        targetId: selectedKnowledgeBindingCreateDraft.targetId,
+        targetKey: selectedKnowledgeBindingCreateDraft.targetKey,
+        targetName: selectedKnowledgeBindingCreateDraft.targetName || selectedKnowledgeBindingCreateDraft.targetId,
+        description: "当前已填写的自定义对象",
+      });
+    }
+
+    return optionMap;
+  }, [knowledgeBindings, modules, prompts, selectedKnowledgeBindingCreateDraft, skillPackages]);
+  const selectedKnowledgeBindingTargetOptions = selectedKnowledgeBindingCreateDraft
+    ? knowledgeBindingTargetOptions[selectedKnowledgeBindingCreateDraft.bindingType]
+    : [];
+  const selectedKnowledgeBindingTargetOption = selectedKnowledgeBindingCreateDraft
+    ? selectedKnowledgeBindingTargetOptions.find((item) => item.targetId === selectedKnowledgeBindingCreateDraft.targetId)
     : undefined;
   const selectedKnowledgeRetrievalConfig = selectedKnowledgeBase
     ? knowledgeRetrievalConfigs.find((config) => config.knowledgeBaseId === selectedKnowledgeBase.id) ||
@@ -4940,10 +5149,10 @@ export default function AdminPage() {
                         }))
                       }
                     >
-                      <option value="MANUAL">MANUAL</option>
-                      <option value="FEISHU">FEISHU</option>
-                      <option value="NOTION">NOTION</option>
-                      <option value="OSS">OSS</option>
+                      <option value="MANUAL">手动维护</option>
+                      <option value="FEISHU">飞书</option>
+                      <option value="NOTION">Notion</option>
+                      <option value="OSS">对象存储</option>
                     </select>
                   </label>
                   <label className="admin-provider-field">
@@ -5002,14 +5211,14 @@ export default function AdminPage() {
                             </p>
                           </div>
                           <div className="knowledge-admin-list-tags">
-                            <span className="knowledge-admin-list-tag">{item.sourceType}</span>
+                            <span className="knowledge-admin-list-tag">{getKnowledgeSourceTypeLabel(item.sourceType)}</span>
                             <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
                           </div>
-                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
+                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getKnowledgeBaseStatusLabel(item.status)}</span>
                           <span className="knowledge-admin-list-meta">
                             {isBridgeKnowledge
                               ? `最近资料：${latestFile ? latestFile.fileName : "等待前端保存资料"}`
-                              : `最近同步：${latestRun ? latestRun.result : item.syncStatus}`}
+                              : `最近同步：${latestRun ? getKnowledgeRunResultLabel(latestRun.result) : getKnowledgeSyncStatusLabel(item.syncStatus)}`}
                           </span>
                         </button>
                       );
@@ -5027,7 +5236,7 @@ export default function AdminPage() {
                       <strong>当前板块</strong>
                       <p>按左侧板块切换后，右侧仅展示当前知识库的当前内容。</p>
                     </div>
-                    <span className="archive-pill status_ready">{knowledgeWorkspaceSection.toUpperCase()}</span>
+                    <span className="archive-pill status_ready">{knowledgeWorkspaceSections.find((section) => section.id === knowledgeWorkspaceSection)?.label || "当前板块"}</span>
                   </div>
                   <div className="knowledge-admin-section-list">
                     {knowledgeWorkspaceSections.map((section) => (
@@ -5054,21 +5263,21 @@ export default function AdminPage() {
                     <div>
                       <div className="admin-provider-title">
                         <strong>{selectedKnowledgeBase.name}</strong>
-                        <span className="admin-provider-type">{selectedKnowledgeBase.sourceType}</span>
+                        <span className="admin-provider-type">{getKnowledgeSourceTypeLabel(selectedKnowledgeBase.sourceType)}</span>
                       </div>
                       <p className="admin-provider-meta">
                         {selectedKnowledgeBase.slug} · 更新时间 {formatDateTime(selectedKnowledgeBase.updatedAt)}
                       </p>
                     </div>
                     <span className={`archive-pill ${getStatusClassName(selectedKnowledgeBase.status)}`}>
-                      {selectedKnowledgeBase.status}
+                      {getKnowledgeBaseStatusLabel(selectedKnowledgeBase.status)}
                     </span>
                   </div>
 
                   <div className="knowledge-admin-summary-grid">
                     <div className="knowledge-admin-summary-card">
                       <span>同步状态</span>
-                      <strong>{selectedKnowledgeBase.syncStatus}</strong>
+                      <strong>{getKnowledgeSyncStatusLabel(selectedKnowledgeBase.syncStatus)}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
                       <span>文档数</span>
@@ -5080,7 +5289,7 @@ export default function AdminPage() {
                     </div>
                     <div className="knowledge-admin-summary-card">
                       <span>最近同步</span>
-                      <strong>{selectedKnowledgeLatestSyncRun ? selectedKnowledgeLatestSyncRun.result : "NO_RUNS"}</strong>
+                      <strong>{selectedKnowledgeLatestSyncRun ? getKnowledgeRunResultLabel(selectedKnowledgeLatestSyncRun.result) : "暂无记录"}</strong>
                     </div>
                   </div>
 
@@ -5135,9 +5344,9 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="ACTIVE">ACTIVE</option>
-                              <option value="DRAFT">DRAFT</option>
-                              <option value="DISABLED">DISABLED</option>
+                              <option value="ACTIVE">启用中</option>
+                              <option value="DRAFT">草稿</option>
+                              <option value="DISABLED">已停用</option>
                             </select>
                           </label>
                           <label>
@@ -5150,10 +5359,10 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="MANUAL">MANUAL</option>
-                              <option value="FEISHU">FEISHU</option>
-                              <option value="NOTION">NOTION</option>
-                              <option value="OSS">OSS</option>
+                              <option value="MANUAL">手动维护</option>
+                              <option value="FEISHU">飞书</option>
+                              <option value="NOTION">Notion</option>
+                              <option value="OSS">对象存储</option>
                             </select>
                           </label>
                         </div>
@@ -5219,7 +5428,7 @@ export default function AdminPage() {
                                       : "status-in_progress"
                                 }`}
                               >
-                                {selectedKnowledgeLatestSyncRun.result}
+                                {getKnowledgeRunResultLabel(selectedKnowledgeLatestSyncRun.result)}
                               </span>
                             </div>
                             <div className="personal-grid">
@@ -5256,7 +5465,7 @@ export default function AdminPage() {
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
                           <h2>资料上传</h2>
-                          <span>{selectedKnowledgeFiles.length} Files</span>
+                          <span>{selectedKnowledgeFiles.length} 份资料</span>
                         </div>
                         <div className="knowledge-upload-choice-grid">
                           <label className="knowledge-upload-choice knowledge-upload-choice--active product-upload-trigger">
@@ -5378,7 +5587,7 @@ export default function AdminPage() {
                                         : "status-in_progress"
                                   }`}
                                 >
-                                  {file.status}
+                                  {getKnowledgeFileStatusLabel(file.status)}
                                 </span>
                               </div>
                               <div className="personal-actions">
@@ -5415,10 +5624,11 @@ export default function AdminPage() {
                     <article className="entity-card admin-rule-card">
                       <div className="panel-header">
                         <h2>检索配置</h2>
-                        <span>TopK / Recall / Rerank</span>
+                          <span>召回数量 / 召回方式 / 重排</span>
                       </div>
                       <div className="personal-meta">
-                        这里先维护默认召回策略，不再暴露同步状态、人为标记结果等治理细节，避免和业务录入混在一起。
+                        这里是“系统以后怎么查这个知识库”的默认规则。你可以控制一次查多少条、优先按语义还是混合召回、是否做二次重排，
+                        不需要在这里处理同步细节。
                       </div>
                       <div className="admin-rule-grid">
                         <label>
@@ -5444,8 +5654,8 @@ export default function AdminPage() {
                               })
                             }
                           >
-                            <option value="SEMANTIC">SEMANTIC</option>
-                            <option value="HYBRID">HYBRID</option>
+                            <option value="SEMANTIC">语义召回</option>
+                            <option value="HYBRID">混合召回</option>
                           </select>
                         </label>
                         <label>
@@ -5458,8 +5668,8 @@ export default function AdminPage() {
                               })
                             }
                           >
-                            <option value="NO">NO</option>
-                            <option value="YES">YES</option>
+                            <option value="NO">关闭</option>
+                            <option value="YES">开启</option>
                           </select>
                         </label>
                         <label>
@@ -5535,7 +5745,7 @@ export default function AdminPage() {
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
                           <h2>接入对象</h2>
-                          <span>{selectedKnowledgeBindings.length} Bindings</span>
+                          <span>{selectedKnowledgeBindings.length} 条绑定</span>
                         </div>
                         <div className="personal-meta">
                           {selectedKnowledgeIsBrandBridge
@@ -5550,47 +5760,55 @@ export default function AdminPage() {
                               onChange={(event) =>
                                 handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
                                   bindingType: event.target.value as KnowledgeBindingRecord["bindingType"],
+                                  targetId: "",
+                                  targetKey: "",
+                                  targetName: "",
                                 })
                               }
                             >
-                              <option value="MODULE">MODULE</option>
-                              <option value="SKILL_PACKAGE">SKILL_PACKAGE</option>
-                              <option value="PROMPT">PROMPT</option>
-                              <option value="WORKFLOW_STEP">WORKFLOW_STEP</option>
+                              <option value="MODULE">模块</option>
+                              <option value="SKILL_PACKAGE">能力包</option>
+                              <option value="PROMPT">提示词</option>
+                              <option value="WORKFLOW_STEP">工作流步骤</option>
                             </select>
+                          </label>
+                          <label>
+                            <span>目标名称</span>
+                            <select
+                              value={selectedKnowledgeBindingCreateDraft.targetId}
+                              onChange={(event) =>
+                                handleSelectKnowledgeBindingTarget(
+                                  selectedKnowledgeBase.id,
+                                  selectedKnowledgeBindingCreateDraft.bindingType,
+                                  event.target.value,
+                                )
+                              }
+                            >
+                              <option value="">请选择目标名称</option>
+                              {selectedKnowledgeBindingTargetOptions.map((option) => (
+                                <option key={`${selectedKnowledgeBindingCreateDraft.bindingType}-${option.targetId}`} value={option.targetId}>
+                                  {option.targetName}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="personal-meta" style={{ gridColumn: "span 2" }}>
+                            {selectedKnowledgeBindingTargetOption?.description
+                              ? `对象说明：${selectedKnowledgeBindingTargetOption.description}`
+                              : "先选择中文目标名称，系统会自动带出目标 ID 和目标 Key。"}
+                          </div>
+                          <label>
+                            <span>目标 Key</span>
+                            <input
+                              readOnly
+                              value={selectedKnowledgeBindingCreateDraft.targetKey}
+                            />
                           </label>
                           <label>
                             <span>目标 ID</span>
                             <input
+                              readOnly
                               value={selectedKnowledgeBindingCreateDraft.targetId}
-                              onChange={(event) =>
-                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
-                                  targetId: event.target.value,
-                                })
-                              }
-                              placeholder="例如 brand-growth-workbench"
-                            />
-                          </label>
-                          <label>
-                            <span>目标 Key</span>
-                            <input
-                              value={selectedKnowledgeBindingCreateDraft.targetKey}
-                              onChange={(event) =>
-                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
-                                  targetKey: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            <span>目标名称</span>
-                            <input
-                              value={selectedKnowledgeBindingCreateDraft.targetName}
-                              onChange={(event) =>
-                                handleCreateKnowledgeBindingDraftChange(selectedKnowledgeBase.id, {
-                                  targetName: event.target.value,
-                                })
-                              }
                             />
                           </label>
                           <label>
@@ -5616,9 +5834,9 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="SEMANTIC">SEMANTIC</option>
-                              <option value="HYBRID">HYBRID</option>
-                              <option value="MANUAL">MANUAL</option>
+                              <option value="SEMANTIC">语义召回</option>
+                              <option value="HYBRID">混合召回</option>
+                              <option value="MANUAL">人工指定</option>
                             </select>
                           </label>
                         </div>
@@ -5633,8 +5851,8 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="NO">NO</option>
-                              <option value="YES">YES</option>
+                              <option value="NO">否</option>
+                              <option value="YES">是</option>
                             </select>
                           </label>
                           <label>
@@ -5647,8 +5865,8 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="YES">YES</option>
-                              <option value="NO">NO</option>
+                              <option value="YES">是</option>
+                              <option value="NO">否</option>
                             </select>
                           </label>
                         </div>
@@ -5677,7 +5895,7 @@ export default function AdminPage() {
                                   <div>
                                     <strong>{binding.targetName || binding.targetId}</strong>
                                     <p className="personal-meta">
-                                      {binding.bindingType} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
+                                      {getKnowledgeBindingTypeLabel(binding.bindingType)} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
                                     </p>
                                   </div>
                                   <div className="knowledge-binding-card-badges">
@@ -5685,7 +5903,7 @@ export default function AdminPage() {
                                       <span className="archive-pill status_ready">默认接入</span>
                                     ) : null}
                                     <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
-                                      {binding.enabled ? "ENABLED" : "DISABLED"}
+                                      {binding.enabled ? "已启用" : "已停用"}
                                     </span>
                                   </div>
                                 </div>
@@ -5735,9 +5953,9 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="SEMANTIC">SEMANTIC</option>
-                                      <option value="HYBRID">HYBRID</option>
-                                      <option value="MANUAL">MANUAL</option>
+                                      <option value="SEMANTIC">语义召回</option>
+                                      <option value="HYBRID">混合召回</option>
+                                      <option value="MANUAL">人工指定</option>
                                     </select>
                                   </label>
                                   <label>
@@ -5750,8 +5968,8 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="NO">NO</option>
-                                      <option value="YES">YES</option>
+                                      <option value="NO">否</option>
+                                      <option value="YES">是</option>
                                     </select>
                                   </label>
                                   <label>
@@ -5764,8 +5982,8 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="YES">YES</option>
-                                      <option value="NO">NO</option>
+                                      <option value="YES">是</option>
+                                      <option value="NO">否</option>
                                     </select>
                                   </label>
                                 </div>
@@ -5817,7 +6035,7 @@ export default function AdminPage() {
                                       : "status-in_progress"
                                 }`}
                               >
-                                {run.result}
+                                {getKnowledgeRunResultLabel(run.result)}
                               </span>
                             </div>
                             <div className="personal-grid">
