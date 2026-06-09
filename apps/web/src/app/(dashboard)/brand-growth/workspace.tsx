@@ -25,7 +25,11 @@ import {
   formatMetric,
   sortByCollectedAtDesc,
 } from "./datetime-helpers";
-import { BrandGrowthLibraryWorkspace } from "./library-workspace";
+import {
+  BrandGrowthLibraryWorkspace,
+  type LibraryAssetModalDraft,
+  type LibraryAssetTarget,
+} from "./library-workspace";
 import {
   buildVisualReportPreviewDocument,
   renderMarkdownToHtml,
@@ -300,14 +304,35 @@ function emptyProduct(): BrandProduct {
   };
 }
 
-function emptyAsset(): BrandAsset {
+function emptyAsset(overrides: Partial<BrandAsset> = {}): BrandAsset {
   return {
     id: `ast_local_${Math.random().toString(36).slice(2, 9)}`,
     title: "",
     description: "",
     sourceName: "",
     fileUrl: "",
+    ...overrides,
   };
+}
+
+function inferAssetTitleFromFileUrl(fileUrl: string) {
+  const normalized = String(fileUrl || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    const fileName = decodeURIComponent(normalized.split("?")[0] || "")
+      .split("/")
+      .filter(Boolean)
+      .pop();
+    if (!fileName) {
+      return normalized;
+    }
+    return fileName.replace(/\.[^.]+$/, "").trim() || fileName;
+  } catch {
+    return normalized;
+  }
 }
 
 function createEmptyFeishuBindingForm() {
@@ -475,7 +500,6 @@ export function BrandGrowthWorkspace() {
   const [isSavingCalendarItem, setIsSavingCalendarItem] = useState(false);
   const [calendarItemDraft, setCalendarItemDraft] = useState<XiaohongshuMarketingCalendarItem | null>(null);
   const [uploadingProductId, setUploadingProductId] = useState("");
-  const [uploadingAssetKey, setUploadingAssetKey] = useState("");
   const [addingMaterialAssetId, setAddingMaterialAssetId] = useState("");
   const [notice, setNotice] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -1556,36 +1580,6 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  async function handleUploadAssetFile(
-    target: "industryFeeds" | "businessAssets",
-    assetId: string,
-    file?: File | null,
-  ) {
-    if (!file) {
-      return;
-    }
-
-    const uploadKey = `${target}:${assetId}`;
-    setUploadingAssetKey(uploadKey);
-    clearMessages();
-
-    try {
-      const uploaded = await uploadBrandAssetFile(archive.brand.id, file);
-      setArchive((current) => ({
-        ...current,
-        [target]: current[target].map((item) => (
-          item.id === assetId ? { ...item, fileUrl: uploaded.fileUrl } : item
-        )),
-      }));
-      setNotice("文档上传成功，请继续保存页面。");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "上传失败";
-      setErrorMessage(`文档上传失败：${message}`);
-    } finally {
-      setUploadingAssetKey("");
-    }
-  }
-
   function updateSurvey(key: string, value: string) {
     setArchive((current) => {
       const next = [...current.survey];
@@ -1595,19 +1589,6 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       }
       next[targetIndex] = { ...next[targetIndex], value };
       return { ...current, survey: next };
-    });
-  }
-
-  function updateAsset(
-    target: "industryFeeds" | "businessAssets",
-    index: number,
-    key: keyof BrandAsset,
-    value: string,
-  ) {
-    setArchive((current) => {
-      const next = [...current[target]];
-      next[index] = { ...next[index], [key]: value };
-      return { ...current, [target]: next };
     });
   }
 
@@ -1625,6 +1606,75 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   function clearMessages() {
     setNotice("");
     setErrorMessage("");
+  }
+
+  async function uploadAssetDraftFile(draft: LibraryAssetModalDraft) {
+    if (!draft.file) {
+      return draft.fileUrl.trim();
+    }
+    const uploaded = await uploadBrandAssetFile(archive.brand.id, draft.file);
+    return uploaded.fileUrl;
+  }
+
+  async function handleCreateAssets(target: LibraryAssetTarget, drafts: LibraryAssetModalDraft[]) {
+    clearMessages();
+
+    try {
+      const resolvedAssets = await Promise.all(
+        drafts.map(async (draft) => {
+          const fileUrl = await uploadAssetDraftFile(draft);
+          return emptyAsset({
+            title: draft.title.trim() || inferAssetTitleFromFileUrl(fileUrl),
+            description: draft.description.trim(),
+            sourceName: draft.sourceName.trim() || (draft.file ? "本地文档" : ""),
+            fileUrl,
+          });
+        }),
+      );
+
+      setArchive((current) => ({
+        ...current,
+        [target]: [...current[target], ...resolvedAssets],
+      }));
+      setNotice(`已新增 ${resolvedAssets.length} 份资料，请继续保存页面。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "资料上传失败";
+      setErrorMessage(`新增资料失败：${message}`);
+      throw error;
+    }
+  }
+
+  async function handleSaveAssetEdit(target: LibraryAssetTarget, index: number, draft: LibraryAssetModalDraft) {
+    clearMessages();
+
+    try {
+      const fileUrl = draft.file ? await uploadAssetDraftFile(draft) : draft.fileUrl.trim();
+      setArchive((current) => {
+        const next = [...current[target]];
+        next[index] = {
+          ...next[index],
+          title: draft.title.trim() || inferAssetTitleFromFileUrl(fileUrl),
+          description: draft.description.trim(),
+          sourceName: draft.sourceName.trim(),
+          fileUrl,
+        };
+        return { ...current, [target]: next };
+      });
+      setNotice("资料已更新，请继续保存页面。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "资料更新失败";
+      setErrorMessage(`资料更新失败：${message}`);
+      throw error;
+    }
+  }
+
+  function handleRemoveAsset(target: LibraryAssetTarget, index: number) {
+    clearMessages();
+    setArchive((current) => ({
+      ...current,
+      [target]: current[target].filter((_, itemIndex) => itemIndex !== index),
+    }));
+    setNotice("资料已移除，请继续保存页面。");
   }
 
   function switchSection(sectionKey: StrategySectionKey) {
@@ -1756,15 +1806,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onUploadProductImage={handleUploadProductImage}
         uploadingProductId={uploadingProductId}
         onUpdateSurvey={updateSurvey}
-        onAddAsset={(target) =>
-          setArchive((current) => ({
-            ...current,
-            [target]: [...current[target], emptyAsset()],
-          }))
-        }
-        onUpdateAsset={updateAsset}
-        onUploadAssetFile={handleUploadAssetFile}
-        uploadingAssetKey={uploadingAssetKey}
+        onCreateAssets={handleCreateAssets}
+        onSaveAssetEdit={handleSaveAssetEdit}
+        onRemoveAsset={handleRemoveAsset}
       />
     );
   }

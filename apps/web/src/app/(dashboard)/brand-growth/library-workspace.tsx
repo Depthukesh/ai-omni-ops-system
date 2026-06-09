@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { BrandGrowthLibraryPageKey } from "./shared-types";
 import { BRAND_SURVEY_SECTIONS } from "../../../services/brand-growth";
 import type {
@@ -10,7 +11,16 @@ import type {
   BrandArchiveStatus,
 } from "../../../services/brand-growth";
 
-type LibraryAssetTarget = "industryFeeds" | "businessAssets";
+export type LibraryAssetTarget = "industryFeeds" | "businessAssets";
+export type LibraryAssetModalDraft = {
+  id: string;
+  title: string;
+  description: string;
+  sourceName: string;
+  fileUrl: string;
+  file?: File | null;
+  existingAssetId?: string;
+};
 
 export interface BrandGrowthLibraryWorkspaceProps {
   activeBrandPage: BrandGrowthLibraryPageKey;
@@ -25,10 +35,9 @@ export interface BrandGrowthLibraryWorkspaceProps {
   onUploadProductImage: (productId: string, file?: File | null) => void | Promise<void>;
   uploadingProductId: string;
   onUpdateSurvey: (key: string, value: string) => void;
-  onAddAsset: (target: LibraryAssetTarget) => void;
-  onUpdateAsset: (target: LibraryAssetTarget, index: number, key: keyof BrandAsset, value: string) => void;
-  onUploadAssetFile: (target: LibraryAssetTarget, assetId: string, file?: File | null) => void | Promise<void>;
-  uploadingAssetKey: string;
+  onCreateAssets: (target: LibraryAssetTarget, drafts: LibraryAssetModalDraft[]) => void | Promise<void>;
+  onSaveAssetEdit: (target: LibraryAssetTarget, index: number, draft: LibraryAssetModalDraft) => void | Promise<void>;
+  onRemoveAsset: (target: LibraryAssetTarget, index: number) => void;
 }
 
 export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspaceProps) {
@@ -309,135 +318,338 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
 
   const assetTarget = props.activeBrandPage;
   const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业知识库";
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [assetModalMode, setAssetModalMode] = useState<"create" | "edit">("create");
+  const [assetModalDrafts, setAssetModalDrafts] = useState<LibraryAssetModalDraft[]>([]);
+  const [editingAssetIndex, setEditingAssetIndex] = useState<number | null>(null);
+  const [isSubmittingAssetModal, setIsSubmittingAssetModal] = useState(false);
+
+  useEffect(() => {
+    if (!isAssetModalOpen) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isSubmittingAssetModal) {
+        handleCloseAssetModal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAssetModalOpen, isSubmittingAssetModal]);
+
+  function handleOpenCreateAssetModal() {
+    setAssetModalMode("create");
+    setEditingAssetIndex(null);
+    setAssetModalDrafts([buildEmptyAssetModalDraft()]);
+    setIsAssetModalOpen(true);
+  }
+
+  function handleOpenEditAssetModal(index: number) {
+    const targetAsset = props.archive[assetTarget][index];
+    if (!targetAsset) {
+      return;
+    }
+    setAssetModalMode("edit");
+    setEditingAssetIndex(index);
+    setAssetModalDrafts([buildAssetModalDraftFromAsset(targetAsset)]);
+    setIsAssetModalOpen(true);
+  }
+
+  function handleCloseAssetModal() {
+    if (isSubmittingAssetModal) {
+      return;
+    }
+    setIsAssetModalOpen(false);
+    setAssetModalMode("create");
+    setEditingAssetIndex(null);
+    setAssetModalDrafts([]);
+  }
+
+  function handleAssetDraftChange(draftId: string, patch: Partial<LibraryAssetModalDraft>) {
+    setAssetModalDrafts((current) =>
+      current.map((item) => (item.id === draftId ? { ...item, ...patch } : item)),
+    );
+  }
+
+  function handleAddEmptyAssetDraft() {
+    setAssetModalDrafts((current) => [...current, buildEmptyAssetModalDraft()]);
+  }
+
+  function handleRemoveAssetDraft(draftId: string) {
+    setAssetModalDrafts((current) => current.filter((item) => item.id !== draftId));
+  }
+
+  function handleAppendFiles(files: FileList | null) {
+    if (!files?.length) {
+      return;
+    }
+    const draftsFromFiles = Array.from(files).map((file) => buildAssetModalDraftFromFile(file));
+    setAssetModalDrafts((current) => {
+      if (assetModalMode === "edit") {
+        const firstDraft = current[0] ?? buildEmptyAssetModalDraft();
+        const [firstFile] = draftsFromFiles;
+        return [
+          {
+            ...firstDraft,
+            title: firstDraft.title.trim() ? firstDraft.title : firstFile.title,
+            file: firstFile.file,
+            fileUrl: "",
+          },
+        ];
+      }
+
+      const hasOnlyEmptyDraft =
+        current.length === 1 &&
+        !current[0]?.title.trim() &&
+        !current[0]?.description.trim() &&
+        !current[0]?.sourceName.trim() &&
+        !current[0]?.fileUrl.trim() &&
+        !current[0]?.file;
+
+      return hasOnlyEmptyDraft ? draftsFromFiles : [...current, ...draftsFromFiles];
+    });
+  }
+
+  async function handleSubmitAssetModal() {
+    const validDrafts = assetModalDrafts.filter(
+      (item) => item.title.trim() || item.description.trim() || item.sourceName.trim() || item.fileUrl.trim() || item.file,
+    );
+
+    if (!validDrafts.length) {
+      return;
+    }
+
+    setIsSubmittingAssetModal(true);
+    try {
+      if (assetModalMode === "edit" && editingAssetIndex !== null) {
+        await props.onSaveAssetEdit(assetTarget, editingAssetIndex, validDrafts[0]);
+      } else {
+        await props.onCreateAssets(assetTarget, validDrafts);
+      }
+      handleCloseAssetModal();
+    } finally {
+      setIsSubmittingAssetModal(false);
+    }
+  }
 
   return (
-    <article className="workspace-panel strategy-page-card">
-      <div className="strategy-card-toolbar">
-        <div>
-          <strong>{assetTitle}</strong>
-          <p>
-            {assetTarget === "industryFeeds"
-              ? "这里维护行业报告、市场资料与外部数据。"
-              : "这里维护经营报表、业务系统、门店资料与内部知识文档，保存页面后会自动同步到知识库。"}
-          </p>
+    <>
+      <article className="workspace-panel strategy-page-card">
+        <div className="strategy-card-toolbar">
+          <div>
+            <strong>{assetTitle}</strong>
+            <p>
+              {assetTarget === "industryFeeds"
+                ? "这里维护行业报告、市场资料与外部数据。"
+                : "这里维护经营报表、业务系统、门店资料与内部知识文档，新增资料后会以卡片形式沉淀并可统一保存到知识库。"}
+            </p>
+          </div>
+          <button type="button" className="primary-button" onClick={handleOpenCreateAssetModal}>
+            新增资料
+          </button>
         </div>
-        <button type="button" className="primary-button" onClick={() => props.onAddAsset(assetTarget)}>
-          新增资料
-        </button>
-      </div>
-      <div className="entity-list">
-        {props.archive[assetTarget].map((asset, index) => (
-          <div className="entity-card compact-entity-card" key={asset.id ?? `${assetTarget}-${index}`}>
-            <div className="entity-card-head compact-card-head">
-              <div>
-                <strong>{asset.title || `资料 ${index + 1}`}</strong>
-                <p className="compact-meta-line">
-                  {asset.sourceName || "未填写来源"} · {asset.fileUrl || "未填写文件地址"}
-                </p>
-              </div>
-            </div>
-            <div className="form-grid two-column">
-              <label className="field">
-                <span>资料标题</span>
-                <input
-                  value={asset.title}
-                  onChange={(event) => props.onUpdateAsset(assetTarget, index, "title", event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>来源名称</span>
-                <input
-                  value={asset.sourceName ?? ""}
-                  onChange={(event) => props.onUpdateAsset(assetTarget, index, "sourceName", event.target.value)}
-                />
-              </label>
-              <label className="field field-full">
-                <span>资料说明</span>
-                <textarea
-                  value={asset.description}
-                  onChange={(event) => props.onUpdateAsset(assetTarget, index, "description", event.target.value)}
-                />
-              </label>
-              <label className="field field-full">
-                <span>文件地址</span>
-                {assetTarget === "businessAssets" ? (
-                  <div className="brand-asset-upload-grid">
-                    <label className="brand-asset-upload-card product-upload-trigger">
-                      <input
-                        type="file"
-                        className="sr-only-file-input"
-                        onChange={(event) => {
-                          void props.onUploadAssetFile(
-                            assetTarget,
-                            asset.id ?? `${assetTarget}-${index}`,
-                            event.target.files?.[0] ?? null,
-                          );
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                      <span className="brand-asset-upload-card__title">本地文档</span>
-                      <span className="brand-asset-upload-card__desc">
-                        上传 PDF、Word、Excel、CSV、TXT 等文档，保存页面后自动进入企业知识库。
-                      </span>
-                      <span className="brand-asset-upload-card__action">
-                        {props.uploadingAssetKey === `${assetTarget}:${asset.id ?? `${assetTarget}-${index}`}`
-                          ? "上传中..."
-                          : "点击上传"}
-                      </span>
-                    </label>
-                    <div className="brand-asset-upload-card brand-asset-upload-card--info">
-                      <span className="brand-asset-upload-card__title">知识库同步</span>
-                      <span className="brand-asset-upload-card__desc">
-                        当前资料保存后会自动桥接到后台知识库，方便后续统一同步、检索和治理。
-                      </span>
-                      <span className="brand-asset-upload-card__meta">目标板块：企业知识库</span>
-                    </div>
+
+        {props.archive[assetTarget].length ? (
+          <div className="knowledge-content-card-grid">
+            {props.archive[assetTarget].map((asset, index) => (
+              <article className="knowledge-content-card" key={asset.id ?? `${assetTarget}-${index}`}>
+                <div className="knowledge-content-card__head">
+                  <div>
+                    <strong>{asset.title || `资料 ${index + 1}`}</strong>
+                    <p>{asset.sourceName || "未填写来源"}</p>
                   </div>
-                ) : null}
-                <div className="asset-file-upload-row">
-                  <label className="secondary-button product-upload-trigger">
-                    <input
-                      type="file"
-                      className="sr-only-file-input"
-                      onChange={(event) => {
-                        void props.onUploadAssetFile(
-                          assetTarget,
-                          asset.id ?? `${assetTarget}-${index}`,
-                          event.target.files?.[0] ?? null,
-                        );
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                    {props.uploadingAssetKey === `${assetTarget}:${asset.id ?? `${assetTarget}-${index}`}`
-                      ? "上传中..."
-                      : "上传文档"}
-                  </label>
+                  <span className="archive-pill status-ready">{assetTarget === "businessAssets" ? "知识库" : "资料"}</span>
+                </div>
+                <div className="knowledge-content-card__meta">
+                  <span>{asset.fileUrl ? extractFileName(asset.fileUrl) : "未关联文件"}</span>
+                  <span>{assetTarget === "businessAssets" ? "保存页面后自动同步到知识库" : "保存页面后写入资料库"}</span>
+                </div>
+                <p className="knowledge-content-card__description">{asset.description || "暂无资料说明。"}</p>
+                <div className="knowledge-content-card__actions">
                   {asset.fileUrl ? (
                     <a href={asset.fileUrl} target="_blank" rel="noreferrer" className="secondary-button">
                       查看文件
                     </a>
                   ) : null}
+                  <button type="button" className="secondary-button" onClick={() => handleOpenEditAssetModal(index)}>
+                    编辑
+                  </button>
+                  <button type="button" className="ghost-danger-button" onClick={() => props.onRemoveAsset(assetTarget, index)}>
+                    删除
+                  </button>
                 </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="knowledge-content-empty-state">
+            <strong>还没有资料</strong>
+            <p>点击右上角“新增资料”后可在弹窗中一次导入多个文档，并自动用文件名回填资料标题。</p>
+          </div>
+        )}
+      </article>
+
+      {isAssetModalOpen ? (
+        <div className="knowledge-asset-modal-overlay" role="dialog" aria-modal="true" onClick={handleCloseAssetModal}>
+          <div className="knowledge-asset-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="knowledge-asset-modal__head">
+              <div>
+                <strong>{assetModalMode === "edit" ? "编辑资料" : `新增${assetTitle}资料`}</strong>
+                <p>
+                  {assetModalMode === "edit"
+                    ? "修改当前资料信息，保存后会回写到当前页面。"
+                    : "支持一次添加多个文档，系统会自动使用文档名生成资料标题。"}
+                </p>
+              </div>
+              <button type="button" className="media-preview-close" onClick={handleCloseAssetModal}>
+                关闭
+              </button>
+            </div>
+
+            <div className="knowledge-upload-choice-grid">
+              <label className="knowledge-upload-choice knowledge-upload-choice--active product-upload-trigger">
                 <input
-                  value={asset.fileUrl ?? ""}
-                  onChange={(event) => props.onUpdateAsset(assetTarget, index, "fileUrl", event.target.value)}
+                  type="file"
+                  multiple={assetModalMode === "create"}
+                  className="sr-only-file-input"
+                  accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.ppt,.pptx,.txt,.md,.markdown,.zip"
+                  onChange={(event) => {
+                    handleAppendFiles(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
                 />
-                {asset.fileUrl ? (
-                  <div className="brand-asset-upload-preview">
-                    <strong>{extractFileName(asset.fileUrl)}</strong>
-                    <span>{assetTarget === "businessAssets" ? "保存页面后自动同步到知识库。" : "当前资料已关联文件地址。"}</span>
-                  </div>
-                ) : null}
-                <span className="field-hint">
-                  支持上传 PDF、Word、Excel、PPT、CSV、TXT、ZIP 等文档，上传后会自动回填文件地址。
-                </span>
+                <strong>{assetModalMode === "edit" ? "替换文档" : "批量导入文档"}</strong>
+                <span>支持 PDF、Word、Excel、CSV、TXT、Markdown、PPT、ZIP 等文件。</span>
+                <em>{assetModalMode === "edit" ? "重新选择文件" : "点击选择多个文件"}</em>
               </label>
+              <div className="knowledge-upload-choice">
+                <strong>自动标题</strong>
+                <span>系统会自动去掉扩展名后回填资料标题，你可以在保存前继续逐条修改。</span>
+                <em>适合批量录入</em>
+              </div>
+            </div>
+
+            <div className="knowledge-asset-modal__drafts">
+              {assetModalDrafts.map((draft, index) => (
+                <article className="knowledge-asset-draft-card" key={draft.id}>
+                  <div className="knowledge-content-card__head">
+                    <div>
+                      <strong>{draft.title || `资料 ${index + 1}`}</strong>
+                      <p>{draft.file ? draft.file.name : draft.fileUrl ? extractFileName(draft.fileUrl) : "未选择文件"}</p>
+                    </div>
+                    <div className="compact-card-actions">
+                      {assetModalMode === "create" ? (
+                        <button
+                          type="button"
+                          className="ghost-danger-button"
+                          onClick={() => handleRemoveAssetDraft(draft.id)}
+                          disabled={assetModalDrafts.length === 1}
+                        >
+                          删除
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="form-grid two-column">
+                    <label className="field">
+                      <span>资料标题</span>
+                      <input
+                        value={draft.title}
+                        onChange={(event) => handleAssetDraftChange(draft.id, { title: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>来源名称</span>
+                      <input
+                        value={draft.sourceName}
+                        placeholder="例如 本地文档 / 门店系统 / 财务报表"
+                        onChange={(event) => handleAssetDraftChange(draft.id, { sourceName: event.target.value })}
+                      />
+                    </label>
+                    <label className="field field-full">
+                      <span>资料说明</span>
+                      <textarea
+                        value={draft.description}
+                        onChange={(event) => handleAssetDraftChange(draft.id, { description: event.target.value })}
+                      />
+                    </label>
+                    <label className="field field-full">
+                      <span>文件地址</span>
+                      <input
+                        value={draft.fileUrl}
+                        placeholder={draft.file ? "保存时将自动上传并回填文件地址" : "可手动填写已存在的文件地址"}
+                        onChange={(event) => handleAssetDraftChange(draft.id, { fileUrl: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="knowledge-asset-modal__footer">
+              {assetModalMode === "create" ? (
+                <button type="button" className="secondary-button" onClick={handleAddEmptyAssetDraft}>
+                  新增一条空白资料
+                </button>
+              ) : (
+                <span className="personal-meta">如需替换文档，请重新选择文件；未替换时保留原链接。</span>
+              )}
+              <div className="knowledge-asset-modal__footer-actions">
+                <button type="button" className="secondary-button" onClick={handleCloseAssetModal} disabled={isSubmittingAssetModal}>
+                  取消
+                </button>
+                <button type="button" className="primary-button" onClick={() => void handleSubmitAssetModal()} disabled={isSubmittingAssetModal}>
+                  {isSubmittingAssetModal
+                    ? "保存中..."
+                    : assetModalMode === "edit"
+                      ? "保存资料"
+                      : `添加 ${assetModalDrafts.filter((item) => item.title.trim() || item.file || item.fileUrl.trim()).length || 1} 份资料`}
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-    </article>
+        </div>
+      ) : null}
+    </>
   );
+}
+
+function buildEmptyAssetModalDraft(): LibraryAssetModalDraft {
+  return {
+    id: `asset_modal_${Math.random().toString(36).slice(2, 9)}`,
+    title: "",
+    description: "",
+    sourceName: "",
+    fileUrl: "",
+    file: null,
+  };
+}
+
+function buildAssetModalDraftFromAsset(asset: BrandAsset): LibraryAssetModalDraft {
+  return {
+    id: `asset_modal_${asset.id || Math.random().toString(36).slice(2, 9)}`,
+    title: asset.title,
+    description: asset.description,
+    sourceName: asset.sourceName || "",
+    fileUrl: asset.fileUrl || "",
+    file: null,
+    existingAssetId: asset.id,
+  };
+}
+
+function buildAssetModalDraftFromFile(file: File): LibraryAssetModalDraft {
+  return {
+    id: `asset_modal_${Math.random().toString(36).slice(2, 9)}`,
+    title: inferAssetTitleFromFileName(file.name),
+    description: "",
+    sourceName: "本地文档",
+    fileUrl: "",
+    file,
+  };
+}
+
+function inferAssetTitleFromFileName(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").trim() || fileName;
 }
 
 function extractFileName(fileUrl: string) {
