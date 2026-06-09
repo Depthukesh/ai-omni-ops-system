@@ -200,9 +200,9 @@ async function runVideoComposerAutomation(session) {
 function collectProbeResult(session) {
   const titleElement = findTitleElement();
   const contentElement = findContentElement();
-  const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+  const fileInputs = queryAllDeep('input[type="file"]');
   const uploadZone = findVideoUploadZone();
-  const buttons = Array.from(document.querySelectorAll("button"))
+  const buttons = queryAllDeep("button")
     .map((element) => element.textContent?.trim())
     .filter(Boolean);
   const pageKind = detectPageKind();
@@ -255,11 +255,44 @@ async function ensureVideoFileInput() {
 }
 
 function findVideoFileInput() {
-  const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+  const inputs = queryAllDeep('input[type="file"]');
   return inputs.find((element) => {
     const accept = String(element.getAttribute("accept") || "").toLowerCase();
     return accept.includes("video") || accept.includes("mp4") || accept.includes("mov") || !accept;
   }) || null;
+}
+
+function queryAllDeep(selector, root = document) {
+  const results = [];
+  const seen = new Set();
+
+  const walk = (currentRoot) => {
+    if (!currentRoot || typeof currentRoot.querySelectorAll !== "function") {
+      return;
+    }
+
+    const matched = Array.from(currentRoot.querySelectorAll(selector));
+    for (const element of matched) {
+      if (!seen.has(element)) {
+        seen.add(element);
+        results.push(element);
+      }
+    }
+
+    const allElements = Array.from(currentRoot.querySelectorAll("*"));
+    for (const element of allElements) {
+      if (element instanceof HTMLElement && element.shadowRoot) {
+        walk(element.shadowRoot);
+      }
+    }
+  };
+
+  const wujieApp = document.querySelector("wujie-app");
+  if (wujieApp instanceof HTMLElement && wujieApp.shadowRoot) {
+    walk(wujieApp.shadowRoot);
+  }
+  walk(root);
+  return results;
 }
 
 function detectPageKind() {
@@ -336,8 +369,10 @@ function triggerPublishVideo(element) {
 
 function findTitleElement() {
   const selectors = [
+    'input[placeholder="概括视频主要内容，字数建议6-16个字符"]',
     'input[placeholder*="标题"]',
     'input[placeholder*="填写"]',
+    'input[placeholder*="概括视频主要内容"]',
     'textarea[placeholder*="标题"]',
     '[contenteditable="true"][data-placeholder*="标题"]',
     '[contenteditable="true"][placeholder*="标题"]',
@@ -347,6 +382,8 @@ function findTitleElement() {
 
 function findContentElement() {
   const selectors = [
+    'div[data-placeholder="添加描述"]',
+    'div[data-placeholder*="添加描述"]',
     'textarea[placeholder*="添加描述"]',
     'textarea[placeholder*="描述"]',
     'textarea[placeholder*="正文"]',
@@ -415,7 +452,7 @@ function isImageTextComposerReady() {
 
 function findVisibleElement(selectors) {
   for (const selector of selectors) {
-    const elements = Array.from(document.querySelectorAll(selector));
+    const elements = queryAllDeep(selector);
     for (const element of elements) {
       if (isVisible(element)) {
         return element;
@@ -445,6 +482,23 @@ function setElementValue(element, value) {
       element.textContent = value;
     }
     element.dispatchEvent(new InputEvent("input", { bubbles: true, data: value, inputType: "insertText" }));
+    return;
+  }
+
+  if (element instanceof HTMLDivElement) {
+    element.focus();
+    try {
+      const pasteEvent = new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: new DataTransfer(),
+      });
+      pasteEvent.clipboardData?.setData("text/plain", value);
+      element.dispatchEvent(pasteEvent);
+    } catch {
+      element.textContent = value;
+      element.dispatchEvent(new InputEvent("input", { bubbles: true, data: value, inputType: "insertText" }));
+    }
   }
 }
 
@@ -462,7 +516,7 @@ function findVideoUploadZone() {
     return zone;
   }
 
-  const textCandidates = Array.from(document.querySelectorAll("div, span, p"));
+  const textCandidates = queryAllDeep("div, span, p");
   for (const element of textCandidates) {
     if (!(element instanceof HTMLElement) || !isVisible(element)) {
       continue;
