@@ -94,6 +94,8 @@
 
 ## 近期重点变更
 
+- `docs/changes/2026-06-09-knowledge-retrieval-configs-first-pass.md`
+  - 知识库后台页已新增“检索配置”区块，支持维护默认 TopK、召回模式、重排开关、切片大小/重叠和检索阈值，并把这层正式落到 `KnowledgeRetrievalConfig`
 - `docs/changes/2026-06-09-knowledge-base-bindings-and-sync-skeleton.md`
   - 知识库后台页已补齐绑定关系列表/创建/编辑/删除，并把文件同步与全量同步从“只创建运行中记录”推进为可自动产出最小分片数和执行摘要的 ingestion 骨架
 - `docs/changes/2026-06-08-wechat-channel-publisher-poc.md`

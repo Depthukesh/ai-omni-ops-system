@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { KnowledgeBase, KnowledgeBaseFile, KnowledgeBaseSyncRun, KnowledgeBinding } from "@prisma/client";
+import { KnowledgeBase, KnowledgeBaseFile, KnowledgeBaseSyncRun, KnowledgeBinding, KnowledgeRetrievalConfig } from "@prisma/client";
 import {
   database,
   type KnowledgeBindingRecord,
   type KnowledgeBaseFileRecord,
   type KnowledgeBaseRecord,
+  type KnowledgeRetrievalConfigRecord,
   type KnowledgeBaseSyncRunRecord,
 } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -88,10 +89,21 @@ export type KnowledgeBindingView = KnowledgeBindingRecord & {
   knowledgeBaseSlug?: string;
 };
 
+export type UpdateKnowledgeRetrievalConfigPayload = {
+  defaultTopK?: number;
+  recallMode?: KnowledgeRetrievalConfigRecord["recallMode"];
+  rerankEnabled?: boolean;
+  rerankModelName?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  retrievalThreshold?: number;
+};
+
 @Injectable()
 export class KnowledgeBasesService {
   private bootstrapPromise?: Promise<void>;
   private bindingBootstrapPromise?: Promise<void>;
+  private retrievalConfigBootstrapPromise?: Promise<void>;
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -156,10 +168,35 @@ export class KnowledgeBasesService {
         },
       });
 
+      if (await this.canUseKnowledgeRetrievalConfigStorage()) {
+        await this.ensureKnowledgeRetrievalConfigStorageSeeded();
+        const defaults = this.buildDefaultKnowledgeRetrievalConfigRecord(created.id, now);
+        await this.prismaService.knowledgeRetrievalConfig.upsert({
+          where: { knowledgeBaseId: created.id },
+          update: {
+            updatedAt: new Date(now),
+          },
+          create: {
+            id: defaults.id,
+            knowledgeBaseId: created.id,
+            defaultTopK: defaults.defaultTopK,
+            recallMode: defaults.recallMode,
+            rerankEnabled: defaults.rerankEnabled,
+            rerankModelName: defaults.rerankModelName ?? null,
+            chunkSize: defaults.chunkSize ?? null,
+            chunkOverlap: defaults.chunkOverlap ?? null,
+            retrievalThreshold: defaults.retrievalThreshold ?? null,
+            createdAt: new Date(now),
+            updatedAt: new Date(now),
+          },
+        });
+      }
+
       return this.normalizeKnowledgeBase(created);
     }
 
     database.knowledgeBases.unshift(record);
+    database.knowledgeRetrievalConfigs.unshift(this.buildDefaultKnowledgeRetrievalConfigRecord(record.id, now));
     return record;
   }
 
@@ -203,6 +240,22 @@ export class KnowledgeBasesService {
     return [...list]
       .sort((a, b) => (a.priority === b.priority ? b.updatedAt.localeCompare(a.updatedAt) : a.priority - b.priority))
       .map((item) => this.enrichMockKnowledgeBinding(item));
+  }
+
+  private listKnowledgeRetrievalConfigsFromMock(knowledgeBaseId?: string) {
+    if (knowledgeBaseId) {
+      this.getKnowledgeBaseOrThrowFromMock(knowledgeBaseId);
+      const existing = database.knowledgeRetrievalConfigs.find((item) => item.knowledgeBaseId === knowledgeBaseId);
+      if (existing) {
+        return [existing];
+      }
+
+      const created = this.buildDefaultKnowledgeRetrievalConfigRecord(knowledgeBaseId);
+      database.knowledgeRetrievalConfigs.unshift(created);
+      return [created];
+    }
+
+    return [...database.knowledgeRetrievalConfigs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   private getKnowledgeBaseOrThrowFromMock(id: string) {
@@ -308,6 +361,22 @@ export class KnowledgeBasesService {
     };
   }
 
+  private normalizeKnowledgeRetrievalConfig(row: KnowledgeRetrievalConfig): KnowledgeRetrievalConfigRecord {
+    return {
+      id: row.id,
+      knowledgeBaseId: row.knowledgeBaseId,
+      defaultTopK: row.defaultTopK,
+      recallMode: row.recallMode as KnowledgeRetrievalConfigRecord["recallMode"],
+      rerankEnabled: row.rerankEnabled,
+      rerankModelName: row.rerankModelName ?? undefined,
+      chunkSize: row.chunkSize ?? undefined,
+      chunkOverlap: row.chunkOverlap ?? undefined,
+      retrievalThreshold: row.retrievalThreshold ?? undefined,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
   private enrichMockKnowledgeBinding(row: KnowledgeBindingRecord): KnowledgeBindingView {
     const knowledgeBase = database.knowledgeBases.find((item) => item.id === row.knowledgeBaseId);
     return {
@@ -317,7 +386,25 @@ export class KnowledgeBasesService {
     };
   }
 
-  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb") {
+  private buildDefaultKnowledgeRetrievalConfigRecord(
+    knowledgeBaseId: string,
+    timestamp = new Date().toISOString(),
+  ): KnowledgeRetrievalConfigRecord {
+    return {
+      id: this.createId("kbrc"),
+      knowledgeBaseId,
+      defaultTopK: 8,
+      recallMode: "HYBRID",
+      rerankEnabled: false,
+      chunkSize: 800,
+      chunkOverlap: 120,
+      retrievalThreshold: 0.65,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+  }
+
+  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -374,6 +461,29 @@ export class KnowledgeBasesService {
     }
 
     await this.bindingBootstrapPromise;
+  }
+
+  private async canUseKnowledgeRetrievalConfigStorage() {
+    if (!(await this.canUseKnowledgeBaseStorage())) {
+      return false;
+    }
+
+    try {
+      const rows = await this.prismaService.$queryRawUnsafe<Array<{ knowledgeRetrievalConfig: string | null }>>(
+        `SELECT to_regclass('"KnowledgeRetrievalConfig"') AS "knowledgeRetrievalConfig"`,
+      );
+      return Boolean(rows[0]?.knowledgeRetrievalConfig);
+    } catch {
+      return false;
+    }
+  }
+
+  private async ensureKnowledgeRetrievalConfigStorageSeeded() {
+    if (!this.retrievalConfigBootstrapPromise) {
+      this.retrievalConfigBootstrapPromise = this.bootstrapKnowledgeRetrievalConfigStorage();
+    }
+
+    await this.retrievalConfigBootstrapPromise;
   }
 
   private async bootstrapKnowledgeBaseStorage() {
@@ -475,6 +585,38 @@ export class KnowledgeBasesService {
     });
   }
 
+  private async bootstrapKnowledgeRetrievalConfigStorage() {
+    if (!(await this.canUseKnowledgeRetrievalConfigStorage())) {
+      return;
+    }
+
+    const existingCount = await this.prismaService.knowledgeRetrievalConfig.count();
+    if (existingCount > 0) {
+      return;
+    }
+
+    if (!database.knowledgeRetrievalConfigs.length) {
+      return;
+    }
+
+    await this.prismaService.knowledgeRetrievalConfig.createMany({
+      data: database.knowledgeRetrievalConfigs.map((item) => ({
+        id: item.id,
+        knowledgeBaseId: item.knowledgeBaseId,
+        defaultTopK: item.defaultTopK,
+        recallMode: item.recallMode,
+        rerankEnabled: item.rerankEnabled,
+        rerankModelName: item.rerankModelName,
+        chunkSize: item.chunkSize,
+        chunkOverlap: item.chunkOverlap,
+        retrievalThreshold: item.retrievalThreshold,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   private async getKnowledgeBaseOrThrow(id: string) {
     const knowledgeBase = await this.prismaService.knowledgeBase.findUnique({
       where: { id },
@@ -520,6 +662,17 @@ export class KnowledgeBasesService {
     return binding;
   }
 
+  private async getKnowledgeRetrievalConfigOrThrow(knowledgeBaseId: string) {
+    const config = await this.prismaService.knowledgeRetrievalConfig.findUnique({
+      where: { knowledgeBaseId },
+    });
+    if (!config) {
+      throw new NotFoundException("知识检索配置不存在");
+    }
+
+    return config;
+  }
+
   private validateBindingType(value: string): KnowledgeBindingRecord["bindingType"] {
     const bindingType = String(value || "").trim().toUpperCase();
     if (!["MODULE", "SKILL_PACKAGE", "PROMPT", "WORKFLOW_STEP"].includes(bindingType)) {
@@ -542,6 +695,30 @@ export class KnowledgeBasesService {
       throw new BadRequestException("知识绑定优先级必须为正整数");
     }
     return Math.floor(normalized);
+  }
+
+  private validateRetrievalRecallMode(value: string): KnowledgeRetrievalConfigRecord["recallMode"] {
+    const recallMode = String(value || "").trim().toUpperCase();
+    if (!["SEMANTIC", "HYBRID"].includes(recallMode)) {
+      throw new BadRequestException("知识库召回模式不合法");
+    }
+    return recallMode as KnowledgeRetrievalConfigRecord["recallMode"];
+  }
+
+  private validatePositiveIntegerField(value: number, fieldLabel: string, allowZero = false): number {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized < 0 || (!allowZero && normalized <= 0)) {
+      throw new BadRequestException(`${fieldLabel}必须为${allowZero ? "非负整数" : "正整数"}`);
+    }
+    return Math.floor(normalized);
+  }
+
+  private validateRetrievalThreshold(value: number): number {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) {
+      throw new BadRequestException("检索阈值必须在 0 到 1 之间");
+    }
+    return normalized;
   }
 
   private deriveSyncStatus(files: KnowledgeBaseFileRecord[]): KnowledgeBaseRecord["syncStatus"] {
@@ -737,6 +914,47 @@ export class KnowledgeBasesService {
     return this.listKnowledgeBindingsFromMock(query);
   }
 
+  async listKnowledgeRetrievalConfigs(knowledgeBaseId?: string): Promise<KnowledgeRetrievalConfigRecord[]> {
+    if (await this.canUseKnowledgeRetrievalConfigStorage()) {
+      await this.ensureKnowledgeBaseStorageSeeded();
+      await this.ensureKnowledgeRetrievalConfigStorageSeeded();
+      if (knowledgeBaseId) {
+        await this.getKnowledgeBaseOrThrow(knowledgeBaseId);
+        const existing = await this.prismaService.knowledgeRetrievalConfig.findUnique({
+          where: { knowledgeBaseId },
+        });
+        if (existing) {
+          return [this.normalizeKnowledgeRetrievalConfig(existing)];
+        }
+
+        const defaults = this.buildDefaultKnowledgeRetrievalConfigRecord(knowledgeBaseId);
+        const created = await this.prismaService.knowledgeRetrievalConfig.create({
+          data: {
+            id: defaults.id,
+            knowledgeBaseId,
+            defaultTopK: defaults.defaultTopK,
+            recallMode: defaults.recallMode,
+            rerankEnabled: defaults.rerankEnabled,
+            rerankModelName: defaults.rerankModelName ?? null,
+            chunkSize: defaults.chunkSize ?? null,
+            chunkOverlap: defaults.chunkOverlap ?? null,
+            retrievalThreshold: defaults.retrievalThreshold ?? null,
+            createdAt: new Date(defaults.createdAt),
+            updatedAt: new Date(defaults.updatedAt),
+          },
+        });
+        return [this.normalizeKnowledgeRetrievalConfig(created)];
+      }
+
+      const rows = await this.prismaService.knowledgeRetrievalConfig.findMany({
+        orderBy: { updatedAt: "desc" },
+      });
+      return rows.map((item) => this.normalizeKnowledgeRetrievalConfig(item));
+    }
+
+    return this.listKnowledgeRetrievalConfigsFromMock(knowledgeBaseId);
+  }
+
   async listKnowledgeBindingsByTarget(
     bindingType: string,
     targetId: string,
@@ -909,6 +1127,129 @@ export class KnowledgeBasesService {
     return this.enrichMockKnowledgeBinding(binding);
   }
 
+  async updateKnowledgeRetrievalConfig(
+    knowledgeBaseId: string,
+    payload: UpdateKnowledgeRetrievalConfigPayload,
+  ): Promise<KnowledgeRetrievalConfigRecord> {
+    const normalizedKnowledgeBaseId = String(knowledgeBaseId || "").trim();
+    if (!normalizedKnowledgeBaseId) {
+      throw new BadRequestException("知识库 ID 不能为空");
+    }
+
+    const now = new Date().toISOString();
+    const applyResolvedConfig = (current?: KnowledgeRetrievalConfigRecord): KnowledgeRetrievalConfigRecord => {
+      const defaults = current ?? this.buildDefaultKnowledgeRetrievalConfigRecord(normalizedKnowledgeBaseId, now);
+      const defaultTopK =
+        payload.defaultTopK !== undefined
+          ? this.validatePositiveIntegerField(payload.defaultTopK, "默认 TopK")
+          : defaults.defaultTopK;
+      const recallMode =
+        payload.recallMode !== undefined ? this.validateRetrievalRecallMode(payload.recallMode) : defaults.recallMode;
+      const rerankEnabled = payload.rerankEnabled ?? defaults.rerankEnabled;
+      const chunkSize =
+        payload.chunkSize !== undefined
+          ? this.validatePositiveIntegerField(payload.chunkSize, "切片大小")
+          : defaults.chunkSize;
+      const chunkOverlap =
+        payload.chunkOverlap !== undefined
+          ? this.validatePositiveIntegerField(payload.chunkOverlap, "切片重叠", true)
+          : defaults.chunkOverlap;
+      const retrievalThreshold =
+        payload.retrievalThreshold !== undefined
+          ? this.validateRetrievalThreshold(payload.retrievalThreshold)
+          : defaults.retrievalThreshold;
+      if (
+        chunkSize !== undefined &&
+        chunkOverlap !== undefined &&
+        Number.isFinite(chunkSize) &&
+        Number.isFinite(chunkOverlap) &&
+        chunkOverlap >= chunkSize
+      ) {
+        throw new BadRequestException("切片重叠必须小于切片大小");
+      }
+      const rerankModelName = rerankEnabled
+        ? payload.rerankModelName !== undefined
+          ? String(payload.rerankModelName || "").trim() || undefined
+          : defaults.rerankModelName
+        : undefined;
+
+      return {
+        id: defaults.id,
+        knowledgeBaseId: normalizedKnowledgeBaseId,
+        defaultTopK,
+        recallMode,
+        rerankEnabled,
+        rerankModelName,
+        chunkSize,
+        chunkOverlap,
+        retrievalThreshold,
+        createdAt: defaults.createdAt,
+        updatedAt: now,
+      };
+    };
+
+    if (await this.canUseKnowledgeRetrievalConfigStorage()) {
+      await this.ensureKnowledgeBaseStorageSeeded();
+      await this.ensureKnowledgeRetrievalConfigStorageSeeded();
+      await this.getKnowledgeBaseOrThrow(normalizedKnowledgeBaseId);
+
+      let current: KnowledgeRetrievalConfigRecord | undefined;
+      try {
+        current = this.normalizeKnowledgeRetrievalConfig(
+          await this.getKnowledgeRetrievalConfigOrThrow(normalizedKnowledgeBaseId),
+        );
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) {
+          throw error;
+        }
+      }
+
+      const resolved = applyResolvedConfig(current);
+      const saved = current
+        ? await this.prismaService.knowledgeRetrievalConfig.update({
+            where: { knowledgeBaseId: normalizedKnowledgeBaseId },
+            data: {
+              defaultTopK: resolved.defaultTopK,
+              recallMode: resolved.recallMode,
+              rerankEnabled: resolved.rerankEnabled,
+              rerankModelName: resolved.rerankModelName ?? null,
+              chunkSize: resolved.chunkSize ?? null,
+              chunkOverlap: resolved.chunkOverlap ?? null,
+              retrievalThreshold: resolved.retrievalThreshold ?? null,
+              updatedAt: new Date(now),
+            },
+          })
+        : await this.prismaService.knowledgeRetrievalConfig.create({
+            data: {
+              id: resolved.id,
+              knowledgeBaseId: normalizedKnowledgeBaseId,
+              defaultTopK: resolved.defaultTopK,
+              recallMode: resolved.recallMode,
+              rerankEnabled: resolved.rerankEnabled,
+              rerankModelName: resolved.rerankModelName ?? null,
+              chunkSize: resolved.chunkSize ?? null,
+              chunkOverlap: resolved.chunkOverlap ?? null,
+              retrievalThreshold: resolved.retrievalThreshold ?? null,
+              createdAt: new Date(resolved.createdAt),
+              updatedAt: new Date(now),
+            },
+          });
+
+      return this.normalizeKnowledgeRetrievalConfig(saved);
+    }
+
+    this.getKnowledgeBaseOrThrowFromMock(normalizedKnowledgeBaseId);
+    const index = database.knowledgeRetrievalConfigs.findIndex((item) => item.knowledgeBaseId === normalizedKnowledgeBaseId);
+    const current = index >= 0 ? database.knowledgeRetrievalConfigs[index] : undefined;
+    const resolved = applyResolvedConfig(current);
+    if (index >= 0) {
+      database.knowledgeRetrievalConfigs[index] = resolved;
+    } else {
+      database.knowledgeRetrievalConfigs.unshift(resolved);
+    }
+    return resolved;
+  }
+
   async updateKnowledgeBase(id: string, payload: UpdateKnowledgeBasePayload) {
     if (await this.canUseKnowledgeBaseStorage()) {
       await this.ensureKnowledgeBaseStorageSeeded();
@@ -990,6 +1331,7 @@ export class KnowledgeBasesService {
     const [removed] = database.knowledgeBases.splice(index, 1);
     database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId !== id);
     database.knowledgeBaseSyncRuns = database.knowledgeBaseSyncRuns.filter((item) => item.knowledgeBaseId !== id);
+    database.knowledgeRetrievalConfigs = database.knowledgeRetrievalConfigs.filter((item) => item.knowledgeBaseId !== id);
     return removed;
   }
 

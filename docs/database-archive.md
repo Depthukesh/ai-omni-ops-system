@@ -49,10 +49,11 @@
 
 ### 2.5 知识库管理持久化
 
-- 当前知识库后台管理已补入 3 张正式表：
+- 当前知识库后台管理已补入 4 张正式表：
   - `KnowledgeBase`
   - `KnowledgeBaseFile`
   - `KnowledgeBaseSyncRun`
+  - `KnowledgeRetrievalConfig`
 - 持久化结构位于：
   - `prisma/schema.prisma`
   - `prisma/migrations/20260607_knowledge_base_persistence_tables/migration.sql`
@@ -60,10 +61,11 @@
   - `apps/server/src/modules/admin/knowledge-bases.service.ts`
 - 当前策略：
   - 数据库和知识库表都可用时，后台知识库页优先从 PostgreSQL 读写
-  - 首次切到正式表且表为空时，会把现有 `mock-data` 中的知识库、文件和同步记录回填进库
+  - 首次切到正式表且表为空时，会把现有 `mock-data` 中的知识库、文件、同步记录和检索配置回填进库
   - 数据库不可用，或知识库迁移尚未执行时，接口仍回退到 `mock-data`
   - 因此前台现有 `/admin` 知识库管理页在本次改造后不需要更换接口即可继续工作
   - 当前文件同步与全量同步已进入“最小 ingestion 骨架”阶段：触发同步后会自动补齐估算分片数、回写文件状态并生成执行摘要，但尚未接入真实解析器与向量索引
+  - 当前后台页已可直接维护知识库默认检索配置，包括 `TopK / Recall Mode / Rerank / Chunk Size / Chunk Overlap / Threshold`
 
 ### 2.6 知识绑定桥接层
 
@@ -356,6 +358,9 @@
 - `KnowledgeBaseSyncRun`
   - 用途：知识库文件同步与全量同步记录
   - 关键字段：`knowledgeBaseId`、`fileId`、`scope`、`operator`、`result`、`summary`、`errorDetail`、`startedAt`、`completedAt`
+- `KnowledgeRetrievalConfig`
+  - 用途：知识库默认检索参数配置
+  - 关键字段：`knowledgeBaseId`、`defaultTopK`、`recallMode`、`rerankEnabled`、`rerankModelName`、`chunkSize`、`chunkOverlap`、`retrievalThreshold`
 - `KnowledgeBinding`
   - 用途：知识库与模块、能力包、Prompt、工作流步骤之间的桥接关系
   - 关键字段：`knowledgeBaseId`、`bindingType`、`targetId`、`targetKey`、`targetName`、`priority`、`retrievalMode`、`isRequired`、`enabled`
@@ -459,9 +464,9 @@
   - 正式注册表：`SkillConfig`、`PromptTemplate`
   - 文件镜像：真实 `SKILL.md` / `.txt`
 - 知识库管理：
-  - 正式表：`KnowledgeBase`、`KnowledgeBaseFile`、`KnowledgeBaseSyncRun`
+  - 正式表：`KnowledgeBase`、`KnowledgeBaseFile`、`KnowledgeBaseSyncRun`、`KnowledgeRetrievalConfig`
   - 桥接表：`KnowledgeBinding`
-  - 当前策略：数据库优先、`mock-data` 兜底；知识库迁移未执行时仍保持现有页面和接口可用
+  - 当前策略：数据库优先、`mock-data` 兜底；知识库迁移未执行时仍保持现有页面和接口可用，后台页现可同时维护主档、文件、同步、检索配置和绑定关系
 - 模块注册中心：
   - 正式表：`ModuleDefinition`
   - 当前策略：数据库优先、`mock-data` 兜底；当前先提供后台接口和前端服务层，不强推现有菜单改成注册表驱动

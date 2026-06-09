@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { ADMIN_ROLE_GROUPS, requireAdminRoles } from "./admin-access";
 import {
@@ -7,6 +7,7 @@ import {
   type CreateKnowledgeBaseFilePayload,
   type CreateKnowledgeBasePayload,
   type UpdateKnowledgeBasePayload,
+  type UpdateKnowledgeRetrievalConfigPayload,
 } from "./knowledge-bases.service";
 
 @Controller("admin/knowledge-bases")
@@ -29,6 +30,17 @@ export class KnowledgeBasesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.createKnowledgeBase(payload);
+  }
+
+  @Get("retrieval-configs")
+  async listKnowledgeRetrievalConfigs(
+    @Query("knowledgeBaseId") knowledgeBaseId: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.knowledgeBasesService.listKnowledgeRetrievalConfigs(
+      knowledgeBaseId ? String(knowledgeBaseId).trim() : undefined,
+    );
   }
 
   @Get(":id/files")
@@ -77,6 +89,16 @@ export class KnowledgeBasesController {
   ) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.updateKnowledgeBase(id, payload);
+  }
+
+  @Patch(":id/retrieval-config")
+  async updateKnowledgeRetrievalConfig(
+    @Param("id") id: string,
+    @Body() payload: UpdateKnowledgeRetrievalConfigPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.knowledgeBasesService.updateKnowledgeRetrievalConfig(id, payload);
   }
 
   @Patch(":id/archive")

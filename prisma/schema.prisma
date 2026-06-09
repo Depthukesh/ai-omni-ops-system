@@ -935,11 +935,30 @@ model KnowledgeBase {
 
   files         KnowledgeBaseFile[]
   bindings      KnowledgeBinding[]
+  retrievalConfig KnowledgeRetrievalConfig?
   skillPackageKnowledgeSpaces SkillPackageKnowledgeSpace[]
   syncRuns      KnowledgeBaseSyncRun[]
 
   @@index([status, updatedAt])
   @@index([syncStatus, updatedAt])
+}
+
+model KnowledgeRetrievalConfig {
+  id                 String        @id
+  knowledgeBaseId    String        @unique
+  defaultTopK        Int           @default(8)
+  recallMode         String        @default("HYBRID")
+  rerankEnabled      Boolean       @default(false)
+  rerankModelName    String?
+  chunkSize          Int?
+  chunkOverlap       Int?
+  retrievalThreshold Float?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  knowledgeBase      KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([recallMode, updatedAt])
 }
 
 model KnowledgeBaseFile {

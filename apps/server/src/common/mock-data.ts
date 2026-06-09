@@ -242,6 +242,20 @@ export type KnowledgeBindingRecord = {
   updatedAt: string;
 };
 
+export type KnowledgeRetrievalConfigRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  defaultTopK: number;
+  recallMode: "SEMANTIC" | "HYBRID";
+  rerankEnabled: boolean;
+  rerankModelName?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  retrievalThreshold?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ModuleDefinitionRecord = {
   id: string;
   moduleKey: string;
@@ -797,6 +811,7 @@ export type MockDatabase = {
   knowledgeBases: KnowledgeBaseRecord[];
   knowledgeBaseFiles: KnowledgeBaseFileRecord[];
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
+  knowledgeRetrievalConfigs: KnowledgeRetrievalConfigRecord[];
   knowledgeBindings: KnowledgeBindingRecord[];
   skillPackages: SkillPackageRecord[];
   skillPackageVersions: SkillPackageVersionRecord[];
@@ -3263,6 +3278,46 @@ export const database: MockDatabase = {
       result: "RUNNING",
       summary: "全量同步进行中，正在扫描飞书文档增量变更。",
       startedAt: "2026-05-02T10:40:00.000Z",
+    },
+  ],
+  knowledgeRetrievalConfigs: [
+    {
+      id: "kbrc_brand_docs",
+      knowledgeBaseId: "kb_brand_docs",
+      defaultTopK: 8,
+      recallMode: "HYBRID",
+      rerankEnabled: true,
+      rerankModelName: "bge-reranker-v2-m3",
+      chunkSize: 900,
+      chunkOverlap: 120,
+      retrievalThreshold: 0.68,
+      createdAt: "2026-05-02T09:20:00.000Z",
+      updatedAt: "2026-05-02T09:20:00.000Z",
+    },
+    {
+      id: "kbrc_feishu_ops",
+      knowledgeBaseId: "kb_feishu_ops",
+      defaultTopK: 6,
+      recallMode: "SEMANTIC",
+      rerankEnabled: false,
+      chunkSize: 700,
+      chunkOverlap: 100,
+      retrievalThreshold: 0.62,
+      createdAt: "2026-05-02T09:25:00.000Z",
+      updatedAt: "2026-05-02T09:25:00.000Z",
+    },
+    {
+      id: "kbrc_competitor_cases",
+      knowledgeBaseId: "kb_competitor_cases",
+      defaultTopK: 12,
+      recallMode: "HYBRID",
+      rerankEnabled: true,
+      rerankModelName: "bge-reranker-v2-m3",
+      chunkSize: 1000,
+      chunkOverlap: 160,
+      retrievalThreshold: 0.74,
+      createdAt: "2026-05-02T09:30:00.000Z",
+      updatedAt: "2026-05-02T09:30:00.000Z",
     },
   ],
   knowledgeBindings: [

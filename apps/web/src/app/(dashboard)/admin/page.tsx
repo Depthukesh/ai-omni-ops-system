@@ -32,6 +32,7 @@ import {
   getKnowledgeBindings,
   getKnowledgeBases,
   getKnowledgeBaseFiles,
+  getKnowledgeRetrievalConfigs,
   getKnowledgeBaseSyncRuns,
   getModuleDefinitions,
   getPromptTemplates,
@@ -48,6 +49,7 @@ import {
   getThirdPartyPlatforms,
   knowledgeBaseFileSeed,
   knowledgeBindingSeed,
+  knowledgeRetrievalConfigSeed,
   knowledgeBaseSyncRunSeed,
   knowledgeBaseSeed,
   moduleDefinitionSeed,
@@ -63,6 +65,7 @@ import {
   updateApiProvider,
   updateKnowledgeBaseFile,
   updateKnowledgeBinding,
+  updateKnowledgeRetrievalConfig,
   updateKnowledgeBase,
   updatePromptTemplate,
   updateSkillConfig,
@@ -75,6 +78,7 @@ import {
   type KnowledgeBaseFileRecord,
   type KnowledgeBindingRecord,
   type KnowledgeBaseRecord,
+  type KnowledgeRetrievalConfigRecord,
   type KnowledgeBaseSyncMutationResult,
   type KnowledgeBaseRunMutationResult,
   type KnowledgeBaseSyncRunRecord,
@@ -236,6 +240,15 @@ type KnowledgeBindingEditDraft = {
   retrievalMode: KnowledgeBindingRecord["retrievalMode"];
   isRequired: boolean;
   enabled: boolean;
+};
+type KnowledgeRetrievalConfigEditDraft = {
+  defaultTopK: string;
+  recallMode: KnowledgeRetrievalConfigRecord["recallMode"];
+  rerankEnabled: boolean;
+  rerankModelName: string;
+  chunkSize: string;
+  chunkOverlap: string;
+  retrievalThreshold: string;
 };
 type ScopedModelOption = {
   value: string;
@@ -413,6 +426,8 @@ export default function AdminPage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(knowledgeBaseSeed);
   const [knowledgeBaseFiles, setKnowledgeBaseFiles] = useState<KnowledgeBaseFileRecord[]>(knowledgeBaseFileSeed);
   const [knowledgeBindings, setKnowledgeBindings] = useState<KnowledgeBindingRecord[]>(knowledgeBindingSeed);
+  const [knowledgeRetrievalConfigs, setKnowledgeRetrievalConfigs] =
+    useState<KnowledgeRetrievalConfigRecord[]>(knowledgeRetrievalConfigSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
   const [knowledgeBaseSyncRunDrafts, setKnowledgeBaseSyncRunDrafts] = useState<Record<string, SyncRunEditDraft>>(
     buildSyncRunDrafts(knowledgeBaseSyncRunSeed),
@@ -424,6 +439,9 @@ export default function AdminPage() {
   const [knowledgeBaseDrafts, setKnowledgeBaseDrafts] = useState<Record<string, KnowledgeBaseEditDraft>>(
     buildKnowledgeBaseDrafts(knowledgeBaseSeed),
   );
+  const [knowledgeRetrievalConfigDrafts, setKnowledgeRetrievalConfigDrafts] = useState<
+    Record<string, KnowledgeRetrievalConfigEditDraft>
+  >(buildKnowledgeRetrievalConfigDrafts(knowledgeRetrievalConfigSeed));
   const [knowledgeBindingDrafts, setKnowledgeBindingDrafts] = useState<Record<string, KnowledgeBindingEditDraft>>(
     buildKnowledgeBindingDrafts(knowledgeBindingSeed),
   );
@@ -459,6 +477,7 @@ export default function AdminPage() {
   const [updatingPromptId, setUpdatingPromptId] = useState("");
   const [updatingKnowledgeBaseId, setUpdatingKnowledgeBaseId] = useState("");
   const [updatingKnowledgeBaseFileId, setUpdatingKnowledgeBaseFileId] = useState("");
+  const [updatingKnowledgeRetrievalBaseId, setUpdatingKnowledgeRetrievalBaseId] = useState("");
   const [updatingKnowledgeBindingId, setUpdatingKnowledgeBindingId] = useState("");
   const [updatingKnowledgeBaseSyncRunId, setUpdatingKnowledgeBaseSyncRunId] = useState("");
   const [updatingProviderId, setUpdatingProviderId] = useState("");
@@ -558,6 +577,7 @@ export default function AdminPage() {
       knowledgeBaseResult,
       knowledgeBaseFilesResult,
       knowledgeBindingsResult,
+      knowledgeRetrievalConfigsResult,
       knowledgeBaseSyncRunsResult,
       providerResult,
       thirdPartyPlatformResult,
@@ -577,6 +597,7 @@ export default function AdminPage() {
       canReadKnowledge ? getKnowledgeBases() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseFiles() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBindings() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeRetrievalConfigs() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
       canReadProviders ? getApiProviders() : Promise.resolve([]),
       canReadProviders ? getThirdPartyPlatforms() : Promise.resolve([]),
@@ -693,6 +714,15 @@ export default function AdminPage() {
     } else {
       setKnowledgeBindings(knowledgeBindingSeed);
       setKnowledgeBindingDrafts(buildKnowledgeBindingDrafts(knowledgeBindingSeed));
+      usingSeed = true;
+    }
+
+    if (knowledgeRetrievalConfigsResult.status === "fulfilled") {
+      setKnowledgeRetrievalConfigs(knowledgeRetrievalConfigsResult.value);
+      setKnowledgeRetrievalConfigDrafts(buildKnowledgeRetrievalConfigDrafts(knowledgeRetrievalConfigsResult.value));
+    } else {
+      setKnowledgeRetrievalConfigs(knowledgeRetrievalConfigSeed);
+      setKnowledgeRetrievalConfigDrafts(buildKnowledgeRetrievalConfigDrafts(knowledgeRetrievalConfigSeed));
       usingSeed = true;
     }
 
@@ -1315,7 +1345,13 @@ export default function AdminPage() {
       const removed = await deleteKnowledgeBase(knowledgeBaseId);
       setKnowledgeBases((current) => current.filter((item) => item.id !== knowledgeBaseId));
       setKnowledgeBaseFiles((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
+      setKnowledgeRetrievalConfigs((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
       setKnowledgeBaseDrafts((current) => {
+        const next = { ...current };
+        delete next[knowledgeBaseId];
+        return next;
+      });
+      setKnowledgeRetrievalConfigDrafts((current) => {
         const next = { ...current };
         delete next[knowledgeBaseId];
         return next;
@@ -1331,7 +1367,13 @@ export default function AdminPage() {
         const removed = knowledgeBases.find((item) => item.id === knowledgeBaseId);
         setKnowledgeBases((current) => current.filter((item) => item.id !== knowledgeBaseId));
         setKnowledgeBaseFiles((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
+        setKnowledgeRetrievalConfigs((current) => current.filter((item) => item.knowledgeBaseId !== knowledgeBaseId));
         setKnowledgeBaseDrafts((current) => {
+          const next = { ...current };
+          delete next[knowledgeBaseId];
+          return next;
+        });
+        setKnowledgeRetrievalConfigDrafts((current) => {
           const next = { ...current };
           delete next[knowledgeBaseId];
           return next;
@@ -1366,8 +1408,14 @@ export default function AdminPage() {
       });
 
       setKnowledgeBases((current) => [created, ...current]);
+      const defaultRetrievalConfig = buildDefaultKnowledgeRetrievalConfig(created.id);
       setKnowledgeBaseDrafts((current) => ({
         [created.id]: buildKnowledgeBaseDraft(created),
+        ...current,
+      }));
+      setKnowledgeRetrievalConfigs((current) => [defaultRetrievalConfig, ...current]);
+      setKnowledgeRetrievalConfigDrafts((current) => ({
+        [created.id]: buildKnowledgeRetrievalConfigDraft(defaultRetrievalConfig),
         ...current,
       }));
       setNewKnowledgeBaseFileDrafts((current) => ({
@@ -1392,8 +1440,14 @@ export default function AdminPage() {
           updatedAt: createdAt,
         };
         setKnowledgeBases((current) => [created, ...current]);
+        const defaultRetrievalConfig = buildDefaultKnowledgeRetrievalConfig(created.id, createdAt);
         setKnowledgeBaseDrafts((current) => ({
           [created.id]: buildKnowledgeBaseDraft(created),
+          ...current,
+        }));
+        setKnowledgeRetrievalConfigs((current) => [defaultRetrievalConfig, ...current]);
+        setKnowledgeRetrievalConfigDrafts((current) => ({
+          [created.id]: buildKnowledgeRetrievalConfigDraft(defaultRetrievalConfig),
           ...current,
         }));
         setNewKnowledgeBaseFileDrafts((current) => ({
@@ -1794,6 +1848,78 @@ export default function AdminPage() {
         ...patch,
       },
     }));
+  }
+
+  function handleKnowledgeRetrievalConfigDraftChange(
+    knowledgeBaseId: string,
+    patch: Partial<KnowledgeRetrievalConfigEditDraft>,
+  ) {
+    setKnowledgeRetrievalConfigDrafts((current) => ({
+      ...current,
+      [knowledgeBaseId]: {
+        ...(current[knowledgeBaseId] || buildKnowledgeRetrievalConfigDraft()),
+        ...patch,
+      },
+    }));
+  }
+
+  async function handleSaveKnowledgeRetrievalConfig(knowledgeBaseId: string) {
+    const draft = knowledgeRetrievalConfigDrafts[knowledgeBaseId] || buildKnowledgeRetrievalConfigDraft();
+    setUpdatingKnowledgeRetrievalBaseId(knowledgeBaseId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const payload = normalizeKnowledgeRetrievalConfigDraft(draft);
+      const updated = await updateKnowledgeRetrievalConfig(knowledgeBaseId, payload);
+      setKnowledgeRetrievalConfigs((current) => {
+        const exists = current.some((item) => item.knowledgeBaseId === knowledgeBaseId);
+        const next = exists
+          ? current.map((item) => (item.knowledgeBaseId === knowledgeBaseId ? updated : item))
+          : [updated, ...current];
+        return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      });
+      setKnowledgeRetrievalConfigDrafts((current) => ({
+        ...current,
+        [knowledgeBaseId]: buildKnowledgeRetrievalConfigDraft(updated),
+      }));
+      setNotice(`知识检索配置已更新：${knowledgeBases.find((item) => item.id === knowledgeBaseId)?.name || knowledgeBaseId}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        try {
+          const payload = normalizeKnowledgeRetrievalConfigDraft(draft);
+          const currentRecord = knowledgeRetrievalConfigs.find((item) => item.knowledgeBaseId === knowledgeBaseId);
+          const updatedAt = new Date().toISOString();
+          const nextRecord: KnowledgeRetrievalConfigRecord = {
+            ...(currentRecord || buildDefaultKnowledgeRetrievalConfig(knowledgeBaseId, updatedAt)),
+            ...payload,
+            updatedAt,
+          };
+          setKnowledgeRetrievalConfigs((current) => {
+            const exists = current.some((item) => item.knowledgeBaseId === knowledgeBaseId);
+            const next = exists
+              ? current.map((item) => (item.knowledgeBaseId === knowledgeBaseId ? nextRecord : item))
+              : [nextRecord, ...current];
+            return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+          });
+          setKnowledgeRetrievalConfigDrafts((current) => ({
+            ...current,
+            [knowledgeBaseId]: buildKnowledgeRetrievalConfigDraft(nextRecord),
+          }));
+          setNotice("知识检索配置已更新到本地演示数据。");
+          return;
+        } catch (draftError) {
+          const message = draftError instanceof Error ? draftError.message : "知识检索配置校验失败";
+          setErrorMessage(`知识检索配置保存失败：${message}`);
+          return;
+        }
+      }
+
+      const message = error instanceof Error ? error.message : "知识检索配置保存失败";
+      setErrorMessage(`知识检索配置保存失败：${message}`);
+    } finally {
+      setUpdatingKnowledgeRetrievalBaseId("");
+    }
   }
 
   async function handleCreateKnowledgeBinding(knowledgeBaseId: string) {
@@ -4756,6 +4882,11 @@ export default function AdminPage() {
               const draft = knowledgeBaseDrafts[item.id] || buildKnowledgeBaseDraft(item);
               const fileDraft = newKnowledgeBaseFileDrafts[item.id] || buildCreateKnowledgeBaseFileDraft();
               const bindingCreateDraft = newKnowledgeBindingDrafts[item.id] || buildCreateKnowledgeBindingDraft();
+              const retrievalConfig =
+                knowledgeRetrievalConfigs.find((config) => config.knowledgeBaseId === item.id) ||
+                buildDefaultKnowledgeRetrievalConfig(item.id);
+              const retrievalDraft =
+                knowledgeRetrievalConfigDrafts[item.id] || buildKnowledgeRetrievalConfigDraft(retrievalConfig);
               const files = knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === item.id);
               const bindings = knowledgeBindings
                 .filter((binding) => binding.knowledgeBaseId === item.id)
@@ -4913,6 +5044,123 @@ export default function AdminPage() {
                       }
                     />
                   </label>
+
+                  <div className="admin-rules-stack">
+                    <div className="panel-header">
+                      <h2>检索配置</h2>
+                      <span>TopK / Recall / Rerank</span>
+                    </div>
+                    <div className="personal-meta">
+                      这一层先沉淀知识库默认召回策略，后续再把真实向量检索、重排模型和日志监控接进执行链路。
+                    </div>
+                    <div className="admin-rule-grid">
+                      <label>
+                        <span>默认 TopK</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={retrievalDraft.defaultTopK}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              defaultTopK: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>召回模式</span>
+                        <select
+                          value={retrievalDraft.recallMode}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              recallMode: event.target.value as KnowledgeRetrievalConfigRecord["recallMode"],
+                            })
+                          }
+                        >
+                          <option value="SEMANTIC">SEMANTIC</option>
+                          <option value="HYBRID">HYBRID</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>启用重排</span>
+                        <select
+                          value={retrievalDraft.rerankEnabled ? "YES" : "NO"}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              rerankEnabled: event.target.value === "YES",
+                            })
+                          }
+                        >
+                          <option value="NO">NO</option>
+                          <option value="YES">YES</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>重排模型</span>
+                        <input
+                          value={retrievalDraft.rerankModelName}
+                          placeholder={retrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              rerankModelName: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>切片大小</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={retrievalDraft.chunkSize}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              chunkSize: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>切片重叠</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={retrievalDraft.chunkOverlap}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              chunkOverlap: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>检索阈值</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={retrievalDraft.retrievalThreshold}
+                          onChange={(event) =>
+                            handleKnowledgeRetrievalConfigDraftChange(item.id, {
+                              retrievalThreshold: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="personal-actions">
+                      <span className="personal-meta">上次更新时间 {formatDateTime(retrievalConfig.updatedAt)}</span>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleSaveKnowledgeRetrievalConfig(item.id)}
+                        disabled={updatingKnowledgeRetrievalBaseId === item.id}
+                      >
+                        {updatingKnowledgeRetrievalBaseId === item.id ? "保存中..." : "保存检索配置"}
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="admin-rules-stack">
                     <div className="panel-header">
@@ -6459,6 +6707,84 @@ function buildKnowledgeBindingDrafts(list: KnowledgeBindingRecord[]) {
     string,
     KnowledgeBindingEditDraft
   >;
+}
+
+function buildDefaultKnowledgeRetrievalConfig(
+  knowledgeBaseId: string,
+  timestamp = new Date().toISOString(),
+): KnowledgeRetrievalConfigRecord {
+  return {
+    id: `kbrc_local_${knowledgeBaseId}`,
+    knowledgeBaseId,
+    defaultTopK: 8,
+    recallMode: "HYBRID",
+    rerankEnabled: false,
+    chunkSize: 800,
+    chunkOverlap: 120,
+    retrievalThreshold: 0.65,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+function buildKnowledgeRetrievalConfigDraft(
+  item: KnowledgeRetrievalConfigRecord = buildDefaultKnowledgeRetrievalConfig("kb_default"),
+): KnowledgeRetrievalConfigEditDraft {
+  return {
+    defaultTopK: String(item.defaultTopK),
+    recallMode: item.recallMode,
+    rerankEnabled: item.rerankEnabled,
+    rerankModelName: item.rerankModelName || "",
+    chunkSize: item.chunkSize === undefined ? "" : String(item.chunkSize),
+    chunkOverlap: item.chunkOverlap === undefined ? "" : String(item.chunkOverlap),
+    retrievalThreshold: item.retrievalThreshold === undefined ? "" : String(item.retrievalThreshold),
+  };
+}
+
+function buildKnowledgeRetrievalConfigDrafts(list: KnowledgeRetrievalConfigRecord[]) {
+  return Object.fromEntries(list.map((item) => [item.knowledgeBaseId, buildKnowledgeRetrievalConfigDraft(item)])) as Record<
+    string,
+    KnowledgeRetrievalConfigEditDraft
+  >;
+}
+
+function normalizeKnowledgeRetrievalConfigDraft(draft: KnowledgeRetrievalConfigEditDraft) {
+  const parseInteger = (label: string, rawValue: string, allowZero = false) => {
+    const normalized = Number(rawValue);
+    if (!Number.isFinite(normalized) || normalized < 0 || (!allowZero && normalized <= 0)) {
+      throw new Error(`${label}必须为${allowZero ? "非负整数" : "正整数"}`);
+    }
+    return Math.floor(normalized);
+  };
+  const parseThreshold = (rawValue: string) => {
+    const normalized = Number(rawValue);
+    if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) {
+      throw new Error("检索阈值必须在 0 到 1 之间");
+    }
+    return normalized;
+  };
+
+  const chunkSize = draft.chunkSize.trim() ? parseInteger("切片大小", draft.chunkSize) : undefined;
+  const chunkOverlap = draft.chunkOverlap.trim() ? parseInteger("切片重叠", draft.chunkOverlap, true) : undefined;
+  if (
+    chunkSize !== undefined &&
+    chunkOverlap !== undefined &&
+    Number.isFinite(chunkSize) &&
+    Number.isFinite(chunkOverlap) &&
+    chunkOverlap >= chunkSize
+  ) {
+    throw new Error("切片重叠必须小于切片大小");
+  }
+
+  return {
+    defaultTopK: parseInteger("默认 TopK", draft.defaultTopK),
+    recallMode: draft.recallMode,
+    rerankEnabled: draft.rerankEnabled,
+    rerankModelName: draft.rerankEnabled ? draft.rerankModelName.trim() || undefined : undefined,
+    chunkSize,
+    chunkOverlap,
+    retrievalThreshold: draft.retrievalThreshold.trim() ? parseThreshold(draft.retrievalThreshold) : undefined,
+  };
 }
 
 function buildCreateKnowledgeBindingDraft(): CreateKnowledgeBindingDraft {

@@ -166,6 +166,20 @@ export type KnowledgeBindingRecord = {
   updatedAt: string;
 };
 
+export type KnowledgeRetrievalConfigRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  defaultTopK: number;
+  recallMode: "SEMANTIC" | "HYBRID";
+  rerankEnabled: boolean;
+  rerankModelName?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  retrievalThreshold?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeBaseSyncMutationResult = KnowledgeBaseFileMutationResult & {
   run: KnowledgeBaseSyncRunRecord;
 };
@@ -1431,6 +1445,47 @@ export const knowledgeBindingSeed: KnowledgeBindingRecord[] = [
     enabled: true,
     createdAt: "2026-05-02T10:00:00.000Z",
     updatedAt: "2026-05-02T10:00:00.000Z",
+  },
+];
+
+export const knowledgeRetrievalConfigSeed: KnowledgeRetrievalConfigRecord[] = [
+  {
+    id: "kbrc_brand_docs",
+    knowledgeBaseId: "kb_brand_docs",
+    defaultTopK: 8,
+    recallMode: "HYBRID",
+    rerankEnabled: true,
+    rerankModelName: "bge-reranker-v2-m3",
+    chunkSize: 900,
+    chunkOverlap: 120,
+    retrievalThreshold: 0.68,
+    createdAt: "2026-05-02T09:20:00.000Z",
+    updatedAt: "2026-05-02T09:20:00.000Z",
+  },
+  {
+    id: "kbrc_feishu_ops",
+    knowledgeBaseId: "kb_feishu_ops",
+    defaultTopK: 6,
+    recallMode: "SEMANTIC",
+    rerankEnabled: false,
+    chunkSize: 700,
+    chunkOverlap: 100,
+    retrievalThreshold: 0.62,
+    createdAt: "2026-05-02T09:25:00.000Z",
+    updatedAt: "2026-05-02T09:25:00.000Z",
+  },
+  {
+    id: "kbrc_competitor_cases",
+    knowledgeBaseId: "kb_competitor_cases",
+    defaultTopK: 12,
+    recallMode: "HYBRID",
+    rerankEnabled: true,
+    rerankModelName: "bge-reranker-v2-m3",
+    chunkSize: 1000,
+    chunkOverlap: 160,
+    retrievalThreshold: 0.74,
+    createdAt: "2026-05-02T09:30:00.000Z",
+    updatedAt: "2026-05-02T09:30:00.000Z",
   },
 ];
 
@@ -2737,6 +2792,28 @@ export async function getKnowledgeBindings(query: {
   }
   const suffix = searchParams.toString();
   return request<KnowledgeBindingRecord[]>(suffix ? `/admin/knowledge-bindings?${suffix}` : "/admin/knowledge-bindings");
+}
+
+export async function getKnowledgeRetrievalConfigs(knowledgeBaseId?: string) {
+  const normalized = String(knowledgeBaseId || "").trim();
+  const suffix = normalized ? `?knowledgeBaseId=${encodeURIComponent(normalized)}` : "";
+  return request<KnowledgeRetrievalConfigRecord[]>(`/admin/knowledge-bases/retrieval-configs${suffix}`);
+}
+
+export async function updateKnowledgeRetrievalConfig(
+  knowledgeBaseId: string,
+  payload: Partial<
+    Pick<
+      KnowledgeRetrievalConfigRecord,
+      "defaultTopK" | "recallMode" | "rerankEnabled" | "rerankModelName" | "chunkSize" | "chunkOverlap" | "retrievalThreshold"
+    >
+  >,
+) {
+  return jsonRequest<KnowledgeRetrievalConfigRecord>(
+    `/admin/knowledge-bases/${encodeURIComponent(knowledgeBaseId)}/retrieval-config`,
+    "PATCH",
+    payload,
+  );
 }
 
 export async function getKnowledgeBindingsByTarget(
