@@ -1308,6 +1308,24 @@ button {
   line-height: 1.7;
 }
 
+.knowledge-content-card__mapping {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(95, 118, 255, 0.08);
+}
+
+.knowledge-content-card__mapping span {
+  color: #708094;
+  font-size: 12px;
+}
+
+.knowledge-content-card__mapping strong {
+  color: #2d4ea2;
+  font-size: 14px;
+}
+
 .knowledge-content-card__description {
   color: #4d5d74;
   font-size: 14px;
@@ -1334,6 +1352,60 @@ button {
 .knowledge-content-empty-state strong {
   color: #173b4b;
   font-size: 18px;
+}
+
+.knowledge-mapping-callout {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid #d8e2ff;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(247, 250, 255, 0.96) 0%, #ffffff 100%);
+}
+
+.knowledge-mapping-callout__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-mapping-callout__head strong {
+  color: #173b4b;
+  font-size: 16px;
+}
+
+.knowledge-mapping-callout > p {
+  margin: 0;
+  color: #4d5d74;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.knowledge-mapping-callout__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-mapping-callout__grid > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f5f8ff;
+}
+
+.knowledge-mapping-callout__grid span {
+  color: #708094;
+  font-size: 12px;
+}
+
+.knowledge-mapping-callout__grid strong {
+  color: #2d4ea2;
+  font-size: 14px;
+  word-break: break-all;
 }
 
 .knowledge-asset-modal-overlay {
@@ -6697,6 +6769,10 @@ button {
   .knowledge-content-card-grid,
   .knowledge-upload-choice-grid,
   .knowledge-admin-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-mapping-callout__grid {
     grid-template-columns: 1fr;
   }
 

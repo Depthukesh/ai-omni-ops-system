@@ -318,6 +318,12 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
 
   const assetTarget = props.activeBrandPage;
   const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业知识库";
+  const mappedKnowledgeBaseName =
+    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseName(props.archive.brand.brandName) : "";
+  const mappedKnowledgeBaseId =
+    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseId(props.archive.brand.id) : "";
+  const mappedKnowledgeBaseSlug =
+    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseSlug(props.archive.brand.id) : "";
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<"create" | "edit">("create");
   const [assetModalDrafts, setAssetModalDrafts] = useState<LibraryAssetModalDraft[]>([]);
@@ -449,6 +455,32 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
           </button>
         </div>
 
+        {assetTarget === "businessAssets" ? (
+          <article className="knowledge-mapping-callout">
+            <div className="knowledge-mapping-callout__head">
+              <strong>后台对应知识库</strong>
+              <span className="archive-pill status-ready">1 个后台容器</span>
+            </div>
+            <p>
+              当前页面新增的所有资料，保存页面后都会统一汇总到后台同一个知识库容器，而不是一张资料卡生成一个后台知识库。
+            </p>
+            <div className="knowledge-mapping-callout__grid">
+              <div>
+                <span>知识库名称</span>
+                <strong>{mappedKnowledgeBaseName}</strong>
+              </div>
+              <div>
+                <span>知识库 ID</span>
+                <strong>{mappedKnowledgeBaseId}</strong>
+              </div>
+              <div>
+                <span>知识库 Slug</span>
+                <strong>{mappedKnowledgeBaseSlug}</strong>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
         {props.archive[assetTarget].length ? (
           <div className="knowledge-content-card-grid">
             {props.archive[assetTarget].map((asset, index) => (
@@ -464,6 +496,12 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                   <span>{asset.fileUrl ? extractFileName(asset.fileUrl) : "未关联文件"}</span>
                   <span>{assetTarget === "businessAssets" ? "保存页面后自动同步到知识库" : "保存页面后写入资料库"}</span>
                 </div>
+                {assetTarget === "businessAssets" ? (
+                  <div className="knowledge-content-card__mapping">
+                    <span>对应后台知识库</span>
+                    <strong>{mappedKnowledgeBaseName}</strong>
+                  </div>
+                ) : null}
                 <p className="knowledge-content-card__description">{asset.description || "暂无资料说明。"}</p>
                 <div className="knowledge-content-card__actions">
                   {asset.fileUrl ? (
@@ -659,4 +697,16 @@ function extractFileName(fileUrl: string) {
   } catch {
     return fileUrl;
   }
+}
+
+function buildBusinessAssetsKnowledgeBaseId(brandId: string) {
+  return `kb_brand_business_assets_${brandId}`;
+}
+
+function buildBusinessAssetsKnowledgeBaseSlug(brandId: string) {
+  return `brand-business-assets-${brandId}`;
+}
+
+function buildBusinessAssetsKnowledgeBaseName(brandName: string) {
+  return `${brandName || "当前品牌"}企业知识库`;
 }
