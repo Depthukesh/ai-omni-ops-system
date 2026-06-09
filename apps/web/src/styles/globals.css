@@ -6090,7 +6090,8 @@ button {
   }
 
   .admin-overview-grid,
-  .admin-summary-list {
+  .admin-summary-list,
+  .knowledge-bridge-preview-list {
     grid-template-columns: 1fr;
   }
 
@@ -6291,8 +6292,59 @@ button {
   line-height: 1.7;
 }
 
+.knowledge-admin-list-tags,
+.knowledge-bridge-chip-row,
+.knowledge-binding-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knowledge-admin-list-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(95, 118, 255, 0.08);
+  color: #4767d3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .knowledge-admin-card {
   gap: 20px;
+}
+
+.knowledge-bridge-callout {
+  gap: 16px;
+}
+
+.knowledge-bridge-preview-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-bridge-preview-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #e3eaf3;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96) 0%, #ffffff 100%);
+}
+
+.knowledge-bridge-preview-card strong {
+  color: #173b4b;
+  font-size: 14px;
+}
+
+.knowledge-bridge-preview-card span,
+.knowledge-bridge-preview-card em {
+  color: #708094;
+  font-size: 13px;
+  font-style: normal;
 }
 
 .knowledge-admin-summary-grid {

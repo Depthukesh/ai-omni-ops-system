@@ -329,6 +329,25 @@ type CreateKnowledgeBindingDraft = {
   isRequired: boolean;
   enabled: boolean;
 };
+
+function isBrandBridgeKnowledgeBase(knowledgeBase?: KnowledgeBaseRecord) {
+  if (!knowledgeBase) {
+    return false;
+  }
+  return (
+    knowledgeBase.id.startsWith("kb_brand_business_assets_")
+    || knowledgeBase.slug.startsWith("brand-business-assets-")
+    || knowledgeBase.description.includes("前端“企业知识库”页面自动同步")
+  );
+}
+
+function getKnowledgeBaseContainerLabel(knowledgeBase: KnowledgeBaseRecord) {
+  return isBrandBridgeKnowledgeBase(knowledgeBase) ? "前端企业知识库容器" : "独立知识库容器";
+}
+
+function getKnowledgeBindingDisplayName(binding: KnowledgeBindingRecord) {
+  return binding.targetName || binding.targetKey || binding.targetId;
+}
 type SyncRunEditDraft = {
   summary: string;
   errorDetail: string;
@@ -2845,6 +2864,10 @@ export default function AdminPage() {
     : [];
   const selectedKnowledgeLatestSyncRun = selectedKnowledgeSyncRuns[0];
   const selectedKnowledgeHasRunningSyncRun = selectedKnowledgeSyncRuns.some((run) => run.result === "RUNNING");
+  const selectedKnowledgeIsBrandBridge = isBrandBridgeKnowledgeBase(selectedKnowledgeBase);
+  const selectedKnowledgePreviewFiles = [...selectedKnowledgeFiles]
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
+    .slice(0, 4);
 
   useEffect(() => {
     const nextPrimary = filteredSkillTree[0];
@@ -4960,6 +4983,10 @@ export default function AdminPage() {
                   {knowledgeBases.length ? (
                     knowledgeBases.map((item) => {
                       const latestRun = knowledgeBaseSyncRuns.find((run) => run.knowledgeBaseId === item.id);
+                      const itemFiles = knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === item.id);
+                      const itemBindings = knowledgeBindings.filter((binding) => binding.knowledgeBaseId === item.id);
+                      const isBridgeKnowledge = isBrandBridgeKnowledgeBase(item);
+                      const latestFile = [...itemFiles].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
                       return (
                         <button
                           type="button"
@@ -4971,12 +4998,18 @@ export default function AdminPage() {
                           <div>
                             <strong>{item.name}</strong>
                             <p>
-                              {item.slug} · 文档 {item.documentCount} · 分片 {item.chunkCount}
+                              {getKnowledgeBaseContainerLabel(item)} · 资料 {itemFiles.length} · 接入对象 {itemBindings.length}
                             </p>
+                          </div>
+                          <div className="knowledge-admin-list-tags">
+                            <span className="knowledge-admin-list-tag">{item.sourceType}</span>
+                            <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
                           </div>
                           <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
                           <span className="knowledge-admin-list-meta">
-                            最近同步：{latestRun ? latestRun.result : item.syncStatus}
+                            {isBridgeKnowledge
+                              ? `最近资料：${latestFile ? latestFile.fileName : "等待前端保存资料"}`
+                              : `最近同步：${latestRun ? latestRun.result : item.syncStatus}`}
                           </span>
                         </button>
                       );
@@ -5053,6 +5086,39 @@ export default function AdminPage() {
 
                   {knowledgeWorkspaceSection === "overview" ? (
                     <div className="admin-provider-stack">
+                      {selectedKnowledgeIsBrandBridge ? (
+                        <article className="entity-card admin-rule-card knowledge-bridge-callout">
+                          <div className="panel-header">
+                            <h2>前端映射说明</h2>
+                            <span>1 个容器 = 多条前端资料</span>
+                          </div>
+                          <p className="personal-meta">
+                            当前知识库是“企业知识库”前端页面自动桥接出来的统一容器。前端每新增一张资料卡，不会在后台新增一个知识库，
+                            而是作为资料文件继续汇总到这个容器里。
+                          </p>
+                          <div className="knowledge-bridge-chip-row">
+                            <span className="knowledge-admin-list-tag">前端资料 {selectedKnowledgeFiles.length}</span>
+                            <span className="knowledge-admin-list-tag">接入对象 {selectedKnowledgeBindings.length}</span>
+                            <span className="knowledge-admin-list-tag">
+                              默认接入 {selectedKnowledgeBindings[0] ? getKnowledgeBindingDisplayName(selectedKnowledgeBindings[0]) : "待创建"}
+                            </span>
+                          </div>
+                          {selectedKnowledgePreviewFiles.length ? (
+                            <div className="knowledge-bridge-preview-list">
+                              {selectedKnowledgePreviewFiles.map((file) => (
+                                <article className="knowledge-bridge-preview-card" key={file.id}>
+                                  <strong>{file.fileName}</strong>
+                                  <span>{file.sourceName || "未填写来源"}</span>
+                                  <em>{formatDateTime(file.uploadedAt)}</em>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="personal-meta">前端还没有桥接进资料，先去“企业知识库”页面新增资料并保存页面。</p>
+                          )}
+                        </article>
+                      ) : null}
+
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
                           <h2>基础信息</h2>
@@ -5216,7 +5282,7 @@ export default function AdminPage() {
                           </label>
                           <div className="knowledge-upload-choice">
                             <strong>前端桥接导入</strong>
-                            <span>企业经营数据页保存后会自动进入对应知识库，这里只负责补充资料和手动同步。</span>
+                            <span>前端“企业知识库”页面保存后会自动进入这个容器，这里只负责补充资料和手动同步。</span>
                             <em>自动同步</em>
                           </div>
                         </div>
@@ -5266,7 +5332,7 @@ export default function AdminPage() {
                                   sourceName: event.target.value,
                                 })
                               }
-                              placeholder="例如 品牌部上传 / 企业经营数据桥接"
+                              placeholder="例如 品牌部上传 / 企业知识库桥接"
                             />
                           </label>
                         </div>
@@ -5337,7 +5403,7 @@ export default function AdminPage() {
                             </article>
                           ))
                         ) : (
-                          <p className="personal-meta">暂无知识库资料，先从上方上传一份文档，或从前端企业经营数据页自动桥接。</p>
+                          <p className="personal-meta">暂无知识库资料，先从上方上传一份文档，或从前端“企业知识库”页面自动桥接。</p>
                         )}
                       </div>
                     </div>
@@ -5472,7 +5538,9 @@ export default function AdminPage() {
                           <span>{selectedKnowledgeBindings.length} Bindings</span>
                         </div>
                         <div className="personal-meta">
-                          这里只保留“绑定到谁”的治理能力。系统桥接会默认把企业经营数据知识库挂到品牌增长工作台，你也可以继续补其他对象。
+                          {selectedKnowledgeIsBrandBridge
+                            ? "企业知识库桥接默认只自动维护“品牌增长工作台”这一条接入对象。前端新增资料不会自动新增接入对象；如需给报告、提示词或其他模块使用，请在这里手动补充。"
+                            : "这里只保留“绑定到谁”的治理能力，你可以为当前知识库继续补充模块、能力包、提示词或工作流步骤。"}
                         </div>
                         <div className="admin-rule-grid">
                           <label>
@@ -5612,9 +5680,14 @@ export default function AdminPage() {
                                       {binding.bindingType} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
                                     </p>
                                   </div>
-                                  <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
-                                    {binding.enabled ? "ENABLED" : "DISABLED"}
-                                  </span>
+                                  <div className="knowledge-binding-card-badges">
+                                    {selectedKnowledgeIsBrandBridge && binding.targetId === "brand-growth-workbench" ? (
+                                      <span className="archive-pill status_ready">默认接入</span>
+                                    ) : null}
+                                    <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
+                                      {binding.enabled ? "ENABLED" : "DISABLED"}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="admin-rule-grid">
                                   <label>
