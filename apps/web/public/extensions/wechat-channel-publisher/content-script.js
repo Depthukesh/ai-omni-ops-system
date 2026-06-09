@@ -173,25 +173,32 @@ async function runVideoComposerAutomation(session) {
   const title = String(session?.title || "").trim();
   const content = String(session?.content || "").trim();
 
+  const videoUrl = String(session?.videoUrl || "").trim();
+  if (videoUrl) {
+    updateCreatorBadge("已进入发布页，正在下载视频素材");
+    const videoFile = await downloadVideoFile(videoUrl, title || "wechat-channel-video");
+    updateCreatorBadge("视频下载完成，正在查找上传控件");
+    await uploadVideo(videoFile);
+    updateCreatorBadge("视频已开始上传，正在等待表单稳定");
+    await waitForVideoEditorReady();
+  }
+
+  if (title || content) {
+    updateCreatorBadge("正在填写标题和描述");
+  }
   if (title) {
-    updateCreatorBadge("已进入发布页，正在填写标题和描述");
     await fillTitle(title);
   }
   if (content) {
     await fillContent(content);
   }
 
-  const videoUrl = String(session?.videoUrl || "").trim();
   if (!videoUrl) {
     return {
       note: "已填写标题和描述，但当前任务没有视频地址，未执行自动上传。",
     };
   }
 
-  updateCreatorBadge("已填写文案，正在下载视频素材");
-  const videoFile = await downloadVideoFile(videoUrl, title || "wechat-channel-video");
-  updateCreatorBadge("视频下载完成，正在查找上传控件");
-  await uploadVideo(videoFile);
   return {
     note: "已尝试上传视频并填写标题描述，请等待视频号解析素材后再人工确认发表。",
   };
@@ -370,6 +377,8 @@ function triggerPublishVideo(element) {
 function findTitleElement() {
   const selectors = [
     'input[placeholder="概括视频主要内容，字数建议6-16个字符"]',
+    'input[placeholder*="短标题"]',
+    'input[placeholder*="展示给朋友"]',
     'input[placeholder*="标题"]',
     'input[placeholder*="填写"]',
     'input[placeholder*="概括视频主要内容"]',
@@ -399,7 +408,7 @@ function findContentElement() {
 }
 
 async function fillTitle(value) {
-  const target = findTitleElement();
+  const target = await waitFor(() => findTitleElement(), 30000, 800, "未找到视频号短标题输入框");
   if (!target) {
     return;
   }
@@ -408,12 +417,21 @@ async function fillTitle(value) {
 }
 
 async function fillContent(value) {
-  const target = findContentElement();
+  const target = await waitFor(() => findContentElement(), 30000, 800, "未找到视频号描述输入框");
   if (!target) {
     return;
   }
   setElementValue(target, value.slice(0, 1000));
   await sleep(300);
+}
+
+async function waitForVideoEditorReady() {
+  await waitFor(
+    () => findTitleElement() || findContentElement(),
+    90000,
+    1200,
+    "等待视频号发布表单可编辑超时",
+  );
 }
 
 function isVideoComposerReady() {

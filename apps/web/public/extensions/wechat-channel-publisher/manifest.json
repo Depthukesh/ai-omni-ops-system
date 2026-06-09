@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI全域运营 - 视频号辅助发布 PoC",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "用于验证视频号网页端是否可被浏览器扩展接管，包括页面注入、上传控件识别与表单填写能力。",
   "permissions": ["tabs", "storage", "scripting"],
   "host_permissions": [
@@ -32,6 +32,6 @@
     }
   ],
   "action": {
-    "default_title": "AI全域运营视频号辅助发布 PoC 0.1.3"
+    "default_title": "AI全域运营视频号辅助发布 PoC 0.1.4"
   }
 }
