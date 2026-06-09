@@ -111,6 +111,7 @@ export function WechatChannelPublishModal(props: WechatChannelPublishModalProps)
                   <p>上传控件：{props.probeResult.fileInputCount} 个</p>
                   <p>标题区：{props.probeResult.titleDetected ? "已命中" : "未命中"} · 正文区：{props.probeResult.contentDetected ? "已命中" : "未命中"}</p>
                   <p className="publish-qr-meta">页面地址：{props.probeResult.locationHref}</p>
+                  {props.probeResult.note ? <p className="publish-qr-meta">执行结果：{props.probeResult.note}</p> : null}
                   {props.probeResult.buttonLabels.length ? (
                     <p className="publish-qr-meta">页面按钮：{props.probeResult.buttonLabels.join("、")}</p>
                   ) : null}

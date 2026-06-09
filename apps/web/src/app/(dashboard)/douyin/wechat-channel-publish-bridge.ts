@@ -28,6 +28,7 @@ export type WechatChannelExtensionProbeResult = {
   fileInputCount: number;
   buttonLabels: string[];
   locationHref: string;
+  note?: string;
 };
 
 type WechatChannelBridgeHandlers = {

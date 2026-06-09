@@ -129,10 +129,13 @@ async function runCreatorProbe(payload) {
   try {
     updateCreatorBadge("已进入视频号发布页，正在探测页面结构");
     await sleep(1200);
+    const automationResult = String(session?.mode || "VIDEO") === "VIDEO"
+      ? await runVideoComposerAutomation(session)
+      : { note: "当前仅实现视频页最小自动化。" };
     const result = collectProbeResult(session);
     updateCreatorBadge(
       result.ready
-        ? `PoC 探测完成：${result.pageKindLabel}页已命中，上传控件 ${result.fileInputCount} 个`
+        ? automationResult.note || `PoC 探测完成：${result.pageKindLabel}页已命中，上传控件 ${result.fileInputCount} 个`
         : "PoC 探测完成：页面已注入，但未命中稳定发布结构",
     );
     await chrome.runtime.sendMessage({
@@ -140,13 +143,58 @@ async function runCreatorProbe(payload) {
       type: "AI_OMNI_WECHAT_CHANNEL_CREATOR_PROBE_RESULT",
       payload: {
         ...result,
+        note: automationResult.note,
         appTabId: payload?.appTabId,
         session,
       },
     });
+  } catch (error) {
+    const result = collectProbeResult(session);
+    const note = error instanceof Error ? error.message : "视频号自动化执行失败";
+    updateCreatorBadge(`执行失败：${note}`);
+    await chrome.runtime.sendMessage({
+      source: EXTENSION_SOURCE,
+      type: "AI_OMNI_WECHAT_CHANNEL_CREATOR_PROBE_RESULT",
+      payload: {
+        ...result,
+        note,
+        ready: false,
+        appTabId: payload?.appTabId,
+        session,
+      },
+    });
+    throw error;
   } finally {
     isRunningProbe = false;
   }
+}
+
+async function runVideoComposerAutomation(session) {
+  const title = String(session?.title || "").trim();
+  const content = String(session?.content || "").trim();
+
+  if (title) {
+    updateCreatorBadge("已进入发布页，正在填写标题和描述");
+    await fillTitle(title);
+  }
+  if (content) {
+    await fillContent(content);
+  }
+
+  const videoUrl = String(session?.videoUrl || "").trim();
+  if (!videoUrl) {
+    return {
+      note: "已填写标题和描述，但当前任务没有视频地址，未执行自动上传。",
+    };
+  }
+
+  updateCreatorBadge("已填写文案，正在下载视频素材");
+  const videoFile = await downloadVideoFile(videoUrl, title || "wechat-channel-video");
+  updateCreatorBadge("视频下载完成，正在查找上传控件");
+  await uploadVideo(videoFile);
+  return {
+    note: "已尝试上传视频并填写标题描述，请等待视频号解析素材后再人工确认发表。",
+  };
 }
 
 function collectProbeResult(session) {
@@ -169,6 +217,49 @@ function collectProbeResult(session) {
     buttonLabels: buttons.slice(0, 12),
     locationHref: location.href,
   };
+}
+
+async function uploadVideo(videoFile) {
+  if (!videoFile) {
+    throw new Error("当前作品没有可上传的视频。");
+  }
+
+  const input = await ensureVideoFileInput();
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(videoFile);
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "files")?.set;
+  if (!setter) {
+    throw new Error("当前浏览器不支持自动写入文件。");
+  }
+  setter.call(input, dataTransfer.files);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  await sleep(2400);
+}
+
+async function ensureVideoFileInput() {
+  const existingInput = findVideoFileInput();
+  if (existingInput) {
+    return existingInput;
+  }
+
+  const uploadZone = findVideoUploadZone();
+  if (uploadZone instanceof HTMLElement) {
+    const clickable = findClickableAncestor(uploadZone) || uploadZone;
+    clickable.scrollIntoView({ block: "center", inline: "center" });
+    clickable.click();
+    await sleep(800);
+  }
+
+  return waitFor(() => findVideoFileInput(), 10000, 500, "未找到视频上传控件，请确认当前账号是否有权限在网页端上传视频。");
+}
+
+function findVideoFileInput() {
+  const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+  return inputs.find((element) => {
+    const accept = String(element.getAttribute("accept") || "").toLowerCase();
+    return accept.includes("video") || accept.includes("mp4") || accept.includes("mov") || !accept;
+  }) || null;
 }
 
 function detectPageKind() {
@@ -270,6 +361,24 @@ function findContentElement() {
   return findVisibleElement(selectors);
 }
 
+async function fillTitle(value) {
+  const target = findTitleElement();
+  if (!target) {
+    return;
+  }
+  setElementValue(target, value.slice(0, 32));
+  await sleep(300);
+}
+
+async function fillContent(value) {
+  const target = findContentElement();
+  if (!target) {
+    return;
+  }
+  setElementValue(target, value.slice(0, 1000));
+  await sleep(300);
+}
+
 function isVideoComposerReady() {
   const titleElement = findTitleElement();
   const contentElement = findContentElement();
@@ -316,6 +425,29 @@ function findVisibleElement(selectors) {
   return null;
 }
 
+function setElementValue(element, value) {
+  element.scrollIntoView({ block: "center", inline: "center" });
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    element.focus();
+    element.value = "";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.value = value;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  if (element instanceof HTMLElement && element.isContentEditable) {
+    element.focus();
+    document.execCommand("selectAll", false);
+    document.execCommand("insertText", false, value);
+    if (!element.textContent || !element.textContent.trim()) {
+      element.textContent = value;
+    }
+    element.dispatchEvent(new InputEvent("input", { bubbles: true, data: value, inputType: "insertText" }));
+  }
+}
+
 function findVideoUploadZone() {
   const selectors = [
     'input[type="file"][accept*="video"]',
@@ -347,6 +479,48 @@ function findVideoUploadZone() {
   }
 
   return null;
+}
+
+async function downloadVideoFile(videoUrl, title) {
+  const response = await fetch(videoUrl);
+  if (!response.ok) {
+    throw new Error(`视频素材下载失败：${response.status}`);
+  }
+  const blob = await response.blob();
+  const extension = guessFileExtension(blob.type || "video/mp4", videoUrl);
+  const fileName = `${sanitizeFileName(title || "wechat-channel-video")}.${extension}`;
+  return new File([blob], fileName, {
+    type: blob.type || "video/mp4",
+  });
+}
+
+function guessFileExtension(mimeType, videoUrl) {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.includes("quicktime")) {
+    return "mov";
+  }
+  if (normalized.includes("webm")) {
+    return "webm";
+  }
+  try {
+    const parsed = new URL(String(videoUrl || ""));
+    const lastPart = parsed.pathname.split("/").filter(Boolean).pop() || "";
+    const matched = lastPart.match(/\.([a-z0-9]+)$/i);
+    if (matched?.[1]) {
+      return matched[1].toLowerCase();
+    }
+  } catch {
+    // Ignore invalid url and fall back to mp4.
+  }
+  return "mp4";
+}
+
+function sanitizeFileName(value) {
+  return String(value || "wechat-channel-video")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "wechat-channel-video";
 }
 
 function findClickableAncestor(element) {
@@ -570,4 +744,16 @@ function updateCreatorBadge(message) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(getter, timeoutMs, intervalMs, errorMessage) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = getter();
+    if (result) {
+      return result;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(errorMessage);
 }

@@ -43,9 +43,10 @@ export function useWechatChannelPublishFlow() {
         setIsLaunching(false);
         setErrorMessage("");
         setNotice(
-          result.ready
-            ? `视频号 PoC 探测完成：已命中${result.pageKindLabel}页结构，上传控件 ${result.fileInputCount} 个。`
-            : "视频号 PoC 已打开页面，但还没有命中稳定发布结构，请截图当前页面继续调整。",
+          result.note?.trim()
+            || (result.ready
+              ? `视频号 PoC 探测完成：已命中${result.pageKindLabel}页结构，上传控件 ${result.fileInputCount} 个。`
+              : "视频号 PoC 已打开页面，但还没有命中稳定发布结构，请截图当前页面继续调整。"),
         );
       },
       onPublishFailed: (note) => {
