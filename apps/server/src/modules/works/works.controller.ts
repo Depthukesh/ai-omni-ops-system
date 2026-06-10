@@ -13,6 +13,7 @@ import {
   type SaveWechatAccountConfigPayload,
   type SaveWechatWorkflowPreferencePayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
+  type GenerateDouyinDigitalHumanScriptPayload,
   type GenerateDouyinDigitalHumanVideoPayload,
   type GenerateDouyinDirectVideoPayload,
   type GenerateDouyinVideoNotePayload,
@@ -675,6 +676,18 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
       return this.worksService.deleteDouyinDigitalHumanScriptTemplate(brandId, templateId, auth);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/digital-human/script/generate")
+  generateDouyinDigitalHumanScript(
+    @Param("brandId") brandId: string,
+    @Body() payload: GenerateDouyinDigitalHumanScriptPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.digitalHuman", "edit", auth);
+      return this.worksService.generateDouyinDigitalHumanScript(brandId, payload);
     });
   }
 

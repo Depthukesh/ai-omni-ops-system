@@ -340,6 +340,16 @@ export type GenerateDouyinDigitalHumanCompleteVideoPayload = {
   segments?: GenerateDouyinDigitalHumanVideoPayload[];
 };
 
+export type GenerateDouyinDigitalHumanScriptPayload = {
+  title?: string;
+  personName?: string;
+  personSource?: DigitalHumanSource;
+  templateName?: string;
+  materialLabel?: string;
+  currentScript?: string;
+  userRequirement?: string;
+};
+
 export type CreateDouyinDigitalHumanCustomPersonPayload = {
   name?: string;
   trainingVideo?: UploadFilePayload;
@@ -10377,6 +10387,42 @@ export class WorksService {
     });
   }
 
+  private async buildDouyinDigitalHumanScriptKnowledgeContext(params: {
+    title?: string;
+    personName?: string;
+    personSource?: DigitalHumanSource;
+    templateName?: string;
+    materialLabel?: string;
+    currentScript?: string;
+    userRequirement?: string;
+  }) {
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      "抖音数字人口播脚本",
+      params.title ? `主题：${params.title}` : "",
+      params.personName ? `数字人：${params.personName}` : "",
+      params.personSource === "CUSTOM" ? "使用定制数字人" : params.personName ? "使用公共数字人模板" : "",
+      params.templateName ? `模板：${params.templateName}` : "",
+      params.materialLabel ? `素材：${params.materialLabel}` : "",
+      params.currentScript ? `当前草稿：${this.truncateText(params.currentScript, 160)}` : "",
+      params.userRequirement ? `补充要求：${this.truncateText(params.userRequirement, 120)}` : "",
+      "请召回企业知识库中与品牌定位、产品卖点、营销目标、内容口吻、合规表述和口播节奏相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "douyin-digital-human",
+        skillSlug: "douyin-digital-human-script-studio",
+        legacyPromptId: "prompt_douyin_digital_human_script",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到抖音数字人口播脚本中：",
+      hitMaxLength: 150,
+    });
+  }
+
   private async buildWorksScopedKnowledgeContext(params: {
     scope: {
       moduleTargetId?: string;
@@ -10484,6 +10530,128 @@ export class WorksService {
       }
     }
     return Array.from(deduped.values()).slice(0, WORKS_KNOWLEDGE_BINDING_LIMIT);
+  }
+
+  async generateDouyinDigitalHumanScript(
+    brandId: string,
+    payload: GenerateDouyinDigitalHumanScriptPayload,
+  ) {
+    const title = this.readOptionalString(payload.title);
+    const personName = this.readOptionalString(payload.personName);
+    const templateName = this.readOptionalString(payload.templateName);
+    const materialLabel = this.readOptionalString(payload.materialLabel);
+    const currentScript = this.readOptionalString(payload.currentScript);
+    const userRequirement = this.readOptionalString(payload.userRequirement);
+    const personSource = payload.personSource === "CUSTOM" ? "CUSTOM" : "COMMON";
+    if (!title && !currentScript && !userRequirement && !personName && !materialLabel) {
+      throw new BadRequestException("请至少提供主题、当前草稿、数字人或素材信息中的一项。");
+    }
+
+    const skillPrompt = String((await this.skillsPromptsService.getActivePromptById("prompt_douyin_digital_human_script"))?.content || "").trim();
+    if (!skillPrompt) {
+      throw new ServiceUnavailableException("未找到抖音数字人口播脚本提示词，请先在技能中心启用对应 prompt。");
+    }
+    const preference = await this.loadSkillModelPreference(
+      "douyin-digital-human-script-studio",
+      "prompt_douyin_digital_human_script",
+      ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-mini-260215", "kimi-k2.6"],
+    );
+    const providers = await this.loadOriginalCopyProviders(brandId, preference);
+    const inputPayload = {
+      title,
+      personName,
+      personSource,
+      templateName,
+      materialLabel,
+      currentScript,
+      userRequirement,
+    };
+    const systemPrompt = [
+      skillPrompt,
+      "",
+      "你当前要输出一段适合抖音数字人口播的视频脚本。",
+      "请仅输出 JSON 对象，不要输出 Markdown 代码块或额外解释。",
+      "如果输入里已经包含“当前草稿”，请把它当作优化基础，可以重写，但不要照搬无效表述。",
+      "脚本必须自然口语化，适合 20-45 秒竖屏口播，开头有抓手，中段有信息密度，结尾有明确行动或收束。",
+      "避免虚假承诺、绝对化表述和明显违规词。",
+      "JSON 结构固定为：",
+      "{",
+      '  "title": "脚本标题",',
+      '  "content": "可直接口播的完整脚本正文"',
+      "}",
+    ].join("\n");
+    const knowledgeContext = await this.buildDouyinDigitalHumanScriptKnowledgeContext({
+      title,
+      personName,
+      personSource,
+      templateName,
+      materialLabel,
+      currentScript,
+      userRequirement,
+    });
+    const userPrompt = [
+      "以下是本次抖音数字人口播脚本生成输入：",
+      "",
+      JSON.stringify(inputPayload, null, 2),
+      knowledgeContext,
+    ].join("\n");
+
+    let lastError = "";
+    const attemptTrail: string[] = [];
+    for (const provider of providers) {
+      for (const baseUrl of provider.baseUrls) {
+        for (const apiKey of provider.apiKeys) {
+          for (const modelName of provider.models) {
+            const attemptLabel = this.buildTextAttemptLabel(provider.provider, modelName, baseUrl);
+            try {
+              const response = await this.requestModelCompletion(
+                baseUrl,
+                provider.completionPath,
+                apiKey,
+                this.buildTextProviderPayload(provider, modelName, systemPrompt, userPrompt),
+                this.resolveModelAttemptTimeoutMs(provider.requestTimeoutMs, TEXT_MODEL_ATTEMPT_TIMEOUT_MS),
+              );
+              if (!response.ok) {
+                lastError = `${provider.provider}/${modelName} 请求失败：${response.status}`;
+                attemptTrail.push(`${attemptLabel} -> HTTP ${response.status}`);
+                continue;
+              }
+              const responsePayload = await response.json() as {
+                choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+              };
+              const content = this.extractResponseText(responsePayload);
+              if (!content) {
+                lastError = `${provider.provider}/${modelName} 返回为空`;
+                attemptTrail.push(`${attemptLabel} -> 返回为空`);
+                continue;
+              }
+              const parsed = this.parseJsonObject(content);
+              const generatedTitle = String(parsed.title ?? "").trim() || title || "抖音数字人口播脚本";
+              const generatedContent = String(parsed.content ?? "").trim();
+              if (!generatedContent) {
+                lastError = `${provider.provider}/${modelName} 返回字段不完整`;
+                attemptTrail.push(`${attemptLabel} -> 返回字段不完整`);
+                continue;
+              }
+              return {
+                item: {
+                  title: generatedTitle,
+                  content: generatedContent,
+                  modelName,
+                },
+              };
+            } catch (error) {
+              lastError = error instanceof Error ? error.message : "数字人口播脚本生成失败";
+              attemptTrail.push(`${attemptLabel} -> ${error instanceof Error ? error.message : "调用失败"}`);
+            }
+          }
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      this.buildModelAttemptFailureMessage("抖音数字人口播脚本生成", preference.preferredModelName, lastError, attemptTrail, "未获取到有效响应"),
+    );
   }
 
   private async generateWechatArticleByModel(params: {

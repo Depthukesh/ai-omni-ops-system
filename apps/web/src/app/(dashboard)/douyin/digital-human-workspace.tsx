@@ -334,6 +334,15 @@ export interface DouyinDigitalHumanWorkspaceProps {
     pitch?: number;
     dialect?: number;
   }) => Promise<boolean>;
+  onGenerateScript: (payload: {
+    title?: string;
+    personName?: string;
+    personSource?: "COMMON" | "CUSTOM";
+    templateName?: string;
+    materialLabel?: string;
+    currentScript?: string;
+    userRequirement?: string;
+  }) => Promise<{ title: string; content: string; modelName?: string } | null>;
   onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
   onCreateOriginalCopy: (payload: {
     calendarItemId?: string;
@@ -2243,6 +2252,7 @@ export function DouyinDigitalHumanWorkspace(props: DouyinDigitalHumanWorkspacePr
           onPublicVoicePageChange={props.onRefreshPublicVoices}
           onCustomVoicePageChange={props.onRefreshCustomVoices}
           onCreateSpeechTask={props.onCreateSpeechTask}
+          onGenerateScript={props.onGenerateScript}
           onRefreshSpeechTask={props.onRefreshSpeechTask}
           onApplyOriginalCopy={handleApplyOriginalCopy}
           onApplyRemixCopy={handleApplyRemixCopy}

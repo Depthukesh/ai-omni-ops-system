@@ -60,6 +60,7 @@ import {
   deleteDouyinDirectVideoWork,
   deleteDouyinVideoWork,
   generateDouyinDigitalHumanCompleteVideoWork,
+  generateDouyinDigitalHumanScript,
   generateDouyinDigitalHumanVideoWork,
   generateDouyinLipSyncWork,
   generateDouyinDirectVideoWork,
@@ -2212,6 +2213,34 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDigitalHuman]);
 
+  const handleGenerateDigitalHumanScript = useCallback(async (payload: {
+    title?: string;
+    personName?: string;
+    personSource?: "COMMON" | "CUSTOM";
+    templateName?: string;
+    materialLabel?: string;
+    currentScript?: string;
+    userRequirement?: string;
+  }) => {
+    if (!canEditDigitalHuman) {
+      setErrorMessage("当前账号只有查看权限，不能生成数字人口播脚本。");
+      return null;
+    }
+    setIsSubmittingDigitalHuman(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await generateDouyinDigitalHumanScript(activeBrandId, payload);
+      setNotice(response.item.modelName ? `数字人口播脚本已生成，使用模型：${response.item.modelName}` : "数字人口播脚本已生成。");
+      return response.item;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "数字人口播脚本生成失败。");
+      return null;
+    } finally {
+      setIsSubmittingDigitalHuman(false);
+    }
+  }, [activeBrandId, canEditDigitalHuman]);
+
   const openGeneratedVideoPreview = useCallback((item: DouyinVideoWorkRecord | DouyinDirectVideoWorkRecord | DouyinDigitalHumanVideoWorkRecord) => {
     if (item.videoUrl) {
       setMaterialLightbox({
@@ -2542,6 +2571,7 @@ export function DouyinWorkspaceShell() {
                     onCreateCustomVoice={handleCreateDigitalHumanCustomVoice}
                     onDeleteCustomVoice={handleDeleteDigitalHumanCustomVoice}
                     onCreateSpeechTask={handleCreateDigitalHumanSpeechTask}
+                    onGenerateScript={handleGenerateDigitalHumanScript}
                     onRefreshSpeechTask={handleRefreshDigitalHumanSpeechTask}
                     onCreateOriginalCopy={handleCreateOriginalCopy}
                     onCreateRemixCopy={handleCreateRemixCopy}

@@ -809,6 +809,16 @@ export type GenerateDouyinDigitalHumanCompleteVideoForm = {
   segments: GenerateDouyinDigitalHumanVideoForm[];
 };
 
+export type GenerateDouyinDigitalHumanScriptForm = {
+  title?: string;
+  personName?: string;
+  personSource?: DigitalHumanSource;
+  templateName?: string;
+  materialLabel?: string;
+  currentScript?: string;
+  userRequirement?: string;
+};
+
 export type CreateDouyinDigitalHumanCustomPersonForm = {
   name?: string;
   trainingVideoFile?: File | null;
@@ -1536,6 +1546,17 @@ export async function deleteDouyinDigitalHumanScriptTemplate(brandId: string, te
     {
       method: "DELETE",
     },
+  );
+}
+
+export async function generateDouyinDigitalHumanScript(
+  brandId: string,
+  payload: GenerateDouyinDigitalHumanScriptForm,
+) {
+  return jsonRequest<{ item: { title: string; content: string; modelName?: string } }>(
+    `/works/brands/${brandId}/douyin/digital-human/script/generate`,
+    "POST",
+    payload,
   );
 }
 

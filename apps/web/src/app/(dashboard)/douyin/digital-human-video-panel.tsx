@@ -440,6 +440,15 @@ export interface DigitalHumanVideoPanelProps {
     pitch?: number;
     dialect?: number;
   }) => Promise<boolean>;
+  onGenerateScript: (payload: {
+    title?: string;
+    personName?: string;
+    personSource?: "COMMON" | "CUSTOM";
+    templateName?: string;
+    materialLabel?: string;
+    currentScript?: string;
+    userRequirement?: string;
+  }) => Promise<{ title: string; content: string; modelName?: string } | null>;
   onRefreshSpeechTask: (taskId?: string) => Promise<boolean>;
   onApplyOriginalCopy: (item: DouyinOriginalCopyRecord) => void;
   onApplyRemixCopy: (item: DouyinRemixCopyRecord) => void;
@@ -707,6 +716,25 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
     }
   };
 
+  const handleGenerateScript = async () => {
+    const response = await props.onGenerateScript({
+      title: props.title.trim() || undefined,
+      personName: props.personSource === "CUSTOM" ? props.selectedCustomPerson?.name : props.selectedTemplate?.name,
+      personSource: props.personSource,
+      templateName: props.selectedTemplate?.name,
+      materialLabel: props.selectedMaterialLibraryItem?.label,
+      currentScript: props.script.trim() || undefined,
+      userRequirement: props.script.trim() || undefined,
+    });
+    if (!response) {
+      return;
+    }
+    props.onScriptChange(response.content);
+    if (!props.title.trim() && response.title) {
+      props.onTitleChange(response.title);
+    }
+  };
+
   const handleOpenSubtitleDialog = () => {
     setSubtitleDialogTab("COMMON");
     setIsSubtitleDialogOpen(true);
@@ -888,6 +916,14 @@ export function DigitalHumanVideoPanel(props: DigitalHumanVideoPanelProps) {
                 }}
               >
                 二创文案
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleGenerateScript()}
+                disabled={!props.canEdit || props.isSubmitting}
+              >
+                AI生成脚本
               </button>
               <button type="button" className="secondary-button" onClick={isActive ? handleInsertPause : () => props.onSelectCreatorDraftCard(item.id)} disabled={!isActive}>
                 插入停顿
