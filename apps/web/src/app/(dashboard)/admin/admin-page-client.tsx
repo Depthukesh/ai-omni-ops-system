@@ -3342,8 +3342,27 @@ export default function AdminPage() {
     : [];
   const selectedKnowledgeInvocationRuns = selectedKnowledgeBase
     ? knowledgeInvocationRuns.filter(
-        (item) =>
-          item.knowledgeBaseIds.includes(selectedKnowledgeBase.id) || item.matchedKnowledgeBaseIds.includes(selectedKnowledgeBase.id),
+        (item) => {
+          if (
+            item.knowledgeBaseIds.includes(selectedKnowledgeBase.id)
+            || item.matchedKnowledgeBaseIds.includes(selectedKnowledgeBase.id)
+          ) {
+            return true;
+          }
+
+          return selectedKnowledgeBindings.some((binding) => {
+            if (binding.bindingType === "MODULE") {
+              return binding.targetId === item.moduleTargetId;
+            }
+            if (binding.bindingType === "SKILL_PACKAGE") {
+              return binding.targetId === item.skillPackageKey;
+            }
+            if (binding.bindingType === "SKILL") {
+              return binding.targetId === item.skillSlug;
+            }
+            return false;
+          });
+        },
       )
     : [];
   const selectedKnowledgeLatestSyncRun = selectedKnowledgeSyncRuns[0];
