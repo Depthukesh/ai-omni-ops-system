@@ -2508,7 +2508,10 @@ export class WorksService {
             strictPreferredProvider: Boolean(scopedSelection.providerId),
           },
         );
-        const imagePrompt = await this.buildDesignImagePrompt(brandId, skillProfile.promptId, designContext);
+        const imagePrompt = await this.buildDesignImagePrompt(brandId, skillProfile.promptId, {
+          skillSlug: skillProfile.skillSlug,
+          ...designContext,
+        });
         const imageAsset = await this.generateImageAsset({
           brandId,
           taskId: task.id,
@@ -2781,7 +2784,54 @@ export class WorksService {
     return brandPieces.join("\n");
   }
 
+  private async buildDesignKnowledgeContext(params: {
+    module: DesignWorkModuleKey;
+    skillSlug: string;
+    promptId: string;
+    brandName: string;
+    brandProfileSummary: string;
+    calendarLabel: string;
+    productLabel: string;
+    designType: string;
+    spec: string;
+    additionalInstruction: string;
+  }) {
+    const moduleLabel = params.module === "image"
+      ? "设计工作台图片生成"
+      : params.module === "html"
+        ? "设计工作台 HTML 生成"
+        : params.module === "deck"
+          ? "设计工作台 PPT 方案生成"
+          : "设计工作台视频方案生成";
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      moduleLabel,
+      params.designType ? `设计类型：${params.designType}` : "",
+      params.brandName ? `品牌：${params.brandName}` : "",
+      params.calendarLabel ? `营销主题：${params.calendarLabel}` : "",
+      params.productLabel && params.productLabel !== "不植入产品" ? `产品：${params.productLabel}` : "",
+      params.brandProfileSummary ? `品牌资料摘要：${this.truncateText(params.brandProfileSummary, 160)}` : "本次不植入品牌资料",
+      params.spec ? `作品规格：${this.truncateText(params.spec, 120)}` : "",
+      params.additionalInstruction ? `补充要求：${this.truncateText(params.additionalInstruction, 120)}` : "",
+      "请召回企业知识库中与品牌视觉规范、内容口吻、产品卖点、营销主题、页面结构、排版风格和合规边界相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "design-workbench",
+        skillPackageKey: "design-web-prototype",
+        skillSlug: params.skillSlug,
+        legacyPromptId: params.promptId,
+      },
+      retrievalQuery,
+      leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到${params.designType || moduleLabel}设计中：`,
+      hitMaxLength: 150,
+    });
+  }
+
   private async buildDesignImagePrompt(brandId: string, promptId: string, params: {
+    skillSlug: string;
     brandName: string;
     brandProfileSummary: string;
     calendarLabel: string;
@@ -2792,6 +2842,18 @@ export class WorksService {
   }) {
     const promptTemplate = await this.skillsPromptsService.getActivePromptById(promptId);
     const skillPrompt = String(promptTemplate?.content || "").trim();
+    const knowledgeContext = await this.buildDesignKnowledgeContext({
+      module: "image",
+      skillSlug: params.skillSlug,
+      promptId,
+      brandName: params.brandName,
+      brandProfileSummary: params.brandProfileSummary,
+      calendarLabel: params.calendarLabel,
+      productLabel: params.productLabel,
+      designType: params.designType,
+      spec: params.spec,
+      additionalInstruction: params.additionalInstruction,
+    });
     return [
       skillPrompt,
       `为品牌“${params.brandName}”生成一张${params.designType}。`,
@@ -2800,6 +2862,7 @@ export class WorksService {
       params.brandProfileSummary ? `品牌资料：${params.brandProfileSummary}。` : "本次不要植入品牌资料。",
       params.spec ? `作品规格：${params.spec}。` : "",
       params.additionalInstruction ? `补充要求：${params.additionalInstruction}。` : "",
+      knowledgeContext,
       "要求画面完成度高，适合商业传播，中文排版清晰，主体突出，保留足够安全边距。",
     ].filter(Boolean).join("");
   }
@@ -2914,7 +2977,22 @@ export class WorksService {
     const providers = await this.loadOriginalCopyProviders(brandId, preference);
     const promptTemplate = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const systemPrompt = this.buildDesignTextSystemPrompt(module, String(promptTemplate?.content || "").trim());
-    const userPrompt = JSON.stringify({
+    const knowledgeContext = await this.buildDesignKnowledgeContext({
+      module,
+      skillSlug: params.skillSlug,
+      promptId: params.promptId,
+      brandName: params.brandName,
+      brandProfileSummary: params.brandProfileSummary,
+      calendarLabel: params.calendarLabel,
+      productLabel: params.productLabel,
+      designType: params.designType,
+      spec: params.spec,
+      additionalInstruction: params.additionalInstruction,
+    });
+    const userPrompt = [
+      "以下是本次设计任务输入：",
+      "",
+      JSON.stringify({
       title: params.title,
       brandName: params.brandName,
       brandProfileSummary: params.brandProfileSummary || "本次不植入品牌资料",
@@ -2923,7 +3001,9 @@ export class WorksService {
       designType: params.designType,
       spec: params.spec,
       additionalInstruction: params.additionalInstruction,
-    }, null, 2);
+      }, null, 2),
+      knowledgeContext,
+    ].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
