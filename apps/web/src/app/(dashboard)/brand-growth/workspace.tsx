@@ -335,6 +335,68 @@ function inferAssetTitleFromFileUrl(fileUrl: string) {
   }
 }
 
+function parseOptionalNumericValue(value: string | number | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return undefined;
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildAssetFromDraft(draft: LibraryAssetModalDraft, fileUrl: string, current?: BrandAsset): BrandAsset {
+  return {
+    ...current,
+    title: draft.title.trim() || inferAssetTitleFromFileUrl(fileUrl),
+    description: draft.description.trim(),
+    sourceName: draft.sourceName.trim() || (draft.file ? "本地文档" : current?.sourceName || ""),
+    fileUrl,
+    knowledgeBaseId: draft.knowledgeBaseId.trim() || undefined,
+    knowledgeBaseName: draft.knowledgeBaseName.trim() || undefined,
+    knowledgeBaseSlug: draft.knowledgeBaseSlug.trim() || undefined,
+    bindingType: draft.targetId.trim() ? draft.bindingType : undefined,
+    targetId: draft.targetId.trim() || undefined,
+    targetKey: draft.targetKey.trim() || undefined,
+    targetName: draft.targetName.trim() || undefined,
+    priority: Number.isFinite(draft.priority) ? draft.priority : undefined,
+    retrievalMode: draft.retrievalMode,
+    isRequired: draft.isRequired,
+    enabled: draft.enabled,
+    defaultTopK: Number.isFinite(draft.defaultTopK) ? draft.defaultTopK : undefined,
+    recallMode: draft.recallMode,
+    rerankEnabled: draft.rerankEnabled,
+    retrievalThreshold: parseOptionalNumericValue(draft.retrievalThreshold),
+  };
+}
+
+function buildBrandAssetPayload(item: BrandAsset) {
+  return {
+    id: item.id?.includes("_local_") ? undefined : item.id,
+    title: item.title,
+    description: item.description,
+    sourceName: item.sourceName,
+    fileUrl: item.fileUrl,
+    knowledgeBaseId: item.knowledgeBaseId,
+    knowledgeBaseName: item.knowledgeBaseName,
+    knowledgeBaseSlug: item.knowledgeBaseSlug,
+    bindingType: item.bindingType,
+    targetId: item.targetId,
+    targetKey: item.targetKey,
+    targetName: item.targetName,
+    priority: item.priority,
+    retrievalMode: item.retrievalMode,
+    isRequired: item.isRequired,
+    enabled: item.enabled,
+    defaultTopK: item.defaultTopK,
+    recallMode: item.recallMode,
+    rerankEnabled: item.rerankEnabled,
+    retrievalThreshold: item.retrievalThreshold,
+  };
+}
+
 function createEmptyFeishuBindingForm() {
   return {
     wikiUrl: "",
@@ -1616,6 +1678,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     return uploaded.fileUrl;
   }
 
+  async function persistBusinessAssets(nextItems: BrandAsset[], successMessage: string) {
+    await replaceBrandAssets(
+      archive.brand.id,
+      "business-assets",
+      nextItems.map((item) => buildBrandAssetPayload(item)),
+    );
+    await loadArchive();
+    setNotice(successMessage);
+  }
+
   async function handleCreateAssets(target: LibraryAssetTarget, drafts: LibraryAssetModalDraft[]) {
     clearMessages();
 
@@ -1623,14 +1695,17 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       const resolvedAssets = await Promise.all(
         drafts.map(async (draft) => {
           const fileUrl = await uploadAssetDraftFile(draft);
-          return emptyAsset({
-            title: draft.title.trim() || inferAssetTitleFromFileUrl(fileUrl),
-            description: draft.description.trim(),
-            sourceName: draft.sourceName.trim() || (draft.file ? "本地文档" : ""),
-            fileUrl,
-          });
+          return emptyAsset(buildAssetFromDraft(draft, fileUrl));
         }),
       );
+
+      if (target === "businessAssets") {
+        await persistBusinessAssets(
+          [...archive.businessAssets, ...resolvedAssets],
+          `已新增 ${resolvedAssets.length} 份资料，并开始同步知识库。`,
+        );
+        return;
+      }
 
       setArchive((current) => ({
         ...current,
@@ -1649,15 +1724,16 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     try {
       const fileUrl = draft.file ? await uploadAssetDraftFile(draft) : draft.fileUrl.trim();
+      if (target === "businessAssets") {
+        const nextItems = [...archive.businessAssets];
+        nextItems[index] = buildAssetFromDraft(draft, fileUrl, nextItems[index]);
+        await persistBusinessAssets(nextItems, "资料已更新，并重跑当前知识库容器同步。");
+        return;
+      }
+
       setArchive((current) => {
         const next = [...current[target]];
-        next[index] = {
-          ...next[index],
-          title: draft.title.trim() || inferAssetTitleFromFileUrl(fileUrl),
-          description: draft.description.trim(),
-          sourceName: draft.sourceName.trim(),
-          fileUrl,
-        };
+        next[index] = buildAssetFromDraft(draft, fileUrl, next[index]);
         return { ...current, [target]: next };
       });
       setNotice("资料已更新，请继续保存页面。");
@@ -1670,6 +1746,14 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
   function handleRemoveAsset(target: LibraryAssetTarget, index: number) {
     clearMessages();
+    if (target === "businessAssets") {
+      const nextItems = archive.businessAssets.filter((_, itemIndex) => itemIndex !== index);
+      void persistBusinessAssets(nextItems, "资料已移除，并同步更新知识库容器。").catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "资料移除失败";
+        setErrorMessage(`资料移除失败：${message}`);
+      });
+      return;
+    }
     setArchive((current) => ({
       ...current,
       [target]: current[target].filter((_, itemIndex) => itemIndex !== index),
@@ -1759,13 +1843,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         await replaceBrandAssets(
           archive.brand.id,
           activeBrandPage === "industryFeeds" ? "industry-feeds" : "business-assets",
-          archive[activeBrandPage].map((item) => ({
-            id: item.id?.includes("_local_") ? undefined : item.id,
-            title: item.title,
-            description: item.description,
-            sourceName: item.sourceName,
-            fileUrl: item.fileUrl,
-          })),
+          archive[activeBrandPage].map((item) => buildBrandAssetPayload(item)),
         );
       }
 

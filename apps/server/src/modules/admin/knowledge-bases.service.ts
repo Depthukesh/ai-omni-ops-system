@@ -236,6 +236,8 @@ type EmbeddingProviderConfig = {
   timeoutMs: number;
 };
 
+const BRAND_KNOWLEDGE_EMBEDDING_MODEL = "doubao-embedding-vision-250615";
+
 type KnowledgeInvocationRow = {
   id: string;
   brandId: string | null;
@@ -1366,26 +1368,26 @@ export class KnowledgeBasesService {
   }
 
   private async buildKnowledgeBaseProviderStatus(knowledgeBaseId: string) {
-    const envApiKey = this.resolveEnvArkApiKey();
     const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
     if (!brandId) {
+      const envApiKey = this.resolveEnvArkApiKey();
       return envApiKey ? "当前知识库暂无品牌共享 API Key 上下文，已启用本地 ARK_API_KEY 兜底" : "当前知识库暂无品牌共享 API Key 上下文";
     }
-    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
-      "https://ark.cn-beijing.volces.com/api/v3",
-    ]);
+    const platform = await this.findBrandKnowledgeEmbeddingPlatform(brandId);
+    if (!platform) {
+      return `当前品牌尚未配置可用的火山方舟 embedding 平台，需包含模型 ${BRAND_KNOWLEDGE_EMBEDDING_MODEL}`;
+    }
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [platform.baseUrl]);
     if (resolution.status === "resolved") {
-      return `已识别${resolution.platform?.name || "火山方舟平台"}品牌共享 API Key，可继续接入 embedding`;
+      return `已识别${resolution.platform?.name || platform.name || "火山方舟平台"}品牌共享 API Key，将使用 ${BRAND_KNOWLEDGE_EMBEDDING_MODEL} 生成 embedding`;
     }
     if (resolution.status === "brand-api-key-missing") {
-      return envApiKey
-        ? `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key，已启用本地 ARK_API_KEY 兜底`
-        : `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key`;
+      return `当前品牌尚未配置${resolution.platform?.name || platform.name || "火山方舟平台"}共享 API Key，无法执行知识库 embedding`;
     }
     if (resolution.status === "no-platform-match") {
-      return envApiKey ? "当前未匹配到 embedding 平台配置，已启用本地 ARK_API_KEY 兜底" : "当前未匹配到 embedding 平台配置";
+      return `当前品牌未匹配到 ${platform.name || "火山方舟平台"} 的共享 API Key 配置`;
     }
-    return envApiKey ? "当前缺少品牌上下文，已启用本地 ARK_API_KEY 兜底" : "当前缺少品牌上下文，暂不能读取共享 API Key";
+    return "当前缺少品牌上下文，暂不能读取共享 API Key";
   }
 
   private resolveEnvArkApiKey() {
@@ -1530,6 +1532,44 @@ export class KnowledgeBasesService {
     } satisfies EmbeddingProviderConfig;
   }
 
+  private async findBrandKnowledgeEmbeddingPlatform(brandId: string) {
+    const normalizedBrandId = String(brandId || "").trim();
+    if (!normalizedBrandId) {
+      return null;
+    }
+    const platforms = await this.thirdPartyPlatformsService.listPlatforms();
+    return platforms.find((item) =>
+      item.status === "ACTIVE"
+      && item.providerType === "DOUBAO"
+      && (
+        item.defaultModel === BRAND_KNOWLEDGE_EMBEDDING_MODEL
+        || item.modelIds.includes(BRAND_KNOWLEDGE_EMBEDDING_MODEL)
+      ),
+    ) || null;
+  }
+
+  private async resolveKnowledgeBaseEmbeddingProviderConfig(knowledgeBaseId: string) {
+    const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
+    if (!brandId) {
+      return this.resolveEmbeddingProviderConfig();
+    }
+    const platform = await this.findBrandKnowledgeEmbeddingPlatform(brandId);
+    if (!platform) {
+      throw new ServiceUnavailableException(
+        `当前品牌尚未配置可用的火山方舟 embedding 平台，需包含模型 ${BRAND_KNOWLEDGE_EMBEDDING_MODEL}`,
+      );
+    }
+    return {
+      providerId: platform.id,
+      providerName: platform.name,
+      baseUrl: String(platform.baseUrl || "").trim().replace(/\/+$/, ""),
+      embeddingPath: "/embeddings/multimodal",
+      modelName: BRAND_KNOWLEDGE_EMBEDDING_MODEL,
+      dimensions: 1024,
+      timeoutMs: 60000,
+    } satisfies EmbeddingProviderConfig;
+  }
+
   private async resolveKnowledgeBaseEmbeddingApiKey(knowledgeBaseId: string, provider: EmbeddingProviderConfig) {
     const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
     if (!brandId) {
@@ -1537,9 +1577,17 @@ export class KnowledgeBasesService {
     }
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [provider.baseUrl]);
     if (resolution.status !== "resolved") {
-      return this.resolveEnvArkApiKey();
+      throw new ServiceUnavailableException(
+        `当前品牌尚未配置${resolution.platform?.name || provider.providerName || "火山方舟平台"}共享 API Key，无法执行检索测试`,
+      );
     }
-    return String(resolution.apiKeys[0] || "").trim() || this.resolveEnvArkApiKey();
+    const apiKey = String(resolution.apiKeys[0] || "").trim();
+    if (!apiKey) {
+      throw new ServiceUnavailableException(
+        `当前品牌尚未配置${resolution.platform?.name || provider.providerName || "火山方舟平台"}共享 API Key，无法执行检索测试`,
+      );
+    }
+    return apiKey;
   }
 
   private async replaceKnowledgeChunkEmbeddingsInDatabase(
@@ -1692,7 +1740,7 @@ export class KnowledgeBasesService {
     await this.replaceKnowledgeBaseFileChunksInDatabase(effectiveFile, chunks);
     let providerStatus = await this.buildKnowledgeBaseProviderStatus(file.knowledgeBaseId);
     try {
-      const provider = await this.resolveEmbeddingProviderConfig();
+      const provider = await this.resolveKnowledgeBaseEmbeddingProviderConfig(effectiveFile.knowledgeBaseId);
       const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(effectiveFile.knowledgeBaseId, provider);
       const embeddingCount = await this.replaceKnowledgeChunkEmbeddingsInDatabase(effectiveFile, provider, apiKey);
       if (apiKey) {
@@ -2388,7 +2436,7 @@ export class KnowledgeBasesService {
     await this.ensureKnowledgeBaseStorageSeeded();
     await this.getKnowledgeBaseOrThrow(knowledgeBaseId);
     const retrievalConfig = await this.getOrCreateKnowledgeRetrievalConfigInDatabase(knowledgeBaseId);
-    const provider = await this.resolveEmbeddingProviderConfig();
+    const provider = await this.resolveKnowledgeBaseEmbeddingProviderConfig(knowledgeBaseId);
     const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(knowledgeBaseId, provider);
     if (!apiKey) {
       throw new ServiceUnavailableException("当前未找到可用的火山方舟 API Key，无法执行检索测试");

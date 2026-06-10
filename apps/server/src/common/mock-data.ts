@@ -254,7 +254,7 @@ export type KnowledgeBindingRecord = {
   targetKey?: string;
   targetName?: string;
   priority: number;
-  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL";
+  retrievalMode: "SEMANTIC" | "HYBRID" | "MANUAL" | "VECTOR" | "FULL_TEXT";
   isRequired: boolean;
   enabled: boolean;
   createdAt: string;
@@ -265,7 +265,7 @@ export type KnowledgeRetrievalConfigRecord = {
   id: string;
   knowledgeBaseId: string;
   defaultTopK: number;
-  recallMode: "SEMANTIC" | "HYBRID";
+  recallMode: "SEMANTIC" | "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled: boolean;
   rerankModelName?: string;
   chunkSize?: number;

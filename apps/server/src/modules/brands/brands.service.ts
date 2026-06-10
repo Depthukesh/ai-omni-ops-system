@@ -15,7 +15,13 @@ import {
   type BrandPermissionConfig,
   type BrandPermissionMap,
 } from "../../../../../packages/shared/src/brand-permissions";
-import { createId, database, type KnowledgeBaseRecord } from "../../common/mock-data";
+import {
+  createId,
+  database,
+  type KnowledgeBaseRecord,
+  type KnowledgeBindingRecord,
+  type KnowledgeRetrievalConfigRecord,
+} from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { KnowledgeBasesService } from "../admin/knowledge-bases.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -24,6 +30,54 @@ import { OssStorageService } from "../../storage/oss-storage.service";
 const execFileAsync = promisify(execFile);
 const BRAND_GROWTH_KNOWLEDGE_TARGET_ID = "brand-growth-workbench";
 const BRAND_GROWTH_KNOWLEDGE_TARGET_NAME = "品牌增长工作台";
+const BRAND_BUSINESS_ASSETS_KB_PREFIX = "kb_brand_business_assets_";
+const BRAND_BUSINESS_ASSETS_SLUG_PREFIX = "brand-business-assets-";
+
+type BusinessAssetKnowledgeMetadata = {
+  sourceName?: string;
+  storedFileName?: string;
+  knowledgeBaseId?: string;
+  knowledgeBaseName?: string;
+  knowledgeBaseSlug?: string;
+  bindingType?: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId?: string;
+  targetKey?: string;
+  targetName?: string;
+  priority?: number;
+  retrievalMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired?: boolean;
+  enabled?: boolean;
+  defaultTopK?: number;
+  recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  rerankEnabled?: boolean;
+  retrievalThreshold?: number;
+};
+
+type ManagedKnowledgeBindingInput = {
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey?: string;
+  targetName?: string;
+  priority: number;
+  retrievalMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired: boolean;
+  enabled: boolean;
+};
+
+type ManagedKnowledgeSpaceGroup = {
+  knowledgeBaseId: string;
+  knowledgeBaseName: string;
+  knowledgeBaseSlug: string;
+  description: string;
+  files: CreateAssetPayload["items"];
+  retrievalConfig: {
+    defaultTopK: number;
+    recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+    rerankEnabled: boolean;
+    retrievalThreshold?: number;
+  };
+  bindings: ManagedKnowledgeBindingInput[];
+};
 
 export type CreateBrandPayload = {
   ownerUserId?: string;
@@ -144,6 +198,21 @@ export type CreateAssetPayload = {
     description: string;
     sourceName?: string;
     fileUrl?: string;
+    knowledgeBaseId?: string;
+    knowledgeBaseName?: string;
+    knowledgeBaseSlug?: string;
+    bindingType?: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+    targetId?: string;
+    targetKey?: string;
+    targetName?: string;
+    priority?: number;
+    retrievalMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+    isRequired?: boolean;
+    enabled?: boolean;
+    defaultTopK?: number;
+    recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+    rerankEnabled?: boolean;
+    retrievalThreshold?: number;
   }>;
 };
 
@@ -1507,18 +1576,17 @@ export class BrandsService {
               title: item.title,
               description: item.description,
               fileUrl: item.fileUrl,
-              metadataJson: {
-                sourceName: item.sourceName ?? "",
-              storedFileName: this.extractBrandAssetStoredFileName(item.fileUrl),
-              },
+              metadataJson: this.buildBusinessAssetMetadata(item),
             },
           }),
         ),
       ]);
 
-      await this.syncBusinessAssetsToKnowledgeBaseInDatabase(id, payload.items);
-      if (payload.items.length && this.knowledgeBasesService) {
-        await this.knowledgeBasesService.startKnowledgeBaseFullSync(this.buildBusinessAssetsKnowledgeBaseId(id));
+      const managedKnowledgeBaseIds = await this.syncBusinessAssetsToKnowledgeBaseInDatabase(id, payload.items);
+      if (managedKnowledgeBaseIds.length && this.knowledgeBasesService) {
+        for (const knowledgeBaseId of managedKnowledgeBaseIds) {
+          await this.knowledgeBasesService.startKnowledgeBaseFullSync(knowledgeBaseId);
+        }
       }
 
       return payload.items.map((item) => ({
@@ -1527,6 +1595,21 @@ export class BrandsService {
         description: item.description,
         sourceName: item.sourceName,
         fileUrl: item.fileUrl,
+        knowledgeBaseId: item.knowledgeBaseId,
+        knowledgeBaseName: item.knowledgeBaseName,
+        knowledgeBaseSlug: item.knowledgeBaseSlug,
+        bindingType: item.bindingType,
+        targetId: item.targetId,
+        targetKey: item.targetKey,
+        targetName: item.targetName,
+        priority: item.priority,
+        retrievalMode: item.retrievalMode,
+        isRequired: item.isRequired,
+        enabled: item.enabled,
+        defaultTopK: item.defaultTopK,
+        recallMode: item.recallMode,
+        rerankEnabled: item.rerankEnabled,
+        retrievalThreshold: item.retrievalThreshold,
       }));
     }
 
@@ -2754,13 +2837,31 @@ export class BrandsService {
     }));
     const businessAssets = brand.businessAssets
       .filter((item) => !this.isFeishuBindingMetadata(item.metadataJson))
-      .map((item) => ({
-      id: item.id,
-      title: item.title,
-      description: item.description ?? "",
-      sourceName: this.extractSourceName(item.metadataJson),
-      fileUrl: item.fileUrl ?? "",
-    }));
+      .map((item) => {
+        const metadata = this.readBusinessAssetMetadata(item.metadataJson);
+        return {
+          id: item.id,
+          title: item.title,
+          description: item.description ?? "",
+          sourceName: metadata.sourceName || "",
+          fileUrl: item.fileUrl ?? "",
+          knowledgeBaseId: metadata.knowledgeBaseId,
+          knowledgeBaseName: metadata.knowledgeBaseName,
+          knowledgeBaseSlug: metadata.knowledgeBaseSlug,
+          bindingType: metadata.bindingType,
+          targetId: metadata.targetId,
+          targetKey: metadata.targetKey,
+          targetName: metadata.targetName,
+          priority: metadata.priority,
+          retrievalMode: metadata.retrievalMode,
+          isRequired: metadata.isRequired,
+          enabled: metadata.enabled,
+          defaultTopK: metadata.defaultTopK,
+          recallMode: metadata.recallMode,
+          rerankEnabled: metadata.rerankEnabled,
+          retrievalThreshold: metadata.retrievalThreshold,
+        };
+      });
 
     return {
       brand: {
@@ -2923,29 +3024,195 @@ export class BrandsService {
 
     try {
       const rows = await this.prismaService.$queryRawUnsafe<
-        Array<{ knowledgeBase: string | null; knowledgeBaseFile: string | null; knowledgeBinding: string | null }>
+        Array<{
+          knowledgeBase: string | null;
+          knowledgeBaseFile: string | null;
+          knowledgeBinding: string | null;
+          knowledgeRetrievalConfig: string | null;
+        }>
       >(
         `SELECT
           to_regclass('"KnowledgeBase"')::text AS "knowledgeBase",
           to_regclass('"KnowledgeBaseFile"')::text AS "knowledgeBaseFile",
-          to_regclass('"KnowledgeBinding"')::text AS "knowledgeBinding"`,
+          to_regclass('"KnowledgeBinding"')::text AS "knowledgeBinding",
+          to_regclass('"KnowledgeRetrievalConfig"')::text AS "knowledgeRetrievalConfig"`,
       );
-      return Boolean(rows[0]?.knowledgeBase && rows[0]?.knowledgeBaseFile && rows[0]?.knowledgeBinding);
+      return Boolean(
+        rows[0]?.knowledgeBase
+        && rows[0]?.knowledgeBaseFile
+        && rows[0]?.knowledgeBinding
+        && rows[0]?.knowledgeRetrievalConfig,
+      );
     } catch {
       return false;
     }
   }
 
-  private buildBusinessAssetsKnowledgeBaseId(brandId: string) {
-    return `kb_brand_business_assets_${brandId}`;
+  private buildBusinessAssetsKnowledgeBaseId(brandId: string, knowledgeSpaceSlug?: string) {
+    const normalizedSlug = this.sanitizeKnowledgeSpaceSlug(knowledgeSpaceSlug);
+    return normalizedSlug ? `${BRAND_BUSINESS_ASSETS_KB_PREFIX}${brandId}__${normalizedSlug}` : `${BRAND_BUSINESS_ASSETS_KB_PREFIX}${brandId}`;
   }
 
-  private buildBusinessAssetsKnowledgeBaseSlug(brandId: string) {
-    return `brand-business-assets-${brandId}`;
+  private buildBusinessAssetsKnowledgeBaseSlug(brandId: string, knowledgeSpaceSlug?: string) {
+    const normalizedSlug = this.sanitizeKnowledgeSpaceSlug(knowledgeSpaceSlug);
+    return normalizedSlug ? `${BRAND_BUSINESS_ASSETS_SLUG_PREFIX}${brandId}-${normalizedSlug}` : `${BRAND_BUSINESS_ASSETS_SLUG_PREFIX}${brandId}`;
   }
 
-  private buildBusinessAssetsKnowledgeBaseName(brandName: string) {
-    return `${brandName}企业知识库`;
+  private buildBusinessAssetsKnowledgeBaseName(brandName: string, knowledgeSpaceName?: string) {
+    const normalizedName = String(knowledgeSpaceName || "").trim();
+    return normalizedName || `${brandName}企业知识库`;
+  }
+
+  private sanitizeKnowledgeSpaceSlug(value?: string) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48);
+  }
+
+  private buildBusinessAssetMetadata(item: CreateAssetPayload["items"][number]): Prisma.InputJsonValue {
+    const metadata: BusinessAssetKnowledgeMetadata = {
+      sourceName: String(item.sourceName || "").trim(),
+      storedFileName: this.extractBrandAssetStoredFileName(item.fileUrl),
+      knowledgeBaseId: String(item.knowledgeBaseId || "").trim() || undefined,
+      knowledgeBaseName: String(item.knowledgeBaseName || "").trim() || undefined,
+      knowledgeBaseSlug: this.sanitizeKnowledgeSpaceSlug(item.knowledgeBaseSlug || item.knowledgeBaseName) || undefined,
+      bindingType: item.bindingType,
+      targetId: String(item.targetId || "").trim() || undefined,
+      targetKey: String(item.targetKey || "").trim() || undefined,
+      targetName: String(item.targetName || "").trim() || undefined,
+      priority: typeof item.priority === "number" ? item.priority : undefined,
+      retrievalMode: item.retrievalMode,
+      isRequired: typeof item.isRequired === "boolean" ? item.isRequired : undefined,
+      enabled: typeof item.enabled === "boolean" ? item.enabled : undefined,
+      defaultTopK: typeof item.defaultTopK === "number" ? item.defaultTopK : undefined,
+      recallMode: item.recallMode,
+      rerankEnabled: typeof item.rerankEnabled === "boolean" ? item.rerankEnabled : undefined,
+      retrievalThreshold: typeof item.retrievalThreshold === "number" ? item.retrievalThreshold : undefined,
+    };
+    return metadata as Prisma.InputJsonValue;
+  }
+
+  private readBusinessAssetMetadata(value: Prisma.JsonValue | null | undefined): BusinessAssetKnowledgeMetadata {
+    const metadata = this.readObject(value);
+    return {
+      sourceName: this.readString(metadata, "sourceName"),
+      storedFileName: this.readString(metadata, "storedFileName"),
+      knowledgeBaseId: this.readString(metadata, "knowledgeBaseId"),
+      knowledgeBaseName: this.readString(metadata, "knowledgeBaseName"),
+      knowledgeBaseSlug: this.readString(metadata, "knowledgeBaseSlug"),
+      bindingType: this.readString(metadata, "bindingType") as BusinessAssetKnowledgeMetadata["bindingType"] | undefined,
+      targetId: this.readString(metadata, "targetId"),
+      targetKey: this.readString(metadata, "targetKey"),
+      targetName: this.readString(metadata, "targetName"),
+      priority: typeof metadata.priority === "number" ? metadata.priority : undefined,
+      retrievalMode: this.readString(metadata, "retrievalMode") as BusinessAssetKnowledgeMetadata["retrievalMode"] | undefined,
+      isRequired: typeof metadata.isRequired === "boolean" ? metadata.isRequired : undefined,
+      enabled: typeof metadata.enabled === "boolean" ? metadata.enabled : undefined,
+      defaultTopK: typeof metadata.defaultTopK === "number" ? metadata.defaultTopK : undefined,
+      recallMode: this.readString(metadata, "recallMode") as BusinessAssetKnowledgeMetadata["recallMode"] | undefined,
+      rerankEnabled: typeof metadata.rerankEnabled === "boolean" ? metadata.rerankEnabled : undefined,
+      retrievalThreshold: typeof metadata.retrievalThreshold === "number" ? metadata.retrievalThreshold : undefined,
+    };
+  }
+
+  private buildDefaultManagedKnowledgeBinding(): ManagedKnowledgeBindingInput {
+    return {
+      bindingType: "MODULE",
+      targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+      targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+      targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
+      priority: 1,
+      retrievalMode: "HYBRID",
+      isRequired: false,
+      enabled: true,
+    };
+  }
+
+  private buildManagedKnowledgeBaseDescription(brandName: string, knowledgeBaseName: string) {
+    return `由前端“企业知识库”页面自动同步，当前对应品牌：${brandName}；知识库容器：${knowledgeBaseName}。`;
+  }
+
+  private collectManagedKnowledgeSpaceGroups(
+    brandId: string,
+    brandName: string,
+    items: CreateAssetPayload["items"],
+  ): ManagedKnowledgeSpaceGroup[] {
+    const groups = new Map<string, ManagedKnowledgeSpaceGroup>();
+
+    for (const item of items) {
+      const metadata = this.readBusinessAssetMetadata(this.buildBusinessAssetMetadata(item) as Prisma.JsonValue);
+      const knowledgeSpaceSlug = this.sanitizeKnowledgeSpaceSlug(metadata.knowledgeBaseSlug || metadata.knowledgeBaseName);
+      const knowledgeBaseId = String(metadata.knowledgeBaseId || "").trim()
+        || this.buildBusinessAssetsKnowledgeBaseId(brandId, knowledgeSpaceSlug);
+      const knowledgeBaseName = this.buildBusinessAssetsKnowledgeBaseName(brandName, metadata.knowledgeBaseName);
+      const knowledgeBaseSlug = this.buildBusinessAssetsKnowledgeBaseSlug(brandId, knowledgeSpaceSlug);
+      const nextDefaultTopK = Math.max(1, Math.min(20, Math.floor(metadata.defaultTopK || 8)));
+      const retrievalConfig = {
+        defaultTopK: nextDefaultTopK,
+        recallMode: metadata.recallMode || "HYBRID",
+        rerankEnabled: Boolean(metadata.rerankEnabled),
+        retrievalThreshold:
+          typeof metadata.retrievalThreshold === "number" && Number.isFinite(metadata.retrievalThreshold)
+            ? metadata.retrievalThreshold
+            : undefined,
+      } satisfies ManagedKnowledgeSpaceGroup["retrievalConfig"];
+      const binding =
+        metadata.bindingType && metadata.targetId
+          ? {
+              bindingType: metadata.bindingType,
+              targetId: metadata.targetId,
+              targetKey: metadata.targetKey || metadata.targetId,
+              targetName: metadata.targetName || metadata.targetId,
+              priority: Math.max(1, Math.floor(metadata.priority || 100)),
+              retrievalMode: metadata.retrievalMode || "HYBRID",
+              isRequired: Boolean(metadata.isRequired),
+              enabled: metadata.enabled ?? true,
+            } satisfies ManagedKnowledgeBindingInput
+          : null;
+
+      const existing = groups.get(knowledgeBaseId);
+      if (existing) {
+        existing.files.push({
+          ...item,
+          knowledgeBaseId,
+          knowledgeBaseName,
+          knowledgeBaseSlug,
+        });
+        if (!existing.retrievalConfig && retrievalConfig) {
+          existing.retrievalConfig = retrievalConfig;
+        }
+        if (
+          binding
+          && !existing.bindings.some((entry) => entry.bindingType === binding.bindingType && entry.targetId === binding.targetId)
+        ) {
+          existing.bindings.push(binding);
+        }
+        continue;
+      }
+
+      groups.set(knowledgeBaseId, {
+        knowledgeBaseId,
+        knowledgeBaseName,
+        knowledgeBaseSlug,
+        description: this.buildManagedKnowledgeBaseDescription(brandName, knowledgeBaseName),
+        files: [
+          {
+            ...item,
+            knowledgeBaseId,
+            knowledgeBaseName,
+            knowledgeBaseSlug,
+          },
+        ],
+        retrievalConfig,
+        bindings: binding ? [binding] : [this.buildDefaultManagedKnowledgeBinding()],
+      });
+    }
+
+    return Array.from(groups.values());
   }
 
   private extractBrandAssetStoredFileName(fileUrl?: string) {
@@ -2969,7 +3236,7 @@ export class BrandsService {
   }
 
   private mapBusinessAssetToKnowledgeFile(
-    brandId: string,
+    knowledgeBaseId: string,
     item: CreateAssetPayload["items"][number],
     uploadedAt: string,
     index: number,
@@ -2979,7 +3246,7 @@ export class BrandsService {
     const fileType = this.inferKnowledgeFileType(storedFileName, item.fileUrl, item.title);
     return {
       id: createId("kbf"),
-      knowledgeBaseId: this.buildBusinessAssetsKnowledgeBaseId(brandId),
+      knowledgeBaseId,
       fileName,
       fileType,
       sourceName: `企业知识库桥接 / ${item.sourceName?.trim() || "品牌增长工作台"}`,
@@ -3014,9 +3281,9 @@ export class BrandsService {
   private async syncBusinessAssetsToKnowledgeBaseInDatabase(
     brandId: string,
     items: CreateAssetPayload["items"],
-  ) {
+  ): Promise<string[]> {
     if (!(await this.canUseKnowledgeBridgeStorage())) {
-      return;
+      return [];
     }
 
     const brand = await this.prismaService.brand.findUnique({
@@ -3024,98 +3291,126 @@ export class BrandsService {
       select: { brandName: true },
     });
     if (!brand) {
-      return;
+      return [];
     }
 
-    const knowledgeBaseId = this.buildBusinessAssetsKnowledgeBaseId(brandId);
     const now = new Date();
     const uploadedAt = now.toISOString();
-    const knowledgeBaseName = this.buildBusinessAssetsKnowledgeBaseName(brand.brandName);
-
-    await this.prismaService.knowledgeBase.upsert({
-      where: { id: knowledgeBaseId },
-      update: {
-        name: knowledgeBaseName,
-        slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
-        sourceType: "OSS",
-        status: items.length ? "ACTIVE" : "DRAFT",
-        syncStatus: "IDLE",
-        documentCount: items.length,
-        chunkCount: 0,
-        description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
-        updatedAt: now,
-      },
-      create: {
-        id: knowledgeBaseId,
-        name: knowledgeBaseName,
-        slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
-        sourceType: "OSS",
-        status: items.length ? "ACTIVE" : "DRAFT",
-        syncStatus: "IDLE",
-        documentCount: items.length,
-        chunkCount: 0,
-        description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-
-    await this.prismaService.knowledgeBinding.upsert({
+    const groups = this.collectManagedKnowledgeSpaceGroups(brandId, brand.brandName, items);
+    const managedPrefix = `${BRAND_BUSINESS_ASSETS_KB_PREFIX}${brandId}`;
+    const existingManagedKnowledgeBases = await this.prismaService.knowledgeBase.findMany({
       where: {
-        knowledgeBaseId_bindingType_targetId: {
-          knowledgeBaseId,
-          bindingType: "MODULE",
-          targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        id: {
+          startsWith: managedPrefix,
         },
       },
-      update: {
-        targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-        targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
-        priority: 1,
-        retrievalMode: "HYBRID",
-        isRequired: false,
-        enabled: true,
-        updatedAt: now,
-      },
-      create: {
-        id: createId("kbb"),
-        knowledgeBaseId,
-        bindingType: "MODULE",
-        targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-        targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-        targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
-        priority: 1,
-        retrievalMode: "HYBRID",
-        isRequired: false,
-        enabled: true,
-        createdAt: now,
-        updatedAt: now,
-      },
+      select: { id: true },
     });
-
-    await this.prismaService.knowledgeBaseFile.deleteMany({
-      where: { knowledgeBaseId },
-    });
-
-    if (!items.length) {
-      return;
+    const nextKnowledgeBaseIds = groups.map((item) => item.knowledgeBaseId);
+    const obsoleteKnowledgeBaseIds = existingManagedKnowledgeBases
+      .map((item) => item.id)
+      .filter((item) => !nextKnowledgeBaseIds.includes(item));
+    if (obsoleteKnowledgeBaseIds.length) {
+      await this.prismaService.knowledgeBase.deleteMany({
+        where: { id: { in: obsoleteKnowledgeBaseIds } },
+      });
     }
 
-    await this.prismaService.knowledgeBaseFile.createMany({
-      data: items.map((item, index) => {
-        const file = this.mapBusinessAssetToKnowledgeFile(brandId, item, uploadedAt, index);
-        return {
-          id: file.id,
-          knowledgeBaseId: file.knowledgeBaseId,
-          fileName: file.fileName,
-          fileType: file.fileType,
-          sourceName: file.sourceName,
-          chunkCount: file.chunkCount,
-          status: file.status,
-          uploadedAt: new Date(file.uploadedAt),
-        };
-      }),
-    });
+    for (const group of groups) {
+      await this.prismaService.knowledgeBase.upsert({
+        where: { id: group.knowledgeBaseId },
+        update: {
+          name: group.knowledgeBaseName,
+          slug: group.knowledgeBaseSlug,
+          sourceType: "OSS",
+          status: group.files.length ? "ACTIVE" : "DRAFT",
+          syncStatus: "IDLE",
+          documentCount: group.files.length,
+          chunkCount: 0,
+          description: group.description,
+          updatedAt: now,
+        },
+        create: {
+          id: group.knowledgeBaseId,
+          name: group.knowledgeBaseName,
+          slug: group.knowledgeBaseSlug,
+          sourceType: "OSS",
+          status: group.files.length ? "ACTIVE" : "DRAFT",
+          syncStatus: "IDLE",
+          documentCount: group.files.length,
+          chunkCount: 0,
+          description: group.description,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+      await this.prismaService.knowledgeRetrievalConfig.upsert({
+        where: { knowledgeBaseId: group.knowledgeBaseId },
+        update: {
+          defaultTopK: group.retrievalConfig.defaultTopK,
+          recallMode: group.retrievalConfig.recallMode,
+          rerankEnabled: group.retrievalConfig.rerankEnabled,
+          retrievalThreshold: group.retrievalConfig.retrievalThreshold ?? null,
+          updatedAt: now,
+        },
+        create: {
+          id: createId("kbrc"),
+          knowledgeBaseId: group.knowledgeBaseId,
+          defaultTopK: group.retrievalConfig.defaultTopK,
+          recallMode: group.retrievalConfig.recallMode,
+          rerankEnabled: group.retrievalConfig.rerankEnabled,
+          retrievalThreshold: group.retrievalConfig.retrievalThreshold ?? null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+      await this.prismaService.knowledgeBinding.deleteMany({
+        where: { knowledgeBaseId: group.knowledgeBaseId },
+      });
+      if (group.bindings.length) {
+        await this.prismaService.knowledgeBinding.createMany({
+          data: group.bindings.map((binding) => ({
+            id: createId("kbb"),
+            knowledgeBaseId: group.knowledgeBaseId,
+            bindingType: binding.bindingType,
+            targetId: binding.targetId,
+            targetKey: binding.targetKey ?? null,
+            targetName: binding.targetName ?? null,
+            priority: binding.priority,
+            retrievalMode: binding.retrievalMode,
+            isRequired: binding.isRequired,
+            enabled: binding.enabled,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        });
+      }
+
+      await this.prismaService.knowledgeBaseFile.deleteMany({
+        where: { knowledgeBaseId: group.knowledgeBaseId },
+      });
+      if (group.files.length) {
+        await this.prismaService.knowledgeBaseFile.createMany({
+          data: group.files.map((item, index) => {
+            const file = this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index);
+            return {
+              id: file.id,
+              knowledgeBaseId: file.knowledgeBaseId,
+              fileName: file.fileName,
+              fileType: file.fileType,
+              sourceName: file.sourceName,
+              chunkCount: file.chunkCount,
+              status: file.status,
+              uploadedAt: new Date(file.uploadedAt),
+            };
+          }),
+        });
+      }
+    }
+
+    return nextKnowledgeBaseIds;
   }
 
   private syncBusinessAssetsToKnowledgeBaseFromMock(
@@ -3123,64 +3418,92 @@ export class BrandsService {
     items: CreateAssetPayload["items"],
   ) {
     const brand = this.getBrand(brandId);
-    const knowledgeBaseId = this.buildBusinessAssetsKnowledgeBaseId(brandId);
     const uploadedAt = new Date().toISOString();
-    const existingIndex = database.knowledgeBases.findIndex((item) => item.id === knowledgeBaseId);
-    const knowledgeBaseRecord: KnowledgeBaseRecord = {
-      id: knowledgeBaseId,
-      name: this.buildBusinessAssetsKnowledgeBaseName(brand.brandName),
-      slug: this.buildBusinessAssetsKnowledgeBaseSlug(brandId),
-      sourceType: "OSS",
-      status: items.length ? "ACTIVE" : "DRAFT",
-      syncStatus: "IDLE",
-      documentCount: items.length,
-      chunkCount: 0,
-      description: `由前端“企业知识库”页面自动同步，当前对应品牌：${brand.brandName}。`,
-      updatedAt: uploadedAt,
-    };
+    const groups = this.collectManagedKnowledgeSpaceGroups(brandId, brand.brandName, items);
+    const managedPrefix = `${BRAND_BUSINESS_ASSETS_KB_PREFIX}${brandId}`;
+    const nextKnowledgeBaseIds = new Set(groups.map((item) => item.knowledgeBaseId));
 
-    if (existingIndex >= 0) {
-      database.knowledgeBases[existingIndex] = {
-        ...database.knowledgeBases[existingIndex],
-        ...knowledgeBaseRecord,
+    database.knowledgeBases = database.knowledgeBases.filter(
+      (item) => !(item.id.startsWith(managedPrefix) && !nextKnowledgeBaseIds.has(item.id)),
+    );
+    database.knowledgeBindings = database.knowledgeBindings.filter(
+      (item) => !(item.knowledgeBaseId.startsWith(managedPrefix) && !nextKnowledgeBaseIds.has(item.knowledgeBaseId)),
+    );
+    database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter(
+      (item) => !(item.knowledgeBaseId.startsWith(managedPrefix) && !nextKnowledgeBaseIds.has(item.knowledgeBaseId)),
+    );
+    database.knowledgeRetrievalConfigs = database.knowledgeRetrievalConfigs.filter(
+      (item) => !(item.knowledgeBaseId.startsWith(managedPrefix) && !nextKnowledgeBaseIds.has(item.knowledgeBaseId)),
+    );
+
+    for (const group of groups) {
+      const knowledgeBaseRecord: KnowledgeBaseRecord = {
+        id: group.knowledgeBaseId,
+        name: group.knowledgeBaseName,
+        slug: group.knowledgeBaseSlug,
+        sourceType: "OSS",
+        status: group.files.length ? "ACTIVE" : "DRAFT",
+        syncStatus: "IDLE",
+        documentCount: group.files.length,
+        chunkCount: 0,
+        description: group.description,
+        updatedAt: uploadedAt,
       };
-    } else {
-      database.knowledgeBases.unshift(knowledgeBaseRecord);
-    }
+      const existingIndex = database.knowledgeBases.findIndex((item) => item.id === group.knowledgeBaseId);
+      if (existingIndex >= 0) {
+        database.knowledgeBases[existingIndex] = {
+          ...database.knowledgeBases[existingIndex],
+          ...knowledgeBaseRecord,
+        };
+      } else {
+        database.knowledgeBases.unshift(knowledgeBaseRecord);
+      }
 
-    const bindingIndex = database.knowledgeBindings.findIndex(
-      (item) =>
-        item.knowledgeBaseId === knowledgeBaseId &&
-        item.bindingType === "MODULE" &&
-        item.targetId === BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-    );
-    const bindingRecord = {
-      id: bindingIndex >= 0 ? database.knowledgeBindings[bindingIndex].id : createId("kbb"),
-      knowledgeBaseId,
-      bindingType: "MODULE" as const,
-      targetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-      targetKey: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-      targetName: BRAND_GROWTH_KNOWLEDGE_TARGET_NAME,
-      priority: 1,
-      retrievalMode: "HYBRID" as const,
-      isRequired: false,
-      enabled: true,
-      createdAt: bindingIndex >= 0 ? database.knowledgeBindings[bindingIndex].createdAt : uploadedAt,
-      updatedAt: uploadedAt,
-    };
-    if (bindingIndex >= 0) {
-      database.knowledgeBindings[bindingIndex] = bindingRecord;
-    } else {
-      database.knowledgeBindings.unshift(bindingRecord);
-    }
+      const retrievalConfigRecord: KnowledgeRetrievalConfigRecord = {
+        id:
+          database.knowledgeRetrievalConfigs.find((item) => item.knowledgeBaseId === group.knowledgeBaseId)?.id
+          || createId("kbrc"),
+        knowledgeBaseId: group.knowledgeBaseId,
+        defaultTopK: group.retrievalConfig.defaultTopK,
+        recallMode: group.retrievalConfig.recallMode,
+        rerankEnabled: group.retrievalConfig.rerankEnabled,
+        retrievalThreshold: group.retrievalConfig.retrievalThreshold,
+        chunkSize: undefined,
+        chunkOverlap: undefined,
+        rerankModelName: undefined,
+        createdAt:
+          database.knowledgeRetrievalConfigs.find((item) => item.knowledgeBaseId === group.knowledgeBaseId)?.createdAt
+          || uploadedAt,
+        updatedAt: uploadedAt,
+      };
+      database.knowledgeRetrievalConfigs = database.knowledgeRetrievalConfigs.filter(
+        (item) => item.knowledgeBaseId !== group.knowledgeBaseId,
+      );
+      database.knowledgeRetrievalConfigs.unshift(retrievalConfigRecord);
 
-    database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId !== knowledgeBaseId);
-    if (!items.length) {
-      return;
+      database.knowledgeBindings = database.knowledgeBindings.filter((item) => item.knowledgeBaseId !== group.knowledgeBaseId);
+      database.knowledgeBindings.unshift(
+        ...group.bindings.map((binding) => ({
+          id: createId("kbb"),
+          knowledgeBaseId: group.knowledgeBaseId,
+          bindingType: binding.bindingType,
+          targetId: binding.targetId,
+          targetKey: binding.targetKey,
+          targetName: binding.targetName,
+          priority: binding.priority,
+          retrievalMode: binding.retrievalMode,
+          isRequired: binding.isRequired,
+          enabled: binding.enabled,
+          createdAt: uploadedAt,
+          updatedAt: uploadedAt,
+        }) satisfies KnowledgeBindingRecord),
+      );
+
+      database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId !== group.knowledgeBaseId);
+      database.knowledgeBaseFiles.unshift(
+        ...group.files.map((item, index) => this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index)),
+      );
     }
-    database.knowledgeBaseFiles.unshift(
-      ...items.map((item, index) => this.mapBusinessAssetToKnowledgeFile(brandId, item, uploadedAt, index)),
-    );
   }
 
   private replaceAccounts(

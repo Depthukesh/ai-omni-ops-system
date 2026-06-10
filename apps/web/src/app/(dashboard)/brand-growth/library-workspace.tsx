@@ -18,6 +18,21 @@ export type LibraryAssetModalDraft = {
   description: string;
   sourceName: string;
   fileUrl: string;
+  knowledgeBaseId: string;
+  knowledgeBaseName: string;
+  knowledgeBaseSlug: string;
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  priority: number;
+  retrievalMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired: boolean;
+  enabled: boolean;
+  defaultTopK: number;
+  recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  rerankEnabled: boolean;
+  retrievalThreshold: string;
   file?: File | null;
   existingAssetId?: string;
 };
@@ -39,6 +54,144 @@ export interface BrandGrowthLibraryWorkspaceProps {
   onSaveAssetEdit: (target: LibraryAssetTarget, index: number, draft: LibraryAssetModalDraft) => void | Promise<void>;
   onRemoveAsset: (target: LibraryAssetTarget, index: number) => void;
 }
+
+type LibraryBindingType = LibraryAssetModalDraft["bindingType"];
+type RetrievalMode = LibraryAssetModalDraft["retrievalMode"];
+type BindingTargetPreset = {
+  bindingType: LibraryBindingType;
+  label: string;
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  description: string;
+};
+
+const BINDING_TYPE_OPTIONS: Array<{ value: LibraryBindingType; label: string; description: string }> = [
+  { value: "MODULE", label: "模块", description: "给整个工作台或模块统一使用。" },
+  { value: "SKILL_PACKAGE", label: "能力包", description: "给一组连续技能步骤统一使用。" },
+  { value: "SKILL", label: "技能", description: "只给某个具体技能使用。" },
+];
+
+const RETRIEVAL_MODE_OPTIONS: Array<{ value: RetrievalMode; label: string; description: string }> = [
+  { value: "HYBRID", label: "混合检索", description: "优先推荐，兼顾语义和关键词召回。" },
+  { value: "VECTOR", label: "向量检索", description: "更偏向语义相似内容。" },
+  { value: "FULL_TEXT", label: "全文检索", description: "更适合强关键词、表格字段和制度名称。" },
+];
+
+const BINDING_TARGET_PRESETS: BindingTargetPreset[] = [
+  {
+    bindingType: "MODULE",
+    label: "品牌增长工作台",
+    targetId: "brand-growth-workbench",
+    targetKey: "brand-growth-workbench",
+    targetName: "品牌增长工作台",
+    description: "品牌增长报告、半年营销规划等默认都会读取这里绑定的企业知识。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "小红书工作台",
+    targetId: "xiaohongshu-workbench",
+    targetKey: "xiaohongshu-workbench",
+    targetName: "小红书工作台",
+    description: "适合小红书营销规划、原创笔记、营销日历等场景。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "抖音工作台",
+    targetId: "douyin-workbench",
+    targetKey: "douyin-workbench",
+    targetName: "抖音工作台",
+    description: "适合抖音营销规划、热点找选题、视频与数字人场景。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "公众号工作台",
+    targetId: "wechat-workbench",
+    targetKey: "wechat-workbench",
+    targetName: "公众号工作台",
+    description: "适合公众号文章创作、排版和配图场景。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "品牌增长报告能力包",
+    targetId: "brand-growth-analysis",
+    targetKey: "brand-growth-analysis",
+    targetName: "品牌增长报告能力包",
+    description: "给品牌增长报告整条分析链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "半年营销规划能力包",
+    targetId: "enterprise-annual-plan",
+    targetKey: "enterprise-annual-plan",
+    targetName: "半年营销规划能力包",
+    description: "给半年营销规划整条链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "小红书营销规划能力包",
+    targetId: "xiaohongshu-brand-marketing-plan",
+    targetKey: "xiaohongshu-brand-marketing-plan",
+    targetName: "小红书营销规划能力包",
+    description: "给小红书营销策划方案与相关计划场景使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "抖音营销规划能力包",
+    targetId: "tongcheng-brand-douyin-planning",
+    targetKey: "tongcheng-brand-douyin-planning",
+    targetName: "抖音营销规划能力包",
+    description: "给抖音营销策划和热点类链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "公众号文章生成能力包",
+    targetId: "wechat-article-generator",
+    targetKey: "wechat-article-generator",
+    targetName: "公众号文章生成能力包",
+    description: "给公众号文章创作链路统一使用。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "品牌增长报告",
+    targetId: "brand-omni-growth-analysis",
+    targetKey: "brand-omni-growth-analysis",
+    targetName: "品牌增长报告",
+    description: "只让品牌增长报告技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "半年营销规划",
+    targetId: "enterprise-annual-plan",
+    targetKey: "enterprise-annual-plan",
+    targetName: "半年营销规划",
+    description: "只让半年营销规划技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "小红书营销策划方案",
+    targetId: "xiaohongshu-brand-marketing-plan",
+    targetKey: "xiaohongshu-brand-marketing-plan",
+    targetName: "小红书营销策划方案",
+    description: "只让小红书营销策划方案技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "抖音热点找选题",
+    targetId: "douyin-hot-topic-candidates",
+    targetKey: "douyin-hot-topic-candidates",
+    targetName: "抖音热点找选题",
+    description: "只让抖音热点找选题技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "公众号文章创作",
+    targetId: "wechat-article-composer",
+    targetKey: "wechat-article-composer",
+    targetName: "公众号文章创作",
+    description: "只让公众号文章创作技能读取这份知识。",
+  },
+];
 
 export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspaceProps) {
   if (props.activeBrandPage === "background") {
@@ -318,12 +471,14 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
 
   const assetTarget = props.activeBrandPage;
   const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业知识库";
-  const mappedKnowledgeBaseName =
-    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseName(props.archive.brand.brandName) : "";
-  const mappedKnowledgeBaseId =
-    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseId(props.archive.brand.id) : "";
-  const mappedKnowledgeBaseSlug =
-    assetTarget === "businessAssets" ? buildBusinessAssetsKnowledgeBaseSlug(props.archive.brand.id) : "";
+  const isBusinessAssetsPage = assetTarget === "businessAssets";
+  const businessKnowledgeSummaries = isBusinessAssetsPage
+    ? collectBusinessAssetKnowledgeSummaries(
+        props.archive.brand.id,
+        props.archive.brand.brandName,
+        props.archive.businessAssets,
+      )
+    : [];
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<"create" | "edit">("create");
   const [assetModalDrafts, setAssetModalDrafts] = useState<LibraryAssetModalDraft[]>([]);
@@ -346,7 +501,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
   function handleOpenCreateAssetModal() {
     setAssetModalMode("create");
     setEditingAssetIndex(null);
-    setAssetModalDrafts([buildEmptyAssetModalDraft()]);
+    setAssetModalDrafts([buildEmptyAssetModalDraft(isBusinessAssetsPage)]);
     setIsAssetModalOpen(true);
   }
 
@@ -357,7 +512,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
     }
     setAssetModalMode("edit");
     setEditingAssetIndex(index);
-    setAssetModalDrafts([buildAssetModalDraftFromAsset(targetAsset)]);
+    setAssetModalDrafts([buildAssetModalDraftFromAsset(targetAsset, isBusinessAssetsPage)]);
     setIsAssetModalOpen(true);
   }
 
@@ -377,8 +532,27 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
     );
   }
 
+  function handleBindingTypeChange(draftId: string, bindingType: LibraryBindingType) {
+    const preset = getBindingTargetPresets(bindingType)[0];
+    handleAssetDraftChange(draftId, {
+      bindingType,
+      targetId: preset?.targetId || "",
+      targetKey: preset?.targetKey || "",
+      targetName: preset?.targetName || "",
+    });
+  }
+
+  function handleBindingTargetPresetChange(draftId: string, bindingType: LibraryBindingType, targetId: string) {
+    const preset = getBindingTargetPresets(bindingType).find((item) => item.targetId === targetId);
+    handleAssetDraftChange(draftId, {
+      targetId: preset?.targetId || "",
+      targetKey: preset?.targetKey || "",
+      targetName: preset?.targetName || "",
+    });
+  }
+
   function handleAddEmptyAssetDraft() {
-    setAssetModalDrafts((current) => [...current, buildEmptyAssetModalDraft()]);
+    setAssetModalDrafts((current) => [...current, buildEmptyAssetModalDraft(isBusinessAssetsPage)]);
   }
 
   function handleRemoveAssetDraft(draftId: string) {
@@ -389,10 +563,10 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
     if (!files?.length) {
       return;
     }
-    const draftsFromFiles = Array.from(files).map((file) => buildAssetModalDraftFromFile(file));
+    const draftsFromFiles = Array.from(files).map((file) => buildAssetModalDraftFromFile(file, isBusinessAssetsPage));
     setAssetModalDrafts((current) => {
       if (assetModalMode === "edit") {
-        const firstDraft = current[0] ?? buildEmptyAssetModalDraft();
+        const firstDraft = current[0] ?? buildEmptyAssetModalDraft(isBusinessAssetsPage);
         const [firstFile] = draftsFromFiles;
         return [
           {
@@ -447,7 +621,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
             <p>
               {assetTarget === "industryFeeds"
                 ? "这里维护行业报告、市场资料与外部数据。"
-                : "这里维护经营报表、业务系统、门店资料与内部知识文档，新增资料后会以卡片形式沉淀并可统一保存到知识库。"}
+                : "这里维护经营报表、业务系统、门店资料与内部知识文档。上传时即可配置知识库容器、接入对象和检索策略，并会立即触发后台同步。"}
             </p>
           </div>
           <button type="button" className="primary-button" onClick={handleOpenCreateAssetModal}>
@@ -455,28 +629,24 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
           </button>
         </div>
 
-        {assetTarget === "businessAssets" ? (
+        {isBusinessAssetsPage ? (
           <article className="knowledge-mapping-callout">
             <div className="knowledge-mapping-callout__head">
-              <strong>后台对应知识库</strong>
-              <span className="archive-pill status-ready">1 个后台容器</span>
+              <strong>后台知识库容器</strong>
+              <span className="archive-pill status-ready">{businessKnowledgeSummaries.length || 1} 个容器</span>
             </div>
             <p>
-              当前页面新增的所有资料，保存页面后都会统一汇总到后台同一个知识库容器，而不是一张资料卡生成一个后台知识库。
+              每份资料都可以指定自己的知识库容器、接入对象和检索策略。保存后会按容器分组，自动同步成多个后台知识库。
             </p>
             <div className="knowledge-mapping-callout__grid">
-              <div>
-                <span>知识库名称</span>
-                <strong>{mappedKnowledgeBaseName}</strong>
-              </div>
-              <div>
-                <span>知识库 ID</span>
-                <strong>{mappedKnowledgeBaseId}</strong>
-              </div>
-              <div>
-                <span>知识库 Slug</span>
-                <strong>{mappedKnowledgeBaseSlug}</strong>
-              </div>
+              {businessKnowledgeSummaries.map((summary) => (
+                <div key={summary.knowledgeBaseId}>
+                  <span>知识库名称</span>
+                  <strong>{summary.knowledgeBaseName}</strong>
+                  <p className="personal-meta">{summary.fileCount} 份资料 · {summary.targetNames.join("、")}</p>
+                  <p className="personal-meta">{summary.retrievalSummary}</p>
+                </div>
+              ))}
             </div>
           </article>
         ) : null}
@@ -494,12 +664,13 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                 </div>
                 <div className="knowledge-content-card__meta">
                   <span>{asset.fileUrl ? extractFileName(asset.fileUrl) : "未关联文件"}</span>
-                  <span>{assetTarget === "businessAssets" ? "保存页面后自动同步到知识库" : "保存页面后写入资料库"}</span>
+                  <span>{isBusinessAssetsPage ? "上传后立即自动同步到知识库" : "保存页面后写入资料库"}</span>
                 </div>
-                {assetTarget === "businessAssets" ? (
+                {isBusinessAssetsPage ? (
                   <div className="knowledge-content-card__mapping">
-                    <span>对应后台知识库</span>
-                    <strong>{mappedKnowledgeBaseName}</strong>
+                    <span>{describeBindingType(asset.bindingType)} · {formatAssetTargetName(asset)}</span>
+                    <strong>{formatAssetKnowledgeBaseName(props.archive.brand.id, props.archive.brand.brandName, asset)}</strong>
+                    <p className="personal-meta">{formatRetrievalSummary(asset)}</p>
                   </div>
                 ) : null}
                 <p className="knowledge-content-card__description">{asset.description || "暂无资料说明。"}</p>
@@ -522,7 +693,11 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
         ) : (
           <div className="knowledge-content-empty-state">
             <strong>还没有资料</strong>
-            <p>点击右上角“新增资料”后可在弹窗中一次导入多个文档，并自动用文件名回填资料标题。</p>
+            <p>
+              {isBusinessAssetsPage
+                ? "点击右上角“新增资料”后可一次导入多个文档，并在弹窗里直接配置知识库容器、接入对象和检索参数。"
+                : "点击右上角“新增资料”后可在弹窗中一次导入多个文档，并自动用文件名回填资料标题。"}
+            </p>
           </div>
         )}
       </article>
@@ -535,8 +710,12 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                 <strong>{assetModalMode === "edit" ? "编辑资料" : `新增${assetTitle}资料`}</strong>
                 <p>
                   {assetModalMode === "edit"
-                    ? "修改当前资料信息，保存后会回写到当前页面。"
-                    : "支持一次添加多个文档，系统会自动使用文档名生成资料标题。"}
+                    ? isBusinessAssetsPage
+                      ? "修改后会立即回写企业知识库，并重跑当前容器的后台同步。"
+                      : "修改当前资料信息，保存后会回写到当前页面。"
+                    : isBusinessAssetsPage
+                      ? "支持一次添加多个文档，上传时就能配置知识库容器、接入对象和检索参数。"
+                      : "支持一次添加多个文档，系统会自动使用文档名生成资料标题。"}
                 </p>
               </div>
               <button type="button" className="media-preview-close" onClick={handleCloseAssetModal}>
@@ -619,6 +798,183 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                         onChange={(event) => handleAssetDraftChange(draft.id, { fileUrl: event.target.value })}
                       />
                     </label>
+                    {isBusinessAssetsPage ? (
+                      <>
+                        <label className="field">
+                          <span>知识库容器名称</span>
+                          <input
+                            value={draft.knowledgeBaseName}
+                            placeholder="例如 门店经营资料 / 小红书内容素材 / 内部制度库"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { knowledgeBaseName: event.target.value })}
+                          />
+                          <span className="field-hint">同名资料会自动归并到同一个后台知识库容器。</span>
+                        </label>
+                        <label className="field">
+                          <span>知识库 Slug</span>
+                          <input
+                            value={draft.knowledgeBaseSlug}
+                            placeholder="可选，不填时会根据容器名称自动生成"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { knowledgeBaseSlug: event.target.value })}
+                          />
+                          <span className="field-hint">主要用于后台唯一标识，不懂可以留空。</span>
+                        </label>
+                        <label className="field">
+                          <span>接入类型</span>
+                          <select
+                            value={draft.bindingType}
+                            onChange={(event) => handleBindingTypeChange(draft.id, event.target.value as LibraryBindingType)}
+                          >
+                            {BINDING_TYPE_OPTIONS.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="field-hint">
+                            {BINDING_TYPE_OPTIONS.find((item) => item.value === draft.bindingType)?.description}
+                          </span>
+                        </label>
+                        <label className="field">
+                          <span>接入对象</span>
+                          <select
+                            value={draft.targetId}
+                            onChange={(event) => handleBindingTargetPresetChange(draft.id, draft.bindingType, event.target.value)}
+                          >
+                            <option value="">请选择接入对象</option>
+                            {buildBindingTargetOptions(draft.bindingType, draft.targetId, draft.targetName).map((item) => (
+                              <option key={`${item.bindingType}-${item.targetId}`} value={item.targetId}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="field-hint">
+                            {buildBindingTargetOptions(draft.bindingType, draft.targetId, draft.targetName)
+                              .find((item) => item.targetId === draft.targetId)?.description || "选择后会自动回填目标名称、ID 和 KEY。"}
+                          </span>
+                        </label>
+                        <label className="field">
+                          <span>目标名称</span>
+                          <input
+                            value={draft.targetName}
+                            placeholder="下拉选择后会自动回填"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { targetName: event.target.value })}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>目标 ID</span>
+                          <input
+                            value={draft.targetId}
+                            placeholder="例如 brand-growth-workbench"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { targetId: event.target.value })}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>目标 KEY</span>
+                          <input
+                            value={draft.targetKey}
+                            placeholder="一般与目标 ID 保持一致"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { targetKey: event.target.value })}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>优先级</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={draft.priority}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { priority: Math.max(1, Number(event.target.value) || 1) })}
+                          />
+                          <span className="field-hint">数字越大越靠后；常用 1、10、100 这类层级。</span>
+                        </label>
+                        <label className="field">
+                          <span>绑定检索方式</span>
+                          <select
+                            value={draft.retrievalMode}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { retrievalMode: event.target.value as RetrievalMode })}
+                          >
+                            {RETRIEVAL_MODE_OPTIONS.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="field-hint">
+                            {RETRIEVAL_MODE_OPTIONS.find((item) => item.value === draft.retrievalMode)?.description}
+                          </span>
+                        </label>
+                        <label className="field">
+                          <span>默认 TopK</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={draft.defaultTopK}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { defaultTopK: Math.max(1, Math.min(20, Number(event.target.value) || 1)) })}
+                          />
+                          <span className="field-hint">每次检索默认取前几条片段，通常 5 到 10 比较稳。</span>
+                        </label>
+                        <label className="field">
+                          <span>召回模式</span>
+                          <select
+                            value={draft.recallMode}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { recallMode: event.target.value as RetrievalMode })}
+                          >
+                            {RETRIEVAL_MODE_OPTIONS.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="field-hint">这是知识库默认召回策略，会影响大部分运行时检索行为。</span>
+                        </label>
+                        <label className="field">
+                          <span>是否开启重排</span>
+                          <select
+                            value={draft.rerankEnabled ? "true" : "false"}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { rerankEnabled: event.target.value === "true" })}
+                          >
+                            <option value="false">关闭</option>
+                            <option value="true">开启</option>
+                          </select>
+                          <span className="field-hint">开启后会对召回结果再做一次相关性排序，通常更稳但会更慢。</span>
+                        </label>
+                        <label className="field">
+                          <span>检索阈值</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step="0.05"
+                            value={draft.retrievalThreshold}
+                            placeholder="可选，例如 0.45"
+                            onChange={(event) => handleAssetDraftChange(draft.id, { retrievalThreshold: event.target.value })}
+                          />
+                          <span className="field-hint">越高越严格，命中更少但更准；不确定时可先留空。</span>
+                        </label>
+                        <label className="field">
+                          <span>是否必带</span>
+                          <select
+                            value={draft.isRequired ? "true" : "false"}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { isRequired: event.target.value === "true" })}
+                          >
+                            <option value="false">否</option>
+                            <option value="true">是</option>
+                          </select>
+                          <span className="field-hint">开启后即使召回失败，也会在运行日志里提示这份知识缺失。</span>
+                        </label>
+                        <label className="field">
+                          <span>是否启用</span>
+                          <select
+                            value={draft.enabled ? "true" : "false"}
+                            onChange={(event) => handleAssetDraftChange(draft.id, { enabled: event.target.value === "true" })}
+                          >
+                            <option value="true">启用</option>
+                            <option value="false">停用</option>
+                          </select>
+                          <span className="field-hint">停用后资料仍保留在容器里，但运行时不会参与检索。</span>
+                        </label>
+                      </>
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -630,7 +986,11 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                   新增一条空白资料
                 </button>
               ) : (
-                <span className="personal-meta">如需替换文档，请重新选择文件；未替换时保留原链接。</span>
+                <span className="personal-meta">
+                  {isBusinessAssetsPage
+                    ? "如需替换文档，请重新选择文件；保存后会立即重跑当前知识库容器同步。"
+                    : "如需替换文档，请重新选择文件；未替换时保留原链接。"}
+                </span>
               )}
               <div className="knowledge-asset-modal__footer-actions">
                 <button type="button" className="secondary-button" onClick={handleCloseAssetModal} disabled={isSubmittingAssetModal}>
@@ -652,37 +1012,99 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
   );
 }
 
-function buildEmptyAssetModalDraft(): LibraryAssetModalDraft {
+function buildEmptyAssetModalDraft(isBusinessAsset = false): LibraryAssetModalDraft {
   return {
     id: `asset_modal_${Math.random().toString(36).slice(2, 9)}`,
     title: "",
     description: "",
     sourceName: "",
     fileUrl: "",
+    ...buildDefaultKnowledgeDraftConfig(isBusinessAsset),
     file: null,
   };
 }
 
-function buildAssetModalDraftFromAsset(asset: BrandAsset): LibraryAssetModalDraft {
+function buildAssetModalDraftFromAsset(asset: BrandAsset, isBusinessAsset = false): LibraryAssetModalDraft {
+  const defaults = buildDefaultKnowledgeDraftConfig(isBusinessAsset);
   return {
     id: `asset_modal_${asset.id || Math.random().toString(36).slice(2, 9)}`,
     title: asset.title,
     description: asset.description,
     sourceName: asset.sourceName || "",
     fileUrl: asset.fileUrl || "",
+    knowledgeBaseId: asset.knowledgeBaseId || defaults.knowledgeBaseId,
+    knowledgeBaseName: asset.knowledgeBaseName || defaults.knowledgeBaseName,
+    knowledgeBaseSlug: asset.knowledgeBaseSlug || defaults.knowledgeBaseSlug,
+    bindingType: asset.bindingType || defaults.bindingType,
+    targetId: asset.targetId || defaults.targetId,
+    targetKey: asset.targetKey || defaults.targetKey,
+    targetName: asset.targetName || defaults.targetName,
+    priority: asset.priority ?? defaults.priority,
+    retrievalMode: asset.retrievalMode || defaults.retrievalMode,
+    isRequired: asset.isRequired ?? defaults.isRequired,
+    enabled: asset.enabled ?? defaults.enabled,
+    defaultTopK: asset.defaultTopK ?? defaults.defaultTopK,
+    recallMode: asset.recallMode || defaults.recallMode,
+    rerankEnabled: asset.rerankEnabled ?? defaults.rerankEnabled,
+    retrievalThreshold:
+      typeof asset.retrievalThreshold === "number" && Number.isFinite(asset.retrievalThreshold)
+        ? String(asset.retrievalThreshold)
+        : defaults.retrievalThreshold,
     file: null,
     existingAssetId: asset.id,
   };
 }
 
-function buildAssetModalDraftFromFile(file: File): LibraryAssetModalDraft {
+function buildAssetModalDraftFromFile(file: File, isBusinessAsset = false): LibraryAssetModalDraft {
   return {
     id: `asset_modal_${Math.random().toString(36).slice(2, 9)}`,
     title: inferAssetTitleFromFileName(file.name),
     description: "",
     sourceName: "本地文档",
     fileUrl: "",
+    ...buildDefaultKnowledgeDraftConfig(isBusinessAsset),
     file,
+  };
+}
+
+function buildDefaultKnowledgeDraftConfig(isBusinessAsset: boolean): Omit<LibraryAssetModalDraft, "id" | "title" | "description" | "sourceName" | "fileUrl" | "file" | "existingAssetId"> {
+  if (!isBusinessAsset) {
+    return {
+      knowledgeBaseId: "",
+      knowledgeBaseName: "",
+      knowledgeBaseSlug: "",
+      bindingType: "MODULE",
+      targetId: "",
+      targetKey: "",
+      targetName: "",
+      priority: 100,
+      retrievalMode: "HYBRID",
+      isRequired: false,
+      enabled: true,
+      defaultTopK: 8,
+      recallMode: "HYBRID",
+      rerankEnabled: false,
+      retrievalThreshold: "",
+    };
+  }
+
+  const preset = getBindingTargetPresets("MODULE")[0];
+  return {
+    knowledgeBaseId: "",
+    knowledgeBaseName: "",
+    knowledgeBaseSlug: "",
+    bindingType: "MODULE",
+    targetId: preset?.targetId || "",
+    targetKey: preset?.targetKey || "",
+    targetName: preset?.targetName || "",
+    priority: 1,
+    retrievalMode: "HYBRID",
+    isRequired: false,
+    enabled: true,
+    defaultTopK: 8,
+    recallMode: "HYBRID",
+    rerankEnabled: false,
+    retrievalThreshold: "",
   };
 }
 
@@ -697,6 +1119,90 @@ function extractFileName(fileUrl: string) {
   } catch {
     return fileUrl;
   }
+}
+
+function getBindingTargetPresets(bindingType: LibraryBindingType) {
+  return BINDING_TARGET_PRESETS.filter((item) => item.bindingType === bindingType);
+}
+
+function buildBindingTargetOptions(bindingType: LibraryBindingType, currentTargetId: string, currentTargetName: string) {
+  const presets = getBindingTargetPresets(bindingType);
+  if (!currentTargetId || presets.some((item) => item.targetId === currentTargetId)) {
+    return presets;
+  }
+  return [
+    {
+      bindingType,
+      label: `${currentTargetName || "当前自定义目标"}（当前值）`,
+      targetId: currentTargetId,
+      targetKey: currentTargetId,
+      targetName: currentTargetName || currentTargetId,
+      description: "保留当前已配置的自定义目标。",
+    },
+    ...presets,
+  ];
+}
+
+function describeBindingType(bindingType?: BrandAsset["bindingType"]) {
+  return BINDING_TYPE_OPTIONS.find((item) => item.value === bindingType)?.label || "模块";
+}
+
+function describeRetrievalMode(mode?: BrandAsset["retrievalMode"]) {
+  return RETRIEVAL_MODE_OPTIONS.find((item) => item.value === mode)?.label || "混合检索";
+}
+
+function formatAssetKnowledgeBaseName(brandId: string, brandName: string, asset: BrandAsset) {
+  return asset.knowledgeBaseName || buildBusinessAssetsKnowledgeBaseName(brandName);
+}
+
+function formatAssetTargetName(asset: BrandAsset) {
+  return asset.targetName || asset.targetId || "品牌增长工作台";
+}
+
+function formatRetrievalSummary(asset: BrandAsset) {
+  const topK = Math.max(1, Number(asset.defaultTopK || 8));
+  const recallMode = describeRetrievalMode(asset.recallMode);
+  const threshold =
+    typeof asset.retrievalThreshold === "number" && Number.isFinite(asset.retrievalThreshold)
+      ? `，阈值 ${asset.retrievalThreshold}`
+      : "";
+  return `${recallMode} · TopK ${topK}${asset.rerankEnabled ? " · 开启重排" : " · 不重排"}${threshold}`;
+}
+
+function collectBusinessAssetKnowledgeSummaries(brandId: string, brandName: string, assets: BrandAsset[]) {
+  const groups = new Map<string, {
+    knowledgeBaseId: string;
+    knowledgeBaseName: string;
+    knowledgeBaseSlug: string;
+    fileCount: number;
+    targetNames: Set<string>;
+    retrievalSummary: string;
+  }>();
+
+  for (const asset of assets) {
+    const knowledgeBaseId = asset.knowledgeBaseId || buildBusinessAssetsKnowledgeBaseId(brandId);
+    const knowledgeBaseName = asset.knowledgeBaseName || buildBusinessAssetsKnowledgeBaseName(brandName);
+    const knowledgeBaseSlug = asset.knowledgeBaseSlug || buildBusinessAssetsKnowledgeBaseSlug(brandId);
+    const existing = groups.get(knowledgeBaseId);
+    if (existing) {
+      existing.fileCount += 1;
+      existing.targetNames.add(formatAssetTargetName(asset));
+      continue;
+    }
+    groups.set(knowledgeBaseId, {
+      knowledgeBaseId,
+      knowledgeBaseName,
+      knowledgeBaseSlug,
+      fileCount: 1,
+      targetNames: new Set([formatAssetTargetName(asset)]),
+      retrievalSummary: formatRetrievalSummary(asset),
+    });
+  }
+
+  return Array.from(groups.values()).map((item) => ({
+    ...item,
+    targetNames: Array.from(item.targetNames),
+  }));
 }
 
 function buildBusinessAssetsKnowledgeBaseId(brandId: string) {

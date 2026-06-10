@@ -127,6 +127,21 @@ export type BrandAsset = {
   description: string;
   sourceName?: string;
   fileUrl?: string;
+  knowledgeBaseId?: string;
+  knowledgeBaseName?: string;
+  knowledgeBaseSlug?: string;
+  bindingType?: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId?: string;
+  targetKey?: string;
+  targetName?: string;
+  priority?: number;
+  retrievalMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired?: boolean;
+  enabled?: boolean;
+  defaultTopK?: number;
+  recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  rerankEnabled?: boolean;
+  retrievalThreshold?: number;
 };
 
 export type FeishuBindingRecord = {
