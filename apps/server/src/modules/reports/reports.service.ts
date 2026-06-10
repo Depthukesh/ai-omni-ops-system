@@ -5605,10 +5605,11 @@ export class ReportsService {
       params.annualPlan,
       params.generatedAt,
     );
+    const knowledgeContext = await this.buildXiaohongshuMarketingPlanKnowledgeContext(settings, inputPayload);
     await params.onPhaseUpdate?.("PART_ONE");
     const firstPart = await this.generateXiaohongshuMarketingPlanSectionByModel(
       this.buildXiaohongshuMarketingPlanSystemPrompt(skillPrompt, settings, "PART_ONE"),
-      this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_ONE"),
+      this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_ONE", undefined, knowledgeContext),
       settings,
       {
         requiredHeadings: ["## 一、"],
@@ -5620,7 +5621,7 @@ export class ReportsService {
     await params.onPhaseUpdate?.("PART_TWO");
     const secondPart = await this.generateXiaohongshuMarketingPlanSectionByModel(
       this.buildXiaohongshuMarketingPlanSystemPrompt(skillPrompt, settings, "PART_TWO"),
-      this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_TWO", firstPart.markdown),
+      this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_TWO", firstPart.markdown, knowledgeContext),
       settings,
       {
         requiredHeadings: ["## 二、"],
@@ -5632,7 +5633,12 @@ export class ReportsService {
     await params.onPhaseUpdate?.("PART_THREE");
     const thirdPart = await this.generateXiaohongshuMarketingPlanSectionByModel(
       this.buildXiaohongshuMarketingPlanSystemPrompt(skillPrompt, settings, "PART_THREE"),
-      this.buildXiaohongshuMarketingPlanUserPrompt(inputPayload, "PART_THREE", `${firstPart.markdown}\n\n${secondPart.markdown}`),
+      this.buildXiaohongshuMarketingPlanUserPrompt(
+        inputPayload,
+        "PART_THREE",
+        `${firstPart.markdown}\n\n${secondPart.markdown}`,
+        knowledgeContext,
+      ),
       settings,
       {
         requiredHeadings: ["## 三、"],
@@ -5648,6 +5654,7 @@ export class ReportsService {
         inputPayload,
         "PART_FOUR",
         `${firstPart.markdown}\n\n${secondPart.markdown}\n\n${thirdPart.markdown}`,
+        knowledgeContext,
       ),
       settings,
       {
@@ -5664,6 +5671,7 @@ export class ReportsService {
         inputPayload,
         "PART_FIVE",
         `${firstPart.markdown}\n\n${secondPart.markdown}\n\n${thirdPart.markdown}\n\n${fourthPart.markdown}`,
+        knowledgeContext,
       ),
       settings,
       {
@@ -6066,6 +6074,30 @@ export class ReportsService {
     );
   }
 
+  private async buildXiaohongshuMarketingPlanKnowledgeContext(
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      settings.brandId || "",
+      settings.knowledgeScope,
+      this.buildPlatformMarketingKnowledgeQuery(inputPayload, "小红书营销策划"),
+      "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完善小红书营销策划方案：",
+    );
+  }
+
+  private async buildDouyinMarketingPlanKnowledgeContext(
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      settings.brandId || "",
+      settings.knowledgeScope,
+      this.buildPlatformMarketingKnowledgeQuery(inputPayload, "抖音营销策划"),
+      "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完善抖音营销策划方案：",
+    );
+  }
+
   private async buildExecutionKnowledgeContext(
     brandId: string,
     scope: ModelGenerationSettings["knowledgeScope"],
@@ -6282,6 +6314,50 @@ export class ReportsService {
       .join("；");
   }
 
+  private buildPlatformMarketingKnowledgeQuery(inputPayload: Record<string, unknown>, scenarioLabel: string) {
+    const inputScope = this.asRecord(inputPayload.inputScope) || {};
+    const brandArchive = this.asRecord(inputScope.brandArchive) || {};
+    const brandBackground = this.asRecord(brandArchive.background) || {};
+    const growthReport = this.asRecord(inputScope.growthReport) || {};
+    const annualPlan = this.asRecord(inputScope.annualPlan) || {};
+    const xhsData = this.asRecord(inputScope.xiaohongshuData) || {};
+    const douyinData = this.asRecord(inputScope.douyinData) || {};
+    const products = Array.isArray(brandArchive.products) ? brandArchive.products : [];
+    const businessAssets = Array.isArray(brandArchive.businessAssets) ? brandArchive.businessAssets : [];
+
+    const brandName = this.readFirstAvailableText(brandBackground, [
+      "brandName",
+      "name",
+      "companyName",
+      "enterpriseName",
+    ]);
+    const reportTitle = this.readFirstAvailableText(growthReport, ["title", "summary"]);
+    const annualPlanTitle = this.readFirstAvailableText(annualPlan, ["title", "summary"]);
+    const platformSummary = this.readFirstAvailableText(xhsData, ["summary", "analysis", "overview"])
+      || this.readFirstAvailableText(douyinData, ["summary", "analysis", "overview"]);
+    const productNames = products
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["productName", "name", "title"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 5);
+    const assetTitles = businessAssets
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["title", "description", "sourceName"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 4);
+
+    return [
+      scenarioLabel,
+      brandName ? `品牌：${brandName}` : "",
+      reportTitle ? `品牌增长报告：${reportTitle}` : "",
+      annualPlanTitle ? `半年营销规划：${annualPlanTitle}` : "",
+      platformSummary ? `平台现状：${this.truncateText(platformSummary, 120)}` : "",
+      productNames.length ? `产品：${productNames.join("、")}` : "",
+      assetTitles.length ? `企业知识库重点资料：${assetTitles.join("；")}` : "",
+      "请召回企业知识库中与品牌定位、核心卖点、产品节奏、内容方向、用户洞察、销售话术、活动策划相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+  }
+
   private readFirstAvailableText(record: Record<string, unknown> | undefined, keys: string[]) {
     for (const key of keys) {
       const value = String(record?.[key] || "").trim();
@@ -6469,7 +6545,8 @@ export class ReportsService {
       "只输出 Markdown 正文，不要输出 JSON，不要输出代码块。",
       "内容需要覆盖策略判断、产品节奏、内容矩阵、资源组合、合规提醒和风险边界。",
     ].join("\n");
-    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildXiaohongshuMarketingPlanKnowledgeContext(settings, inputPayload);
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -6687,7 +6764,8 @@ export class ReportsService {
       "内容至少覆盖平台现状判断、账号矩阵策略、内容方向规划、作品打法拆解、投流与转化建议、组织协同与风险提醒。",
       "如果某些数据不足，必须明确写出“待补充/待验证”，不要编造。",
     ].join("\n");
-    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildDouyinMarketingPlanKnowledgeContext(settings, inputPayload);
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -9430,6 +9508,7 @@ ${normalizedMarkdown}`;
     inputPayload: Record<string, unknown>,
     phase: "PART_ONE" | "PART_TWO" | "PART_THREE" | "PART_FOUR" | "PART_FIVE",
     previousMarkdown?: string,
+    knowledgeContext?: string,
   ) {
     const sectionsText = phase === "PART_ONE"
       ? "请只生成第 1 段：基础说明、账号与对标基础诊断、## 一、定策略（看+定）。"
@@ -9453,6 +9532,7 @@ ${normalizedMarkdown}`;
       "以下是本次生成小红书营销策划方案的输入数据，请围绕这些数据输出结果。",
       "",
       JSON.stringify(inputPayload, null, 2),
+      knowledgeContext || "",
     ].filter(Boolean).join("\n\n");
   }
 
@@ -9679,6 +9759,12 @@ ${normalizedMarkdown}`;
       preferredModelName,
       brandId,
       preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: "xiaohongshu-workbench",
+        skillPackageKey: "xiaohongshu-brand-marketing-plan",
+        skillSlug: "xiaohongshu-brand-marketing-plan",
+        legacyPromptId: "prompt_xhs_plan",
+      },
     };
   }
 
@@ -9707,6 +9793,12 @@ ${normalizedMarkdown}`;
       preferredModelName,
       brandId,
       preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "tongcheng-brand-douyin-planning",
+        skillSlug: "tongcheng-brand-douyin-planning",
+        legacyPromptId: "prompt_douyin_plan",
+      },
     };
   }
 
