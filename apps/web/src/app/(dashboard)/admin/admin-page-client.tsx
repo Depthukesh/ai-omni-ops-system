@@ -1486,23 +1486,11 @@ export default function AdminPage() {
     }));
   }
 
-  async function handleToggleKnowledgeFileDebug(file: KnowledgeBaseFileRecord) {
-    const isExpanded = expandedKnowledgeFileId === file.id;
-    if (isExpanded) {
-      setExpandedKnowledgeFileId("");
-      return;
-    }
-
-    setExpandedKnowledgeFileId(file.id);
-    const currentState = knowledgeFileDebugStateMap[file.id];
-    if (currentState && (currentState.chunks.length || currentState.embeddings.length || currentState.error)) {
-      return;
-    }
-
+  async function loadKnowledgeFileDebug(fileId: string) {
     setKnowledgeFileDebugStateMap((current) => ({
       ...current,
-      [file.id]: {
-        ...(current[file.id] || buildKnowledgeFileDebugState()),
+      [fileId]: {
+        ...(current[fileId] || buildKnowledgeFileDebugState()),
         isLoading: true,
         error: "",
       },
@@ -1510,12 +1498,12 @@ export default function AdminPage() {
 
     try {
       const [chunks, embeddings] = await Promise.all([
-        getKnowledgeBaseFileChunks(file.id),
-        getKnowledgeBaseFileEmbeddings(file.id),
+        getKnowledgeBaseFileChunks(fileId),
+        getKnowledgeBaseFileEmbeddings(fileId),
       ]);
       setKnowledgeFileDebugStateMap((current) => ({
         ...current,
-        [file.id]: {
+        [fileId]: {
           chunks,
           embeddings,
           isLoading: false,
@@ -1532,13 +1520,29 @@ export default function AdminPage() {
             : "读取分片与 embedding 失败";
       setKnowledgeFileDebugStateMap((current) => ({
         ...current,
-        [file.id]: {
-          ...(current[file.id] || buildKnowledgeFileDebugState()),
+        [fileId]: {
+          ...(current[fileId] || buildKnowledgeFileDebugState()),
           isLoading: false,
           error: message,
         },
       }));
     }
+  }
+
+  async function handleToggleKnowledgeFileDebug(file: KnowledgeBaseFileRecord) {
+    const isExpanded = expandedKnowledgeFileId === file.id;
+    if (isExpanded) {
+      setExpandedKnowledgeFileId("");
+      return;
+    }
+
+    setExpandedKnowledgeFileId(file.id);
+    const currentState = knowledgeFileDebugStateMap[file.id];
+    if (currentState && (currentState.chunks.length || currentState.embeddings.length || currentState.error)) {
+      return;
+    }
+
+    await loadKnowledgeFileDebug(file.id);
   }
 
   async function handleRunKnowledgeRetrievalTest(knowledgeBaseId: string) {
@@ -1929,6 +1933,9 @@ export default function AdminPage() {
       const result = await syncKnowledgeBaseFile(fileId);
       applyKnowledgeBaseFileMutation(result, "update");
       applyKnowledgeBaseSyncRun(result);
+      if (expandedKnowledgeFileId === result.file.id || knowledgeFileDebugStateMap[result.file.id]) {
+        await loadKnowledgeFileDebug(result.file.id);
+      }
       setNotice(`知识库文件同步已完成：${result.file.fileName}，当前分片 ${result.file.chunkCount}`);
     } catch (error) {
       if (dataSource === "seed") {
