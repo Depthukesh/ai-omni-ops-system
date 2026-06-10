@@ -22,6 +22,12 @@ export class KnowledgeBaseFilesController {
     return this.knowledgeBasesService.listKnowledgeBaseSyncRuns();
   }
 
+  @Get("invocation-runs")
+  async listAllInvocationRuns(@Headers() headers: Record<string, string | string[] | undefined>) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.knowledgeBasesService.listKnowledgeInvocationRuns();
+  }
+
   @Get(":id/chunks")
   async listKnowledgeBaseFileChunks(
     @Param("id") id: string,

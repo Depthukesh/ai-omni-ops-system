@@ -149,6 +149,25 @@ export type KnowledgeBaseSyncRunRecord = {
   completedAt?: string;
 };
 
+export type KnowledgeInvocationRecord = {
+  id: string;
+  brandId?: string;
+  sourceModule: "REPORTS" | "WORKS";
+  sceneLabel: string;
+  moduleTargetId?: string;
+  skillPackageKey?: string;
+  skillSlug?: string;
+  knowledgeBaseIds: string[];
+  knowledgeBaseNames: string[];
+  matchedKnowledgeBaseIds: string[];
+  matchedKnowledgeBaseNames: string[];
+  retrievalQuery?: string;
+  hitCount: number;
+  status: "UNBOUND" | "NO_HIT" | "HIT" | "FAILED";
+  summary: string;
+  createdAt: string;
+};
+
 export type KnowledgeBindingRecord = {
   id: string;
   knowledgeBaseId: string;
@@ -1440,6 +1459,8 @@ export const knowledgeBaseSyncRunSeed: KnowledgeBaseSyncRunRecord[] = [
     startedAt: "2026-05-02T10:40:00.000Z",
   },
 ];
+
+export const knowledgeInvocationSeed: KnowledgeInvocationRecord[] = [];
 
 export const knowledgeBindingSeed: KnowledgeBindingRecord[] = [
   {
@@ -2767,6 +2788,10 @@ export async function getKnowledgeBaseFiles() {
 
 export async function getKnowledgeBaseSyncRuns() {
   return request<KnowledgeBaseSyncRunRecord[]>("/admin/knowledge-base-files/sync-runs");
+}
+
+export async function getKnowledgeInvocationRuns() {
+  return request<KnowledgeInvocationRecord[]>("/admin/knowledge-base-files/invocation-runs");
 }
 
 export async function createKnowledgeBaseFile(

@@ -120,6 +120,42 @@ export type KnowledgeRetrievalTestResult = {
   hits: KnowledgeRetrievalTestHit[];
 };
 
+export type KnowledgeInvocationRecord = {
+  id: string;
+  brandId?: string;
+  sourceModule: "REPORTS" | "WORKS";
+  sceneLabel: string;
+  moduleTargetId?: string;
+  skillPackageKey?: string;
+  skillSlug?: string;
+  knowledgeBaseIds: string[];
+  knowledgeBaseNames: string[];
+  matchedKnowledgeBaseIds: string[];
+  matchedKnowledgeBaseNames: string[];
+  retrievalQuery?: string;
+  hitCount: number;
+  status: "UNBOUND" | "NO_HIT" | "HIT" | "FAILED";
+  summary: string;
+  createdAt: string;
+};
+
+export type RecordKnowledgeInvocationPayload = {
+  brandId?: string;
+  sourceModule: KnowledgeInvocationRecord["sourceModule"];
+  sceneLabel: string;
+  moduleTargetId?: string;
+  skillPackageKey?: string;
+  skillSlug?: string;
+  knowledgeBaseIds?: string[];
+  knowledgeBaseNames?: string[];
+  matchedKnowledgeBaseIds?: string[];
+  matchedKnowledgeBaseNames?: string[];
+  retrievalQuery?: string;
+  hitCount?: number;
+  status: KnowledgeInvocationRecord["status"];
+  summary: string;
+};
+
 export type CreateKnowledgeBindingPayload = {
   knowledgeBaseId: string;
   bindingType: KnowledgeBindingRecord["bindingType"];
@@ -200,11 +236,31 @@ type EmbeddingProviderConfig = {
   timeoutMs: number;
 };
 
+type KnowledgeInvocationRow = {
+  id: string;
+  brandId: string | null;
+  sourceModule: string;
+  sceneLabel: string;
+  moduleTargetId: string | null;
+  skillPackageKey: string | null;
+  skillSlug: string | null;
+  knowledgeBaseIdsJson: Prisma.JsonValue;
+  knowledgeBaseNamesJson: Prisma.JsonValue;
+  matchedKnowledgeBaseIdsJson: Prisma.JsonValue;
+  matchedKnowledgeBaseNamesJson: Prisma.JsonValue;
+  retrievalQuery: string | null;
+  hitCount: number;
+  status: string;
+  summary: string;
+  createdAt: Date;
+};
+
 @Injectable()
 export class KnowledgeBasesService {
   private bootstrapPromise?: Promise<void>;
   private bindingBootstrapPromise?: Promise<void>;
   private retrievalConfigBootstrapPromise?: Promise<void>;
+  private invocationBootstrapPromise?: Promise<void>;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -324,6 +380,16 @@ export class KnowledgeBasesService {
       : database.knowledgeBaseSyncRuns;
 
     return [...list].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  private listKnowledgeInvocationRunsFromMock(knowledgeBaseId?: string) {
+    const list = knowledgeBaseId
+      ? database.knowledgeInvocationRuns.filter(
+          (item) => item.knowledgeBaseIds.includes(knowledgeBaseId) || item.matchedKnowledgeBaseIds.includes(knowledgeBaseId),
+        )
+      : database.knowledgeInvocationRuns;
+
+    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   private listKnowledgeBindingsFromMock(query: KnowledgeBindingQuery = {}) {
@@ -473,6 +539,27 @@ export class KnowledgeBasesService {
     };
   }
 
+  private normalizeKnowledgeInvocation(row: KnowledgeInvocationRow): KnowledgeInvocationRecord {
+    return {
+      id: row.id,
+      brandId: row.brandId ?? undefined,
+      sourceModule: row.sourceModule as KnowledgeInvocationRecord["sourceModule"],
+      sceneLabel: row.sceneLabel,
+      moduleTargetId: row.moduleTargetId ?? undefined,
+      skillPackageKey: row.skillPackageKey ?? undefined,
+      skillSlug: row.skillSlug ?? undefined,
+      knowledgeBaseIds: this.normalizeStringList(row.knowledgeBaseIdsJson),
+      knowledgeBaseNames: this.normalizeStringList(row.knowledgeBaseNamesJson),
+      matchedKnowledgeBaseIds: this.normalizeStringList(row.matchedKnowledgeBaseIdsJson),
+      matchedKnowledgeBaseNames: this.normalizeStringList(row.matchedKnowledgeBaseNamesJson),
+      retrievalQuery: row.retrievalQuery ?? undefined,
+      hitCount: Number(row.hitCount || 0),
+      status: row.status as KnowledgeInvocationRecord["status"],
+      summary: row.summary,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
   private normalizeKnowledgeBinding(
     row: KnowledgeBinding & {
       knowledgeBase?: KnowledgeBase | null;
@@ -512,6 +599,23 @@ export class KnowledgeBasesService {
     };
   }
 
+  private normalizeStringList(value: Prisma.JsonValue | undefined) {
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (Array.isArray(parsed)) {
+          return Array.from(new Set(parsed.map((item) => String(item || "").trim()).filter(Boolean)));
+        }
+      } catch {
+        return [];
+      }
+    }
+    if (Array.isArray(value)) {
+      return Array.from(new Set(value.map((item) => String(item || "").trim()).filter(Boolean)));
+    }
+    return [];
+  }
+
   private enrichMockKnowledgeBinding(row: KnowledgeBindingRecord): KnowledgeBindingView {
     const knowledgeBase = database.knowledgeBases.find((item) => item.id === row.knowledgeBaseId);
     return {
@@ -539,7 +643,7 @@ export class KnowledgeBasesService {
     };
   }
 
-  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc" | "kbc" | "kbe") {
+  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc" | "kbc" | "kbe" | "kbir") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -621,6 +725,14 @@ export class KnowledgeBasesService {
     await this.retrievalConfigBootstrapPromise;
   }
 
+  private async ensureKnowledgeInvocationStorageSeeded() {
+    if (!this.invocationBootstrapPromise) {
+      this.invocationBootstrapPromise = this.bootstrapKnowledgeInvocationStorage();
+    }
+
+    await this.invocationBootstrapPromise;
+  }
+
   private async bootstrapKnowledgeBaseStorage() {
     if (!(await this.canUseKnowledgeBaseStorage())) {
       return;
@@ -685,6 +797,36 @@ export class KnowledgeBasesService {
         skipDuplicates: true,
       });
     }
+  }
+
+  private async bootstrapKnowledgeInvocationStorage() {
+    if (!(await this.canUseKnowledgeBaseStorage())) {
+      return;
+    }
+
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "KnowledgeInvocationRun" (
+        "id" TEXT PRIMARY KEY,
+        "brandId" TEXT NULL,
+        "sourceModule" TEXT NOT NULL,
+        "sceneLabel" TEXT NOT NULL,
+        "moduleTargetId" TEXT NULL,
+        "skillPackageKey" TEXT NULL,
+        "skillSlug" TEXT NULL,
+        "knowledgeBaseIdsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "knowledgeBaseNamesJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "matchedKnowledgeBaseIdsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "matchedKnowledgeBaseNamesJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "retrievalQuery" TEXT NULL,
+        "hitCount" INTEGER NOT NULL DEFAULT 0,
+        "status" TEXT NOT NULL,
+        "summary" TEXT NOT NULL,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "KnowledgeInvocationRun_createdAt_idx" ON "KnowledgeInvocationRun" ("createdAt")`,
+    );
   }
 
   private async bootstrapKnowledgeBindingStorage() {
@@ -1708,6 +1850,126 @@ export class KnowledgeBasesService {
     }
 
     return this.listKnowledgeBaseSyncRunsFromMock(knowledgeBaseId);
+  }
+
+  async listKnowledgeInvocationRuns(knowledgeBaseId?: string): Promise<KnowledgeInvocationRecord[]> {
+    if (await this.canUseKnowledgeBaseStorage()) {
+      await this.ensureKnowledgeBaseStorageSeeded();
+      await this.ensureKnowledgeInvocationStorageSeeded();
+      const rows = await this.prismaService.$queryRawUnsafe<KnowledgeInvocationRow[]>(
+        `SELECT "id",
+                "brandId",
+                "sourceModule",
+                "sceneLabel",
+                "moduleTargetId",
+                "skillPackageKey",
+                "skillSlug",
+                "knowledgeBaseIdsJson",
+                "knowledgeBaseNamesJson",
+                "matchedKnowledgeBaseIdsJson",
+                "matchedKnowledgeBaseNamesJson",
+                "retrievalQuery",
+                "hitCount",
+                "status",
+                "summary",
+                "createdAt"
+           FROM "KnowledgeInvocationRun"
+          ORDER BY "createdAt" DESC
+          LIMIT 200`,
+      );
+      const normalized = rows.map((item) => this.normalizeKnowledgeInvocation(item));
+      if (!knowledgeBaseId) {
+        return normalized;
+      }
+      return normalized.filter(
+        (item) => item.knowledgeBaseIds.includes(knowledgeBaseId) || item.matchedKnowledgeBaseIds.includes(knowledgeBaseId),
+      );
+    }
+
+    return this.listKnowledgeInvocationRunsFromMock(knowledgeBaseId);
+  }
+
+  async recordKnowledgeInvocation(payload: RecordKnowledgeInvocationPayload): Promise<KnowledgeInvocationRecord | null> {
+    const sceneLabel = String(payload.sceneLabel || "").trim();
+    const summary = String(payload.summary || "").trim();
+    if (!sceneLabel || !summary) {
+      return null;
+    }
+
+    const record: KnowledgeInvocationRecord = {
+      id: this.createId("kbir"),
+      brandId: String(payload.brandId || "").trim() || undefined,
+      sourceModule: payload.sourceModule,
+      sceneLabel,
+      moduleTargetId: String(payload.moduleTargetId || "").trim() || undefined,
+      skillPackageKey: String(payload.skillPackageKey || "").trim() || undefined,
+      skillSlug: String(payload.skillSlug || "").trim() || undefined,
+      knowledgeBaseIds: Array.from(new Set((payload.knowledgeBaseIds || []).map((item) => String(item || "").trim()).filter(Boolean))),
+      knowledgeBaseNames: Array.from(new Set((payload.knowledgeBaseNames || []).map((item) => String(item || "").trim()).filter(Boolean))),
+      matchedKnowledgeBaseIds: Array.from(
+        new Set((payload.matchedKnowledgeBaseIds || []).map((item) => String(item || "").trim()).filter(Boolean)),
+      ),
+      matchedKnowledgeBaseNames: Array.from(
+        new Set((payload.matchedKnowledgeBaseNames || []).map((item) => String(item || "").trim()).filter(Boolean)),
+      ),
+      retrievalQuery: String(payload.retrievalQuery || "").trim() || undefined,
+      hitCount: Math.max(0, Number(payload.hitCount || 0)),
+      status: payload.status,
+      summary,
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      if (await this.canUseKnowledgeBaseStorage()) {
+        await this.ensureKnowledgeBaseStorageSeeded();
+        await this.ensureKnowledgeInvocationStorageSeeded();
+        await this.prismaService.$executeRawUnsafe(
+          `INSERT INTO "KnowledgeInvocationRun" (
+            "id",
+            "brandId",
+            "sourceModule",
+            "sceneLabel",
+            "moduleTargetId",
+            "skillPackageKey",
+            "skillSlug",
+            "knowledgeBaseIdsJson",
+            "knowledgeBaseNamesJson",
+            "matchedKnowledgeBaseIdsJson",
+            "matchedKnowledgeBaseNamesJson",
+            "retrievalQuery",
+            "hitCount",
+            "status",
+            "summary",
+            "createdAt"
+          ) VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13,$14,$15,$16
+          )`,
+          record.id,
+          record.brandId ?? null,
+          record.sourceModule,
+          record.sceneLabel,
+          record.moduleTargetId ?? null,
+          record.skillPackageKey ?? null,
+          record.skillSlug ?? null,
+          JSON.stringify(record.knowledgeBaseIds),
+          JSON.stringify(record.knowledgeBaseNames),
+          JSON.stringify(record.matchedKnowledgeBaseIds),
+          JSON.stringify(record.matchedKnowledgeBaseNames),
+          record.retrievalQuery ?? null,
+          record.hitCount,
+          record.status,
+          record.summary,
+          new Date(record.createdAt),
+        );
+        return record;
+      }
+
+      database.knowledgeInvocationRuns.unshift(record);
+      database.knowledgeInvocationRuns = database.knowledgeInvocationRuns.slice(0, 200);
+      return record;
+    } catch {
+      return null;
+    }
   }
 
   async listKnowledgeBindings(query: KnowledgeBindingQuery = {}): Promise<KnowledgeBindingView[]> {

@@ -2834,6 +2834,7 @@ export class WorksService {
         skillSlug: params.skillSlug,
         legacyPromptId: params.promptId,
       },
+      sceneLabel: `${params.designType || moduleLabel}设计`,
       retrievalQuery,
       leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到${params.designType || moduleLabel}设计中：`,
       hitMaxLength: 150,
@@ -10001,6 +10002,7 @@ export class WorksService {
         skillSlug: "wechat-article-composer",
         legacyPromptId: "prompt_wechat_article_compose",
       },
+      sceneLabel: "公众号文章生成",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号文章创作：",
     });
@@ -10043,6 +10045,7 @@ export class WorksService {
         skillSlug: "wechat-html-renderer",
         legacyPromptId: "prompt_wechat_html_render",
       },
+      sceneLabel: "公众号 HTML 渲染",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号 HTML 渲染：",
     });
@@ -10092,6 +10095,7 @@ export class WorksService {
         skillSlug: params.kind === "cover" ? "wechat-cover-image-designer" : "wechat-body-image-designer",
         legacyPromptId: params.kind === "cover" ? "prompt_wechat_cover_image_compose" : "prompt_wechat_body_image_compose",
       },
+      sceneLabel: params.kind === "cover" ? "公众号封面图生成" : "公众号正文配图生成",
       retrievalQuery,
       leadText: params.kind === "cover"
         ? "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到公众号封面图创作中："
@@ -10152,6 +10156,7 @@ export class WorksService {
         skillSlug: "original_copy",
         legacyPromptId: "prompt_xhs_original_copy",
       },
+      sceneLabel: "小红书原创文案",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书原创文案创作：",
     });
@@ -10200,6 +10205,7 @@ export class WorksService {
         skillSlug: "xhs-original-image-prompt",
         legacyPromptId: "prompt_xhs_original_note",
       },
+      sceneLabel: "小红书原创配图提示词",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到小红书原创配图提示词中：",
       hitMaxLength: 140,
@@ -10254,6 +10260,7 @@ export class WorksService {
         skillSlug: "rewrite_copy",
         legacyPromptId: "prompt_xhs_rewrite_copy",
       },
+      sceneLabel: "小红书二创文案",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书二创文案创作：",
     });
@@ -10305,6 +10312,7 @@ export class WorksService {
         skillSlug: "rewrite_image",
         legacyPromptId: "prompt_xhs_rewrite_note",
       },
+      sceneLabel: "小红书二创配图提示词",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到小红书二创配图提示词中：",
       hitMaxLength: 140,
@@ -10381,6 +10389,7 @@ export class WorksService {
     }
     return this.buildWorksScopedKnowledgeContext({
       scope: this.resolveWorksVideoKnowledgeScope(params.workKind, params.promptId),
+      sceneLabel: params.stageLabel,
       retrievalQuery,
       leadText: params.leadText,
       hitMaxLength: 150,
@@ -10417,6 +10426,7 @@ export class WorksService {
         skillSlug: "douyin-digital-human-script-studio",
         legacyPromptId: "prompt_douyin_digital_human_script",
       },
+      sceneLabel: "抖音数字人口播脚本",
       retrievalQuery,
       leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到抖音数字人口播脚本中：",
       hitMaxLength: 150,
@@ -10431,6 +10441,7 @@ export class WorksService {
       legacyPromptId?: string;
       workflowStepId?: string;
     };
+    sceneLabel: string;
     retrievalQuery: string;
     leadText: string;
     hitMaxLength?: number;
@@ -10438,10 +10449,23 @@ export class WorksService {
     try {
       const bindings = await this.resolveWorksKnowledgeBindings(params.scope);
       if (!bindings.length) {
+        await this.knowledgeBasesService.recordKnowledgeInvocation({
+          sourceModule: "WORKS",
+          sceneLabel: params.sceneLabel,
+          moduleTargetId: params.scope.moduleTargetId,
+          skillPackageKey: params.scope.skillPackageKey,
+          skillSlug: params.scope.skillSlug,
+          retrievalQuery: params.retrievalQuery,
+          status: "UNBOUND",
+          summary: "未找到启用中的知识库绑定，本次按原始提示词执行。",
+        });
         return "";
       }
 
       const sections: string[] = [];
+      const matchedKnowledgeBaseIds: string[] = [];
+      const matchedKnowledgeBaseNames: string[] = [];
+      let hitCount = 0;
       for (const binding of bindings) {
         const retrieval = await this.knowledgeBasesService.runKnowledgeRetrievalTest(binding.knowledgeBaseId, {
           query: params.retrievalQuery,
@@ -10460,11 +10484,42 @@ export class WorksService {
             hitLines,
           ].join("\n"),
         );
+        matchedKnowledgeBaseIds.push(binding.knowledgeBaseId);
+        matchedKnowledgeBaseNames.push(binding.knowledgeBaseName || binding.targetName || binding.knowledgeBaseId);
+        hitCount += retrieval.hits.length;
       }
 
       if (!sections.length) {
+        await this.knowledgeBasesService.recordKnowledgeInvocation({
+          sourceModule: "WORKS",
+          sceneLabel: params.sceneLabel,
+          moduleTargetId: params.scope.moduleTargetId,
+          skillPackageKey: params.scope.skillPackageKey,
+          skillSlug: params.scope.skillSlug,
+          knowledgeBaseIds: bindings.map((item) => item.knowledgeBaseId),
+          knowledgeBaseNames: bindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
+          retrievalQuery: params.retrievalQuery,
+          status: "NO_HIT",
+          summary: `已检查 ${bindings.length} 个绑定知识库，但没有召回可用内容。`,
+        });
         return "";
       }
+
+      await this.knowledgeBasesService.recordKnowledgeInvocation({
+        sourceModule: "WORKS",
+        sceneLabel: params.sceneLabel,
+        moduleTargetId: params.scope.moduleTargetId,
+        skillPackageKey: params.scope.skillPackageKey,
+        skillSlug: params.scope.skillSlug,
+        knowledgeBaseIds: bindings.map((item) => item.knowledgeBaseId),
+        knowledgeBaseNames: bindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
+        matchedKnowledgeBaseIds,
+        matchedKnowledgeBaseNames,
+        retrievalQuery: params.retrievalQuery,
+        hitCount,
+        status: "HIT",
+        summary: `已命中 ${matchedKnowledgeBaseNames.length} 个知识库来源，累计召回 ${hitCount} 条片段。`,
+      });
 
       return [
         "",
@@ -10473,6 +10528,16 @@ export class WorksService {
         sections.join("\n\n"),
       ].join("\n");
     } catch {
+      await this.knowledgeBasesService.recordKnowledgeInvocation({
+        sourceModule: "WORKS",
+        sceneLabel: params.sceneLabel,
+        moduleTargetId: params.scope.moduleTargetId,
+        skillPackageKey: params.scope.skillPackageKey,
+        skillSlug: params.scope.skillSlug,
+        retrievalQuery: params.retrievalQuery,
+        status: "FAILED",
+        summary: "知识库调用记录写入了失败状态，本次自动降级为普通生成。",
+      });
       return "";
     }
   }

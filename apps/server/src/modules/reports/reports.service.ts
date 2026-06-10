@@ -6059,6 +6059,7 @@ export class ReportsService {
       settings.knowledgeScope,
       this.buildGrowthReportKnowledgeQuery(inputPayload),
       "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请优先参考这些内容：",
+      "品牌增长报告",
     );
   }
 
@@ -6071,6 +6072,7 @@ export class ReportsService {
       settings.knowledgeScope,
       this.buildAnnualMarketingPlanKnowledgeQuery(inputPayload),
       "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请结合这些内容完善半年营销规划：",
+      "半年营销规划",
     );
   }
 
@@ -6083,6 +6085,7 @@ export class ReportsService {
       settings.knowledgeScope,
       this.buildPlatformMarketingKnowledgeQuery(inputPayload, "小红书营销策划"),
       "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完善小红书营销策划方案：",
+      "小红书营销策划方案",
     );
   }
 
@@ -6095,6 +6098,7 @@ export class ReportsService {
       settings.knowledgeScope,
       this.buildPlatformMarketingKnowledgeQuery(inputPayload, "抖音营销策划"),
       "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完善抖音营销策划方案：",
+      "抖音营销策划方案",
     );
   }
 
@@ -6107,6 +6111,7 @@ export class ReportsService {
       settings.knowledgeScope,
       this.buildPlatformMarketingKnowledgeQuery(inputPayload, "抖音热点找选题"),
       "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容一起作为抖音热点选题判断依据：",
+      "抖音热点找选题",
     );
   }
 
@@ -6115,6 +6120,7 @@ export class ReportsService {
     scope: ModelGenerationSettings["knowledgeScope"],
     retrievalQuery: string,
     leadText: string,
+    sceneLabel: string,
   ) {
     if (!retrievalQuery) {
       return "";
@@ -6123,23 +6129,81 @@ export class ReportsService {
     try {
       const activeBindings = await this.resolveExecutionKnowledgeBindings(scope);
       if (!activeBindings.length) {
+        await this.knowledgeBasesService.recordKnowledgeInvocation({
+          brandId,
+          sourceModule: "REPORTS",
+          sceneLabel,
+          moduleTargetId: scope?.moduleTargetId,
+          skillPackageKey: scope?.skillPackageKey,
+          skillSlug: scope?.skillSlug,
+          retrievalQuery,
+          status: "UNBOUND",
+          summary: "未找到启用中的知识库绑定，本次按原始提示词执行。",
+        });
         return "";
       }
 
       const sections: string[] = [];
+      const matchedKnowledgeBaseIds: string[] = [];
+      const matchedKnowledgeBaseNames: string[] = [];
+      let hitCount = 0;
       for (const binding of activeBindings) {
         const section = await this.buildGrowthReportKnowledgeSection(brandId, binding, retrievalQuery);
         if (section) {
           sections.push(section);
+          matchedKnowledgeBaseIds.push(binding.knowledgeBaseId);
+          matchedKnowledgeBaseNames.push(binding.knowledgeBaseName || binding.targetName || binding.knowledgeBaseId);
+          hitCount += 1;
         }
       }
 
       if (!sections.length) {
+        await this.knowledgeBasesService.recordKnowledgeInvocation({
+          brandId,
+          sourceModule: "REPORTS",
+          sceneLabel,
+          moduleTargetId: scope?.moduleTargetId,
+          skillPackageKey: scope?.skillPackageKey,
+          skillSlug: scope?.skillSlug,
+          knowledgeBaseIds: activeBindings.map((item) => item.knowledgeBaseId),
+          knowledgeBaseNames: activeBindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
+          retrievalQuery,
+          status: "NO_HIT",
+          summary: `已检查 ${activeBindings.length} 个绑定知识库，但没有召回可用内容。`,
+        });
         return "";
       }
 
+      await this.knowledgeBasesService.recordKnowledgeInvocation({
+        brandId,
+        sourceModule: "REPORTS",
+        sceneLabel,
+        moduleTargetId: scope?.moduleTargetId,
+        skillPackageKey: scope?.skillPackageKey,
+        skillSlug: scope?.skillSlug,
+        knowledgeBaseIds: activeBindings.map((item) => item.knowledgeBaseId),
+        knowledgeBaseNames: activeBindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
+        matchedKnowledgeBaseIds,
+        matchedKnowledgeBaseNames,
+        retrievalQuery,
+        hitCount,
+        status: "HIT",
+        summary: `已命中 ${matchedKnowledgeBaseNames.length} 个知识库来源，汇总 ${sections.length} 组补充上下文。`,
+      });
+
       return ["", leadText, "", sections.join("\n\n")].join("\n");
     } catch {
+      await this.knowledgeBasesService.recordKnowledgeInvocation({
+        brandId,
+        sourceModule: "REPORTS",
+        sceneLabel,
+        moduleTargetId: scope?.moduleTargetId,
+        skillPackageKey: scope?.skillPackageKey,
+        skillSlug: scope?.skillSlug,
+        retrievalQuery,
+        status: "FAILED",
+        summary: "知识库调用记录写入了失败状态，本次自动降级为普通生成。",
+      });
       return "";
     }
   }

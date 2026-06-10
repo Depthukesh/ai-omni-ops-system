@@ -34,6 +34,7 @@ import {
   getKnowledgeBaseFileChunks,
   getKnowledgeBaseFileEmbeddings,
   getKnowledgeBaseFiles,
+  getKnowledgeInvocationRuns,
   getKnowledgeRetrievalConfigs,
   getKnowledgeBaseSyncRuns,
   getModuleDefinitions,
@@ -54,6 +55,7 @@ import {
   knowledgeRetrievalConfigSeed,
   knowledgeBaseSyncRunSeed,
   knowledgeBaseSeed,
+  knowledgeInvocationSeed,
   moduleDefinitionSeed,
   modelUsageSeed,
   promptTemplateSeed,
@@ -88,6 +90,7 @@ import {
   type KnowledgeBaseRunMutationResult,
   type KnowledgeRetrievalTestResultRecord,
   type KnowledgeBaseSyncRunRecord,
+  type KnowledgeInvocationRecord,
   type MembershipLevel,
   type MembershipPlanRule,
   type ModelUsageRecord,
@@ -117,7 +120,7 @@ import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
 type AdminSystemRole = "SUPER_ADMIN" | "ADMIN_OPERATOR" | "FINANCE_OPERATOR" | "SUPPORT_OPERATOR";
-type KnowledgeWorkspaceSection = "overview" | "files" | "retrieval" | "bindings" | "history";
+type KnowledgeWorkspaceSection = "overview" | "files" | "retrieval" | "bindings" | "history" | "calls";
 type SkillEditDraft = {
   status: SkillConfigRecord["status"];
   defaultModel: string;
@@ -418,6 +421,29 @@ function getKnowledgeRunResultLabel(result: KnowledgeBaseSyncRunRecord["result"]
   return "进行中";
 }
 
+function getKnowledgeInvocationStatusLabel(status: KnowledgeInvocationRecord["status"]) {
+  if (status === "HIT") {
+    return "已命中";
+  }
+  if (status === "NO_HIT") {
+    return "未命中";
+  }
+  if (status === "FAILED") {
+    return "调用失败";
+  }
+  return "未绑定";
+}
+
+function getKnowledgeInvocationStatusClass(status: KnowledgeInvocationRecord["status"]) {
+  if (status === "HIT") {
+    return "status-ready";
+  }
+  if (status === "FAILED") {
+    return "status-paused";
+  }
+  return "status-in_progress";
+}
+
 function getKnowledgeBindingTypeLabel(bindingType: KnowledgeBindingRecord["bindingType"]) {
   if (bindingType === "SKILL") {
     return "技能";
@@ -575,6 +601,7 @@ export default function AdminPage() {
   const [knowledgeRetrievalConfigs, setKnowledgeRetrievalConfigs] =
     useState<KnowledgeRetrievalConfigRecord[]>(knowledgeRetrievalConfigSeed);
   const [knowledgeBaseSyncRuns, setKnowledgeBaseSyncRuns] = useState<KnowledgeBaseSyncRunRecord[]>(knowledgeBaseSyncRunSeed);
+  const [knowledgeInvocationRuns, setKnowledgeInvocationRuns] = useState<KnowledgeInvocationRecord[]>(knowledgeInvocationSeed);
   const [knowledgeBaseSyncRunDrafts, setKnowledgeBaseSyncRunDrafts] = useState<Record<string, SyncRunEditDraft>>(
     buildSyncRunDrafts(knowledgeBaseSyncRunSeed),
   );
@@ -738,6 +765,7 @@ export default function AdminPage() {
       knowledgeBindingsResult,
       knowledgeRetrievalConfigsResult,
       knowledgeBaseSyncRunsResult,
+      knowledgeInvocationRunsResult,
       providerResult,
       thirdPartyPlatformResult,
     ] =
@@ -758,6 +786,7 @@ export default function AdminPage() {
       canReadKnowledge ? getKnowledgeBindings() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeRetrievalConfigs() : Promise.resolve([]),
       canReadKnowledge ? getKnowledgeBaseSyncRuns() : Promise.resolve([]),
+      canReadKnowledge ? getKnowledgeInvocationRuns() : Promise.resolve([]),
       canReadProviders ? getApiProviders() : Promise.resolve([]),
       canReadProviders ? getThirdPartyPlatforms() : Promise.resolve([]),
     ]);
@@ -918,6 +947,18 @@ export default function AdminPage() {
       knowledgeErrors.push(
         `知识同步记录接口失败：${
           knowledgeBaseSyncRunsResult.reason instanceof Error ? knowledgeBaseSyncRunsResult.reason.message : "未知错误"
+        }`,
+      );
+    }
+
+    if (knowledgeInvocationRunsResult.status === "fulfilled") {
+      setKnowledgeInvocationRuns(knowledgeInvocationRunsResult.value);
+    } else {
+      setKnowledgeInvocationRuns([]);
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识库调用记录接口失败：${
+          knowledgeInvocationRunsResult.reason instanceof Error ? knowledgeInvocationRunsResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -3173,6 +3214,7 @@ export default function AdminPage() {
     { id: "retrieval", label: "检索配置", description: "维护 TopK、召回和重排。" },
     { id: "bindings", label: "接入对象", description: "绑定模块、能力包和技能。" },
     { id: "history", label: "同步记录", description: "回看最近同步状态和摘要。" },
+    { id: "calls", label: "调用记录", description: "确认技能是否真的调用了知识库。" },
   ];
   const selectedKnowledgeBaseDraft = selectedKnowledgeBase
     ? knowledgeBaseDrafts[selectedKnowledgeBase.id] || buildKnowledgeBaseDraft(selectedKnowledgeBase)
@@ -3297,6 +3339,12 @@ export default function AdminPage() {
     : [];
   const selectedKnowledgeSyncRuns = selectedKnowledgeBase
     ? knowledgeBaseSyncRuns.filter((run) => run.knowledgeBaseId === selectedKnowledgeBase.id)
+    : [];
+  const selectedKnowledgeInvocationRuns = selectedKnowledgeBase
+    ? knowledgeInvocationRuns.filter(
+        (item) =>
+          item.knowledgeBaseIds.includes(selectedKnowledgeBase.id) || item.matchedKnowledgeBaseIds.includes(selectedKnowledgeBase.id),
+      )
     : [];
   const selectedKnowledgeLatestSyncRun = selectedKnowledgeSyncRuns[0];
   const selectedKnowledgeHasRunningSyncRun = selectedKnowledgeSyncRuns.some((run) => run.result === "RUNNING");
@@ -6667,6 +6715,65 @@ export default function AdminPage() {
                         ))
                       ) : (
                         <p className="personal-meta">暂无同步记录。</p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {knowledgeWorkspaceSection === "calls" ? (
+                    <div className="admin-rules-stack">
+                      {selectedKnowledgeInvocationRuns.length ? (
+                        selectedKnowledgeInvocationRuns.slice(0, 12).map((item) => (
+                          <article className="entity-card admin-rule-card" key={item.id}>
+                            <div className="entity-card-head">
+                              <div>
+                                <strong>{item.sceneLabel}</strong>
+                                <p className="personal-meta">{item.summary}</p>
+                              </div>
+                              <span className={`archive-pill ${getKnowledgeInvocationStatusClass(item.status)}`}>
+                                {getKnowledgeInvocationStatusLabel(item.status)}
+                              </span>
+                            </div>
+                            <div className="personal-grid">
+                              <div>
+                                <span>调用时间</span>
+                                <strong>{formatDateTime(item.createdAt)}</strong>
+                              </div>
+                              <div>
+                                <span>来源模块</span>
+                                <strong>{item.sourceModule === "REPORTS" ? "报告链路" : "作品链路"}</strong>
+                              </div>
+                              <div>
+                                <span>命中片段</span>
+                                <strong>{item.hitCount}</strong>
+                              </div>
+                            </div>
+                            <div className="personal-grid">
+                              <div>
+                                <span>模块</span>
+                                <strong>{item.moduleTargetId || "未记录"}</strong>
+                              </div>
+                              <div>
+                                <span>能力包</span>
+                                <strong>{item.skillPackageKey || "未记录"}</strong>
+                              </div>
+                              <div>
+                                <span>技能</span>
+                                <strong>{item.skillSlug || "未记录"}</strong>
+                              </div>
+                            </div>
+                            <p className="personal-meta">
+                              绑定知识库：
+                              {item.knowledgeBaseNames.length ? item.knowledgeBaseNames.join(" / ") : "未绑定"}
+                            </p>
+                            <p className="personal-meta">
+                              命中来源：
+                              {item.matchedKnowledgeBaseNames.length ? item.matchedKnowledgeBaseNames.join(" / ") : "本次未命中"}
+                            </p>
+                            {item.retrievalQuery ? <p className="personal-meta">检索摘要：{item.retrievalQuery}</p> : null}
+                          </article>
+                        ))
+                      ) : (
+                        <p className="personal-meta">暂无调用记录。先去触发一次技能生成，再回来查看是否命中知识库。</p>
                       )}
                     </div>
                   ) : null}

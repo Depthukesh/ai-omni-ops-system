@@ -227,6 +227,25 @@ export type KnowledgeBaseSyncRunRecord = {
   completedAt?: string;
 };
 
+export type KnowledgeInvocationRecord = {
+  id: string;
+  brandId?: string;
+  sourceModule: "REPORTS" | "WORKS";
+  sceneLabel: string;
+  moduleTargetId?: string;
+  skillPackageKey?: string;
+  skillSlug?: string;
+  knowledgeBaseIds: string[];
+  knowledgeBaseNames: string[];
+  matchedKnowledgeBaseIds: string[];
+  matchedKnowledgeBaseNames: string[];
+  retrievalQuery?: string;
+  hitCount: number;
+  status: "UNBOUND" | "NO_HIT" | "HIT" | "FAILED";
+  summary: string;
+  createdAt: string;
+};
+
 export type KnowledgeBindingRecord = {
   id: string;
   knowledgeBaseId: string;
@@ -811,6 +830,7 @@ export type MockDatabase = {
   knowledgeBases: KnowledgeBaseRecord[];
   knowledgeBaseFiles: KnowledgeBaseFileRecord[];
   knowledgeBaseSyncRuns: KnowledgeBaseSyncRunRecord[];
+  knowledgeInvocationRuns: KnowledgeInvocationRecord[];
   knowledgeRetrievalConfigs: KnowledgeRetrievalConfigRecord[];
   knowledgeBindings: KnowledgeBindingRecord[];
   skillPackages: SkillPackageRecord[];
@@ -3280,6 +3300,7 @@ export const database: MockDatabase = {
       startedAt: "2026-05-02T10:40:00.000Z",
     },
   ],
+  knowledgeInvocationRuns: [],
   knowledgeRetrievalConfigs: [
     {
       id: "kbrc_brand_docs",
