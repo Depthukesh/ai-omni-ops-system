@@ -651,6 +651,8 @@ export default function AdminPage() {
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [knowledgeDataSource, setKnowledgeDataSource] = useState<"api" | "seed">("api");
+  const [knowledgeLoadError, setKnowledgeLoadError] = useState("");
   const [skillAssetLoadError, setSkillAssetLoadError] = useState("");
   const [databaseParameterSyncError, setDatabaseParameterSyncError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -705,6 +707,8 @@ export default function AdminPage() {
     setIsLoading(true);
     setNotice("");
     setErrorMessage("");
+    setKnowledgeLoadError("");
+    setKnowledgeDataSource("api");
 
     const allowedTabs = ADMIN_ROLE_TAB_MATRIX[role] ?? [];
     const canReadOrders = allowedTabs.includes("orders");
@@ -844,49 +848,78 @@ export default function AdminPage() {
       );
       usingSeed = true;
     }
+    const knowledgeErrors: string[] = [];
+
     if (knowledgeBaseResult.status === "fulfilled") {
       setKnowledgeBases(knowledgeBaseResult.value);
       setKnowledgeBaseDrafts(buildKnowledgeBaseDrafts(knowledgeBaseResult.value));
       setNewKnowledgeBaseFileDrafts(buildKnowledgeBaseFileCreateDrafts(knowledgeBaseResult.value));
     } else {
-      setKnowledgeBases(knowledgeBaseSeed);
-      setKnowledgeBaseDrafts(buildKnowledgeBaseDrafts(knowledgeBaseSeed));
-      setNewKnowledgeBaseFileDrafts(buildKnowledgeBaseFileCreateDrafts(knowledgeBaseSeed));
-      usingSeed = true;
+      setKnowledgeBases([]);
+      setKnowledgeBaseDrafts({});
+      setNewKnowledgeBaseFileDrafts({});
+      setSelectedKnowledgeBaseId("");
+      setSelectedKnowledgeListFileId("");
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识库容器接口失败：${
+          knowledgeBaseResult.reason instanceof Error ? knowledgeBaseResult.reason.message : "未知错误"
+        }`,
+      );
     }
 
     if (knowledgeBaseFilesResult.status === "fulfilled") {
       setKnowledgeBaseFiles(knowledgeBaseFilesResult.value);
     } else {
-      setKnowledgeBaseFiles(knowledgeBaseFileSeed);
-      usingSeed = true;
+      setKnowledgeBaseFiles([]);
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识库文件接口失败：${
+          knowledgeBaseFilesResult.reason instanceof Error ? knowledgeBaseFilesResult.reason.message : "未知错误"
+        }`,
+      );
     }
 
     if (knowledgeBindingsResult.status === "fulfilled") {
       setKnowledgeBindings(knowledgeBindingsResult.value);
       setKnowledgeBindingDrafts(buildKnowledgeBindingDrafts(knowledgeBindingsResult.value));
     } else {
-      setKnowledgeBindings(knowledgeBindingSeed);
-      setKnowledgeBindingDrafts(buildKnowledgeBindingDrafts(knowledgeBindingSeed));
-      usingSeed = true;
+      setKnowledgeBindings([]);
+      setKnowledgeBindingDrafts({});
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识库接入对象接口失败：${
+          knowledgeBindingsResult.reason instanceof Error ? knowledgeBindingsResult.reason.message : "未知错误"
+        }`,
+      );
     }
 
     if (knowledgeRetrievalConfigsResult.status === "fulfilled") {
       setKnowledgeRetrievalConfigs(knowledgeRetrievalConfigsResult.value);
       setKnowledgeRetrievalConfigDrafts(buildKnowledgeRetrievalConfigDrafts(knowledgeRetrievalConfigsResult.value));
     } else {
-      setKnowledgeRetrievalConfigs(knowledgeRetrievalConfigSeed);
-      setKnowledgeRetrievalConfigDrafts(buildKnowledgeRetrievalConfigDrafts(knowledgeRetrievalConfigSeed));
-      usingSeed = true;
+      setKnowledgeRetrievalConfigs([]);
+      setKnowledgeRetrievalConfigDrafts({});
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识检索配置接口失败：${
+          knowledgeRetrievalConfigsResult.reason instanceof Error ? knowledgeRetrievalConfigsResult.reason.message : "未知错误"
+        }`,
+      );
     }
 
     if (knowledgeBaseSyncRunsResult.status === "fulfilled") {
       setKnowledgeBaseSyncRuns(knowledgeBaseSyncRunsResult.value);
       setKnowledgeBaseSyncRunDrafts(buildSyncRunDrafts(knowledgeBaseSyncRunsResult.value));
     } else {
-      setKnowledgeBaseSyncRuns(knowledgeBaseSyncRunSeed);
-      setKnowledgeBaseSyncRunDrafts(buildSyncRunDrafts(knowledgeBaseSyncRunSeed));
-      usingSeed = true;
+      setKnowledgeBaseSyncRuns([]);
+      setKnowledgeBaseSyncRunDrafts({});
+      setKnowledgeDataSource("seed");
+      knowledgeErrors.push(
+        `知识同步记录接口失败：${
+          knowledgeBaseSyncRunsResult.reason instanceof Error ? knowledgeBaseSyncRunsResult.reason.message : "未知错误"
+        }`,
+      );
     }
 
     if (providerResult.status === "fulfilled") {
@@ -917,6 +950,10 @@ export default function AdminPage() {
       setErrorMessage("部分后台接口暂不可用，当前已回退到本地演示数据。");
     } else {
       setDataSource("api");
+    }
+
+    if (knowledgeErrors.length) {
+      setKnowledgeLoadError(knowledgeErrors.join("；"));
     }
 
     setIsLoading(false);
@@ -5442,8 +5479,30 @@ export default function AdminPage() {
                     <strong>知识库列表</strong>
                     <p>左侧按知识库和板块切换，右侧只维护当前项目内容，减少无关治理项干扰。</p>
                   </div>
-                  <span className="archive-pill status_success">{knowledgeBases.length}</span>
+                  <div className="admin-provider-actions" style={{ gap: 8 }}>
+                    <span className={`archive-pill ${knowledgeDataSource === "api" ? "status_success" : "status_warning"}`}>
+                      {knowledgeDataSource === "api" ? "知识接口正常" : "知识接口异常"}
+                    </span>
+                    <span className="archive-pill status_success">{knowledgeBases.length}</span>
+                  </div>
                 </div>
+                {knowledgeLoadError ? (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      borderRadius: 16,
+                      border: "1px solid rgba(217, 83, 79, 0.24)",
+                      background: "rgba(217, 83, 79, 0.08)",
+                      color: "#9f3a38",
+                      padding: "12px 14px",
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <strong>当前知识库列表未使用演示知识库占位，下面是实际失败接口。</strong>
+                    <div style={{ marginTop: 4 }}>{knowledgeLoadError}</div>
+                  </div>
+                ) : null}
                 <div className="knowledge-admin-list">
                   {sortedKnowledgeBases.length ? (
                     sortedKnowledgeBases.map((item) => {
@@ -5527,6 +5586,11 @@ export default function AdminPage() {
                         </article>
                       );
                     })
+                  ) : knowledgeLoadError ? (
+                    <div className="admin-empty-state">
+                      <strong>知识库接口加载失败</strong>
+                      <p>当前已停止回退演示知识库，请先按上方报错修复真实接口，再查看前端桥接容器。</p>
+                    </div>
                   ) : (
                     <p className="personal-meta">暂无知识库，先创建一个新的知识空间。</p>
                   )}
