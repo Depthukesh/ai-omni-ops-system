@@ -89,11 +89,14 @@
 - 涉及开发流程、交付要求、记录清单变化时，必须同步更新 `docs/development-delivery-checklist.md`
 - 涉及数据库结构、持久化边界或模块入库路径变化时，必须同步更新 `docs/database-archive.md`
 - 涉及大模块技术路线、权限模型、数据分层或执行路径变化时，必须同步更新对应专项方案文档
+- 涉及知识库“接入对象”、检索注入范围或 RAG 运行时边界变化时，必须同步更新 `docs/site-map.md`、`docs/site-map-mermaid.md`、`docs/engineering-standards.md` 与对应方案文档，避免页面治理态与运行时真实状态不一致
 - 更新 `docs/site-map.md` 时，要把本次对应的 `docs/changes/*.md` 作为参考变更挂到相关位置
 - 如果只是很小的样式或文案调整，可合并记录到最近一次相关变更中，但不能完全不记
 
 ## 近期重点变更
 
+- `docs/changes/2026-06-10-knowledge-binding-runtime-and-docs-sync.md`
+  - 品牌增长报告开始按“接入对象 -> 品牌增长工作台”读取知识绑定并追加企业知识库召回片段；同时补更新 `docs/README.md`、工程规范、网站地图和相关方案文档，明确知识库治理层与运行时生效边界
 - `docs/changes/2026-06-09-knowledge-bridge-and-admin-simplify.md`
   - 企业知识库保存后会自动桥接到品牌企业知识库，后台知识库管理页同步改成左侧菜单 + 右侧内容的简化布局
 - `docs/changes/2026-06-09-knowledge-retrieval-configs-first-pass.md`

@@ -9,6 +9,7 @@ import { applySkillProviderSelectionRule } from "../../common/skill-provider-sel
 import { AppConfigService } from "../../config/app-config.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
+import { KnowledgeBasesService, type KnowledgeBindingView } from "../admin/knowledge-bases.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { BrandsService } from "../brands/brands.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
@@ -24,6 +25,9 @@ const DOUYIN_ORIGINAL_COPY_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const DOUYIN_REMIX_COPY_TASK_TIMEOUT_MS = 12 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
+const BRAND_GROWTH_KNOWLEDGE_TARGET_ID = "brand-growth-workbench";
+const GROWTH_REPORT_KNOWLEDGE_BINDING_LIMIT = 3;
+const GROWTH_REPORT_KNOWLEDGE_TOP_K = 4;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
 const LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND = "BRAND_ANNUAL_MARKETING_PLAN";
 const CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE = "BRAND_HALF_YEAR_MARKETING_PLAN";
@@ -886,6 +890,8 @@ export class ReportsService {
     private readonly skillsPromptsService: SkillsPromptsService,
     @Inject(ThirdPartyPlatformsService)
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+    @Inject(KnowledgeBasesService)
+    private readonly knowledgeBasesService: KnowledgeBasesService,
   ) {}
 
   private async resolveBrandAwareApiKeys(brandId: string | undefined, provider: ApiProviderRecord | undefined) {
@@ -5972,10 +5978,12 @@ export class ReportsService {
       '  "reportMarkdown": "完整的品牌增长报告 Markdown 正文"',
       "}",
     ].join("\n");
+    const knowledgeContext = await this.buildGrowthReportKnowledgeContext(brandId, inputPayload);
     const userPrompt = [
       "以下是本次生成品牌增长报告的输入数据，请围绕这些数据输出完整报告。",
       "",
       JSON.stringify(inputPayload, null, 2),
+      knowledgeContext,
     ].join("\n");
 
     let lastError = "";
@@ -6025,6 +6033,141 @@ export class ReportsService {
       : "";
     const preferredDetail = preferredModelName ? `首选模型：${preferredModelName}；` : "";
     throw new ServiceUnavailableException(`品牌增长报告生成失败：${preferredDetail}最后失败：${lastError || "未获取到有效响应"}${detail}`);
+  }
+
+  private async buildGrowthReportKnowledgeContext(
+    brandId: string,
+    inputPayload: Record<string, unknown>,
+  ) {
+    const retrievalQuery = this.buildGrowthReportKnowledgeQuery(inputPayload);
+    if (!retrievalQuery) {
+      return "";
+    }
+
+    try {
+      const bindings = await this.knowledgeBasesService.listKnowledgeBindingsByTarget(
+        "MODULE",
+        BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        true,
+      );
+      const activeBindings = bindings
+        .filter((item) => item.enabled && item.retrievalMode !== "MANUAL")
+        .sort((left, right) => {
+          if (left.isRequired !== right.isRequired) {
+            return Number(right.isRequired) - Number(left.isRequired);
+          }
+          return right.priority - left.priority;
+        })
+        .slice(0, GROWTH_REPORT_KNOWLEDGE_BINDING_LIMIT);
+
+      if (!activeBindings.length) {
+        return "";
+      }
+
+      const sections: string[] = [];
+      for (const binding of activeBindings) {
+        const section = await this.buildGrowthReportKnowledgeSection(brandId, binding, retrievalQuery);
+        if (section) {
+          sections.push(section);
+        }
+      }
+
+      if (!sections.length) {
+        return "";
+      }
+
+      return [
+        "",
+        "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请优先参考这些内容：",
+        "",
+        sections.join("\n\n"),
+      ].join("\n");
+    } catch {
+      return "";
+    }
+  }
+
+  private async buildGrowthReportKnowledgeSection(
+    brandId: string,
+    binding: KnowledgeBindingView,
+    retrievalQuery: string,
+  ) {
+    try {
+      const retrieval = await this.knowledgeBasesService.runKnowledgeRetrievalTest(binding.knowledgeBaseId, {
+        query: retrievalQuery,
+        topK: GROWTH_REPORT_KNOWLEDGE_TOP_K,
+      });
+      if (!retrieval.hits.length) {
+        return binding.isRequired
+          ? `知识库《${binding.knowledgeBaseName || binding.knowledgeBaseId}》未召回到有效片段，请将其视为待补充资料。`
+          : "";
+      }
+
+      const hitLines = retrieval.hits
+        .slice(0, GROWTH_REPORT_KNOWLEDGE_TOP_K)
+        .map((hit, index) => {
+          const content = this.truncateText(String(hit.content || "").replace(/\s+/g, " ").trim(), 320);
+          return [
+            `片段${index + 1}｜文件：${hit.fileName}｜分片：${hit.chunkIndex}｜相似度：${hit.score.toFixed(3)}`,
+            content,
+          ].join("\n");
+        })
+        .join("\n\n");
+
+      return [
+        `知识库：${binding.knowledgeBaseName || binding.knowledgeBaseId}`,
+        `绑定对象：${binding.targetName || BRAND_GROWTH_KNOWLEDGE_TARGET_ID}｜品牌：${brandId}`,
+        hitLines,
+      ].join("\n");
+    } catch (error) {
+      if (!binding.isRequired) {
+        return "";
+      }
+      return `知识库《${binding.knowledgeBaseName || binding.knowledgeBaseId}》检索失败：${error instanceof Error ? error.message : "未知错误"}。`;
+    }
+  }
+
+  private buildGrowthReportKnowledgeQuery(inputPayload: Record<string, unknown>) {
+    const inputScope = this.asRecord(inputPayload.inputScope) || {};
+    const brandArchive = this.asRecord(inputScope.brandArchive) || {};
+    const brandBackground = this.asRecord(brandArchive.background) || {};
+    const products = Array.isArray(brandArchive.products) ? brandArchive.products : [];
+    const surveys = Array.isArray(brandArchive.survey) ? brandArchive.survey : [];
+
+    const brandName = this.readFirstAvailableText(brandBackground, [
+      "brandName",
+      "name",
+      "companyName",
+      "enterpriseName",
+    ]);
+    const productNames = products
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["productName", "name", "title"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 5);
+    const surveyKeywords = surveys
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["label", "value"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 4);
+
+    return [
+      "品牌增长报告",
+      brandName ? `品牌：${brandName}` : "",
+      productNames.length ? `产品：${productNames.join("、")}` : "",
+      surveyKeywords.length ? `重点资料：${surveyKeywords.join("；")}` : "",
+      "请召回企业知识库中与品牌背景、产品资料、经营现状、客户画像、渠道策略、销售话术相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+  }
+
+  private readFirstAvailableText(record: Record<string, unknown> | undefined, keys: string[]) {
+    for (const key of keys) {
+      const value = String(record?.[key] || "").trim();
+      if (value) {
+        return value;
+      }
+    }
+    return "";
   }
 
   private async generateVisualReportByModel(
