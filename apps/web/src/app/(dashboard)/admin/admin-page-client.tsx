@@ -1,5 +1,4 @@
-﻿"use client";
-
+"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -361,12 +360,12 @@ function isBrandBridgeKnowledgeBase(knowledgeBase?: KnowledgeBaseRecord) {
   return (
     knowledgeBase.id.startsWith("kb_brand_business_assets_")
     || knowledgeBase.slug.startsWith("brand-business-assets-")
-    || knowledgeBase.description.includes("鍓嶇鈥滀紒涓氱煡璇嗗簱鈥濋〉闈㈣嚜鍔ㄥ悓姝?)
+    || knowledgeBase.description.includes("前端“企业知识库”页面自动同步")
   );
 }
 
 function getKnowledgeBaseContainerLabel(knowledgeBase: KnowledgeBaseRecord) {
-  return isBrandBridgeKnowledgeBase(knowledgeBase) ? "鍓嶇浼佷笟鐭ヨ瘑搴撳鍣? : "鐙珛鐭ヨ瘑搴撳鍣?;
+  return isBrandBridgeKnowledgeBase(knowledgeBase) ? "前端企业知识库容器" : "独立知识库容器";
 }
 
 function getKnowledgeBindingDisplayName(binding: KnowledgeBindingRecord) {
@@ -375,85 +374,85 @@ function getKnowledgeBindingDisplayName(binding: KnowledgeBindingRecord) {
 
 function getKnowledgeBaseStatusLabel(status: KnowledgeBaseRecord["status"]) {
   if (status === "ACTIVE") {
-    return "鍚敤涓?;
+    return "启用中";
   }
   if (status === "DISABLED") {
-    return "宸插仠鐢?;
+    return "已停用";
   }
-  return "鑽夌";
+  return "草稿";
 }
 
 function getKnowledgeSourceTypeLabel(sourceType: KnowledgeBaseRecord["sourceType"]) {
   if (sourceType === "FEISHU") {
-    return "椋炰功";
+    return "飞书";
   }
   if (sourceType === "NOTION") {
     return "Notion";
   }
   if (sourceType === "OSS") {
-    return "瀵硅薄瀛樺偍";
+    return "对象存储";
   }
-  return "鎵嬪姩缁存姢";
+  return "手动维护";
 }
 
 function getKnowledgeSyncStatusLabel(status: KnowledgeBaseRecord["syncStatus"]) {
   if (status === "SUCCESS") {
-    return "鍚屾鎴愬姛";
+    return "同步成功";
   }
   if (status === "SYNCING") {
-    return "鍚屾涓?;
+    return "同步中";
   }
   if (status === "FAILED") {
-    return "鍚屾澶辫触";
+    return "同步失败";
   }
-  return "寰呭悓姝?;
+  return "待同步";
 }
 
 function getKnowledgeRunResultLabel(result: KnowledgeBaseSyncRunRecord["result"]) {
   if (result === "SUCCESS") {
-    return "鎴愬姛";
+    return "成功";
   }
   if (result === "FAILED") {
-    return "澶辫触";
+    return "失败";
   }
-  return "杩涜涓?;
+  return "进行中";
 }
 
 function getKnowledgeBindingTypeLabel(bindingType: KnowledgeBindingRecord["bindingType"]) {
   if (bindingType === "SKILL_PACKAGE") {
-    return "鑳藉姏鍖?;
+    return "能力包";
   }
   if (bindingType === "PROMPT") {
-    return "鎻愮ず璇?;
+    return "提示词";
   }
   if (bindingType === "WORKFLOW_STEP") {
-    return "宸ヤ綔娴佹楠?;
+    return "工作流步骤";
   }
-  return "妯″潡";
+  return "模块";
 }
 
 function getKnowledgeRetrievalModeLabel(mode: KnowledgeBindingRecord["retrievalMode"] | KnowledgeRetrievalConfigRecord["recallMode"]) {
   if (mode === "SEMANTIC") {
-    return "璇箟鍙洖";
+    return "语义召回";
   }
   if (mode === "MANUAL") {
-    return "浜哄伐鎸囧畾";
+    return "人工指定";
   }
-  return "娣峰悎鍙洖";
+  return "混合召回";
 }
 
 function getKnowledgeYesNoLabel(value: boolean) {
-  return value ? "鏄? : "鍚?;
+  return value ? "是" : "否";
 }
 
 function getKnowledgeFileStatusLabel(status: KnowledgeBaseFileRecord["status"]) {
   if (status === "INDEXED") {
-    return "宸插叆搴?;
+    return "已入库";
   }
   if (status === "FAILED") {
-    return "澶辫触";
+    return "失败";
   }
-  return "寰呭悓姝?;
+  return "待同步";
 }
 
 function buildKnowledgeFileDebugState(): KnowledgeFileDebugState {
@@ -495,19 +494,19 @@ type SkillCenterPrimaryConfig = {
 };
 
 const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabel: string }> = [
-  { key: "dashboard", label: "浠〃鐩?, shortLabel: "鎬昏", description: "缁熶竴鏌ョ湅鍚庡彴杩愯惀鐘舵€併€佹ā鍧楄妯″拰褰撳墠鏁版嵁鏉ユ簮銆? },
-  { key: "orders", label: "璁㈠崟绠＄悊", shortLabel: "璁㈠崟", description: "鏌ョ湅浼氬憳璐拱鍜岀偣鏁板厖鍊艰鍗曪紝鏀寔鍚庡彴鏀粯涓庡彇娑堛€? },
-  { key: "rules", label: "浼氬憳涓庣Н鍒嗚鍒?, shortLabel: "瑙勫垯", description: "缁存姢浼氬憳鏂规銆佺偣鏁板寘涓庝环鏍艰鍒欍€? },
-  { key: "users", label: "鐢ㄦ埛绠＄悊", shortLabel: "鐢ㄦ埛", description: "璋冩暣浼氬憳绛夌骇銆佸鍑忕偣鏁帮紝骞舵煡鐪嬬敤鎴疯妯′笌娲昏穬鎯呭喌銆? },
-  { key: "usage", label: "妯″瀷娑堣€?, shortLabel: "娑堣€?, description: "鏌ョ湅妯″瀷浠诲姟閲忋€佺偣鏁版垚鏈€佷及绠楅噾棰濅笌鏈€杩戣皟鐢ㄦ椂闂淬€? },
-  { key: "assets", label: "鎶€鑳戒腑蹇?, shortLabel: "鎶€鑳?, description: "鎸変笟鍔℃澘鍧楃淮鎶ゆ妧鑳介厤缃€佹墽琛屽唴瀹瑰拰淇濆瓨绛栫暐銆? },
-  { key: "modules", label: "妯″潡娉ㄥ唽涓績", shortLabel: "妯″潡", description: "缁存姢妯″潡瀹氫箟銆佸叆鍙ｈ矾鐢便€佽兘鍔涗緷璧栧拰榛樿鑳藉姏鍖呮憳瑕併€? },
-  { key: "knowledge", label: "鐭ヨ瘑搴撶鐞?, shortLabel: "鐭ヨ瘑", description: "缁存姢鐭ヨ瘑搴撳惎鍋滅姸鎬併€佹暟鎹簮绫诲瀷銆佸悓姝ョ姸鎬佷笌鏂囨。瑙勬ā銆? },
+  { key: "dashboard", label: "仪表盘", shortLabel: "总览", description: "统一查看后台运营状态、模块规模和当前数据来源。" },
+  { key: "orders", label: "订单管理", shortLabel: "订单", description: "查看会员购买和点数充值订单，支持后台支付与取消。" },
+  { key: "rules", label: "会员与积分规则", shortLabel: "规则", description: "维护会员方案、点数包与价格规则。" },
+  { key: "users", label: "用户管理", shortLabel: "用户", description: "调整会员等级、增减点数，并查看用户规模与活跃情况。" },
+  { key: "usage", label: "模型消耗", shortLabel: "消耗", description: "查看模型任务量、点数成本、估算金额与最近调用时间。" },
+  { key: "assets", label: "技能中心", shortLabel: "技能", description: "按业务板块维护技能配置、执行内容和保存策略。" },
+  { key: "modules", label: "模块注册中心", shortLabel: "模块", description: "维护模块定义、入口路由、能力依赖和默认能力包摘要。" },
+  { key: "knowledge", label: "知识库管理", shortLabel: "知识", description: "维护知识库启停状态、数据源类型、同步状态与文档规模。" },
   {
     key: "providers",
-    label: "鎺ュ彛渚涘簲鍟?,
-    shortLabel: "鎺ュ彛",
-    description: "鎸夊钩鍙扮淮鎶ょ涓夋柟鎺ュ彛閾炬帴銆佽鏄庢枃妗ｄ笌妯″瀷 ID锛屽墠鍙?Owner 鍐嶅～鍐欏綋鍓嶈处鍙风鏈?API Key銆?,
+    label: "接口供应商",
+    shortLabel: "接口",
+    description: "按平台维护第三方接口链接、说明文档与模型 ID，前台 Owner 再填写当前账号私有 API Key。",
   },
 ];
 
@@ -519,26 +518,26 @@ const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
 };
 
 const DATABASE_INJECT_PARAMETER_OPTIONS: DatabaseInjectParameterOption[] = [
-  { value: "brand_profile", label: "鍝佺墝璧勬枡" },
-  { value: "product_library", label: "浜у搧璧勬枡" },
-  { value: "marketing_plan", label: "钀ラ攢绛栧垝鏂规" },
+  { value: "brand_profile", label: "品牌资料" },
+  { value: "product_library", label: "产品资料" },
+  { value: "marketing_plan", label: "营销策划方案" },
 ];
 
 const DATABASE_SELECT_PARAMETER_OPTIONS: DatabaseSelectParameterOption[] = [
   {
     value: "marketing_calendar",
-    label: "钀ラ攢鏃ュ巻",
-    emptyLabel: "涓嶆鍏ヨ惀閿€鏃ュ巻",
+    label: "营销日历",
+    emptyLabel: "不植入营销日历",
   },
   {
     value: "topic_library",
-    label: "閫夐搴?,
-    emptyLabel: "涓嶆鍏ラ€夐搴?,
+    label: "选题库",
+    emptyLabel: "不植入选题库",
   },
   {
     value: "material_library",
-    label: "绱犳潗搴?,
-    emptyLabel: "涓嶆鍏ョ礌鏉愬簱",
+    label: "素材库",
+    emptyLabel: "不植入素材库",
   },
 ];
 
@@ -676,7 +675,7 @@ export default function AdminPage() {
       const result = await getMe();
       const role = result.user.systemRole as AdminSystemRole;
       if (!ADMIN_ROLE_TAB_MATRIX[role]) {
-        setErrorMessage("褰撳墠璐﹀彿涓嶆槸鍚庡彴绠＄悊鍛橈紝璇蜂娇鐢ㄥ悗鍙拌鑹茶处鍙风櫥褰曘€?);
+        setErrorMessage("当前账号不是后台管理员，请使用后台角色账号登录。");
         setIsCheckingAccess(false);
         return;
       }
@@ -697,7 +696,7 @@ export default function AdminPage() {
       await logoutSession();
       router.replace("/admin/login?next=/admin");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "閫€鍑虹櫥褰曞け璐?;
+      const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
     } finally {
       setIsLoggingOut(false);
@@ -863,8 +862,8 @@ export default function AdminPage() {
       setSelectedKnowledgeListFileId("");
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
-        `鐭ヨ瘑搴撳鍣ㄦ帴鍙ｅけ璐ワ細${
-          knowledgeBaseResult.reason instanceof Error ? knowledgeBaseResult.reason.message : "鏈煡閿欒"
+        `知识库容器接口失败：${
+          knowledgeBaseResult.reason instanceof Error ? knowledgeBaseResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -875,8 +874,8 @@ export default function AdminPage() {
       setKnowledgeBaseFiles([]);
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
-        `鐭ヨ瘑搴撴枃浠舵帴鍙ｅけ璐ワ細${
-          knowledgeBaseFilesResult.reason instanceof Error ? knowledgeBaseFilesResult.reason.message : "鏈煡閿欒"
+        `知识库文件接口失败：${
+          knowledgeBaseFilesResult.reason instanceof Error ? knowledgeBaseFilesResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -889,8 +888,8 @@ export default function AdminPage() {
       setKnowledgeBindingDrafts({});
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
-        `鐭ヨ瘑搴撴帴鍏ュ璞℃帴鍙ｅけ璐ワ細${
-          knowledgeBindingsResult.reason instanceof Error ? knowledgeBindingsResult.reason.message : "鏈煡閿欒"
+        `知识库接入对象接口失败：${
+          knowledgeBindingsResult.reason instanceof Error ? knowledgeBindingsResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -903,8 +902,8 @@ export default function AdminPage() {
       setKnowledgeRetrievalConfigDrafts({});
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
-        `鐭ヨ瘑妫€绱㈤厤缃帴鍙ｅけ璐ワ細${
-          knowledgeRetrievalConfigsResult.reason instanceof Error ? knowledgeRetrievalConfigsResult.reason.message : "鏈煡閿欒"
+        `知识检索配置接口失败：${
+          knowledgeRetrievalConfigsResult.reason instanceof Error ? knowledgeRetrievalConfigsResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -917,8 +916,8 @@ export default function AdminPage() {
       setKnowledgeBaseSyncRunDrafts({});
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
-        `鐭ヨ瘑鍚屾璁板綍鎺ュ彛澶辫触锛?{
-          knowledgeBaseSyncRunsResult.reason instanceof Error ? knowledgeBaseSyncRunsResult.reason.message : "鏈煡閿欒"
+        `知识同步记录接口失败：${
+          knowledgeBaseSyncRunsResult.reason instanceof Error ? knowledgeBaseSyncRunsResult.reason.message : "未知错误"
         }`,
       );
     }
@@ -948,13 +947,13 @@ export default function AdminPage() {
 
     if (usingSeed) {
       setDataSource("seed");
-      setErrorMessage("閮ㄥ垎鍚庡彴鎺ュ彛鏆備笉鍙敤锛屽綋鍓嶅凡鍥為€€鍒版湰鍦版紨绀烘暟鎹€?);
+      setErrorMessage("部分后台接口暂不可用，当前已回退到本地演示数据。");
     } else {
       setDataSource("api");
     }
 
     if (knowledgeErrors.length) {
-      setKnowledgeLoadError(knowledgeErrors.join("锛?));
+      setKnowledgeLoadError(knowledgeErrors.join("；"));
     }
 
     setIsLoading(false);
@@ -970,7 +969,7 @@ export default function AdminPage() {
       setOrders((current) =>
         current.map((item) => (item.id === orderId ? { ...item, ...updated } : item)),
       );
-      setNotice(action === "pay" ? `璁㈠崟宸叉敮浠橈細${updated.orderNo}` : `璁㈠崟宸插彇娑堬細${updated.orderNo}`);
+      setNotice(action === "pay" ? `订单已支付：${updated.orderNo}` : `订单已取消：${updated.orderNo}`);
     } catch (error) {
       if (dataSource === "seed") {
         setOrders((current) =>
@@ -988,12 +987,12 @@ export default function AdminPage() {
             };
           }),
         );
-        setNotice(action === "pay" ? "宸叉洿鏂版紨绀鸿鍗曚负宸叉敮浠樼姸鎬併€? : "宸叉洿鏂版紨绀鸿鍗曚负宸插彇娑堢姸鎬併€?);
+        setNotice(action === "pay" ? "已更新演示订单为已支付状态。" : "已更新演示订单为已取消状态。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "璁㈠崟鎿嶄綔澶辫触";
-      setErrorMessage(`璁㈠崟鎿嶄綔澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "订单操作失败";
+      setErrorMessage(`订单操作失败：${message}`);
     }
   }
 
@@ -1005,15 +1004,15 @@ export default function AdminPage() {
     try {
       const nextRules = await updateBillingRules(rules);
       setRules(nextRules);
-      setNotice("浼氬憳涓庣Н鍒嗚鍒欏凡淇濆瓨銆?);
+      setNotice("会员与积分规则已保存。");
     } catch (error) {
       if (dataSource === "seed") {
-        setNotice("鍚庡彴鎺ュ彛鏆備笉鍙敤锛屽綋鍓嶅凡淇濆瓨涓烘湰鍦版紨绀鸿鍒欍€?);
+        setNotice("后台接口暂不可用，当前已保存为本地演示规则。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "瑙勫垯淇濆瓨澶辫触";
-      setErrorMessage(`瑙勫垯淇濆瓨澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "规则保存失败";
+      setErrorMessage(`规则保存失败：${message}`);
     } finally {
       setIsSavingRules(false);
     }
@@ -1043,7 +1042,7 @@ export default function AdminPage() {
         ...current,
         [skillId]: buildSkillDraft(updated),
       }));
-      setNotice(`鎶€鑳介厤缃凡鏇存柊锛?{updated.name}`);
+      setNotice(`技能配置已更新：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -1061,12 +1060,12 @@ export default function AdminPage() {
               : item,
           ),
         );
-        setNotice("鎶€鑳介厤缃凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("技能配置已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鎶€鑳介厤缃繚瀛樺け璐?;
-      setErrorMessage(`鎶€鑳介厤缃繚瀛樺け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "技能配置保存失败";
+      setErrorMessage(`技能配置保存失败：${message}`);
     } finally {
       setUpdatingSkillId("");
     }
@@ -1096,7 +1095,7 @@ export default function AdminPage() {
         ...current,
         [promptId]: buildPromptDraft(updated),
       }));
-      setNotice(`鎻愮ず璇嶆ā鏉垮凡鏇存柊锛?{updated.name}`);
+      setNotice(`提示词模板已更新：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -1115,12 +1114,12 @@ export default function AdminPage() {
               : item,
           ),
         );
-        setNotice("鎻愮ず璇嶆ā鏉垮凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("提示词模板已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鎻愮ず璇嶆ā鏉夸繚瀛樺け璐?;
-      setErrorMessage(`鎻愮ず璇嶆ā鏉夸繚瀛樺け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "提示词模板保存失败";
+      setErrorMessage(`提示词模板保存失败：${message}`);
     } finally {
       setUpdatingPromptId("");
     }
@@ -1424,7 +1423,7 @@ export default function AdminPage() {
         ...current,
         [knowledgeBaseId]: buildKnowledgeBaseDraft(updated),
       }));
-      setNotice(`鐭ヨ瘑搴撳凡鏇存柊锛?{updated.name}`);
+      setNotice(`知识库已更新：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -1442,12 +1441,12 @@ export default function AdminPage() {
               : item,
           ),
         );
-        setNotice("鐭ヨ瘑搴撻厤缃凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库配置已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撲繚瀛樺け璐?;
-      setErrorMessage(`鐭ヨ瘑搴撲繚瀛樺け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库保存失败";
+      setErrorMessage(`知识库保存失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseId("");
     }
@@ -1546,10 +1545,10 @@ export default function AdminPage() {
     } catch (error) {
       const message =
         dataSource === "seed"
-          ? "褰撳墠鏄紨绀烘暟鎹紝鏆傛棤鐪熷疄鍒嗙墖涓?embedding 鏄庣粏銆?
+          ? "当前是演示数据，暂无真实分片与 embedding 明细。"
           : error instanceof Error
             ? error.message
-            : "璇诲彇鍒嗙墖涓?embedding 澶辫触";
+            : "读取分片与 embedding 失败";
       setKnowledgeFileDebugStateMap((current) => ({
         ...current,
         [file.id]: {
@@ -1566,7 +1565,7 @@ export default function AdminPage() {
     const draft = knowledgeRetrievalTestDrafts[knowledgeBaseId]
       || buildKnowledgeRetrievalTestDraft(selectedConfig?.defaultTopK || 3);
     if (!draft.query.trim()) {
-      setErrorMessage("妫€绱㈡祴璇曢棶棰樹笉鑳戒负绌恒€?);
+      setErrorMessage("检索测试问题不能为空。");
       return;
     }
 
@@ -1585,17 +1584,17 @@ export default function AdminPage() {
       }));
       setNotice(
         result.hitCount
-          ? `妫€绱㈡祴璇曞畬鎴愶紝鍛戒腑 ${result.hitCount} 鏉＄粨鏋溿€俙
-          : "妫€绱㈡祴璇曞凡瀹屾垚锛屼絾褰撳墠闃堝€间笅娌℃湁鍛戒腑缁撴灉銆?,
+          ? `检索测试完成，命中 ${result.hitCount} 条结果。`
+          : "检索测试已完成，但当前阈值下没有命中结果。",
       );
     } catch (error) {
       const message =
         dataSource === "seed"
-          ? "褰撳墠鏄紨绀烘暟鎹紝鏃犳硶鎵ц鐪熷疄妫€绱㈡祴璇曘€?
+          ? "当前是演示数据，无法执行真实检索测试。"
           : error instanceof Error
             ? error.message
-            : "妫€绱㈡祴璇曞け璐?;
-      setErrorMessage(`妫€绱㈡祴璇曞け璐ワ細${message}`);
+            : "检索测试失败";
+      setErrorMessage(`检索测试失败：${message}`);
     } finally {
       setRunningKnowledgeRetrievalBaseId("");
     }
@@ -1623,7 +1622,7 @@ export default function AdminPage() {
         ...current,
         [knowledgeBaseId]: buildKnowledgeBaseDraft(updated),
       }));
-      setNotice(`鐭ヨ瘑搴撳凡褰掓。锛?{updated.name}`);
+      setNotice(`知识库已归档：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -1645,12 +1644,12 @@ export default function AdminPage() {
             status: "DISABLED",
           },
         }));
-        setNotice("鐭ヨ瘑搴撳凡褰掓。鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库已归档到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撳綊妗ｅけ璐?;
-      setErrorMessage(`鐭ヨ瘑搴撳綊妗ｅけ璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库归档失败";
+      setErrorMessage(`知识库归档失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseId("");
     }
@@ -1682,7 +1681,7 @@ export default function AdminPage() {
         delete next[knowledgeBaseId];
         return next;
       });
-      setNotice(`鐭ヨ瘑搴撳凡鍒犻櫎锛?{removed.name}`);
+      setNotice(`知识库已删除：${removed.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const removed = knowledgeBases.find((item) => item.id === knowledgeBaseId);
@@ -1705,12 +1704,12 @@ export default function AdminPage() {
           delete next[knowledgeBaseId];
           return next;
         });
-        setNotice(`鐭ヨ瘑搴撳凡浠庢湰鍦版紨绀烘暟鎹垹闄わ細${removed?.name || knowledgeBaseId}`);
+        setNotice(`知识库已从本地演示数据删除：${removed?.name || knowledgeBaseId}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撳垹闄ゅけ璐?;
-      setErrorMessage(`鐭ヨ瘑搴撳垹闄ゅけ璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库删除失败";
+      setErrorMessage(`知识库删除失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseId("");
     }
@@ -1747,7 +1746,7 @@ export default function AdminPage() {
         ...current,
       }));
       setNewKnowledgeBase(buildCreateKnowledgeBaseDraft());
-      setNotice(`鐭ヨ瘑搴撳凡鍒涘缓锛?{created.name}`);
+      setNotice(`知识库已创建：${created.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const createdAt = new Date().toISOString();
@@ -1781,12 +1780,12 @@ export default function AdminPage() {
           ...current,
         }));
         setNewKnowledgeBase(buildCreateKnowledgeBaseDraft());
-        setNotice("鐭ヨ瘑搴撳凡鍒涘缓鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撳垱寤哄け璐?;
-      setErrorMessage(`鐭ヨ瘑搴撳垱寤哄け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库创建失败";
+      setErrorMessage(`知识库创建失败：${message}`);
     } finally {
       setIsCreatingKnowledgeBase(false);
     }
@@ -1816,7 +1815,7 @@ export default function AdminPage() {
         ...current,
         [knowledgeBaseId]: buildCreateKnowledgeBaseFileDraft(),
       }));
-      setNotice(`鐭ヨ瘑搴撴枃浠跺凡鏂板锛?{result.file.fileName}`);
+      setNotice(`知识库文件已新增：${result.file.fileName}`);
     } catch (error) {
       if (dataSource === "seed") {
         const now = new Date().toISOString();
@@ -1825,7 +1824,7 @@ export default function AdminPage() {
           knowledgeBaseId,
           fileName: draft.fileName,
           fileType: draft.fileType,
-          sourceName: draft.sourceName || "鍚庡彴鎵嬪姩褰曞叆",
+          sourceName: draft.sourceName || "后台手动录入",
           chunkCount,
           status: chunkCount > 0 ? "INDEXED" : "PENDING",
           uploadedAt: now,
@@ -1849,12 +1848,12 @@ export default function AdminPage() {
           ...current,
           [knowledgeBaseId]: buildCreateKnowledgeBaseFileDraft(),
         }));
-        setNotice("鐭ヨ瘑搴撴枃浠跺凡鏂板鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库文件已新增到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撴枃浠舵柊澧炲け璐?;
-      setErrorMessage(`鐭ヨ瘑搴撴枃浠舵柊澧炲け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库文件新增失败";
+      setErrorMessage(`知识库文件新增失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseFileId("");
     }
@@ -1869,7 +1868,7 @@ export default function AdminPage() {
       const result = await deleteKnowledgeBaseFile(fileId);
       applyKnowledgeBaseFileMutation(result, "delete");
       setKnowledgeBaseSyncRuns((current) => current.filter((item) => item.fileId !== fileId));
-      setNotice(`鐭ヨ瘑搴撴枃浠跺凡鍒犻櫎锛?{result.file.fileName}`);
+      setNotice(`知识库文件已删除：${result.file.fileName}`);
     } catch (error) {
       if (dataSource === "seed") {
         const file = knowledgeBaseFiles.find((item) => item.id === fileId);
@@ -1889,12 +1888,12 @@ export default function AdminPage() {
           );
         }
         setKnowledgeBaseSyncRuns((current) => current.filter((item) => item.fileId !== fileId));
-        setNotice(`鐭ヨ瘑搴撴枃浠跺凡浠庢湰鍦版紨绀烘暟鎹垹闄わ細${file?.fileName || fileId}`);
+        setNotice(`知识库文件已从本地演示数据删除：${file?.fileName || fileId}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撴枃浠跺垹闄ゅけ璐?;
-      setErrorMessage(`鐭ヨ瘑搴撴枃浠跺垹闄ゅけ璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库文件删除失败";
+      setErrorMessage(`知识库文件删除失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseFileId("");
     }
@@ -1911,7 +1910,7 @@ export default function AdminPage() {
     try {
       const result = await updateKnowledgeBaseFile(fileId, { status });
       applyKnowledgeBaseFileMutation(result, "update");
-      setNotice(`鐭ヨ瘑搴撴枃浠剁姸鎬佸凡鏇存柊锛?{result.file.fileName}`);
+      setNotice(`知识库文件状态已更新：${result.file.fileName}`);
     } catch (error) {
       if (dataSource === "seed") {
         const file = knowledgeBaseFiles.find((item) => item.id === fileId);
@@ -1929,12 +1928,12 @@ export default function AdminPage() {
             "update",
           );
         }
-        setNotice("鐭ヨ瘑搴撴枃浠剁姸鎬佸凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库文件状态已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撴枃浠剁姸鎬佹洿鏂板け璐?;
-      setErrorMessage(`鐭ヨ瘑搴撴枃浠剁姸鎬佹洿鏂板け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库文件状态更新失败";
+      setErrorMessage(`知识库文件状态更新失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseFileId("");
     }
@@ -1949,7 +1948,7 @@ export default function AdminPage() {
       const result = await syncKnowledgeBaseFile(fileId);
       applyKnowledgeBaseFileMutation(result, "update");
       applyKnowledgeBaseSyncRun(result);
-      setNotice(`鐭ヨ瘑搴撴枃浠跺悓姝ュ凡瀹屾垚锛?{result.file.fileName}锛屽綋鍓嶅垎鐗?${result.file.chunkCount}`);
+      setNotice(`知识库文件同步已完成：${result.file.fileName}，当前分片 ${result.file.chunkCount}`);
     } catch (error) {
       if (dataSource === "seed") {
         const file = knowledgeBaseFiles.find((item) => item.id === fileId);
@@ -1970,23 +1969,23 @@ export default function AdminPage() {
               id: `kbsr_local_${Date.now()}`,
               knowledgeBaseId: knowledgeBase.id,
               scope: "FILE",
-              operator: "鍚庡彴绠＄悊鍛?,
+              operator: "后台管理员",
               fileId: nextFile.id,
               fileName: nextFile.fileName,
               result: "RUNNING",
-              summary: "鏂囦欢鍚屾浠诲姟宸插垱寤猴紝绛夊緟绱㈠紩瀹屾垚銆?,
+              summary: "文件同步任务已创建，等待索引完成。",
               startedAt,
             },
           };
           applyKnowledgeBaseFileMutation(result, "update");
           applyKnowledgeBaseSyncRun(result);
         }
-        setNotice("鐭ヨ瘑搴撴枃浠跺悓姝ヤ换鍔″凡鍒涘缓鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库文件同步任务已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撴枃浠跺悓姝ュけ璐?;
-      setErrorMessage(`鐭ヨ瘑搴撴枃浠跺悓姝ュけ璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库文件同步失败";
+      setErrorMessage(`知识库文件同步失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseFileId("");
     }
@@ -2000,7 +1999,7 @@ export default function AdminPage() {
     try {
       const result = await startKnowledgeBaseSync(knowledgeBaseId);
       applyKnowledgeBaseRunMutation(result);
-      setNotice(`鐭ヨ瘑搴撳叏閲忓悓姝ュ凡瀹屾垚锛?{result.knowledgeBase.name}锛屽綋鍓嶇疮璁″垎鐗?${result.knowledgeBase.chunkCount}`);
+      setNotice(`知识库全量同步已完成：${result.knowledgeBase.name}，当前累计分片 ${result.knowledgeBase.chunkCount}`);
     } catch (error) {
       if (dataSource === "seed") {
         const knowledgeBase = knowledgeBases.find((item) => item.id === knowledgeBaseId);
@@ -2016,19 +2015,19 @@ export default function AdminPage() {
               id: `kbsr_local_full_${Date.now()}`,
               knowledgeBaseId,
               scope: "FULL",
-              operator: "鍚庡彴绠＄悊鍛?,
+              operator: "后台管理员",
               result: "RUNNING",
-              summary: "鍏ㄩ噺鍚屾浠诲姟宸插垱寤猴紝姝ｅ湪鎵弿鐭ヨ瘑搴撴枃浠躲€?,
+              summary: "全量同步任务已创建，正在扫描知识库文件。",
               startedAt,
             },
           });
         }
-        setNotice("鐭ヨ瘑搴撳叏閲忓悓姝ヤ换鍔″凡鍒涘缓鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("知识库全量同步任务已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑搴撳叏閲忓悓姝ュ垱寤哄け璐?;
-      setErrorMessage(`鐭ヨ瘑搴撳叏閲忓悓姝ュ垱寤哄け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识库全量同步创建失败";
+      setErrorMessage(`知识库全量同步创建失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseId("");
     }
@@ -2059,7 +2058,7 @@ export default function AdminPage() {
         );
       }
       applyKnowledgeBaseRunMutation(updated);
-      setNotice(`鍚屾璁板綍宸叉洿鏂颁负 ${result}銆俙);
+      setNotice(`同步记录已更新为 ${result}。`);
     } catch (error) {
       if (dataSource === "seed") {
         const currentRun = knowledgeBaseSyncRuns.find((item) => item.id === runId);
@@ -2069,8 +2068,8 @@ export default function AdminPage() {
           const updatedRun: KnowledgeBaseSyncRunRecord = {
             ...currentRun,
             result,
-            summary: draft.summary || (result === "SUCCESS" ? "鍚屾浠诲姟鎵ц鎴愬姛銆? : "鍚屾浠诲姟鎵ц澶辫触锛岃鏌ョ湅澶辫触鍘熷洜銆?),
-            errorDetail: result === "FAILED" ? draft.errorDetail || "鏈彁渚涘け璐ュ師鍥犮€? : undefined,
+            summary: draft.summary || (result === "SUCCESS" ? "同步任务执行成功。" : "同步任务执行失败，请查看失败原因。"),
+            errorDetail: result === "FAILED" ? draft.errorDetail || "未提供失败原因。" : undefined,
             completedAt,
           };
 
@@ -2100,12 +2099,12 @@ export default function AdminPage() {
             file: updatedFile,
           });
         }
-        setNotice(`鍚屾璁板綍宸叉洿鏂板埌鏈湴婕旂ず鏁版嵁锛?{result}`);
+        setNotice(`同步记录已更新到本地演示数据：${result}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鍚屾璁板綍鏇存柊澶辫触";
-      setErrorMessage(`鍚屾璁板綍鏇存柊澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "同步记录更新失败";
+      setErrorMessage(`同步记录更新失败：${message}`);
     } finally {
       setUpdatingKnowledgeBaseSyncRunId("");
     }
@@ -2260,7 +2259,7 @@ export default function AdminPage() {
         ...current,
         [knowledgeBaseId]: buildKnowledgeRetrievalConfigDraft(updated),
       }));
-      setNotice(`鐭ヨ瘑妫€绱㈤厤缃凡鏇存柊锛?{knowledgeBases.find((item) => item.id === knowledgeBaseId)?.name || knowledgeBaseId}`);
+      setNotice(`知识检索配置已更新：${knowledgeBases.find((item) => item.id === knowledgeBaseId)?.name || knowledgeBaseId}`);
     } catch (error) {
       if (dataSource === "seed") {
         try {
@@ -2283,17 +2282,17 @@ export default function AdminPage() {
             ...current,
             [knowledgeBaseId]: buildKnowledgeRetrievalConfigDraft(nextRecord),
           }));
-          setNotice("鐭ヨ瘑妫€绱㈤厤缃凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+          setNotice("知识检索配置已更新到本地演示数据。");
           return;
         } catch (draftError) {
-          const message = draftError instanceof Error ? draftError.message : "鐭ヨ瘑妫€绱㈤厤缃牎楠屽け璐?;
-          setErrorMessage(`鐭ヨ瘑妫€绱㈤厤缃繚瀛樺け璐ワ細${message}`);
+          const message = draftError instanceof Error ? draftError.message : "知识检索配置校验失败";
+          setErrorMessage(`知识检索配置保存失败：${message}`);
           return;
         }
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑妫€绱㈤厤缃繚瀛樺け璐?;
-      setErrorMessage(`鐭ヨ瘑妫€绱㈤厤缃繚瀛樺け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "知识检索配置保存失败";
+      setErrorMessage(`知识检索配置保存失败：${message}`);
     } finally {
       setUpdatingKnowledgeRetrievalBaseId("");
     }
@@ -2302,7 +2301,7 @@ export default function AdminPage() {
   async function handleCreateKnowledgeBinding(knowledgeBaseId: string) {
     const draft = newKnowledgeBindingDrafts[knowledgeBaseId] || buildCreateKnowledgeBindingDraft();
     if (!draft.targetId.trim()) {
-      setErrorMessage("鐭ヨ瘑缁戝畾鐩爣 ID 涓嶈兘涓虹┖銆?);
+      setErrorMessage("知识绑定目标 ID 不能为空。");
       return;
     }
 
@@ -2333,7 +2332,7 @@ export default function AdminPage() {
         ...current,
         [knowledgeBaseId]: buildCreateKnowledgeBindingDraft(),
       }));
-      setNotice(`鐭ヨ瘑缁戝畾宸插垱寤猴細${created.targetName || created.targetId}`);
+      setNotice(`知识绑定已创建：${created.targetName || created.targetId}`);
     } catch (error) {
       if (dataSource === "seed") {
         const now = new Date().toISOString();
@@ -2365,12 +2364,12 @@ export default function AdminPage() {
           ...current,
           [knowledgeBaseId]: buildCreateKnowledgeBindingDraft(),
         }));
-        setNotice("鐭ヨ瘑缁戝畾宸插垱寤哄埌鏈湴婕旂ず鏁版嵁銆?);
+        setNotice("知识绑定已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑缁戝畾鍒涘缓澶辫触";
-      setErrorMessage(`鐭ヨ瘑缁戝畾鍒涘缓澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "知识绑定创建失败";
+      setErrorMessage(`知识绑定创建失败：${message}`);
     } finally {
       setCreatingKnowledgeBindingForBaseId("");
     }
@@ -2404,7 +2403,7 @@ export default function AdminPage() {
         ...current,
         [bindingId]: buildKnowledgeBindingDraft(updated),
       }));
-      setNotice(`鐭ヨ瘑缁戝畾宸叉洿鏂帮細${updated.targetName || updated.targetId}`);
+      setNotice(`知识绑定已更新：${updated.targetName || updated.targetId}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -2426,12 +2425,12 @@ export default function AdminPage() {
             )
             .sort((a, b) => (a.priority === b.priority ? a.updatedAt.localeCompare(b.updatedAt) : a.priority - b.priority)),
         );
-        setNotice("鐭ヨ瘑缁戝畾宸叉洿鏂板埌鏈湴婕旂ず鏁版嵁銆?);
+        setNotice("知识绑定已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑缁戝畾鏇存柊澶辫触";
-      setErrorMessage(`鐭ヨ瘑缁戝畾鏇存柊澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "知识绑定更新失败";
+      setErrorMessage(`知识绑定更新失败：${message}`);
     } finally {
       setUpdatingKnowledgeBindingId("");
     }
@@ -2450,7 +2449,7 @@ export default function AdminPage() {
         delete next[bindingId];
         return next;
       });
-      setNotice(`鐭ヨ瘑缁戝畾宸插垹闄わ細${removed.targetName || removed.targetId}`);
+      setNotice(`知识绑定已删除：${removed.targetName || removed.targetId}`);
     } catch (error) {
       if (dataSource === "seed") {
         const removed = knowledgeBindings.find((item) => item.id === bindingId);
@@ -2460,12 +2459,12 @@ export default function AdminPage() {
           delete next[bindingId];
           return next;
         });
-        setNotice(`鐭ヨ瘑缁戝畾宸蹭粠鏈湴婕旂ず鏁版嵁鍒犻櫎锛?{removed?.targetName || removed?.targetId || bindingId}`);
+        setNotice(`知识绑定已从本地演示数据删除：${removed?.targetName || removed?.targetId || bindingId}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "鐭ヨ瘑缁戝畾鍒犻櫎澶辫触";
-      setErrorMessage(`鐭ヨ瘑缁戝畾鍒犻櫎澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "知识绑定删除失败";
+      setErrorMessage(`知识绑定删除失败：${message}`);
     } finally {
       setUpdatingKnowledgeBindingId("");
     }
@@ -2494,7 +2493,7 @@ export default function AdminPage() {
         ...current,
         [providerId]: buildProviderDraft(updated),
       }));
-      setNotice(`API Provider 宸叉洿鏂帮細${updated.name}`);
+      setNotice(`API Provider 已更新：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -2513,12 +2512,12 @@ export default function AdminPage() {
               : item,
           ),
         );
-        setNotice("API Provider 閰嶇疆宸叉洿鏂板埌鏈湴婕旂ず鏁版嵁銆?);
+        setNotice("API Provider 配置已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "API Provider 淇濆瓨澶辫触";
-      setErrorMessage(`API Provider 淇濆瓨澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "API Provider 保存失败";
+      setErrorMessage(`API Provider 保存失败：${message}`);
     } finally {
       setUpdatingProviderId("");
     }
@@ -2546,7 +2545,7 @@ export default function AdminPage() {
         ...current,
         [providerId]: buildProviderDraft(updated),
       }));
-      setNotice(`API Provider 宸插綊妗ｏ細${updated.name}`);
+      setNotice(`API Provider 已归档：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -2568,12 +2567,12 @@ export default function AdminPage() {
             status: "DISABLED",
           },
         }));
-        setNotice("API Provider 宸插綊妗ｅ埌鏈湴婕旂ず鏁版嵁銆?);
+        setNotice("API Provider 已归档到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "API Provider 褰掓。澶辫触";
-      setErrorMessage(`API Provider 褰掓。澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "API Provider 归档失败";
+      setErrorMessage(`API Provider 归档失败：${message}`);
     } finally {
       setUpdatingProviderId("");
     }
@@ -2592,7 +2591,7 @@ export default function AdminPage() {
         delete next[providerId];
         return next;
       });
-      setNotice(`API Provider 宸插垹闄わ細${removed.name}`);
+      setNotice(`API Provider 已删除：${removed.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const removed = providers.find((item) => item.id === providerId);
@@ -2602,12 +2601,12 @@ export default function AdminPage() {
           delete next[providerId];
           return next;
         });
-        setNotice(`API Provider 宸蹭粠鏈湴婕旂ず鏁版嵁鍒犻櫎锛?{removed?.name || providerId}`);
+        setNotice(`API Provider 已从本地演示数据删除：${removed?.name || providerId}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "API Provider 鍒犻櫎澶辫触";
-      setErrorMessage(`API Provider 鍒犻櫎澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "API Provider 删除失败";
+      setErrorMessage(`API Provider 删除失败：${message}`);
     } finally {
       setUpdatingProviderId("");
     }
@@ -2633,7 +2632,7 @@ export default function AdminPage() {
         ...current,
       }));
       setNewProvider(buildCreateApiProviderDraft());
-      setNotice(`API Provider 宸插垱寤猴細${created.name}`);
+      setNotice(`API Provider 已创建：${created.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const createdAt = new Date().toISOString();
@@ -2658,12 +2657,12 @@ export default function AdminPage() {
           ...current,
         }));
         setNewProvider(buildCreateApiProviderDraft());
-        setNotice("API Provider 宸插垱寤哄埌鏈湴婕旂ず鏁版嵁銆?);
+        setNotice("API Provider 已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "API Provider 鍒涘缓澶辫触";
-      setErrorMessage(`API Provider 鍒涘缓澶辫触锛?{message}`);
+      const message = error instanceof Error ? error.message : "API Provider 创建失败";
+      setErrorMessage(`API Provider 创建失败：${message}`);
     } finally {
       setIsCreatingProvider(false);
     }
@@ -2703,7 +2702,7 @@ export default function AdminPage() {
         ...current,
         [platformId]: buildThirdPartyPlatformDraft(updated),
       }));
-      setNotice(`绗笁鏂瑰钩鍙板凡鏇存柊锛?{updated.name}`);
+      setNotice(`第三方平台已更新：${updated.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
@@ -2717,12 +2716,12 @@ export default function AdminPage() {
           ...current,
           [platformId]: buildThirdPartyPlatformDraft(updated),
         }));
-        setNotice("绗笁鏂瑰钩鍙板凡鏇存柊鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("第三方平台已更新到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "绗笁鏂瑰钩鍙颁繚瀛樺け璐?;
-      setErrorMessage(`绗笁鏂瑰钩鍙颁繚瀛樺け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "第三方平台保存失败";
+      setErrorMessage(`第三方平台保存失败：${message}`);
     } finally {
       setUpdatingProviderId("");
     }
@@ -2742,7 +2741,7 @@ export default function AdminPage() {
         return next;
       });
       setSelectedThirdPartyPlatformId((current) => (current === platformId ? "" : current));
-      setNotice(`绗笁鏂瑰钩鍙板凡鍒犻櫎锛?{removed.name}`);
+      setNotice(`第三方平台已删除：${removed.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const removed = thirdPartyPlatforms.find((item) => item.id === platformId);
@@ -2753,12 +2752,12 @@ export default function AdminPage() {
           return next;
         });
         setSelectedThirdPartyPlatformId((current) => (current === platformId ? "" : current));
-        setNotice(`绗笁鏂瑰钩鍙板凡浠庢湰鍦版紨绀烘暟鎹垹闄わ細${removed?.name || platformId}`);
+        setNotice(`第三方平台已从本地演示数据删除：${removed?.name || platformId}`);
         return;
       }
 
-      const message = error instanceof Error ? error.message : "绗笁鏂瑰钩鍙板垹闄ゅけ璐?;
-      setErrorMessage(`绗笁鏂瑰钩鍙板垹闄ゅけ璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "第三方平台删除失败";
+      setErrorMessage(`第三方平台删除失败：${message}`);
     } finally {
       setUpdatingProviderId("");
     }
@@ -2780,7 +2779,7 @@ export default function AdminPage() {
       }));
       setSelectedThirdPartyPlatformId(created.id);
       setNewThirdPartyPlatform(buildCreateThirdPartyPlatformDraft());
-      setNotice(`绗笁鏂瑰钩鍙板凡鍒涘缓锛?{created.name}`);
+      setNotice(`第三方平台已创建：${created.name}`);
     } catch (error) {
       if (dataSource === "seed") {
         const createdAt = new Date().toISOString();
@@ -2796,12 +2795,12 @@ export default function AdminPage() {
         }));
         setSelectedThirdPartyPlatformId(created.id);
         setNewThirdPartyPlatform(buildCreateThirdPartyPlatformDraft());
-        setNotice("绗笁鏂瑰钩鍙板凡鍒涘缓鍒版湰鍦版紨绀烘暟鎹€?);
+        setNotice("第三方平台已创建到本地演示数据。");
         return;
       }
 
-      const message = error instanceof Error ? error.message : "绗笁鏂瑰钩鍙板垱寤哄け璐?;
-      setErrorMessage(`绗笁鏂瑰钩鍙板垱寤哄け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "第三方平台创建失败";
+      setErrorMessage(`第三方平台创建失败：${message}`);
     } finally {
       setIsCreatingProvider(false);
     }
@@ -2884,34 +2883,34 @@ export default function AdminPage() {
   const adminPanelTools = (
     <div className="admin-panel-tools">
       <div className="workspace-status">
-        <span className="archive-pill status-ready">{dataSource === "api" ? "鐪熷疄鎺ュ彛" : "婕旂ず鏁版嵁"}</span>
-        <span className="status-text">{adminName ? `褰撳墠绠＄悊鍛橈細${adminName}` : "鍚庡彴韬唤宸查獙璇?}</span>
-        <span className="status-text">褰撳墠鏍忕洰锛歿activeTabMeta.label}</span>
+        <span className="archive-pill status-ready">{dataSource === "api" ? "真实接口" : "演示数据"}</span>
+        <span className="status-text">{adminName ? `当前管理员：${adminName}` : "后台身份已验证"}</span>
+        <span className="status-text">当前栏目：{activeTabMeta.label}</span>
       </div>
       <div className="admin-console-actions">
         <button type="button" className="secondary-button" onClick={() => void loadAdminData()} disabled={isLoading || isLoggingOut}>
-          {isLoading ? "鍒锋柊涓?.." : "鍒锋柊鍚庡彴鏁版嵁"}
+          {isLoading ? "刷新中..." : "刷新后台数据"}
         </button>
         <button type="button" className="ghost-danger-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isLoading}>
-          {isLoggingOut ? "閫€鍑轰腑..." : "閫€鍑虹櫥褰?}
+          {isLoggingOut ? "退出中..." : "退出登录"}
         </button>
       </div>
     </div>
   );
   const overviewCards = [
-    { label: "璁㈠崟姹?, value: summary.orderCount, detail: `${summary.pendingCount} 涓緟鏀粯 / ${summary.paidCount} 涓凡瀹屾垚` },
-    { label: "骞冲彴鐢ㄦ埛", value: summary.userCount, detail: `鍏辫鐩?${summary.userCount} 涓彲杩愯惀璐︽埛` },
-    { label: "妯″瀷璧勪骇", value: summary.modelCount, detail: `绱娑堣€?${summary.usagePoints} 鐐筦 },
-    { label: "鐭ヨ瘑璧勪骇", value: summary.knowledgeBaseCount, detail: `鍏辩淮鎶?${summary.providerCount} 涓帴鍙ｄ緵搴斿晢` },
+    { label: "订单池", value: summary.orderCount, detail: `${summary.pendingCount} 个待支付 / ${summary.paidCount} 个已完成` },
+    { label: "平台用户", value: summary.userCount, detail: `共覆盖 ${summary.userCount} 个可运营账户` },
+    { label: "模型资产", value: summary.modelCount, detail: `累计消耗 ${summary.usagePoints} 点` },
+    { label: "知识资产", value: summary.knowledgeBaseCount, detail: `共维护 ${summary.providerCount} 个接口供应商` },
   ];
   const moduleHighlights = [
-    { key: "orders" as const, count: summary.orderCount, note: `${summary.pendingCount} 涓鍗曞緟澶勭悊` },
-    { key: "rules" as const, count: summary.planCount + summary.packageCount, note: `${summary.planCount} 涓細鍛樻柟妗?/ ${summary.packageCount} 涓偣鏁板寘` },
-    { key: "users" as const, count: summary.userCount, note: `褰撳墠鍚庡彴鍙鐞?${summary.userCount} 涓敤鎴穈 },
-    { key: "usage" as const, count: summary.modelCount, note: `绱妯″瀷鐐规暟 ${summary.usagePoints}` },
-    { key: "assets" as const, count: summary.skillCount + summary.promptCount, note: `${summary.skillCount} 涓妧鑳?/ ${summary.promptCount} 濂楁彁绀鸿瘝` },
-    { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `褰撳墠鍏辨湁 ${summary.knowledgeBaseCount} 涓煡璇嗗簱` },
-    { key: "providers" as const, count: summary.providerCount, note: `鎺ュ彛渚涘簲鍟?${summary.providerCount} 涓猔 },
+    { key: "orders" as const, count: summary.orderCount, note: `${summary.pendingCount} 个订单待处理` },
+    { key: "rules" as const, count: summary.planCount + summary.packageCount, note: `${summary.planCount} 个会员方案 / ${summary.packageCount} 个点数包` },
+    { key: "users" as const, count: summary.userCount, note: `当前后台可管理 ${summary.userCount} 个用户` },
+    { key: "usage" as const, count: summary.modelCount, note: `累计模型点数 ${summary.usagePoints}` },
+    { key: "assets" as const, count: summary.skillCount + summary.promptCount, note: `${summary.skillCount} 个技能 / ${summary.promptCount} 套提示词` },
+    { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `当前共有 ${summary.knowledgeBaseCount} 个知识库` },
+    { key: "providers" as const, count: summary.providerCount, note: `接口供应商 ${summary.providerCount} 个` },
   ].filter((item) => accessibleTabs.some((tab) => tab.key === item.key));
   const skillModuleFilterOptions = useMemo(
     () =>
@@ -2990,9 +2989,9 @@ export default function AdminPage() {
     [filteredSkillTree],
   );
   const operationPulse = [
-    { label: "璁㈠崟灞ョ害", value: summary.orderCount ? Math.round((summary.paidCount / summary.orderCount) * 100) : 0 },
-    { label: "鐭ヨ瘑鍚屾", value: knowledgeBases.length ? Math.round((knowledgeBases.filter((item) => item.syncStatus === "SUCCESS").length / knowledgeBases.length) * 100) : 0 },
-    { label: "鎺ュ彛鍋ュ悍", value: providers.length ? Math.round(providers.filter((item) => item.status === "ACTIVE").length / providers.length * 100) : 0 },
+    { label: "订单履约", value: summary.orderCount ? Math.round((summary.paidCount / summary.orderCount) * 100) : 0 },
+    { label: "知识同步", value: knowledgeBases.length ? Math.round((knowledgeBases.filter((item) => item.syncStatus === "SUCCESS").length / knowledgeBases.length) * 100) : 0 },
+    { label: "接口健康", value: providers.length ? Math.round(providers.filter((item) => item.status === "ACTIVE").length / providers.length * 100) : 0 },
   ];
   const latestKnowledgeRun = knowledgeBaseSyncRuns[0];
   const activeSkillPrimary = filteredSkillTree.find((item) => item.id === activeSkillPrimaryId) || filteredSkillTree[0];
@@ -3028,7 +3027,7 @@ export default function AdminPage() {
   const activeSkillPackageLabel = activeSkillPackageNames.length ? activeSkillPackageNames.join(" / ") : "-";
   const activeSkillBindingLabel =
     activeSkillBindings[0]?.remarks ||
-    (activeSkillPackageNames.length || activeSkillModules.length ? "宸插缓绔嬫妧鑳藉綊灞炴槧灏? : "鏆傛湭寤虹珛鎶€鑳藉綊灞炴槧灏?);
+    (activeSkillPackageNames.length || activeSkillModules.length ? "已建立技能归属映射" : "暂未建立技能归属映射");
   const activeSkillRelations = activeSkillConfig
     ? skillPackageSkills.filter((item) => item.skillSlug === activeSkillConfig.slug && item.enabled)
     : [];
@@ -3054,8 +3053,8 @@ export default function AdminPage() {
       ? activeSkillFlow.slice(activeSkillFlowIndex + 1).map((item) => item.skillName || item.skillSlug)
       : [];
   const activeOutputSummary = downstreamSkillNames.length
-    ? `褰撳墠鎶€鑳借緭鍑哄皢缁х画浼犻€掔粰锛?{downstreamSkillNames.join(" -> ")}`
-    : "褰撳墠鎶€鑳借緭鍑轰负鑳藉姏鍖呯粓鎬佽緭鍑猴紝鎴栬繘鍏ヤ汉宸ュ鏍?/ 鍙戝竷鐜妭銆?;
+    ? `当前技能输出将继续传递给：${downstreamSkillNames.join(" -> ")}`
+    : "当前技能输出为能力包终态输出，或进入人工审核 / 发布环节。";
   const activeReferenceAssets = activeSkillPackageDetail?.references || [];
   const activeScriptAssets = activeSkillPackageDetail?.scripts || [];
   const effectiveReferenceAssetKeys =
@@ -3082,23 +3081,23 @@ export default function AdminPage() {
   }, {});
   const knowledgeBaseSyncSummary = activeKnowledgeBaseRecords
     .slice(0, 6)
-    .map((item) => `${item.label} ${knowledgeBaseFileCountMap[item.value] || 0} 椤筦);
+    .map((item) => `${item.label} ${knowledgeBaseFileCountMap[item.value] || 0} 项`);
   const databaseInputSummary = (activeSkillDraft?.databaseInputs || [])
     .map((item) => {
       if (item.parameterType === "INJECT_TOGGLE") {
-        return `${item.parameterLabel || item.parameterKey}锛?{item.selectedValue === "INJECT" ? "妞嶅叆" : "涓嶆鍏?}`;
+        return `${item.parameterLabel || item.parameterKey}：${item.selectedValue === "INJECT" ? "植入" : "不植入"}`;
       }
       const matchedOption = getDatabaseSelectValueOptions(item.parameterKey, databaseParameterSync)
         .find((option) => option.value === item.selectedValue);
-      return `${item.parameterLabel || item.parameterKey}锛?{matchedOption?.label || "鏈€夋嫨"}`;
+      return `${item.parameterLabel || item.parameterKey}：${matchedOption?.label || "未选择"}`;
     })
     .join(" / ");
   const databaseParameterSyncSummary = databaseParameterSync.summary.join(" / ");
   const knowledgeInputSummary = (activeSkillDraft?.knowledgeInputs || [])
-    .map((item) => `${item.knowledgeBaseName || "鏈€夋嫨鐭ヨ瘑搴?}锛?{item.targetContentLabel || "鏁村簱妫€绱?}`)
+    .map((item) => `${item.knowledgeBaseName || "未选择知识库"}：${item.targetContentLabel || "整库检索"}`)
     .join(" / ");
   const customInputSummary = (activeSkillDraft?.customInputs || [])
-    .map((item) => `${item.label || "鏈懡鍚嶅弬鏁?}锛?{item.inputType === "SELECT" ? "涓嬫媺" : item.inputType === "FILE" ? "涓婁紶" : "杈撳叆"}锛塦)
+    .map((item) => `${item.label || "未命名参数"}（${item.inputType === "SELECT" ? "下拉" : item.inputType === "FILE" ? "上传" : "输入"}）`)
     .join(" / ");
   const skillModelOptions = useMemo(
     () =>
@@ -3125,7 +3124,7 @@ export default function AdminPage() {
     () =>
       Array.from(
         new Set([
-          "鍐呭鐢熶骇",
+          "内容生产",
           ...skills.map((item) => item.category),
           ...SKILL_CENTER_TREE.map((item) => item.label),
           ...SKILL_CENTER_TREE.flatMap((item) => item.sections.map((section) => section.label)),
@@ -3150,7 +3149,7 @@ export default function AdminPage() {
   const skillCenterUpdatedAt = activePromptConfig?.updatedAt || activeSkillConfig?.updatedAt;
   const skillCenterPromptValue = activePromptDraft?.content || "";
   const skillCenterName = activeSkillLeaf?.label || activePromptConfig?.name || activeSkillConfig?.name || "-";
-  const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "鑷姩鏇存柊";
+  const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
   const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
   const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
     !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
@@ -3176,11 +3175,11 @@ export default function AdminPage() {
     label: string;
     description: string;
   }> = [
-    { id: "overview", label: "鍩虹淇℃伅", description: "鏌ョ湅鎬昏銆佸惎鍋滅姸鎬佸拰璇存槑銆? },
-    { id: "files", label: "璧勬枡涓婁紶", description: "涓婁紶璧勬枡骞惰Е鍙戝悓姝ャ€? },
-    { id: "retrieval", label: "妫€绱㈤厤缃?, description: "缁存姢 TopK銆佸彫鍥炲拰閲嶆帓銆? },
-    { id: "bindings", label: "鎺ュ叆瀵硅薄", description: "缁戝畾妯″潡銆佽兘鍔涘寘鍜屾彁绀鸿瘝銆? },
-    { id: "history", label: "鍚屾璁板綍", description: "鍥炵湅鏈€杩戝悓姝ョ姸鎬佸拰鎽樿銆? },
+    { id: "overview", label: "基础信息", description: "查看总览、启停状态和说明。" },
+    { id: "files", label: "资料上传", description: "上传资料并触发同步。" },
+    { id: "retrieval", label: "检索配置", description: "维护 TopK、召回和重排。" },
+    { id: "bindings", label: "接入对象", description: "绑定模块、能力包和提示词。" },
+    { id: "history", label: "同步记录", description: "回看最近同步状态和摘要。" },
   ];
   const selectedKnowledgeBaseDraft = selectedKnowledgeBase
     ? knowledgeBaseDrafts[selectedKnowledgeBase.id] || buildKnowledgeBaseDraft(selectedKnowledgeBase)
@@ -3207,8 +3206,8 @@ export default function AdminPage() {
             {
               targetId: workflowStepKey,
               targetKey: workflowStepKey,
-              targetName: workflowNameMap.get(workflowStepKey) || `${item.packageName}姝ラ`,
-              description: `${item.packageName} 路 宸ヤ綔娴佹楠,
+              targetName: workflowNameMap.get(workflowStepKey) || `${item.packageName}步骤`,
+              description: `${item.packageName} · 工作流步骤`,
             } satisfies KnowledgeBindingTargetOption,
           ]),
         ),
@@ -3230,13 +3229,13 @@ export default function AdminPage() {
           targetId: item.packageKey,
           targetKey: item.packageKey,
           targetName: item.packageName,
-          description: item.description || `浣滅敤妯″潡锛?{item.moduleKeys.join(" / ") || "鏈缃?}`,
+          description: item.description || `作用模块：${item.moduleKeys.join(" / ") || "未设置"}`,
         })),
       PROMPT: prompts.map((item) => ({
         targetId: item.id,
         targetKey: item.id,
         targetName: item.name,
-        description: item.scene ? `鍦烘櫙锛?{item.scene}` : `鐗堟湰锛?{item.version}`,
+        description: item.scene ? `场景：${item.scene}` : `版本：${item.version}`,
       })),
       WORKFLOW_STEP: workflowStepOptions,
     };
@@ -3254,7 +3253,7 @@ export default function AdminPage() {
         targetId: selectedKnowledgeBindingCreateDraft.targetId,
         targetKey: selectedKnowledgeBindingCreateDraft.targetKey,
         targetName: selectedKnowledgeBindingCreateDraft.targetName || selectedKnowledgeBindingCreateDraft.targetId,
-        description: "褰撳墠宸插～鍐欑殑鑷畾涔夊璞?,
+        description: "当前已填写的自定义对象",
       });
     }
 
@@ -3305,12 +3304,12 @@ export default function AdminPage() {
   const selectedKnowledgePendingFileCount = selectedKnowledgeFiles.filter((file) => file.status !== "INDEXED").length;
   const selectedKnowledgeThresholdHint =
     selectedKnowledgeRetrievalConfig?.retrievalThreshold == null
-      ? "褰撳墠鏈缃槇鍊硷紝绯荤粺浼氭寜榛樿鍙洖瑙勫垯杩斿洖缁撴灉銆?
+      ? "当前未设置阈值，系统会按默认召回规则返回结果。"
       : selectedKnowledgeRetrievalConfig.retrievalThreshold >= 0.7
-        ? "褰撳墠闃堝€煎亸楂橈紝鏇撮€傚悎楂樼簿搴︾煡璇嗗簱锛涚煭璧勬枡搴撳彲鑳藉嚭鐜?0 鍛戒腑銆?
+        ? "当前阈值偏高，更适合高精度知识库；短资料库可能出现 0 命中。"
         : selectedKnowledgeRetrievalConfig.retrievalThreshold >= 0.55
-          ? "褰撳墠闃堝€间腑绛夛紝閫傚悎甯歌浼佷笟璧勬枡搴撱€?
-          : "褰撳墠闃堝€煎亸浣庯紝鍛戒腑浼氭洿瀹芥澗锛岄€傚悎鑱旇皟楠岃瘉涓庡皬鏍锋湰璧勬枡搴撱€?;
+          ? "当前阈值中等，适合常规企业资料库。"
+          : "当前阈值偏低，命中会更宽松，适合联调验证与小样本资料库。";
   const selectedKnowledgeSortedFiles = useMemo(
     () => [...selectedKnowledgeFiles].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
     [selectedKnowledgeFiles],
@@ -3331,36 +3330,36 @@ export default function AdminPage() {
   const selectedKnowledgeRetrievalSuggestions = useMemo(() => {
     const suggestions: string[] = [];
     if (!selectedKnowledgeFiles.length) {
-      suggestions.push("褰撳墠鐭ヨ瘑搴撹繕娌℃湁璧勬枡锛屽厛鍘烩€滆祫鏂欎笂浼犫€濇柊澧炴枃妗ｏ紝鎴栦粠鍓嶇浼佷笟鐭ヨ瘑搴撴ˉ鎺ヨ祫鏂欍€?);
+      suggestions.push("当前知识库还没有资料，先去“资料上传”新增文档，或从前端企业知识库桥接资料。");
       return suggestions;
     }
     if (selectedKnowledgeBase.chunkCount <= 0) {
-      suggestions.push("褰撳墠杩樻病鏈夌敓鎴愬垎鐗囷紝鍏堟墽琛屼竴娆″叏閲忓悓姝ワ紝鍐嶆煡鐪嬪垎鐗囧拰 embedding 鏄庣粏銆?);
+      suggestions.push("当前还没有生成分片，先执行一次全量同步，再查看分片和 embedding 明细。");
     }
     if (!selectedKnowledgeIndexedFileCount) {
-      suggestions.push("褰撳墠璧勬枡閮借繕鏈叆搴擄紝璇峰厛鎶婅祫鏂欏悓姝ュ埌 INDEXED 鐘舵€併€?);
+      suggestions.push("当前资料都还未入库，请先把资料同步到 INDEXED 状态。");
     }
     if (selectedKnowledgePendingFileCount > 0) {
-      suggestions.push(`杩樻湁 ${selectedKnowledgePendingFileCount} 浠借祫鏂欐湭瀹屾垚鍏ュ簱锛屾绱㈢粨鏋滃彲鑳戒笉瀹屾暣銆俙);
+      suggestions.push(`还有 ${selectedKnowledgePendingFileCount} 份资料未完成入库，检索结果可能不完整。`);
     }
     if (!selectedKnowledgeRetrievalTestResult) {
-      suggestions.push("鍏堣繍琛屼竴娆℃绱㈡祴璇曪紝绯荤粺浼氭牴鎹懡涓儏鍐电粰鍑烘洿鍏蜂綋寤鸿銆?);
+      suggestions.push("先运行一次检索测试，系统会根据命中情况给出更具体建议。");
       return suggestions;
     }
     if (!selectedKnowledgeRetrievalTestResult.hitCount) {
       if ((selectedKnowledgeRetrievalConfig?.retrievalThreshold ?? 0.65) >= 0.65) {
-        suggestions.push("褰撳墠鍛戒腑涓?0锛屼紭鍏堟妸妫€绱㈤槇鍊间复鏃堕檷鍒?0.4-0.55 鍐嶅娴嬨€?);
+        suggestions.push("当前命中为 0，优先把检索阈值临时降到 0.4-0.55 再复测。");
       }
-      suggestions.push("濡傛灉闄嶄綆闃堝€煎悗浠嶇劧 0 鍛戒腑锛屽幓鈥滆祫鏂欎笂浼犫€濋噷灞曞紑鏂囦欢锛岀‘璁ゆ槸鍚﹀凡缁忕敓鎴愬垎鐗囧拰 embedding銆?);
-      suggestions.push("娴嬭瘯闂灏介噺鍖呭惈璧勬枡涓殑鍘熻瘝锛屼緥濡備骇鍝佸悕銆佹笭閬撳悕銆佸搧鐗屽悕锛屼究浜庤仈璋冮獙璇併€?);
+      suggestions.push("如果降低阈值后仍然 0 命中，去“资料上传”里展开文件，确认是否已经生成分片和 embedding。");
+      suggestions.push("测试问题尽量包含资料中的原词，例如产品名、渠道名、品牌名，便于联调验证。");
       return suggestions;
     }
-    suggestions.push(`鏈宸插懡涓?${selectedKnowledgeRetrievalTestResult.hitCount} 鏉＄粨鏋滐紝鍙互缁х画寰皟闃堝€煎拰 TopK 瑙傚療鍙洖鍙樺寲銆俙);
+    suggestions.push(`本次已命中 ${selectedKnowledgeRetrievalTestResult.hitCount} 条结果，可以继续微调阈值和 TopK 观察召回变化。`);
     if ((selectedKnowledgeRetrievalConfig?.retrievalThreshold ?? 0) < 0.45) {
-      suggestions.push("褰撳墠闃堝€艰緝浣庯紝鑱旇皟閫氳繃鍚庡缓璁洖璋冨埌 0.55 浠ヤ笂锛屽噺灏戜綆璐ㄩ噺鍙洖銆?);
+      suggestions.push("当前阈值较低，联调通过后建议回调到 0.55 以上，减少低质量召回。");
     }
     if (selectedKnowledgeRetrievalTestResult.hitCount < selectedKnowledgeRetrievalTestResult.topK) {
-      suggestions.push("褰撳墠杩斿洖缁撴灉灏戜簬 TopK锛岃鏄庡彲鍙洖鍐呭鏈夐檺锛屽悗缁彲浠ヨˉ鍏呮洿澶氳祫鏂欐垨閲嶆柊鍒囩墖銆?);
+      suggestions.push("当前返回结果少于 TopK，说明可召回内容有限，后续可以补充更多资料或重新切片。");
     }
     return suggestions;
   }, [
@@ -3443,8 +3442,8 @@ export default function AdminPage() {
         if (cancelled) {
           return;
         }
-        const message = error instanceof Error ? error.message : "璇诲彇鎵€灞炶兘鍔涘寘璧勪骇澶辫触";
-        setSkillAssetLoadError(`鎵€灞炶兘鍔涘寘璧勪骇璇诲彇澶辫触锛?{message}`);
+        const message = error instanceof Error ? error.message : "读取所属能力包资产失败";
+        setSkillAssetLoadError(`所属能力包资产读取失败：${message}`);
       })
       .finally(() => {
         if (!cancelled) {
@@ -3483,7 +3482,7 @@ export default function AdminPage() {
         const marketingCalendarOptions = marketingCalendarWorkspace.history
           .flatMap((record) => record.items.map((item) => ({
             value: item.id,
-            label: `${item.date}锝?{item.topicName}`,
+            label: `${item.date}｜${item.topicName}`,
           })));
         const topicLibraryOptions = topicWorkspace.topicOptions.map((item) => ({
           value: item.id,
@@ -3510,12 +3509,12 @@ export default function AdminPage() {
             material_library: materialLibraryOptions,
           },
           summary: [
-            `鍝佺墝璧勬枡 ${brandArchive.brand?.brandName ? 1 : 0} 椤筦,
-            `浜у搧璧勬枡 ${brandArchive.products.length} 椤筦,
-            `钀ラ攢绛栧垝鏂规 ${marketingPlanCount} 椤筦,
-            `钀ラ攢鏃ュ巻 ${marketingCalendarOptions.length} 椤筦,
-            `閫夐搴?${topicLibraryOptions.length} 椤筦,
-            `绱犳潗搴?${materialLibraryOptions.length} 椤筦,
+            `品牌资料 ${brandArchive.brand?.brandName ? 1 : 0} 项`,
+            `产品资料 ${brandArchive.products.length} 项`,
+            `营销策划方案 ${marketingPlanCount} 项`,
+            `营销日历 ${marketingCalendarOptions.length} 项`,
+            `选题库 ${topicLibraryOptions.length} 项`,
+            `素材库 ${materialLibraryOptions.length} 项`,
           ],
         });
       })
@@ -3523,13 +3522,13 @@ export default function AdminPage() {
         if (cancelled) {
           return;
         }
-        const message = error instanceof Error ? error.message : "鏁版嵁搴撳弬鏁板悓姝ュけ璐?;
+        const message = error instanceof Error ? error.message : "数据库参数同步失败";
         setDatabaseParameterSync({
           injectCounts: {},
           selectOptions: {},
           summary: [],
         });
-        setDatabaseParameterSyncError(`鏁版嵁搴撳弬鏁板悓姝ュけ璐ワ細${message}`);
+        setDatabaseParameterSyncError(`数据库参数同步失败：${message}`);
       })
       .finally(() => {
         if (!cancelled) {
@@ -3773,7 +3772,7 @@ export default function AdminPage() {
         upsertSkillPackageSkillState(saved);
         return saved;
       }
-      console.error("鎸佷箙鍖栬兘鍔涘寘鎶€鑳藉叧绯诲け璐?, error);
+      console.error("持久化能力包技能关系失败", error);
       return undefined;
     }
   }
@@ -3799,7 +3798,7 @@ export default function AdminPage() {
       setSkills((current) => [created, ...current]);
       setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
       await upsertSkillAssetBinding(created, requestedPromptScene);
-      setNotice(`鎶€鑳藉凡鍒涘缓锛?{created.name}`);
+      setNotice(`技能已创建：${created.name}`);
       setActiveAssetsWorkspaceTab("skillZone");
       setIsCreateSkillModalOpen(false);
       setNewSkill(buildCreateSkillDraft());
@@ -3814,14 +3813,14 @@ export default function AdminPage() {
         setSkills((current) => [created, ...current]);
         setSkillDrafts((current) => ({ [created.id]: buildSkillDraft(created), ...current }));
         await upsertSkillAssetBinding(created, requestedPromptScene);
-        setNotice(`婕旂ず鎶€鑳藉凡鍒涘缓锛?{created.name}`);
+        setNotice(`演示技能已创建：${created.name}`);
         setActiveAssetsWorkspaceTab("skillZone");
         setIsCreateSkillModalOpen(false);
         setNewSkill(buildCreateSkillDraft());
         return;
       }
-      const message = error instanceof Error ? error.message : "鍒涘缓鎶€鑳藉け璐?;
-      setErrorMessage(`鍒涘缓鎶€鑳藉け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "创建技能失败";
+      setErrorMessage(`创建技能失败：${message}`);
     } finally {
       setIsCreatingSkill(false);
     }
@@ -3875,19 +3874,19 @@ export default function AdminPage() {
       });
       const importedAssets = await importInstalledAssetsToPackage(installSkillDraft.packageKey, result);
       const parsedOverviewSummary = [
-        result.parsedOverview.stepSummaries.length ? `瑙ｆ瀽姝ラ ${result.parsedOverview.stepSummaries.length}` : "",
-        result.parsedOverview.inputHints.length ? `杈撳叆瑕佺偣 ${result.parsedOverview.inputHints.length}` : "",
-        result.parsedOverview.outputHints.length ? `杈撳嚭瑕佺偣 ${result.parsedOverview.outputHints.length}` : "",
-      ].filter(Boolean).join("锛?);
+        result.parsedOverview.stepSummaries.length ? `解析步骤 ${result.parsedOverview.stepSummaries.length}` : "",
+        result.parsedOverview.inputHints.length ? `输入要点 ${result.parsedOverview.inputHints.length}` : "",
+        result.parsedOverview.outputHints.length ? `输出要点 ${result.parsedOverview.outputHints.length}` : "",
+      ].filter(Boolean).join("，");
       setNotice(
-        `鎶€鑳藉凡瀹夎锛?{result.detectedSkillName}锛圧eferences ${result.referenceFileCount}锛孲cripts ${result.scriptFileCount}${result.initialPrompt ? "锛屽凡鐢熸垚鍒濆鎻愮ず璇? : ""}${parsedOverviewSummary ? `锛?{parsedOverviewSummary}` : ""}${installSkillDraft.packageKey !== "NONE" ? `锛屽凡瀵煎叆鑳藉姏鍖呰祫浜?${importedAssets.importedReferenceCount}/${result.referenceFileCount} References锛?{importedAssets.importedScriptCount}/${result.scriptFileCount} Scripts` : ""}锛塦,
+        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}${result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${installSkillDraft.packageKey !== "NONE" ? `，已导入能力包资产 ${importedAssets.importedReferenceCount}/${result.referenceFileCount} References，${importedAssets.importedScriptCount}/${result.scriptFileCount} Scripts` : ""}）`,
       );
       setActiveAssetsWorkspaceTab("skillZone");
       setIsInstallSkillModalOpen(false);
       setInstallSkillDraft(buildInstallSkillDraft());
     } catch (error) {
-      const message = error instanceof Error ? error.message : "瀹夎鎶€鑳藉け璐?;
-      setErrorMessage(`瀹夎鎶€鑳藉け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "安装技能失败";
+      setErrorMessage(`安装技能失败：${message}`);
     } finally {
       setIsInstallingSkill(false);
     }
@@ -4035,7 +4034,7 @@ export default function AdminPage() {
       if (newPrompt.bindSkillSlug !== "NONE") {
         await upsertPromptBinding(newPrompt.bindSkillSlug, created.id, created.scene, created.name, newPrompt.bindingRemarks);
       }
-      setNotice(`鎻愮ず璇嶆ā鏉垮凡鍒涘缓锛?{created.name}`);
+      setNotice(`提示词模板已创建：${created.name}`);
       setIsCreatePromptModalOpen(false);
       setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
       return;
@@ -4051,13 +4050,13 @@ export default function AdminPage() {
         if (newPrompt.bindSkillSlug !== "NONE") {
           await upsertPromptBinding(newPrompt.bindSkillSlug, created.id, created.scene, created.name, newPrompt.bindingRemarks);
         }
-        setNotice(`婕旂ず鎻愮ず璇嶆ā鏉垮凡鍒涘缓锛?{created.name}`);
+        setNotice(`演示提示词模板已创建：${created.name}`);
         setIsCreatePromptModalOpen(false);
         setNewPrompt(buildCreatePromptDraft(activeSkillConfig?.slug));
         return;
       }
-      const message = error instanceof Error ? error.message : "鍒涘缓鎻愮ず璇嶆ā鏉垮け璐?;
-      setErrorMessage(`鍒涘缓鎻愮ず璇嶆ā鏉垮け璐ワ細${message}`);
+      const message = error instanceof Error ? error.message : "创建提示词模板失败";
+      setErrorMessage(`创建提示词模板失败：${message}`);
     } finally {
       setIsCreatingPrompt(false);
     }
@@ -4141,7 +4140,7 @@ export default function AdminPage() {
       if (dataSource === "seed") {
         return undefined;
       }
-      const message = error instanceof Error ? error.message : "鎶€鑳芥彁绀鸿瘝缁戝畾淇濆瓨澶辫触";
+      const message = error instanceof Error ? error.message : "技能提示词绑定保存失败";
       setErrorMessage(message);
       return undefined;
     }
@@ -4153,8 +4152,8 @@ export default function AdminPage() {
         <section className="panel" style={{ margin: 24 }}>
           <div className="panel-header">
             <div>
-              <h1>鍚庡彴绠＄悊鍙伴獙璇佷腑</h1>
-              <p className="panel-subtext">姝ｅ湪妫€鏌ュ綋鍓嶇櫥褰曟€佷笌鍚庡彴瑙掕壊鏉冮檺鐭╅樀銆?/p>
+              <h1>后台管理台验证中</h1>
+              <p className="panel-subtext">正在检查当前登录态与后台角色权限矩阵。</p>
             </div>
           </div>
         </section>
@@ -4168,13 +4167,14 @@ export default function AdminPage() {
         <section className="panel" style={{ margin: 24, maxWidth: 720 }}>
           <div className="panel-header">
             <div>
-              <h1>鍚庡彴绠＄悊鍙版殏涓嶅彲杩涘叆</h1>
+              <h1>后台管理台暂不可进入</h1>
               <p className="panel-subtext">{errorMessage}</p>
             </div>
           </div>
           <div className="personal-actions">
             <button type="button" className="primary-button" onClick={() => router.replace("/admin/login?next=/admin")}>
-              鍘诲悗鍙扮櫥褰?            </button>
+              去后台登录
+            </button>
           </div>
         </section>
       </main>
@@ -4184,7 +4184,7 @@ export default function AdminPage() {
   return (
     <main className="dashboard-shell admin-console-shell">
       <section className="admin-console-stack">
-        <nav className="admin-console-nav" aria-label="鍚庡彴瀵艰埅">
+        <nav className="admin-console-nav" aria-label="后台导航">
           {accessibleTabs.map((tab) => (
             <button
               type="button"
@@ -4225,10 +4225,10 @@ export default function AdminPage() {
               <article className="admin-dashboard-panel">
                 <div className="admin-panel-heading">
                   <div>
-                    <strong>杩愯惀鑴夊啿</strong>
-                    <p>鐢ㄦ渶鐭椂闂寸湅鍑哄悗鍙版槸鍚﹀湪鍋ュ悍杩愯浆銆?/p>
+                    <strong>运营脉冲</strong>
+                    <p>用最短时间看出后台是否在健康运转。</p>
                   </div>
-                  <span>鎬昏</span>
+                  <span>总览</span>
                 </div>
                 <div className="admin-pulse-bars">
                   {operationPulse.map((item) => (
@@ -4248,10 +4248,10 @@ export default function AdminPage() {
               <article className="admin-dashboard-panel">
                 <div className="admin-panel-heading">
                   <div>
-                    <strong>鏍忕洰閫熻</strong>
-                    <p>姣忎釜鍚庡彴椤圭洰鍗曠嫭鎴愭爮鐩紝鏂逛究閫愬潡杩涘叆銆?/p>
+                    <strong>栏目速览</strong>
+                    <p>每个后台项目单独成栏目，方便逐块进入。</p>
                   </div>
-                  <span>妯″潡</span>
+                  <span>模块</span>
                 </div>
                 <div className="admin-spotlight-list">
                   {moduleHighlights.map((item) => {
@@ -4277,26 +4277,26 @@ export default function AdminPage() {
               <article className="admin-dashboard-panel">
                 <div className="admin-panel-heading">
                   <div>
-                    <strong>浠婃棩鎽樿</strong>
-                    <p>淇濈暀绠＄悊鍙板簲鏈夌殑鍟嗗姟鎰熷拰涓€鐪煎彲璇绘€с€?/p>
+                    <strong>今日摘要</strong>
+                    <p>保留管理台应有的商务感和一眼可读性。</p>
                   </div>
-                  <span>鎽樿</span>
+                  <span>摘要</span>
                 </div>
                 <div className="admin-summary-list">
                   <div>
-                    <span>寰呮敮浠樿鍗?/span>
+                    <span>待支付订单</span>
                     <strong>{summary.pendingCount}</strong>
                   </div>
                   <div>
-                    <span>鍦ㄧ嚎鐭ヨ瘑搴?/span>
+                    <span>在线知识库</span>
                     <strong>{knowledgeBases.filter((item) => item.status === "ACTIVE").length}</strong>
                   </div>
                   <div>
-                    <span>鍚敤鎶€鑳?/span>
+                    <span>启用技能</span>
                     <strong>{skills.filter((item) => item.status === "ACTIVE").length}</strong>
                   </div>
                   <div>
-                    <span>娲昏穬渚涘簲鍟?/span>
+                    <span>活跃供应商</span>
                     <strong>{providers.filter((item) => item.status === "ACTIVE").length}</strong>
                   </div>
                 </div>
@@ -4305,26 +4305,26 @@ export default function AdminPage() {
               <article className="admin-dashboard-panel">
                 <div className="admin-panel-heading">
                   <div>
-                    <strong>鏈€杩戝姩鎬?/strong>
-                    <p>鎶婄煡璇嗗簱鍚屾鍜屾ā鍨嬭皟鐢ㄧ殑鏈€鏂版儏鍐垫斁鍒伴椤点€?/p>
+                    <strong>最近动态</strong>
+                    <p>把知识库同步和模型调用的最新情况放到首页。</p>
                   </div>
-                  <span>鍔ㄦ€?/span>
+                  <span>动态</span>
                 </div>
                 <div className="admin-recent-feed">
                   <div>
-                    <span>鏈€杩戝悓姝?/span>
-                    <strong>{latestKnowledgeRun ? getSyncRunTitle(latestKnowledgeRun) : "鏆傛棤鍚屾璁板綍"}</strong>
-                    <small>{latestKnowledgeRun ? formatDateTime(latestKnowledgeRun.startedAt) : "绛夐娆¤Е鍙戝悗灞曠ず"}</small>
+                    <span>最近同步</span>
+                    <strong>{latestKnowledgeRun ? getSyncRunTitle(latestKnowledgeRun) : "暂无同步记录"}</strong>
+                    <small>{latestKnowledgeRun ? formatDateTime(latestKnowledgeRun.startedAt) : "等首次触发后展示"}</small>
                   </div>
                   <div>
-                    <span>鏈€杩戞ā鍨嬭皟鐢?/span>
-                    <strong>{usage[0]?.modelName || "鏆傛棤妯″瀷鏁版嵁"}</strong>
-                    <small>{usage[0]?.lastCalledAt ? formatDateTime(usage[0].lastCalledAt) : "鏈褰?}</small>
+                    <span>最近模型调用</span>
+                    <strong>{usage[0]?.modelName || "暂无模型数据"}</strong>
+                    <small>{usage[0]?.lastCalledAt ? formatDateTime(usage[0].lastCalledAt) : "未记录"}</small>
                   </div>
                   <div>
-                    <span>褰撳墠寤鸿</span>
-                    <strong>{summary.pendingCount > 0 ? "浼樺厛澶勭悊寰呮敮浠樿鍗? : "缁х画鎵撶（鍚勬爮鐩粏鑺?}</strong>
-                    <small>涓嬩竴杞彲缁х画琛ュ浘琛ㄣ€佺瓫閫夊拰鎵归噺鎿嶄綔銆?/small>
+                    <span>当前建议</span>
+                    <strong>{summary.pendingCount > 0 ? "优先处理待支付订单" : "继续打磨各栏目细节"}</strong>
+                    <small>下一轮可继续补图表、筛选和批量操作。</small>
                   </div>
                 </div>
               </article>
@@ -4349,7 +4349,8 @@ export default function AdminPage() {
                   <div>
                     <strong>{item.orderNo}</strong>
                     <p className="personal-meta">
-                      {(item.user?.nickname || "鏈煡鐢ㄦ埛")} 路 {(item.user?.mobile || "鏃犳墜鏈哄彿")} 路 {item.amountYuan} 鍏?                    </p>
+                      {(item.user?.nickname || "未知用户")} · {(item.user?.mobile || "无手机号")} · {item.amountYuan} 元
+                    </p>
                   </div>
                   <span className={`archive-pill ${item.orderStatus === "PAID" ? "status-ready" : item.orderStatus === "CANCELLED" ? "status-paused" : "status-in_progress"}`}>
                     {item.orderStatus}
@@ -4357,20 +4358,20 @@ export default function AdminPage() {
                 </div>
                 <div className="personal-grid">
                   <div>
-                    <span>璁㈠崟绫诲瀷</span>
+                    <span>订单类型</span>
                     <strong>{item.orderType}</strong>
                   </div>
                   <div>
-                    <span>浼氬憳/鐐规暟</span>
-                    <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? item.membership || "-" : `${item.pointsAmount || 0} 鐐筦}</strong>
+                    <span>会员/点数</span>
+                    <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? item.membership || "-" : `${item.pointsAmount || 0} 点`}</strong>
                   </div>
                   <div>
-                    <span>鍒涘缓鏃堕棿</span>
+                    <span>创建时间</span>
                     <strong>{formatDateTime(item.createdAt)}</strong>
                   </div>
                   <div>
-                    <span>鏀粯鏃堕棿</span>
-                    <strong>{item.paidAt ? formatDateTime(item.paidAt) : "鏈敮浠?}</strong>
+                    <span>支付时间</span>
+                    <strong>{item.paidAt ? formatDateTime(item.paidAt) : "未支付"}</strong>
                   </div>
                 </div>
                 <div className="personal-actions">
@@ -4380,7 +4381,7 @@ export default function AdminPage() {
                     onClick={() => void handleOrderAction(item.id, "pay")}
                     disabled={item.orderStatus !== "PENDING"}
                   >
-                    鍚庡彴鏍囪鏀粯
+                    后台标记支付
                   </button>
                   <button
                     type="button"
@@ -4388,7 +4389,7 @@ export default function AdminPage() {
                     onClick={() => void handleOrderAction(item.id, "cancel")}
                     disabled={item.orderStatus !== "PENDING"}
                   >
-                    鍙栨秷璁㈠崟
+                    取消订单
                   </button>
                 </div>
               </article>
@@ -4410,27 +4411,27 @@ export default function AdminPage() {
                   <div>
                     <strong>{item.modelName}</strong>
                     <p className="personal-meta">
-                      {item.provider} 路 鏈€杩戣皟鐢?{formatDateTime(item.lastCalledAt)}
+                      {item.provider} · 最近调用 {formatDateTime(item.lastCalledAt)}
                     </p>
                   </div>
-                  <span className="archive-pill status-ready">{item.taskCount} 娆′换鍔?/span>
+                  <span className="archive-pill status-ready">{item.taskCount} 次任务</span>
                 </div>
                 <div className="personal-grid">
                   <div>
-                    <span>鎴愬姛浠诲姟</span>
+                    <span>成功任务</span>
                     <strong>{item.successCount}</strong>
                   </div>
                   <div>
-                    <span>澶辫触浠诲姟</span>
+                    <span>失败任务</span>
                     <strong>{item.failedCount}</strong>
                   </div>
                   <div>
-                    <span>鎬荤偣鏁版秷鑰?/span>
+                    <span>总点数消耗</span>
                     <strong>{item.totalPointsCost}</strong>
                   </div>
                   <div>
-                    <span>浼扮畻閲戦</span>
-                    <strong>{item.estimatedAmountYuan} 鍏?/strong>
+                    <span>估算金额</span>
+                    <strong>{item.estimatedAmountYuan} 元</strong>
                   </div>
                 </div>
               </article>
@@ -4448,23 +4449,27 @@ export default function AdminPage() {
           >
                 <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
                   <div className="admin-skill-card-topline">
-                    <span className="admin-skill-card-kicker">鎶€鑳戒笓鍖?/span>
+                    <span className="admin-skill-card-kicker">技能专区</span>
                     <span className="archive-pill status-ready">
-                      {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 椤?                    </span>
+                      {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
+                    </span>
                   </div>
                   <div className="personal-actions" style={{ marginBottom: 16 }}>
                     <button type="button" className="secondary-button" onClick={handleOpenInstallSkillModal}>
-                      瀹夎鎶€鑳?                    </button>
+                      安装技能
+                    </button>
                     <button type="button" className="primary-button" onClick={handleOpenCreateSkillModal}>
-                      鍒涘缓鎶€鑳?                    </button>
+                      创建技能
+                    </button>
                     <button type="button" className="secondary-button" onClick={handleOpenCreatePromptModal}>
-                      鍒涘缓鎻愮ず璇?                    </button>
+                      创建提示词
+                    </button>
                   </div>
                   <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
                     <label>
-                      <span>妯″潡绛涢€?/span>
+                      <span>模块筛选</span>
                       <select value={skillModuleFilter} onChange={(event) => setSkillModuleFilter(event.target.value)}>
-                        <option value="ALL">鍏ㄩ儴妯″潡</option>
+                        <option value="ALL">全部模块</option>
                         {skillModuleFilterOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -4473,9 +4478,9 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label>
-                      <span>鑳藉姏鍖呯瓫閫?/span>
+                      <span>能力包筛选</span>
                       <select value={skillPackageFilter} onChange={(event) => setSkillPackageFilter(event.target.value)}>
-                        <option value="ALL">鍏ㄩ儴鑳藉姏鍖?/option>
+                        <option value="ALL">全部能力包</option>
                         {skillPackageFilterOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -4484,10 +4489,10 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label style={{ gridColumn: "1 / -1" }}>
-                      <span>鍏抽敭璇?/span>
+                      <span>关键词</span>
                       <input
                         value={skillKeywordFilter}
-                        placeholder="妯″潡 / 鑳藉姏鍖?/ 鎶€鑳?/ 鎻愮ず璇?
+                        placeholder="模块 / 能力包 / 技能 / 提示词"
                         onChange={(event) => setSkillKeywordFilter(event.target.value)}
                       />
                     </label>
@@ -4502,7 +4507,8 @@ export default function AdminPage() {
                         setSkillKeywordFilter("");
                       }}
                     >
-                      閲嶇疆绛涢€?                    </button>
+                      重置筛选
+                    </button>
                   </div>
                   <div className="admin-skill-primary-list">
                     {filteredSkillTree.map((primary) => {
@@ -4519,9 +4525,9 @@ export default function AdminPage() {
                             <span className="admin-skill-primary-mark">{primary.label.slice(0, 1)}</span>
                             <span className="admin-skill-primary-button-copy">
                               <strong>{primary.label}</strong>
-                              <small>{primary.sections.length} 涓簩绾у垎绫?/small>
+                              <small>{primary.sections.length} 个二级分类</small>
                             </span>
-                            <span className={`admin-skill-primary-arrow${primaryExpanded ? " expanded" : ""}`}>鈱?/span>
+                            <span className={`admin-skill-primary-arrow${primaryExpanded ? " expanded" : ""}`}>⌄</span>
                           </button>
                           {primaryExpanded ? (
                             <div className="admin-skill-tree-sections">
@@ -4537,7 +4543,7 @@ export default function AdminPage() {
                                       onClick={() => handleToggleSkillSection(primary.id, section.id)}
                                     >
                                       <span className="admin-skill-tree-section-label">{section.label}</span>
-                                      <small>{sectionExpanded ? "鏀惰捣" : `${section.items.length}`}</small>
+                                      <small>{sectionExpanded ? "收起" : `${section.items.length}`}</small>
                                     </button>
                                     {sectionExpanded ? (
                                       <div className="admin-skill-tree-leaf-list">
@@ -4570,55 +4576,55 @@ export default function AdminPage() {
                       );
                     })}
                   </div>
-                  {!filteredSkillTree.length ? <div className="admin-skill-empty">褰撳墠绛涢€夋潯浠朵笅娌℃湁鍖归厤鐨勬妧鑳介」銆?/div> : null}
+                  {!filteredSkillTree.length ? <div className="admin-skill-empty">当前筛选条件下没有匹配的技能项。</div> : null}
                 </aside>
 
                 <section className="panel personal-center-panel admin-skill-center-panel">
                   {activeSkillLeaf ? (
                     <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
                       <div className="admin-skill-card-topline">
-                        <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "鎶€鑳戒腑蹇?}</span>
+                        <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "技能中心"}</span>
                         <span className={`archive-pill ${getStatusClassName(skillCenterStatus)}`}>{getStatusLabel(skillCenterStatus)}</span>
                       </div>
                       <div className="admin-skill-card-header">
                         <div>
                           <strong>{activeSkillLeaf.label}</strong>
-                          <p>{activeSkillLeaf.description || activeSkillSection?.label || "鎶€鑳藉垎绫?}</p>
+                          <p>{activeSkillLeaf.description || activeSkillSection?.label || "技能分类"}</p>
                         </div>
                       </div>
                       <div className="personal-grid" style={{ marginBottom: 16 }}>
-                        <SkillDimensionMetric label="褰撳墠鎶€鑳? value={activeSkillConfig?.name || skillCenterName} />
-                        <SkillDimensionMetric label="鎵€鍦ㄨ兘鍔涘寘" value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} />
-                        <SkillDimensionMetric label="椤哄簭浣嶇疆" value={activeSkillFlowIndex >= 0 ? `${activeSkillFlowIndex + 1} / ${activeSkillFlow.length}` : "-"} />
-                        <SkillDimensionMetric label="鏇存柊鏃堕棿" value={skillCenterUpdatedAtLabel} />
+                        <SkillDimensionMetric label="当前技能" value={activeSkillConfig?.name || skillCenterName} />
+                        <SkillDimensionMetric label="所在能力包" value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} />
+                        <SkillDimensionMetric label="顺序位置" value={activeSkillFlowIndex >= 0 ? `${activeSkillFlowIndex + 1} / ${activeSkillFlow.length}` : "-"} />
+                        <SkillDimensionMetric label="更新时间" value={skillCenterUpdatedAtLabel} />
                       </div>
 
                       <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
                         <div className="entity-card-head">
                           <div>
-                            <strong>杈撳叆椤?/strong>
-                            <p className="personal-meta">鑱氬悎褰撳墠鎶€鑳戒緷璧栫殑鏁版嵁婧愩€佺郴缁熼璁鹃」銆佺敤鎴疯緭鍏ラ」銆佹ā鍨嬮€夋嫨鍜屼笂娓告妧鑳借緭鍑恒€?/p>
+                            <strong>输入项</strong>
+                            <p className="personal-meta">聚合当前技能依赖的数据源、系统预设项、用户输入项、模型选择和上游技能输出。</p>
                           </div>
                         </div>
                         <div className="admin-skill-simple-grid">
                           <label className="admin-skill-field">
-                            <span>鎵€灞炴ā鍧?/span>
+                            <span>所属模块</span>
                             <input value={activeSkillModuleLabel} readOnly />
                           </label>
                           <label className="admin-skill-field">
-                            <span>鎵€灞炶兘鍔涘寘</span>
+                            <span>所属能力包</span>
                             <input value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} readOnly />
                           </label>
                           <label className="admin-skill-field">
-                            <span>鐘舵€?/span>
+                            <span>状态</span>
                             <select value={skillCenterStatus} onChange={(event) => handleSkillCenterStatusChange(event.target.value as SkillConfigRecord["status"])}>
-                              <option value="ACTIVE">鍚敤涓?/option>
-                              <option value="DRAFT">鑽夌</option>
-                              <option value="DISABLED">鍋滅敤</option>
+                              <option value="ACTIVE">启用中</option>
+                              <option value="DRAFT">草稿</option>
+                              <option value="DISABLED">停用</option>
                             </select>
                           </label>
                           <label className="admin-skill-field">
-                            <span>绗笁鏂规ā鍨?/span>
+                            <span>第三方模型</span>
                             <select value={skillCenterModel} onChange={(event) => handleSkillCenterModelChange(event.target.value)}>
                               {(skillModelOptions.length ? skillModelOptions : [buildFallbackScopedModelOption(skillCenterModel || "gpt-5.4-nano")]).map((option) => (
                                 <option value={option.value} key={option.value}>
@@ -4628,7 +4634,7 @@ export default function AdminPage() {
                             </select>
                           </label>
                           <label className="admin-skill-field">
-                            <span>鐐规暟鎴愭湰</span>
+                            <span>点数成本</span>
                             <input
                               type="number"
                               value={skillCenterPointsCost}
@@ -4637,38 +4643,38 @@ export default function AdminPage() {
                             />
                           </label>
                           <label className="admin-skill-field">
-                            <span>鎻愮ず璇嶅満鏅?/span>
+                            <span>提示词场景</span>
                             <input value={resolvedActivePromptScene || "-"} readOnly />
                           </label>
                           <div className="admin-skill-field admin-skill-field--full" style={{ display: "grid", gap: 12 }}>
                             <div className="entity-card" style={{ padding: 12 }}>
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
-                                  <strong>鏁版嵁搴撳弬鏁?/strong>
-                                  <p className="personal-meta">杩欓噷璇诲彇鐜版湁鏁版嵁搴撳唴瀹逛綔涓烘妧鑳借緭鍏ラ」锛屽苟鍖哄垎鈥滄鍏ュ弬鏁扳€濆拰鈥滀笅鎷夊弬鏁扳€濅袱绫汇€?/p>
+                                  <strong>数据库参数</strong>
+                                  <p className="personal-meta">这里读取现有数据库内容作为技能输入项，并区分“植入参数”和“下拉参数”两类。</p>
                                 </div>
                                 <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleApplyRecommendedDatabaseInputs()}>
-                                    涓€閿ˉ榻愬父鐢ㄩ」
+                                    一键补齐常用项
                                   </button>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddDatabaseInput("INJECT_TOGGLE")}>
-                                    鏂板妞嶅叆鍙傛暟
+                                    新增植入参数
                                   </button>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddDatabaseInput("SELECT_CHOICE")}>
-                                    鏂板涓嬫媺鍙傛暟
+                                    新增下拉参数
                                   </button>
                                   <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearDatabaseInputs()}>
-                                    娓呯┖
+                                    清空
                                   </button>
                                 </div>
                               </div>
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
-                                {databaseInputSummary || "褰撳墠杩樻病鏈夋暟鎹簱鍙傛暟鎽樿銆?}
+                                {databaseInputSummary || "当前还没有数据库参数摘要。"}
                               </div>
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
                                 {isLoadingDatabaseParameters
-                                  ? "姝ｅ湪鍚屾鏁版嵁搴撳弬鏁?.."
-                                  : databaseParameterSyncSummary || "褰撳墠杩樻病鏈夊悓姝ュ埌鏁版嵁搴撳弬鏁版暟鎹€?}
+                                  ? "正在同步数据库参数..."
+                                  : databaseParameterSyncSummary || "当前还没有同步到数据库参数数据。"}
                               </div>
                               {databaseParameterSyncError ? (
                                 <div className="admin-skill-empty" style={{ marginTop: 0, marginBottom: 12 }}>
@@ -4680,8 +4686,8 @@ export default function AdminPage() {
                                   const selectOptions = item.parameterType === "SELECT_CHOICE"
                                     ? getDatabaseSelectValueOptions(item.parameterKey, databaseParameterSync, item.selectedValue)
                                     : [
-                                      { value: "INJECT", label: "妞嶅叆" },
-                                      { value: "SKIP", label: `涓嶆鍏?{item.parameterLabel || "褰撳墠鏁版嵁搴撳弬鏁?}` },
+                                      { value: "INJECT", label: "植入" },
+                                      { value: "SKIP", label: `不植入${item.parameterLabel || "当前数据库参数"}` },
                                     ];
                                   const injectCount = item.parameterType === "INJECT_TOGGLE"
                                     ? databaseParameterSync.injectCounts[item.parameterKey] || 0
@@ -4690,11 +4696,11 @@ export default function AdminPage() {
                                     <div className="entity-card" style={{ padding: 12 }} key={item.id}>
                                       <div className="admin-skill-simple-grid">
                                         <label className="admin-skill-field">
-                                          <span>鍙傛暟褰㈠紡</span>
-                                          <input value={item.parameterType === "INJECT_TOGGLE" ? "妞嶅叆鍙傛暟" : "涓嬫媺鍙傛暟"} readOnly />
+                                          <span>参数形式</span>
+                                          <input value={item.parameterType === "INJECT_TOGGLE" ? "植入参数" : "下拉参数"} readOnly />
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>鏁版嵁搴撳弬鏁?/span>
+                                          <span>数据库参数</span>
                                           <select
                                             value={item.parameterKey}
                                             onChange={(event) => handleDatabaseInputChange(item.id, { parameterKey: event.target.value })}
@@ -4705,7 +4711,7 @@ export default function AdminPage() {
                                           </select>
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>涓嬫媺閫夋嫨鍊?/span>
+                                          <span>下拉选择值</span>
                                           <select
                                             value={item.selectedValue}
                                             onChange={(event) => handleDatabaseInputChange(item.id, { selectedValue: event.target.value })}
@@ -4716,35 +4722,36 @@ export default function AdminPage() {
                                           </select>
                                         </label>
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>鏁版嵁搴撳悓姝?/span>
+                                          <span>数据库同步</span>
                                           <input
                                             value={
                                               item.parameterType === "INJECT_TOGGLE"
-                                                ? `宸插悓姝?${injectCount} 椤规暟鎹簱鍐呭`
-                                                : `宸插悓姝?${selectOptions.length ? Math.max(selectOptions.length - 1, 0) : 0} 涓彲閫夊€糮
+                                                ? `已同步 ${injectCount} 项数据库内容`
+                                                : `已同步 ${selectOptions.length ? Math.max(selectOptions.length - 1, 0) : 0} 个可选值`
                                             }
                                             readOnly
                                           />
                                         </label>
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>澶囨敞</span>
+                                          <span>备注</span>
                                           <input
                                             value={item.remarks}
-                                            placeholder="渚嬪锛氭鏂囬樁娈靛繀椤绘鍏ュ搧鐗岃祫鏂欙紱钀ラ攢鏃ュ巻浼樺厛璇诲彇鏈€杩戜竴鏈熴€?
+                                            placeholder="例如：正文阶段必须植入品牌资料；营销日历优先读取最近一期。"
                                             onChange={(event) => handleDatabaseInputChange(item.id, { remarks: event.target.value })}
                                           />
                                         </label>
                                       </div>
                                       <div className="personal-actions" style={{ marginTop: 12 }}>
                                         <button type="button" className="ghost-danger-button" onClick={() => handleRemoveDatabaseInput(item.id)}>
-                                          鍒犻櫎鍙傛暟
+                                          删除参数
                                         </button>
                                       </div>
                                     </div>
                                   );
                                 }) : (
                                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                                    杩樻病鏈夐厤缃暟鎹簱鍙傛暟銆傚彲娣诲姞鈥滃搧鐗岃祫鏂?/ 浜у搧璧勬枡 / 钀ラ攢绛栧垝鏂规鈥濈瓑妞嶅叆鍙傛暟锛屾垨鈥滆惀閿€鏃ュ巻 / 閫夐搴?/ 绱犳潗搴撯€濈瓑涓嬫媺鍙傛暟銆?                                  </div>
+                                    还没有配置数据库参数。可添加“品牌资料 / 产品资料 / 营销策划方案”等植入参数，或“营销日历 / 选题库 / 素材库”等下拉参数。
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -4752,8 +4759,8 @@ export default function AdminPage() {
                             <div className="entity-card" style={{ padding: 12 }}>
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
-                                  <strong>鐭ヨ瘑搴撳弬鏁?/strong>
-                                  <p className="personal-meta">杩欓噷鐩存帴浣跨敤鐜版湁鐭ヨ瘑搴撲笌宸插悓姝ュ唴瀹逛綔涓烘妧鑳借緭鍏ラ」锛屾敮鎸佹寜鐭ヨ瘑搴撻€夋嫨鍜屾寜鍏蜂綋鍐呭閫夋嫨銆?/p>
+                                  <strong>知识库参数</strong>
+                                  <p className="personal-meta">这里直接使用现有知识库与已同步内容作为技能输入项，支持按知识库选择和按具体内容选择。</p>
                                 </div>
                                 <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
                                   <button
@@ -4763,19 +4770,20 @@ export default function AdminPage() {
                                     onClick={() => handleAddKnowledgeInput()}
                                     disabled={!activeKnowledgeBaseOptions.length}
                                   >
-                                    鏂板鐭ヨ瘑搴撳弬鏁?                                  </button>
+                                    新增知识库参数
+                                  </button>
                                   <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearKnowledgeInputs()}>
-                                    娓呯┖
+                                    清空
                                   </button>
                                 </div>
                               </div>
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
-                                {knowledgeInputSummary || "褰撳墠杩樻病鏈夌煡璇嗗簱鍙傛暟鎽樿銆?}
+                                {knowledgeInputSummary || "当前还没有知识库参数摘要。"}
                               </div>
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
                                 {knowledgeBaseSyncSummary.length
-                                  ? `宸插悓姝ョ煡璇嗗簱鍐呭锛?{knowledgeBaseSyncSummary.join(" / ")}`
-                                  : "褰撳墠杩樻病鏈夊凡鍚屾鐨勭煡璇嗗簱鍐呭銆?}
+                                  ? `已同步知识库内容：${knowledgeBaseSyncSummary.join(" / ")}`
+                                  : "当前还没有已同步的知识库内容。"}
                               </div>
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.knowledgeInputs.length ? activeSkillDraft.knowledgeInputs.map((item) => {
@@ -4789,19 +4797,19 @@ export default function AdminPage() {
                                     <div className="entity-card" style={{ padding: 12 }} key={item.id}>
                                       <div className="admin-skill-simple-grid">
                                         <label className="admin-skill-field">
-                                          <span>鐭ヨ瘑搴?/span>
+                                          <span>知识库</span>
                                           <select
                                             value={item.knowledgeBaseId}
                                             onChange={(event) => handleKnowledgeInputChange(item.id, { knowledgeBaseId: event.target.value })}
                                           >
-                                            <option value="">璇烽€夋嫨鐭ヨ瘑搴?/option>
+                                            <option value="">请选择知识库</option>
                                             {activeKnowledgeBaseOptions.map((option) => (
                                               <option key={option.value} value={option.value}>{option.label}</option>
                                             ))}
                                           </select>
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>鍏蜂綋鍐呭</span>
+                                          <span>具体内容</span>
                                           <select
                                             value={item.targetContentId}
                                             onChange={(event) => handleKnowledgeInputChange(item.id, { targetContentId: event.target.value })}
@@ -4813,24 +4821,24 @@ export default function AdminPage() {
                                           </select>
                                         </label>
                                         <label className="admin-skill-field">
-                                          <span>鐭ヨ瘑搴撳悓姝?/span>
+                                          <span>知识库同步</span>
                                           <input
-                                            value={`宸插悓姝?${knowledgeBaseFileCountMap[item.knowledgeBaseId] || 0} 椤瑰唴瀹筦}
+                                            value={`已同步 ${knowledgeBaseFileCountMap[item.knowledgeBaseId] || 0} 项内容`}
                                             readOnly
                                           />
                                         </label>
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>澶囨敞</span>
+                                          <span>备注</span>
                                           <input
                                             value={item.remarks}
-                                            placeholder="渚嬪锛氫紭鍏堟绱㈠搧鐗?FAQ锛涘彧璇诲彇娲诲姩璧勬枡銆?
+                                            placeholder="例如：优先检索品牌 FAQ；只读取活动资料。"
                                             onChange={(event) => handleKnowledgeInputChange(item.id, { remarks: event.target.value })}
                                           />
                                         </label>
                                       </div>
                                       <div className="personal-actions" style={{ marginTop: 12 }}>
                                         <button type="button" className="ghost-danger-button" onClick={() => handleRemoveKnowledgeInput(item.id)}>
-                                          鍒犻櫎鍙傛暟
+                                          删除参数
                                         </button>
                                       </div>
                                     </div>
@@ -4838,8 +4846,8 @@ export default function AdminPage() {
                                 }) : (
                                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
                                     {activeKnowledgeBaseOptions.length
-                                      ? `褰撳墠鍙€夌煡璇嗗簱锛?{activeKnowledgeBaseSummary.join(" / ")}銆傜幇鍦ㄥ彲浠ョ洿鎺ラ€夋嫨鐭ヨ瘑搴撳拰宸插悓姝ュ唴瀹广€俙
-                                      : "褰撳墠杩樻病鏈夊彲鐢ㄧ煡璇嗗簱锛涚瓑鐭ヨ瘑搴撳垱寤哄苟鍚屾鍐呭鍚庯紝杩欓噷鍙洿鎺ヤ负鎶€鑳芥坊鍔犲鏉＄煡璇嗗簱杈撳叆銆?}
+                                      ? `当前可选知识库：${activeKnowledgeBaseSummary.join(" / ")}。现在可以直接选择知识库和已同步内容。`
+                                      : "当前还没有可用知识库；等知识库创建并同步内容后，这里可直接为技能添加多条知识库输入。"}
                                   </div>
                                 )}
                               </div>
@@ -4848,112 +4856,114 @@ export default function AdminPage() {
                             <div className="entity-card" style={{ padding: 12 }}>
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
-                                  <strong>鑷畾涔夎緭鍏ュ弬鏁?/strong>
-                                  <p className="personal-meta">鏀寔澶氭潯鍒涘缓銆傚彲閰嶇疆涓嬫媺妗嗗弬鏁般€佹櫘閫氳緭鍏ユ鍙傛暟鍜屾枃浠朵笂浼犲弬鏁般€?/p>
+                                  <strong>自定义输入参数</strong>
+                                  <p className="personal-meta">支持多条创建。可配置下拉框参数、普通输入框参数和文件上传参数。</p>
                                 </div>
                                 <div className="personal-actions" style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleApplyRecommendedCustomInputs()}>
-                                    涓€閿ˉ榻愬父鐢ㄩ」
+                                    一键补齐常用项
                                   </button>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("SELECT")}>
-                                    鏂板涓嬫媺鍙傛暟
+                                    新增下拉参数
                                   </button>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("TEXT")}>
-                                    鏂板杈撳叆妗?                                  </button>
+                                    新增输入框
+                                  </button>
                                   <button type="button" className="secondary-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleAddCustomInput("FILE")}>
-                                    鏂板鏂囦欢鍙傛暟
+                                    新增文件参数
                                   </button>
                                   <button type="button" className="ghost-danger-button" style={{ whiteSpace: "nowrap" }} onClick={() => handleClearCustomInputs()}>
-                                    娓呯┖
+                                    清空
                                   </button>
                                 </div>
                               </div>
                               <div className="personal-meta" style={{ marginBottom: 12 }}>
-                                {customInputSummary || "褰撳墠杩樻病鏈夎嚜瀹氫箟杈撳叆鍙傛暟鎽樿銆?}
+                                {customInputSummary || "当前还没有自定义输入参数摘要。"}
                               </div>
                               <div style={{ display: "grid", gap: 10 }}>
                                 {activeSkillDraft?.customInputs.length ? activeSkillDraft.customInputs.map((item) => (
                                   <div className="entity-card" style={{ padding: 12 }} key={item.id}>
                                     <div className="admin-skill-simple-grid">
                                       <label className="admin-skill-field">
-                                        <span>鍙傛暟褰㈠紡</span>
+                                        <span>参数形式</span>
                                         <input
-                                          value={item.inputType === "SELECT" ? "涓嬫媺妗嗛€夋嫨" : item.inputType === "FILE" ? "鏂囦欢涓婁紶" : "杈撳叆妗?}
+                                          value={item.inputType === "SELECT" ? "下拉框选择" : item.inputType === "FILE" ? "文件上传" : "输入框"}
                                           readOnly
                                         />
                                       </label>
                                       <label className="admin-skill-field">
-                                        <span>鍙傛暟鍚嶇О</span>
+                                        <span>参数名称</span>
                                         <input
                                           value={item.label}
-                                          placeholder="渚嬪锛氬墽鏈被鍨嬨€佺敤鎴疯姹傘€佸弬鑰冩枃浠?
+                                          placeholder="例如：剧本类型、用户要求、参考文件"
                                           onChange={(event) => handleCustomInputChange(item.id, { label: event.target.value })}
                                         />
                                       </label>
                                       <label className="admin-skill-field">
-                                        <span>鏄惁蹇呭～</span>
+                                        <span>是否必填</span>
                                         <select
                                           value={item.required ? "YES" : "NO"}
                                           onChange={(event) => handleCustomInputChange(item.id, { required: event.target.value === "YES" })}
                                         >
-                                          <option value="NO">闈炲繀濉?/option>
-                                          <option value="YES">蹇呭～</option>
+                                          <option value="NO">非必填</option>
+                                          <option value="YES">必填</option>
                                         </select>
                                       </label>
                                       {item.inputType === "SELECT" ? (
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>涓嬫媺閫夐」</span>
+                                          <span>下拉选项</span>
                                           <textarea
                                             value={item.options.join("\n")}
-                                            placeholder="姣忚涓€涓€夐」锛屼緥濡傦細鍝佺墝瀹ｄ紶鍓ф湰"
+                                            placeholder="每行一个选项，例如：品牌宣传剧本"
                                             onChange={(event) => handleCustomInputChange(item.id, { options: splitLines(event.target.value) })}
                                           />
                                         </label>
                                       ) : null}
                                       {item.inputType === "TEXT" ? (
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>杈撳叆妗嗘彁绀?/span>
+                                          <span>输入框提示</span>
                                           <input
                                             value={item.placeholder}
-                                            placeholder="渚嬪锛氳杈撳叆鏈鍐呭鍒涗綔瑕佹眰"
+                                            placeholder="例如：请输入本次内容创作要求"
                                             onChange={(event) => handleCustomInputChange(item.id, { placeholder: event.target.value })}
                                           />
                                         </label>
                                       ) : null}
                                       {item.inputType === "FILE" ? (
                                         <label className="admin-skill-field admin-skill-field--wide">
-                                          <span>鍏佽涓婁紶鏍煎紡</span>
+                                          <span>允许上传格式</span>
                                           <input
                                             value={item.acceptedFileTypes}
-                                            placeholder="渚嬪锛?pdf,.docx,image/*"
+                                            placeholder="例如：.pdf,.docx,image/*"
                                             onChange={(event) => handleCustomInputChange(item.id, { acceptedFileTypes: event.target.value })}
                                           />
                                         </label>
                                       ) : null}
                                       <label className="admin-skill-field admin-skill-field--wide">
-                                        <span>澶囨敞</span>
+                                        <span>备注</span>
                                         <input
                                           value={item.remarks}
-                                          placeholder="渚嬪锛氭枃浠朵笂浼犲悗浣滀负鏁呬簨鏉垮弬鑰冨浘锛涙枃鏈緭鍏ョ敤浜庤ˉ鍏呭垱浣滆姹傘€?
+                                          placeholder="例如：文件上传后作为故事板参考图；文本输入用于补充创作要求。"
                                           onChange={(event) => handleCustomInputChange(item.id, { remarks: event.target.value })}
                                         />
                                       </label>
                                     </div>
                                     <div className="personal-actions" style={{ marginTop: 12 }}>
                                       <button type="button" className="ghost-danger-button" onClick={() => handleRemoveCustomInput(item.id)}>
-                                        鍒犻櫎鍙傛暟
+                                        删除参数
                                       </button>
                                     </div>
                                   </div>
                                 )) : (
                                   <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                                    杩樻病鏈夐厤缃嚜瀹氫箟杈撳叆鍙傛暟銆傚彲缁х画涓烘妧鑳藉鍔犱笅鎷夋閫夋嫨銆佽緭鍏ユ鎴栨枃浠朵笂浼犲弬鏁般€?                                  </div>
+                                    还没有配置自定义输入参数。可继续为技能增加下拉框选择、输入框或文件上传参数。
+                                  </div>
                                 )}
                               </div>
                             </div>
                           </div>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>杈撳叆椤硅ˉ鍏呰鏄?/span>
+                            <span>输入项补充说明</span>
                             <textarea
                               value={activeSkillDraft?.inputSummary || ""}
                               onChange={(event) => {
@@ -4961,12 +4971,12 @@ export default function AdminPage() {
                                   handleSkillDraftChange(activeSkillConfig.id, { inputSummary: event.target.value });
                                 }
                               }}
-                              placeholder="鐢ㄤ簬琛ュ厖璇ユ妧鑳界殑杈撳叆椤硅鍒欍€侀粯璁や紭鍏堢骇鍜岀壒娈婂鐞嗚鏄庛€?
+                              placeholder="用于补充该技能的输入项规则、默认优先级和特殊处理说明。"
                             />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>涓婃父鎶€鑳借緭鍑?/span>
-                            <input value={upstreamSkillNames.join(" -> ") || "褰撳墠鎶€鑳戒负棣栦釜姝ラ锛屾病鏈変笂娓告妧鑳借緭鍑?} readOnly />
+                            <span>上游技能输出</span>
+                            <input value={upstreamSkillNames.join(" -> ") || "当前技能为首个步骤，没有上游技能输出"} readOnly />
                           </label>
                         </div>
                       </section>
@@ -4974,37 +4984,37 @@ export default function AdminPage() {
                       <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
                         <div className="entity-card-head">
                           <div>
-                            <strong>鎻愮ず璇嶅強鍏朵粬鍏冪礌</strong>
-                            <p className="personal-meta">杩欓噷缁存姢鎻愮ず璇嶇増鏈€佹ā鍨嬨€丷eferences 璧勪骇銆丼cripts 璧勪骇绛夋妧鑳芥墽琛岃绱犮€?/p>
+                            <strong>提示词及其他元素</strong>
+                            <p className="personal-meta">这里维护提示词版本、模型、References 资产、Scripts 资产等技能执行要素。</p>
                           </div>
                         </div>
                         <div className="admin-skill-simple-grid">
                           <label className="admin-skill-field">
-                            <span>褰撳墠鎻愮ず璇?/span>
+                            <span>当前提示词</span>
                             <input value={skillCenterName} readOnly />
                           </label>
                           <label className="admin-skill-field">
-                            <span>鎵ц鎶€鑳?/span>
+                            <span>执行技能</span>
                             <input value={activeSkillConfig?.name || "-"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>References 鏉ユ簮</span>
+                            <span>References 来源</span>
                             <input
                               value={
                                 activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 椤?/ ${activeSkillDraft?.hasReferenceAssetSelection ? `宸查€?${effectiveReferenceAssetKeys.length} 椤筦 : "榛樿鍏ㄧ户鎵?}`
-                                  : "褰撳墠鎶€鑳藉皻鏈粦瀹氳兘鍔涘寘锛屾殏鏃犲彲缁ф壙 References 璧勪骇"
+                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 项 / ${activeSkillDraft?.hasReferenceAssetSelection ? `已选 ${effectiveReferenceAssetKeys.length} 项` : "默认全继承"}`
+                                  : "当前技能尚未绑定能力包，暂无可继承 References 资产"
                               }
                               readOnly
                             />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>Scripts 鏉ユ簮</span>
+                            <span>Scripts 来源</span>
                             <input
                               value={
                                 activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 椤?/ ${activeSkillDraft?.hasScriptAssetSelection ? `宸查€?${effectiveScriptAssetKeys.length} 椤筦 : "榛樿鍏ㄧ户鎵?}`
-                                  : "褰撳墠鎶€鑳藉皻鏈粦瀹氳兘鍔涘寘锛屾殏鏃犲彲缁ф壙 Scripts 璧勪骇"
+                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 项 / ${activeSkillDraft?.hasScriptAssetSelection ? `已选 ${effectiveScriptAssetKeys.length} 项` : "默认全继承"}`
+                                  : "当前技能尚未绑定能力包，暂无可继承 Scripts 资产"
                               }
                               readOnly
                             />
@@ -5013,15 +5023,17 @@ export default function AdminPage() {
                         <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
                           {dataSource === "seed" ? (
                             <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                              褰撳墠涓烘湰鍦版紨绀烘暟鎹紝鎶€鑳界湡瀹炶祫浜т粛浠ヨ兘鍔涘寘璇︽儏椤电淮鎶わ紱鍒囨崲鍒版帴鍙ｆ暟鎹悗锛岃繖閲屼細鑷姩灞曠ず鎵€灞炶兘鍔涘寘鐨?References / Scripts銆?                            </div>
+                              当前为本地演示数据，技能真实资产仍以能力包详情页维护；切换到接口数据后，这里会自动展示所属能力包的 References / Scripts。
+                            </div>
                           ) : null}
                           {!activePrimarySkillRelation ? (
                             <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                              褰撳墠鎶€鑳藉皻鏈粦瀹氳兘鍔涘寘锛屽洜姝よ繕娌℃湁鍙鐢ㄧ殑 References / Scripts 璧勪骇鏉ユ簮銆?                            </div>
+                              当前技能尚未绑定能力包，因此还没有可复用的 References / Scripts 资产来源。
+                            </div>
                           ) : null}
                           {isLoadingActiveSkillAssets ? (
                             <div className="admin-skill-empty" style={{ marginTop: 0 }}>
-                              姝ｅ湪璇诲彇鎵€灞炶兘鍔涘寘鐨勭湡瀹炶祫浜?..
+                              正在读取所属能力包的真实资产...
                             </div>
                           ) : null}
                           {!isLoadingActiveSkillAssets && skillAssetLoadError ? (
@@ -5032,9 +5044,9 @@ export default function AdminPage() {
                           {activePrimarySkillRelation && dataSource === "api" && !isLoadingActiveSkillAssets && !skillAssetLoadError ? (
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                               <SkillAssetListCard
-                                title="References 璧勪骇"
-                                summary={activeSkillDraft?.hasReferenceAssetSelection ? "褰撳墠鎶€鑳藉凡浠庢墍灞炶兘鍔涘寘璧勪骇涓€夋嫨瀛愰泦锛涗繚瀛樺悗浼氶殢鎶€鑳借鏄庝竴璧锋寔涔呭寲銆? : "褰撳墠鎶€鑳介粯璁ょ户鎵挎墍灞炶兘鍔涘寘涓殑鍏ㄩ儴 References 璧勪骇锛涘嬀閫夊悗鍙敹鍙ｄ负鎶€鑳界骇閫夋嫨銆?}
-                                emptyText="鎵€灞炶兘鍔涘寘褰撳墠杩樻病鏈夊弬鑰冭祫鏂欒祫浜с€?
+                                title="References 资产"
+                                summary={activeSkillDraft?.hasReferenceAssetSelection ? "当前技能已从所属能力包资产中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 References 资产；勾选后可收口为技能级选择。"}
+                                emptyText="所属能力包当前还没有参考资料资产。"
                                 items={activeReferenceAssets.map((item) => (
                                   <SkillReferenceAssetItem
                                     key={item.id}
@@ -5045,9 +5057,9 @@ export default function AdminPage() {
                                 ))}
                               />
                               <SkillAssetListCard
-                                title="Scripts 璧勪骇"
-                                summary={activeSkillDraft?.hasScriptAssetSelection ? "褰撳墠鎶€鑳藉凡浠庢墍灞炶兘鍔涘寘鑴氭湰涓€夋嫨瀛愰泦锛涗繚瀛樺悗浼氶殢鎶€鑳借鏄庝竴璧锋寔涔呭寲銆? : "褰撳墠鎶€鑳介粯璁ょ户鎵挎墍灞炶兘鍔涘寘涓殑鍏ㄩ儴 Scripts 璧勪骇锛涘嬀閫夊悗鍙敹鍙ｄ负鎶€鑳界骇閫夋嫨銆?}
-                                emptyText="鎵€灞炶兘鍔涘寘褰撳墠杩樻病鏈夎剼鏈祫浜с€?
+                                title="Scripts 资产"
+                                summary={activeSkillDraft?.hasScriptAssetSelection ? "当前技能已从所属能力包脚本中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 Scripts 资产；勾选后可收口为技能级选择。"}
+                                emptyText="所属能力包当前还没有脚本资产。"
                                 items={activeScriptAssets.map((item) => (
                                   <SkillScriptAssetItem
                                     key={item.id}
@@ -5061,12 +5073,12 @@ export default function AdminPage() {
                           ) : null}
                         </div>
                         <label className="admin-skill-field admin-skill-field--full">
-                          <span>鎻愮ず璇嶅唴瀹?/span>
+                          <span>提示词内容</span>
                           <textarea
                             value={skillCenterPromptValue}
                             onChange={(event) => handleSkillCenterPromptChange(event.target.value)}
                             disabled={!activePromptConfig}
-                            placeholder={activePromptConfig ? "姝ｅ湪鍔犺浇鎻愮ず璇?.." : "褰撳墠鎶€鑳介」灏氭湭缁戝畾鎻愮ず璇嶆ā鏉?}
+                            placeholder={activePromptConfig ? "正在加载提示词..." : "当前技能项尚未绑定提示词模板"}
                           />
                         </label>
                       </section>
@@ -5074,17 +5086,17 @@ export default function AdminPage() {
                       <section className="entity-card" style={{ padding: 16 }}>
                         <div className="entity-card-head">
                           <div>
-                            <strong>杈撳嚭</strong>
-                            <p className="personal-meta">褰撳墠鎶€鑳借緭鍑轰細浣滀负鍚庣画鎶€鑳借緭鍏ワ紝鎴栫洿鎺ユ垚涓鸿兘鍔涘寘鏈€缁堜骇鍑恒€?/p>
+                            <strong>输出</strong>
+                            <p className="personal-meta">当前技能输出会作为后续技能输入，或直接成为能力包最终产出。</p>
                           </div>
                         </div>
                         <div className="admin-skill-simple-grid">
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>鎶€鑳介摼璺?/span>
-                            <input value={activeSkillFlow.map((item) => item.skillName || item.skillSlug).join(" -> ") || "褰撳墠杩樻病鏈夐厤缃兘鍔涘寘鎶€鑳介摼璺?} readOnly />
+                            <span>技能链路</span>
+                            <input value={activeSkillFlow.map((item) => item.skillName || item.skillSlug).join(" -> ") || "当前还没有配置能力包技能链路"} readOnly />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>姝ラ鎽樿</span>
+                            <span>步骤摘要</span>
                             <textarea
                               value={activeSkillDraft?.workflowSummary || ""}
                               onChange={(event) => {
@@ -5092,11 +5104,11 @@ export default function AdminPage() {
                                   handleSkillDraftChange(activeSkillConfig.id, { workflowSummary: event.target.value });
                                 }
                               }}
-                              placeholder="渚嬪锛?. 鐢熸垚瑙嗛鍓ф湰 2. 鐢熸垚鏁呬簨鏉挎彁绀鸿瘝 3. 鐢熸垚鏁呬簨鏉垮浘鐗?4. 鐢熸垚鐭棰戙€?
+                              placeholder="例如：1. 生成视频剧本 2. 生成故事板提示词 3. 生成故事板图片 4. 生成短视频。"
                             />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
-                            <span>涓嬫父杈撳嚭鍘诲悜</span>
+                            <span>下游输出去向</span>
                             <input value={activeOutputSummary} readOnly />
                           </label>
                         </div>
@@ -5108,12 +5120,12 @@ export default function AdminPage() {
                           onClick={() => void handleSaveSkillCenter()}
                           disabled={isSavingSkillCenter || (!activeSkillConfig && !activePromptConfig)}
                         >
-                          {isSavingSkillCenter ? "淇濆瓨涓?.." : "淇濆瓨褰撳墠鎻愮ず璇?}
+                          {isSavingSkillCenter ? "保存中..." : "保存当前提示词"}
                         </button>
                       </div>
                     </article>
                   ) : (
-                    <div className="admin-skill-empty">璇峰厛浠庡乏渚ч€夋嫨涓€涓笁绾ф妧鑳介」銆?/div>
+                    <div className="admin-skill-empty">请先从左侧选择一个三级技能项。</div>
                   )}
                 </section>
             {isCreateSkillModalOpen ? (
@@ -5122,37 +5134,37 @@ export default function AdminPage() {
                   className="entity-card admin-user-modal"
                   role="dialog"
                   aria-modal="true"
-                  aria-label="鍒涘缓鎶€鑳?
+                  aria-label="创建技能"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="admin-user-modal-topbar">
                     <div>
-                      <span className="archive-pill status-ready">鎶€鑳藉垱寤?/span>
-                      <strong>鍒涘缓鎶€鑳戒富鍔熻兘鍗曞厓</strong>
-                      <p className="personal-meta">鎶€鑳芥槸涓昏鍔熻兘瀹炵幇鍗曞厓锛涘垱寤哄悗鍐嶇敱鑳藉姏鍖呮寜椤哄簭缁勫悎鎴愬畬鏁村姛鑳介摼璺€?/p>
+                      <span className="archive-pill status-ready">技能创建</span>
+                      <strong>创建技能主功能单元</strong>
+                      <p className="personal-meta">技能是主要功能实现单元；创建后再由能力包按顺序组合成完整功能链路。</p>
                     </div>
                     <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>
-                      鍏抽棴
+                      关闭
                     </button>
                   </div>
                   <div className="admin-skill-simple-grid">
-                    <label className="admin-skill-field"><span>鎶€鑳藉悕绉?/span><input value={newSkill.name} placeholder="渚嬪锛氬叕浼楀彿鏂囩珷鐢熸垚" onChange={(event) => setNewSkill((current) => ({ ...current, name: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鎶€鑳芥爣璇?/span><input value={newSkill.slug} placeholder="渚嬪锛歸echat-article-generator" onChange={(event) => setNewSkill((current) => ({ ...current, slug: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鍒嗙被</span><select value={newSkill.category} onChange={(event) => setNewSkill((current) => ({ ...current, category: event.target.value }))}>{createSkillCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>鐘舵€?/span><select value={newSkill.status} onChange={(event) => setNewSkill((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}><option value="ACTIVE">鍚敤涓?/option><option value="DRAFT">鑽夌</option><option value="DISABLED">鍋滅敤</option></select></label>
-                    <label className="admin-skill-field"><span>渚涘簲鍟?/span><select value={newSkill.provider} onChange={(event) => setNewSkill((current) => ({ ...current, provider: event.target.value }))}><option value="">璇烽€夋嫨渚涘簲鍟?/option>{createSkillProviderOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>榛樿妯″瀷</span><select value={newSkill.defaultModel} onChange={(event) => setNewSkill((current) => ({ ...current, defaultModel: event.target.value }))}><option value="">璇烽€夋嫨妯″瀷</option>{createSkillModelOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>鐐规暟鎴愭湰</span><input type="number" value={newSkill.pointsCost} onChange={(event) => setNewSkill((current) => ({ ...current, pointsCost: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鎵€灞炴ā鍧?/span><select value={newSkill.moduleKey} onChange={(event) => setNewSkill((current) => ({ ...current, moduleKey: event.target.value }))}><option value="NONE">鏆備笉缁戝畾</option>{skillModuleFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>鎵€灞炶兘鍔涘寘</span><select value={newSkill.packageKey} onChange={(event) => setNewSkill((current) => ({ ...current, packageKey: event.target.value }))}><option value="NONE">鏆備笉缁戝畾</option>{skillPackageFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                    <label className="admin-skill-field"><span>鎻愮ず璇嶅満鏅?/span><select value={newSkill.promptScene} onChange={(event) => setNewSkill((current) => ({ ...current, promptScene: event.target.value }))}><option value="">绋嶅悗缁戝畾</option>{createSkillPromptSceneOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>鎶€鑳借鏄?/span><textarea value={newSkill.description} onChange={(event) => setNewSkill((current) => ({ ...current, description: event.target.value }))} /></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>褰掑睘璇存槑</span><textarea value={newSkill.bindingRemarks} onChange={(event) => setNewSkill((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>技能名称</span><input value={newSkill.name} placeholder="例如：公众号文章生成" onChange={(event) => setNewSkill((current) => ({ ...current, name: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>技能标识</span><input value={newSkill.slug} placeholder="例如：wechat-article-generator" onChange={(event) => setNewSkill((current) => ({ ...current, slug: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>分类</span><select value={newSkill.category} onChange={(event) => setNewSkill((current) => ({ ...current, category: event.target.value }))}>{createSkillCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>状态</span><select value={newSkill.status} onChange={(event) => setNewSkill((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
+                    <label className="admin-skill-field"><span>供应商</span><select value={newSkill.provider} onChange={(event) => setNewSkill((current) => ({ ...current, provider: event.target.value }))}><option value="">请选择供应商</option>{createSkillProviderOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>默认模型</span><select value={newSkill.defaultModel} onChange={(event) => setNewSkill((current) => ({ ...current, defaultModel: event.target.value }))}><option value="">请选择模型</option>{createSkillModelOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>点数成本</span><input type="number" value={newSkill.pointsCost} onChange={(event) => setNewSkill((current) => ({ ...current, pointsCost: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>所属模块</span><select value={newSkill.moduleKey} onChange={(event) => setNewSkill((current) => ({ ...current, moduleKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillModuleFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>所属能力包</span><select value={newSkill.packageKey} onChange={(event) => setNewSkill((current) => ({ ...current, packageKey: event.target.value }))}><option value="NONE">暂不绑定</option>{skillPackageFilterOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    <label className="admin-skill-field"><span>提示词场景</span><select value={newSkill.promptScene} onChange={(event) => setNewSkill((current) => ({ ...current, promptScene: event.target.value }))}><option value="">稍后绑定</option>{createSkillPromptSceneOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>技能说明</span><textarea value={newSkill.description} onChange={(event) => setNewSkill((current) => ({ ...current, description: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>归属说明</span><textarea value={newSkill.bindingRemarks} onChange={(event) => setNewSkill((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
                   </div>
                   <div className="personal-actions">
-                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>鍙栨秷</button>
+                    <button type="button" className="secondary-button" onClick={handleCloseCreateSkillModal} disabled={isCreatingSkill}>取消</button>
                     <button type="button" className="primary-button" onClick={() => void handleCreateSkill()} disabled={isCreatingSkill || !newSkill.name.trim() || !newSkill.slug.trim() || !newSkill.category.trim() || !newSkill.provider.trim() || !newSkill.defaultModel.trim()}>
-                      {isCreatingSkill ? "鍒涘缓涓?.." : "纭鍒涘缓"}
+                      {isCreatingSkill ? "创建中..." : "确认创建"}
                     </button>
                   </div>
                 </div>
@@ -5164,22 +5176,22 @@ export default function AdminPage() {
                   className="entity-card admin-user-modal"
                   role="dialog"
                   aria-modal="true"
-                  aria-label="瀹夎鎶€鑳?
+                  aria-label="安装技能"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="admin-user-modal-topbar">
                     <div>
-                      <span className="archive-pill status-ready">鎶€鑳藉畨瑁?/span>
-                      <strong>涓婁紶 zip 鎴?GitHub 閾炬帴瀹夎鎶€鑳?/strong>
-                      <p className="personal-meta">鏈嶅姟绔細瑙ｆ瀽 `SKILL.md` 骞惰嚜鍔ㄥ垱寤烘妧鑳斤紝鍐嶆寜浣犵殑閫夋嫨鎸傚埌妯″潡銆佽兘鍔涘寘鍜屾彁绀鸿瘝鍦烘櫙銆?/p>
+                      <span className="archive-pill status-ready">技能安装</span>
+                      <strong>上传 zip 或 GitHub 链接安装技能</strong>
+                      <p className="personal-meta">服务端会解析 `SKILL.md` 并自动创建技能，再按你的选择挂到模块、能力包和提示词场景。</p>
                     </div>
                     <button type="button" className="secondary-button" onClick={handleCloseInstallSkillModal} disabled={isInstallingSkill}>
-                      鍏抽棴
+                      关闭
                     </button>
                   </div>
                   <div className="admin-skill-simple-grid">
                     <label className="admin-skill-field">
-                      <span>瀹夎鏉ユ簮</span>
+                      <span>安装来源</span>
                       <select
                         value={installSkillDraft.sourceType}
                         onChange={(event) =>
@@ -5192,12 +5204,12 @@ export default function AdminPage() {
                           }))
                         }
                       >
-                        <option value="GITHUB">GitHub 閾炬帴</option>
-                        <option value="ZIP_UPLOAD">鎶€鑳藉帇缂╁寘</option>
+                        <option value="GITHUB">GitHub 链接</option>
+                        <option value="ZIP_UPLOAD">技能压缩包</option>
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>鍒嗙被</span>
+                      <span>分类</span>
                       <select value={installSkillDraft.category} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, category: event.target.value }))}>
                         {createSkillCategoryOptions.map((item) => (
                           <option key={item} value={item}>
@@ -5207,17 +5219,17 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>鐘舵€?/span>
+                      <span>状态</span>
                       <select value={installSkillDraft.status} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, status: event.target.value as SkillConfigRecord["status"] }))}>
-                        <option value="ACTIVE">鍚敤涓?/option>
-                        <option value="DRAFT">鑽夌</option>
-                        <option value="DISABLED">鍋滅敤</option>
+                        <option value="ACTIVE">启用中</option>
+                        <option value="DRAFT">草稿</option>
+                        <option value="DISABLED">停用</option>
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>渚涘簲鍟?/span>
+                      <span>供应商</span>
                       <select value={installSkillDraft.provider} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, provider: event.target.value }))}>
-                        <option value="">璇烽€夋嫨渚涘簲鍟?/option>
+                        <option value="">请选择供应商</option>
                         {createSkillProviderOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -5226,9 +5238,9 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>榛樿妯″瀷</span>
+                      <span>默认模型</span>
                       <select value={installSkillDraft.defaultModel} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, defaultModel: event.target.value }))}>
-                        <option value="">璇烽€夋嫨妯″瀷</option>
+                        <option value="">请选择模型</option>
                         {buildScopedModelOptions(providers, installSkillDraft.defaultModel).map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -5237,21 +5249,21 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>鐐规暟鎴愭湰</span>
+                      <span>点数成本</span>
                       <input type="number" value={installSkillDraft.pointsCost} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, pointsCost: event.target.value }))} />
                     </label>
                     {installSkillDraft.sourceType === "GITHUB" ? (
                       <label className="admin-skill-field admin-skill-field--full">
-                        <span>GitHub 鎶€鑳界洰褰曢摼鎺?/span>
+                        <span>GitHub 技能目录链接</span>
                         <input
                           value={installSkillDraft.githubUrl}
-                          placeholder="渚嬪锛歨ttps://github.com/JimLiu/baoyu-skills/tree/main/skills/baoyu-post-to-wechat"
+                          placeholder="例如：https://github.com/JimLiu/baoyu-skills/tree/main/skills/baoyu-post-to-wechat"
                           onChange={(event) => setInstallSkillDraft((current) => ({ ...current, githubUrl: event.target.value }))}
                         />
                       </label>
                     ) : (
                       <label className="admin-skill-field admin-skill-field--full">
-                        <span>鎶€鑳藉帇缂╁寘</span>
+                        <span>技能压缩包</span>
                         <input
                           type="file"
                           accept=".zip,application/zip,application/x-zip-compressed"
@@ -5260,13 +5272,13 @@ export default function AdminPage() {
                             void handleInstallSkillArchiveChange(file);
                           }}
                         />
-                        <small className="personal-meta">{installSkillDraft.archiveFileName || "璇蜂笂浼犲崟涓妧鑳界洰褰曞帇缂╁寘锛屽帇缂╁寘涓繀椤诲寘鍚?SKILL.md"}</small>
+                        <small className="personal-meta">{installSkillDraft.archiveFileName || "请上传单个技能目录压缩包，压缩包中必须包含 SKILL.md"}</small>
                       </label>
                     )}
                     <label className="admin-skill-field">
-                      <span>鎵€灞炴ā鍧?/span>
+                      <span>所属模块</span>
                       <select value={installSkillDraft.moduleKey} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, moduleKey: event.target.value }))}>
-                        <option value="NONE">鏆備笉缁戝畾</option>
+                        <option value="NONE">暂不绑定</option>
                         {skillModuleFilterOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -5275,9 +5287,9 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>鎵€灞炶兘鍔涘寘</span>
+                      <span>所属能力包</span>
                       <select value={installSkillDraft.packageKey} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, packageKey: event.target.value }))}>
-                        <option value="NONE">鏆備笉缁戝畾</option>
+                        <option value="NONE">暂不绑定</option>
                         {skillPackageFilterOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -5286,9 +5298,9 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field">
-                      <span>鎻愮ず璇嶅満鏅?/span>
+                      <span>提示词场景</span>
                       <select value={installSkillDraft.promptScene} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, promptScene: event.target.value }))}>
-                        <option value="">绋嶅悗缁戝畾</option>
+                        <option value="">稍后绑定</option>
                         {createSkillPromptSceneOptions.map((item) => (
                           <option key={item} value={item}>
                             {item}
@@ -5297,20 +5309,20 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="admin-skill-field admin-skill-field--full">
-                      <span>瀹夎琛ュ厖璇存槑</span>
+                      <span>安装补充说明</span>
                       <textarea
                         value={installSkillDraft.descriptionPrefix}
-                        placeholder="渚嬪锛氫粠 AI CODING / GitHub 瀵煎叆锛岀敤浜庡悗鍙版妧鑳戒腑蹇冭嚜鍔ㄥ畨瑁呫€?
+                        placeholder="例如：从 AI CODING / GitHub 导入，用于后台技能中心自动安装。"
                         onChange={(event) => setInstallSkillDraft((current) => ({ ...current, descriptionPrefix: event.target.value }))}
                       />
                     </label>
                     <label className="admin-skill-field admin-skill-field--full">
-                      <span>褰掑睘璇存槑</span>
+                      <span>归属说明</span>
                       <textarea value={installSkillDraft.bindingRemarks} onChange={(event) => setInstallSkillDraft((current) => ({ ...current, bindingRemarks: event.target.value }))} />
                     </label>
                   </div>
                   <div className="personal-actions">
-                    <button type="button" className="secondary-button" onClick={handleCloseInstallSkillModal} disabled={isInstallingSkill}>鍙栨秷</button>
+                    <button type="button" className="secondary-button" onClick={handleCloseInstallSkillModal} disabled={isInstallingSkill}>取消</button>
                     <button
                       type="button"
                       className="primary-button"
@@ -5323,7 +5335,7 @@ export default function AdminPage() {
                         || (installSkillDraft.sourceType === "ZIP_UPLOAD" && !installSkillDraft.archiveBase64.trim())
                       }
                     >
-                      {isInstallingSkill ? "瀹夎涓?.." : "寮€濮嬪畨瑁?}
+                      {isInstallingSkill ? "安装中..." : "开始安装"}
                     </button>
                   </div>
                 </div>
@@ -5335,35 +5347,35 @@ export default function AdminPage() {
                   className="entity-card admin-user-modal"
                   role="dialog"
                   aria-modal="true"
-                  aria-label="鍒涘缓鎻愮ず璇嶆ā鏉?
+                  aria-label="创建提示词模板"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="admin-user-modal-topbar">
                     <div>
-                      <span className="archive-pill status-ready">鎻愮ず璇嶅垱寤?/span>
-                      <strong>鍒涘缓鎻愮ず璇嶅苟缁戝畾鎶€鑳?/strong>
-                      <p className="personal-meta">鍒涘缓瀹屾垚鍚庯紝濡傛灉缁戝畾鍒版煇涓妧鑳斤紝浼氱珛鍗虫浛鎹㈣鎶€鑳藉綋鍓嶄娇鐢ㄧ殑鎻愮ず璇嶅満鏅€?/p>
+                      <span className="archive-pill status-ready">提示词创建</span>
+                      <strong>创建提示词并绑定技能</strong>
+                      <p className="personal-meta">创建完成后，如果绑定到某个技能，会立即替换该技能当前使用的提示词场景。</p>
                     </div>
                     <button type="button" className="secondary-button" onClick={handleCloseCreatePromptModal} disabled={isCreatingPrompt}>
-                      鍏抽棴
+                      关闭
                     </button>
                   </div>
                   <div className="admin-skill-simple-grid">
-                    <label className="admin-skill-field"><span>鎻愮ず璇嶅悕绉?/span><input value={newPrompt.name} onChange={(event) => setNewPrompt((current) => ({ ...current, name: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鎻愮ず璇嶅満鏅?/span><input value={newPrompt.scene} onChange={(event) => setNewPrompt((current) => ({ ...current, scene: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鐗堟湰</span><input value={newPrompt.version} onChange={(event) => setNewPrompt((current) => ({ ...current, version: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鐘舵€?/span><select value={newPrompt.status} onChange={(event) => setNewPrompt((current) => ({ ...current, status: event.target.value as PromptTemplateRecord["status"] }))}><option value="ACTIVE">鍚敤涓?/option><option value="DRAFT">鑽夌</option><option value="DISABLED">鍋滅敤</option></select></label>
-                    <label className="admin-skill-field"><span>妯″瀷</span><input value={newPrompt.modelName} onChange={(event) => setNewPrompt((current) => ({ ...current, modelName: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>娓╁害</span><input type="number" value={newPrompt.temperature} onChange={(event) => setNewPrompt((current) => ({ ...current, temperature: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>鏈€澶?Tokens</span><input type="number" value={newPrompt.maxTokens} onChange={(event) => setNewPrompt((current) => ({ ...current, maxTokens: event.target.value }))} /></label>
-                    <label className="admin-skill-field"><span>缁戝畾鎶€鑳?/span><select value={newPrompt.bindSkillSlug} onChange={(event) => setNewPrompt((current) => ({ ...current, bindSkillSlug: event.target.value }))}><option value="NONE">鏆備笉缁戝畾</option>{skills.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>鎻愮ず璇嶅唴瀹?/span><textarea value={newPrompt.content} onChange={(event) => setNewPrompt((current) => ({ ...current, content: event.target.value }))} /></label>
-                    <label className="admin-skill-field admin-skill-field--full"><span>缁戝畾璇存槑</span><textarea value={newPrompt.bindingRemarks} onChange={(event) => setNewPrompt((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>提示词名称</span><input value={newPrompt.name} onChange={(event) => setNewPrompt((current) => ({ ...current, name: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>提示词场景</span><input value={newPrompt.scene} onChange={(event) => setNewPrompt((current) => ({ ...current, scene: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>版本</span><input value={newPrompt.version} onChange={(event) => setNewPrompt((current) => ({ ...current, version: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>状态</span><select value={newPrompt.status} onChange={(event) => setNewPrompt((current) => ({ ...current, status: event.target.value as PromptTemplateRecord["status"] }))}><option value="ACTIVE">启用中</option><option value="DRAFT">草稿</option><option value="DISABLED">停用</option></select></label>
+                    <label className="admin-skill-field"><span>模型</span><input value={newPrompt.modelName} onChange={(event) => setNewPrompt((current) => ({ ...current, modelName: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>温度</span><input type="number" value={newPrompt.temperature} onChange={(event) => setNewPrompt((current) => ({ ...current, temperature: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>最大 Tokens</span><input type="number" value={newPrompt.maxTokens} onChange={(event) => setNewPrompt((current) => ({ ...current, maxTokens: event.target.value }))} /></label>
+                    <label className="admin-skill-field"><span>绑定技能</span><select value={newPrompt.bindSkillSlug} onChange={(event) => setNewPrompt((current) => ({ ...current, bindSkillSlug: event.target.value }))}><option value="NONE">暂不绑定</option>{skills.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>提示词内容</span><textarea value={newPrompt.content} onChange={(event) => setNewPrompt((current) => ({ ...current, content: event.target.value }))} /></label>
+                    <label className="admin-skill-field admin-skill-field--full"><span>绑定说明</span><textarea value={newPrompt.bindingRemarks} onChange={(event) => setNewPrompt((current) => ({ ...current, bindingRemarks: event.target.value }))} /></label>
                   </div>
                   <div className="personal-actions">
-                    <button type="button" className="secondary-button" onClick={handleCloseCreatePromptModal} disabled={isCreatingPrompt}>鍙栨秷</button>
+                    <button type="button" className="secondary-button" onClick={handleCloseCreatePromptModal} disabled={isCreatingPrompt}>取消</button>
                     <button type="button" className="primary-button" onClick={() => void handleCreatePrompt()} disabled={isCreatingPrompt || !newPrompt.name.trim() || !newPrompt.scene.trim() || !newPrompt.modelName.trim()}>
-                      {isCreatingPrompt ? "鍒涘缓涓?.." : "纭鍒涘缓"}
+                      {isCreatingPrompt ? "创建中..." : "确认创建"}
                     </button>
                   </div>
                 </div>
@@ -5389,14 +5401,14 @@ export default function AdminPage() {
               <article className="panel admin-provider-filter-card">
                 <div className="admin-provider-filter-head">
                   <div>
-                    <strong>鏂板缓鐭ヨ瘑搴?/strong>
-                    <p>鍏堝垱寤虹煡璇嗙┖闂达紝鍐嶇户缁笂浼犺祫鏂欏拰鍋氭绱㈤厤缃€傚悓姝ョ姸鎬併€佸巻鍙插洖鎵у拰楂樼骇缁戝畾鏀逛负鍙充晶鍒嗘澘鍧楃淮鎶ゃ€?/p>
+                    <strong>新建知识库</strong>
+                    <p>先创建知识空间，再继续上传资料和做检索配置。同步状态、历史回执和高级绑定改为右侧分板块维护。</p>
                   </div>
                   <span className="archive-pill status-in_progress">CREATE</span>
                 </div>
                 <div className="admin-provider-filter-grid">
                   <label className="admin-provider-field">
-                    <span>鐭ヨ瘑搴撳悕绉?/span>
+                    <span>知识库名称</span>
                     <input
                       value={newKnowledgeBase.name}
                       onChange={(event) =>
@@ -5420,7 +5432,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="admin-provider-field">
-                    <span>鏁版嵁婧愮被鍨?/span>
+                    <span>数据源类型</span>
                     <select
                       value={newKnowledgeBase.sourceType}
                       onChange={(event) =>
@@ -5430,14 +5442,14 @@ export default function AdminPage() {
                         }))
                       }
                     >
-                      <option value="MANUAL">鎵嬪姩缁存姢</option>
-                      <option value="FEISHU">椋炰功</option>
+                      <option value="MANUAL">手动维护</option>
+                      <option value="FEISHU">飞书</option>
                       <option value="NOTION">Notion</option>
-                      <option value="OSS">瀵硅薄瀛樺偍</option>
+                      <option value="OSS">对象存储</option>
                     </select>
                   </label>
                   <label className="admin-provider-field">
-                    <span>鐭ヨ瘑搴撹鏄?/span>
+                    <span>知识库说明</span>
                     <textarea
                       value={newKnowledgeBase.description}
                       onChange={(event) =>
@@ -5456,7 +5468,7 @@ export default function AdminPage() {
                     onClick={() => void handleCreateKnowledgeBase()}
                     disabled={isCreatingKnowledgeBase || !newKnowledgeBase.name.trim() || !newKnowledgeBase.slug.trim()}
                   >
-                    {isCreatingKnowledgeBase ? "鍒涘缓涓?.." : "鏂板缓鐭ヨ瘑搴?}
+                    {isCreatingKnowledgeBase ? "创建中..." : "新建知识库"}
                   </button>
                 </div>
               </article>
@@ -5464,12 +5476,12 @@ export default function AdminPage() {
               <article className="panel admin-provider-filter-card">
                 <div className="admin-provider-filter-head">
                   <div>
-                    <strong>鐭ヨ瘑搴撳垪琛?/strong>
-                    <p>宸︿晶鎸夌煡璇嗗簱鍜屾澘鍧楀垏鎹紝鍙充晶鍙淮鎶ゅ綋鍓嶉」鐩唴瀹癸紝鍑忓皯鏃犲叧娌荤悊椤瑰共鎵般€?/p>
+                    <strong>知识库列表</strong>
+                    <p>左侧按知识库和板块切换，右侧只维护当前项目内容，减少无关治理项干扰。</p>
                   </div>
                   <div className="admin-provider-actions" style={{ gap: 8 }}>
                     <span className={`archive-pill ${knowledgeDataSource === "api" ? "status_success" : "status_warning"}`}>
-                      {knowledgeDataSource === "api" ? "鐭ヨ瘑鎺ュ彛姝ｅ父" : "鐭ヨ瘑鎺ュ彛寮傚父"}
+                      {knowledgeDataSource === "api" ? "知识接口正常" : "知识接口异常"}
                     </span>
                     <span className="archive-pill status_success">{knowledgeBases.length}</span>
                   </div>
@@ -5487,7 +5499,7 @@ export default function AdminPage() {
                       lineHeight: 1.6,
                     }}
                   >
-                    <strong>褰撳墠鐭ヨ瘑搴撳垪琛ㄦ湭浣跨敤婕旂ず鐭ヨ瘑搴撳崰浣嶏紝涓嬮潰鏄疄闄呭け璐ユ帴鍙ｃ€?/strong>
+                    <strong>当前知识库列表未使用演示知识库占位，下面是实际失败接口。</strong>
                     <div style={{ marginTop: 4 }}>{knowledgeLoadError}</div>
                   </div>
                 ) : null}
@@ -5517,17 +5529,18 @@ export default function AdminPage() {
                             <div>
                               <strong>{item.name}</strong>
                               <p>
-                                {getKnowledgeBaseContainerLabel(item)} 路 璧勬枡 {itemFiles.length} 路 鎺ュ叆瀵硅薄 {itemBindings.length}
+                                {getKnowledgeBaseContainerLabel(item)} · 资料 {itemFiles.length} · 接入对象 {itemBindings.length}
                               </p>
                               {isBridgeKnowledge ? (
                                 <p className="personal-meta">
-                                  鍓嶇璧勬枡鍗?{itemFiles.length} 寮?路 宸插叆搴?{indexedFileCount} 寮?                                  {pendingFileCount > 0 ? ` 路 寰呭悓姝?${pendingFileCount} 寮燻 : ""}
+                                  前端资料卡 {itemFiles.length} 张 · 已入库 {indexedFileCount} 张
+                                  {pendingFileCount > 0 ? ` · 待同步 ${pendingFileCount} 张` : ""}
                                 </p>
                               ) : null}
                             </div>
                             <div className="knowledge-admin-list-tags">
                               <span className="knowledge-admin-list-tag">{getKnowledgeSourceTypeLabel(item.sourceType)}</span>
-                              <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "鍓嶇妗ユ帴" : "鍚庡彴缁存姢"}</span>
+                              <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
                               {isBridgeKnowledge && previewFiles.length
                                 ? previewFiles.map((file) => (
                                     <span className="knowledge-admin-list-tag" key={file.id}>
@@ -5539,8 +5552,8 @@ export default function AdminPage() {
                             <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getKnowledgeBaseStatusLabel(item.status)}</span>
                             <span className="knowledge-admin-list-meta">
                               {isBridgeKnowledge
-                                ? `鏈€杩戣祫鏂欙細${latestFile ? latestFile.fileName : "绛夊緟鍓嶇淇濆瓨璧勬枡"}`
-                                : `鏈€杩戝悓姝ワ細${latestRun ? getKnowledgeRunResultLabel(latestRun.result) : getKnowledgeSyncStatusLabel(item.syncStatus)}`}
+                                ? `最近资料：${latestFile ? latestFile.fileName : "等待前端保存资料"}`
+                                : `最近同步：${latestRun ? getKnowledgeRunResultLabel(latestRun.result) : getKnowledgeSyncStatusLabel(item.syncStatus)}`}
                             </span>
                           </button>
                           {isBridgeKnowledge && itemFiles.length ? (
@@ -5555,7 +5568,7 @@ export default function AdminPage() {
                                 >
                                   <strong>{file.fileName}</strong>
                                   <span>
-                                    {file.sourceName || "鏈～鍐欐潵婧?} 路 {getKnowledgeFileStatusLabel(file.status)} 路 鍒嗙墖 {file.chunkCount}
+                                    {file.sourceName || "未填写来源"} · {getKnowledgeFileStatusLabel(file.status)} · 分片 {file.chunkCount}
                                   </span>
                                 </button>
                               ))}
@@ -5565,7 +5578,7 @@ export default function AdminPage() {
                                   className="secondary-button"
                                   onClick={() => handleToggleKnowledgeBridgeFiles(item.id)}
                                 >
-                                  {expandedKnowledgeBridgeBaseIds[item.id] ? "鏀惰捣鍓嶇璧勬枡" : `灞曞紑鍏ㄩ儴 ${itemFiles.length} 寮犺祫鏂欏崱`}
+                                  {expandedKnowledgeBridgeBaseIds[item.id] ? "收起前端资料" : `展开全部 ${itemFiles.length} 张资料卡`}
                                 </button>
                               ) : null}
                             </div>
@@ -5575,11 +5588,11 @@ export default function AdminPage() {
                     })
                   ) : knowledgeLoadError ? (
                     <div className="admin-empty-state">
-                      <strong>鐭ヨ瘑搴撴帴鍙ｅ姞杞藉け璐?/strong>
-                      <p>褰撳墠宸插仠姝㈠洖閫€婕旂ず鐭ヨ瘑搴擄紝璇峰厛鎸変笂鏂规姤閿欎慨澶嶇湡瀹炴帴鍙ｏ紝鍐嶆煡鐪嬪墠绔ˉ鎺ュ鍣ㄣ€?/p>
+                      <strong>知识库接口加载失败</strong>
+                      <p>当前已停止回退演示知识库，请先按上方报错修复真实接口，再查看前端桥接容器。</p>
                     </div>
                   ) : (
-                    <p className="personal-meta">鏆傛棤鐭ヨ瘑搴擄紝鍏堝垱寤轰竴涓柊鐨勭煡璇嗙┖闂淬€?/p>
+                    <p className="personal-meta">暂无知识库，先创建一个新的知识空间。</p>
                   )}
                 </div>
               </article>
@@ -5588,10 +5601,10 @@ export default function AdminPage() {
                 <article className="panel admin-provider-filter-card">
                   <div className="admin-provider-filter-head">
                     <div>
-                      <strong>褰撳墠鏉垮潡</strong>
-                      <p>鎸夊乏渚ф澘鍧楀垏鎹㈠悗锛屽彸渚т粎灞曠ず褰撳墠鐭ヨ瘑搴撶殑褰撳墠鍐呭銆?/p>
+                      <strong>当前板块</strong>
+                      <p>按左侧板块切换后，右侧仅展示当前知识库的当前内容。</p>
                     </div>
-                    <span className="archive-pill status_ready">{knowledgeWorkspaceSections.find((section) => section.id === knowledgeWorkspaceSection)?.label || "褰撳墠鏉垮潡"}</span>
+                    <span className="archive-pill status_ready">{knowledgeWorkspaceSections.find((section) => section.id === knowledgeWorkspaceSection)?.label || "当前板块"}</span>
                   </div>
                   <div className="knowledge-admin-section-list">
                     {knowledgeWorkspaceSections.map((section) => (
@@ -5621,7 +5634,7 @@ export default function AdminPage() {
                         <span className="admin-provider-type">{getKnowledgeSourceTypeLabel(selectedKnowledgeBase.sourceType)}</span>
                       </div>
                       <p className="admin-provider-meta">
-                        {selectedKnowledgeBase.slug} 路 鏇存柊鏃堕棿 {formatDateTime(selectedKnowledgeBase.updatedAt)}
+                        {selectedKnowledgeBase.slug} · 更新时间 {formatDateTime(selectedKnowledgeBase.updatedAt)}
                       </p>
                     </div>
                     <span className={`archive-pill ${getStatusClassName(selectedKnowledgeBase.status)}`}>
@@ -5631,20 +5644,20 @@ export default function AdminPage() {
 
                   <div className="knowledge-admin-summary-grid">
                     <div className="knowledge-admin-summary-card">
-                      <span>鍚屾鐘舵€?/span>
+                      <span>同步状态</span>
                       <strong>{getKnowledgeSyncStatusLabel(selectedKnowledgeBase.syncStatus)}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
-                      <span>{selectedKnowledgeIsBrandBridge ? "鍓嶇璧勬枡鏁? : "鏂囨。鏁?}</span>
+                      <span>{selectedKnowledgeIsBrandBridge ? "前端资料数" : "文档数"}</span>
                       <strong>{selectedKnowledgeFiles.length}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
-                      <span>{selectedKnowledgeIsBrandBridge ? "宸插叆搴撹祫鏂? : "鍒嗙墖鏁?}</span>
+                      <span>{selectedKnowledgeIsBrandBridge ? "已入库资料" : "分片数"}</span>
                       <strong>{selectedKnowledgeIsBrandBridge ? selectedKnowledgeIndexedFileCount : selectedKnowledgeBase.chunkCount}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
-                      <span>鏈€杩戝悓姝?/span>
-                      <strong>{selectedKnowledgeLatestSyncRun ? getKnowledgeRunResultLabel(selectedKnowledgeLatestSyncRun.result) : "鏆傛棤璁板綍"}</strong>
+                      <span>最近同步</span>
+                      <strong>{selectedKnowledgeLatestSyncRun ? getKnowledgeRunResultLabel(selectedKnowledgeLatestSyncRun.result) : "暂无记录"}</strong>
                     </div>
                   </div>
 
@@ -5653,16 +5666,18 @@ export default function AdminPage() {
                       {selectedKnowledgeIsBrandBridge ? (
                         <article className="entity-card admin-rule-card knowledge-bridge-callout">
                           <div className="panel-header">
-                            <h2>鍓嶇鏄犲皠璇存槑</h2>
-                            <span>1 涓鍣?= 澶氭潯鍓嶇璧勬枡</span>
+                            <h2>前端映射说明</h2>
+                            <span>1 个容器 = 多条前端资料</span>
                           </div>
                           <p className="personal-meta">
-                            褰撳墠鐭ヨ瘑搴撴槸鈥滀紒涓氱煡璇嗗簱鈥濆墠绔〉闈㈣嚜鍔ㄦˉ鎺ュ嚭鏉ョ殑缁熶竴瀹瑰櫒銆傚墠绔瘡鏂板涓€寮犺祫鏂欏崱锛屼笉浼氬湪鍚庡彴鏂板涓€涓煡璇嗗簱锛?                            鑰屾槸浣滀负璧勬枡鏂囦欢缁х画姹囨€诲埌杩欎釜瀹瑰櫒閲屻€?                          </p>
+                            当前知识库是“企业知识库”前端页面自动桥接出来的统一容器。前端每新增一张资料卡，不会在后台新增一个知识库，
+                            而是作为资料文件继续汇总到这个容器里。
+                          </p>
                           <div className="knowledge-bridge-chip-row">
-                            <span className="knowledge-admin-list-tag">鍓嶇璧勬枡 {selectedKnowledgeFiles.length}</span>
-                            <span className="knowledge-admin-list-tag">鎺ュ叆瀵硅薄 {selectedKnowledgeBindings.length}</span>
+                            <span className="knowledge-admin-list-tag">前端资料 {selectedKnowledgeFiles.length}</span>
+                            <span className="knowledge-admin-list-tag">接入对象 {selectedKnowledgeBindings.length}</span>
                             <span className="knowledge-admin-list-tag">
-                              榛樿鎺ュ叆 {selectedKnowledgeBindings[0] ? getKnowledgeBindingDisplayName(selectedKnowledgeBindings[0]) : "寰呭垱寤?}
+                              默认接入 {selectedKnowledgeBindings[0] ? getKnowledgeBindingDisplayName(selectedKnowledgeBindings[0]) : "待创建"}
                             </span>
                           </div>
                           {selectedKnowledgePreviewFiles.length ? (
@@ -5670,13 +5685,13 @@ export default function AdminPage() {
                               {selectedKnowledgePreviewFiles.map((file) => (
                                 <article className="knowledge-bridge-preview-card" key={file.id}>
                                   <strong>{file.fileName}</strong>
-                                  <span>{file.sourceName || "鏈～鍐欐潵婧?}</span>
+                                  <span>{file.sourceName || "未填写来源"}</span>
                                   <em>{formatDateTime(file.uploadedAt)}</em>
                                 </article>
                               ))}
                             </div>
                           ) : (
-                            <p className="personal-meta">鍓嶇杩樻病鏈夋ˉ鎺ヨ繘璧勬枡锛屽厛鍘烩€滀紒涓氱煡璇嗗簱鈥濋〉闈㈡柊澧炶祫鏂欏苟淇濆瓨椤甸潰銆?/p>
+                            <p className="personal-meta">前端还没有桥接进资料，先去“企业知识库”页面新增资料并保存页面。</p>
                           )}
                         </article>
                       ) : null}
@@ -5684,43 +5699,45 @@ export default function AdminPage() {
                       {selectedKnowledgeIsBrandBridge ? (
                         <article className="entity-card admin-rule-card">
                           <div className="panel-header">
-                            <h2>鍓嶇璧勬枡鍗＄墖娓呭崟</h2>
-                            <span>{selectedKnowledgeFiles.length} 寮犺祫鏂欏崱</span>
+                            <h2>前端资料卡片清单</h2>
+                            <span>{selectedKnowledgeFiles.length} 张资料卡</span>
                           </div>
                           <p className="personal-meta">
-                            杩欓噷灞曠ず鐨勫氨鏄墠绔€滀紒涓氱煡璇嗗簱鈥濋〉闈㈠綋鍓嶆眹鎬诲埌杩欎釜鍚庡彴瀹瑰櫒鐨勮祫鏂欍€傝繖鏍蜂綘鍦ㄥ悗鍙扮湅鍒楄〃鏃讹紝灏辫兘鐩存帴鐭ラ亾鍓嶇鍒板簳淇濆瓨浜嗗摢浜涜祫鏂欍€?                          </p>
+                            这里展示的就是前端“企业知识库”页面当前汇总到这个后台容器的资料。这样你在后台看列表时，就能直接知道前端到底保存了哪些资料。
+                          </p>
                           {selectedKnowledgeMappedFiles.length ? (
                             <div className="knowledge-bridge-preview-list">
                               {selectedKnowledgeMappedFiles.map((file) => (
                                 <article className="knowledge-bridge-preview-card" key={file.id}>
                                   <strong>{file.fileName}</strong>
                                   <span>
-                                    {file.sourceName || "鏈～鍐欐潵婧?} 路 {file.fileType} 路 {getKnowledgeFileStatusLabel(file.status)}
+                                    {file.sourceName || "未填写来源"} · {file.fileType} · {getKnowledgeFileStatusLabel(file.status)}
                                   </span>
                                   <em>
-                                    {formatDateTime(file.uploadedAt)} 路 鍒嗙墖 {file.chunkCount}
+                                    {formatDateTime(file.uploadedAt)} · 分片 {file.chunkCount}
                                   </em>
                                 </article>
                               ))}
                             </div>
                           ) : (
-                            <p className="personal-meta">褰撳墠杩樻病鏈変换浣曞墠绔祫鏂欏崱鍚屾杩涙潵銆?/p>
+                            <p className="personal-meta">当前还没有任何前端资料卡同步进来。</p>
                           )}
                           {selectedKnowledgeFiles.length > selectedKnowledgeMappedFiles.length ? (
                             <p className="personal-meta">
-                              褰撳墠浠呭睍绀烘渶杩?{selectedKnowledgeMappedFiles.length} 寮犺祫鏂欏崱锛屽叾浣欒祫鏂欏彲鍦ㄢ€滆祫鏂欎笂浼犫€濇澘鍧楃户缁煡鐪嬨€?                            </p>
+                              当前仅展示最近 {selectedKnowledgeMappedFiles.length} 张资料卡，其余资料可在“资料上传”板块继续查看。
+                            </p>
                           ) : null}
                         </article>
                       ) : null}
 
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
-                          <h2>鍩虹淇℃伅</h2>
+                          <h2>基础信息</h2>
                           <span>{selectedKnowledgeBase.slug}</span>
                         </div>
                         <div className="admin-rule-grid">
                           <label>
-                            <span>鍚敤鐘舵€?/span>
+                            <span>启用状态</span>
                             <select
                               value={selectedKnowledgeBaseDraft.status}
                               onChange={(event) =>
@@ -5729,13 +5746,13 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="ACTIVE">鍚敤涓?/option>
-                              <option value="DRAFT">鑽夌</option>
-                              <option value="DISABLED">宸插仠鐢?/option>
+                              <option value="ACTIVE">启用中</option>
+                              <option value="DRAFT">草稿</option>
+                              <option value="DISABLED">已停用</option>
                             </select>
                           </label>
                           <label>
-                            <span>鏁版嵁婧愮被鍨?/span>
+                            <span>数据源类型</span>
                             <select
                               value={selectedKnowledgeBaseDraft.sourceType}
                               onChange={(event) =>
@@ -5744,15 +5761,15 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="MANUAL">鎵嬪姩缁存姢</option>
-                              <option value="FEISHU">椋炰功</option>
+                              <option value="MANUAL">手动维护</option>
+                              <option value="FEISHU">飞书</option>
                               <option value="NOTION">Notion</option>
-                              <option value="OSS">瀵硅薄瀛樺偍</option>
+                              <option value="OSS">对象存储</option>
                             </select>
                           </label>
                         </div>
                         <label className="admin-rule-description">
-                          <span>鐭ヨ瘑搴撹鏄?/span>
+                          <span>知识库说明</span>
                           <textarea
                             value={selectedKnowledgeBaseDraft.description}
                             onChange={(event) =>
@@ -5769,7 +5786,7 @@ export default function AdminPage() {
                             onClick={() => void handleSaveKnowledgeBase(selectedKnowledgeBase.id)}
                             disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id}
                           >
-                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "淇濆瓨涓?.." : "淇濆瓨鍩虹淇℃伅"}
+                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存基础信息"}
                           </button>
                           <button
                             type="button"
@@ -5777,22 +5794,24 @@ export default function AdminPage() {
                             onClick={() => void handleArchiveKnowledgeBase(selectedKnowledgeBase.id)}
                             disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id || selectedKnowledgeBase.status === "DISABLED"}
                           >
-                            褰掓。鐭ヨ瘑搴?                          </button>
+                            归档知识库
+                          </button>
                           <button
                             type="button"
                             className="danger-button"
                             onClick={() => void handleDeleteKnowledgeBase(selectedKnowledgeBase.id)}
                             disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id}
                           >
-                            鍒犻櫎鐭ヨ瘑搴?                          </button>
+                            删除知识库
+                          </button>
                         </div>
                       </article>
 
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
-                          <h2>鏈€杩戜竴娆″悓姝?/h2>
+                          <h2>最近一次同步</h2>
                           <span>
-                            {selectedKnowledgeLatestSyncRun ? formatDateTime(selectedKnowledgeLatestSyncRun.startedAt) : "鏆傛棤璁板綍"}
+                            {selectedKnowledgeLatestSyncRun ? formatDateTime(selectedKnowledgeLatestSyncRun.startedAt) : "暂无记录"}
                           </span>
                         </div>
                         {selectedKnowledgeLatestSyncRun ? (
@@ -5816,28 +5835,28 @@ export default function AdminPage() {
                             </div>
                             <div className="personal-grid">
                               <div>
-                                <span>寮€濮嬫椂闂?/span>
+                                <span>开始时间</span>
                                 <strong>{formatDateTime(selectedKnowledgeLatestSyncRun.startedAt)}</strong>
                               </div>
                               <div>
-                                <span>瀹屾垚鏃堕棿</span>
+                                <span>完成时间</span>
                                 <strong>
                                   {selectedKnowledgeLatestSyncRun.completedAt
                                     ? formatDateTime(selectedKnowledgeLatestSyncRun.completedAt)
-                                    : "杩涜涓?}
+                                    : "进行中"}
                                 </strong>
                               </div>
                               <div>
-                                <span>鎵ц浜?/span>
+                                <span>执行人</span>
                                 <strong>{selectedKnowledgeLatestSyncRun.operator}</strong>
                               </div>
                             </div>
                             {selectedKnowledgeLatestSyncRun.errorDetail ? (
-                              <p className="personal-meta">澶辫触璇︽儏锛歿selectedKnowledgeLatestSyncRun.errorDetail}</p>
+                              <p className="personal-meta">失败详情：{selectedKnowledgeLatestSyncRun.errorDetail}</p>
                             ) : null}
                           </>
                         ) : (
-                          <p className="personal-meta">褰撳墠杩樻病鏈夊悓姝ヨ褰曪紝鍏堣繘鍏モ€滆祫鏂欎笂浼犫€濇澘鍧楀綍鍏ヨ祫鏂欍€?/p>
+                          <p className="personal-meta">当前还没有同步记录，先进入“资料上传”板块录入资料。</p>
                         )}
                       </article>
                     </div>
@@ -5847,8 +5866,8 @@ export default function AdminPage() {
                     <div className="admin-provider-stack">
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
-                          <h2>璧勬枡涓婁紶</h2>
-                          <span>{selectedKnowledgeFiles.length} 浠借祫鏂?/span>
+                          <h2>资料上传</h2>
+                          <span>{selectedKnowledgeFiles.length} 份资料</span>
                         </div>
                         <div className="knowledge-upload-choice-grid">
                           <label className="knowledge-upload-choice knowledge-upload-choice--active product-upload-trigger">
@@ -5868,27 +5887,27 @@ export default function AdminPage() {
                                 event.currentTarget.value = "";
                               }}
                             />
-                            <strong>鏈湴鏂囨。</strong>
-                            <span>涓婁紶 PDF銆乄ord銆丒xcel銆丮arkdown 绛夎祫鏂欙紝鑷姩鍥炲～鏂囦欢鍚嶄笌绫诲瀷銆?/span>
-                            <em>鐐瑰嚮涓婁紶</em>
+                            <strong>本地文档</strong>
+                            <span>上传 PDF、Word、Excel、Markdown 等资料，自动回填文件名与类型。</span>
+                            <em>点击上传</em>
                           </label>
                           <div className="knowledge-upload-choice">
-                            <strong>鍓嶇妗ユ帴瀵煎叆</strong>
-                            <span>鍓嶇鈥滀紒涓氱煡璇嗗簱鈥濋〉闈繚瀛樺悗浼氳嚜鍔ㄨ繘鍏ヨ繖涓鍣紝杩欓噷鍙礋璐ｈˉ鍏呰祫鏂欏拰鎵嬪姩鍚屾銆?/span>
-                            <em>鑷姩鍚屾</em>
+                            <strong>前端桥接导入</strong>
+                            <span>前端“企业知识库”页面保存后会自动进入这个容器，这里只负责补充资料和手动同步。</span>
+                            <em>自动同步</em>
                           </div>
                         </div>
                         <div className="knowledge-upload-preview">
-                          <strong>{selectedKnowledgeFileDraft.fileName || "灏氭湭閫夋嫨鏂囦欢"}</strong>
+                          <strong>{selectedKnowledgeFileDraft.fileName || "尚未选择文件"}</strong>
                           <p>
                             {selectedKnowledgeFileDraft.fileName
-                              ? `${selectedKnowledgeFileDraft.fileType} 路 ${selectedKnowledgeFileDraft.sourceName || "鏈～鍐欐潵婧?}`
-                              : "鏀寔鍏堥€夋嫨鏂囦欢锛屽啀鎸夐渶淇敼璧勬枡鍚嶇О鍜屾潵婧愯鏄庛€?}
+                              ? `${selectedKnowledgeFileDraft.fileType} · ${selectedKnowledgeFileDraft.sourceName || "未填写来源"}`
+                              : "支持先选择文件，再按需修改资料名称和来源说明。"}
                           </p>
                         </div>
                         <div className="admin-rule-grid">
                           <label>
-                            <span>鏂囦欢鍚?/span>
+                            <span>文件名</span>
                             <input
                               value={selectedKnowledgeFileDraft.fileName}
                               onChange={(event) =>
@@ -5899,7 +5918,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>鏂囦欢绫诲瀷</span>
+                            <span>文件类型</span>
                             <select
                               value={selectedKnowledgeFileDraft.fileType}
                               onChange={(event) =>
@@ -5916,7 +5935,7 @@ export default function AdminPage() {
                             </select>
                           </label>
                           <label style={{ gridColumn: "span 2" }}>
-                            <span>鏉ユ簮璇存槑</span>
+                            <span>来源说明</span>
                             <input
                               value={selectedKnowledgeFileDraft.sourceName}
                               onChange={(event) =>
@@ -5924,7 +5943,7 @@ export default function AdminPage() {
                                   sourceName: event.target.value,
                                 })
                               }
-                              placeholder="渚嬪 鍝佺墝閮ㄤ笂浼?/ 浼佷笟鐭ヨ瘑搴撴ˉ鎺?
+                              placeholder="例如 品牌部上传 / 企业知识库桥接"
                             />
                           </label>
                         </div>
@@ -5937,7 +5956,7 @@ export default function AdminPage() {
                               updatingKnowledgeBaseFileId === selectedKnowledgeBase.id || !selectedKnowledgeFileDraft.fileName.trim()
                             }
                           >
-                            {updatingKnowledgeBaseFileId === selectedKnowledgeBase.id ? "鏂板涓?.." : "鏂板璧勬枡"}
+                            {updatingKnowledgeBaseFileId === selectedKnowledgeBase.id ? "新增中..." : "新增资料"}
                           </button>
                           <button
                             type="button"
@@ -5945,7 +5964,7 @@ export default function AdminPage() {
                             onClick={() => void handleStartKnowledgeBaseSync(selectedKnowledgeBase.id)}
                             disabled={updatingKnowledgeBaseId === selectedKnowledgeBase.id || selectedKnowledgeHasRunningSyncRun}
                           >
-                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "鍚屾涓?.." : "瑙﹀彂鍏ㄩ噺鍚屾"}
+                            {updatingKnowledgeBaseId === selectedKnowledgeBase.id ? "同步中..." : "触发全量同步"}
                           </button>
                         </div>
                       </article>
@@ -5969,7 +5988,7 @@ export default function AdminPage() {
                                 <div>
                                   <strong>{file.fileName}</strong>
                                   <p className="personal-meta">
-                                    {file.fileType} 路 {file.sourceName} 路 鍒嗙墖 {file.chunkCount}
+                                    {file.fileType} · {file.sourceName} · 分片 {file.chunkCount}
                                   </p>
                                 </div>
                                 <span
@@ -5986,8 +6005,8 @@ export default function AdminPage() {
                               </div>
                               <div className="personal-actions">
                                 <span className="personal-meta">
-                                  涓婁紶鏃堕棿 {formatDateTime(file.uploadedAt)}
-                                  {selectedKnowledgeListFileId === file.id ? " 路 褰撳墠浠庡乏渚ц祫鏂欏垪琛ㄥ畾浣? : ""}
+                                  上传时间 {formatDateTime(file.uploadedAt)}
+                                  {selectedKnowledgeListFileId === file.id ? " · 当前从左侧资料列表定位" : ""}
                                 </span>
                                 <button
                                   type="button"
@@ -5996,10 +6015,10 @@ export default function AdminPage() {
                                   disabled={selectedExpandedKnowledgeFileDebugState?.isLoading && expandedKnowledgeFileId === file.id}
                                 >
                                   {expandedKnowledgeFileId === file.id
-                                    ? "鏀惰捣鑱旇皟鏄庣粏"
+                                    ? "收起联调明细"
                                     : file.status === "INDEXED"
-                                      ? "鏌ョ湅鍒嗙墖 / 鍚戦噺"
-                                      : "鏌ョ湅鑱旇皟鏄庣粏"}
+                                      ? "查看分片 / 向量"
+                                      : "查看联调明细"}
                                 </button>
                                 <button
                                   type="button"
@@ -6007,7 +6026,7 @@ export default function AdminPage() {
                                   onClick={() => void handleSyncKnowledgeBaseFile(file.id)}
                                   disabled={updatingKnowledgeBaseFileId === file.id}
                                 >
-                                  {file.status === "FAILED" ? "閲嶈瘯鍚屾" : file.status === "INDEXED" ? "閲嶆柊鍚屾" : "瑙﹀彂鍚屾"}
+                                  {file.status === "FAILED" ? "重试同步" : file.status === "INDEXED" ? "重新同步" : "触发同步"}
                                 </button>
                                 <button
                                   type="button"
@@ -6015,43 +6034,43 @@ export default function AdminPage() {
                                   onClick={() => void handleDeleteKnowledgeBaseFile(file.id)}
                                   disabled={updatingKnowledgeBaseFileId === file.id}
                                 >
-                                  鍒犻櫎璧勬枡
+                                  删除资料
                                 </button>
                               </div>
                               {expandedKnowledgeFileId === file.id && selectedExpandedKnowledgeFileDebugState ? (
                                 <div className="admin-provider-stack" style={{ marginTop: 12 }}>
                                   <div className="knowledge-admin-summary-grid">
                                     <div className="knowledge-admin-summary-card">
-                                      <span>鍒嗙墖鏁?/span>
+                                      <span>分片数</span>
                                       <strong>{selectedExpandedKnowledgeFileDebugState.chunks.length}</strong>
                                     </div>
                                     <div className="knowledge-admin-summary-card">
-                                      <span>Embedding 鏁?/span>
+                                      <span>Embedding 数</span>
                                       <strong>{selectedExpandedKnowledgeFileDebugState.embeddings.length}</strong>
                                     </div>
                                     <div className="knowledge-admin-summary-card">
-                                      <span>鏈€杩戣鍙?/span>
+                                      <span>最近读取</span>
                                       <strong>
                                         {selectedExpandedKnowledgeFileDebugState.loadedAt
                                           ? formatDateTime(selectedExpandedKnowledgeFileDebugState.loadedAt)
-                                          : "鏈鍙?}
+                                          : "未读取"}
                                       </strong>
                                     </div>
                                     <div className="knowledge-admin-summary-card">
-                                      <span>鏂囦欢鐘舵€?/span>
+                                      <span>文件状态</span>
                                       <strong>{getKnowledgeFileStatusLabel(file.status)}</strong>
                                     </div>
                                   </div>
                                   {selectedExpandedKnowledgeFileDebugState.isLoading ? (
-                                    <p className="personal-meta">姝ｅ湪璇诲彇褰撳墠璧勬枡鐨勫垎鐗囦笌 embedding 鏄庣粏...</p>
+                                    <p className="personal-meta">正在读取当前资料的分片与 embedding 明细...</p>
                                   ) : selectedExpandedKnowledgeFileDebugState.error ? (
-                                    <p className="personal-meta">鑱旇皟鏄庣粏璇诲彇澶辫触锛歿selectedExpandedKnowledgeFileDebugState.error}</p>
+                                    <p className="personal-meta">联调明细读取失败：{selectedExpandedKnowledgeFileDebugState.error}</p>
                                   ) : (
                                     <>
                                       <article className="entity-card admin-rule-card">
                                         <div className="panel-header">
-                                          <h2>鍒嗙墖棰勮</h2>
-                                          <span>{selectedExpandedKnowledgeFileDebugState.chunks.length} 鏉?/span>
+                                          <h2>分片预览</h2>
+                                          <span>{selectedExpandedKnowledgeFileDebugState.chunks.length} 条</span>
                                         </div>
                                         {selectedExpandedKnowledgeFileDebugState.chunks.length ? (
                                           <div className="admin-rules-stack">
@@ -6059,8 +6078,8 @@ export default function AdminPage() {
                                               <article className="knowledge-bridge-preview-card" key={chunk.id}>
                                                 <strong>Chunk #{chunk.chunkIndex}</strong>
                                                 <span>
-                                                  {chunk.tokenCount} tokens 路 {chunk.charCount} 瀛楃
-                                                  {chunk.sourceLabel ? ` 路 ${chunk.sourceLabel}` : ""}
+                                                  {chunk.tokenCount} tokens · {chunk.charCount} 字符
+                                                  {chunk.sourceLabel ? ` · ${chunk.sourceLabel}` : ""}
                                                 </span>
                                                 <pre
                                                   style={{
@@ -6077,17 +6096,18 @@ export default function AdminPage() {
                                             ))}
                                             {selectedExpandedKnowledgeFileDebugState.chunks.length > 5 ? (
                                               <p className="personal-meta">
-                                                浠呭睍绀哄墠 5 鏉″垎鐗囷紝鍓╀綑 {selectedExpandedKnowledgeFileDebugState.chunks.length - 5} 鏉″彲缁х画鎸夐渶鎵╁睍銆?                                              </p>
+                                                仅展示前 5 条分片，剩余 {selectedExpandedKnowledgeFileDebugState.chunks.length - 5} 条可继续按需扩展。
+                                              </p>
                                             ) : null}
                                           </div>
                                         ) : (
-                                          <p className="personal-meta">褰撳墠璧勬枡杩樻病鏈夌敓鎴愬垎鐗囷紝閫氬父闇€瑕佸厛鎵ц鍚屾銆?/p>
+                                          <p className="personal-meta">当前资料还没有生成分片，通常需要先执行同步。</p>
                                         )}
                                       </article>
                                       <article className="entity-card admin-rule-card">
                                         <div className="panel-header">
-                                          <h2>Embedding 鏄庣粏</h2>
-                                          <span>{selectedExpandedKnowledgeFileDebugState.embeddings.length} 鏉?/span>
+                                          <h2>Embedding 明细</h2>
+                                          <span>{selectedExpandedKnowledgeFileDebugState.embeddings.length} 条</span>
                                         </div>
                                         {selectedExpandedKnowledgeFileDebugState.embeddings.length ? (
                                           <div className="admin-rules-stack">
@@ -6095,17 +6115,19 @@ export default function AdminPage() {
                                               <article className="knowledge-bridge-preview-card" key={embedding.id}>
                                                 <strong>{embedding.modelName}</strong>
                                                 <span>
-                                                  {embedding.providerName} 路 {embedding.dimensions} 缁?                                                </span>
+                                                  {embedding.providerName} · {embedding.dimensions} 维
+                                                </span>
                                                 <em>Chunk ID: {embedding.chunkId}</em>
                                               </article>
                                             ))}
                                             {selectedExpandedKnowledgeFileDebugState.embeddings.length > 5 ? (
                                               <p className="personal-meta">
-                                                浠呭睍绀哄墠 5 鏉?embedding锛屽墿浣?{selectedExpandedKnowledgeFileDebugState.embeddings.length - 5} 鏉℃湭灞曞紑銆?                                              </p>
+                                                仅展示前 5 条 embedding，剩余 {selectedExpandedKnowledgeFileDebugState.embeddings.length - 5} 条未展开。
+                                              </p>
                                             ) : null}
                                           </div>
                                         ) : (
-                                          <p className="personal-meta">褰撳墠璧勬枡杩樻病鏈夌敓鎴?embedding锛岃鍏堢‘璁ゅ悓姝ュ凡鎴愬姛骞堕厤缃簡鍙敤鐨?embedding API Key銆?/p>
+                                          <p className="personal-meta">当前资料还没有生成 embedding，请先确认同步已成功并配置了可用的 embedding API Key。</p>
                                         )}
                                       </article>
                                     </>
@@ -6115,7 +6137,7 @@ export default function AdminPage() {
                             </article>
                           ))
                         ) : (
-                          <p className="personal-meta">鏆傛棤鐭ヨ瘑搴撹祫鏂欙紝鍏堜粠涓婃柟涓婁紶涓€浠芥枃妗ｏ紝鎴栦粠鍓嶇鈥滀紒涓氱煡璇嗗簱鈥濋〉闈㈣嚜鍔ㄦˉ鎺ャ€?/p>
+                          <p className="personal-meta">暂无知识库资料，先从上方上传一份文档，或从前端“企业知识库”页面自动桥接。</p>
                         )}
                       </div>
                     </div>
@@ -6127,14 +6149,16 @@ export default function AdminPage() {
                     <div className="admin-provider-stack">
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
-                          <h2>妫€绱㈤厤缃?/h2>
-                          <span>鍙洖鏁伴噺 / 鍙洖鏂瑰紡 / 閲嶆帓</span>
+                          <h2>检索配置</h2>
+                          <span>召回数量 / 召回方式 / 重排</span>
                         </div>
                         <div className="personal-meta">
-                          杩欓噷鏄€滅郴缁熶互鍚庢€庝箞鏌ヨ繖涓煡璇嗗簱鈥濈殑榛樿瑙勫垯銆備綘鍙互鎺у埗涓€娆℃煡澶氬皯鏉°€佷紭鍏堟寜璇箟杩樻槸娣峰悎鍙洖銆佹槸鍚﹀仛浜屾閲嶆帓锛?                          涓嶉渶瑕佸湪杩欓噷澶勭悊鍚屾缁嗚妭銆?                        </div>
+                          这里是“系统以后怎么查这个知识库”的默认规则。你可以控制一次查多少条、优先按语义还是混合召回、是否做二次重排，
+                          不需要在这里处理同步细节。
+                        </div>
                         <div className="admin-rule-grid">
                           <label>
-                            <span>榛樿 TopK</span>
+                            <span>默认 TopK</span>
                             <input
                               type="number"
                               min="1"
@@ -6147,7 +6171,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>鍙洖妯″紡</span>
+                            <span>召回模式</span>
                             <select
                               value={selectedKnowledgeRetrievalDraft.recallMode}
                               onChange={(event) =>
@@ -6156,12 +6180,12 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="SEMANTIC">璇箟鍙洖</option>
-                              <option value="HYBRID">娣峰悎鍙洖</option>
+                              <option value="SEMANTIC">语义召回</option>
+                              <option value="HYBRID">混合召回</option>
                             </select>
                           </label>
                           <label>
-                            <span>鍚敤閲嶆帓</span>
+                            <span>启用重排</span>
                             <select
                               value={selectedKnowledgeRetrievalDraft.rerankEnabled ? "YES" : "NO"}
                               onChange={(event) =>
@@ -6170,15 +6194,15 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="NO">鍏抽棴</option>
-                              <option value="YES">寮€鍚?/option>
+                              <option value="NO">关闭</option>
+                              <option value="YES">开启</option>
                             </select>
                           </label>
                           <label>
-                            <span>閲嶆帓妯″瀷</span>
+                            <span>重排模型</span>
                             <input
                               value={selectedKnowledgeRetrievalDraft.rerankModelName}
-                              placeholder={selectedKnowledgeRetrievalDraft.rerankEnabled ? "渚嬪 bge-reranker-v2-m3" : "鍏抽棴閲嶆帓鏃跺彲鐣欑┖"}
+                              placeholder={selectedKnowledgeRetrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
                               onChange={(event) =>
                                 handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
                                   rerankModelName: event.target.value,
@@ -6187,7 +6211,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>鍒囩墖澶у皬</span>
+                            <span>切片大小</span>
                             <input
                               type="number"
                               min="1"
@@ -6200,7 +6224,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>鍒囩墖閲嶅彔</span>
+                            <span>切片重叠</span>
                             <input
                               type="number"
                               min="0"
@@ -6213,7 +6237,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>妫€绱㈤槇鍊?/span>
+                            <span>检索阈值</span>
                             <input
                               type="number"
                               min="0"
@@ -6229,14 +6253,14 @@ export default function AdminPage() {
                           </label>
                         </div>
                         <div className="personal-actions">
-                          <span className="personal-meta">涓婃鏇存柊鏃堕棿 {formatDateTime(selectedKnowledgeRetrievalConfig.updatedAt)}</span>
+                          <span className="personal-meta">上次更新时间 {formatDateTime(selectedKnowledgeRetrievalConfig.updatedAt)}</span>
                           <button
                             type="button"
                             className="primary-button"
                             onClick={() => void handleSaveKnowledgeRetrievalConfig(selectedKnowledgeBase.id)}
                             disabled={updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
                           >
-                            {updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "淇濆瓨涓?.." : "淇濆瓨妫€绱㈤厤缃?}
+                            {updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存检索配置"}
                           </button>
                         </div>
                       </article>
@@ -6244,13 +6268,15 @@ export default function AdminPage() {
                       {selectedKnowledgeRetrievalTestDraft ? (
                         <article className="entity-card admin-rule-card">
                           <div className="panel-header">
-                            <h2>妫€绱㈣仈璋冩祴璇?/h2>
-                            <span>鐩存帴楠岃瘉褰撳墠鐭ヨ瘑搴撹兘鍚﹀懡涓?/span>
+                            <h2>检索联调测试</h2>
+                            <span>直接验证当前知识库能否命中</span>
                           </div>
                           <div className="personal-meta">
-                            杩欓噷浼氱洿鎺ヨ皟鐢ㄥ悗鍙?`retrieval-test` 鎺ュ彛锛岃繑鍥炲懡涓殑鍒嗙墖銆佸垎鏁板拰鏉ユ簮銆傝嫢鍛戒腑涓?0锛岄€氬父瑕佺粨鍚堜笂鏂归槇鍊笺€?                            褰撳墠璧勬枡鐨勫垎鐗囨暟鍜?embedding 鏄惁鐢熸垚涓€璧风湅銆?                          </div>
+                            这里会直接调用后台 `retrieval-test` 接口，返回命中的分片、分数和来源。若命中为 0，通常要结合上方阈值、
+                            当前资料的分片数和 embedding 是否生成一起看。
+                          </div>
                           <label className="admin-rule-description">
-                            <span>娴嬭瘯闂</span>
+                            <span>测试问题</span>
                             <textarea
                               value={selectedKnowledgeRetrievalTestDraft.query}
                               onChange={(event) =>
@@ -6258,12 +6284,12 @@ export default function AdminPage() {
                                   query: event.target.value,
                                 })
                               }
-                              placeholder="渚嬪锛氭窐璐х尗鐨勬櫤鑳藉杺椋熷櫒鍜屾姈闊崇鑽夌瓥鐣ユ槸浠€涔堬紵"
+                              placeholder="例如：淘货猫的智能喂食器和抖音种草策略是什么？"
                             />
                           </label>
                           <div className="admin-rule-grid">
                             <label>
-                              <span>娴嬭瘯 TopK</span>
+                              <span>测试 TopK</span>
                               <input
                                 type="number"
                                 min="1"
@@ -6276,22 +6302,22 @@ export default function AdminPage() {
                               />
                             </label>
                             <div className="knowledge-admin-summary-card">
-                              <span>褰撳墠榛樿闃堝€?/span>
-                              <strong>{selectedKnowledgeRetrievalConfig.retrievalThreshold ?? "鏈缃?}</strong>
+                              <span>当前默认阈值</span>
+                              <strong>{selectedKnowledgeRetrievalConfig.retrievalThreshold ?? "未设置"}</strong>
                             </div>
                             <div className="knowledge-admin-summary-card">
-                              <span>鍙洖鏂瑰紡</span>
+                              <span>召回方式</span>
                               <strong>{getKnowledgeRetrievalModeLabel(selectedKnowledgeRetrievalDraft.recallMode)}</strong>
                             </div>
                             <div className="knowledge-admin-summary-card">
-                              <span>宸插叆搴撹祫鏂?/span>
+                              <span>已入库资料</span>
                               <strong>{selectedKnowledgeIndexedFileCount} / {selectedKnowledgeFiles.length}</strong>
                             </div>
                           </div>
                           <p className="personal-meta">{selectedKnowledgeThresholdHint}</p>
                           <div className="personal-actions">
                             <span className="personal-meta">
-                              褰撳墠璧勬枡 {selectedKnowledgeFiles.length} 浠斤紝绱鍒嗙墖 {selectedKnowledgeBase.chunkCount}
+                              当前资料 {selectedKnowledgeFiles.length} 份，累计分片 {selectedKnowledgeBase.chunkCount}
                             </span>
                             <button
                               type="button"
@@ -6299,26 +6325,26 @@ export default function AdminPage() {
                               onClick={() => void handleRunKnowledgeRetrievalTest(selectedKnowledgeBase.id)}
                               disabled={runningKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
                             >
-                              {runningKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "娴嬭瘯涓?.." : "杩愯妫€绱㈡祴璇?}
+                              {runningKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "测试中..." : "运行检索测试"}
                             </button>
                           </div>
                           {selectedKnowledgeRetrievalTestResult ? (
                             <div className="admin-provider-stack" style={{ marginTop: 12 }}>
                               <div className="knowledge-admin-summary-grid">
                                 <div className="knowledge-admin-summary-card">
-                                  <span>鍛戒腑鏁?/span>
+                                  <span>命中数</span>
                                   <strong>{selectedKnowledgeRetrievalTestResult.hitCount}</strong>
                                 </div>
                                 <div className="knowledge-admin-summary-card">
-                                  <span>杩斿洖 TopK</span>
+                                  <span>返回 TopK</span>
                                   <strong>{selectedKnowledgeRetrievalTestResult.topK}</strong>
                                 </div>
                                 <div className="knowledge-admin-summary-card">
-                                  <span>Embedding 妯″瀷</span>
-                                  <strong>{selectedKnowledgeRetrievalTestResult.modelName || "鏈繑鍥?}</strong>
+                                  <span>Embedding 模型</span>
+                                  <strong>{selectedKnowledgeRetrievalTestResult.modelName || "未返回"}</strong>
                                 </div>
                                 <div className="knowledge-admin-summary-card">
-                                  <span>鏈€杩戦棶棰?/span>
+                                  <span>最近问题</span>
                                   <strong>{selectedKnowledgeRetrievalTestResult.query}</strong>
                                 </div>
                               </div>
@@ -6327,11 +6353,11 @@ export default function AdminPage() {
                                   {selectedKnowledgeRetrievalTestResult.hits.map((hit) => (
                                     <article className="knowledge-bridge-preview-card" key={hit.chunkId}>
                                       <strong>
-                                        {hit.fileName} 路 Chunk #{hit.chunkIndex}
+                                        {hit.fileName} · Chunk #{hit.chunkIndex}
                                       </strong>
                                       <span>
-                                        鍒嗘暟 {hit.score.toFixed(4)}
-                                        {hit.sourceLabel ? ` 路 ${hit.sourceLabel}` : ""}
+                                        分数 {hit.score.toFixed(4)}
+                                        {hit.sourceLabel ? ` · ${hit.sourceLabel}` : ""}
                                       </span>
                                       <pre
                                         style={{
@@ -6349,14 +6375,15 @@ export default function AdminPage() {
                                 </div>
                               ) : (
                                 <p className="personal-meta">
-                                  褰撳墠娌℃湁鍛戒腑缁撴灉銆備紭鍏堟鏌ユ绱㈤槇鍊兼槸鍚﹁繃楂樸€佽祫鏂欐槸鍚﹀凡鐢熸垚鍒嗙墖鍜?embedding銆?                                </p>
+                                  当前没有命中结果。优先检查检索阈值是否过高、资料是否已生成分片和 embedding。
+                                </p>
                               )}
                             </div>
                           ) : null}
                           <article className="entity-card admin-rule-card" style={{ marginTop: 12 }}>
                             <div className="panel-header">
-                              <h2>鑱旇皟寤鸿</h2>
-                              <span>鏍规嵁褰撳墠鐭ヨ瘑搴撶姸鎬佽嚜鍔ㄦ彁绀?/span>
+                              <h2>联调建议</h2>
+                              <span>根据当前知识库状态自动提示</span>
                             </div>
                             <div className="admin-rules-stack">
                               {selectedKnowledgeRetrievalSuggestions.map((item) => (
@@ -6375,17 +6402,17 @@ export default function AdminPage() {
                     <div className="admin-provider-stack">
                       <article className="entity-card admin-rule-card">
                         <div className="panel-header">
-                          <h2>鎺ュ叆瀵硅薄</h2>
-                          <span>{selectedKnowledgeBindings.length} 鏉＄粦瀹?/span>
+                          <h2>接入对象</h2>
+                          <span>{selectedKnowledgeBindings.length} 条绑定</span>
                         </div>
                         <div className="personal-meta">
                           {selectedKnowledgeIsBrandBridge
-                            ? "浼佷笟鐭ヨ瘑搴撴ˉ鎺ラ粯璁ゅ彧鑷姩缁存姢鈥滃搧鐗屽闀垮伐浣滃彴鈥濊繖涓€鏉℃帴鍏ュ璞°€傚墠绔柊澧炶祫鏂欎笉浼氳嚜鍔ㄦ柊澧炴帴鍏ュ璞★紱濡傞渶缁欐姤鍛娿€佹彁绀鸿瘝鎴栧叾浠栨ā鍧椾娇鐢紝璇峰湪杩欓噷鎵嬪姩琛ュ厖銆?
-                            : "杩欓噷鍙繚鐣欌€滅粦瀹氬埌璋佲€濈殑娌荤悊鑳藉姏锛屼綘鍙互涓哄綋鍓嶇煡璇嗗簱缁х画琛ュ厖妯″潡銆佽兘鍔涘寘銆佹彁绀鸿瘝鎴栧伐浣滄祦姝ラ銆?}
+                            ? "企业知识库桥接默认只自动维护“品牌增长工作台”这一条接入对象。前端新增资料不会自动新增接入对象；如需给报告、提示词或其他模块使用，请在这里手动补充。"
+                            : "这里只保留“绑定到谁”的治理能力，你可以为当前知识库继续补充模块、能力包、提示词或工作流步骤。"}
                         </div>
                         <div className="admin-rule-grid">
                           <label>
-                            <span>缁戝畾绫诲瀷</span>
+                            <span>绑定类型</span>
                             <select
                               value={selectedKnowledgeBindingCreateDraft.bindingType}
                               onChange={(event) =>
@@ -6397,14 +6424,14 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="MODULE">妯″潡</option>
-                              <option value="SKILL_PACKAGE">鑳藉姏鍖?/option>
-                              <option value="PROMPT">鎻愮ず璇?/option>
-                              <option value="WORKFLOW_STEP">宸ヤ綔娴佹楠?/option>
+                              <option value="MODULE">模块</option>
+                              <option value="SKILL_PACKAGE">能力包</option>
+                              <option value="PROMPT">提示词</option>
+                              <option value="WORKFLOW_STEP">工作流步骤</option>
                             </select>
                           </label>
                           <label>
-                            <span>鐩爣鍚嶇О</span>
+                            <span>目标名称</span>
                             <select
                               value={selectedKnowledgeBindingCreateDraft.targetId}
                               onChange={(event) =>
@@ -6415,7 +6442,7 @@ export default function AdminPage() {
                                 )
                               }
                             >
-                              <option value="">璇烽€夋嫨鐩爣鍚嶇О</option>
+                              <option value="">请选择目标名称</option>
                               {selectedKnowledgeBindingTargetOptions.map((option) => (
                                 <option key={`${selectedKnowledgeBindingCreateDraft.bindingType}-${option.targetId}`} value={option.targetId}>
                                   {option.targetName}
@@ -6425,25 +6452,25 @@ export default function AdminPage() {
                           </label>
                           <div className="personal-meta" style={{ gridColumn: "span 2" }}>
                             {selectedKnowledgeBindingTargetOption?.description
-                              ? `瀵硅薄璇存槑锛?{selectedKnowledgeBindingTargetOption.description}`
-                              : "鍏堥€夋嫨涓枃鐩爣鍚嶇О锛岀郴缁熶細鑷姩甯﹀嚭鐩爣 ID 鍜岀洰鏍?Key銆?}
+                              ? `对象说明：${selectedKnowledgeBindingTargetOption.description}`
+                              : "先选择中文目标名称，系统会自动带出目标 ID 和目标 Key。"}
                           </div>
                           <label>
-                            <span>鐩爣 Key</span>
+                            <span>目标 Key</span>
                             <input
                               readOnly
                               value={selectedKnowledgeBindingCreateDraft.targetKey}
                             />
                           </label>
                           <label>
-                            <span>鐩爣 ID</span>
+                            <span>目标 ID</span>
                             <input
                               readOnly
                               value={selectedKnowledgeBindingCreateDraft.targetId}
                             />
                           </label>
                           <label>
-                            <span>浼樺厛绾?/span>
+                            <span>优先级</span>
                             <input
                               type="number"
                               min="1"
@@ -6456,7 +6483,7 @@ export default function AdminPage() {
                             />
                           </label>
                           <label>
-                            <span>妫€绱㈡ā寮?/span>
+                            <span>检索模式</span>
                             <select
                               value={selectedKnowledgeBindingCreateDraft.retrievalMode}
                               onChange={(event) =>
@@ -6465,15 +6492,15 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="SEMANTIC">璇箟鍙洖</option>
-                              <option value="HYBRID">娣峰悎鍙洖</option>
-                              <option value="MANUAL">浜哄伐鎸囧畾</option>
+                              <option value="SEMANTIC">语义召回</option>
+                              <option value="HYBRID">混合召回</option>
+                              <option value="MANUAL">人工指定</option>
                             </select>
                           </label>
                         </div>
                         <div className="admin-rule-grid">
                           <label>
-                            <span>蹇呴』鍛戒腑</span>
+                            <span>必须命中</span>
                             <select
                               value={selectedKnowledgeBindingCreateDraft.isRequired ? "YES" : "NO"}
                               onChange={(event) =>
@@ -6482,12 +6509,12 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="NO">鍚?/option>
-                              <option value="YES">鏄?/option>
+                              <option value="NO">否</option>
+                              <option value="YES">是</option>
                             </select>
                           </label>
                           <label>
-                            <span>鍚敤</span>
+                            <span>启用</span>
                             <select
                               value={selectedKnowledgeBindingCreateDraft.enabled ? "YES" : "NO"}
                               onChange={(event) =>
@@ -6496,8 +6523,8 @@ export default function AdminPage() {
                                 })
                               }
                             >
-                              <option value="YES">鏄?/option>
-                              <option value="NO">鍚?/option>
+                              <option value="YES">是</option>
+                              <option value="NO">否</option>
                             </select>
                           </label>
                         </div>
@@ -6511,7 +6538,7 @@ export default function AdminPage() {
                               !selectedKnowledgeBindingCreateDraft.targetId.trim()
                             }
                           >
-                            {creatingKnowledgeBindingForBaseId === selectedKnowledgeBase.id ? "鍒涘缓涓?.." : "鏂板缁戝畾"}
+                            {creatingKnowledgeBindingForBaseId === selectedKnowledgeBase.id ? "创建中..." : "新增绑定"}
                           </button>
                         </div>
                       </article>
@@ -6526,21 +6553,21 @@ export default function AdminPage() {
                                   <div>
                                     <strong>{binding.targetName || binding.targetId}</strong>
                                     <p className="personal-meta">
-                                      {getKnowledgeBindingTypeLabel(binding.bindingType)} 路 {binding.targetKey || "鏈缃?Key"} 路 浼樺厛绾?{binding.priority}
+                                      {getKnowledgeBindingTypeLabel(binding.bindingType)} · {binding.targetKey || "未设置 Key"} · 优先级 {binding.priority}
                                     </p>
                                   </div>
                                   <div className="knowledge-binding-card-badges">
                                     {selectedKnowledgeIsBrandBridge && binding.targetId === "brand-growth-workbench" ? (
-                                      <span className="archive-pill status_ready">榛樿鎺ュ叆</span>
+                                      <span className="archive-pill status_ready">默认接入</span>
                                     ) : null}
                                     <span className={`archive-pill ${binding.enabled ? "status-ready" : "status-paused"}`}>
-                                      {binding.enabled ? "宸插惎鐢? : "宸插仠鐢?}
+                                      {binding.enabled ? "已启用" : "已停用"}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="admin-rule-grid">
                                   <label>
-                                    <span>鐩爣 Key</span>
+                                    <span>目标 Key</span>
                                     <input
                                       value={bindingDraft.targetKey}
                                       onChange={(event) =>
@@ -6551,7 +6578,7 @@ export default function AdminPage() {
                                     />
                                   </label>
                                   <label>
-                                    <span>鐩爣鍚嶇О</span>
+                                    <span>目标名称</span>
                                     <input
                                       value={bindingDraft.targetName}
                                       onChange={(event) =>
@@ -6562,7 +6589,7 @@ export default function AdminPage() {
                                     />
                                   </label>
                                   <label>
-                                    <span>浼樺厛绾?/span>
+                                    <span>优先级</span>
                                     <input
                                       type="number"
                                       min="1"
@@ -6575,7 +6602,7 @@ export default function AdminPage() {
                                     />
                                   </label>
                                   <label>
-                                    <span>妫€绱㈡ā寮?/span>
+                                    <span>检索模式</span>
                                     <select
                                       value={bindingDraft.retrievalMode}
                                       onChange={(event) =>
@@ -6584,13 +6611,13 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="SEMANTIC">璇箟鍙洖</option>
-                                      <option value="HYBRID">娣峰悎鍙洖</option>
-                                      <option value="MANUAL">浜哄伐鎸囧畾</option>
+                                      <option value="SEMANTIC">语义召回</option>
+                                      <option value="HYBRID">混合召回</option>
+                                      <option value="MANUAL">人工指定</option>
                                     </select>
                                   </label>
                                   <label>
-                                    <span>蹇呴』鍛戒腑</span>
+                                    <span>必须命中</span>
                                     <select
                                       value={bindingDraft.isRequired ? "YES" : "NO"}
                                       onChange={(event) =>
@@ -6599,12 +6626,12 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="NO">鍚?/option>
-                                      <option value="YES">鏄?/option>
+                                      <option value="NO">否</option>
+                                      <option value="YES">是</option>
                                     </select>
                                   </label>
                                   <label>
-                                    <span>鍚敤</span>
+                                    <span>启用</span>
                                     <select
                                       value={bindingDraft.enabled ? "YES" : "NO"}
                                       onChange={(event) =>
@@ -6613,20 +6640,20 @@ export default function AdminPage() {
                                         })
                                       }
                                     >
-                                      <option value="YES">鏄?/option>
-                                      <option value="NO">鍚?/option>
+                                      <option value="YES">是</option>
+                                      <option value="NO">否</option>
                                     </select>
                                   </label>
                                 </div>
                                 <div className="personal-actions">
-                                  <span className="personal-meta">鏇存柊浜?{formatDateTime(binding.updatedAt)}</span>
+                                  <span className="personal-meta">更新于 {formatDateTime(binding.updatedAt)}</span>
                                   <button
                                     type="button"
                                     className="secondary-button"
                                     onClick={() => void handleSaveKnowledgeBinding(binding.id)}
                                     disabled={updatingKnowledgeBindingId === binding.id}
                                   >
-                                    {updatingKnowledgeBindingId === binding.id ? "淇濆瓨涓?.." : "淇濆瓨缁戝畾"}
+                                    {updatingKnowledgeBindingId === binding.id ? "保存中..." : "保存绑定"}
                                   </button>
                                   <button
                                     type="button"
@@ -6634,14 +6661,14 @@ export default function AdminPage() {
                                     onClick={() => void handleDeleteKnowledgeBinding(binding.id)}
                                     disabled={updatingKnowledgeBindingId === binding.id}
                                   >
-                                    鍒犻櫎缁戝畾
+                                    删除绑定
                                   </button>
                                 </div>
                               </article>
                             );
                           })
                         ) : (
-                          <p className="personal-meta">鏆傛棤缁戝畾鍏崇郴锛屽厛鎶婄煡璇嗗簱缁戝畾鍒版ā鍧椼€佽兘鍔涘寘鎴栨彁绀鸿瘝銆?/p>
+                          <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或提示词。</p>
                         )}
                       </div>
                     </div>
@@ -6671,23 +6698,23 @@ export default function AdminPage() {
                             </div>
                             <div className="personal-grid">
                               <div>
-                                <span>寮€濮嬫椂闂?/span>
+                                <span>开始时间</span>
                                 <strong>{formatDateTime(run.startedAt)}</strong>
                               </div>
                               <div>
-                                <span>瀹屾垚鏃堕棿</span>
-                                <strong>{run.completedAt ? formatDateTime(run.completedAt) : "杩涜涓?}</strong>
+                                <span>完成时间</span>
+                                <strong>{run.completedAt ? formatDateTime(run.completedAt) : "进行中"}</strong>
                               </div>
                               <div>
-                                <span>鎵ц浜?/span>
+                                <span>执行人</span>
                                 <strong>{run.operator}</strong>
                               </div>
                             </div>
-                            {run.errorDetail ? <p className="personal-meta">澶辫触璇︽儏锛歿run.errorDetail}</p> : null}
+                            {run.errorDetail ? <p className="personal-meta">失败详情：{run.errorDetail}</p> : null}
                           </article>
                         ))
                       ) : (
-                        <p className="personal-meta">鏆傛棤鍚屾璁板綍銆?/p>
+                        <p className="personal-meta">暂无同步记录。</p>
                       )}
                     </div>
                   ) : null}
@@ -6696,8 +6723,8 @@ export default function AdminPage() {
                 <article className="panel admin-provider-card">
                   <div className="admin-provider-card-head">
                     <div>
-                      <strong>鐭ヨ瘑搴撹鎯?/strong>
-                      <p className="admin-provider-meta">宸︿晶鍏堝垱寤烘垨閫夋嫨涓€涓煡璇嗗簱锛屽彸渚у啀杩涘叆瀵瑰簲鏉垮潡缁х画绠＄悊銆?/p>
+                      <strong>知识库详情</strong>
+                      <p className="admin-provider-meta">左侧先创建或选择一个知识库，右侧再进入对应板块继续管理。</p>
                     </div>
                   </div>
                 </article>
@@ -6710,8 +6737,8 @@ export default function AdminPage() {
               <article className="panel admin-provider-filter-card">
                 <div className="admin-provider-filter-head">
                   <div>
-                    <strong>骞冲彴鍒楄〃</strong>
-                    <p>宸︿晶鎸夊钩鍙板垏鎹㈤」鐩紝鍙充晶缁存姢褰撳墠骞冲彴鐨勯摼鎺ャ€佹ā鍨?ID銆佽鏄庢枃妗ｄ笌澶囨敞锛涜繖閲屼笉鍐嶆彁渚涙柊寤哄叆鍙ｃ€?/p>
+                    <strong>平台列表</strong>
+                    <p>左侧按平台切换项目，右侧维护当前平台的链接、模型 ID、说明文档与备注；这里不再提供新建入口。</p>
                   </div>
                   <span className="archive-pill status_success">
                     {providerInsights.filteredCount}/{thirdPartyPlatforms.length}
@@ -6719,39 +6746,39 @@ export default function AdminPage() {
                 </div>
                 <div className="admin-provider-filter-grid">
                   <label className="admin-provider-field">
-                    <span>鎼滅储骞冲彴</span>
+                    <span>搜索平台</span>
                     <input
                       type="search"
                       name="admin-platform-search"
                       value={providerSearch}
-                      placeholder="鎸夊钩鍙板悕銆佹ā鍨?ID銆丅ase URL銆佸娉ㄦ悳绱?
+                      placeholder="按平台名、模型 ID、Base URL、备注搜索"
                       onChange={(event) => setProviderSearch(event.target.value)}
                       autoComplete="off"
                     />
                   </label>
                   <label className="admin-provider-field">
-                    <span>鐘舵€佺瓫閫?/span>
+                    <span>状态筛选</span>
                     <select
                       value={providerStatusFilter}
                       onChange={(event) =>
                         setProviderStatusFilter(event.target.value as ApiProviderRecord["status"] | "ALL")
                       }
                     >
-                      <option value="ALL">鍏ㄩ儴鐘舵€?/option>
+                      <option value="ALL">全部状态</option>
                       <option value="ACTIVE">ACTIVE</option>
                       <option value="DRAFT">DRAFT</option>
                       <option value="DISABLED">DISABLED</option>
                     </select>
                   </label>
                   <label className="admin-provider-field">
-                    <span>绫诲瀷绛涢€?/span>
+                    <span>类型筛选</span>
                     <select
                       value={providerTypeFilter}
                       onChange={(event) =>
                         setProviderTypeFilter(event.target.value as ApiProviderRecord["providerType"] | "ALL")
                       }
                     >
-                      <option value="ALL">鍏ㄩ儴绫诲瀷</option>
+                      <option value="ALL">全部类型</option>
                       <option value="OPENAI">OPENAI</option>
                       <option value="GEMINI">GEMINI</option>
                       <option value="DOUBAO">DOUBAO</option>
@@ -6763,7 +6790,7 @@ export default function AdminPage() {
                   <span className="admin-provider-chip is-active">ACTIVE {providerInsights.activeCount}</span>
                   <span className="admin-provider-chip">DRAFT {providerInsights.draftCount}</span>
                   <span className="admin-provider-chip">DISABLED {providerInsights.disabledCount}</span>
-                  <span className="admin-provider-chip">鏁版嵁婧?{dataSource === "api" ? "API" : "SEED"}</span>
+                  <span className="admin-provider-chip">数据源 {dataSource === "api" ? "API" : "SEED"}</span>
                 </div>
                 <div className="personal-list" style={{ marginTop: 16 }}>
                   {filteredThirdPartyPlatforms.length ? (
@@ -6783,32 +6810,32 @@ export default function AdminPage() {
                         <div className="entity-card-head">
                           <div>
                             <strong>{item.name}</strong>
-                            <p className="personal-meta">骞冲彴绫诲瀷锛歿item.providerType}</p>
+                            <p className="personal-meta">平台类型：{item.providerType}</p>
                           </div>
                           <span className={`archive-pill ${getStatusClassName(item.status)}`}>{item.status}</span>
                         </div>
                         <div className="personal-grid">
                           <div>
-                            <span>骞冲彴绫诲瀷</span>
+                            <span>平台类型</span>
                             <strong>{item.providerType}</strong>
                           </div>
                           <div>
-                            <span>妯″瀷鏁?/span>
+                            <span>模型数</span>
                             <strong>{item.modelIds.length}</strong>
                           </div>
                           <div>
-                            <span>榛樿妯″瀷</span>
+                            <span>默认模型</span>
                             <strong>{item.defaultModel || "-"}</strong>
                           </div>
                           <div>
-                            <span>鏇存柊鏃堕棿</span>
+                            <span>更新时间</span>
                             <strong>{formatDateTime(item.updatedAt)}</strong>
                           </div>
                         </div>
                       </button>
                     ))
                   ) : (
-                    <div className="empty-canvas-box">娌℃湁鍖归厤鐨勫钩鍙帮紝鍙皟鏁存悳绱㈡潯浠跺悗閲嶈瘯銆?/div>
+                    <div className="empty-canvas-box">没有匹配的平台，可调整搜索条件后重试。</div>
                   )}
                 </div>
               </article>
@@ -6824,7 +6851,7 @@ export default function AdminPage() {
                         <span className="admin-provider-type">{selectedThirdPartyPlatform.providerType}</span>
                       </div>
                       <p className="admin-provider-meta">
-                        鏇存柊浜?{formatDateTime(selectedThirdPartyPlatform.updatedAt)}
+                        更新于 {formatDateTime(selectedThirdPartyPlatform.updatedAt)}
                       </p>
                     </div>
                     <span className={`archive-pill ${getStatusClassName(selectedThirdPartyPlatform.status)}`}>
@@ -6834,30 +6861,30 @@ export default function AdminPage() {
 
                   <div className="admin-provider-metrics">
                     <div>
-                      <span>妯″瀷鎬绘暟</span>
+                      <span>模型总数</span>
                       <strong>{selectedThirdPartyPlatform.modelIds.length}</strong>
                     </div>
                     <div>
-                      <span>榛樿妯″瀷</span>
+                      <span>默认模型</span>
                       <strong>{selectedThirdPartyPlatform.defaultModel || "-"}</strong>
                     </div>
                     <div>
-                      <span>璇存槑鏂囨。</span>
-                      <strong>{selectedThirdPartyPlatform.tutorialUrl ? "宸查厤缃? : "鏈厤缃?}</strong>
+                      <span>说明文档</span>
+                      <strong>{selectedThirdPartyPlatform.tutorialUrl ? "已配置" : "未配置"}</strong>
                     </div>
                     <div>
-                      <span>鏁版嵁婧?/span>
+                      <span>数据源</span>
                       <strong>{dataSource === "api" ? "API" : "SEED"}</strong>
                     </div>
                   </div>
 
                   <div className="admin-provider-section">
                     <div className="admin-provider-section-head">
-                      <strong>骞冲彴淇℃伅</strong>
+                      <strong>平台信息</strong>
                     </div>
                     <div className="admin-provider-grid">
                       <label className="admin-provider-field">
-                        <span>骞冲彴鍚嶇О</span>
+                        <span>平台名称</span>
                         <input
                           value={selectedThirdPartyPlatformDraft.name}
                           onChange={(event) =>
@@ -6868,7 +6895,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label className="admin-provider-field">
-                        <span>Provider 绫诲瀷</span>
+                        <span>Provider 类型</span>
                         <select
                           value={selectedThirdPartyPlatformDraft.providerType}
                           onChange={(event) =>
@@ -6884,7 +6911,7 @@ export default function AdminPage() {
                         </select>
                       </label>
                       <label className="admin-provider-field">
-                        <span>鐘舵€?/span>
+                        <span>状态</span>
                         <select
                           value={selectedThirdPartyPlatformDraft.status}
                           onChange={(event) =>
@@ -6899,7 +6926,7 @@ export default function AdminPage() {
                         </select>
                       </label>
                       <label className="admin-provider-field admin-provider-field--wide">
-                        <span>绗笁鏂瑰钩鍙伴摼鎺?/span>
+                        <span>第三方平台链接</span>
                         <input
                           value={selectedThirdPartyPlatformDraft.baseUrl}
                           onChange={(event) =>
@@ -6910,7 +6937,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label className="admin-provider-field admin-provider-field--wide">
-                        <span>璇存槑鏂囨。</span>
+                        <span>说明文档</span>
                         <input
                           value={selectedThirdPartyPlatformDraft.tutorialUrl}
                           onChange={(event) =>
@@ -6925,11 +6952,11 @@ export default function AdminPage() {
 
                   <div className="admin-provider-section">
                     <div className="admin-provider-section-head">
-                      <strong>妯″瀷鏉垮潡</strong>
+                      <strong>模型板块</strong>
                     </div>
                     <div className="admin-provider-grid">
                       <label className="admin-provider-field">
-                        <span>榛樿妯″瀷</span>
+                        <span>默认模型</span>
                         <select
                           value={selectedThirdPartyPlatformDraft.defaultModel}
                           onChange={(event) =>
@@ -6947,8 +6974,8 @@ export default function AdminPage() {
                               selectedThirdPartyPlatformDraft.modelIds,
                               selectedThirdPartyPlatformDraft.defaultModel,
                             ).length
-                              ? "璇烽€夋嫨榛樿妯″瀷"
-                              : "璇峰厛濉啓妯″瀷 ID"}
+                              ? "请选择默认模型"
+                              : "请先填写模型 ID"}
                           </option>
                           {getThirdPartyPlatformDefaultModelOptions(
                             selectedThirdPartyPlatformDraft.modelIds,
@@ -6961,7 +6988,7 @@ export default function AdminPage() {
                         </select>
                       </label>
                       <div className="admin-provider-field">
-                        <span>褰撳墠妯″瀷棰勮</span>
+                        <span>当前模型预览</span>
                         <div className="admin-provider-chip-row">
                           {parseThirdPartyPlatformModelIds(selectedThirdPartyPlatformDraft.modelIds).length ? (
                             parseThirdPartyPlatformModelIds(selectedThirdPartyPlatformDraft.modelIds).map((model) => (
@@ -6970,13 +6997,13 @@ export default function AdminPage() {
                               </span>
                             ))
                           ) : (
-                            <span className="admin-provider-chip">鏈厤缃ā鍨?/span>
+                            <span className="admin-provider-chip">未配置模型</span>
                           )}
                         </div>
                       </div>
                     </div>
                     <label className="admin-provider-field admin-provider-field--full">
-                      <span>澶фā鍨?ID锛堥€楀彿鍒嗛殧锛?/span>
+                      <span>大模型 ID（逗号分隔）</span>
                       <textarea
                         value={selectedThirdPartyPlatformDraft.modelIds}
                         onChange={(event) =>
@@ -6994,10 +7021,10 @@ export default function AdminPage() {
 
                   <div className="admin-provider-section">
                     <div className="admin-provider-section-head">
-                      <strong>琛ュ厖璇存槑</strong>
+                      <strong>补充说明</strong>
                     </div>
                     <label className="admin-provider-field admin-provider-field--full">
-                      <span>澶囨敞</span>
+                      <span>备注</span>
                       <textarea
                         value={selectedThirdPartyPlatformDraft.remark}
                         onChange={(event) =>
@@ -7008,17 +7035,19 @@ export default function AdminPage() {
                       />
                     </label>
                     <small className="admin-provider-hint">
-                      鍓嶇鈥滀釜浜轰腑蹇?绗笁鏂规帴鍙ｉ厤缃€濅細鍚屾杩欓噷鐨勫钩鍙板熀绾匡紝鍙湁 Owner 鑳藉湪鍓嶅彴璁剧疆鑷繁鐨?API Key銆?                    </small>
+                      前端“个人中心-第三方接口配置”会同步这里的平台基线，只有 Owner 能在前台设置自己的 API Key。
+                    </small>
                   </div>
 
                   <div className="admin-provider-actions">
                     {selectedThirdPartyPlatformDraft.baseUrl.trim() ? (
                       <a href={selectedThirdPartyPlatformDraft.baseUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                        绗笁鏂瑰钩鍙伴摼鎺?                      </a>
+                        第三方平台链接
+                      </a>
                     ) : null}
                     {selectedThirdPartyPlatformDraft.tutorialUrl.trim() ? (
                       <a href={selectedThirdPartyPlatformDraft.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
-                        鎵撳紑璇存槑鏂囨。
+                        打开说明文档
                       </a>
                     ) : null}
                     <button
@@ -7027,7 +7056,7 @@ export default function AdminPage() {
                       onClick={() => void handleSaveThirdPartyPlatform(selectedThirdPartyPlatform.id)}
                       disabled={updatingProviderId === selectedThirdPartyPlatform.id}
                     >
-                      {updatingProviderId === selectedThirdPartyPlatform.id ? "淇濆瓨涓?.." : "淇濆瓨骞冲彴閰嶇疆"}
+                      {updatingProviderId === selectedThirdPartyPlatform.id ? "保存中..." : "保存平台配置"}
                     </button>
                     <button
                       type="button"
@@ -7035,14 +7064,14 @@ export default function AdminPage() {
                       onClick={() => void handleDeleteThirdPartyPlatform(selectedThirdPartyPlatform.id)}
                       disabled={updatingProviderId === selectedThirdPartyPlatform.id}
                     >
-                      鍒犻櫎骞冲彴
+                      删除平台
                     </button>
                   </div>
                 </article>
               ) : (
                 <article className="panel admin-provider-empty">
-                  <strong>璇烽€夋嫨宸︿晶骞冲彴</strong>
-                  <p>閫変腑鍚庡彲鍦ㄥ彸渚ф煡鐪嬪苟缁存姢骞冲彴閾炬帴銆佽鏄庢枃妗ｃ€佹ā鍨?ID 鍜岄粯璁ゆā鍨嬨€?/p>
+                  <strong>请选择左侧平台</strong>
+                  <p>选中后可在右侧查看并维护平台链接、说明文档、模型 ID 和默认模型。</p>
                 </article>
               )}
             </section>
@@ -7051,7 +7080,7 @@ export default function AdminPage() {
           <div className="admin-rules-layout">
             <section className="panel personal-center-panel">
               <div className="panel-header">
-                <h2>浼氬憳鏂规</h2>
+                <h2>会员方案</h2>
                 <span>Membership Plans</span>
               </div>
               <div className="admin-rules-stack">
@@ -7059,7 +7088,7 @@ export default function AdminPage() {
                   <article className="entity-card admin-rule-card" key={item.id}>
                     <div className="admin-rule-grid">
                       <label>
-                        <span>鏂规鍚嶇О</span>
+                        <span>方案名称</span>
                         <input
                           value={item.title}
                           onChange={(event) =>
@@ -7074,7 +7103,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
-                        <span>浼氬憳绛夌骇</span>
+                        <span>会员等级</span>
                         <select
                           value={item.membership}
                           onChange={(event) =>
@@ -7094,7 +7123,7 @@ export default function AdminPage() {
                         </select>
                       </label>
                       <label>
-                        <span>浠锋牸</span>
+                        <span>价格</span>
                         <input
                           type="number"
                           value={item.amountYuan}
@@ -7110,7 +7139,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
-                        <span>璧犻€佺偣鏁?/span>
+                        <span>赠送点数</span>
                         <input
                           type="number"
                           value={item.pointsBonus}
@@ -7127,7 +7156,7 @@ export default function AdminPage() {
                       </label>
                     </div>
                     <label className="admin-rule-description">
-                      <span>鏂规璇存槑</span>
+                      <span>方案说明</span>
                       <textarea
                         value={item.description}
                         onChange={(event) =>
@@ -7148,7 +7177,7 @@ export default function AdminPage() {
 
             <section className="panel personal-center-panel">
               <div className="panel-header">
-                <h2>鐐规暟鍖?/h2>
+                <h2>点数包</h2>
                 <span>Points Packages</span>
               </div>
               <div className="admin-rules-stack">
@@ -7156,7 +7185,7 @@ export default function AdminPage() {
                   <article className="entity-card admin-rule-card" key={item.id}>
                     <div className="admin-rule-grid">
                       <label>
-                        <span>濂楅鍚嶇О</span>
+                        <span>套餐名称</span>
                         <input
                           value={item.title}
                           onChange={(event) =>
@@ -7171,7 +7200,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
-                        <span>鐐规暟鏁伴噺</span>
+                        <span>点数数量</span>
                         <input
                           type="number"
                           value={item.pointsAmount}
@@ -7187,7 +7216,7 @@ export default function AdminPage() {
                         />
                       </label>
                       <label>
-                        <span>浠锋牸</span>
+                        <span>价格</span>
                         <input
                           type="number"
                           value={item.amountYuan}
@@ -7204,7 +7233,7 @@ export default function AdminPage() {
                       </label>
                     </div>
                     <label className="admin-rule-description">
-                      <span>濂楅璇存槑</span>
+                      <span>套餐说明</span>
                       <textarea
                         value={item.description}
                         onChange={(event) =>
@@ -7230,7 +7259,7 @@ export default function AdminPage() {
                 onClick={() => void handleSaveRules()}
                 disabled={isSavingRules}
               >
-                {isSavingRules ? "淇濆瓨涓?.." : "淇濆瓨瑙勫垯"}
+                {isSavingRules ? "保存中..." : "保存规则"}
               </button>
             </div>
           </div>
@@ -7295,14 +7324,14 @@ function parseSkillDescription(description: string) {
   }
 
   const markers = [
-    { key: "workflowSummary", title: "姝ラ鎽樿锛? },
-    { key: "databaseInputs", title: "鏁版嵁搴撳弬鏁帮細" },
-    { key: "knowledgeInputs", title: "鐭ヨ瘑搴撳弬鏁帮細" },
-    { key: "customInputs", title: "鑷畾涔夎緭鍏ュ弬鏁帮細" },
-    { key: "inputSummary", title: "杈撳叆瑕佺偣锛? },
-    { key: "outputSummary", title: "杈撳嚭瑕佺偣锛? },
-    { key: "referenceAssetKeys", title: "References 璧勪骇锛? },
-    { key: "scriptAssetKeys", title: "Scripts 璧勪骇锛? },
+    { key: "workflowSummary", title: "步骤摘要：" },
+    { key: "databaseInputs", title: "数据库参数：" },
+    { key: "knowledgeInputs", title: "知识库参数：" },
+    { key: "customInputs", title: "自定义输入参数：" },
+    { key: "inputSummary", title: "输入要点：" },
+    { key: "outputSummary", title: "输出要点：" },
+    { key: "referenceAssetKeys", title: "References 资产：" },
+    { key: "scriptAssetKeys", title: "Scripts 资产：" },
   ] as const;
 
   const positions = markers
@@ -7352,14 +7381,14 @@ function parseSkillDescription(description: string) {
 function composeSkillDescription(draft: SkillEditDraft) {
   const blocks = [
     draft.descriptionIntro.trim(),
-    draft.workflowSummary.trim() ? `姝ラ鎽樿锛歕n${draft.workflowSummary.trim()}` : "",
-    draft.databaseInputs.length ? `鏁版嵁搴撳弬鏁帮細\n${JSON.stringify(draft.databaseInputs, null, 2)}` : "",
-    draft.knowledgeInputs.length ? `鐭ヨ瘑搴撳弬鏁帮細\n${JSON.stringify(draft.knowledgeInputs, null, 2)}` : "",
-    draft.customInputs.length ? `鑷畾涔夎緭鍏ュ弬鏁帮細\n${JSON.stringify(draft.customInputs, null, 2)}` : "",
-    draft.inputSummary.trim() ? `杈撳叆瑕佺偣锛歕n${draft.inputSummary.trim()}` : "",
-    draft.outputSummary.trim() ? `杈撳嚭瑕佺偣锛歕n${draft.outputSummary.trim()}` : "",
-    draft.hasReferenceAssetSelection ? `References 璧勪骇锛歕n${draft.referenceAssetKeys.join("\n")}` : "",
-    draft.hasScriptAssetSelection ? `Scripts 璧勪骇锛歕n${draft.scriptAssetKeys.join("\n")}` : "",
+    draft.workflowSummary.trim() ? `步骤摘要：\n${draft.workflowSummary.trim()}` : "",
+    draft.databaseInputs.length ? `数据库参数：\n${JSON.stringify(draft.databaseInputs, null, 2)}` : "",
+    draft.knowledgeInputs.length ? `知识库参数：\n${JSON.stringify(draft.knowledgeInputs, null, 2)}` : "",
+    draft.customInputs.length ? `自定义输入参数：\n${JSON.stringify(draft.customInputs, null, 2)}` : "",
+    draft.inputSummary.trim() ? `输入要点：\n${draft.inputSummary.trim()}` : "",
+    draft.outputSummary.trim() ? `输出要点：\n${draft.outputSummary.trim()}` : "",
+    draft.hasReferenceAssetSelection ? `References 资产：\n${draft.referenceAssetKeys.join("\n")}` : "",
+    draft.hasScriptAssetSelection ? `Scripts 资产：\n${draft.scriptAssetKeys.join("\n")}` : "",
   ].filter(Boolean);
   return blocks.join("\n\n");
 }
@@ -7414,7 +7443,7 @@ function getDatabaseSelectValueOptions(
   const meta = getDatabaseSelectParameterMeta(parameterKey);
   const synced = syncState.selectOptions[parameterKey] || [];
   const options = [
-    { value: "", label: meta?.emptyLabel || "涓嶆鍏? },
+    { value: "", label: meta?.emptyLabel || "不植入" },
     ...synced,
   ];
   if (currentValue && !options.some((item) => item.value === currentValue)) {
@@ -7450,44 +7479,44 @@ function buildRecommendedDatabaseInputs(syncState?: DatabaseParameterSyncState):
     {
       ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "brand_profile",
-      parameterLabel: "鍝佺墝璧勬枡",
+      parameterLabel: "品牌资料",
       selectedValue: "INJECT",
-      remarks: "榛樿妞嶅叆鍝佺墝鑳屾櫙銆佸畾浣嶅拰鍙ｅ緞绾︽潫銆?,
+      remarks: "默认植入品牌背景、定位和口径约束。",
     },
     {
       ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "product_library",
-      parameterLabel: "浜у搧璧勬枡",
+      parameterLabel: "产品资料",
       selectedValue: "INJECT",
-      remarks: "鎸夊綋鍓嶅晢鍝佹睜鎻愪緵浜у搧鍗栫偣鍜屽崠璐т俊鎭€?,
+      remarks: "按当前商品池提供产品卖点和卖货信息。",
     },
     {
       ...buildDatabaseInputConfig("INJECT_TOGGLE", syncState),
       parameterKey: "marketing_plan",
-      parameterLabel: "钀ラ攢绛栧垝鏂规",
+      parameterLabel: "营销策划方案",
       selectedValue: "INJECT",
-      remarks: "浼樺厛鍙傝€冨搧鐗屾棦鏈夎惀閿€鏂规鍜屾椿鍔ㄩ噸鐐广€?,
+      remarks: "优先参考品牌既有营销方案和活动重点。",
     },
     {
       ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
       parameterKey: "marketing_calendar",
-      parameterLabel: "钀ラ攢鏃ュ巻",
+      parameterLabel: "营销日历",
       selectedValue: marketingCalendarOptions[1]?.value || "",
-      remarks: "榛樿浠庡凡鍚屾鐨勮惀閿€鏃ュ巻鏁版嵁涓€夋嫨锛涙病鏈夋椂鍙垏鎹负涓嶆鍏ヨ惀閿€鏃ュ巻銆?,
+      remarks: "默认从已同步的营销日历数据中选择；没有时可切换为不植入营销日历。",
     },
     {
       ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
       parameterKey: "topic_library",
-      parameterLabel: "閫夐搴?,
+      parameterLabel: "选题库",
       selectedValue: topicLibraryOptions[1]?.value || "",
-      remarks: "榛樿浠庡凡鍚屾鐨勯€夐搴撲腑閫夋嫨鍏蜂綋鏉＄洰銆?,
+      remarks: "默认从已同步的选题库中选择具体条目。",
     },
     {
       ...buildDatabaseInputConfig("SELECT_CHOICE", syncState),
       parameterKey: "material_library",
-      parameterLabel: "绱犳潗搴?,
+      parameterLabel: "素材库",
       selectedValue: materialLibraryOptions[1]?.value || "",
-      remarks: "榛樿浠庡凡鍚屾鐨勭礌鏉愬簱涓€夋嫨鍏蜂綋绱犳潗鏉＄洰銆?,
+      remarks: "默认从已同步的素材库中选择具体素材条目。",
     },
   ];
 }
@@ -7536,7 +7565,7 @@ function getKnowledgeContentOptions(
       label: item.fileName,
     }));
   const options = [
-    { value: "", label: "涓嶆寚瀹氬叿浣撳唴瀹癸紙鏁村簱妫€绱級" },
+    { value: "", label: "不指定具体内容（整库检索）" },
     ...synced,
   ];
   if (currentValue && currentLabel && !options.some((item) => item.value === currentValue)) {
@@ -7563,8 +7592,8 @@ function buildCustomInputConfig(inputType: CustomInputConfig["inputType"]): Cust
     inputType,
     label: "",
     required: false,
-    options: inputType === "SELECT" ? ["閫夐」 A", "閫夐」 B"] : [],
-    placeholder: inputType === "TEXT" ? "璇疯緭鍏ュ唴瀹? : "",
+    options: inputType === "SELECT" ? ["选项 A", "选项 B"] : [],
+    placeholder: inputType === "TEXT" ? "请输入内容" : "",
     acceptedFileTypes: inputType === "FILE" ? ".pdf,.docx,.xlsx,.png,.jpg" : "",
     remarks: "",
   };
@@ -7574,24 +7603,24 @@ function buildRecommendedCustomInputs(): CustomInputConfig[] {
   return [
     {
       ...buildCustomInputConfig("SELECT"),
-      label: "鎵ц妯″紡",
+      label: "执行模式",
       required: true,
-      options: ["鏍囧噯妯″紡", "蹇€熸ā寮?, "娣卞害妯″紡"],
-      remarks: "鐢ㄤ簬鍒囨崲鎶€鑳芥墽琛屾繁搴﹀拰鐢熸垚绛栫暐銆?,
+      options: ["标准模式", "快速模式", "深度模式"],
+      remarks: "用于切换技能执行深度和生成策略。",
     },
     {
       ...buildCustomInputConfig("TEXT"),
-      label: "鐢ㄦ埛瑕佹眰",
+      label: "用户要求",
       required: true,
-      placeholder: "璇疯緭鍏ユ湰娆′换鍔＄洰鏍囥€侀鏍笺€侀檺鍒舵潯浠剁瓑",
-      remarks: "鐢辩敤鎴风洿鎺ヨˉ鍏呮湰娆℃妧鑳芥墽琛岃姹傘€?,
+      placeholder: "请输入本次任务目标、风格、限制条件等",
+      remarks: "由用户直接补充本次技能执行要求。",
     },
     {
       ...buildCustomInputConfig("FILE"),
-      label: "鍙傝€冩枃浠?,
+      label: "参考文件",
       required: false,
       acceptedFileTypes: ".pdf,.doc,.docx,.xlsx,.png,.jpg,.jpeg",
-      remarks: "鏀寔涓婁紶鍙傝€冨浘銆佸弬鑰冩枃妗ｃ€佺礌鏉愬寘绛夋枃浠躲€?,
+      remarks: "支持上传参考图、参考文档、素材包等文件。",
     },
   ];
 }
@@ -7756,20 +7785,20 @@ function normalizeKnowledgeRetrievalConfigDraft(draft: KnowledgeRetrievalConfigE
   const parseInteger = (label: string, rawValue: string, allowZero = false) => {
     const normalized = Number(rawValue);
     if (!Number.isFinite(normalized) || normalized < 0 || (!allowZero && normalized <= 0)) {
-      throw new Error(`${label}蹇呴』涓?{allowZero ? "闈炶礋鏁存暟" : "姝ｆ暣鏁?}`);
+      throw new Error(`${label}必须为${allowZero ? "非负整数" : "正整数"}`);
     }
     return Math.floor(normalized);
   };
   const parseThreshold = (rawValue: string) => {
     const normalized = Number(rawValue);
     if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) {
-      throw new Error("妫€绱㈤槇鍊煎繀椤诲湪 0 鍒?1 涔嬮棿");
+      throw new Error("检索阈值必须在 0 到 1 之间");
     }
     return normalized;
   };
 
-  const chunkSize = draft.chunkSize.trim() ? parseInteger("鍒囩墖澶у皬", draft.chunkSize) : undefined;
-  const chunkOverlap = draft.chunkOverlap.trim() ? parseInteger("鍒囩墖閲嶅彔", draft.chunkOverlap, true) : undefined;
+  const chunkSize = draft.chunkSize.trim() ? parseInteger("切片大小", draft.chunkSize) : undefined;
+  const chunkOverlap = draft.chunkOverlap.trim() ? parseInteger("切片重叠", draft.chunkOverlap, true) : undefined;
   if (
     chunkSize !== undefined &&
     chunkOverlap !== undefined &&
@@ -7777,11 +7806,11 @@ function normalizeKnowledgeRetrievalConfigDraft(draft: KnowledgeRetrievalConfigE
     Number.isFinite(chunkOverlap) &&
     chunkOverlap >= chunkSize
   ) {
-    throw new Error("鍒囩墖閲嶅彔蹇呴』灏忎簬鍒囩墖澶у皬");
+    throw new Error("切片重叠必须小于切片大小");
   }
 
   return {
-    defaultTopK: parseInteger("榛樿 TopK", draft.defaultTopK),
+    defaultTopK: parseInteger("默认 TopK", draft.defaultTopK),
     recallMode: draft.recallMode,
     rerankEnabled: draft.rerankEnabled,
     rerankModelName: draft.rerankEnabled ? draft.rerankModelName.trim() || undefined : undefined,
@@ -7831,7 +7860,7 @@ function SkillAssetListCard(props: {
       <div className="entity-card-head" style={{ marginBottom: 12 }}>
         <div>
           <strong>{props.title}</strong>
-          <p className="personal-meta">{props.summary || "褰撳墠灞曠ず鐨勬槸鎶€鑳芥墍灞炶兘鍔涘寘涓殑鐪熷疄璧勪骇锛屽悗缁啀涓嬫矇涓烘妧鑳界骇鐪熸簮瀵硅薄銆?}</p>
+          <p className="personal-meta">{props.summary || "当前展示的是技能所属能力包中的真实资产，后续再下沉为技能级真源对象。"}</p>
         </div>
       </div>
       <div style={{ display: "grid", gap: 8 }}>
@@ -7849,8 +7878,8 @@ function SkillReferenceAssetItem(props: {
   const metaParts = [
     props.item.referenceKey,
     props.item.sourceType,
-    props.item.applicableScopes.length ? `浣滅敤鍩燂細${props.item.applicableScopes.join(" / ")}` : "",
-    Number.isFinite(props.item.sortOrder) ? `鎺掑簭锛?{props.item.sortOrder}` : "",
+    props.item.applicableScopes.length ? `作用域：${props.item.applicableScopes.join(" / ")}` : "",
+    Number.isFinite(props.item.sortOrder) ? `排序：${props.item.sortOrder}` : "",
   ].filter(Boolean);
 
   return (
@@ -7868,8 +7897,8 @@ function SkillReferenceAssetItem(props: {
         ) : (
           <strong>{props.item.title}</strong>
         )}
-        <span className="personal-meta">{metaParts.join(" 路 ")}</span>
-        <span className="personal-meta">{props.item.usageNote || props.item.sourceUri || "鏆傛棤浣跨敤璇存槑"}</span>
+        <span className="personal-meta">{metaParts.join(" · ")}</span>
+        <span className="personal-meta">{props.item.usageNote || props.item.sourceUri || "暂无使用说明"}</span>
       </label>
     </div>
   );
@@ -7883,13 +7912,13 @@ function SkillScriptAssetItem(props: {
   const metaParts = [
     props.item.scriptKey,
     props.item.runtime,
-    props.item.entry ? `鍏ュ彛锛?{props.item.entry}` : "",
-    Number.isFinite(props.item.sortOrder) ? `鎺掑簭锛?{props.item.sortOrder}` : "",
+    props.item.entry ? `入口：${props.item.entry}` : "",
+    Number.isFinite(props.item.sortOrder) ? `排序：${props.item.sortOrder}` : "",
   ].filter(Boolean);
   const argsSummary =
     props.item.argsSchema && Object.keys(props.item.argsSchema).length
-      ? `鍙傛暟瀛楁锛?{Object.keys(props.item.argsSchema).join(", ")}`
-      : "鏆傛棤鍙傛暟 schema";
+      ? `参数字段：${Object.keys(props.item.argsSchema).join(", ")}`
+      : "暂无参数 schema";
 
   return (
     <div className="entity-card" style={{ padding: 12 }}>
@@ -7906,7 +7935,7 @@ function SkillScriptAssetItem(props: {
         ) : (
           <strong>{props.item.scriptName}</strong>
         )}
-        <span className="personal-meta">{metaParts.join(" 路 ")}</span>
+        <span className="personal-meta">{metaParts.join(" · ")}</span>
         <span className="personal-meta">{props.item.usageNote || argsSummary}</span>
       </label>
     </div>
@@ -7932,40 +7961,41 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
     <section className="entity-card admin-user-filter-card">
       <div className="admin-user-filter-head">
         <div>
-          <span className="archive-pill status-ready">鎶€鑳藉垱寤?/span>
-          <h3>鍒涘缓鎶€鑳藉苟鐧昏褰掑睘</h3>
-          <p>鎶婇珮棰戝瓧娈垫敼鎴愪笅鎷夐€夋嫨锛屼紭鍏堝畬鎴愭妧鑳芥湰浣撱€佹ā鍧楀綊灞炪€佽兘鍔涘寘褰掑睘鍜屾彁绀鸿瘝鍦烘櫙鐧昏銆?/p>
+          <span className="archive-pill status-ready">技能创建</span>
+          <h3>创建技能并登记归属</h3>
+          <p>把高频字段改成下拉选择，优先完成技能本体、模块归属、能力包归属和提示词场景登记。</p>
         </div>
         <div className="admin-user-filter-summary">
           <div>
-            <span>渚涘簲鍟?/span>
+            <span>供应商</span>
             <strong>{props.providerOptions.length}</strong>
           </div>
           <div>
-            <span>妯″瀷</span>
+            <span>模型</span>
             <strong>{props.modelOptions.length}</strong>
           </div>
           <div>
-            <span>鎻愮ず璇嶅満鏅?/span>
+            <span>提示词场景</span>
             <strong>{props.promptSceneOptions.length}</strong>
           </div>
         </div>
       </div>
 
       <div className="personal-meta" style={{ marginBottom: 16 }}>
-        `References` 涓庣煡璇嗗簱鏂囦欢鐜板湪鏀寔閫夋嫨鏈湴鏂囦欢鍚庤嚜鍔ㄥ甫鍏ュ瓧娈碉紱杩欓噷鍏堟妸鎶€鑳藉垱寤哄繀濉」灏介噺鏀跺彛涓洪€夋嫨鍣ㄣ€?      </div>
+        `References` 与知识库文件现在支持选择本地文件后自动带入字段；这里先把技能创建必填项尽量收口为选择器。
+      </div>
 
       <div className="admin-skill-simple-grid">
         <label className="admin-skill-field">
-          <span>鎶€鑳藉悕绉?/span>
-          <input value={props.draft.name} placeholder="渚嬪锛氬叕浼楀彿鏂囩珷鐢熸垚" onChange={(event) => props.onChange("name", event.target.value)} />
+          <span>技能名称</span>
+          <input value={props.draft.name} placeholder="例如：公众号文章生成" onChange={(event) => props.onChange("name", event.target.value)} />
         </label>
         <label className="admin-skill-field">
-          <span>鎶€鑳芥爣璇?/span>
-          <input value={props.draft.slug} placeholder="渚嬪锛歸echat-article-generator" onChange={(event) => props.onChange("slug", event.target.value)} />
+          <span>技能标识</span>
+          <input value={props.draft.slug} placeholder="例如：wechat-article-generator" onChange={(event) => props.onChange("slug", event.target.value)} />
         </label>
         <label className="admin-skill-field">
-          <span>鍒嗙被</span>
+          <span>分类</span>
           <select value={props.draft.category} onChange={(event) => props.onChange("category", event.target.value)}>
             {props.categoryOptions.map((item) => (
               <option key={item} value={item}>
@@ -7975,17 +8005,17 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>鐘舵€?/span>
+          <span>状态</span>
           <select value={props.draft.status} onChange={(event) => props.onChange("status", event.target.value as CreateSkillDraft["status"])}>
-            <option value="ACTIVE">鍚敤涓?/option>
-            <option value="DRAFT">鑽夌</option>
-            <option value="DISABLED">鍋滅敤</option>
+            <option value="ACTIVE">启用中</option>
+            <option value="DRAFT">草稿</option>
+            <option value="DISABLED">停用</option>
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>渚涘簲鍟?/span>
+          <span>供应商</span>
           <select value={props.draft.provider} onChange={(event) => props.onChange("provider", event.target.value)}>
-            <option value="">璇烽€夋嫨渚涘簲鍟?/option>
+            <option value="">请选择供应商</option>
             {props.providerOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -7994,9 +8024,9 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>榛樿妯″瀷</span>
+          <span>默认模型</span>
           <select value={props.draft.defaultModel} onChange={(event) => props.onChange("defaultModel", event.target.value)}>
-            <option value="">璇烽€夋嫨妯″瀷</option>
+            <option value="">请选择模型</option>
             {props.modelOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -8005,13 +8035,13 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>鐐规暟鎴愭湰</span>
+          <span>点数成本</span>
           <input type="number" value={props.draft.pointsCost} onChange={(event) => props.onChange("pointsCost", event.target.value)} />
         </label>
         <label className="admin-skill-field">
-          <span>鎵€灞炴ā鍧?/span>
+          <span>所属模块</span>
           <select value={props.draft.moduleKey} onChange={(event) => props.onChange("moduleKey", event.target.value)}>
-            <option value="NONE">鏆備笉缁戝畾</option>
+            <option value="NONE">暂不绑定</option>
             {props.moduleOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -8020,9 +8050,9 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>鎵€灞炶兘鍔涘寘</span>
+          <span>所属能力包</span>
           <select value={props.draft.packageKey} onChange={(event) => props.onChange("packageKey", event.target.value)}>
-            <option value="NONE">鏆備笉缁戝畾</option>
+            <option value="NONE">暂不绑定</option>
             {props.packageOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -8031,9 +8061,9 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field">
-          <span>鎻愮ず璇嶅満鏅?/span>
+          <span>提示词场景</span>
           <select value={props.draft.promptScene} onChange={(event) => props.onChange("promptScene", event.target.value)}>
-            <option value="">绋嶅悗缁戝畾</option>
+            <option value="">稍后绑定</option>
             {props.promptSceneOptions.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -8042,18 +8072,19 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
           </select>
         </label>
         <label className="admin-skill-field admin-skill-field--full">
-          <span>鎶€鑳借鏄?/span>
+          <span>技能说明</span>
           <textarea value={props.draft.description} onChange={(event) => props.onChange("description", event.target.value)} />
         </label>
         <label className="admin-skill-field admin-skill-field--full">
-          <span>褰掑睘璇存槑</span>
+          <span>归属说明</span>
           <textarea value={props.draft.bindingRemarks} onChange={(event) => props.onChange("bindingRemarks", event.target.value)} />
         </label>
       </div>
 
       <div className="personal-actions">
         <button type="button" className="secondary-button" onClick={props.onCancel} disabled={props.isCreating}>
-          杩斿洖鑳藉姏鍖呮憳瑕?        </button>
+          返回能力包摘要
+        </button>
         <button
           type="button"
           className="primary-button"
@@ -8067,7 +8098,7 @@ function CreateSkillWorkspace(props: CreateSkillWorkspaceProps) {
             || !props.draft.defaultModel.trim()
           }
         >
-          {props.isCreating ? "鍒涘缓涓?.." : "纭鍒涘缓"}
+          {props.isCreating ? "创建中..." : "确认创建"}
         </button>
       </div>
     </section>
@@ -8097,7 +8128,7 @@ function buildCreateSkillDraft(): CreateSkillDraft {
   return {
     name: "",
     slug: "",
-    category: "鍐呭鐢熶骇",
+    category: "内容生产",
     status: "DRAFT",
     provider: "",
     defaultModel: "",
@@ -8116,7 +8147,7 @@ function buildInstallSkillDraft(): InstallSkillDraft {
     githubUrl: "",
     archiveFileName: "",
     archiveBase64: "",
-    category: "鍐呭鐢熶骇",
+    category: "内容生产",
     status: "DRAFT",
     provider: "",
     defaultModel: "",
@@ -8137,7 +8168,7 @@ function readFileAsBase64(file: File) {
       const [, base64 = ""] = raw.split(",");
       resolvePromise(base64);
     };
-    reader.onerror = () => reject(reader.error || new Error("璇诲彇鍘嬬缉鍖呭け璐?));
+    reader.onerror = () => reject(reader.error || new Error("读取压缩包失败"));
     reader.readAsDataURL(file);
   });
 }
@@ -8397,16 +8428,16 @@ function normalizeThirdPartyPlatformBaseUrl(value: string) {
 function resolveThirdPartyPlatformName(baseUrl: string, fallbackName: string) {
   const trimmed = baseUrl.trim();
   if (!trimmed) {
-    return fallbackName.trim() || "绗笁鏂瑰钩鍙?;
+    return fallbackName.trim() || "第三方平台";
   }
   try {
     const host = new URL(trimmed).host.toLowerCase();
     const hostNameMap: Record<string, string> = {
-      "www.right.codes": "Right Codes 骞冲彴",
-      "api.deepseek.com": "DeepSeek 骞冲彴",
-      "ark.cn-beijing.volces.com": "鐏北鏂硅垷骞冲彴",
-      "api.moonshot.cn": "Kimi 骞冲彴",
-      "open.bigmodel.cn": "GLM 骞冲彴",
+      "www.right.codes": "Right Codes 平台",
+      "api.deepseek.com": "DeepSeek 平台",
+      "ark.cn-beijing.volces.com": "火山方舟平台",
+      "api.moonshot.cn": "Kimi 平台",
+      "open.bigmodel.cn": "GLM 平台",
     };
     return hostNameMap[host] || fallbackName.trim() || host;
   } catch {
@@ -8436,7 +8467,7 @@ function buildScopedModelOptions(providers: ApiProviderRecord[], ...extraValues:
       const value = `${provider.id}::${modelName}`;
       optionsByValue.set(value, {
         value,
-        label: `${modelName} 路 ${provider.name}`,
+        label: `${modelName} · ${provider.name}`,
       });
     }
   }
@@ -8463,7 +8494,7 @@ function buildFallbackScopedModelOption(value: string): ScopedModelOption {
   const modelName = normalized.slice(separatorIndex + 2).trim();
   return {
     value: normalized,
-    label: `${modelName} 路 ${providerId}`,
+    label: `${modelName} · ${providerId}`,
   };
 }
 
@@ -8493,8 +8524,8 @@ function buildApiProviderPayload(
     project: draft.project.trim(),
     timeoutMs: Math.max(0, Number(draft.timeoutMs || 0)),
     streamEnabled: draft.streamEnabled,
-    customHeaders: parseProviderJsonMap(draft.customHeadersJson, "鑷畾涔?Headers"),
-    extraParams: parseProviderJsonObject(draft.extraParamsJson, "鎵╁睍鍙傛暟"),
+    customHeaders: parseProviderJsonMap(draft.customHeadersJson, "自定义 Headers"),
+    extraParams: parseProviderJsonObject(draft.extraParamsJson, "扩展参数"),
     remark: draft.remark.trim(),
   };
 }
@@ -8525,7 +8556,7 @@ function resolveProviderDefaultModel(modelWhitelist: string, currentDefaultModel
 function maskProviderSecret(value: string) {
   const trimmed = value.trim();
   if (!trimmed) {
-    return "鏈厤缃?;
+    return "未配置";
   }
   if (trimmed.length <= 6) {
     return "*".repeat(trimmed.length);
@@ -8548,11 +8579,11 @@ function parseProviderJsonObject(value: string, label: string): Record<string, u
   try {
     const parsed = JSON.parse(trimmed) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error(`${label} 蹇呴』鏄?JSON 瀵硅薄`);
+      throw new Error(`${label} 必须是 JSON 对象`);
     }
     return parsed as Record<string, unknown>;
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : `${label} 涓嶆槸鍚堟硶 JSON`);
+    throw new Error(error instanceof Error ? error.message : `${label} 不是合法 JSON`);
   }
 }
 
@@ -8610,9 +8641,9 @@ function buildSyncRunDrafts(list: KnowledgeBaseSyncRunRecord[]) {
 
 function getSyncRunTitle(run: KnowledgeBaseSyncRunRecord) {
   if (run.scope === "FULL") {
-    return "鐭ヨ瘑搴撳叏閲忓悓姝?;
+    return "知识库全量同步";
   }
-  return run.fileName || "鏂囦欢鍚屾浠诲姟";
+  return run.fileName || "文件同步任务";
 }
 
 function deriveKnowledgeBaseSyncStatus(files: KnowledgeBaseFileRecord[]): KnowledgeBaseRecord["syncStatus"] {
@@ -8657,23 +8688,23 @@ function getStatusClassName(status: "ACTIVE" | "DISABLED" | "DRAFT") {
 
 function getStatusLabel(status: "ACTIVE" | "DISABLED" | "DRAFT") {
   if (status === "ACTIVE") {
-    return "鍚敤涓?;
+    return "启用中";
   }
   if (status === "DISABLED") {
-    return "宸插仠鐢?;
+    return "已停用";
   }
-  return "鑽夌";
+  return "草稿";
 }
 
 function getSkillPrimaryMark(primaryId: string, label: string) {
   if (primaryId === "brand-growth") {
-    return "绛?;
+    return "策";
   }
   if (primaryId === "xiaohongshu") {
-    return "绾?;
+    return "红";
   }
   if (primaryId === "douyin") {
-    return "鎶?;
+    return "抖";
   }
   return label.slice(0, 1);
 }
