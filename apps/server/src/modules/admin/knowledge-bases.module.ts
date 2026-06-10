@@ -11,5 +11,6 @@ import { KnowledgeBasesService } from "./knowledge-bases.service";
   imports: [AuthModule, ThirdPartyPlatformsModule, ApiProvidersModule],
   controllers: [KnowledgeBasesController, KnowledgeBaseFilesController, KnowledgeBindingsController],
   providers: [KnowledgeBasesService],
+  exports: [KnowledgeBasesService],
 })
 export class KnowledgeBasesModule {}

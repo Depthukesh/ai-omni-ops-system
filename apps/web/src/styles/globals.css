@@ -6318,6 +6318,10 @@ button {
   gap: 12px;
 }
 
+.knowledge-admin-section-list--horizontal {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .knowledge-admin-list-item,
 .knowledge-admin-section-item {
   display: grid;
@@ -6353,6 +6357,10 @@ button {
 .knowledge-admin-section-item strong {
   color: #173b4b;
   font-size: 15px;
+}
+
+.knowledge-admin-section-list--horizontal .knowledge-admin-section-item {
+  min-height: 112px;
 }
 
 .knowledge-admin-list-item p,
@@ -6758,6 +6766,10 @@ button {
   .knowledge-admin-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .knowledge-admin-section-list--horizontal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -6768,7 +6780,8 @@ button {
   .brand-asset-upload-grid,
   .knowledge-content-card-grid,
   .knowledge-upload-choice-grid,
-  .knowledge-admin-summary-grid {
+  .knowledge-admin-summary-grid,
+  .knowledge-admin-section-list--horizontal {
     grid-template-columns: 1fr;
   }
 

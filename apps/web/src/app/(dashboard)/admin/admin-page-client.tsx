@@ -5538,16 +5538,19 @@ export default function AdminPage() {
                 </div>
               </article>
 
+            </div>
+
+            <section className="admin-provider-stack">
               {selectedKnowledgeBase ? (
                 <article className="panel admin-provider-filter-card">
                   <div className="admin-provider-filter-head">
                     <div>
                       <strong>当前板块</strong>
-                      <p>按左侧板块切换后，右侧仅展示当前知识库的当前内容。</p>
+                      <p>把常用操作横向放在这里，切换后右侧立即展示当前知识库对应内容。</p>
                     </div>
                     <span className="archive-pill status_ready">{knowledgeWorkspaceSections.find((section) => section.id === knowledgeWorkspaceSection)?.label || "当前板块"}</span>
                   </div>
-                  <div className="knowledge-admin-section-list">
+                  <div className="knowledge-admin-section-list knowledge-admin-section-list--horizontal">
                     {knowledgeWorkspaceSections.map((section) => (
                       <button
                         type="button"
@@ -5563,9 +5566,6 @@ export default function AdminPage() {
                   </div>
                 </article>
               ) : null}
-            </div>
-
-            <section className="admin-provider-stack">
               {selectedKnowledgeBase && selectedKnowledgeBaseDraft ? (
                 <article className="panel admin-provider-card knowledge-admin-card">
                   <div className="admin-provider-card-head">

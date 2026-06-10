@@ -17,6 +17,7 @@ import {
 } from "../../../../../packages/shared/src/brand-permissions";
 import { createId, database, type KnowledgeBaseRecord } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
+import { KnowledgeBasesService } from "../admin/knowledge-bases.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 
@@ -308,7 +309,10 @@ export class BrandsService {
   private readonly appConfigService = new AppConfigService();
   private readonly ossStorageService = new OssStorageService(this.appConfigService);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly knowledgeBasesService?: KnowledgeBasesService,
+  ) {}
 
   async getOverview() {
     if (await this.prismaService.canUseDatabase()) {
@@ -1513,6 +1517,9 @@ export class BrandsService {
       ]);
 
       await this.syncBusinessAssetsToKnowledgeBaseInDatabase(id, payload.items);
+      if (payload.items.length && this.knowledgeBasesService) {
+        await this.knowledgeBasesService.startKnowledgeBaseFullSync(this.buildBusinessAssetsKnowledgeBaseId(id));
+      }
 
       return payload.items.map((item) => ({
         id: item.id ?? createId("ast"),
