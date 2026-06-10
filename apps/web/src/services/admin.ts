@@ -190,6 +190,31 @@ export type KnowledgeBaseRunMutationResult = {
   file?: KnowledgeBaseFileRecord;
 };
 
+export type KnowledgeChunkRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  charCount: number;
+  sourceLabel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeEmbeddingRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  chunkId: string;
+  modelName: string;
+  providerName: string;
+  dimensions: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeRetrievalTestHitRecord = {
   chunkId: string;
   fileId: string;
@@ -2773,6 +2798,14 @@ export async function updateKnowledgeBaseFile(
 
 export async function syncKnowledgeBaseFile(fileId: string) {
   return jsonRequest<KnowledgeBaseSyncMutationResult>(`/admin/knowledge-base-files/${fileId}/sync`, "POST", {});
+}
+
+export async function getKnowledgeBaseFileChunks(fileId: string) {
+  return request<KnowledgeChunkRecord[]>(`/admin/knowledge-base-files/${fileId}/chunks`);
+}
+
+export async function getKnowledgeBaseFileEmbeddings(fileId: string) {
+  return request<KnowledgeEmbeddingRecord[]>(`/admin/knowledge-base-files/${fileId}/embeddings`);
 }
 
 export async function startKnowledgeBaseSync(knowledgeBaseId: string) {

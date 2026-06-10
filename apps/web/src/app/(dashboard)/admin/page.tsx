@@ -31,6 +31,8 @@ import {
   getApiProviders,
   getKnowledgeBindings,
   getKnowledgeBases,
+  getKnowledgeBaseFileChunks,
+  getKnowledgeBaseFileEmbeddings,
   getKnowledgeBaseFiles,
   getKnowledgeRetrievalConfigs,
   getKnowledgeBaseSyncRuns,
@@ -55,6 +57,7 @@ import {
   moduleDefinitionSeed,
   modelUsageSeed,
   promptTemplateSeed,
+  runKnowledgeRetrievalTest,
   skillConfigSeed,
   skillAssetBindingSeed,
   skillPackageModuleSeed,
@@ -78,9 +81,12 @@ import {
   type KnowledgeBaseFileRecord,
   type KnowledgeBindingRecord,
   type KnowledgeBaseRecord,
+  type KnowledgeChunkRecord,
+  type KnowledgeEmbeddingRecord,
   type KnowledgeRetrievalConfigRecord,
   type KnowledgeBaseSyncMutationResult,
   type KnowledgeBaseRunMutationResult,
+  type KnowledgeRetrievalTestResultRecord,
   type KnowledgeBaseSyncRunRecord,
   type MembershipLevel,
   type MembershipPlanRule,
@@ -319,6 +325,17 @@ type CreateKnowledgeBaseFileDraft = {
   sourceName: string;
   chunkCount: string;
 };
+type KnowledgeFileDebugState = {
+  chunks: KnowledgeChunkRecord[];
+  embeddings: KnowledgeEmbeddingRecord[];
+  isLoading: boolean;
+  error: string;
+  loadedAt?: string;
+};
+type KnowledgeRetrievalTestDraft = {
+  query: string;
+  topK: string;
+};
 type CreateKnowledgeBindingDraft = {
   bindingType: KnowledgeBindingRecord["bindingType"];
   targetId: string;
@@ -437,6 +454,23 @@ function getKnowledgeFileStatusLabel(status: KnowledgeBaseFileRecord["status"]) 
   }
   return "待同步";
 }
+
+function buildKnowledgeFileDebugState(): KnowledgeFileDebugState {
+  return {
+    chunks: [],
+    embeddings: [],
+    isLoading: false,
+    error: "",
+  };
+}
+
+function buildKnowledgeRetrievalTestDraft(defaultTopK = 3): KnowledgeRetrievalTestDraft {
+  return {
+    query: "",
+    topK: String(Math.max(1, defaultTopK || 3)),
+  };
+}
+
 type SyncRunEditDraft = {
   summary: string;
   errorDetail: string;
@@ -603,6 +637,13 @@ export default function AdminPage() {
     summary: [],
   });
   const [isLoadingDatabaseParameters, setIsLoadingDatabaseParameters] = useState(false);
+  const [knowledgeFileDebugStateMap, setKnowledgeFileDebugStateMap] = useState<Record<string, KnowledgeFileDebugState>>({});
+  const [expandedKnowledgeFileId, setExpandedKnowledgeFileId] = useState("");
+  const [knowledgeRetrievalTestDrafts, setKnowledgeRetrievalTestDrafts] = useState<Record<string, KnowledgeRetrievalTestDraft>>({});
+  const [knowledgeRetrievalTestResults, setKnowledgeRetrievalTestResults] = useState<
+    Record<string, KnowledgeRetrievalTestResultRecord | undefined>
+  >({});
+  const [runningKnowledgeRetrievalBaseId, setRunningKnowledgeRetrievalBaseId] = useState("");
   const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState("");
   const [knowledgeWorkspaceSection, setKnowledgeWorkspaceSection] = useState<KnowledgeWorkspaceSection>("overview");
   const [selectedThirdPartyPlatformId, setSelectedThirdPartyPlatformId] = useState("");
@@ -1392,6 +1433,111 @@ export default function AdminPage() {
     }));
   }
 
+  function handleKnowledgeRetrievalTestDraftChange(knowledgeBaseId: string, patch: Partial<KnowledgeRetrievalTestDraft>) {
+    setKnowledgeRetrievalTestDrafts((current) => ({
+      ...current,
+      [knowledgeBaseId]: {
+        ...(current[knowledgeBaseId] || buildKnowledgeRetrievalTestDraft()),
+        ...patch,
+      },
+    }));
+  }
+
+  async function handleToggleKnowledgeFileDebug(file: KnowledgeBaseFileRecord) {
+    const isExpanded = expandedKnowledgeFileId === file.id;
+    if (isExpanded) {
+      setExpandedKnowledgeFileId("");
+      return;
+    }
+
+    setExpandedKnowledgeFileId(file.id);
+    const currentState = knowledgeFileDebugStateMap[file.id];
+    if (currentState && (currentState.chunks.length || currentState.embeddings.length || currentState.error)) {
+      return;
+    }
+
+    setKnowledgeFileDebugStateMap((current) => ({
+      ...current,
+      [file.id]: {
+        ...(current[file.id] || buildKnowledgeFileDebugState()),
+        isLoading: true,
+        error: "",
+      },
+    }));
+
+    try {
+      const [chunks, embeddings] = await Promise.all([
+        getKnowledgeBaseFileChunks(file.id),
+        getKnowledgeBaseFileEmbeddings(file.id),
+      ]);
+      setKnowledgeFileDebugStateMap((current) => ({
+        ...current,
+        [file.id]: {
+          chunks,
+          embeddings,
+          isLoading: false,
+          error: "",
+          loadedAt: new Date().toISOString(),
+        },
+      }));
+    } catch (error) {
+      const message =
+        dataSource === "seed"
+          ? "当前是演示数据，暂无真实分片与 embedding 明细。"
+          : error instanceof Error
+            ? error.message
+            : "读取分片与 embedding 失败";
+      setKnowledgeFileDebugStateMap((current) => ({
+        ...current,
+        [file.id]: {
+          ...(current[file.id] || buildKnowledgeFileDebugState()),
+          isLoading: false,
+          error: message,
+        },
+      }));
+    }
+  }
+
+  async function handleRunKnowledgeRetrievalTest(knowledgeBaseId: string) {
+    const selectedConfig = knowledgeRetrievalConfigs.find((item) => item.knowledgeBaseId === knowledgeBaseId);
+    const draft = knowledgeRetrievalTestDrafts[knowledgeBaseId]
+      || buildKnowledgeRetrievalTestDraft(selectedConfig?.defaultTopK || 3);
+    if (!draft.query.trim()) {
+      setErrorMessage("检索测试问题不能为空。");
+      return;
+    }
+
+    setRunningKnowledgeRetrievalBaseId(knowledgeBaseId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const result = await runKnowledgeRetrievalTest(knowledgeBaseId, {
+        query: draft.query.trim(),
+        topK: Math.max(1, Number(draft.topK || selectedConfig?.defaultTopK || 3)),
+      });
+      setKnowledgeRetrievalTestResults((current) => ({
+        ...current,
+        [knowledgeBaseId]: result,
+      }));
+      setNotice(
+        result.hitCount
+          ? `检索测试完成，命中 ${result.hitCount} 条结果。`
+          : "检索测试已完成，但当前阈值下没有命中结果。",
+      );
+    } catch (error) {
+      const message =
+        dataSource === "seed"
+          ? "当前是演示数据，无法执行真实检索测试。"
+          : error instanceof Error
+            ? error.message
+            : "检索测试失败";
+      setErrorMessage(`检索测试失败：${message}`);
+    } finally {
+      setRunningKnowledgeRetrievalBaseId("");
+    }
+  }
+
   function handleSyncRunDraftChange(runId: string, patch: Partial<SyncRunEditDraft>) {
     setKnowledgeBaseSyncRunDrafts((current) => ({
       ...current,
@@ -1914,6 +2060,12 @@ export default function AdminPage() {
       setKnowledgeBaseFiles((current) => current.map((item) => (item.id === result.file.id ? result.file : item)));
     } else {
       setKnowledgeBaseFiles((current) => current.filter((item) => item.id !== result.file.id));
+      setKnowledgeFileDebugStateMap((current) => {
+        const next = { ...current };
+        delete next[result.file.id];
+        return next;
+      });
+      setExpandedKnowledgeFileId((current) => (current === result.file.id ? "" : current));
     }
   }
 
@@ -3077,6 +3229,17 @@ export default function AdminPage() {
   const selectedKnowledgePreviewFiles = [...selectedKnowledgeFiles]
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
     .slice(0, 4);
+  const selectedExpandedKnowledgeFile = selectedKnowledgeFiles.find((file) => file.id === expandedKnowledgeFileId);
+  const selectedExpandedKnowledgeFileDebugState = selectedExpandedKnowledgeFile
+    ? knowledgeFileDebugStateMap[selectedExpandedKnowledgeFile.id] || buildKnowledgeFileDebugState()
+    : undefined;
+  const selectedKnowledgeRetrievalTestDraft = selectedKnowledgeBase
+    ? knowledgeRetrievalTestDrafts[selectedKnowledgeBase.id]
+      || buildKnowledgeRetrievalTestDraft(selectedKnowledgeRetrievalConfig?.defaultTopK || 3)
+    : undefined;
+  const selectedKnowledgeRetrievalTestResult = selectedKnowledgeBase
+    ? knowledgeRetrievalTestResults[selectedKnowledgeBase.id]
+    : undefined;
 
   useEffect(() => {
     const nextPrimary = filteredSkillTree[0];
@@ -5595,6 +5758,18 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   className="secondary-button"
+                                  onClick={() => void handleToggleKnowledgeFileDebug(file)}
+                                  disabled={selectedExpandedKnowledgeFileDebugState?.isLoading && expandedKnowledgeFileId === file.id}
+                                >
+                                  {expandedKnowledgeFileId === file.id
+                                    ? "收起联调明细"
+                                    : file.status === "INDEXED"
+                                      ? "查看分片 / 向量"
+                                      : "查看联调明细"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
                                   onClick={() => void handleSyncKnowledgeBaseFile(file.id)}
                                   disabled={updatingKnowledgeBaseFileId === file.id}
                                 >
@@ -5609,6 +5784,103 @@ export default function AdminPage() {
                                   删除资料
                                 </button>
                               </div>
+                              {expandedKnowledgeFileId === file.id && selectedExpandedKnowledgeFileDebugState ? (
+                                <div className="admin-provider-stack" style={{ marginTop: 12 }}>
+                                  <div className="knowledge-admin-summary-grid">
+                                    <div className="knowledge-admin-summary-card">
+                                      <span>分片数</span>
+                                      <strong>{selectedExpandedKnowledgeFileDebugState.chunks.length}</strong>
+                                    </div>
+                                    <div className="knowledge-admin-summary-card">
+                                      <span>Embedding 数</span>
+                                      <strong>{selectedExpandedKnowledgeFileDebugState.embeddings.length}</strong>
+                                    </div>
+                                    <div className="knowledge-admin-summary-card">
+                                      <span>最近读取</span>
+                                      <strong>
+                                        {selectedExpandedKnowledgeFileDebugState.loadedAt
+                                          ? formatDateTime(selectedExpandedKnowledgeFileDebugState.loadedAt)
+                                          : "未读取"}
+                                      </strong>
+                                    </div>
+                                    <div className="knowledge-admin-summary-card">
+                                      <span>文件状态</span>
+                                      <strong>{getKnowledgeFileStatusLabel(file.status)}</strong>
+                                    </div>
+                                  </div>
+                                  {selectedExpandedKnowledgeFileDebugState.isLoading ? (
+                                    <p className="personal-meta">正在读取当前资料的分片与 embedding 明细...</p>
+                                  ) : selectedExpandedKnowledgeFileDebugState.error ? (
+                                    <p className="personal-meta">联调明细读取失败：{selectedExpandedKnowledgeFileDebugState.error}</p>
+                                  ) : (
+                                    <>
+                                      <article className="entity-card admin-rule-card">
+                                        <div className="panel-header">
+                                          <h2>分片预览</h2>
+                                          <span>{selectedExpandedKnowledgeFileDebugState.chunks.length} 条</span>
+                                        </div>
+                                        {selectedExpandedKnowledgeFileDebugState.chunks.length ? (
+                                          <div className="admin-rules-stack">
+                                            {selectedExpandedKnowledgeFileDebugState.chunks.slice(0, 5).map((chunk) => (
+                                              <article className="knowledge-bridge-preview-card" key={chunk.id}>
+                                                <strong>Chunk #{chunk.chunkIndex}</strong>
+                                                <span>
+                                                  {chunk.tokenCount} tokens · {chunk.charCount} 字符
+                                                  {chunk.sourceLabel ? ` · ${chunk.sourceLabel}` : ""}
+                                                </span>
+                                                <pre
+                                                  style={{
+                                                    margin: 0,
+                                                    whiteSpace: "pre-wrap",
+                                                    fontFamily: "inherit",
+                                                    fontSize: 13,
+                                                    lineHeight: 1.6,
+                                                  }}
+                                                >
+                                                  {chunk.content}
+                                                </pre>
+                                              </article>
+                                            ))}
+                                            {selectedExpandedKnowledgeFileDebugState.chunks.length > 5 ? (
+                                              <p className="personal-meta">
+                                                仅展示前 5 条分片，剩余 {selectedExpandedKnowledgeFileDebugState.chunks.length - 5} 条可继续按需扩展。
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        ) : (
+                                          <p className="personal-meta">当前资料还没有生成分片，通常需要先执行同步。</p>
+                                        )}
+                                      </article>
+                                      <article className="entity-card admin-rule-card">
+                                        <div className="panel-header">
+                                          <h2>Embedding 明细</h2>
+                                          <span>{selectedExpandedKnowledgeFileDebugState.embeddings.length} 条</span>
+                                        </div>
+                                        {selectedExpandedKnowledgeFileDebugState.embeddings.length ? (
+                                          <div className="admin-rules-stack">
+                                            {selectedExpandedKnowledgeFileDebugState.embeddings.slice(0, 5).map((embedding) => (
+                                              <article className="knowledge-bridge-preview-card" key={embedding.id}>
+                                                <strong>{embedding.modelName}</strong>
+                                                <span>
+                                                  {embedding.providerName} · {embedding.dimensions} 维
+                                                </span>
+                                                <em>Chunk ID: {embedding.chunkId}</em>
+                                              </article>
+                                            ))}
+                                            {selectedExpandedKnowledgeFileDebugState.embeddings.length > 5 ? (
+                                              <p className="personal-meta">
+                                                仅展示前 5 条 embedding，剩余 {selectedExpandedKnowledgeFileDebugState.embeddings.length - 5} 条未展开。
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        ) : (
+                                          <p className="personal-meta">当前资料还没有生成 embedding，请先确认同步已成功并配置了可用的 embedding API Key。</p>
+                                        )}
+                                      </article>
+                                    </>
+                                  )}
+                                </div>
+                              ) : null}
                             </article>
                           ))
                         ) : (
@@ -5621,123 +5893,235 @@ export default function AdminPage() {
                   {knowledgeWorkspaceSection === "retrieval" &&
                   selectedKnowledgeRetrievalDraft &&
                   selectedKnowledgeRetrievalConfig ? (
-                    <article className="entity-card admin-rule-card">
-                      <div className="panel-header">
-                        <h2>检索配置</h2>
+                    <div className="admin-provider-stack">
+                      <article className="entity-card admin-rule-card">
+                        <div className="panel-header">
+                          <h2>检索配置</h2>
                           <span>召回数量 / 召回方式 / 重排</span>
-                      </div>
-                      <div className="personal-meta">
-                        这里是“系统以后怎么查这个知识库”的默认规则。你可以控制一次查多少条、优先按语义还是混合召回、是否做二次重排，
-                        不需要在这里处理同步细节。
-                      </div>
-                      <div className="admin-rule-grid">
-                        <label>
-                          <span>默认 TopK</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={selectedKnowledgeRetrievalDraft.defaultTopK}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                defaultTopK: event.target.value,
-                              })
+                        </div>
+                        <div className="personal-meta">
+                          这里是“系统以后怎么查这个知识库”的默认规则。你可以控制一次查多少条、优先按语义还是混合召回、是否做二次重排，
+                          不需要在这里处理同步细节。
+                        </div>
+                        <div className="admin-rule-grid">
+                          <label>
+                            <span>默认 TopK</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={selectedKnowledgeRetrievalDraft.defaultTopK}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  defaultTopK: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>召回模式</span>
+                            <select
+                              value={selectedKnowledgeRetrievalDraft.recallMode}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  recallMode: event.target.value as KnowledgeRetrievalConfigRecord["recallMode"],
+                                })
+                              }
+                            >
+                              <option value="SEMANTIC">语义召回</option>
+                              <option value="HYBRID">混合召回</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>启用重排</span>
+                            <select
+                              value={selectedKnowledgeRetrievalDraft.rerankEnabled ? "YES" : "NO"}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  rerankEnabled: event.target.value === "YES",
+                                })
+                              }
+                            >
+                              <option value="NO">关闭</option>
+                              <option value="YES">开启</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>重排模型</span>
+                            <input
+                              value={selectedKnowledgeRetrievalDraft.rerankModelName}
+                              placeholder={selectedKnowledgeRetrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  rerankModelName: event.target.value,
+                                })
+                              }
                             }
-                          />
-                        </label>
-                        <label>
-                          <span>召回模式</span>
-                          <select
-                            value={selectedKnowledgeRetrievalDraft.recallMode}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                recallMode: event.target.value as KnowledgeRetrievalConfigRecord["recallMode"],
-                              })
-                            }
+                            />
+                          </label>
+                          <label>
+                            <span>切片大小</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={selectedKnowledgeRetrievalDraft.chunkSize}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  chunkSize: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>切片重叠</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={selectedKnowledgeRetrievalDraft.chunkOverlap}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  chunkOverlap: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>检索阈值</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={selectedKnowledgeRetrievalDraft.retrievalThreshold}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
+                                  retrievalThreshold: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="personal-actions">
+                          <span className="personal-meta">上次更新时间 {formatDateTime(selectedKnowledgeRetrievalConfig.updatedAt)}</span>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleSaveKnowledgeRetrievalConfig(selectedKnowledgeBase.id)}
+                            disabled={updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
                           >
-                            <option value="SEMANTIC">语义召回</option>
-                            <option value="HYBRID">混合召回</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>启用重排</span>
-                          <select
-                            value={selectedKnowledgeRetrievalDraft.rerankEnabled ? "YES" : "NO"}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                rerankEnabled: event.target.value === "YES",
-                              })
-                            }
-                          >
-                            <option value="NO">关闭</option>
-                            <option value="YES">开启</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>重排模型</span>
-                          <input
-                            value={selectedKnowledgeRetrievalDraft.rerankModelName}
-                            placeholder={selectedKnowledgeRetrievalDraft.rerankEnabled ? "例如 bge-reranker-v2-m3" : "关闭重排时可留空"}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                rerankModelName: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>切片大小</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={selectedKnowledgeRetrievalDraft.chunkSize}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                chunkSize: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>切片重叠</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={selectedKnowledgeRetrievalDraft.chunkOverlap}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                chunkOverlap: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>检索阈值</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={selectedKnowledgeRetrievalDraft.retrievalThreshold}
-                            onChange={(event) =>
-                              handleKnowledgeRetrievalConfigDraftChange(selectedKnowledgeBase.id, {
-                                retrievalThreshold: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                      <div className="personal-actions">
-                        <span className="personal-meta">上次更新时间 {formatDateTime(selectedKnowledgeRetrievalConfig.updatedAt)}</span>
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() => void handleSaveKnowledgeRetrievalConfig(selectedKnowledgeBase.id)}
-                          disabled={updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
-                        >
-                          {updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存检索配置"}
-                        </button>
-                      </div>
-                    </article>
+                            {updatingKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "保存中..." : "保存检索配置"}
+                          </button>
+                        </div>
+                      </article>
+
+                      {selectedKnowledgeRetrievalTestDraft ? (
+                        <article className="entity-card admin-rule-card">
+                          <div className="panel-header">
+                            <h2>检索联调测试</h2>
+                            <span>直接验证当前知识库能否命中</span>
+                          </div>
+                          <div className="personal-meta">
+                            这里会直接调用后台 `retrieval-test` 接口，返回命中的分片、分数和来源。若命中为 0，通常要结合上方阈值、
+                            当前资料的分片数和 embedding 是否生成一起看。
+                          </div>
+                          <label className="admin-rule-description">
+                            <span>测试问题</span>
+                            <textarea
+                              value={selectedKnowledgeRetrievalTestDraft.query}
+                              onChange={(event) =>
+                                handleKnowledgeRetrievalTestDraftChange(selectedKnowledgeBase.id, {
+                                  query: event.target.value,
+                                })
+                              }
+                              placeholder="例如：淘货猫的智能喂食器和抖音种草策略是什么？"
+                            />
+                          </label>
+                          <div className="admin-rule-grid">
+                            <label>
+                              <span>测试 TopK</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={selectedKnowledgeRetrievalTestDraft.topK}
+                                onChange={(event) =>
+                                  handleKnowledgeRetrievalTestDraftChange(selectedKnowledgeBase.id, {
+                                    topK: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <div className="knowledge-admin-summary-card">
+                              <span>当前默认阈值</span>
+                              <strong>{selectedKnowledgeRetrievalConfig.retrievalThreshold ?? "未设置"}</strong>
+                            </div>
+                          </div>
+                          <div className="personal-actions">
+                            <span className="personal-meta">
+                              当前资料 {selectedKnowledgeFiles.length} 份，累计分片 {selectedKnowledgeBase.chunkCount}
+                            </span>
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={() => void handleRunKnowledgeRetrievalTest(selectedKnowledgeBase.id)}
+                              disabled={runningKnowledgeRetrievalBaseId === selectedKnowledgeBase.id}
+                            >
+                              {runningKnowledgeRetrievalBaseId === selectedKnowledgeBase.id ? "测试中..." : "运行检索测试"}
+                            </button>
+                          </div>
+                          {selectedKnowledgeRetrievalTestResult ? (
+                            <div className="admin-provider-stack" style={{ marginTop: 12 }}>
+                              <div className="knowledge-admin-summary-grid">
+                                <div className="knowledge-admin-summary-card">
+                                  <span>命中数</span>
+                                  <strong>{selectedKnowledgeRetrievalTestResult.hitCount}</strong>
+                                </div>
+                                <div className="knowledge-admin-summary-card">
+                                  <span>返回 TopK</span>
+                                  <strong>{selectedKnowledgeRetrievalTestResult.topK}</strong>
+                                </div>
+                                <div className="knowledge-admin-summary-card">
+                                  <span>Embedding 模型</span>
+                                  <strong>{selectedKnowledgeRetrievalTestResult.modelName || "未返回"}</strong>
+                                </div>
+                                <div className="knowledge-admin-summary-card">
+                                  <span>最近问题</span>
+                                  <strong>{selectedKnowledgeRetrievalTestResult.query}</strong>
+                                </div>
+                              </div>
+                              {selectedKnowledgeRetrievalTestResult.hits.length ? (
+                                <div className="admin-rules-stack">
+                                  {selectedKnowledgeRetrievalTestResult.hits.map((hit) => (
+                                    <article className="knowledge-bridge-preview-card" key={hit.chunkId}>
+                                      <strong>
+                                        {hit.fileName} · Chunk #{hit.chunkIndex}
+                                      </strong>
+                                      <span>
+                                        分数 {hit.score.toFixed(4)}
+                                        {hit.sourceLabel ? ` · ${hit.sourceLabel}` : ""}
+                                      </span>
+                                      <pre
+                                        style={{
+                                          margin: 0,
+                                          whiteSpace: "pre-wrap",
+                                          fontFamily: "inherit",
+                                          fontSize: 13,
+                                          lineHeight: 1.6,
+                                        }}
+                                      >
+                                        {hit.content}
+                                      </pre>
+                                    </article>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="personal-meta">
+                                  当前没有命中结果。优先检查检索阈值是否过高、资料是否已生成分片和 embedding。
+                                </p>
+                              )}
+                            </div>
+                          ) : null}
+                        </article>
+                      ) : null}
+                    </div>
                   ) : null}
 
                   {knowledgeWorkspaceSection === "bindings" && selectedKnowledgeBindingCreateDraft ? (
