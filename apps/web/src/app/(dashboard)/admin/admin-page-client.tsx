@@ -857,7 +857,6 @@ export default function AdminPage() {
       setKnowledgeBaseDrafts({});
       setNewKnowledgeBaseFileDrafts({});
       setSelectedKnowledgeBaseId("");
-      setSelectedKnowledgeListFileId("");
       setKnowledgeDataSource("seed");
       knowledgeErrors.push(
         `知识库容器接口失败：${
