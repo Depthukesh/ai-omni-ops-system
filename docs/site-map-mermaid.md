@@ -226,7 +226,7 @@ flowchart LR
     C1 --> C12["先校验文本 provider runtimeKey 与模型白名单"]
     C1 --> C17["严格先跑后台选中的首选模型，再 fallback"]
     C1 --> C21["统一规则：先 Provider、再模型、最后通用 fallback"]
-    C1 --> C22["按 MODULE/brand-growth-workbench 查询知识绑定"]
+    C1 --> C22["按 模块 -> 能力包 -> 技能 继承解析知识绑定"]
     C22 --> C23["企业知识库召回片段 -> 追加到报告输入上下文"]
     C1 --> C18["失败提示显示实际尝试顺序"]
     C2 --> C13["忽略不兼容的图像 provider，回退国内文本 provider"]
@@ -235,6 +235,8 @@ flowchart LR
     C3 --> C20["主路径切到 /half-year-marketing-plan，旧 annual 路径兼容保留"]
     C3 --> C21
     C3 --> C19
+    C3 --> C22
+    C22 --> C23
     C --> C14["本地无 OSS 时回退 .runtime/local-oss，但仍沿用 reports/<brandId>/<fileName>"]
     C --> C15["本地 localhost/127.0.0.1 直连 3011/api，绕开 Next /api rewrite ECONNRESET"]
     C --> C16["线上同域 /api 走 api/[...path]/route.ts，避免 rewrite 502/socket hang up"]
@@ -655,7 +657,7 @@ flowchart TD
     Admin --> AUI7["知识库管理"]
     AUI7 --> AUI71["接入对象 / 绑定关系治理"]
     AUI71 --> AUI711["企业知识库默认绑定品牌增长工作台"]
-    AUI71 --> AUI712["品牌增长报告已开始消费 brand-growth-workbench 绑定"]
+    AUI71 --> AUI712["品牌增长报告 / 半年营销规划已消费 模块+能力包+技能 绑定"]
     Admin --> AUI8["接口供应商（按平台分组）"]
     AUI8 --> AUI81["左侧：平台列表 + 搜索/状态/类型筛选"]
     AUI8 --> AUI82["右侧：平台链接 / 文档 / 模型 ID / 默认模型 / 备注"]

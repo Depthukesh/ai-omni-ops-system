@@ -154,7 +154,7 @@ export type KnowledgeBindingRecord = {
   knowledgeBaseId: string;
   knowledgeBaseName?: string;
   knowledgeBaseSlug?: string;
-  bindingType: "MODULE" | "SKILL_PACKAGE" | "PROMPT" | "WORKFLOW_STEP";
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL" | "PROMPT" | "WORKFLOW_STEP";
   targetId: string;
   targetKey?: string;
   targetName?: string;
@@ -1463,10 +1463,10 @@ export const knowledgeBindingSeed: KnowledgeBindingRecord[] = [
     knowledgeBaseId: "kb_brand_docs",
     knowledgeBaseName: "品牌资料知识库",
     knowledgeBaseSlug: "brand-docs",
-    bindingType: "PROMPT",
-    targetId: "prompt_wechat_article_compose",
-    targetKey: "prompt_wechat_article_compose",
-    targetName: "公众号文章生成提示词",
+    bindingType: "SKILL",
+    targetId: "wechat-article-compose",
+    targetKey: "wechat-article-compose",
+    targetName: "公众号文章生成技能",
     priority: 20,
     retrievalMode: "SEMANTIC",
     isRequired: false,

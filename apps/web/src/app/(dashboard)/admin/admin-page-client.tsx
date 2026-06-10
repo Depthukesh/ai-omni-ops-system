@@ -419,14 +419,17 @@ function getKnowledgeRunResultLabel(result: KnowledgeBaseSyncRunRecord["result"]
 }
 
 function getKnowledgeBindingTypeLabel(bindingType: KnowledgeBindingRecord["bindingType"]) {
+  if (bindingType === "SKILL") {
+    return "技能";
+  }
   if (bindingType === "SKILL_PACKAGE") {
     return "能力包";
   }
   if (bindingType === "PROMPT") {
-    return "提示词";
+    return "旧版提示词";
   }
   if (bindingType === "WORKFLOW_STEP") {
-    return "工作流步骤";
+    return "高级工作流步骤";
   }
   return "模块";
 }
@@ -2175,6 +2178,11 @@ export default function AdminPage() {
         targetKey: item.packageKey,
         targetName: item.packageName,
       })),
+      SKILL: skills.map((item) => ({
+        targetId: item.slug,
+        targetKey: item.slug,
+        targetName: item.name,
+      })),
       PROMPT: prompts.map((item) => ({
         targetId: item.id,
         targetKey: item.id,
@@ -3156,7 +3164,7 @@ export default function AdminPage() {
     { id: "overview", label: "基础信息", description: "查看总览、启停状态和说明。" },
     { id: "files", label: "资料上传", description: "上传资料并触发同步。" },
     { id: "retrieval", label: "检索配置", description: "维护 TopK、召回和重排。" },
-    { id: "bindings", label: "接入对象", description: "绑定模块、能力包和提示词。" },
+    { id: "bindings", label: "接入对象", description: "绑定模块、能力包和技能。" },
     { id: "history", label: "同步记录", description: "回看最近同步状态和摘要。" },
   ];
   const selectedKnowledgeBaseDraft = selectedKnowledgeBase
@@ -3209,11 +3217,19 @@ export default function AdminPage() {
           targetName: item.packageName,
           description: item.description || `作用模块：${item.moduleKeys.join(" / ") || "未设置"}`,
         })),
+      SKILL: skills
+        .filter((item) => item.status !== "DISABLED")
+        .map((item) => ({
+          targetId: item.slug,
+          targetKey: item.slug,
+          targetName: item.name,
+          description: item.description || `分类：${item.category}`,
+        })),
       PROMPT: prompts.map((item) => ({
         targetId: item.id,
         targetKey: item.id,
         targetName: item.name,
-        description: item.scene ? `场景：${item.scene}` : `版本：${item.version}`,
+        description: item.scene ? `旧版提示词 · 场景：${item.scene}` : `旧版提示词 · 版本：${item.version}`,
       })),
       WORKFLOW_STEP: workflowStepOptions,
     };
@@ -3236,7 +3252,7 @@ export default function AdminPage() {
     }
 
     return optionMap;
-  }, [knowledgeBindings, modules, prompts, selectedKnowledgeBindingCreateDraft, skillPackages]);
+  }, [knowledgeBindings, modules, prompts, selectedKnowledgeBindingCreateDraft, skillPackages, skills]);
   const selectedKnowledgeBindingTargetOptions = selectedKnowledgeBindingCreateDraft
     ? knowledgeBindingTargetOptions[selectedKnowledgeBindingCreateDraft.bindingType]
     : [];
@@ -6337,8 +6353,8 @@ export default function AdminPage() {
                         </div>
                         <div className="personal-meta">
                           {selectedKnowledgeIsBrandBridge
-                            ? "企业知识库桥接默认只自动维护“品牌增长工作台”这一条接入对象。前端新增资料不会自动新增接入对象；如需给报告、提示词或其他模块使用，请在这里手动补充。"
-                            : "这里只保留“绑定到谁”的治理能力，你可以为当前知识库继续补充模块、能力包、提示词或工作流步骤。"}
+                            ? "企业知识库桥接默认只自动维护“品牌增长工作台”这一条接入对象。前端新增资料不会自动新增接入对象；如需给其他模块、能力包或技能使用，请在这里手动补充。"
+                            : "这里只保留“绑定到谁”的治理能力，标准绑定层级为模块、能力包和技能；旧版提示词/工作流步骤仅做兼容保留。"}
                         </div>
                         <div className="admin-rule-grid">
                           <label>
@@ -6356,8 +6372,7 @@ export default function AdminPage() {
                             >
                               <option value="MODULE">模块</option>
                               <option value="SKILL_PACKAGE">能力包</option>
-                              <option value="PROMPT">提示词</option>
-                              <option value="WORKFLOW_STEP">工作流步骤</option>
+                              <option value="SKILL">技能</option>
                             </select>
                           </label>
                           <label>
@@ -6598,7 +6613,7 @@ export default function AdminPage() {
                             );
                           })
                         ) : (
-                          <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或提示词。</p>
+                          <p className="personal-meta">暂无绑定关系，先把知识库绑定到模块、能力包或技能。</p>
                         )}
                       </div>
                     </div>

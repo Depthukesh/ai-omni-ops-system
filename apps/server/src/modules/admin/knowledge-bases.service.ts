@@ -810,7 +810,7 @@ export class KnowledgeBasesService {
 
   private validateBindingType(value: string): KnowledgeBindingRecord["bindingType"] {
     const bindingType = String(value || "").trim().toUpperCase();
-    if (!["MODULE", "SKILL_PACKAGE", "PROMPT", "WORKFLOW_STEP"].includes(bindingType)) {
+    if (!["MODULE", "SKILL_PACKAGE", "SKILL", "PROMPT", "WORKFLOW_STEP"].includes(bindingType)) {
       throw new BadRequestException("知识绑定类型不合法");
     }
     return bindingType as KnowledgeBindingRecord["bindingType"];

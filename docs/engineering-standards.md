@@ -233,6 +233,7 @@
 - 一旦某条知识绑定正式进入运行时，必须在代码与文档里同时明确：
 - 生效入口是哪个模块或报告链路
 - 使用的 `bindingType/targetId`
+- 是否按“模块 -> 能力包 -> 技能”做继承解析，以及旧版 `PROMPT / WORKFLOW_STEP` 是继续兼容还是已经停用
 - 是“强依赖失败即阻断”，还是“best-effort 注入失败则降级继续”
 - 已下线的第三方平台不能只从前端下拉或种子常量中删除；若其运行时 Provider / 平台基线已可能进入数据库，必须在服务启动阶段同步清理旧 `ApiProviderConfig`、`ThirdPartyPlatformConfig` 与关联私钥残留，避免后台与个人中心继续展示失效平台
 - 报告类与内容生成类链路在读取技能配置中的 `provider` 时，必须校验该 provider 的 `runtimeKey` 是否与当前生成链路兼容；若技能配置填入了图像/视频等不兼容 provider，不允许直接照用，必须自动回退到正确的文本 runtime

@@ -26,8 +26,8 @@ const DOUYIN_REMIX_COPY_TASK_TIMEOUT_MS = 12 * 60 * 1000;
 const XIAOHONGSHU_MARKETING_CALENDAR_TASK_TIMEOUT_MS = 10 * 60 * 1000;
 const TEXT_MODEL_ATTEMPT_TIMEOUT_MS = 120 * 1000;
 const BRAND_GROWTH_KNOWLEDGE_TARGET_ID = "brand-growth-workbench";
-const GROWTH_REPORT_KNOWLEDGE_BINDING_LIMIT = 3;
-const GROWTH_REPORT_KNOWLEDGE_TOP_K = 4;
+const MODULE_KNOWLEDGE_BINDING_LIMIT = 3;
+const MODULE_KNOWLEDGE_TOP_K = 4;
 const CURRENT_HALF_YEAR_MARKETING_PLAN_ASSET_KIND = "BRAND_HALF_YEAR_MARKETING_PLAN";
 const LEGACY_ANNUAL_MARKETING_PLAN_ASSET_KIND = "BRAND_ANNUAL_MARKETING_PLAN";
 const CURRENT_HALF_YEAR_MARKETING_PLAN_TASK_TYPE = "BRAND_HALF_YEAR_MARKETING_PLAN";
@@ -611,6 +611,13 @@ type ModelGenerationSettings = {
   preferredModelName?: string;
   brandId?: string;
   preferredProviderIds?: string[];
+  knowledgeScope?: {
+    moduleTargetId?: string;
+    skillPackageKey?: string;
+    skillSlug?: string;
+    legacyPromptId?: string;
+    workflowStepId?: string;
+  };
 };
 
 type GrowthReportModelResult = {
@@ -5978,7 +5985,7 @@ export class ReportsService {
       '  "reportMarkdown": "完整的品牌增长报告 Markdown 正文"',
       "}",
     ].join("\n");
-    const knowledgeContext = await this.buildGrowthReportKnowledgeContext(brandId, inputPayload);
+    const knowledgeContext = await this.buildGrowthReportKnowledgeContext(settings, inputPayload);
     const userPrompt = [
       "以下是本次生成品牌增长报告的输入数据，请围绕这些数据输出完整报告。",
       "",
@@ -6036,30 +6043,41 @@ export class ReportsService {
   }
 
   private async buildGrowthReportKnowledgeContext(
-    brandId: string,
+    settings: ModelGenerationSettings,
     inputPayload: Record<string, unknown>,
   ) {
-    const retrievalQuery = this.buildGrowthReportKnowledgeQuery(inputPayload);
+    return this.buildExecutionKnowledgeContext(
+      settings.brandId || "",
+      settings.knowledgeScope,
+      this.buildGrowthReportKnowledgeQuery(inputPayload),
+      "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请优先参考这些内容：",
+    );
+  }
+
+  private async buildAnnualMarketingPlanKnowledgeContext(
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      settings.brandId || "",
+      settings.knowledgeScope,
+      this.buildAnnualMarketingPlanKnowledgeQuery(inputPayload),
+      "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请结合这些内容完善半年营销规划：",
+    );
+  }
+
+  private async buildExecutionKnowledgeContext(
+    brandId: string,
+    scope: ModelGenerationSettings["knowledgeScope"],
+    retrievalQuery: string,
+    leadText: string,
+  ) {
     if (!retrievalQuery) {
       return "";
     }
 
     try {
-      const bindings = await this.knowledgeBasesService.listKnowledgeBindingsByTarget(
-        "MODULE",
-        BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
-        true,
-      );
-      const activeBindings = bindings
-        .filter((item) => item.enabled && item.retrievalMode !== "MANUAL")
-        .sort((left, right) => {
-          if (left.isRequired !== right.isRequired) {
-            return Number(right.isRequired) - Number(left.isRequired);
-          }
-          return right.priority - left.priority;
-        })
-        .slice(0, GROWTH_REPORT_KNOWLEDGE_BINDING_LIMIT);
-
+      const activeBindings = await this.resolveExecutionKnowledgeBindings(scope);
       if (!activeBindings.length) {
         return "";
       }
@@ -6076,15 +6094,80 @@ export class ReportsService {
         return "";
       }
 
-      return [
-        "",
-        "以下是系统按“接入对象 -> 品牌增长工作台”从企业知识库召回的补充上下文，请优先参考这些内容：",
-        "",
-        sections.join("\n\n"),
-      ].join("\n");
+      return ["", leadText, "", sections.join("\n\n")].join("\n");
     } catch {
       return "";
     }
+  }
+
+  private async resolveExecutionKnowledgeBindings(scope: ModelGenerationSettings["knowledgeScope"] = {}) {
+    const candidates = [
+      {
+        bindingType: "WORKFLOW_STEP" as const,
+        targetId: scope.workflowStepId,
+        specificity: 500,
+      },
+      {
+        bindingType: "SKILL" as const,
+        targetId: scope.skillSlug,
+        specificity: 400,
+      },
+      {
+        bindingType: "PROMPT" as const,
+        targetId: scope.legacyPromptId,
+        specificity: 300,
+      },
+      {
+        bindingType: "SKILL_PACKAGE" as const,
+        targetId: scope.skillPackageKey,
+        specificity: 200,
+      },
+      {
+        bindingType: "MODULE" as const,
+        targetId: scope.moduleTargetId,
+        specificity: 100,
+      },
+    ].filter((item) => item.targetId?.trim());
+
+    if (!candidates.length) {
+      return [];
+    }
+
+    const groups = await Promise.all(
+      candidates.map(async (candidate) => {
+        const items = await this.knowledgeBasesService.listKnowledgeBindingsByTarget(
+          candidate.bindingType,
+          candidate.targetId || "",
+          true,
+        );
+        return items.map((item) => ({
+          ...item,
+          specificity: candidate.specificity,
+        }));
+      }),
+    );
+
+    const flattened = groups
+      .flat()
+      .filter((item) => item.enabled && item.retrievalMode !== "MANUAL")
+      .sort((left, right) => {
+        if (left.specificity !== right.specificity) {
+          return right.specificity - left.specificity;
+        }
+        if (left.isRequired !== right.isRequired) {
+          return Number(right.isRequired) - Number(left.isRequired);
+        }
+        return right.priority - left.priority;
+      });
+
+    const deduped = new Map<string, KnowledgeBindingView>();
+    for (const item of flattened) {
+      if (!deduped.has(item.knowledgeBaseId)) {
+        deduped.set(item.knowledgeBaseId, item);
+      }
+    }
+
+    return Array.from(deduped.values()).slice(0, MODULE_KNOWLEDGE_BINDING_LIMIT);
   }
 
   private async buildGrowthReportKnowledgeSection(
@@ -6095,7 +6178,7 @@ export class ReportsService {
     try {
       const retrieval = await this.knowledgeBasesService.runKnowledgeRetrievalTest(binding.knowledgeBaseId, {
         query: retrievalQuery,
-        topK: GROWTH_REPORT_KNOWLEDGE_TOP_K,
+        topK: MODULE_KNOWLEDGE_TOP_K,
       });
       if (!retrieval.hits.length) {
         return binding.isRequired
@@ -6104,7 +6187,7 @@ export class ReportsService {
       }
 
       const hitLines = retrieval.hits
-        .slice(0, GROWTH_REPORT_KNOWLEDGE_TOP_K)
+        .slice(0, MODULE_KNOWLEDGE_TOP_K)
         .map((hit, index) => {
           const content = this.truncateText(String(hit.content || "").replace(/\s+/g, " ").trim(), 320);
           return [
@@ -6155,6 +6238,45 @@ export class ReportsService {
       productNames.length ? `产品：${productNames.join("、")}` : "",
       surveyKeywords.length ? `重点资料：${surveyKeywords.join("；")}` : "",
       "请召回企业知识库中与品牌背景、产品资料、经营现状、客户画像、渠道策略、销售话术相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+  }
+
+  private buildAnnualMarketingPlanKnowledgeQuery(inputPayload: Record<string, unknown>) {
+    const inputScope = this.asRecord(inputPayload.inputScope) || {};
+    const brandArchive = this.asRecord(inputScope.brandArchive) || {};
+    const brandBackground = this.asRecord(brandArchive.background) || {};
+    const growthReport = this.asRecord(inputScope.growthReport) || {};
+    const planningWindow = this.asRecord(inputScope.planningWindow) || {};
+    const products = Array.isArray(brandArchive.products) ? brandArchive.products : [];
+    const businessAssets = Array.isArray(brandArchive.businessAssets) ? brandArchive.businessAssets : [];
+
+    const brandName = this.readFirstAvailableText(brandBackground, [
+      "brandName",
+      "name",
+      "companyName",
+      "enterpriseName",
+    ]);
+    const planningLabel = this.readFirstAvailableText(planningWindow, ["label"]);
+    const reportTitle = this.readFirstAvailableText(growthReport, ["title", "summary"]);
+    const productNames = products
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["productName", "name", "title"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 5);
+    const assetTitles = businessAssets
+      .map((item) => this.readFirstAvailableText(this.asRecord(item), ["title", "description", "sourceName"]))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 4);
+
+    return [
+      "半年营销规划",
+      brandName ? `品牌：${brandName}` : "",
+      planningLabel ? `规划周期：${planningLabel}` : "",
+      reportTitle ? `参考报告：${reportTitle}` : "",
+      productNames.length ? `产品：${productNames.join("、")}` : "",
+      assetTitles.length ? `企业知识库重点资料：${assetTitles.join("；")}` : "",
+      "请召回企业知识库中与品牌定位、产品策略、经营现状、渠道节奏、销售话术、活动策划相关的内容",
     ]
       .filter((item) => item.trim())
       .join("；");
@@ -6283,7 +6405,8 @@ export class ReportsService {
       `planningYear 字段填写 "${planningWindow.label}"，不要写全年。`,
       `items 至少 12 条，每条包含 month、node、date、type、marketingTheme、platforms、strategy、products，且月份只能来自：${planningWindow.monthLabels.join("、")}。`,
     ].join("\n");
-    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildAnnualMarketingPlanKnowledgeContext(settings, inputPayload);
+    const userPrompt = ["以下是输入数据：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -9455,6 +9578,12 @@ ${normalizedMarkdown}`;
       preferredModelName,
       brandId,
       preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        skillPackageKey: "brand-growth-analysis",
+        skillSlug: "brand-omni-growth-analysis",
+        legacyPromptId: "prompt_growth_report",
+      },
     };
   }
 
@@ -9521,6 +9650,12 @@ ${normalizedMarkdown}`;
       preferredModelName,
       brandId,
       preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: BRAND_GROWTH_KNOWLEDGE_TARGET_ID,
+        skillPackageKey: "enterprise-annual-plan",
+        skillSlug: "enterprise-annual-plan",
+        legacyPromptId: "prompt_annual_marketing_plan",
+      },
     };
   }
 

@@ -96,7 +96,7 @@
 ## 近期重点变更
 
 - `docs/changes/2026-06-10-knowledge-binding-runtime-and-docs-sync.md`
-  - 品牌增长报告开始按“接入对象 -> 品牌增长工作台”读取知识绑定并追加企业知识库召回片段；同时补更新 `docs/README.md`、工程规范、网站地图和相关方案文档，明确知识库治理层与运行时生效边界
+  - 品牌增长报告与半年营销规划开始按“模块 -> 能力包 -> 技能”继承解析知识绑定并追加企业知识库召回片段；同时补更新 `docs/README.md`、工程规范、网站地图和相关方案文档，明确知识库治理层与运行时生效边界
 - `docs/changes/2026-06-09-knowledge-bridge-and-admin-simplify.md`
   - 企业知识库保存后会自动桥接到品牌企业知识库，后台知识库管理页同步改成左侧菜单 + 右侧内容的简化布局
 - `docs/changes/2026-06-09-knowledge-retrieval-configs-first-pass.md`
