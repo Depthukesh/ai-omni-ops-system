@@ -31,6 +31,15 @@ export class KnowledgeBaseFilesController {
     return this.knowledgeBasesService.listKnowledgeFileChunks(id);
   }
 
+  @Get(":id/embeddings")
+  async listKnowledgeBaseFileEmbeddings(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.knowledgeBasesService.listKnowledgeFileEmbeddings(id);
+  }
+
   @Patch(":id")
   async updateKnowledgeBaseFile(
     @Param("id") id: string,

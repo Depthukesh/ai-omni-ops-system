@@ -935,6 +935,7 @@ model KnowledgeBase {
 
   files         KnowledgeBaseFile[]
   chunks        KnowledgeChunk[]
+  embeddings    KnowledgeEmbedding[]
   bindings      KnowledgeBinding[]
   retrievalConfig KnowledgeRetrievalConfig?
   skillPackageKnowledgeSpaces SkillPackageKnowledgeSpace[]
@@ -975,6 +976,7 @@ model KnowledgeBaseFile {
 
   knowledgeBase   KnowledgeBase            @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
   chunks          KnowledgeChunk[]
+  embeddings      KnowledgeEmbedding[]
   syncRuns        KnowledgeBaseSyncRun[]   @relation("KnowledgeBaseFileSyncRuns")
 
   @@index([knowledgeBaseId, uploadedAt])
@@ -997,10 +999,31 @@ model KnowledgeChunk {
 
   knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
   file            KnowledgeBaseFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  embeddings      KnowledgeEmbedding[]
 
   @@unique([fileId, chunkIndex])
   @@index([knowledgeBaseId, fileId, chunkIndex])
   @@index([knowledgeBaseId, createdAt])
+}
+
+model KnowledgeEmbedding {
+  id              String        @id
+  knowledgeBaseId String
+  fileId          String
+  chunkId         String
+  modelName       String
+  providerName    String
+  dimensions      Int
+  embeddingJson   Json
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  file            KnowledgeBaseFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  chunk           KnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([chunkId, modelName])
+  @@index([knowledgeBaseId, fileId, createdAt])
 }
 
 model KnowledgeBaseSyncRun {

@@ -1,12 +1,13 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import {
   KnowledgeBase,
   KnowledgeBaseFile,
   KnowledgeBaseSyncRun,
   KnowledgeBinding,
   KnowledgeChunk,
+  KnowledgeEmbedding,
   KnowledgeRetrievalConfig,
   Prisma,
 } from "@prisma/client";
@@ -20,6 +21,7 @@ import {
 } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
+import { ApiProvidersService } from "./api-providers.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
 export type CreateKnowledgeBasePayload = {
@@ -77,6 +79,18 @@ export type KnowledgeChunkRecord = {
   tokenCount: number;
   charCount: number;
   sourceLabel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeEmbeddingRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  chunkId: string;
+  modelName: string;
+  providerName: string;
+  dimensions: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -150,6 +164,16 @@ type PersistedKnowledgeChunkInput = {
   metadataJson?: Prisma.InputJsonValue;
 };
 
+type EmbeddingProviderConfig = {
+  providerId: string;
+  providerName: string;
+  baseUrl: string;
+  embeddingPath: string;
+  modelName: string;
+  dimensions: number;
+  timeoutMs: number;
+};
+
 @Injectable()
 export class KnowledgeBasesService {
   private bootstrapPromise?: Promise<void>;
@@ -159,6 +183,7 @@ export class KnowledgeBasesService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly ossStorageService: OssStorageService,
+    private readonly apiProvidersService: ApiProvidersService,
     private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
   ) {}
 
@@ -392,6 +417,20 @@ export class KnowledgeBasesService {
     };
   }
 
+  private normalizeKnowledgeEmbedding(row: KnowledgeEmbedding): KnowledgeEmbeddingRecord {
+    return {
+      id: row.id,
+      knowledgeBaseId: row.knowledgeBaseId,
+      fileId: row.fileId,
+      chunkId: row.chunkId,
+      modelName: row.modelName,
+      providerName: row.providerName,
+      dimensions: row.dimensions,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
   private normalizeKnowledgeBaseSyncRun(row: KnowledgeBaseSyncRun): KnowledgeBaseSyncRunRecord {
     return {
       id: row.id,
@@ -474,7 +513,7 @@ export class KnowledgeBasesService {
     };
   }
 
-  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc" | "kbc") {
+  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc" | "kbc" | "kbe") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -1116,6 +1155,195 @@ export class KnowledgeBasesService {
     return "当前缺少品牌上下文，暂不能读取共享 API Key";
   }
 
+  private normalizeApiKeyForHeader(apiKey: string) {
+    return String(apiKey || "").trim().replace(/^Bearer\s+/i, "");
+  }
+
+  private async readResponseSnippet(response: Response) {
+    try {
+      const text = (await response.text()).trim();
+      if (!text) {
+        return "";
+      }
+      return text.length > 180 ? `${text.slice(0, 180)}...` : text;
+    } catch {
+      return "";
+    }
+  }
+
+  private describeFetchError(error: unknown, requestLabel: string) {
+    if (error instanceof ServiceUnavailableException) {
+      return error;
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      return new ServiceUnavailableException(`${requestLabel} 超时`);
+    }
+    const message = error instanceof Error ? error.message : "";
+    return new ServiceUnavailableException(
+      `${requestLabel} 网络请求失败${message && message !== "fetch failed" ? `：${message}` : ""}`,
+    );
+  }
+
+  private async requestAuthorizedJson(
+    baseUrl: string,
+    requestPath: string,
+    apiKey: string,
+    body: Record<string, unknown>,
+    timeoutMs: number,
+  ) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${baseUrl}${requestPath}`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.normalizeApiKeyForHeader(apiKey)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const snippet = await this.readResponseSnippet(response);
+        throw new ServiceUnavailableException(
+          `POST ${requestPath} 失败：${response.status}${snippet ? `，${snippet}` : ""}`,
+        );
+      }
+      return await response.json() as Record<string, unknown>;
+    } catch (error) {
+      throw this.describeFetchError(error, `POST ${baseUrl}${requestPath}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private parseEmbeddingNumbers(value: unknown): number[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item));
+  }
+
+  private resolveEmbeddingVector(payload: Record<string, unknown>) {
+    const data = payload.data;
+    if (Array.isArray(data) && data.length) {
+      const first = data[0];
+      if (first && typeof first === "object") {
+        const embedding = this.parseEmbeddingNumbers((first as Record<string, unknown>).embedding);
+        if (embedding.length) {
+          return embedding;
+        }
+      }
+    }
+    if (data && typeof data === "object") {
+      const embedding = this.parseEmbeddingNumbers((data as Record<string, unknown>).embedding);
+      if (embedding.length) {
+        return embedding;
+      }
+    }
+    return this.parseEmbeddingNumbers(payload.embedding);
+  }
+
+  private async resolveEmbeddingProviderConfig() {
+    const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("embedding-multimodal");
+    const provider = providers.find((item) => item.defaultModel === "doubao-embedding-vision-250615")
+      || providers.find((item) => item.modelWhitelist.includes("doubao-embedding-vision-250615"))
+      || providers[0];
+    if (!provider) {
+      throw new ServiceUnavailableException("未找到可用的 embedding 供应商配置");
+    }
+    const baseUrl = this.apiProvidersService.getBaseUrls(provider)[0] || provider.baseUrl;
+    if (!baseUrl) {
+      throw new ServiceUnavailableException("embedding 供应商未配置 baseUrl");
+    }
+    const embeddingPath = this.apiProvidersService.getStringExtra(provider, "embeddingPath") || "/embeddings/multimodal";
+    const dimensions = Math.max(256, this.apiProvidersService.getNumberExtra(provider, "dimensions") || 1024);
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      baseUrl,
+      embeddingPath,
+      modelName: provider.defaultModel || provider.modelWhitelist[0] || "doubao-embedding-vision-250615",
+      dimensions,
+      timeoutMs: provider.timeoutMs || 60000,
+    } satisfies EmbeddingProviderConfig;
+  }
+
+  private async resolveKnowledgeBaseEmbeddingApiKey(knowledgeBaseId: string, provider: EmbeddingProviderConfig) {
+    const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
+    if (!brandId) {
+      return "";
+    }
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [provider.baseUrl]);
+    if (resolution.status !== "resolved") {
+      return "";
+    }
+    return String(resolution.apiKeys[0] || "").trim();
+  }
+
+  private async replaceKnowledgeChunkEmbeddingsInDatabase(
+    file: KnowledgeBaseFileRecord,
+    provider: EmbeddingProviderConfig,
+    apiKey: string,
+  ) {
+    const chunks = await this.prismaService.knowledgeChunk.findMany({
+      where: { fileId: file.id },
+      orderBy: { chunkIndex: "asc" },
+    });
+    await this.prismaService.knowledgeEmbedding.deleteMany({
+      where: {
+        fileId: file.id,
+        modelName: provider.modelName,
+      },
+    });
+    if (!chunks.length || !apiKey) {
+      return 0;
+    }
+    let createdCount = 0;
+    for (const chunk of chunks) {
+      const payload = await this.requestAuthorizedJson(
+        provider.baseUrl,
+        provider.embeddingPath,
+        apiKey,
+        {
+          model: provider.modelName,
+          encoding_format: "float",
+          dimensions: provider.dimensions,
+          input: [
+            {
+              type: "text",
+              text: chunk.content,
+            },
+          ],
+        },
+        provider.timeoutMs,
+      );
+      const embedding = this.resolveEmbeddingVector(payload);
+      if (!embedding.length) {
+        continue;
+      }
+      await this.prismaService.knowledgeEmbedding.create({
+        data: {
+          id: this.createId("kbe"),
+          knowledgeBaseId: file.knowledgeBaseId,
+          fileId: file.id,
+          chunkId: chunk.id,
+          modelName: provider.modelName,
+          providerName: provider.providerName,
+          dimensions: embedding.length,
+          embeddingJson: embedding as unknown as Prisma.InputJsonValue,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      createdCount += 1;
+    }
+    return createdCount;
+  }
+
   private async replaceKnowledgeBaseFileChunksInDatabase(
     file: KnowledgeBaseFileRecord,
     chunks: PersistedKnowledgeChunkInput[],
@@ -1164,7 +1392,18 @@ export class KnowledgeBasesService {
       }),
     );
     await this.replaceKnowledgeBaseFileChunksInDatabase(file, chunks);
-    const providerStatus = await this.buildKnowledgeBaseProviderStatus(file.knowledgeBaseId);
+    let providerStatus = await this.buildKnowledgeBaseProviderStatus(file.knowledgeBaseId);
+    try {
+      const provider = await this.resolveEmbeddingProviderConfig();
+      const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(file.knowledgeBaseId, provider);
+      const embeddingCount = await this.replaceKnowledgeChunkEmbeddingsInDatabase(file, provider, apiKey);
+      if (apiKey) {
+        providerStatus = `${providerStatus}，已生成 ${embeddingCount} 条 embedding`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "embedding 写入失败";
+      providerStatus = `${providerStatus}，embedding 暂未落库：${message}`;
+    }
     return {
       chunkCount: chunks.length,
       summary: this.buildFileSyncSummary(file, chunks.length, extracted, providerStatus),
@@ -1285,6 +1524,19 @@ export class KnowledgeBasesService {
         orderBy: { chunkIndex: "asc" },
       });
       return rows.map((item) => this.normalizeKnowledgeChunk(item));
+    }
+    return [];
+  }
+
+  async listKnowledgeFileEmbeddings(fileId: string): Promise<KnowledgeEmbeddingRecord[]> {
+    if (await this.canUseKnowledgeBaseStorage()) {
+      await this.ensureKnowledgeBaseStorageSeeded();
+      await this.getKnowledgeBaseFileOrThrow(fileId);
+      const rows = await this.prismaService.knowledgeEmbedding.findMany({
+        where: { fileId },
+        orderBy: [{ createdAt: "desc" }],
+      });
+      return rows.map((item) => this.normalizeKnowledgeEmbedding(item));
     }
     return [];
   }

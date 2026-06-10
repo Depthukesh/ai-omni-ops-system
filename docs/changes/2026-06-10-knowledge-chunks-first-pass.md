@@ -1,4 +1,4 @@
-# 2026-06-10 知识库真实切片入库第一版
+# 2026-06-10 知识库真实切片与 embedding 入库第一版
 
 ## 本次变更
 
@@ -6,6 +6,8 @@
 - 后台知识库文件同步从“最小估算骨架”升级为“正文提取 -> 切片 -> 落库 -> 回写 chunkCount”。
 - 新增文件切片查看接口：
   - `GET /admin/knowledge-base-files/:id/chunks`
+- 新增文件 embedding 查看接口：
+  - `GET /admin/knowledge-base-files/:id/embeddings`
 - 知识库同步时会自动判断当前知识库是否来自品牌 `企业知识库` 桥接容器：
   - 如果是，则根据 `knowledgeBaseId` 反推出 `brandId`
   - 再去品牌资产 OSS 路径读取原始文件
@@ -22,17 +24,20 @@
 - 当前会按知识库所属品牌去解析火山方舟平台的共享 Key，并在同步结果摘要中提示：
   - 已识别品牌共享 Key，可继续接入 embedding
   - 或当前品牌尚未配置共享 Key
-- 本轮还没有真正发起 embedding 请求，重点先放在“真实正文切片落库”。
+- 本轮已接入火山方舟 `doubao-embedding-vision-250615`：
+  - 同步完成 chunk 后，会自动尝试生成文本 embedding
+  - 当前向量先写入 `KnowledgeEmbedding.embeddingJson`
+  - 本轮先不引入 `pgvector`，以便快速打通品牌共享 Key -> embedding -> 入库链路
 
 ## 当前范围
 
 - 已打通：原文件 -> 正文/元数据 -> chunk 表
 - 已打通：品牌上下文 -> 火山方舟共享 Key 识别
-- 未打通：chunk -> embedding -> 向量检索 -> RAG 问答
+- 已打通：chunk -> 火山方舟 embedding -> embedding 表
+- 未打通：向量检索 -> RAG 问答
 
 ## 下一步建议
 
-- 新增 `KnowledgeEmbedding` 表
-- 调用火山方舟 `doubao-embedding-vision-250615`
-- 将 chunk 向量化并持久化
+- 为 embedding 增加批处理、重试与限流
+- 评估切到 `pgvector` 或独立向量库
 - 增加检索测试接口与引用返回
