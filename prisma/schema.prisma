@@ -1047,6 +1047,27 @@ model KnowledgeBaseSyncRun {
   @@index([fileId, startedAt])
 }
 
+model KnowledgeInvocationRun {
+  id                           String   @id
+  brandId                      String?
+  sourceModule                 String
+  sceneLabel                   String
+  moduleTargetId               String?
+  skillPackageKey              String?
+  skillSlug                    String?
+  knowledgeBaseIdsJson         Json
+  knowledgeBaseNamesJson       Json
+  matchedKnowledgeBaseIdsJson  Json
+  matchedKnowledgeBaseNamesJson Json
+  retrievalQuery               String?
+  hitCount                     Int      @default(0)
+  status                       String
+  summary                      String
+  createdAt                    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model KnowledgeBinding {
   id              String        @id
   knowledgeBaseId String
