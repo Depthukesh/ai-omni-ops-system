@@ -3226,6 +3226,16 @@ export default function AdminPage() {
   const selectedKnowledgeLatestSyncRun = selectedKnowledgeSyncRuns[0];
   const selectedKnowledgeHasRunningSyncRun = selectedKnowledgeSyncRuns.some((run) => run.result === "RUNNING");
   const selectedKnowledgeIsBrandBridge = isBrandBridgeKnowledgeBase(selectedKnowledgeBase);
+  const selectedKnowledgeIndexedFileCount = selectedKnowledgeFiles.filter((file) => file.status === "INDEXED").length;
+  const selectedKnowledgePendingFileCount = selectedKnowledgeFiles.filter((file) => file.status !== "INDEXED").length;
+  const selectedKnowledgeThresholdHint =
+    selectedKnowledgeRetrievalConfig?.retrievalThreshold == null
+      ? "当前未设置阈值，系统会按默认召回规则返回结果。"
+      : selectedKnowledgeRetrievalConfig.retrievalThreshold >= 0.7
+        ? "当前阈值偏高，更适合高精度知识库；短资料库可能出现 0 命中。"
+        : selectedKnowledgeRetrievalConfig.retrievalThreshold >= 0.55
+          ? "当前阈值中等，适合常规企业资料库。"
+          : "当前阈值偏低，命中会更宽松，适合联调验证与小样本资料库。";
   const selectedKnowledgePreviewFiles = [...selectedKnowledgeFiles]
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
     .slice(0, 4);
@@ -3240,6 +3250,49 @@ export default function AdminPage() {
   const selectedKnowledgeRetrievalTestResult = selectedKnowledgeBase
     ? knowledgeRetrievalTestResults[selectedKnowledgeBase.id]
     : undefined;
+  const selectedKnowledgeRetrievalSuggestions = useMemo(() => {
+    const suggestions: string[] = [];
+    if (!selectedKnowledgeFiles.length) {
+      suggestions.push("当前知识库还没有资料，先去“资料上传”新增文档，或从前端企业知识库桥接资料。");
+      return suggestions;
+    }
+    if (selectedKnowledgeBase.chunkCount <= 0) {
+      suggestions.push("当前还没有生成分片，先执行一次全量同步，再查看分片和 embedding 明细。");
+    }
+    if (!selectedKnowledgeIndexedFileCount) {
+      suggestions.push("当前资料都还未入库，请先把资料同步到 INDEXED 状态。");
+    }
+    if (selectedKnowledgePendingFileCount > 0) {
+      suggestions.push(`还有 ${selectedKnowledgePendingFileCount} 份资料未完成入库，检索结果可能不完整。`);
+    }
+    if (!selectedKnowledgeRetrievalTestResult) {
+      suggestions.push("先运行一次检索测试，系统会根据命中情况给出更具体建议。");
+      return suggestions;
+    }
+    if (!selectedKnowledgeRetrievalTestResult.hitCount) {
+      if ((selectedKnowledgeRetrievalConfig?.retrievalThreshold ?? 0.65) >= 0.65) {
+        suggestions.push("当前命中为 0，优先把检索阈值临时降到 0.4-0.55 再复测。");
+      }
+      suggestions.push("如果降低阈值后仍然 0 命中，去“资料上传”里展开文件，确认是否已经生成分片和 embedding。");
+      suggestions.push("测试问题尽量包含资料中的原词，例如产品名、渠道名、品牌名，便于联调验证。");
+      return suggestions;
+    }
+    suggestions.push(`本次已命中 ${selectedKnowledgeRetrievalTestResult.hitCount} 条结果，可以继续微调阈值和 TopK 观察召回变化。`);
+    if ((selectedKnowledgeRetrievalConfig?.retrievalThreshold ?? 0) < 0.45) {
+      suggestions.push("当前阈值较低，联调通过后建议回调到 0.55 以上，减少低质量召回。");
+    }
+    if (selectedKnowledgeRetrievalTestResult.hitCount < selectedKnowledgeRetrievalTestResult.topK) {
+      suggestions.push("当前返回结果少于 TopK，说明可召回内容有限，后续可以补充更多资料或重新切片。");
+    }
+    return suggestions;
+  }, [
+    selectedKnowledgeBase.chunkCount,
+    selectedKnowledgeFiles.length,
+    selectedKnowledgeIndexedFileCount,
+    selectedKnowledgePendingFileCount,
+    selectedKnowledgeRetrievalConfig?.retrievalThreshold,
+    selectedKnowledgeRetrievalTestResult,
+  ]);
 
   useEffect(() => {
     const nextPrimary = filteredSkillTree[0];
@@ -5955,7 +6008,6 @@ export default function AdminPage() {
                                   rerankModelName: event.target.value,
                                 })
                               }
-                            }
                             />
                           </label>
                           <label>
@@ -6053,7 +6105,16 @@ export default function AdminPage() {
                               <span>当前默认阈值</span>
                               <strong>{selectedKnowledgeRetrievalConfig.retrievalThreshold ?? "未设置"}</strong>
                             </div>
+                            <div className="knowledge-admin-summary-card">
+                              <span>召回方式</span>
+                              <strong>{getKnowledgeRetrievalModeLabel(selectedKnowledgeRetrievalDraft.recallMode)}</strong>
+                            </div>
+                            <div className="knowledge-admin-summary-card">
+                              <span>已入库资料</span>
+                              <strong>{selectedKnowledgeIndexedFileCount} / {selectedKnowledgeFiles.length}</strong>
+                            </div>
                           </div>
+                          <p className="personal-meta">{selectedKnowledgeThresholdHint}</p>
                           <div className="personal-actions">
                             <span className="personal-meta">
                               当前资料 {selectedKnowledgeFiles.length} 份，累计分片 {selectedKnowledgeBase.chunkCount}
@@ -6119,6 +6180,19 @@ export default function AdminPage() {
                               )}
                             </div>
                           ) : null}
+                          <article className="entity-card admin-rule-card" style={{ marginTop: 12 }}>
+                            <div className="panel-header">
+                              <h2>联调建议</h2>
+                              <span>根据当前知识库状态自动提示</span>
+                            </div>
+                            <div className="admin-rules-stack">
+                              {selectedKnowledgeRetrievalSuggestions.map((item) => (
+                                <p className="personal-meta" key={item}>
+                                  {item}
+                                </p>
+                              ))}
+                            </div>
+                          </article>
                         </article>
                       ) : null}
                     </div>
