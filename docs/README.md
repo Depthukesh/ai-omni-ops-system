@@ -104,7 +104,7 @@
 - `docs/changes/2026-06-09-knowledge-base-bindings-and-sync-skeleton.md`
   - 知识库后台页已补齐绑定关系列表/创建/编辑/删除，并把文件同步与全量同步从“只创建运行中记录”推进为可自动产出最小分片数和执行摘要的 ingestion 骨架
 - `docs/changes/2026-06-10-knowledge-binding-runtime-and-docs-sync.md`
-  - 知识绑定运行时已扩到品牌增长报告、营销策划、抖音热点找选题，以及公众号工作流的文章生成 / 配图生成 / HTML 渲染三段，顶层文档同步标注治理层与运行时边界
+  - 知识绑定运行时已扩到品牌增长报告、营销策划、抖音热点找选题、公众号工作流的文章生成 / 配图生成 / HTML 渲染，以及小红书原创 / 二创文案与配图提示、小红书视频笔记文案 / 提示词 / 故事板、抖音视频阶段技能；顶层文档同步标注治理层与运行时边界
 - `docs/changes/2026-06-08-wechat-channel-publisher-poc.md`
   - 新增视频号独立插件 PoC 骨架，包括扩展目录、帮助页与最小探测能力，当前只用于验证网页端是否可被扩展接管
 - `docs/changes/2026-06-08-wechat-channel-minimum-validation-plan.md`

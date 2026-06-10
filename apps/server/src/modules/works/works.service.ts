@@ -7702,7 +7702,8 @@ export class WorksService {
       '  "hashtags": ["标签1", "标签2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次原创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildXiaohongshuOriginalCopyKnowledgeContext(params);
+    const userPrompt = ["以下是本次原创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -7858,7 +7859,8 @@ export class WorksService {
       '  "image_prompts": ["配图提示词1", "配图提示词2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次原创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildXiaohongshuOriginalImageKnowledgeContext(params);
+    const userPrompt = ["以下是本次原创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -9902,7 +9904,7 @@ export class WorksService {
       return "";
     }
 
-    return this.buildWechatScopedKnowledgeContext({
+    return this.buildWorksScopedKnowledgeContext({
       scope: {
         moduleTargetId: "wechat-workbench",
         skillPackageKey: "wechat-article-generator",
@@ -9944,7 +9946,7 @@ export class WorksService {
       return "";
     }
 
-    return this.buildWechatScopedKnowledgeContext({
+    return this.buildWorksScopedKnowledgeContext({
       scope: {
         moduleTargetId: "wechat-workbench",
         skillPackageKey: "wechat-html-renderer",
@@ -9993,7 +9995,7 @@ export class WorksService {
       return "";
     }
 
-    return this.buildWechatScopedKnowledgeContext({
+    return this.buildWorksScopedKnowledgeContext({
       scope: {
         moduleTargetId: "wechat-workbench",
         skillPackageKey: "wechat-image-designer",
@@ -10008,7 +10010,294 @@ export class WorksService {
     });
   }
 
-  private async buildWechatScopedKnowledgeContext(params: {
+  private buildWorksKnowledgeQuery(parts: Array<string | undefined | null | false>) {
+    return parts
+      .map((item) => String(item || "").trim())
+      .filter((item) => item.length > 0)
+      .join("；");
+  }
+
+  private async buildXiaohongshuOriginalCopyKnowledgeContext(params: {
+    marketingPlanMarkdown: string;
+    accountRole: OriginalAccountRole;
+    selectedCalendarItem?: {
+      topicName: string;
+      topicContent?: string;
+      contentGoal?: string;
+      targetAudience?: string;
+      expressionFocus?: string;
+    };
+    customTopicName?: string;
+    product?: {
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+    };
+    additionalInstruction?: string;
+  }) {
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      "小红书原创笔记文案",
+      `账号角色：${this.getOriginalAccountRoleLabel(params.accountRole)}`,
+      params.selectedCalendarItem?.topicName ? `选题：${params.selectedCalendarItem.topicName}` : "",
+      params.customTopicName ? `自定义选题：${params.customTopicName}` : "",
+      params.selectedCalendarItem?.contentGoal ? `内容目标：${params.selectedCalendarItem.contentGoal}` : "",
+      params.selectedCalendarItem?.targetAudience ? `目标人群：${params.selectedCalendarItem.targetAudience}` : "",
+      params.selectedCalendarItem?.expressionFocus ? `表达重点：${params.selectedCalendarItem.expressionFocus}` : "",
+      params.product?.productName ? `产品：${params.product.productName}` : "",
+      params.product?.usageScenario ? `使用场景：${params.product.usageScenario}` : "",
+      params.product?.differentiators ? `产品差异点：${this.truncateText(params.product.differentiators, 100)}` : "",
+      params.additionalInstruction ? `补充要求：${this.truncateText(params.additionalInstruction, 120)}` : "",
+      params.marketingPlanMarkdown ? `营销规划摘要：${this.truncateText(params.marketingPlanMarkdown, 160)}` : "",
+      "请召回企业知识库中与品牌定位、产品卖点、用户痛点、内容口吻、种草场景和营销节点相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "xiaohongshu-workbench",
+        skillPackageKey: "xiaohongshu-content-original",
+        skillSlug: "original_copy",
+        legacyPromptId: "prompt_xhs_original_copy",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书原创文案创作：",
+    });
+  }
+
+  private async buildXiaohongshuOriginalImageKnowledgeContext(params: {
+    accountRole: OriginalAccountRole;
+    selectedCalendarItem?: {
+      topicName: string;
+      topicContent?: string;
+      contentGoal?: string;
+      targetAudience?: string;
+      expressionFocus?: string;
+    };
+    customTopicName?: string;
+    product?: {
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+    };
+    noteTitle: string;
+    noteContent: string;
+    additionalInstruction?: string;
+  }) {
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      "小红书原创笔记配图提示词",
+      `账号角色：${this.getOriginalAccountRoleLabel(params.accountRole)}`,
+      params.noteTitle ? `标题：${params.noteTitle}` : "",
+      params.noteContent ? `正文概要：${this.truncateText(params.noteContent, 160)}` : "",
+      params.selectedCalendarItem?.topicName ? `选题：${params.selectedCalendarItem.topicName}` : "",
+      params.customTopicName ? `自定义选题：${params.customTopicName}` : "",
+      params.product?.productName ? `产品：${params.product.productName}` : "",
+      params.product?.usageScenario ? `使用场景：${params.product.usageScenario}` : "",
+      params.additionalInstruction ? `补充要求：${this.truncateText(params.additionalInstruction, 120)}` : "",
+      "请召回企业知识库中与品牌视觉风格、主视觉禁忌、产品卖点呈现、人物出镜关系和封面标题风格相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "xiaohongshu-workbench",
+        skillPackageKey: "xiaohongshu-content-original",
+        skillSlug: "xhs-original-image-prompt",
+        legacyPromptId: "prompt_xhs_original_note",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到小红书原创配图提示词中：",
+      hitMaxLength: 140,
+    });
+  }
+
+  private async buildXiaohongshuRewriteCopyKnowledgeContext(params: {
+    accountRole: OriginalAccountRole;
+    sourceMaterial: {
+      title: string;
+      description?: string;
+      noteType?: string;
+      nickname?: string;
+    };
+    topicContext?: {
+      topicName: string;
+      contentGoal: string;
+      expressionFocus: string;
+    };
+    product?: {
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+    };
+    additionalInstruction?: string;
+    marketingPlanMarkdown: string;
+  }) {
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      "小红书二创笔记文案",
+      `账号角色：${this.getOriginalAccountRoleLabel(params.accountRole)}`,
+      params.sourceMaterial.title ? `对标素材标题：${params.sourceMaterial.title}` : "",
+      params.sourceMaterial.description ? `对标素材概要：${this.truncateText(params.sourceMaterial.description, 140)}` : "",
+      params.sourceMaterial.nickname ? `来源账号：${params.sourceMaterial.nickname}` : "",
+      params.topicContext?.topicName ? `二创选题：${params.topicContext.topicName}` : "",
+      params.topicContext?.contentGoal ? `内容目标：${params.topicContext.contentGoal}` : "",
+      params.topicContext?.expressionFocus ? `表达重点：${params.topicContext.expressionFocus}` : "",
+      params.product?.productName ? `产品：${params.product.productName}` : "",
+      params.product?.usageScenario ? `使用场景：${params.product.usageScenario}` : "",
+      params.additionalInstruction ? `补充要求：${this.truncateText(params.additionalInstruction, 120)}` : "",
+      params.marketingPlanMarkdown ? `营销规划摘要：${this.truncateText(params.marketingPlanMarkdown, 160)}` : "",
+      "请召回企业知识库中与品牌调性、产品卖点、用户洞察、二创改写边界和内容口吻相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "xiaohongshu-workbench",
+        skillPackageKey: "xiaohongshu-content-rewrite",
+        skillSlug: "rewrite_copy",
+        legacyPromptId: "prompt_xhs_rewrite_copy",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成小红书二创文案创作：",
+    });
+  }
+
+  private async buildXiaohongshuRewriteImageKnowledgeContext(params: {
+    accountRole: OriginalAccountRole;
+    sourceMaterial: {
+      title: string;
+      description?: string;
+      noteType?: string;
+      nickname?: string;
+    };
+    topicContext?: {
+      topicName: string;
+      contentGoal: string;
+      expressionFocus: string;
+    };
+    product?: {
+      productName: string;
+      detailDescription: string;
+      usageScenario: string;
+      targetAudience: string;
+      differentiators: string;
+    };
+    noteTitle: string;
+    noteContent: string;
+    additionalInstruction?: string;
+  }) {
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      "小红书二创笔记配图提示词",
+      `账号角色：${this.getOriginalAccountRoleLabel(params.accountRole)}`,
+      params.sourceMaterial.title ? `对标素材标题：${params.sourceMaterial.title}` : "",
+      params.topicContext?.topicName ? `二创选题：${params.topicContext.topicName}` : "",
+      params.noteTitle ? `标题：${params.noteTitle}` : "",
+      params.noteContent ? `正文概要：${this.truncateText(params.noteContent, 160)}` : "",
+      params.product?.productName ? `产品：${params.product.productName}` : "",
+      params.product?.usageScenario ? `使用场景：${params.product.usageScenario}` : "",
+      params.additionalInstruction ? `补充要求：${this.truncateText(params.additionalInstruction, 120)}` : "",
+      "请召回企业知识库中与品牌视觉风格、人物关系、画面禁忌、产品植入方式和封面标题风格相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "xiaohongshu-workbench",
+        skillPackageKey: "xiaohongshu-content-rewrite",
+        skillSlug: "rewrite_image",
+        legacyPromptId: "prompt_xhs_rewrite_note",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到小红书二创配图提示词中：",
+      hitMaxLength: 140,
+    });
+  }
+
+  private resolveWorksVideoKnowledgeScope(kind: VideoWorkKind, legacyPromptId: string) {
+    if (kind === "DOUYIN_VIDEO_NOTE") {
+      return {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "tongcheng-brand-douyin-planning",
+        skillSlug: "douyin-video-storyboard-studio",
+        legacyPromptId,
+      };
+    }
+    if (kind === "DOUYIN_DIRECT_VIDEO") {
+      return {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "douyin-video-production",
+        skillSlug: "douyin-direct-video-studio",
+        legacyPromptId,
+      };
+    }
+    return {
+      moduleTargetId: "xiaohongshu-workbench",
+      skillPackageKey: "xiaohongshu-video-production",
+      skillSlug: "short-video-api-studio",
+      legacyPromptId,
+    };
+  }
+
+  private async buildVideoStageKnowledgeContext(params: {
+    workKind: VideoWorkKind;
+    promptId: string;
+    stageLabel: string;
+    inputPayload: Record<string, unknown>;
+    leadText: string;
+  }) {
+    const input = this.asRecord(params.inputPayload);
+    const topic = this.readOptionalString(input?.topic);
+    const title = this.readOptionalString(input?.title);
+    const videoKind = this.readOptionalString(input?.videoKind);
+    const durationSec = typeof input?.durationSec === "number" ? input.durationSec : undefined;
+    const requestedDurationSec = typeof input?.requestedDurationSec === "number" ? input.requestedDurationSec : undefined;
+    const additionalInstruction = this.readOptionalString(input?.additionalInstruction ?? input?.additional_instruction);
+    const noteTitle = this.readOptionalString(input?.noteTitle);
+    const noteContent = this.readOptionalString(input?.noteContent);
+    const product = this.asRecord(input?.product);
+    const sourceMaterial = this.asRecord(input?.sourceMaterial);
+    const calendar = this.asRecord(input?.calendar);
+    const topicContext = this.asRecord(input?.topic_context);
+    const copyPlan = this.asRecord(input?.copy_plan);
+    const retrievalQuery = this.buildWorksKnowledgeQuery([
+      params.stageLabel,
+      topic ? `主题：${topic}` : "",
+      title ? `标题：${title}` : "",
+      videoKind ? `视频类型：${videoKind}` : "",
+      durationSec ? `时长：${durationSec}秒` : "",
+      requestedDurationSec ? `目标时长：${requestedDurationSec}秒` : "",
+      calendar?.topicName ? `营销选题：${String(calendar.topicName)}` : "",
+      topicContext?.topicName ? `营销选题：${String(topicContext.topicName)}` : "",
+      noteTitle ? `视频标题：${noteTitle}` : "",
+      noteContent ? `文案概要：${this.truncateText(noteContent, 160)}` : "",
+      product?.productName ? `产品：${String(product.productName)}` : "",
+      product?.usageScenario ? `使用场景：${String(product.usageScenario)}` : "",
+      sourceMaterial?.title ? `参考素材：${String(sourceMaterial.title)}` : "",
+      copyPlan?.businessScene ? `商业场景：${String(copyPlan.businessScene)}` : "",
+      copyPlan?.storyHook ? `开场钩子：${this.truncateText(String(copyPlan.storyHook), 100)}` : "",
+      additionalInstruction ? `补充要求：${this.truncateText(additionalInstruction, 120)}` : "",
+      "请召回企业知识库中与品牌定位、产品卖点、内容口吻、镜头场景、人物设定、视觉风格和营销节点相关的内容",
+    ]);
+    if (!retrievalQuery) {
+      return "";
+    }
+    return this.buildWorksScopedKnowledgeContext({
+      scope: this.resolveWorksVideoKnowledgeScope(params.workKind, params.promptId),
+      retrievalQuery,
+      leadText: params.leadText,
+      hitMaxLength: 150,
+    });
+  }
+
+  private async buildWorksScopedKnowledgeContext(params: {
     scope: {
       moduleTargetId?: string;
       skillPackageKey?: string;
@@ -12210,6 +12499,7 @@ export class WorksService {
     fallbackPrompt: string;
     systemInstruction: string;
     inputPayload: Record<string, unknown>;
+    stageLabel: string;
   }) {
     const prompt = await this.skillsPromptsService.getActivePromptById(params.promptId);
     const skillPrompt = String(prompt?.content || params.fallbackPrompt).trim() || params.fallbackPrompt;
@@ -12217,7 +12507,14 @@ export class WorksService {
     const preference = await this.loadSkillModelPreference(skillProfile.skillSlug, params.promptId, params.fallbackModels);
     const providers = await this.loadOriginalCopyProviders(params.brandId, preference);
     const systemPrompt = [skillPrompt, "", params.systemInstruction].join("\n");
-    const userPrompt = ["以下是本次视频阶段输入：", "", JSON.stringify(params.inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildVideoStageKnowledgeContext({
+      workKind: params.workKind,
+      promptId: params.promptId,
+      stageLabel: params.stageLabel,
+      inputPayload: params.inputPayload,
+      leadText: `以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到${params.stageLabel}中：`,
+    });
+    const userPrompt = ["以下是本次视频阶段输入：", "", JSON.stringify(params.inputPayload, null, 2), knowledgeContext].join("\n");
     let lastError = "";
     const attemptTrail: string[] = [];
     for (const provider of providers) {
@@ -12280,6 +12577,7 @@ export class WorksService {
       promptId,
       fallbackModels: ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
       fallbackPrompt: "根据输入内容生成创意剧本。",
+      stageLabel: skillProfile.skillLabel === "小红书视频笔记" ? "小红书视频笔记剧本" : `${skillProfile.skillLabel}剧本`,
       systemInstruction: [
         "请仅输出 JSON 对象，不要输出 Markdown。",
         "JSON 结构固定为：",
@@ -12321,6 +12619,7 @@ export class WorksService {
       promptId: skillProfile.remixScriptPromptId,
       fallbackModels: ["doubao-seed-2-0-pro-260215", "deepseek-v4-pro"],
       fallbackPrompt: "根据视频链接拆解短视频剧情脚本。",
+      stageLabel: `${skillProfile.skillLabel}拆解脚本`,
       systemInstruction: [
         "请仅输出 JSON 对象，不要输出 Markdown。",
         "JSON 结构固定为：",
@@ -12369,6 +12668,7 @@ export class WorksService {
       promptId: skillProfile.promptId,
       fallbackModels: ["deepseek-v4-pro", "deepseek-v4-flash", "doubao-seed-2-0-pro-260215"],
       fallbackPrompt,
+      stageLabel: skillProfile.skillLabel === "小红书视频笔记" ? "小红书视频笔记提示词" : `${skillProfile.skillLabel}提示词`,
       systemInstruction: [
         "请仅输出 JSON 对象，不要输出 Markdown 或额外解释。",
         "JSON 结构固定为：",
@@ -12425,6 +12725,7 @@ export class WorksService {
       promptId: skillProfile.storyboardPromptId,
       fallbackModels: ["gpt-5.5", "deepseek-v4-pro"],
       fallbackPrompt: "根据剧本、产品图和要求生成故事板提示词。",
+      stageLabel: skillProfile.skillLabel === "小红书视频笔记" ? "小红书视频笔记故事板" : `${skillProfile.skillLabel}故事板`,
       systemInstruction: [
         "请仅输出 JSON 对象，不要输出 Markdown。",
         "JSON 结构固定为：",
@@ -16732,7 +17033,8 @@ export class WorksService {
       '  "tags": ["#关键词1", "#关键词2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次二创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildXiaohongshuRewriteCopyKnowledgeContext(params);
+    const userPrompt = ["以下是本次二创笔记创作输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -16886,7 +17188,8 @@ export class WorksService {
       '  "image_prompts": ["配图提示词1", "配图提示词2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次二创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildXiaohongshuRewriteImageKnowledgeContext(params);
+    const userPrompt = ["以下是本次二创笔记配图输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -17046,7 +17349,14 @@ export class WorksService {
       '  "hashtags": ["标签1", "标签2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次视频笔记文案输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildVideoStageKnowledgeContext({
+      workKind: "XHS_VIDEO_NOTE",
+      promptId: "prompt_xhs_video_note",
+      stageLabel: "小红书视频笔记文案",
+      inputPayload,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到小红书视频笔记文案创作中：",
+    });
+    const userPrompt = ["以下是本次视频笔记文案输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -17236,7 +17546,14 @@ export class WorksService {
       '  "segment_prompts": ["分镜提示词1", "分镜提示词2"]',
       "}",
     ].join("\n");
-    const userPrompt = ["以下是本次视频提示词输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildVideoStageKnowledgeContext({
+      workKind: "XHS_VIDEO_NOTE",
+      promptId: "prompt_xhs_video_note",
+      stageLabel: "小红书视频笔记提示词",
+      inputPayload,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容融合到小红书视频笔记提示词生成中：",
+    });
+    const userPrompt = ["以下是本次视频提示词输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
