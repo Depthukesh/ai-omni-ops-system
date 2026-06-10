@@ -455,8 +455,8 @@
   - 当前可直接维护默认 TopK、召回模式、重排开关、切片大小/重叠和检索阈值
   - 当前“接入对象”处于“治理层已落地、运行时部分生效”状态：
     - 已落地：后台可维护绑定关系，前端企业知识库会自动补品牌增长工作台的默认绑定
-    - 已生效：品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案、抖音热点找选题、公众号文章生成已经按“模块 -> 能力包 -> 技能”继承解析自动召回企业知识库片段，旧版 `PROMPT / WORKFLOW_STEP` 仅做兼容读取
-    - 未完全生效：作品生成、公众号 HTML 渲染、配图生成等其余能力包和技能执行链路尚未统一接入同一套运行时知识注入链
+    - 已生效：品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案、抖音热点找选题，以及公众号工作流里的文章生成 / HTML 渲染 / 配图生成，已经按“模块 -> 能力包 -> 技能”继承解析自动召回企业知识库片段，旧版 `PROMPT / WORKFLOW_STEP` 仅做兼容读取
+    - 未完全生效：作品生成、提示词独立执行链路、公众号发布确认 / API 发布等其余能力包和技能执行链路尚未统一接入同一套运行时知识注入链
 
 - 企业知识库
   - 当前在前端品牌资料库保存后，会自动桥接到对应品牌的企业知识库，便于后台继续同步和治理
@@ -678,6 +678,8 @@
   - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
 - 公众号文章、生图链路当前与小红书、报告链路共用同一套 Provider / 模型公共选择规则，不再单独维护公众号私有优先级
   - 公众号文章生成现在也会按 `wechat-workbench -> wechat-article-generator -> wechat-article-composer` 继承解析企业知识库绑定，再把召回片段拼进文章生成输入
+  - 公众号 HTML 渲染现在也会按 `wechat-workbench -> wechat-html-renderer -> wechat-html-renderer` 继承解析企业知识库绑定，再把召回片段拼进 HTML 渲染输入
+  - 公众号封面图和正文配图生成现在也会按 `wechat-workbench -> wechat-image-designer -> wechat-cover-image-designer / wechat-body-image-designer` 继承解析企业知识库绑定，再把召回片段拼进最终生图 prompt
 - 公众号配置、工作流偏好、官方账号、工作流会话、文章草稿、发布历史当前都已切到数据库优先持久化；数据库不可用时才回退到内存 mock store
 - 生图链路当前会在 `rate_limit_exceeded / 429 / quota` 时停止同模型下的 prompt 级重复尝试，并继续切换下一候选模型/供应商
 - 参考变更：`docs/changes/2026-06-06-skill-provider-selection-rule-unification.md`

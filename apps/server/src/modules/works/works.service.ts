@@ -3772,8 +3772,35 @@ export class WorksService {
     if (target.imageBundle?.status === "RUNNING") {
       throw new BadRequestException("当前工作流生图仍在进行中，请等待本轮完成后再重试。");
     }
+    const [coverKnowledgeContext, bodyKnowledgeContext] = await Promise.all([
+      this.buildWechatImageKnowledgeContext({
+        brandId,
+        kind: "cover",
+        title: target.title,
+        summary: target.summary || target.content,
+        themeColor: target.themeColor,
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        coverImageBrief: target.coverImageBrief,
+      }),
+      this.buildWechatImageKnowledgeContext({
+        brandId,
+        kind: "body",
+        title: target.title,
+        summary: target.summary || target.content,
+        themeColor: target.themeColor,
+        selectedMarketingLabels: target.selectedMarketingLabels,
+        selectedProductLabels: target.selectedProductLabels,
+        selectedBrandLabels: target.selectedBrandLabels,
+        bodyImageBriefs: target.bodyImageBriefs,
+      }),
+    ]);
     const promptSummary = this.buildWechatImagePrompt(target.title, target.summary || target.content, target.themeColor, target.imageMode);
-    const prompts = this.buildWechatWorkflowImagePrompts(target);
+    const prompts = this.buildWechatWorkflowImagePrompts(target, {
+      coverKnowledgeContext,
+      bodyKnowledgeContext,
+    });
     const [coverImageConfig, bodyImageConfig] = await Promise.all([
       this.loadImageGenerationExecutionConfig({
         brandId,
@@ -9875,13 +9902,126 @@ export class WorksService {
       return "";
     }
 
-    try {
-      const bindings = await this.resolveWorksKnowledgeBindings({
+    return this.buildWechatScopedKnowledgeContext({
+      scope: {
         moduleTargetId: "wechat-workbench",
         skillPackageKey: "wechat-article-generator",
         skillSlug: "wechat-article-composer",
         legacyPromptId: "prompt_wechat_article_compose",
-      });
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号文章创作：",
+    });
+  }
+
+  private async buildWechatHtmlKnowledgeContext(params: {
+    brandId: string;
+    title: string;
+    summary: string;
+    content: string;
+    themeColor: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    bodyImageBriefs: string[];
+  }) {
+    const retrievalQuery = [
+      "公众号 HTML 渲染",
+      params.title ? `标题：${params.title}` : "",
+      params.summary ? `摘要：${this.truncateText(params.summary, 80)}` : "",
+      params.themeColor ? `主题色：${params.themeColor}` : "",
+      params.selectedMarketingLabels.length ? `营销主题：${params.selectedMarketingLabels.join("、")}` : "",
+      params.selectedProductLabels.length ? `产品：${params.selectedProductLabels.join("、")}` : "",
+      params.selectedBrandLabels.length ? `品牌标签：${params.selectedBrandLabels.join("、")}` : "",
+      params.bodyImageBriefs.length ? `配图主题：${this.truncateText(params.bodyImageBriefs.join("；"), 160)}` : "",
+      params.content ? `正文概要：${this.truncateText(params.content, 180)}` : "",
+      "请召回企业知识库中与品牌口吻、排版风格、视觉规范、内容栏目结构、行动引导和营销合规相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+
+    if (!retrievalQuery) {
+      return "";
+    }
+
+    return this.buildWechatScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "wechat-workbench",
+        skillPackageKey: "wechat-html-renderer",
+        skillSlug: "wechat-html-renderer",
+        legacyPromptId: "prompt_wechat_html_render",
+      },
+      retrievalQuery,
+      leadText: "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号 HTML 渲染：",
+    });
+  }
+
+  private async buildWechatImageKnowledgeContext(params: {
+    brandId: string;
+    kind: "cover" | "body";
+    title: string;
+    summary: string;
+    themeColor: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    coverImageBrief?: string;
+    bodyImageBriefs?: string[];
+  }) {
+    const retrievalQuery = [
+      params.kind === "cover" ? "公众号封面图生成" : "公众号正文配图生成",
+      params.title ? `标题：${params.title}` : "",
+      params.summary ? `摘要：${this.truncateText(params.summary, 80)}` : "",
+      params.themeColor ? `主题色：${params.themeColor}` : "",
+      params.selectedMarketingLabels.length ? `营销主题：${params.selectedMarketingLabels.join("、")}` : "",
+      params.selectedProductLabels.length ? `产品：${params.selectedProductLabels.join("、")}` : "",
+      params.selectedBrandLabels.length ? `品牌标签：${params.selectedBrandLabels.join("、")}` : "",
+      params.kind === "cover" && params.coverImageBrief
+        ? `封面要求：${this.truncateText(params.coverImageBrief, 160)}`
+        : "",
+      params.kind === "body" && params.bodyImageBriefs?.length
+        ? `正文配图要求：${this.truncateText(params.bodyImageBriefs.join("；"), 180)}`
+        : "",
+      params.kind === "cover"
+        ? "请召回企业知识库中与品牌主视觉、活动主题、视觉禁忌、产品卖点和封面标题风格相关的内容"
+        : "请召回企业知识库中与品牌视觉风格、产品使用场景、章节配图语气和画面禁忌相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+
+    if (!retrievalQuery) {
+      return "";
+    }
+
+    return this.buildWechatScopedKnowledgeContext({
+      scope: {
+        moduleTargetId: "wechat-workbench",
+        skillPackageKey: "wechat-image-designer",
+        skillSlug: params.kind === "cover" ? "wechat-cover-image-designer" : "wechat-body-image-designer",
+        legacyPromptId: params.kind === "cover" ? "prompt_wechat_cover_image_compose" : "prompt_wechat_body_image_compose",
+      },
+      retrievalQuery,
+      leadText: params.kind === "cover"
+        ? "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到公众号封面图创作中："
+        : "以下是系统按接入对象从企业知识库召回的视觉补充要求，请把这些内容融合到公众号正文配图创作中：",
+      hitMaxLength: 140,
+    });
+  }
+
+  private async buildWechatScopedKnowledgeContext(params: {
+    scope: {
+      moduleTargetId?: string;
+      skillPackageKey?: string;
+      skillSlug?: string;
+      legacyPromptId?: string;
+      workflowStepId?: string;
+    };
+    retrievalQuery: string;
+    leadText: string;
+    hitMaxLength?: number;
+  }) {
+    try {
+      const bindings = await this.resolveWorksKnowledgeBindings(params.scope);
       if (!bindings.length) {
         return "";
       }
@@ -9889,7 +10029,7 @@ export class WorksService {
       const sections: string[] = [];
       for (const binding of bindings) {
         const retrieval = await this.knowledgeBasesService.runKnowledgeRetrievalTest(binding.knowledgeBaseId, {
-          query: retrievalQuery,
+          query: params.retrievalQuery,
           topK: WORKS_KNOWLEDGE_TOP_K,
         });
         if (!retrieval.hits.length) {
@@ -9897,7 +10037,7 @@ export class WorksService {
         }
         const hitLines = retrieval.hits
           .slice(0, WORKS_KNOWLEDGE_TOP_K)
-          .map((hit, index) => `${index + 1}. ${this.truncateText(hit.content, 180)}`)
+          .map((hit, index) => `${index + 1}. ${this.truncateText(hit.content, params.hitMaxLength || 180)}`)
           .join("\n");
         sections.push(
           [
@@ -9913,7 +10053,7 @@ export class WorksService {
 
       return [
         "",
-        "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号文章创作：",
+        params.leadText,
         "",
         sections.join("\n\n"),
       ].join("\n");
@@ -10208,7 +10348,18 @@ export class WorksService {
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
       "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
     ].join("\n");
-    const userPrompt = ["以下是公众号 HTML 渲染输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildWechatHtmlKnowledgeContext({
+      brandId: params.brandId,
+      title: params.title,
+      summary: params.summary,
+      content: params.content,
+      themeColor: params.themeColor,
+      selectedMarketingLabels: params.selectedMarketingLabels,
+      selectedProductLabels: params.selectedProductLabels,
+      selectedBrandLabels: params.selectedBrandLabels,
+      bodyImageBriefs: params.bodyImageBriefs,
+    });
+    const userPrompt = ["以下是公众号 HTML 渲染输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -10392,21 +10543,41 @@ export class WorksService {
       .trim();
   }
 
-  private buildWechatWorkflowImagePrompts(session: WechatWorkflowSessionRecord) {
-    const coverPrompt = this.buildWechatCoverImagePrompt(
+  private buildWechatWorkflowImagePrompts(
+    session: WechatWorkflowSessionRecord,
+    options?: {
+      coverKnowledgeContext?: string;
+      bodyKnowledgeContext?: string;
+    },
+  ) {
+    const coverPrompt = this.mergeWechatPromptWithKnowledgeContext(this.buildWechatCoverImagePrompt(
       session.title,
       session.summary || session.content,
       session.themeColor,
       session.coverImageBrief,
-    );
-    const bodyPrompts = this.buildWechatBodyImagePrompts(session);
+    ), options?.coverKnowledgeContext);
+    const bodyPrompts = this.buildWechatBodyImagePrompts(session).map((prompt) => this.mergeWechatPromptWithKnowledgeContext(prompt, options?.bodyKnowledgeContext));
     if (session.imageMode === "cover-only") {
       return [coverPrompt];
     }
     if (session.imageMode === "body-only") {
-      return [this.buildWechatBodyOnlyCoverPrompt(session.title, session.summary || session.content), ...bodyPrompts.slice(0, 2)];
+      return [
+        this.mergeWechatPromptWithKnowledgeContext(
+          this.buildWechatBodyOnlyCoverPrompt(session.title, session.summary || session.content),
+          options?.coverKnowledgeContext,
+        ),
+        ...bodyPrompts.slice(0, 2),
+      ];
     }
     return [coverPrompt, ...bodyPrompts];
+  }
+
+  private mergeWechatPromptWithKnowledgeContext(prompt: string, knowledgeContext?: string) {
+    const normalizedContext = String(knowledgeContext || "").trim();
+    if (!normalizedContext) {
+      return prompt;
+    }
+    return [prompt.trim(), "", normalizedContext].join("\n");
   }
 
   private buildWechatWorkflowGeneratedImageUrl(prompt: string, imageSize: "portrait_16_9" | "landscape_16_9") {

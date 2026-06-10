@@ -235,6 +235,7 @@
 - 使用的 `bindingType/targetId`
 - 是否按“模块 -> 能力包 -> 技能”做继承解析，以及旧版 `PROMPT / WORKFLOW_STEP` 是继续兼容还是已经停用
 - 是“强依赖失败即阻断”，还是“best-effort 注入失败则降级继续”
+- 当前公众号工作流已作为正面样例：文章生成、配图生成、HTML 渲染三段分别声明各自的 `skillPackage/skillSlug/promptId`，并统一按 best-effort 方式注入企业知识库上下文
 - 已下线的第三方平台不能只从前端下拉或种子常量中删除；若其运行时 Provider / 平台基线已可能进入数据库，必须在服务启动阶段同步清理旧 `ApiProviderConfig`、`ThirdPartyPlatformConfig` 与关联私钥残留，避免后台与个人中心继续展示失效平台
 - 报告类与内容生成类链路在读取技能配置中的 `provider` 时，必须校验该 provider 的 `runtimeKey` 是否与当前生成链路兼容；若技能配置填入了图像/视频等不兼容 provider，不允许直接照用，必须自动回退到正确的文本 runtime
 - 当后台技能中心已明确指定某条内容生成链路的首选模型时，运行时必须先严格尝试该模型，再继续 fallback；不允许在报错文案里把“最后一次失败模型”误显示成“第一跳模型”
