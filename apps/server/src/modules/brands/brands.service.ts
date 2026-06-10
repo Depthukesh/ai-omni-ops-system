@@ -1505,6 +1505,7 @@ export class BrandsService {
               fileUrl: item.fileUrl,
               metadataJson: {
                 sourceName: item.sourceName ?? "",
+              storedFileName: this.extractBrandAssetStoredFileName(item.fileUrl),
               },
             },
           }),
@@ -2940,14 +2941,35 @@ export class BrandsService {
     return `${brandName}企业知识库`;
   }
 
+  private extractBrandAssetStoredFileName(fileUrl?: string) {
+    const raw = String(fileUrl || "").trim();
+    if (!raw) {
+      return "";
+    }
+    try {
+      const parsed = new URL(raw);
+      const lastSegment = parsed.pathname.split("/").pop() || "";
+      return this.sanitizeStoredFileName(decodeURIComponent(lastSegment));
+    } catch {
+      const normalized = raw.split("#")[0]?.split("?")[0] || "";
+      const lastSegment = normalized.split("/").pop() || normalized.split("\\").pop() || "";
+      try {
+        return this.sanitizeStoredFileName(decodeURIComponent(lastSegment));
+      } catch {
+        return this.sanitizeStoredFileName(lastSegment);
+      }
+    }
+  }
+
   private mapBusinessAssetToKnowledgeFile(
     brandId: string,
     item: CreateAssetPayload["items"][number],
     uploadedAt: string,
     index: number,
   ) {
-    const fileName = (item.title || item.fileUrl || `企业知识资料 ${index + 1}`).trim();
-    const fileType = this.inferKnowledgeFileType(fileName, item.fileUrl);
+    const storedFileName = this.extractBrandAssetStoredFileName(item.fileUrl);
+    const fileName = (item.title || storedFileName || item.fileUrl || `企业知识资料 ${index + 1}`).trim();
+    const fileType = this.inferKnowledgeFileType(storedFileName, item.fileUrl, item.title);
     return {
       id: createId("kbf"),
       knowledgeBaseId: this.buildBusinessAssetsKnowledgeBaseId(brandId),
@@ -2960,19 +2982,24 @@ export class BrandsService {
     };
   }
 
-  private inferKnowledgeFileType(fileName?: string, fileUrl?: string): "PDF" | "DOCX" | "XLSX" | "MD" | "LINK" {
-    const target = String(fileName || fileUrl || "").trim().toLowerCase();
-    if (target.endsWith(".pdf")) {
-      return "PDF";
-    }
-    if (target.endsWith(".doc") || target.endsWith(".docx")) {
-      return "DOCX";
-    }
-    if (target.endsWith(".xls") || target.endsWith(".xlsx") || target.endsWith(".csv")) {
-      return "XLSX";
-    }
-    if (target.endsWith(".md") || target.endsWith(".markdown") || target.endsWith(".txt")) {
-      return "MD";
+  private inferKnowledgeFileType(...candidates: Array<string | undefined>): "PDF" | "DOCX" | "XLSX" | "MD" | "LINK" {
+    for (const candidate of candidates) {
+      const target = String(candidate || "").trim().toLowerCase();
+      if (!target) {
+        continue;
+      }
+      if (target.endsWith(".pdf")) {
+        return "PDF";
+      }
+      if (target.endsWith(".doc") || target.endsWith(".docx")) {
+        return "DOCX";
+      }
+      if (target.endsWith(".xls") || target.endsWith(".xlsx") || target.endsWith(".csv")) {
+        return "XLSX";
+      }
+      if (target.endsWith(".md") || target.endsWith(".markdown") || target.endsWith(".txt")) {
+        return "MD";
+      }
     }
     return "LINK";
   }

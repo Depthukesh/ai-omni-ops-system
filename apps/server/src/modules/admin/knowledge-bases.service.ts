@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import {
+  AssetCategory,
   KnowledgeBase,
   KnowledgeBaseFile,
   KnowledgeBaseSyncRun,
@@ -177,6 +178,7 @@ type ExtractedKnowledgeText = {
   sourceLabel: string;
   usedFallback: boolean;
   note?: string;
+  resolvedFileType?: KnowledgeBaseFileRecord["fileType"];
 };
 
 type PersistedKnowledgeChunkInput = {
@@ -935,6 +937,63 @@ export class KnowledgeBasesService {
     return String(fileName || "").trim().replace(/^.*[\\/]/, "");
   }
 
+  private extractStoredFileNameFromUrl(fileUrl?: string) {
+    const raw = String(fileUrl || "").trim();
+    if (!raw) {
+      return "";
+    }
+    try {
+      const parsed = new URL(raw);
+      const lastSegment = parsed.pathname.split("/").pop() || "";
+      return this.sanitizeStoredFileName(decodeURIComponent(lastSegment));
+    } catch {
+      const normalized = raw.split("#")[0]?.split("?")[0] || "";
+      const lastSegment = normalized.split("/").pop() || normalized.split("\\").pop() || "";
+      try {
+        return this.sanitizeStoredFileName(decodeURIComponent(lastSegment));
+      } catch {
+        return this.sanitizeStoredFileName(lastSegment);
+      }
+    }
+  }
+
+  private inferKnowledgeFileType(...candidates: Array<string | undefined>): KnowledgeBaseFileRecord["fileType"] {
+    for (const candidate of candidates) {
+      const target = String(candidate || "").trim().toLowerCase();
+      if (!target) {
+        continue;
+      }
+      if (target.endsWith(".pdf")) {
+        return "PDF";
+      }
+      if (target.endsWith(".doc") || target.endsWith(".docx")) {
+        return "DOCX";
+      }
+      if (target.endsWith(".xls") || target.endsWith(".xlsx") || target.endsWith(".csv")) {
+        return "XLSX";
+      }
+      if (target.endsWith(".md") || target.endsWith(".markdown") || target.endsWith(".txt")) {
+        return "MD";
+      }
+    }
+    return "LINK";
+  }
+
+  private async resolveBusinessAssetStoredFileName(brandId: string, file: Pick<KnowledgeBaseFileRecord, "fileName">) {
+    const linkedAsset = await this.prismaService.businessAsset.findFirst({
+      where: {
+        brandId,
+        category: AssetCategory.BUSINESS_DATA,
+        title: file.fileName,
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        fileUrl: true,
+      },
+    });
+    return this.extractStoredFileNameFromUrl(linkedAsset?.fileUrl ?? "");
+  }
+
   private normalizeTextContent(value: string) {
     return String(value || "")
       .replace(/\r\n/g, "\n")
@@ -1125,8 +1184,10 @@ export class KnowledgeBasesService {
         note: "当前知识库文件没有关联品牌原始文档路径",
       };
     }
+    const storedFileName = (await this.resolveBusinessAssetStoredFileName(brandId, file)) || this.sanitizeStoredFileName(file.fileName);
+    const resolvedFileType = this.inferKnowledgeFileType(storedFileName, file.fileName);
     const storedFile = await this.ossStorageService.getObject(
-      this.buildBrandAssetFileStorageKey(brandId, file.fileName),
+      this.buildBrandAssetFileStorageKey(brandId, storedFileName),
     );
     if (!storedFile) {
       return {
@@ -1134,14 +1195,15 @@ export class KnowledgeBasesService {
         sourceLabel: "metadata-fallback",
         usedFallback: true,
         note: "未在 OSS 中找到对应原始文件",
+        resolvedFileType,
       };
     }
     const extractedContent =
-      file.fileType === "DOCX"
+      resolvedFileType === "DOCX"
         ? this.extractTextFromDocxBuffer(storedFile.buffer)
-        : file.fileType === "XLSX"
+        : resolvedFileType === "XLSX"
           ? this.extractTextFromXlsxBuffer(storedFile.buffer)
-          : file.fileType === "PDF"
+          : resolvedFileType === "PDF"
             ? this.extractTextFromPdfBuffer(storedFile.buffer)
             : this.decodeBufferAsText(storedFile.buffer);
     if (extractedContent) {
@@ -1149,6 +1211,7 @@ export class KnowledgeBasesService {
         content: extractedContent,
         sourceLabel: "file-content",
         usedFallback: false,
+        resolvedFileType,
       };
     }
     return {
@@ -1156,6 +1219,7 @@ export class KnowledgeBasesService {
       sourceLabel: "metadata-fallback",
       usedFallback: true,
       note: "当前文件类型尚未提取到稳定正文",
+      resolvedFileType,
     };
   }
 
@@ -1452,6 +1516,21 @@ export class KnowledgeBasesService {
   private async ingestKnowledgeBaseFileInDatabase(file: KnowledgeBaseFileRecord) {
     const retrievalConfig = await this.getOrCreateKnowledgeRetrievalConfigInDatabase(file.knowledgeBaseId);
     const extracted = await this.extractKnowledgeBaseFileText(file);
+    const effectiveFile =
+      extracted.resolvedFileType && extracted.resolvedFileType !== file.fileType
+        ? {
+            ...file,
+            fileType: extracted.resolvedFileType,
+          }
+        : file;
+    if (effectiveFile !== file) {
+      await this.prismaService.knowledgeBaseFile.update({
+        where: { id: file.id },
+        data: {
+          fileType: effectiveFile.fileType,
+        },
+      });
+    }
     const chunking = this.resolveChunkingConfig(retrievalConfig);
     const chunks = this.splitTextIntoChunks(extracted.content, chunking.chunkSize, chunking.chunkOverlap).map(
       (item, index) => ({
@@ -1463,17 +1542,17 @@ export class KnowledgeBasesService {
         metadataJson: {
           sourceLabel: extracted.sourceLabel,
           usedFallback: extracted.usedFallback,
-          fileName: file.fileName,
-          fileType: file.fileType,
+          fileName: effectiveFile.fileName,
+          fileType: effectiveFile.fileType,
         } as Prisma.InputJsonValue,
       }),
     );
-    await this.replaceKnowledgeBaseFileChunksInDatabase(file, chunks);
+    await this.replaceKnowledgeBaseFileChunksInDatabase(effectiveFile, chunks);
     let providerStatus = await this.buildKnowledgeBaseProviderStatus(file.knowledgeBaseId);
     try {
       const provider = await this.resolveEmbeddingProviderConfig();
-      const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(file.knowledgeBaseId, provider);
-      const embeddingCount = await this.replaceKnowledgeChunkEmbeddingsInDatabase(file, provider, apiKey);
+      const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(effectiveFile.knowledgeBaseId, provider);
+      const embeddingCount = await this.replaceKnowledgeChunkEmbeddingsInDatabase(effectiveFile, provider, apiKey);
       if (apiKey) {
         providerStatus = `${providerStatus}，已生成 ${embeddingCount} 条 embedding`;
       }
@@ -1483,7 +1562,7 @@ export class KnowledgeBasesService {
     }
     return {
       chunkCount: chunks.length,
-      summary: this.buildFileSyncSummary(file, chunks.length, extracted, providerStatus),
+      summary: this.buildFileSyncSummary(effectiveFile, chunks.length, extracted, providerStatus),
     };
   }
 
