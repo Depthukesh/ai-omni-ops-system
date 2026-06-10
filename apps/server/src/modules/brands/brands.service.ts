@@ -2918,9 +2918,9 @@ export class BrandsService {
         Array<{ knowledgeBase: string | null; knowledgeBaseFile: string | null; knowledgeBinding: string | null }>
       >(
         `SELECT
-          to_regclass('"KnowledgeBase"') AS "knowledgeBase",
-          to_regclass('"KnowledgeBaseFile"') AS "knowledgeBaseFile",
-          to_regclass('"KnowledgeBinding"') AS "knowledgeBinding"`,
+          to_regclass('"KnowledgeBase"')::text AS "knowledgeBase",
+          to_regclass('"KnowledgeBaseFile"')::text AS "knowledgeBaseFile",
+          to_regclass('"KnowledgeBinding"')::text AS "knowledgeBinding"`,
       );
       return Boolean(rows[0]?.knowledgeBase && rows[0]?.knowledgeBaseFile && rows[0]?.knowledgeBinding);
     } catch {

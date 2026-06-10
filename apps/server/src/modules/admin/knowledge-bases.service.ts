@@ -554,9 +554,9 @@ export class KnowledgeBasesService {
           knowledgeBaseSyncRun: string | null;
         }>
       >(
-        `SELECT to_regclass('"KnowledgeBase"') AS "knowledgeBase",
-                to_regclass('"KnowledgeBaseFile"') AS "knowledgeBaseFile",
-                to_regclass('"KnowledgeBaseSyncRun"') AS "knowledgeBaseSyncRun"`,
+        `SELECT to_regclass('"KnowledgeBase"')::text AS "knowledgeBase",
+                to_regclass('"KnowledgeBaseFile"')::text AS "knowledgeBaseFile",
+                to_regclass('"KnowledgeBaseSyncRun"')::text AS "knowledgeBaseSyncRun"`,
       );
       const row = rows[0];
       return Boolean(row?.knowledgeBase && row?.knowledgeBaseFile && row?.knowledgeBaseSyncRun);
@@ -580,7 +580,7 @@ export class KnowledgeBasesService {
 
     try {
       const rows = await this.prismaService.$queryRawUnsafe<Array<{ knowledgeBinding: string | null }>>(
-        `SELECT to_regclass('"KnowledgeBinding"') AS "knowledgeBinding"`,
+        `SELECT to_regclass('"KnowledgeBinding"')::text AS "knowledgeBinding"`,
       );
       return Boolean(rows[0]?.knowledgeBinding);
     } catch {
@@ -603,7 +603,7 @@ export class KnowledgeBasesService {
 
     try {
       const rows = await this.prismaService.$queryRawUnsafe<Array<{ knowledgeRetrievalConfig: string | null }>>(
-        `SELECT to_regclass('"KnowledgeRetrievalConfig"') AS "knowledgeRetrievalConfig"`,
+        `SELECT to_regclass('"KnowledgeRetrievalConfig"')::text AS "knowledgeRetrievalConfig"`,
       );
       return Boolean(rows[0]?.knowledgeRetrievalConfig);
     } catch {
