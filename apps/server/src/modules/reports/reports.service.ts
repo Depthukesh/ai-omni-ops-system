@@ -6126,8 +6126,9 @@ export class ReportsService {
       return "";
     }
 
+    let activeBindings: KnowledgeBindingView[] = [];
     try {
-      const activeBindings = await this.resolveExecutionKnowledgeBindings(scope);
+      activeBindings = await this.resolveExecutionKnowledgeBindings(scope);
       if (!activeBindings.length) {
         await this.knowledgeBasesService.recordKnowledgeInvocation({
           brandId,
@@ -6192,7 +6193,7 @@ export class ReportsService {
       });
 
       return ["", leadText, "", sections.join("\n\n")].join("\n");
-    } catch {
+    } catch (error) {
       await this.knowledgeBasesService.recordKnowledgeInvocation({
         brandId,
         sourceModule: "REPORTS",
@@ -6200,12 +6201,24 @@ export class ReportsService {
         moduleTargetId: scope?.moduleTargetId,
         skillPackageKey: scope?.skillPackageKey,
         skillSlug: scope?.skillSlug,
+        knowledgeBaseIds: activeBindings.map((item) => item.knowledgeBaseId),
+        knowledgeBaseNames: activeBindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
         retrievalQuery,
         status: "FAILED",
-        summary: "知识库调用记录写入了失败状态，本次自动降级为普通生成。",
+        summary: `知识库调用失败，已自动降级为普通生成：${this.describeKnowledgeInvocationError(error)}`,
       });
       return "";
     }
+  }
+
+  private describeKnowledgeInvocationError(error: unknown) {
+    if (error instanceof Error) {
+      const message = String(error.message || "").trim();
+      if (message) {
+        return message;
+      }
+    }
+    return "未知错误";
   }
 
   private async resolveExecutionKnowledgeBindings(scope: ModelGenerationSettings["knowledgeScope"] = {}) {

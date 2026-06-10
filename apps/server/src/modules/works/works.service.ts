@@ -13,7 +13,7 @@ import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
-import { KnowledgeBasesService } from "../admin/knowledge-bases.service";
+import { KnowledgeBasesService, type KnowledgeBindingView } from "../admin/knowledge-bases.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
@@ -10446,8 +10446,9 @@ export class WorksService {
     leadText: string;
     hitMaxLength?: number;
   }) {
+    let bindings: KnowledgeBindingView[] = [];
     try {
-      const bindings = await this.resolveWorksKnowledgeBindings(params.scope);
+      bindings = await this.resolveWorksKnowledgeBindings(params.scope);
       if (!bindings.length) {
         await this.knowledgeBasesService.recordKnowledgeInvocation({
           sourceModule: "WORKS",
@@ -10527,19 +10528,31 @@ export class WorksService {
         "",
         sections.join("\n\n"),
       ].join("\n");
-    } catch {
+    } catch (error) {
       await this.knowledgeBasesService.recordKnowledgeInvocation({
         sourceModule: "WORKS",
         sceneLabel: params.sceneLabel,
         moduleTargetId: params.scope.moduleTargetId,
         skillPackageKey: params.scope.skillPackageKey,
         skillSlug: params.scope.skillSlug,
+        knowledgeBaseIds: bindings.map((item) => item.knowledgeBaseId),
+        knowledgeBaseNames: bindings.map((item) => item.knowledgeBaseName || item.targetName || item.knowledgeBaseId),
         retrievalQuery: params.retrievalQuery,
         status: "FAILED",
-        summary: "知识库调用记录写入了失败状态，本次自动降级为普通生成。",
+        summary: `知识库调用失败，已自动降级为普通生成：${this.describeKnowledgeInvocationError(error)}`,
       });
       return "";
     }
+  }
+
+  private describeKnowledgeInvocationError(error: unknown) {
+    if (error instanceof Error) {
+      const message = String(error.message || "").trim();
+      if (message) {
+        return message;
+      }
+    }
+    return "未知错误";
   }
 
   private async resolveWorksKnowledgeBindings(scope: {
