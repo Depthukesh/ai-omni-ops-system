@@ -3207,6 +3207,18 @@ export default function AdminPage() {
     ? knowledgeRetrievalConfigs.find((config) => config.knowledgeBaseId === selectedKnowledgeBase.id) ||
       buildDefaultKnowledgeRetrievalConfig(selectedKnowledgeBase.id)
     : undefined;
+  const sortedKnowledgeBases = useMemo(
+    () =>
+      [...knowledgeBases].sort((a, b) => {
+        const aBridge = isBrandBridgeKnowledgeBase(a) ? 1 : 0;
+        const bBridge = isBrandBridgeKnowledgeBase(b) ? 1 : 0;
+        if (aBridge !== bBridge) {
+          return bBridge - aBridge;
+        }
+        return b.updatedAt.localeCompare(a.updatedAt);
+      }),
+    [knowledgeBases],
+  );
   const selectedKnowledgeRetrievalDraft =
     selectedKnowledgeBase && selectedKnowledgeRetrievalConfig
       ? knowledgeRetrievalConfigDrafts[selectedKnowledgeBase.id] ||
@@ -3236,9 +3248,12 @@ export default function AdminPage() {
         : selectedKnowledgeRetrievalConfig.retrievalThreshold >= 0.55
           ? "当前阈值中等，适合常规企业资料库。"
           : "当前阈值偏低，命中会更宽松，适合联调验证与小样本资料库。";
-  const selectedKnowledgePreviewFiles = [...selectedKnowledgeFiles]
-    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
-    .slice(0, 4);
+  const selectedKnowledgeSortedFiles = useMemo(
+    () => [...selectedKnowledgeFiles].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
+    [selectedKnowledgeFiles],
+  );
+  const selectedKnowledgePreviewFiles = selectedKnowledgeSortedFiles.slice(0, 4);
+  const selectedKnowledgeMappedFiles = selectedKnowledgeSortedFiles.slice(0, 12);
   const selectedExpandedKnowledgeFile = selectedKnowledgeFiles.find((file) => file.id === expandedKnowledgeFileId);
   const selectedExpandedKnowledgeFileDebugState = selectedExpandedKnowledgeFile
     ? knowledgeFileDebugStateMap[selectedExpandedKnowledgeFile.id] || buildKnowledgeFileDebugState()
@@ -5405,13 +5420,18 @@ export default function AdminPage() {
                   <span className="archive-pill status_success">{knowledgeBases.length}</span>
                 </div>
                 <div className="knowledge-admin-list">
-                  {knowledgeBases.length ? (
-                    knowledgeBases.map((item) => {
+                  {sortedKnowledgeBases.length ? (
+                    sortedKnowledgeBases.map((item) => {
                       const latestRun = knowledgeBaseSyncRuns.find((run) => run.knowledgeBaseId === item.id);
-                      const itemFiles = knowledgeBaseFiles.filter((file) => file.knowledgeBaseId === item.id);
+                      const itemFiles = knowledgeBaseFiles
+                        .filter((file) => file.knowledgeBaseId === item.id)
+                        .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
                       const itemBindings = knowledgeBindings.filter((binding) => binding.knowledgeBaseId === item.id);
                       const isBridgeKnowledge = isBrandBridgeKnowledgeBase(item);
-                      const latestFile = [...itemFiles].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
+                      const latestFile = itemFiles[0];
+                      const indexedFileCount = itemFiles.filter((file) => file.status === "INDEXED").length;
+                      const pendingFileCount = itemFiles.length - indexedFileCount;
+                      const previewFiles = itemFiles.slice(0, 2);
                       return (
                         <button
                           type="button"
@@ -5425,10 +5445,23 @@ export default function AdminPage() {
                             <p>
                               {getKnowledgeBaseContainerLabel(item)} · 资料 {itemFiles.length} · 接入对象 {itemBindings.length}
                             </p>
+                            {isBridgeKnowledge ? (
+                              <p className="personal-meta">
+                                前端资料卡 {itemFiles.length} 张 · 已入库 {indexedFileCount} 张
+                                {pendingFileCount > 0 ? ` · 待同步 ${pendingFileCount} 张` : ""}
+                              </p>
+                            ) : null}
                           </div>
                           <div className="knowledge-admin-list-tags">
                             <span className="knowledge-admin-list-tag">{getKnowledgeSourceTypeLabel(item.sourceType)}</span>
                             <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
+                            {isBridgeKnowledge && previewFiles.length
+                              ? previewFiles.map((file) => (
+                                  <span className="knowledge-admin-list-tag" key={file.id}>
+                                    {file.fileName}
+                                  </span>
+                                ))
+                              : null}
                           </div>
                           <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getKnowledgeBaseStatusLabel(item.status)}</span>
                           <span className="knowledge-admin-list-meta">
@@ -5496,12 +5529,12 @@ export default function AdminPage() {
                       <strong>{getKnowledgeSyncStatusLabel(selectedKnowledgeBase.syncStatus)}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
-                      <span>文档数</span>
-                      <strong>{selectedKnowledgeBase.documentCount}</strong>
+                      <span>{selectedKnowledgeIsBrandBridge ? "前端资料数" : "文档数"}</span>
+                      <strong>{selectedKnowledgeFiles.length}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
-                      <span>分片数</span>
-                      <strong>{selectedKnowledgeBase.chunkCount}</strong>
+                      <span>{selectedKnowledgeIsBrandBridge ? "已入库资料" : "分片数"}</span>
+                      <strong>{selectedKnowledgeIsBrandBridge ? selectedKnowledgeIndexedFileCount : selectedKnowledgeBase.chunkCount}</strong>
                     </div>
                     <div className="knowledge-admin-summary-card">
                       <span>最近同步</span>
@@ -5541,6 +5574,40 @@ export default function AdminPage() {
                           ) : (
                             <p className="personal-meta">前端还没有桥接进资料，先去“企业知识库”页面新增资料并保存页面。</p>
                           )}
+                        </article>
+                      ) : null}
+
+                      {selectedKnowledgeIsBrandBridge ? (
+                        <article className="entity-card admin-rule-card">
+                          <div className="panel-header">
+                            <h2>前端资料卡片清单</h2>
+                            <span>{selectedKnowledgeFiles.length} 张资料卡</span>
+                          </div>
+                          <p className="personal-meta">
+                            这里展示的就是前端“企业知识库”页面当前汇总到这个后台容器的资料。这样你在后台看列表时，就能直接知道前端到底保存了哪些资料。
+                          </p>
+                          {selectedKnowledgeMappedFiles.length ? (
+                            <div className="knowledge-bridge-preview-list">
+                              {selectedKnowledgeMappedFiles.map((file) => (
+                                <article className="knowledge-bridge-preview-card" key={file.id}>
+                                  <strong>{file.fileName}</strong>
+                                  <span>
+                                    {file.sourceName || "未填写来源"} · {file.fileType} · {getKnowledgeFileStatusLabel(file.status)}
+                                  </span>
+                                  <em>
+                                    {formatDateTime(file.uploadedAt)} · 分片 {file.chunkCount}
+                                  </em>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="personal-meta">当前还没有任何前端资料卡同步进来。</p>
+                          )}
+                          {selectedKnowledgeFiles.length > selectedKnowledgeMappedFiles.length ? (
+                            <p className="personal-meta">
+                              当前仅展示最近 {selectedKnowledgeMappedFiles.length} 张资料卡，其余资料可在“资料上传”板块继续查看。
+                            </p>
+                          ) : null}
                         </article>
                       ) : null}
 
