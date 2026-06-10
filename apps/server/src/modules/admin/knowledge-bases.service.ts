@@ -1,5 +1,15 @@
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { KnowledgeBase, KnowledgeBaseFile, KnowledgeBaseSyncRun, KnowledgeBinding, KnowledgeRetrievalConfig } from "@prisma/client";
+import {
+  KnowledgeBase,
+  KnowledgeBaseFile,
+  KnowledgeBaseSyncRun,
+  KnowledgeBinding,
+  KnowledgeChunk,
+  KnowledgeRetrievalConfig,
+  Prisma,
+} from "@prisma/client";
 import {
   database,
   type KnowledgeBindingRecord,
@@ -9,6 +19,8 @@ import {
   type KnowledgeBaseSyncRunRecord,
 } from "../../common/mock-data";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OssStorageService } from "../../storage/oss-storage.service";
+import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
 
 export type CreateKnowledgeBasePayload = {
   name: string;
@@ -56,6 +68,19 @@ export type KnowledgeBaseRunMutationResult = {
   file?: KnowledgeBaseFileRecord;
 };
 
+export type KnowledgeChunkRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  charCount: number;
+  sourceLabel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CreateKnowledgeBindingPayload = {
   knowledgeBaseId: string;
   bindingType: KnowledgeBindingRecord["bindingType"];
@@ -99,13 +124,43 @@ export type UpdateKnowledgeRetrievalConfigPayload = {
   retrievalThreshold?: number;
 };
 
+type ZipEntryLike = {
+  entryName: string;
+  isDirectory: boolean;
+  getData(): Buffer;
+};
+
+type AdmZipLike = {
+  getEntries(): ZipEntryLike[];
+};
+
+type ExtractedKnowledgeText = {
+  content: string;
+  sourceLabel: string;
+  usedFallback: boolean;
+  note?: string;
+};
+
+type PersistedKnowledgeChunkInput = {
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  charCount: number;
+  sourceLabel?: string;
+  metadataJson?: Prisma.InputJsonValue;
+};
+
 @Injectable()
 export class KnowledgeBasesService {
   private bootstrapPromise?: Promise<void>;
   private bindingBootstrapPromise?: Promise<void>;
   private retrievalConfigBootstrapPromise?: Promise<void>;
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly ossStorageService: OssStorageService,
+    private readonly thirdPartyPlatformsService: ThirdPartyPlatformsService,
+  ) {}
 
   async listKnowledgeBases() {
     if (await this.canUseKnowledgeBaseStorage()) {
@@ -322,6 +377,21 @@ export class KnowledgeBasesService {
     };
   }
 
+  private normalizeKnowledgeChunk(row: KnowledgeChunk): KnowledgeChunkRecord {
+    return {
+      id: row.id,
+      knowledgeBaseId: row.knowledgeBaseId,
+      fileId: row.fileId,
+      chunkIndex: row.chunkIndex,
+      content: row.content,
+      tokenCount: row.tokenCount,
+      charCount: row.charCount,
+      sourceLabel: row.sourceLabel ?? undefined,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
   private normalizeKnowledgeBaseSyncRun(row: KnowledgeBaseSyncRun): KnowledgeBaseSyncRunRecord {
     return {
       id: row.id,
@@ -404,7 +474,7 @@ export class KnowledgeBasesService {
     };
   }
 
-  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc") {
+  private createId(prefix: "kb" | "kbf" | "kbsr" | "kbb" | "kbrc" | "kbc") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -766,14 +836,339 @@ export class KnowledgeBasesService {
     return baselineByType[file.fileType] + lengthBoost;
   }
 
-  private buildFileSyncSummary(file: Pick<KnowledgeBaseFileRecord, "fileName" | "fileType">, chunkCount: number) {
-    return `文件 ${file.fileName} 已完成最小解析，按 ${file.fileType} 规则生成 ${chunkCount} 个分片，当前仍为执行骨架，待后续接入真实解析器与向量索引。`;
+  private buildFileSyncSummary(
+    file: Pick<KnowledgeBaseFileRecord, "fileName" | "fileType">,
+    chunkCount: number,
+    extracted: ExtractedKnowledgeText,
+    providerStatus: string,
+  ) {
+    const extractionSummary = extracted.usedFallback
+      ? `当前未提取到 ${file.fileType} 正文，先按文件元数据生成 ${chunkCount} 个占位分片`
+      : `已提取正文并按 ${file.fileType} 规则生成 ${chunkCount} 个真实分片`;
+    const note = extracted.note ? `，${extracted.note}` : "";
+    return `文件 ${file.fileName} 同步完成，${extractionSummary}${note}。${providerStatus}。`;
   }
 
-  private buildFullSyncSummary(fileCount: number, chunkCount: number) {
-    return fileCount > 0
-      ? `全量同步已完成，共处理 ${fileCount} 个文件，累计生成 ${chunkCount} 个分片，当前为最小 ingestion 骨架。`
-      : "全量同步已完成，但当前知识库暂无可处理文件。";
+  private buildFullSyncSummary(fileCount: number, chunkCount: number, failedCount = 0) {
+    if (fileCount <= 0) {
+      return "全量同步已完成，但当前知识库暂无可处理文件。";
+    }
+    if (failedCount > 0) {
+      return `全量同步已完成，共处理 ${fileCount} 个文件，成功 ${fileCount - failedCount} 个，失败 ${failedCount} 个，累计生成 ${chunkCount} 个分片。`;
+    }
+    return `全量同步已完成，共处理 ${fileCount} 个文件，累计生成 ${chunkCount} 个分片。`;
+  }
+
+  private extractBusinessAssetsBrandId(knowledgeBaseId: string) {
+    const matched = /^kb_brand_business_assets_(.+)$/.exec(String(knowledgeBaseId || "").trim());
+    return matched?.[1] || "";
+  }
+
+  private buildBrandAssetFileStorageKey(brandId: string, fileName: string) {
+    return `brands/${brandId}/asset-files/${this.sanitizeStoredFileName(fileName)}`;
+  }
+
+  private sanitizeStoredFileName(fileName: string) {
+    return String(fileName || "").trim().replace(/^.*[\\/]/, "");
+  }
+
+  private normalizeTextContent(value: string) {
+    return String(value || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\u0000/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  private decodeXmlEntities(value: string) {
+    return String(value || "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, "\"")
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+  }
+
+  private stripXmlTags(value: string) {
+    return this.normalizeTextContent(
+      this.decodeXmlEntities(
+        String(value || "")
+          .replace(/<w:tab[^>]*\/>/g, " ")
+          .replace(/<\/(w:p|a:p|row|si|sheetData|worksheet|t)>/g, "\n")
+          .replace(/<[^>]+>/g, " "),
+      ),
+    );
+  }
+
+  private scoreTextCandidate(value: string) {
+    const normalized = this.normalizeTextContent(value);
+    if (!normalized) {
+      return 0;
+    }
+    const readableCount = (normalized.match(/[\u4e00-\u9fa5A-Za-z0-9，。；：“”、《》？！（）,.!?:;\-_\n ]/g) || []).length;
+    return readableCount / Math.max(1, normalized.length);
+  }
+
+  private decodeBufferAsText(buffer: Buffer) {
+    const candidates = [
+      buffer.toString("utf8"),
+      buffer.toString("utf16le"),
+      buffer.toString("latin1"),
+    ]
+      .map((item) => this.normalizeTextContent(item))
+      .filter(Boolean);
+    if (!candidates.length) {
+      return "";
+    }
+    const bestCandidate = candidates
+      .map((item) => ({ item, score: this.scoreTextCandidate(item) }))
+      .sort((left, right) => right.score - left.score || right.item.length - left.item.length)[0];
+    return bestCandidate.score >= 0.25 ? bestCandidate.item : "";
+  }
+
+  private extractTextFromPdfBuffer(buffer: Buffer) {
+    const raw = buffer.toString("latin1");
+    const matches = raw.match(/\((?:\\.|[^\\()]){2,240}\)/g) || [];
+    const fragments = matches
+      .map((item) =>
+        item
+          .slice(1, -1)
+          .replace(/\\n/g, "\n")
+          .replace(/\\r/g, " ")
+          .replace(/\\t/g, " ")
+          .replace(/\\([()\\])/g, "$1"),
+      )
+      .map((item) => this.normalizeTextContent(item))
+      .filter((item) => item.length >= 2 && /[\u4e00-\u9fa5A-Za-z0-9]/.test(item));
+    return this.normalizeTextContent(fragments.join("\n"));
+  }
+
+  private readZipEntries(buffer: Buffer): ZipEntryLike[] {
+    try {
+      const AdmZip = require("adm-zip") as { new (input: Buffer): AdmZipLike };
+      const archive = new AdmZip(buffer);
+      return archive.getEntries().filter((item) => !item.isDirectory);
+    } catch {
+      return [];
+    }
+  }
+
+  private extractTextFromDocxBuffer(buffer: Buffer) {
+    const entry = this.readZipEntries(buffer).find((item) => item.entryName === "word/document.xml");
+    if (!entry) {
+      return "";
+    }
+    return this.stripXmlTags(entry.getData().toString("utf8"));
+  }
+
+  private extractTextFromXlsxBuffer(buffer: Buffer) {
+    const entries = this.readZipEntries(buffer);
+    const sharedStringsEntry = entries.find((item) => item.entryName === "xl/sharedStrings.xml");
+    const sheetEntries = entries.filter((item) => /^xl\/worksheets\/sheet\d+\.xml$/.test(item.entryName));
+    const sharedStrings = sharedStringsEntry
+      ? this.stripXmlTags(sharedStringsEntry.getData().toString("utf8"))
+      : "";
+    const sheetTexts = sheetEntries
+      .map((item) => this.stripXmlTags(item.getData().toString("utf8")))
+      .filter(Boolean)
+      .join("\n");
+    return this.normalizeTextContent([sharedStrings, sheetTexts].filter(Boolean).join("\n\n"));
+  }
+
+  private buildMetadataFallbackText(file: Pick<KnowledgeBaseFileRecord, "fileName" | "fileType" | "sourceName">) {
+    return this.normalizeTextContent(
+      [
+        `资料标题：${file.fileName}`,
+        `资料类型：${file.fileType}`,
+        file.sourceName ? `资料来源：${file.sourceName}` : "",
+        "说明：当前文件尚未完成正文提取，系统先按元数据生成占位分片，后续可继续补真实解析器。",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  }
+
+  private estimateTokenCount(value: string) {
+    return Math.max(1, Math.ceil(String(value || "").length / 4));
+  }
+
+  private resolveChunkingConfig(config?: KnowledgeRetrievalConfigRecord) {
+    const chunkSize = Math.max(200, Math.floor(config?.chunkSize ?? 800));
+    const chunkOverlap = Math.max(0, Math.min(chunkSize - 1, Math.floor(config?.chunkOverlap ?? 120)));
+    return {
+      chunkSize,
+      chunkOverlap,
+    };
+  }
+
+  private splitTextIntoChunks(content: string, chunkSize: number, chunkOverlap: number) {
+    const normalized = this.normalizeTextContent(content);
+    if (!normalized) {
+      return [];
+    }
+    if (normalized.length <= chunkSize) {
+      return [normalized];
+    }
+    const chunks: string[] = [];
+    let cursor = 0;
+    while (cursor < normalized.length) {
+      const nextCursor = Math.min(normalized.length, cursor + chunkSize);
+      const chunk = this.normalizeTextContent(normalized.slice(cursor, nextCursor));
+      if (chunk) {
+        chunks.push(chunk);
+      }
+      if (nextCursor >= normalized.length) {
+        break;
+      }
+      cursor = Math.max(nextCursor - chunkOverlap, cursor + 1);
+    }
+    return chunks;
+  }
+
+  private async getOrCreateKnowledgeRetrievalConfigInDatabase(knowledgeBaseId: string) {
+    const existing = await this.prismaService.knowledgeRetrievalConfig.findUnique({
+      where: { knowledgeBaseId },
+    });
+    if (existing) {
+      return this.normalizeKnowledgeRetrievalConfig(existing);
+    }
+    const defaults = this.buildDefaultKnowledgeRetrievalConfigRecord(knowledgeBaseId);
+    const created = await this.prismaService.knowledgeRetrievalConfig.create({
+      data: {
+        id: defaults.id,
+        knowledgeBaseId,
+        defaultTopK: defaults.defaultTopK,
+        recallMode: defaults.recallMode,
+        rerankEnabled: defaults.rerankEnabled,
+        rerankModelName: defaults.rerankModelName ?? null,
+        chunkSize: defaults.chunkSize ?? null,
+        chunkOverlap: defaults.chunkOverlap ?? null,
+        retrievalThreshold: defaults.retrievalThreshold ?? null,
+        createdAt: new Date(defaults.createdAt),
+        updatedAt: new Date(defaults.updatedAt),
+      },
+    });
+    return this.normalizeKnowledgeRetrievalConfig(created);
+  }
+
+  private async extractKnowledgeBaseFileText(file: KnowledgeBaseFileRecord): Promise<ExtractedKnowledgeText> {
+    const brandId = this.extractBusinessAssetsBrandId(file.knowledgeBaseId);
+    if (!brandId) {
+      return {
+        content: this.buildMetadataFallbackText(file),
+        sourceLabel: "metadata-fallback",
+        usedFallback: true,
+        note: "当前知识库文件没有关联品牌原始文档路径",
+      };
+    }
+    const storedFile = await this.ossStorageService.getObject(
+      this.buildBrandAssetFileStorageKey(brandId, file.fileName),
+    );
+    if (!storedFile) {
+      return {
+        content: this.buildMetadataFallbackText(file),
+        sourceLabel: "metadata-fallback",
+        usedFallback: true,
+        note: "未在 OSS 中找到对应原始文件",
+      };
+    }
+    const extractedContent =
+      file.fileType === "DOCX"
+        ? this.extractTextFromDocxBuffer(storedFile.buffer)
+        : file.fileType === "XLSX"
+          ? this.extractTextFromXlsxBuffer(storedFile.buffer)
+          : file.fileType === "PDF"
+            ? this.extractTextFromPdfBuffer(storedFile.buffer)
+            : this.decodeBufferAsText(storedFile.buffer);
+    if (extractedContent) {
+      return {
+        content: extractedContent,
+        sourceLabel: "file-content",
+        usedFallback: false,
+      };
+    }
+    return {
+      content: this.buildMetadataFallbackText(file),
+      sourceLabel: "metadata-fallback",
+      usedFallback: true,
+      note: "当前文件类型尚未提取到稳定正文",
+    };
+  }
+
+  private async buildKnowledgeBaseProviderStatus(knowledgeBaseId: string) {
+    const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
+    if (!brandId) {
+      return "当前知识库暂无品牌共享 API Key 上下文";
+    }
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
+      "https://ark.cn-beijing.volces.com/api/v3",
+    ]);
+    if (resolution.status === "resolved") {
+      return `已识别${resolution.platform?.name || "火山方舟平台"}品牌共享 API Key，可继续接入 embedding`;
+    }
+    if (resolution.status === "brand-api-key-missing") {
+      return `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key`;
+    }
+    if (resolution.status === "no-platform-match") {
+      return "当前未匹配到 embedding 平台配置";
+    }
+    return "当前缺少品牌上下文，暂不能读取共享 API Key";
+  }
+
+  private async replaceKnowledgeBaseFileChunksInDatabase(
+    file: KnowledgeBaseFileRecord,
+    chunks: PersistedKnowledgeChunkInput[],
+  ) {
+    await this.prismaService.knowledgeChunk.deleteMany({
+      where: { fileId: file.id },
+    });
+    if (!chunks.length) {
+      return;
+    }
+    await this.prismaService.knowledgeChunk.createMany({
+      data: chunks.map((item) => ({
+        id: this.createId("kbc"),
+        knowledgeBaseId: file.knowledgeBaseId,
+        fileId: file.id,
+        chunkIndex: item.chunkIndex,
+        content: item.content,
+        tokenCount: item.tokenCount,
+        charCount: item.charCount,
+        contentHash: createHash("sha256").update(item.content).digest("hex"),
+        sourceLabel: item.sourceLabel ?? null,
+        metadataJson: item.metadataJson,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    });
+  }
+
+  private async ingestKnowledgeBaseFileInDatabase(file: KnowledgeBaseFileRecord) {
+    const retrievalConfig = await this.getOrCreateKnowledgeRetrievalConfigInDatabase(file.knowledgeBaseId);
+    const extracted = await this.extractKnowledgeBaseFileText(file);
+    const chunking = this.resolveChunkingConfig(retrievalConfig);
+    const chunks = this.splitTextIntoChunks(extracted.content, chunking.chunkSize, chunking.chunkOverlap).map(
+      (item, index) => ({
+        chunkIndex: index,
+        content: item,
+        tokenCount: this.estimateTokenCount(item),
+        charCount: item.length,
+        sourceLabel: extracted.sourceLabel,
+        metadataJson: {
+          sourceLabel: extracted.sourceLabel,
+          usedFallback: extracted.usedFallback,
+          fileName: file.fileName,
+          fileType: file.fileType,
+        } as Prisma.InputJsonValue,
+      }),
+    );
+    await this.replaceKnowledgeBaseFileChunksInDatabase(file, chunks);
+    const providerStatus = await this.buildKnowledgeBaseProviderStatus(file.knowledgeBaseId);
+    return {
+      chunkCount: chunks.length,
+      summary: this.buildFileSyncSummary(file, chunks.length, extracted, providerStatus),
+    };
   }
 
   private async refreshKnowledgeBaseSummaryInDatabase(knowledgeBaseId: string, updatedAt = new Date().toISOString()) {
@@ -879,6 +1274,19 @@ export class KnowledgeBasesService {
     }
 
     return this.listKnowledgeBaseFilesFromMock(knowledgeBaseId);
+  }
+
+  async listKnowledgeFileChunks(fileId: string): Promise<KnowledgeChunkRecord[]> {
+    if (await this.canUseKnowledgeBaseStorage()) {
+      await this.ensureKnowledgeBaseStorageSeeded();
+      await this.getKnowledgeBaseFileOrThrow(fileId);
+      const rows = await this.prismaService.knowledgeChunk.findMany({
+        where: { fileId },
+        orderBy: { chunkIndex: "asc" },
+      });
+      return rows.map((item) => this.normalizeKnowledgeChunk(item));
+    }
+    return [];
   }
 
   async listKnowledgeBaseSyncRuns(knowledgeBaseId?: string) {
@@ -1447,34 +1855,50 @@ export class KnowledgeBasesService {
         fileId: file.id,
         fileName: file.fileName,
         result: "RUNNING",
-        summary: "文件同步任务已创建，正在执行最小解析骨架。",
+        summary: "文件同步任务已创建，正在执行正文提取与切片入库。",
       });
-      const normalizedCurrentFile = this.normalizeKnowledgeBaseFile(currentFile);
-      const chunkCount = this.estimateChunkCount({
-        fileName: normalizedCurrentFile.fileName,
-        fileType: normalizedCurrentFile.fileType,
-        sourceName: normalizedCurrentFile.sourceName,
-        chunkCount: normalizedCurrentFile.chunkCount,
-      });
-      const completedFile = await this.prismaService.knowledgeBaseFile.update({
-        where: { id: file.id },
-        data: {
-          status: "INDEXED",
-          chunkCount,
-          updatedAt: new Date(),
-        },
-      });
-      const completedRun = await this.completeSyncRunInDatabase(run.id, {
-        result: "SUCCESS",
-        summary: this.buildFileSyncSummary(this.normalizeKnowledgeBaseFile(completedFile), chunkCount),
-      });
-      const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(file.knowledgeBaseId);
+      try {
+        const normalizedCurrentFile = this.normalizeKnowledgeBaseFile(currentFile);
+        const ingestion = await this.ingestKnowledgeBaseFileInDatabase(normalizedCurrentFile);
+        const completedFile = await this.prismaService.knowledgeBaseFile.update({
+          where: { id: file.id },
+          data: {
+            status: "INDEXED",
+            chunkCount: ingestion.chunkCount,
+            updatedAt: new Date(),
+          },
+        });
+        const completedRun = await this.completeSyncRunInDatabase(run.id, {
+          result: "SUCCESS",
+          summary: ingestion.summary,
+        });
+        const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(file.knowledgeBaseId);
 
-      return {
-        file: this.normalizeKnowledgeBaseFile(completedFile),
-        knowledgeBase: refreshedKnowledgeBase,
-        run: completedRun,
-      };
+        return {
+          file: this.normalizeKnowledgeBaseFile(completedFile),
+          knowledgeBase: refreshedKnowledgeBase,
+          run: completedRun,
+        };
+      } catch (error) {
+        const failedFile = await this.prismaService.knowledgeBaseFile.update({
+          where: { id: file.id },
+          data: {
+            status: "FAILED",
+            updatedAt: new Date(),
+          },
+        });
+        const completedRun = await this.completeSyncRunInDatabase(run.id, {
+          result: "FAILED",
+          summary: `文件 ${file.fileName} 同步失败。`,
+          errorDetail: error instanceof Error ? error.message : "未知错误",
+        });
+        const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(file.knowledgeBaseId);
+        return {
+          file: this.normalizeKnowledgeBaseFile(failedFile),
+          knowledgeBase: refreshedKnowledgeBase,
+          run: completedRun,
+        };
+      }
     }
 
     const file = this.getKnowledgeBaseFileOrThrowFromMock(fileId);
@@ -1496,7 +1920,17 @@ export class KnowledgeBasesService {
     file.status = "INDEXED";
     const completedRun = this.completeSyncRunFromMock(run.id, {
       result: "SUCCESS",
-      summary: this.buildFileSyncSummary(file, chunkCount),
+      summary: this.buildFileSyncSummary(
+        file,
+        chunkCount,
+        {
+          content: this.buildMetadataFallbackText(file),
+          sourceLabel: "mock-metadata",
+          usedFallback: true,
+          note: "当前为演示数据模式，仍使用估算分片",
+        },
+        "演示数据模式不读取品牌共享 API Key",
+      ),
     });
     const refreshedKnowledgeBase = this.refreshKnowledgeBaseSummary(file.knowledgeBaseId, completedRun.completedAt);
     return { file, knowledgeBase: refreshedKnowledgeBase, run: completedRun };
@@ -1516,29 +1950,42 @@ export class KnowledgeBasesService {
         scope: "FULL",
         operator: "后台管理员",
         result: "RUNNING",
-        summary: "全量同步任务已创建，正在执行最小 ingestion 骨架。",
+        summary: "全量同步任务已创建，正在执行正文提取与切片入库。",
       });
       const files = await this.prismaService.knowledgeBaseFile.findMany({
         where: { knowledgeBaseId: id },
         orderBy: { uploadedAt: "desc" },
       });
       let totalChunks = 0;
+      let failedCount = 0;
       for (const item of files) {
-        const normalized = this.normalizeKnowledgeBaseFile(item);
-        const chunkCount = this.estimateChunkCount(normalized);
-        totalChunks += chunkCount;
-        await this.prismaService.knowledgeBaseFile.update({
-          where: { id: item.id },
-          data: {
-            status: "INDEXED",
-            chunkCount,
-            updatedAt: new Date(),
-          },
-        });
+        try {
+          const normalized = this.normalizeKnowledgeBaseFile(item);
+          const ingestion = await this.ingestKnowledgeBaseFileInDatabase(normalized);
+          totalChunks += ingestion.chunkCount;
+          await this.prismaService.knowledgeBaseFile.update({
+            where: { id: item.id },
+            data: {
+              status: "INDEXED",
+              chunkCount: ingestion.chunkCount,
+              updatedAt: new Date(),
+            },
+          });
+        } catch {
+          failedCount += 1;
+          await this.prismaService.knowledgeBaseFile.update({
+            where: { id: item.id },
+            data: {
+              status: "FAILED",
+              updatedAt: new Date(),
+            },
+          });
+        }
       }
       const completedRun = await this.completeSyncRunInDatabase(run.id, {
-        result: "SUCCESS",
-        summary: this.buildFullSyncSummary(files.length, totalChunks),
+        result: failedCount > 0 ? "FAILED" : "SUCCESS",
+        summary: this.buildFullSyncSummary(files.length, totalChunks, failedCount),
+        errorDetail: failedCount > 0 ? `共有 ${failedCount} 个文件未完成正文提取或切片入库。` : undefined,
       });
       const refreshedKnowledgeBase = await this.refreshKnowledgeBaseSummaryInDatabase(id);
 

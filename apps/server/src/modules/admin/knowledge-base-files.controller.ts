@@ -22,6 +22,15 @@ export class KnowledgeBaseFilesController {
     return this.knowledgeBasesService.listKnowledgeBaseSyncRuns();
   }
 
+  @Get(":id/chunks")
+  async listKnowledgeBaseFileChunks(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.knowledgeBasesService.listKnowledgeFileChunks(id);
+  }
+
   @Patch(":id")
   async updateKnowledgeBaseFile(
     @Param("id") id: string,
