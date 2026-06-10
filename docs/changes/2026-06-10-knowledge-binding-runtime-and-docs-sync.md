@@ -11,9 +11,11 @@
 - 半年营销规划生成前，也会复用同一套继承解析规则，按 `brand-growth-workbench -> enterprise-annual-plan -> enterprise-annual-plan` 读取企业知识库片段。
 - 小红书营销策划方案生成前，会按 `xiaohongshu-workbench -> xiaohongshu-brand-marketing-plan -> xiaohongshu-brand-marketing-plan` 读取企业知识库片段。
 - 抖音营销策划方案生成前，会按 `douyin-workbench -> tongcheng-brand-douyin-planning -> tongcheng-brand-douyin-planning` 读取企业知识库片段。
+- 抖音热点找选题生成前，会按 `douyin-workbench -> tongcheng-brand-douyin-planning -> douyin-hot-topic-candidates` 读取企业知识库片段。
+- 公众号文章生成前，会按 `wechat-workbench -> wechat-article-generator -> wechat-article-composer` 读取企业知识库片段。
 - 对命中的绑定知识库，系统会执行一次最小检索召回，把企业知识库中与品牌背景、产品资料、经营情况、客户画像、渠道策略相关的片段追加到品牌增长报告输入上下文。
 - 这次接法保持“最小闭环”：
-  - 先接到“品牌增长报告 + 半年营销规划 + 小红书营销策划方案 + 抖音营销策划方案”
+  - 先接到“品牌增长报告 + 半年营销规划 + 小红书营销策划方案 + 抖音营销策划方案 + 抖音热点找选题 + 公众号文章生成”
   - 标准绑定层级收口为“模块 / 能力包 / 技能”
   - 运行时统一按“模块 -> 能力包 -> 技能”继承解析
   - 采用 best-effort 方式，知识检索失败不会直接阻断报告生成
@@ -25,7 +27,7 @@
 
 ## 当前结果
 
-- “接入对象”不再只是后台治理字段，已经开始在品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案这四条主链路里真实生效。
+- “接入对象”不再只是后台治理字段，已经开始在品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案、抖音热点找选题、公众号文章生成这六条主链路里真实生效。
 - 前端企业知识库上传后的默认绑定 `brand-growth-workbench`，现在会真正影响品牌增长报告生成时的上下文范围。
 - 顶层文档已明确区分：
   - 哪些属于知识库治理层

@@ -13,6 +13,7 @@ import { AppConfigService } from "../../config/app-config.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
+import { KnowledgeBasesService } from "../admin/knowledge-bases.service";
 import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import type { RequestAuthContext } from "../auth/auth.service";
 import { BrandsService } from "../brands/brands.service";
@@ -48,6 +49,8 @@ const WECHAT_IMAGE_REQUEST_STAGGER_MS = 10 * 1000;
 const WECHAT_IMAGE_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
+const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
+const WORKS_KNOWLEDGE_TOP_K = 4;
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
@@ -2174,6 +2177,8 @@ export class WorksService {
     private readonly reportsService: ReportsService,
     @Inject(ApiProvidersService)
     private readonly apiProvidersService: ApiProvidersService,
+    @Inject(KnowledgeBasesService)
+    private readonly knowledgeBasesService: KnowledgeBasesService,
     @Inject(SkillsPromptsService)
     private readonly skillsPromptsService: SkillsPromptsService,
     @Inject(ThirdPartyPlatformsService)
@@ -9844,6 +9849,134 @@ export class WorksService {
     return "text-global";
   }
 
+  private async buildWechatArticleKnowledgeContext(params: {
+    brandId: string;
+    titleSeed: string;
+    inputContent: string;
+    selectedMarketingLabels: string[];
+    selectedProductLabels: string[];
+    selectedBrandLabels: string[];
+    injectBrandProfile: boolean;
+  }) {
+    const retrievalQuery = [
+      "公众号图文创作",
+      params.titleSeed ? `标题线索：${params.titleSeed}` : "",
+      params.injectBrandProfile ? "需要结合品牌资料" : "",
+      params.selectedMarketingLabels.length ? `营销主题：${params.selectedMarketingLabels.join("、")}` : "",
+      params.selectedProductLabels.length ? `产品：${params.selectedProductLabels.join("、")}` : "",
+      params.selectedBrandLabels.length ? `品牌标签：${params.selectedBrandLabels.join("、")}` : "",
+      params.inputContent ? `补充输入：${this.truncateText(params.inputContent, 120)}` : "",
+      "请召回企业知识库中与品牌定位、产品卖点、营销节点、内容口吻、销售话术、活动信息相关的内容",
+    ]
+      .filter((item) => item.trim())
+      .join("；");
+
+    if (!retrievalQuery) {
+      return "";
+    }
+
+    try {
+      const bindings = await this.resolveWorksKnowledgeBindings({
+        moduleTargetId: "wechat-workbench",
+        skillPackageKey: "wechat-article-generator",
+        skillSlug: "wechat-article-composer",
+        legacyPromptId: "prompt_wechat_article_compose",
+      });
+      if (!bindings.length) {
+        return "";
+      }
+
+      const sections: string[] = [];
+      for (const binding of bindings) {
+        const retrieval = await this.knowledgeBasesService.runKnowledgeRetrievalTest(binding.knowledgeBaseId, {
+          query: retrievalQuery,
+          topK: WORKS_KNOWLEDGE_TOP_K,
+        });
+        if (!retrieval.hits.length) {
+          continue;
+        }
+        const hitLines = retrieval.hits
+          .slice(0, WORKS_KNOWLEDGE_TOP_K)
+          .map((hit, index) => `${index + 1}. ${this.truncateText(hit.content, 180)}`)
+          .join("\n");
+        sections.push(
+          [
+            `【${binding.knowledgeBaseName || binding.targetName || binding.knowledgeBaseId}】`,
+            hitLines,
+          ].join("\n"),
+        );
+      }
+
+      if (!sections.length) {
+        return "";
+      }
+
+      return [
+        "",
+        "以下是系统按接入对象从企业知识库召回的补充上下文，请结合这些内容完成公众号文章创作：",
+        "",
+        sections.join("\n\n"),
+      ].join("\n");
+    } catch {
+      return "";
+    }
+  }
+
+  private async resolveWorksKnowledgeBindings(scope: {
+    moduleTargetId?: string;
+    skillPackageKey?: string;
+    skillSlug?: string;
+    legacyPromptId?: string;
+    workflowStepId?: string;
+  }) {
+    const candidates = [
+      { bindingType: "WORKFLOW_STEP", targetId: scope.workflowStepId, specificity: 500 },
+      { bindingType: "SKILL", targetId: scope.skillSlug, specificity: 400 },
+      { bindingType: "PROMPT", targetId: scope.legacyPromptId, specificity: 300 },
+      { bindingType: "SKILL_PACKAGE", targetId: scope.skillPackageKey, specificity: 200 },
+      { bindingType: "MODULE", targetId: scope.moduleTargetId, specificity: 100 },
+    ].filter((item) => item.targetId?.trim());
+
+    if (!candidates.length) {
+      return [];
+    }
+
+    const groups = await Promise.all(
+      candidates.map(async (candidate) => {
+        const items = await this.knowledgeBasesService.listKnowledgeBindingsByTarget(
+          candidate.bindingType,
+          candidate.targetId || "",
+          true,
+        );
+        return items.map((item) => ({
+          ...item,
+          specificity: candidate.specificity,
+        }));
+      }),
+    );
+
+    const flattened = groups
+      .flat()
+      .filter((item) => item.enabled && item.retrievalMode !== "MANUAL")
+      .sort((left, right) => {
+        if (left.specificity !== right.specificity) {
+          return right.specificity - left.specificity;
+        }
+        if (left.isRequired !== right.isRequired) {
+          return Number(right.isRequired) - Number(left.isRequired);
+        }
+        return right.priority - left.priority;
+      });
+
+    const deduped = new Map<string, (typeof flattened)[number]>();
+    for (const item of flattened) {
+      if (!deduped.has(item.knowledgeBaseId)) {
+        deduped.set(item.knowledgeBaseId, item);
+      }
+    }
+    return Array.from(deduped.values()).slice(0, WORKS_KNOWLEDGE_BINDING_LIMIT);
+  }
+
   private async generateWechatArticleByModel(params: {
     brandId: string;
     inputType: WechatWorkflowInputType;
@@ -9902,7 +10035,16 @@ export class WorksService {
       "结尾只能保留正文总结或行动建议，禁止额外输出“营销日历资料 / 产品资料 / 品牌资料 / 原文链接 / 创作来源 / 素材说明 / 附录”之类的尾部信息块。",
       "bodyImageBriefs 数量控制在 2-4 条，必须与正文章节主题对应。",
     ].join("\n");
-    const userPrompt = ["以下是公众号文章生成输入：", "", JSON.stringify(inputPayload, null, 2)].join("\n");
+    const knowledgeContext = await this.buildWechatArticleKnowledgeContext({
+      brandId: params.brandId,
+      titleSeed: params.titleSeed,
+      inputContent: params.inputContent,
+      selectedMarketingLabels: params.selectedMarketingLabels,
+      selectedProductLabels: params.selectedProductLabels,
+      selectedBrandLabels: params.selectedBrandLabels,
+      injectBrandProfile: params.injectBrandProfile,
+    });
+    const userPrompt = ["以下是公众号文章生成输入：", "", JSON.stringify(inputPayload, null, 2), knowledgeContext].join("\n");
 
     let lastError = "";
     const attemptTrail: string[] = [];
@@ -19053,6 +19195,14 @@ export class WorksService {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 160);
+  }
+
+  private truncateText(content: string, maxLength: number) {
+    const normalized = String(content || "").replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
   }
 
   private extractResponseText(payload: {

@@ -6098,6 +6098,18 @@ export class ReportsService {
     );
   }
 
+  private async buildDouyinHotTopicKnowledgeContext(
+    settings: ModelGenerationSettings,
+    inputPayload: Record<string, unknown>,
+  ) {
+    return this.buildExecutionKnowledgeContext(
+      settings.brandId || "",
+      settings.knowledgeScope,
+      this.buildPlatformMarketingKnowledgeQuery(inputPayload, "抖音热点找选题"),
+      "以下是系统按接入对象从企业知识库召回的补充上下文，请把这些内容一起作为抖音热点选题判断依据：",
+    );
+  }
+
   private async buildExecutionKnowledgeContext(
     brandId: string,
     scope: ModelGenerationSettings["knowledgeScope"],
@@ -6830,10 +6842,12 @@ export class ReportsService {
     const preferredModelName = settings.preferredModelName || this.parseDelimitedModels(settings.modelName)[0] || "";
     const selectedDate = this.readRecordString(this.readNestedRecord(inputPayload, ["inputScope", "dailyHotspots"]), "selectedDate") || "";
     const analysisSystemPrompt = skillPrompt;
+    const knowledgeContext = await this.buildDouyinHotTopicKnowledgeContext(settings, inputPayload);
     const analysisUserPrompt = [
       "以下是本次输入数据，请严格基于这些数据完成分析：",
       "",
       JSON.stringify(inputPayload, null, 2),
+      knowledgeContext,
     ].join("\n");
 
     let lastError = "";
@@ -9827,6 +9841,12 @@ ${normalizedMarkdown}`;
       preferredModelName,
       brandId,
       preferredProviderIds: this.extractPreferredProviderIds(...preferredSelections),
+      knowledgeScope: {
+        moduleTargetId: "douyin-workbench",
+        skillPackageKey: "tongcheng-brand-douyin-planning",
+        skillSlug: "douyin-hot-topic-candidates",
+        legacyPromptId: "prompt_douyin_hot_topic_candidates",
+      },
     };
   }
 

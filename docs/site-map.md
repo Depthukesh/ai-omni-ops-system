@@ -106,7 +106,7 @@
   - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
   - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
   - 当前已开始接入知识库“接入对象”运行时链路：会按“模块 -> 能力包 -> 技能”的继承顺序解析知识绑定；品牌增长报告当前至少会带上 `MODULE/brand-growth-workbench`、`SKILL_PACKAGE/brand-growth-analysis`、`SKILL/brand-omni-growth-analysis` 这三层执行身份，再从企业知识库召回片段作为补充上下文送入模型
-  - 当前这条知识注入链路仍属于最小闭环：只接入品牌增长报告，且采用 best-effort 方式；若检索失败或无命中，报告仍会继续生成，不会直接中断
+  - 当前这条知识注入链路仍采用 best-effort 方式；若检索失败或无命中，报告仍会继续生成，不会直接中断
 - 报告类技能当前已统一接入公共 Provider / 模型选择规则：先严格命中技能中心显式选择的 Provider，再严格命中首选模型，只有两者都匹配不到时才回退到通用 runtime 候选链路
 - 品牌增长可视化报告
 - 半年营销规划
@@ -455,8 +455,8 @@
   - 当前可直接维护默认 TopK、召回模式、重排开关、切片大小/重叠和检索阈值
   - 当前“接入对象”处于“治理层已落地、运行时部分生效”状态：
     - 已落地：后台可维护绑定关系，前端企业知识库会自动补品牌增长工作台的默认绑定
-    - 已生效：品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案已经按“模块 -> 能力包 -> 技能”继承解析自动召回企业知识库片段，旧版 `PROMPT / WORKFLOW_STEP` 仅做兼容读取
-    - 未完全生效：作品生成、热点找选题、微信图文等其余能力包和技能执行链路尚未统一接入同一套运行时知识注入链
+    - 已生效：品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案、抖音热点找选题、公众号文章生成已经按“模块 -> 能力包 -> 技能”继承解析自动召回企业知识库片段，旧版 `PROMPT / WORKFLOW_STEP` 仅做兼容读取
+    - 未完全生效：作品生成、公众号 HTML 渲染、配图生成等其余能力包和技能执行链路尚未统一接入同一套运行时知识注入链
 
 - 企业知识库
   - 当前在前端品牌资料库保存后，会自动桥接到对应品牌的企业知识库，便于后台继续同步和治理
@@ -621,6 +621,7 @@
   - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
   - 品牌增长可视化报告、半年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
   - 抖音“热点找选题”当前也走 `ReportsModule` 的异步任务工作区模式；工作区按热点日期读取结果，后台任务输入固定包含当天“每日热点”全部榜单与品牌背景资料
+  - 抖音“热点找选题”现在也会按 `douyin-workbench -> tongcheng-brand-douyin-planning -> douyin-hot-topic-candidates` 继承解析企业知识库绑定，再把召回片段拼进热点分析输入
   - 半年营销规划当前以 `/reports/brands/:brandId/half-year-marketing-plan` 作为主读取与生成路径，同时保留旧 `annual-marketing-plan` 路径兼容历史前端和外部调用
   - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
   - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
@@ -676,6 +677,7 @@
     - `PATCH /api/works/brands/:brandId/wechat/articles/:draftId`
   - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
 - 公众号文章、生图链路当前与小红书、报告链路共用同一套 Provider / 模型公共选择规则，不再单独维护公众号私有优先级
+  - 公众号文章生成现在也会按 `wechat-workbench -> wechat-article-generator -> wechat-article-composer` 继承解析企业知识库绑定，再把召回片段拼进文章生成输入
 - 公众号配置、工作流偏好、官方账号、工作流会话、文章草稿、发布历史当前都已切到数据库优先持久化；数据库不可用时才回退到内存 mock store
 - 生图链路当前会在 `rate_limit_exceeded / 429 / quota` 时停止同模型下的 prompt 级重复尝试，并继续切换下一候选模型/供应商
 - 参考变更：`docs/changes/2026-06-06-skill-provider-selection-rule-unification.md`

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { KnowledgeBasesModule } from "../admin/knowledge-bases.module";
 import { StorageModule } from "../../storage/storage.module";
 import { ApiProvidersModule } from "../admin/api-providers.module";
 import { SkillsPromptsModule } from "../admin/skills-prompts.module";
@@ -13,7 +14,7 @@ import { WorksController } from "./works.controller";
 import { WorksService } from "./works.service";
 
 @Module({
-  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule, ThirdPartyPlatformsModule],
+  imports: [AuthModule, BrandsModule, CollectorsModule, ReportsModule, SkillsPromptsModule, StorageModule, ApiProvidersModule, ThirdPartyPlatformsModule, KnowledgeBasesModule],
   controllers: [WorksController],
   providers: [WorksService, ChanjingOpenApiService, WechatOfficialAccountApiService],
   exports: [WorksService],
