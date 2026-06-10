@@ -55,6 +55,11 @@ export type CompleteKnowledgeBaseSyncRunPayload = {
   errorDetail?: string;
 };
 
+export type RunKnowledgeRetrievalTestPayload = {
+  query: string;
+  topK?: number;
+};
+
 export type KnowledgeBaseFileMutationResult = {
   file: KnowledgeBaseFileRecord;
   knowledgeBase: KnowledgeBaseRecord;
@@ -93,6 +98,25 @@ export type KnowledgeEmbeddingRecord = {
   dimensions: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type KnowledgeRetrievalTestHit = {
+  chunkId: string;
+  fileId: string;
+  fileName: string;
+  chunkIndex: number;
+  score: number;
+  content: string;
+  sourceLabel?: string;
+};
+
+export type KnowledgeRetrievalTestResult = {
+  knowledgeBaseId: string;
+  query: string;
+  topK: number;
+  modelName: string;
+  hitCount: number;
+  hits: KnowledgeRetrievalTestHit[];
 };
 
 export type CreateKnowledgeBindingPayload = {
@@ -1136,9 +1160,10 @@ export class KnowledgeBasesService {
   }
 
   private async buildKnowledgeBaseProviderStatus(knowledgeBaseId: string) {
+    const envApiKey = this.resolveEnvArkApiKey();
     const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
     if (!brandId) {
-      return "当前知识库暂无品牌共享 API Key 上下文";
+      return envApiKey ? "当前知识库暂无品牌共享 API Key 上下文，已启用本地 ARK_API_KEY 兜底" : "当前知识库暂无品牌共享 API Key 上下文";
     }
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
       "https://ark.cn-beijing.volces.com/api/v3",
@@ -1147,12 +1172,18 @@ export class KnowledgeBasesService {
       return `已识别${resolution.platform?.name || "火山方舟平台"}品牌共享 API Key，可继续接入 embedding`;
     }
     if (resolution.status === "brand-api-key-missing") {
-      return `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key`;
+      return envApiKey
+        ? `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key，已启用本地 ARK_API_KEY 兜底`
+        : `当前品牌尚未配置${resolution.platform?.name || "火山方舟平台"}共享 API Key`;
     }
     if (resolution.status === "no-platform-match") {
-      return "当前未匹配到 embedding 平台配置";
+      return envApiKey ? "当前未匹配到 embedding 平台配置，已启用本地 ARK_API_KEY 兜底" : "当前未匹配到 embedding 平台配置";
     }
-    return "当前缺少品牌上下文，暂不能读取共享 API Key";
+    return envApiKey ? "当前缺少品牌上下文，已启用本地 ARK_API_KEY 兜底" : "当前缺少品牌上下文，暂不能读取共享 API Key";
+  }
+
+  private resolveEnvArkApiKey() {
+    return String(process.env.ARK_API_KEY || process.env.VOLCENGINE_ARK_API_KEY || "").trim();
   }
 
   private normalizeApiKeyForHeader(apiKey: string) {
@@ -1247,6 +1278,27 @@ export class KnowledgeBasesService {
     return this.parseEmbeddingNumbers(payload.embedding);
   }
 
+  private computeCosineSimilarity(left: number[], right: number[]) {
+    if (!left.length || !right.length) {
+      return 0;
+    }
+    const length = Math.min(left.length, right.length);
+    let dot = 0;
+    let leftNorm = 0;
+    let rightNorm = 0;
+    for (let index = 0; index < length; index += 1) {
+      const leftValue = left[index] || 0;
+      const rightValue = right[index] || 0;
+      dot += leftValue * rightValue;
+      leftNorm += leftValue * leftValue;
+      rightNorm += rightValue * rightValue;
+    }
+    if (leftNorm <= 0 || rightNorm <= 0) {
+      return 0;
+    }
+    return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+  }
+
   private async resolveEmbeddingProviderConfig() {
     const providers = await this.apiProvidersService.listActiveProvidersByRuntimeKey("embedding-multimodal");
     const provider = providers.find((item) => item.defaultModel === "doubao-embedding-vision-250615")
@@ -1275,13 +1327,13 @@ export class KnowledgeBasesService {
   private async resolveKnowledgeBaseEmbeddingApiKey(knowledgeBaseId: string, provider: EmbeddingProviderConfig) {
     const brandId = this.extractBusinessAssetsBrandId(knowledgeBaseId);
     if (!brandId) {
-      return "";
+      return this.resolveEnvArkApiKey();
     }
     const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [provider.baseUrl]);
     if (resolution.status !== "resolved") {
-      return "";
+      return this.resolveEnvArkApiKey();
     }
-    return String(resolution.apiKeys[0] || "").trim();
+    return String(resolution.apiKeys[0] || "").trim() || this.resolveEnvArkApiKey();
   }
 
   private async replaceKnowledgeChunkEmbeddingsInDatabase(
@@ -1342,6 +1394,31 @@ export class KnowledgeBasesService {
       createdCount += 1;
     }
     return createdCount;
+  }
+
+  private async createQueryEmbedding(
+    provider: EmbeddingProviderConfig,
+    apiKey: string,
+    query: string,
+  ) {
+    const payload = await this.requestAuthorizedJson(
+      provider.baseUrl,
+      provider.embeddingPath,
+      apiKey,
+      {
+        model: provider.modelName,
+        encoding_format: "float",
+        dimensions: provider.dimensions,
+        input: [
+          {
+            type: "text",
+            text: query,
+          },
+        ],
+      },
+      provider.timeoutMs,
+    );
+    return this.resolveEmbeddingVector(payload);
   }
 
   private async replaceKnowledgeBaseFileChunksInDatabase(
@@ -1947,6 +2024,75 @@ export class KnowledgeBasesService {
     knowledgeBase.updatedAt = new Date().toISOString();
 
     return knowledgeBase;
+  }
+
+  async runKnowledgeRetrievalTest(
+    knowledgeBaseId: string,
+    payload: RunKnowledgeRetrievalTestPayload,
+  ): Promise<KnowledgeRetrievalTestResult> {
+    const query = String(payload.query || "").trim();
+    if (!query) {
+      throw new BadRequestException("检索问题不能为空");
+    }
+    if (!(await this.canUseKnowledgeBaseStorage())) {
+      return {
+        knowledgeBaseId,
+        query,
+        topK: Math.max(1, Math.floor(payload.topK || 5)),
+        modelName: "mock",
+        hitCount: 0,
+        hits: [],
+      };
+    }
+    await this.ensureKnowledgeBaseStorageSeeded();
+    await this.getKnowledgeBaseOrThrow(knowledgeBaseId);
+    const retrievalConfig = await this.getOrCreateKnowledgeRetrievalConfigInDatabase(knowledgeBaseId);
+    const provider = await this.resolveEmbeddingProviderConfig();
+    const apiKey = await this.resolveKnowledgeBaseEmbeddingApiKey(knowledgeBaseId, provider);
+    if (!apiKey) {
+      throw new ServiceUnavailableException("当前未找到可用的火山方舟 API Key，无法执行检索测试");
+    }
+    const queryEmbedding = await this.createQueryEmbedding(provider, apiKey, query);
+    if (!queryEmbedding.length) {
+      throw new ServiceUnavailableException("检索向量生成失败");
+    }
+    const topK = Math.max(1, Math.min(20, Math.floor(payload.topK || retrievalConfig.defaultTopK || 5)));
+    const threshold = typeof retrievalConfig.retrievalThreshold === "number" ? retrievalConfig.retrievalThreshold : -1;
+    const embeddings = await this.prismaService.knowledgeEmbedding.findMany({
+      where: {
+        knowledgeBaseId,
+        modelName: provider.modelName,
+      },
+      include: {
+        chunk: true,
+        file: true,
+      },
+    });
+    const hits = embeddings
+      .map((item) => {
+        const embedding = this.parseEmbeddingNumbers(item.embeddingJson);
+        const score = this.computeCosineSimilarity(queryEmbedding, embedding);
+        return {
+          chunkId: item.chunkId,
+          fileId: item.fileId,
+          fileName: item.file.fileName,
+          chunkIndex: item.chunk.chunkIndex,
+          score,
+          content: item.chunk.content,
+          sourceLabel: item.chunk.sourceLabel ?? undefined,
+        } satisfies KnowledgeRetrievalTestHit;
+      })
+      .filter((item) => item.score >= threshold)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, topK);
+    return {
+      knowledgeBaseId,
+      query,
+      topK,
+      modelName: provider.modelName,
+      hitCount: hits.length,
+      hits,
+    };
   }
 
   async archiveKnowledgeBase(id: string) {

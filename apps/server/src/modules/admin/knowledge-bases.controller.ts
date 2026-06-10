@@ -6,6 +6,7 @@ import {
   KnowledgeBasesService,
   type CreateKnowledgeBaseFilePayload,
   type CreateKnowledgeBasePayload,
+  type RunKnowledgeRetrievalTestPayload,
   type UpdateKnowledgeBasePayload,
   type UpdateKnowledgeRetrievalConfigPayload,
 } from "./knowledge-bases.service";
@@ -69,6 +70,16 @@ export class KnowledgeBasesController {
   async startKnowledgeBaseFullSync(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
     return this.knowledgeBasesService.startKnowledgeBaseFullSync(id);
+  }
+
+  @Post(":id/retrieval-test")
+  async runKnowledgeRetrievalTest(
+    @Param("id") id: string,
+    @Body() payload: RunKnowledgeRetrievalTestPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);
+    return this.knowledgeBasesService.runKnowledgeRetrievalTest(id, payload);
   }
 
   @Patch("sync-runs/:id")
