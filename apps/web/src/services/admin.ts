@@ -190,6 +190,25 @@ export type KnowledgeBaseRunMutationResult = {
   file?: KnowledgeBaseFileRecord;
 };
 
+export type KnowledgeRetrievalTestHitRecord = {
+  chunkId: string;
+  fileId: string;
+  fileName: string;
+  chunkIndex: number;
+  score: number;
+  content: string;
+  sourceLabel?: string;
+};
+
+export type KnowledgeRetrievalTestResultRecord = {
+  knowledgeBaseId: string;
+  query: string;
+  topK: number;
+  modelName: string;
+  hitCount: number;
+  hits: KnowledgeRetrievalTestHitRecord[];
+};
+
 export type ModuleDefinitionRecord = {
   id: string;
   moduleKey: string;
@@ -2758,6 +2777,20 @@ export async function syncKnowledgeBaseFile(fileId: string) {
 
 export async function startKnowledgeBaseSync(knowledgeBaseId: string) {
   return jsonRequest<KnowledgeBaseRunMutationResult>(`/admin/knowledge-bases/${knowledgeBaseId}/sync`, "POST", {});
+}
+
+export async function runKnowledgeRetrievalTest(
+  knowledgeBaseId: string,
+  payload: {
+    query: string;
+    topK?: number;
+  },
+) {
+  return jsonRequest<KnowledgeRetrievalTestResultRecord>(
+    `/admin/knowledge-bases/${knowledgeBaseId}/retrieval-test`,
+    "POST",
+    payload,
+  );
 }
 
 export async function completeKnowledgeBaseSyncRun(
