@@ -639,6 +639,8 @@ export default function AdminPage() {
   const [isLoadingDatabaseParameters, setIsLoadingDatabaseParameters] = useState(false);
   const [knowledgeFileDebugStateMap, setKnowledgeFileDebugStateMap] = useState<Record<string, KnowledgeFileDebugState>>({});
   const [expandedKnowledgeFileId, setExpandedKnowledgeFileId] = useState("");
+  const [expandedKnowledgeBridgeBaseIds, setExpandedKnowledgeBridgeBaseIds] = useState<Record<string, boolean>>({});
+  const [selectedKnowledgeListFileId, setSelectedKnowledgeListFileId] = useState("");
   const [knowledgeRetrievalTestDrafts, setKnowledgeRetrievalTestDrafts] = useState<Record<string, KnowledgeRetrievalTestDraft>>({});
   const [knowledgeRetrievalTestResults, setKnowledgeRetrievalTestResults] = useState<
     Record<string, KnowledgeRetrievalTestResultRecord | undefined>
@@ -1430,6 +1432,29 @@ export default function AdminPage() {
         ...(current[knowledgeBaseId] || buildCreateKnowledgeBaseFileDraft()),
         ...patch,
       },
+    }));
+  }
+
+  function handleSelectKnowledgeBase(baseId: string) {
+    setSelectedKnowledgeBaseId(baseId);
+    setSelectedKnowledgeListFileId("");
+  }
+
+  function handleToggleKnowledgeBridgeFiles(baseId: string) {
+    setExpandedKnowledgeBridgeBaseIds((current) => ({
+      ...current,
+      [baseId]: !current[baseId],
+    }));
+  }
+
+  function handleSelectKnowledgeBridgeFile(knowledgeBaseId: string, fileId: string) {
+    setSelectedKnowledgeBaseId(knowledgeBaseId);
+    setKnowledgeWorkspaceSection("files");
+    setSelectedKnowledgeListFileId(fileId);
+    setExpandedKnowledgeFileId(fileId);
+    setExpandedKnowledgeBridgeBaseIds((current) => ({
+      ...current,
+      [knowledgeBaseId]: true,
     }));
   }
 
@@ -5432,44 +5457,74 @@ export default function AdminPage() {
                       const indexedFileCount = itemFiles.filter((file) => file.status === "INDEXED").length;
                       const pendingFileCount = itemFiles.length - indexedFileCount;
                       const previewFiles = itemFiles.slice(0, 2);
+                      const previewListFiles =
+                        expandedKnowledgeBridgeBaseIds[item.id] || itemFiles.length <= 3 ? itemFiles : itemFiles.slice(0, 3);
                       return (
-                        <button
-                          type="button"
-                          key={item.id}
-                          className="knowledge-admin-list-item"
-                          data-active={selectedKnowledgeBase?.id === item.id}
-                          onClick={() => setSelectedKnowledgeBaseId(item.id)}
-                        >
-                          <div>
-                            <strong>{item.name}</strong>
-                            <p>
-                              {getKnowledgeBaseContainerLabel(item)} · 资料 {itemFiles.length} · 接入对象 {itemBindings.length}
-                            </p>
-                            {isBridgeKnowledge ? (
-                              <p className="personal-meta">
-                                前端资料卡 {itemFiles.length} 张 · 已入库 {indexedFileCount} 张
-                                {pendingFileCount > 0 ? ` · 待同步 ${pendingFileCount} 张` : ""}
+                        <article key={item.id} className="admin-rules-stack">
+                          <button
+                            type="button"
+                            className="knowledge-admin-list-item"
+                            data-active={selectedKnowledgeBase?.id === item.id}
+                            onClick={() => handleSelectKnowledgeBase(item.id)}
+                          >
+                            <div>
+                              <strong>{item.name}</strong>
+                              <p>
+                                {getKnowledgeBaseContainerLabel(item)} · 资料 {itemFiles.length} · 接入对象 {itemBindings.length}
                               </p>
-                            ) : null}
-                          </div>
-                          <div className="knowledge-admin-list-tags">
-                            <span className="knowledge-admin-list-tag">{getKnowledgeSourceTypeLabel(item.sourceType)}</span>
-                            <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
-                            {isBridgeKnowledge && previewFiles.length
-                              ? previewFiles.map((file) => (
-                                  <span className="knowledge-admin-list-tag" key={file.id}>
-                                    {file.fileName}
+                              {isBridgeKnowledge ? (
+                                <p className="personal-meta">
+                                  前端资料卡 {itemFiles.length} 张 · 已入库 {indexedFileCount} 张
+                                  {pendingFileCount > 0 ? ` · 待同步 ${pendingFileCount} 张` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="knowledge-admin-list-tags">
+                              <span className="knowledge-admin-list-tag">{getKnowledgeSourceTypeLabel(item.sourceType)}</span>
+                              <span className="knowledge-admin-list-tag">{isBridgeKnowledge ? "前端桥接" : "后台维护"}</span>
+                              {isBridgeKnowledge && previewFiles.length
+                                ? previewFiles.map((file) => (
+                                    <span className="knowledge-admin-list-tag" key={file.id}>
+                                      {file.fileName}
+                                    </span>
+                                  ))
+                                : null}
+                            </div>
+                            <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getKnowledgeBaseStatusLabel(item.status)}</span>
+                            <span className="knowledge-admin-list-meta">
+                              {isBridgeKnowledge
+                                ? `最近资料：${latestFile ? latestFile.fileName : "等待前端保存资料"}`
+                                : `最近同步：${latestRun ? getKnowledgeRunResultLabel(latestRun.result) : getKnowledgeSyncStatusLabel(item.syncStatus)}`}
+                            </span>
+                          </button>
+                          {isBridgeKnowledge && itemFiles.length ? (
+                            <div className="admin-rules-stack" style={{ marginTop: 8, paddingLeft: 12 }}>
+                              {previewListFiles.map((file) => (
+                                <button
+                                  type="button"
+                                  key={file.id}
+                                  className="knowledge-admin-section-item"
+                                  data-active={selectedKnowledgeListFileId === file.id}
+                                  onClick={() => handleSelectKnowledgeBridgeFile(item.id, file.id)}
+                                >
+                                  <strong>{file.fileName}</strong>
+                                  <span>
+                                    {file.sourceName || "未填写来源"} · {getKnowledgeFileStatusLabel(file.status)} · 分片 {file.chunkCount}
                                   </span>
-                                ))
-                              : null}
-                          </div>
-                          <span className={`archive-pill ${getStatusClassName(item.status)}`}>{getKnowledgeBaseStatusLabel(item.status)}</span>
-                          <span className="knowledge-admin-list-meta">
-                            {isBridgeKnowledge
-                              ? `最近资料：${latestFile ? latestFile.fileName : "等待前端保存资料"}`
-                              : `最近同步：${latestRun ? getKnowledgeRunResultLabel(latestRun.result) : getKnowledgeSyncStatusLabel(item.syncStatus)}`}
-                          </span>
-                        </button>
+                                </button>
+                              ))}
+                              {itemFiles.length > 3 ? (
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => handleToggleKnowledgeBridgeFiles(item.id)}
+                                >
+                                  {expandedKnowledgeBridgeBaseIds[item.id] ? "收起前端资料" : `展开全部 ${itemFiles.length} 张资料卡`}
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </article>
                       );
                     })
                   ) : (
@@ -5852,8 +5907,19 @@ export default function AdminPage() {
 
                       <div className="admin-rules-stack">
                         {selectedKnowledgeFiles.length ? (
-                          selectedKnowledgeFiles.map((file) => (
-                            <article className="entity-card admin-rule-card" key={file.id}>
+                          selectedKnowledgeSortedFiles.map((file) => (
+                            <article
+                              className="entity-card admin-rule-card"
+                              key={file.id}
+                              style={
+                                selectedKnowledgeListFileId === file.id
+                                  ? {
+                                      borderColor: "rgba(91, 127, 255, 0.45)",
+                                      boxShadow: "0 0 0 2px rgba(91, 127, 255, 0.14)",
+                                    }
+                                  : undefined
+                              }
+                            >
                               <div className="entity-card-head">
                                 <div>
                                   <strong>{file.fileName}</strong>
@@ -5874,7 +5940,10 @@ export default function AdminPage() {
                                 </span>
                               </div>
                               <div className="personal-actions">
-                                <span className="personal-meta">上传时间 {formatDateTime(file.uploadedAt)}</span>
+                                <span className="personal-meta">
+                                  上传时间 {formatDateTime(file.uploadedAt)}
+                                  {selectedKnowledgeListFileId === file.id ? " · 当前从左侧资料列表定位" : ""}
+                                </span>
                                 <button
                                   type="button"
                                   className="secondary-button"
