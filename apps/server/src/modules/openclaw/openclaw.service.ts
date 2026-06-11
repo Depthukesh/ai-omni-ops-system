@@ -15,6 +15,14 @@ import { WorksService } from "../works/works.service";
 
 type HeadersMap = Record<string, string | string[] | undefined>;
 
+type OpenClawResultStatus = "COMPLETED" | "IN_PROGRESS" | "ACTION_REQUIRED";
+
+type OpenClawNextAction = {
+  label: string;
+  action: "open_page" | "check_status" | "continue_in_chat" | "retry" | "confirm";
+  target?: string;
+};
+
 type OpenClawSummaryResponse<TData> = {
   status: "success";
   title: string;
@@ -22,6 +30,14 @@ type OpenClawSummaryResponse<TData> = {
   highlights: string[];
   data: TData;
   links: Array<{ label: string; url: string }>;
+  entry?: { label: string; url: string };
+  resultStatus: OpenClawResultStatus;
+  resource?: {
+    kind: string;
+    primaryId?: string;
+    relatedIds: string[];
+  };
+  nextActions: OpenClawNextAction[];
   allowed: boolean;
   requiresConfirmation: boolean;
 };
@@ -2411,7 +2427,14 @@ export class OpenClawService {
     highlights: string[];
     data: TData;
     links: Array<{ label: string; url: string }>;
+    resultStatus?: OpenClawResultStatus;
+    resourceKind?: string;
+    nextActions?: OpenClawNextAction[];
   }): OpenClawSummaryResponse<TData> {
+    const entry = payload.links[0];
+    const resource = this.buildResourceReference(payload.resourceKind, payload.data, entry?.url);
+    const resultStatus = payload.resultStatus || this.inferResultStatus(payload.title, payload.summary, payload.highlights);
+    const nextActions = payload.nextActions || this.buildNextActions(resultStatus, entry, resource);
     return {
       status: "success",
       title: payload.title,
@@ -2419,9 +2442,147 @@ export class OpenClawService {
       highlights: payload.highlights,
       data: payload.data,
       links: payload.links,
+      entry,
+      resultStatus,
+      resource,
+      nextActions,
       allowed: true,
-      requiresConfirmation: false,
+      requiresConfirmation: resultStatus === "ACTION_REQUIRED",
     };
+  }
+
+  private inferResultStatus(title: string, summary: string, highlights: string[]): OpenClawResultStatus {
+    const text = [title, summary, ...highlights].join(" ").trim();
+    if (/还未具备|未具备|缺少|请先|确认未完成|待确认|未完成/.test(text)) {
+      return "ACTION_REQUIRED";
+    }
+    if (/已受理|已提交|排队|处理中|运行中|重新放回排队|重新排队|已提交发布/.test(text)) {
+      return "IN_PROGRESS";
+    }
+    return "COMPLETED";
+  }
+
+  private buildResourceReference<TData>(
+    resourceKind: string | undefined,
+    data: TData,
+    entryUrl?: string,
+  ) {
+    const relatedIds = this.collectCandidateIds(data);
+    const primaryId = relatedIds[0];
+    return {
+      kind: resourceKind || this.inferResourceKind(entryUrl),
+      primaryId,
+      relatedIds,
+    };
+  }
+
+  private inferResourceKind(entryUrl?: string) {
+    const url = String(entryUrl || "").trim().toLowerCase();
+    if (!url) {
+      return "generic";
+    }
+    if (url.includes("/wechat")) {
+      return "wechat";
+    }
+    if (url.includes("/xiaohongshu")) {
+      return "xiaohongshu";
+    }
+    if (url.includes("/douyin")) {
+      return "douyin";
+    }
+    if (url.includes("/personal-center/works")) {
+      return "design_work";
+    }
+    if (url.includes("/brand-growth/business-assets")) {
+      return "knowledge_base";
+    }
+    if (url.includes("/brand-growth/reports")) {
+      return "report";
+    }
+    if (url.includes("/brand-growth/tasks")) {
+      return "task";
+    }
+    if (url.includes("/skills")) {
+      return "skill";
+    }
+    return "generic";
+  }
+
+  private buildNextActions(
+    resultStatus: OpenClawResultStatus,
+    entry: { label: string; url: string } | undefined,
+    resource?: { kind: string; primaryId?: string; relatedIds: string[] },
+  ): OpenClawNextAction[] {
+    const actions: OpenClawNextAction[] = [];
+    if (entry) {
+      actions.push({
+        label: entry.label,
+        action: "open_page",
+        target: entry.url,
+      });
+    }
+
+    if (resultStatus === "IN_PROGRESS" && resource?.primaryId) {
+      actions.push({
+        label: "继续查看状态",
+        action: "check_status",
+        target: resource.primaryId,
+      });
+    }
+
+    if (resultStatus === "ACTION_REQUIRED") {
+      actions.push({
+        label: "继续补充信息",
+        action: "continue_in_chat",
+        target: resource?.primaryId,
+      });
+      actions.push({
+        label: "确认后再执行",
+        action: "confirm",
+        target: resource?.primaryId,
+      });
+    }
+
+    if (resultStatus === "COMPLETED" && resource?.primaryId) {
+      actions.push({
+        label: "需要时可重试或继续",
+        action: "retry",
+        target: resource.primaryId,
+      });
+    }
+
+    return actions;
+  }
+
+  private collectCandidateIds(value: unknown): string[] {
+    const candidates = [
+      this.readCandidateId(value, ["taskId"]),
+      this.readCandidateId(value, ["workId"]),
+      this.readCandidateId(value, ["draftId"]),
+      this.readCandidateId(value, ["workflowId"]),
+      this.readCandidateId(value, ["historyId"]),
+      this.readCandidateId(value, ["reportId"]),
+      this.readCandidateId(value, ["knowledgeBaseId"]),
+      this.readCandidateId(value, ["item", "id"]),
+      this.readCandidateId(value, ["task", "id"]),
+      this.readCandidateId(value, ["item", "taskId"]),
+      this.readCandidateId(value, ["latestTask", "id"]),
+      this.readCandidateId(value, ["latest", "id"]),
+      this.readCandidateId(value, ["id"]),
+    ].filter((item): item is string => Boolean(item));
+    return Array.from(new Set(candidates));
+  }
+
+  private readCandidateId(value: unknown, path: string[]): string | undefined {
+    let current: unknown = value;
+    for (const segment of path) {
+      if (!current || typeof current !== "object" || Array.isArray(current)) {
+        return undefined;
+      }
+      current = (current as Record<string, unknown>)[segment];
+    }
+    const normalized = String(current || "").trim();
+    return normalized || undefined;
   }
 
   private async loadTasks(auth: RequestAuthContext): Promise<TaskRecord[]> {
