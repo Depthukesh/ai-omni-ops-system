@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw 渠道、Skill 与 MCP 对接说明</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: rgba(13, 24, 43, 0.9);
+      --line: rgba(156, 190, 255, 0.18);
+      --text: #eef4ff;
+      --muted: #b7c8e9;
+      --accent: #74e8f8;
+      --accent-2: #90a8ff;
+      --shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(116, 232, 248, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(144, 168, 255, 0.16), transparent 24%),
+        linear-gradient(180deg, #07111f 0%, #081428 100%);
+      line-height: 1.7;
+    }
+
+    .container {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 60px;
+    }
+
+    .hero, .panel, .quote, .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 36px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(18, 33, 61, 0.98), rgba(7, 17, 31, 0.98));
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -90px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(116, 232, 248, 0.22), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(116, 232, 248, 0.28);
+      background: rgba(116, 232, 248, 0.1);
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    h1 {
+      margin: 18px 0 14px;
+      font-size: clamp(34px, 4vw, 50px);
+      line-height: 1.12;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .hero-grid, .grid-2, .grid-3, .grid-4 {
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 26px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .mini-card, .panel {
+      padding: 22px;
+    }
+
+    .mini-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+
+    .mini-card strong {
+      display: block;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .mini-card span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .section { margin-top: 28px; }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      margin: 0 0 16px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 18px rgba(116, 232, 248, 0.45);
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .panel p { margin: 0; color: var(--muted); }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li + li { margin-top: 8px; }
+
+    .quote {
+      padding: 24px;
+      border-left: 4px solid var(--accent);
+      font-size: 18px;
+    }
+
+    .recommend {
+      background: linear-gradient(180deg, rgba(16, 30, 55, 0.98), rgba(11, 21, 37, 0.95));
+      outline: 1px solid rgba(116, 232, 248, 0.24);
+    }
+
+    .table-wrap { overflow: hidden; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--text);
+      background: rgba(144, 168, 255, 0.08);
+    }
+
+    td { color: var(--muted); }
+    tr:last-child td { border-bottom: none; }
+
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: #8ea3cb;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1160px) {
+      .hero-grid, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 840px) {
+      .container { width: min(100% - 24px, 100%); }
+      .hero { padding: 24px; }
+      .hero-grid, .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">关键纠偏说明</div>
+      <h1>OpenClaw 渠道、Skill 与 MCP 对接说明</h1>
+      <p>
+        OpenClaw 的主入口不是网站前端，而是飞书、企微等外部沟通渠道。
+        Skill 负责业务理解、任务编排和输出体验，MCP 负责网站能力和历史数据的标准化接入，
+        网站第一阶段主要提供后端能力层、绑定鉴权和复杂结果落点页。
+      </p>
+      <div class="hero-grid">
+        <div class="mini-card">
+          <strong>渠道</strong>
+          <span>飞书、企微等是主要对话入口，不是网站聊天框。</span>
+        </div>
+        <div class="mini-card">
+          <strong>Skill</strong>
+          <span>负责业务语义、高频任务、工作流、追问策略和输出风格。</span>
+        </div>
+        <div class="mini-card">
+          <strong>MCP</strong>
+          <span>负责把网站能力和历史数据以标准化工具 / 资源形式暴露给 OpenClaw。</span>
+        </div>
+        <div class="mini-card">
+          <strong>网站</strong>
+          <span>第一阶段重点是后端能力层、鉴权绑定、审计和深链接页面。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">正确理解 OpenClaw</h2>
+      <div class="grid-2">
+        <article class="panel recommend">
+          <h3>它首先是什么</h3>
+          <ul>
+            <li>自托管 Gateway</li>
+            <li>多渠道 AI 助手</li>
+            <li>通过 Feishu、Slack、Telegram 等渠道对话</li>
+            <li>Control UI 是辅助控制界面，不是必须主入口</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>对我们意味着什么</h3>
+          <ul>
+            <li>用户主要不在网站里和 OpenClaw 对话</li>
+            <li>网站不是第一阶段的主聊天入口</li>
+            <li>网站仍然是业务能力、历史数据和权限的权威来源</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Skill、MCP、CLI 分工</h2>
+      <div class="grid-3">
+        <article class="panel recommend">
+          <h3>Skill</h3>
+          <ul>
+            <li>教 agent 如何理解业务语义</li>
+            <li>定义高频任务和工作流</li>
+            <li>定义追问策略和输出风格</li>
+            <li>不直接读数据库</li>
+            <li>不承接底层权限校验</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>MCP</h3>
+          <ul>
+            <li>承接网站能力和历史数据读取</li>
+            <li>承接任务触发和结构化结果返回</li>
+            <li>是受控工具接入层</li>
+            <li>不是业务语言定义层</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>CLI</h3>
+          <ul>
+            <li>主要用于 Onboarding、运维和调试</li>
+            <li>可管理 MCP 定义和排障</li>
+            <li>不是业务员工的主入口</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">我们系统里的正确关系</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>层级</th>
+              <th>在我们系统中的作用</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>渠道</td>
+              <td>飞书、企微等负责用户发消息和收结果，是主交互入口</td>
+            </tr>
+            <tr>
+              <td>OpenClaw Gateway</td>
+              <td>负责消息接入、会话路由、Skill 装载、MCP 调用和会话管理</td>
+            </tr>
+            <tr>
+              <td>Skill</td>
+              <td>定义品牌运营助手的业务理解、任务编排、追问和输出规则</td>
+            </tr>
+            <tr>
+              <td>MCP</td>
+              <td>把网站已有能力和历史数据包装成标准化工具 / 资源</td>
+            </tr>
+            <tr>
+              <td>网站后端</td>
+              <td>作为数据、权限、任务执行和审计的权威后端</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">推荐接入架构</h2>
+      <div class="grid-4">
+        <article class="panel">
+          <h3>渠道层</h3>
+          <p>飞书机器人、企微机器人作为主要对话入口。</p>
+        </article>
+        <article class="panel">
+          <h3>Gateway 层</h3>
+          <p>接收渠道消息、路由到 session、调 Skill、调 MCP。</p>
+        </article>
+        <article class="panel">
+          <h3>Skill 层</h3>
+          <p>定义品牌运营助手的高频任务、历史数据使用规则、默认追问策略和输出结构。</p>
+        </article>
+        <article class="panel">
+          <h3>MCP 层</h3>
+          <p>建议拆成品牌上下文、任务与报告、知识库、技能配置、内容生成、历史分析等 MCP 能力集。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">请求如何跑通</h2>
+      <div class="grid-2">
+        <article class="panel recommend">
+          <h3>例子一：总结失败任务原因</h3>
+          <ul>
+            <li>用户在飞书里提问</li>
+            <li>Gateway 识别用户、品牌和权限</li>
+            <li>Skill 判断为“失败任务总结”</li>
+            <li>MCP 读取失败历史、错误摘要、重试记录</li>
+            <li>OpenClaw 返回结构化结论</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>例子二：做一版小红书原创图文</h3>
+          <ul>
+            <li>用户在企微里发起需求</li>
+            <li>Skill 判断是否需要最少追问</li>
+            <li>MCP 触发网站现有内容生成任务</li>
+            <li>Task 在网站原有链路执行</li>
+            <li>结果摘要和链接回传到企微</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">第一阶段需要什么</h2>
+      <div class="grid-2">
+        <article class="panel">
+          <h3>重点要做</h3>
+          <ul>
+            <li>飞书、企微渠道接入</li>
+            <li>账号绑定和品牌权限识别</li>
+            <li>品牌运营助手 Skill</li>
+            <li>网站 MCP 能力层</li>
+            <li>审计与风控</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>第一阶段不应重点做</h3>
+          <ul>
+            <li>网站内聊天前端</li>
+            <li>复杂站内对话交互</li>
+            <li>把 OpenClaw 当成第二套网站 UI</li>
+          </ul>
+        </article>
+      </div>
+      <div class="quote section">
+        对我们这套系统来说，正确接法不是“在网站里再做一个聊天框”，而是“让飞书、企微成为对话入口，让 Skill 成为任务理解和编排层，让 MCP 成为网站能力与历史数据接入层”。
+      </div>
+    </section>
+
+    <div class="footer">
+      文件名：OpenClaw渠道、Skill与MCP对接说明.html
+    </div>
+  </div>
+</body>
+</html>

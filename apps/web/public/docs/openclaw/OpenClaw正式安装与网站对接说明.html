@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw 正式安装与网站对接说明</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    main { max-width: 960px; margin: 0 auto; padding: 40px 24px 64px; }
+    h1, h2 { color: #fff; }
+    h1 { font-size: 32px; margin-bottom: 16px; }
+    h2 { margin-top: 32px; font-size: 22px; border-left: 4px solid #f59e0b; padding-left: 12px; }
+    p, li { line-height: 1.75; color: #d1d5db; }
+    pre { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 20px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>OpenClaw 正式安装与网站对接说明</h1>
+    <div class="card">
+      <p>正式环境不再使用网站账号密码安装 MCP，而是使用网站安装中心生成的品牌级安装令牌。</p>
+      <p>安装流程：登录网站 -> 切到目标品牌 -> 打开 OpenClaw 安装中心 -> 生成正式安装令牌 -> 复制配置 -> 粘贴到 OpenClaw。</p>
+      <p>安装页内会同时提供配置复制、令牌状态、示例提问、交付检查清单和正式文档入口。</p>
+    </div>
+
+    <h2>安全原则</h2>
+    <div class="card">
+      <ul>
+        <li>不暴露网站账号密码</li>
+        <li>令牌绑定品牌与生成者权限</li>
+        <li>支持重置、吊销与过期</li>
+        <li>支持记录最近使用时间</li>
+      </ul>
+    </div>
+
+    <h2>安装片段示例</h2>
+    <pre><code>{
+  "mcp": {
+    "servers": {
+      "ai-omni-ops-品牌名": {
+        "enabled": true,
+        "url": "https://你的域名/api/openclaw/mcp",
+        "transport": "streamable-http",
+        "headers": {
+          "Authorization": "Bearer ocp_xxx",
+          "x-brand-id": "br_xxx"
+        }
+      }
+    }
+  }
+}</code></pre>
+
+    <h2>推荐提问</h2>
+    <div class="card">
+      <ul>
+        <li>帮我看当前品牌最近的增长报告重点</li>
+        <li>帮我创建一个品牌知识库，并把这份资料加入进去</li>
+        <li>帮我看最近 30 天失败任务主要卡在哪些问题上</li>
+        <li>围绕这个品牌生成一份半年营销规划</li>
+      </ul>
+    </div>
+
+    <h2>最新验证结论</h2>
+    <div class="card">
+      <ul>
+        <li>服务端正式安装链路已经验证通过，正式令牌和 MCP HTTP 网关可用。</li>
+        <li>OpenClaw 安装页代码已经完成，但线上正式站点还需要部署后才能在网站中访问。</li>
+        <li>截至 2026-06-11，正式站点 `https://17ai.site/personal-center/openclaw` 仍返回 404，说明页面尚未发布。</li>
+      </ul>
+    </div>
+
+    <h2>上线前检查</h2>
+    <div class="card">
+      <ol>
+        <li>发布最新前端页面，确认安装中心可访问。</li>
+        <li>验证生成令牌、停用令牌、复制配置与文档跳转。</li>
+        <li>使用正式令牌完成一次真实 OpenClaw MCP 挂载。</li>
+      </ol>
+    </div>
+  </main>
+</body>
+</html>

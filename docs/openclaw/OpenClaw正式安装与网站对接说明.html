@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw 正式安装与网站对接说明</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    main { max-width: 960px; margin: 0 auto; padding: 40px 24px 64px; }
+    h1, h2, h3 { color: #fff; }
+    h1 { font-size: 32px; margin-bottom: 16px; }
+    h2 { margin-top: 32px; font-size: 22px; border-left: 4px solid #f59e0b; padding-left: 12px; }
+    p, li { line-height: 1.75; color: #d1d5db; }
+    code, pre { font-family: Consolas, "Courier New", monospace; }
+    pre { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 20px; margin-top: 16px; }
+    .muted { color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>OpenClaw 正式安装与网站对接说明</h1>
+    <p class="muted">本说明对应正式环境安装方式，目标是把本地联调阶段的账号密码方案升级成网站安装中心 + 品牌级安装令牌 + MCP HTTP 网关。</p>
+
+    <h2>目标</h2>
+    <div class="card">
+      <p>正式交付时，品牌用户不需要理解 MCP、Skill、CLI 差异，也不需要暴露网站登录密码。用户只需要登录网站，切到目标品牌，打开安装中心，复制配置，粘贴到 OpenClaw 即可。</p>
+    </div>
+
+    <h2>为什么不再用本地联调方式</h2>
+    <div class="card">
+      <ul>
+        <li>会暴露网站账号密码</li>
+        <li>会要求用户在本机运行脚本</li>
+        <li>很难做品牌级权限隔离</li>
+        <li>不利于后续审计、吊销、续期</li>
+      </ul>
+    </div>
+
+    <h2>正式安装方式</h2>
+    <div class="card">
+      <ol>
+        <li>网站安装中心生成品牌级安装令牌</li>
+        <li>OpenClaw 通过 MCP HTTP 地址连接网站</li>
+        <li>网站 MCP 网关再转调现有 OpenClaw 能力层</li>
+      </ol>
+      <p>用户体验是：登录网站 -> 切品牌 -> 打开 OpenClaw 安装中心 -> 生成令牌 -> 复制配置 -> 粘贴到客户端 -> 直接开始对话。</p>
+    </div>
+
+    <h2>当前正式落地点</h2>
+    <div class="card">
+      <ul>
+        <li>网站页面：`apps/web/src/app/(dashboard)/personal-center/openclaw/page.tsx`</li>
+        <li>安装页内已聚合 MCP 配置复制、令牌状态、Skill 示例、交付检查清单与正式文档入口</li>
+        <li>网站接口：`GET /api/openclaw/installation-hub`、`POST /api/openclaw/installation-hub/tokens/rotate`、`DELETE /api/openclaw/installation-hub/tokens/:tokenId`、`POST /api/openclaw/mcp`</li>
+        <li>服务端核心：`openclaw-installation.service.ts`、`openclaw-installation.controller.ts`、`openclaw.service.ts`</li>
+      </ul>
+    </div>
+
+    <h2>安全原则</h2>
+    <div class="card">
+      <ul>
+        <li>不暴露网站账号密码</li>
+        <li>令牌绑定当前品牌</li>
+        <li>令牌复用生成者的品牌权限</li>
+        <li>令牌可重置、可吊销、可过期</li>
+        <li>支持记录最近使用时间与状态</li>
+      </ul>
+    </div>
+
+    <h2>MCP 安装片段</h2>
+    <pre><code>{
+  "mcp": {
+    "servers": {
+      "ai-omni-ops-品牌名": {
+        "enabled": true,
+        "url": "https://你的域名/api/openclaw/mcp",
+        "transport": "streamable-http",
+        "headers": {
+          "Authorization": "Bearer ocp_xxx",
+          "x-brand-id": "br_xxx"
+        }
+      }
+    }
+  }
+}</code></pre>
+
+    <h2>Skill 使用方式</h2>
+    <div class="card">
+      <p>Skill 不再要求用户自己写复杂 prompt。网站安装中心会同步给出品牌运营助手示例提问：</p>
+      <ul>
+        <li>帮我看当前品牌最近的增长报告重点</li>
+        <li>帮我创建一个品牌知识库，并把这份资料加入进去</li>
+        <li>帮我看最近 30 天失败任务主要卡在哪些问题上</li>
+        <li>围绕这个品牌生成一份半年营销规划</li>
+      </ul>
+    </div>
+
+    <h2>当前测试重点</h2>
+    <div class="card">
+      <ol>
+        <li>网站页面是否能正常生成安装令牌</li>
+        <li>复制出的配置是否正确</li>
+        <li>`POST /api/openclaw/mcp` 是否能用 Bearer 令牌完成 `initialize / tools/list / tools/call`</li>
+        <li>OpenClaw 实际挂载后是否能在对话里调用品牌能力</li>
+      </ol>
+    </div>
+
+    <h2>最新验证结论</h2>
+    <div class="card">
+      <ul>
+        <li>截至 2026-06-11，服务端正式链路已验证通过：安装中心、令牌轮换、MCP initialize / tools/list / tools/call 均可用。</li>
+        <li>OpenClaw 安装页代码已经落地到仓库，对应页面路径为 `个人中心 -> OpenClaw 安装`。</li>
+        <li>线上站点 `https://17ai.site/personal-center/openclaw` 当前仍返回 404，说明前端新页面尚未部署到正式网站。</li>
+        <li>当前开发机本地 `Next build` 仍受 `@next/swc-win32-x64-msvc` DLL 初始化失败影响，暂时无法在这台机器上完成本地生产预览页验证。</li>
+      </ul>
+      <p>当前真正待完成的是：部署前端页面，并在部署后补做一次网站实页回归，而不是继续改 OpenClaw 能力层接口。</p>
+    </div>
+
+    <h2>上线前最小检查清单</h2>
+    <div class="card">
+      <ol>
+        <li>部署最新前端代码，确认 `个人中心 -> OpenClaw 安装` 页面可访问。</li>
+        <li>验证“生成正式安装令牌 / 停用当前令牌 / 复制配置”三个核心操作。</li>
+        <li>验证安装页里的两份正式文档链接都能正常打开。</li>
+        <li>使用页面生成的正式令牌，在真实 OpenClaw 客户端完成一次 MCP 挂载。</li>
+        <li>在 OpenClaw 对话里验证品牌上下文查询、任务摘要、报告摘要与知识库/规划生成至少各一次。</li>
+        <li>验证令牌重置后旧令牌立即失效。</li>
+      </ol>
+    </div>
+  </main>
+</body>
+</html>

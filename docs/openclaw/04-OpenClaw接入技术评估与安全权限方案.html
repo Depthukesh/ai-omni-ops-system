@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw 接入技术评估与安全权限方案</title>
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: #0f1b31;
+      --panel-soft: #12223d;
+      --line: rgba(163, 188, 255, 0.18);
+      --text: #eef4ff;
+      --muted: #afc1e6;
+      --accent: #66d9ef;
+      --accent-2: #7c9cff;
+      --good: #67e8a5;
+      --warn: #ffd166;
+      --bad: #ff8f8f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+      --radius: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(102, 217, 239, 0.12), transparent 30%),
+        radial-gradient(circle at top right, rgba(124, 156, 255, 0.16), transparent 28%),
+        linear-gradient(180deg, #08111f 0%, #0a1426 100%);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .container {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(19, 36, 66, 0.94), rgba(10, 19, 36, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 36px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -120px -120px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(102, 217, 239, 0.32), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(102, 217, 239, 0.12);
+      border: 1px solid rgba(102, 217, 239, 0.22);
+      color: var(--accent);
+      font-size: 13px;
+      letter-spacing: 0.4px;
+    }
+
+    h1 {
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1.15;
+      margin: 18px 0 16px;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 920px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .mini-card,
+    .panel,
+    .table-wrap,
+    .timeline,
+    .quote {
+      background: rgba(15, 27, 49, 0.8);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .mini-card {
+      padding: 18px;
+    }
+
+    .mini-card strong {
+      display: block;
+      font-size: 14px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .mini-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 16px;
+      font-size: 24px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 20px rgba(102, 217, 239, 0.45);
+    }
+
+    .grid-3,
+    .grid-2,
+    .grid-threats {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-threats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .good { color: var(--good); border-color: rgba(103, 232, 165, 0.28); }
+    .warn { color: var(--warn); border-color: rgba(255, 209, 102, 0.28); }
+    .bad { color: var(--bad); border-color: rgba(255, 143, 143, 0.28); }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .recommend {
+      outline: 1px solid rgba(102, 217, 239, 0.26);
+      background: linear-gradient(180deg, rgba(16, 31, 56, 0.95), rgba(15, 27, 49, 0.82));
+    }
+
+    .table-wrap {
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--text);
+      background: rgba(124, 156, 255, 0.08);
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .layer {
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(17, 31, 58, 0.95), rgba(12, 22, 39, 0.92));
+    }
+
+    .layer strong {
+      display: block;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .layer span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .quote {
+      padding: 24px;
+      border-left: 4px solid var(--accent);
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    .timeline {
+      padding: 20px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 84px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .step:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .step-label {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+
+    .step h4 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .footer {
+      margin-top: 28px;
+      color: #8ea3cb;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1080px) {
+      .hero-grid,
+      .grid-3,
+      .architecture {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .container {
+        width: min(100% - 24px, 100%);
+      }
+
+      .hero {
+        padding: 24px;
+      }
+
+      .hero-grid,
+      .grid-3,
+      .grid-2,
+      .grid-threats,
+      .architecture {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">OpenClaw 对接增强方案</div>
+      <h1>OpenClaw 接入技术评估与安全权限方案</h1>
+      <p>
+        目标不是做一个只能回答问题的聊天机器人，而是做一个真正能代表员工、在权限内自由调用网站能力、
+        同时又不会越权、不会串品牌、不会泄露敏感数据的品牌运营智能体体系。
+      </p>
+      <div class="hero-grid">
+        <div class="mini-card">
+          <strong>推荐接入</strong>
+          <span>Skill 负责认知与路由，MCP 负责受控执行，CLI 仅作为后台受限执行器。</span>
+        </div>
+        <div class="mini-card">
+          <strong>权限目标</strong>
+          <span>员工在权限内尽量自由使用全部可用功能和可见数据，而不是被 AI 接入方式额外限制。</span>
+        </div>
+        <div class="mini-card">
+          <strong>安全目标</strong>
+          <span>不越权、不串品牌、不泄密、高风险动作有确认、有审计、有追踪。</span>
+        </div>
+        <div class="mini-card">
+          <strong>实施路线</strong>
+          <span>先统一权限模型，再做 Skill + 聚合 API，随后升级为 MCP 主执行层。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">技术评估结论</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge good">起步快</span>
+            <span class="badge warn">需要配合工具层</span>
+          </div>
+          <h3>Skill</h3>
+          <ul>
+            <li>适合承载系统认知、品牌上下文规则、工具路由、写操作确认规则。</li>
+            <li>可以显著提升自然语言体验和多轮协作质量。</li>
+            <li>本身不是权限系统，也不是最终安全边界。</li>
+            <li>必须和受控执行层配合，不能单独承担高风险能力开放。</li>
+          </ul>
+        </article>
+
+        <article class="panel recommend">
+          <div class="badge-row">
+            <span class="badge good">推荐主执行层</span>
+            <span class="badge good">结构化强</span>
+          </div>
+          <h3>MCP</h3>
+          <ul>
+            <li>最适合作为网站智能体的统一工具网关和能力注册中心。</li>
+            <li>便于统一注入用户、品牌、角色、Scope、数据可见性策略。</li>
+            <li>便于做限流、审计、错误码治理、灰度发布和工具版本管理。</li>
+            <li>长期最利于多客户端、多品牌、多角色的持续扩展。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge warn">适合内部</span>
+            <span class="badge bad">不宜直接开放给员工</span>
+          </div>
+          <h3>CLI</h3>
+          <ul>
+            <li>适合内部运维、批量处理、诊断修复、后台自动化。</li>
+            <li>不适合作为网站级主能力层，员工体验、权限治理和返回结构都不理想。</li>
+            <li>一旦隔离不严，命令注入和主机扩权风险远高于 API 或 MCP。</li>
+            <li>应被 MCP 或后台服务白名单封装，而不是直接暴露给普通员工。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">方式对比</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>Skill</th>
+              <th>MCP</th>
+              <th>CLI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>上手速度</td>
+              <td>快</td>
+              <td>中</td>
+              <td>快</td>
+            </tr>
+            <tr>
+              <td>权限强约束</td>
+              <td>低，依赖外层</td>
+              <td>高，可做最终工具裁决</td>
+              <td>低到中，容易因环境导致放大</td>
+            </tr>
+            <tr>
+              <td>员工可用性</td>
+              <td>高</td>
+              <td>高</td>
+              <td>低</td>
+            </tr>
+            <tr>
+              <td>多品牌隔离</td>
+              <td>依赖工具层</td>
+              <td>强，适合做上下文强绑定</td>
+              <td>弱，容易出现命令级漏隔离</td>
+            </tr>
+            <tr>
+              <td>审计与治理</td>
+              <td>依赖外层</td>
+              <td>高</td>
+              <td>中</td>
+            </tr>
+            <tr>
+              <td>适合作为网站主接入层</td>
+              <td>否</td>
+              <td>是</td>
+              <td>否</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">推荐架构</h2>
+      <div class="architecture">
+        <div class="layer">
+          <strong>1. 入口层</strong>
+          <span>网站前端、消息渠道、OpenClaw 客户端，负责用户自然语言请求入口。</span>
+        </div>
+        <div class="layer">
+          <strong>2. Skill 层</strong>
+          <span>负责系统认知、品牌上下文规则、工具选择策略、风险提示和输出风格。</span>
+        </div>
+        <div class="layer">
+          <strong>3. MCP 层</strong>
+          <span>负责工具注册、结构化调用、鉴权、审计、限流、错误码和版本治理。</span>
+        </div>
+        <div class="layer">
+          <strong>4. 领域服务层</strong>
+          <span>复用现有网站业务服务与聚合 API，真正执行品牌数据读取和业务操作。</span>
+        </div>
+        <div class="layer">
+          <strong>5. 数据层</strong>
+          <span>数据库、对象存储、任务系统、知识库、现有工作流与业务基础设施。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">权限设计</h2>
+      <div class="grid-2">
+        <article class="panel">
+          <h3>四层权限模型</h3>
+          <ul>
+            <li><strong>身份层</strong>：你是谁，是否有效登录，是否风险会话。</li>
+            <li><strong>品牌成员层</strong>：你属于哪个品牌，在该品牌下是什么角色。</li>
+            <li><strong>能力层</strong>：你能调用哪些动作，如读取资产、触发生成、修改技能。</li>
+            <li><strong>数据范围层</strong>：你能看到哪些记录、哪些字段、是否能导出明细。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <h3>推荐授权模型</h3>
+          <ul>
+            <li><strong>RBAC</strong>：定义 OWNER、ADMIN、EDITOR、OPERATOR、VIEWER 基础边界。</li>
+            <li><strong>Scope</strong>：定义 `brand.asset.read`、`task.run`、`skill.reset.baseline` 等动作。</li>
+            <li><strong>Policy</strong>：定义“仅可读本部门”“仅可导出摘要”“敏感字段脱敏”等限制。</li>
+            <li>所有 MCP 工具必须自动继承 `userId / brandId / role / scopes / policies`。</li>
+          </ul>
+        </article>
+      </div>
+      <div class="quote section">
+        员工的“自由使用”不等于取消限制，而是让系统自动代替员工携带权限边界，使其无需记住复杂菜单和规则，也不会因为 AI 接入而被额外阉割能力。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">自由使用但不越权</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <h3>能力发现</h3>
+          <ul>
+            <li>进入助手即返回当前品牌、当前角色、可用能力列表。</li>
+            <li>不可用能力也说明原因，避免员工反复试错。</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>自动上下文</h3>
+          <ul>
+            <li>每次工具调用自动带上用户、品牌、组织、角色和数据范围策略。</li>
+            <li>员工可以自然表达需求，系统负责边界收口。</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>风险分级</h3>
+          <ul>
+            <li>L1 只读直接执行。</li>
+            <li>L2 低风险写操作简短确认。</li>
+            <li>L3 高风险操作二次确认、审计、可回滚。</li>
+            <li>L4 敏感操作要求管理员批准或双人确认。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">安全威胁与方案</h2>
+      <div class="grid-threats">
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">身份风险</span>
+          </div>
+          <h3>身份冒用与会话劫持</h3>
+          <ul>
+            <li>授权码一次性、短时有效，Access Token 短期有效，Refresh Token 绑定设备与客户端。</li>
+            <li>高风险操作要求最近一次强认证或二次确认。</li>
+            <li>支持按品牌、客户端、设备撤销授权。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">数据隔离</span>
+          </div>
+          <h3>跨品牌数据泄露</h3>
+          <ul>
+            <li>所有工具从服务端会话解析 `brandId`，不只信前端传值。</li>
+            <li>品牌切换必须显式调用，默认不做跨品牌聚合。</li>
+            <li>返回结果统一附带品牌标识，便于审计和用户感知。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">权限风险</span>
+          </div>
+          <h3>越权调用</h3>
+          <ul>
+            <li>页面权限不能代替服务端权限，所有裁决都在 MCP 与领域服务层完成。</li>
+            <li>每个工具绑定最小权限要求，权限失败返回结构化拒绝原因。</li>
+            <li>定期检查页面权限与工具权限的一致性。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">模型风险</span>
+          </div>
+          <h3>Prompt Injection 与内容诱导</h3>
+          <ul>
+            <li>外部网页、知识库文档、OCR 文本全部标记为不可信内容。</li>
+            <li>不可信内容只能影响回答内容，不能提升权限或改变工具规则。</li>
+            <li>MCP 层执行最终权限裁决，不接受模型文本越权。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">批量风险</span>
+          </div>
+          <h3>工具滥用与批量破坏</h3>
+          <ul>
+            <li>高风险和批量工具需要展示影响摘要后再确认。</li>
+            <li>对单用户、单品牌、单工具做限流与熔断。</li>
+            <li>批量删除、批量恢复、批量导出走管理员批准。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">泄密风险</span>
+          </div>
+          <h3>敏感数据与导出失控</h3>
+          <ul>
+            <li>建立字段分级：public、internal、sensitive、restricted。</li>
+            <li>聊天默认返回摘要，导出权限独立于读取权限。</li>
+            <li>短期签名下载、导出审计、水印和原因记录。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">执行风险</span>
+          </div>
+          <h3>CLI 命令注入与扩权</h3>
+          <ul>
+            <li>模型不得直接拼 Shell 命令。</li>
+            <li>CLI 只允许白名单命令模板，并在隔离环境中执行。</li>
+            <li>运行身份使用最小权限账户，命令执行全量审计。</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge warn">治理风险</span>
+          </div>
+          <h3>审计缺失与成本失控</h3>
+          <ul>
+            <li>统一记录 `requestId / userId / brandId / tool / riskLevel / traceId`。</li>
+            <li>高成本工具返回预计消耗并要求确认。</li>
+            <li>对异常用量、异常失败率、异常导出自动报警。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">实施路线</h2>
+      <div class="timeline">
+        <div class="step">
+          <div class="step-label">阶段 1</div>
+          <div>
+            <h4>统一权限与能力模型</h4>
+            <div>先定义角色、Scope、Policy、风险等级、审计字段，这是后续开放能力的基础。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">阶段 2</div>
+          <div>
+            <h4>MVP：Skill + 聚合 API</h4>
+            <div>快速跑通授权登录、品牌切换、只读问答和少量低风险操作，验证员工使用体验。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">阶段 3</div>
+          <div>
+            <h4>升级为 MCP 主执行层</h4>
+            <div>把查询、分析、执行、管理类能力全部纳入 MCP，统一接审计、限流、风险控制和版本治理。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">阶段 4</div>
+          <div>
+            <h4>引入受限 CLI 执行器</h4>
+            <div>只面向内部后台，用于索引重建、批量修复、同步诊断，不直接暴露给员工。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">阶段 5</div>
+          <div>
+            <h4>产品化前端与审批流</h4>
+            <div>补齐授权管理页、能力展示页、高风险确认、导出审批和审计回放能力。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">最终建议</h2>
+      <div class="quote">
+        对网站员工开放的 OpenClaw 类智能体，最佳落地方式不是只做 Skill，也不是直接开放 CLI，
+        而是以 <strong>Skill 作为认知编排层</strong>、<strong>MCP 作为主执行层</strong>、
+        <strong>CLI 作为后台受限执行器</strong> 的组合架构来实现。
+      </div>
+    </section>
+
+    <div class="footer">
+      文件名：04-OpenClaw接入技术评估与安全权限方案.html
+    </div>
+  </div>
+</body>
+</html>

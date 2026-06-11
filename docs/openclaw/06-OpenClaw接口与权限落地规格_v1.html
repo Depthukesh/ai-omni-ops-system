@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw 接口与权限落地规格 v1</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: rgba(13, 24, 43, 0.9);
+      --panel-2: rgba(18, 32, 58, 0.92);
+      --line: rgba(152, 186, 255, 0.18);
+      --text: #eef4ff;
+      --muted: #b4c5e7;
+      --accent: #74e8f8;
+      --accent-2: #90a8ff;
+      --good: #75efab;
+      --warn: #ffd670;
+      --bad: #ff9d9d;
+      --shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(116, 232, 248, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(144, 168, 255, 0.16), transparent 24%),
+        linear-gradient(180deg, #07111f 0%, #081427 100%);
+      line-height: 1.7;
+    }
+
+    .container {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 60px;
+    }
+
+    .hero, .panel, .table-wrap, .timeline, .quote {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 36px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(18, 33, 61, 0.98), rgba(7, 17, 31, 0.98));
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -90px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(116, 232, 248, 0.22), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(116, 232, 248, 0.28);
+      background: rgba(116, 232, 248, 0.1);
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    h1 {
+      margin: 18px 0 14px;
+      font-size: clamp(32px, 4vw, 50px);
+      line-height: 1.12;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 960px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .hero-grid, .grid-2, .grid-3, .grid-4 {
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 26px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .mini-card, .panel {
+      padding: 22px;
+    }
+
+    .mini-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+
+    .mini-card strong {
+      display: block;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .mini-card span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .section { margin-top: 28px; }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      margin: 0 0 16px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 18px rgba(116, 232, 248, 0.45);
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .panel p { margin: 0; color: var(--muted); }
+
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+    }
+
+    .good { color: var(--good); border-color: rgba(117, 239, 171, 0.24); }
+    .warn { color: var(--warn); border-color: rgba(255, 214, 112, 0.24); }
+    .bad { color: var(--bad); border-color: rgba(255, 157, 157, 0.24); }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li + li { margin-top: 8px; }
+
+    .recommend {
+      background: linear-gradient(180deg, rgba(16, 30, 55, 0.98), rgba(11, 21, 37, 0.95));
+      outline: 1px solid rgba(116, 232, 248, 0.24);
+    }
+
+    .table-wrap { overflow: hidden; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--text);
+      background: rgba(144, 168, 255, 0.08);
+    }
+
+    td { color: var(--muted); }
+    tr:last-child td { border-bottom: none; }
+
+    .timeline {
+      padding: 18px 22px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .step:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .step-label {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+
+    .step h4 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .quote {
+      padding: 24px;
+      border-left: 4px solid var(--accent);
+      font-size: 18px;
+    }
+
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: #8ea3cb;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1160px) {
+      .hero-grid, .grid-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 840px) {
+      .container { width: min(100% - 24px, 100%); }
+      .hero { padding: 24px; }
+      .hero-grid, .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+      .step { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">开发可拆任务的规格层文档</div>
+      <h1>OpenClaw 接口与权限落地规格 v1</h1>
+      <p>
+        这份文档把方向方案继续压缩到可实施规格层，核心目标是先定义清楚
+        <strong>Action Code</strong>、<strong>MCP Tool Registry</strong>、
+        <strong>角色权限矩阵</strong>、<strong>Data View</strong>、
+        <strong>授权时序</strong> 和 <strong>审计日志结构</strong>，
+        让 OpenClaw 的后续开发建立在稳定底座上，而不是建立在零散接口和页面实现上。
+      </p>
+      <div class="hero-grid">
+        <div class="mini-card">
+          <strong>主底座</strong>
+          <span>Action Code + Tool Registry + Data View + 审计日志。</span>
+        </div>
+        <div class="mini-card">
+          <strong>主执行层</strong>
+          <span>MCP 工具网关是正式执行层，Skill 只做认知编排。</span>
+        </div>
+        <div class="mini-card">
+          <strong>权限策略</strong>
+          <span>复用现有品牌权限体系，再叠加动作码和数据视图策略。</span>
+        </div>
+        <div class="mini-card">
+          <strong>长期目标</strong>
+          <span>后续页面重构、工作台扩展和知识库演进都不需要重做整套接入。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">核心结构</h2>
+      <div class="grid-4">
+        <article class="panel">
+          <h3>Action Code</h3>
+          <p>定义系统能力动作，不按页面、不按组件、不按当前 service 文件命名。</p>
+        </article>
+        <article class="panel">
+          <h3>MCP Tool</h3>
+          <p>每个工具绑定主 Action Code、输入输出 Schema、风险等级和最小权限。</p>
+        </article>
+        <article class="panel">
+          <h3>Scope</h3>
+          <p>表达可执行动作范围，如 `task.retry`、`knowledge.file.upload`。</p>
+        </article>
+        <article class="panel">
+          <h3>Data View</h3>
+          <p>决定同一条数据在不同角色下是返回摘要、明细、脱敏明细还是受限结果。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Action Code 分组</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <h3>会话与上下文</h3>
+          <ul>
+            <li>`identity.read`</li>
+            <li>`brand.list`</li>
+            <li>`brand.current.read`</li>
+            <li>`brand.switch`</li>
+            <li>`capability.list`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>品牌与资料</h3>
+          <ul>
+            <li>`brand.summary.read`</li>
+            <li>`brand.archive.read`</li>
+            <li>`brand.product.list`</li>
+            <li>`brand.member.list`</li>
+            <li>`brand.account.platform.list`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>任务与知识库</h3>
+          <ul>
+            <li>`task.list`</li>
+            <li>`task.detail.read`</li>
+            <li>`task.retry`</li>
+            <li>`knowledge.base.create`</li>
+            <li>`knowledge.file.upload`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>技能中心</h3>
+          <ul>
+            <li>`skill.package.list`</li>
+            <li>`skill.package.detail.read`</li>
+            <li>`skill.brand.override.read`</li>
+            <li>`skill.brand.override.update`</li>
+            <li>`skill.baseline.reset`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>工作台生成</h3>
+          <ul>
+            <li>`report.brand-growth.generate`</li>
+            <li>`plan.half-year.generate`</li>
+            <li>`xhs.original.generate`</li>
+            <li>`wechat.article.generate`</li>
+            <li>`design.task.create`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>治理与导出</h3>
+          <ul>
+            <li>`export.summary`</li>
+            <li>`export.full`</li>
+            <li>`assistant.grant.manage`</li>
+            <li>`assistant.audit.read`</li>
+            <li>`internal.cli.run`</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">MCP Tool Registry</h2>
+      <div class="grid-2">
+        <article class="panel recommend">
+          <div class="badge-row">
+            <span class="badge good">推荐主入口</span>
+            <span class="badge good">版本化</span>
+          </div>
+          <h3>统一结构</h3>
+          <ul>
+            <li>`toolName`、`version`、`actionCode`、`riskLevel`</li>
+            <li>`requiresBrandContext`、`requiresConfirmation`</li>
+            <li>`writesData`、`createsTask`、`knowledgeAware`</li>
+            <li>`minScopes`、`allowedBrandRoles`</li>
+            <li>`inputSchemaRef`、`outputSchemaRef`、`resultViewPolicy`</li>
+            <li>`idempotencyMode`、`auditMode`、`enabled`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>首批工具</h3>
+          <ul>
+            <li>`assistant.identity.get.v1`</li>
+            <li>`assistant.brand.switch.v1`</li>
+            <li>`assistant.tasks.list.v1`</li>
+            <li>`assistant.knowledge.base.create.v1`</li>
+            <li>`assistant.skill.override.update.v1`</li>
+            <li>`assistant.report.brand-growth.generate.v1`</li>
+          </ul>
+        </article>
+      </div>
+      <div class="table-wrap section">
+        <table>
+          <thead>
+            <tr>
+              <th>工具</th>
+              <th>主 Action</th>
+              <th>风险</th>
+              <th>品牌上下文</th>
+              <th>进入 Task</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>`assistant.identity.get.v1`</td>
+              <td>`identity.read`</td>
+              <td>L1</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>`assistant.brand.switch.v1`</td>
+              <td>`brand.switch`</td>
+              <td>L2</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>`assistant.tasks.list.v1`</td>
+              <td>`task.list`</td>
+              <td>L1</td>
+              <td>是</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>`assistant.knowledge.base.create.v1`</td>
+              <td>`knowledge.base.create`</td>
+              <td>L2</td>
+              <td>是</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>`assistant.skill.override.update.v1`</td>
+              <td>`skill.brand.override.update`</td>
+              <td>L3</td>
+              <td>是</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>`assistant.report.brand-growth.generate.v1`</td>
+              <td>`report.brand-growth.generate`</td>
+              <td>L2</td>
+              <td>是</td>
+              <td>是</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">角色权限矩阵</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>能力分类</th>
+              <th>ADMIN</th>
+              <th>STAFF</th>
+              <th>TALENT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>读取品牌摘要</td>
+              <td>允许</td>
+              <td>允许</td>
+              <td>允许</td>
+            </tr>
+            <tr>
+              <td>读取任务列表</td>
+              <td>全品牌</td>
+              <td>默认本人，可授权品牌内</td>
+              <td>默认本人</td>
+            </tr>
+            <tr>
+              <td>新建知识库</td>
+              <td>允许</td>
+              <td>视模板</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>上传知识资料</td>
+              <td>允许</td>
+              <td>视模板</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>更新品牌技能覆盖</td>
+              <td>允许</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>重置品牌技能基线</td>
+              <td>允许</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>触发品牌增长报告</td>
+              <td>允许</td>
+              <td>视模板</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>导出完整数据</td>
+              <td>允许</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+            <tr>
+              <td>管理 OpenClaw 授权</td>
+              <td>允许</td>
+              <td>否</td>
+              <td>否</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Data View 与字段分级</h2>
+      <div class="grid-2">
+        <article class="panel">
+          <h3>Data View</h3>
+          <ul>
+            <li>`SUMMARY`：只返回摘要和关键业务字段</li>
+            <li>`DETAIL`：返回可见明细</li>
+            <li>`MASKED_DETAIL`：返回脱敏明细</li>
+            <li>`EXPORTABLE_DETAIL`：导出级完整明细</li>
+            <li>`RESTRICTED`：不返回内容，只返回权限说明</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>字段分级</h3>
+          <ul>
+            <li>`PUBLIC`：可直接对话返回</li>
+            <li>`INTERNAL`：内部业务字段，视角色返回</li>
+            <li>`SENSITIVE`：默认脱敏或摘要化</li>
+            <li>`RESTRICTED`：聊天不直接返回</li>
+          </ul>
+        </article>
+      </div>
+      <div class="table-wrap section">
+        <table>
+          <thead>
+            <tr>
+              <th>实体</th>
+              <th>可直接返回</th>
+              <th>需脱敏</th>
+              <th>默认禁止</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Brand</td>
+              <td>名称、行业、简介</td>
+              <td>联系电话</td>
+              <td>账单与结算信息</td>
+            </tr>
+            <tr>
+              <td>BrandMember</td>
+              <td>姓名、品牌角色</td>
+              <td>邮箱、手机号</td>
+              <td>无额外高敏认证信息</td>
+            </tr>
+            <tr>
+              <td>Product</td>
+              <td>产品名、定位、价格区间</td>
+              <td>供应成本</td>
+              <td>内部结算价</td>
+            </tr>
+            <tr>
+              <td>Task</td>
+              <td>标题、类型、状态、阶段</td>
+              <td>错误明细</td>
+              <td>原始输出 JSON</td>
+            </tr>
+            <tr>
+              <td>Skill Override</td>
+              <td>展示名、摘要</td>
+              <td>完整 Prompt、Provider 摘要</td>
+              <td>API Key</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">授权时序</h2>
+      <div class="timeline">
+        <div class="step">
+          <div class="step-label">Step 1</div>
+          <div>
+            <h4>网站内发起授权</h4>
+            <div>用户确认品牌、客户端名称、可用能力范围和有效期，网站生成一次性授权码。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">Step 2</div>
+          <div>
+            <h4>OpenClaw 交换会话</h4>
+            <div>客户端提交授权码、`clientId` 和 `deviceId`，换取 `accessToken`、`refreshToken`、授权品牌范围和 Scope。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">Step 3</div>
+          <div>
+            <h4>工具调用</h4>
+            <div>服务端从 token 中解析 `userId / brandId / scopes / dataView`，再执行 MCP 工具并记录审计。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-label">Step 4</div>
+          <div>
+            <h4>续期与撤权</h4>
+            <div>通过 `refreshToken` 续期，用户或管理员可在网站内撤销授权，撤权后 token 立即失效。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">审计与批准流</h2>
+      <div class="grid-4">
+        <article class="panel">
+          <h3>AssistantGrant</h3>
+          <p>记录授权关系，包括用户、客户端、品牌范围、Scope、状态与有效期。</p>
+        </article>
+        <article class="panel">
+          <h3>AssistantSession</h3>
+          <p>记录当前会话、设备、最近品牌、过期时间与撤销状态。</p>
+        </article>
+        <article class="panel">
+          <h3>AssistantToolExecutionLog</h3>
+          <p>记录每次工具调用，包括 requestId、toolName、actionCode、riskLevel、taskId 与结果摘要。</p>
+        </article>
+        <article class="panel">
+          <h3>AssistantApprovalRequest</h3>
+          <p>记录 L3/L4 动作的确认与审批，包括审批模式、审批人、审批结果和载荷摘要。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">REST 与 MCP 契约</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <h3>授权接口</h3>
+          <ul>
+            <li>`POST /api/assistant/auth/authorize`</li>
+            <li>`POST /api/assistant/auth/exchange`</li>
+            <li>`POST /api/assistant/auth/refresh`</li>
+            <li>`POST /api/assistant/auth/revoke`</li>
+            <li>`GET /api/assistant/session`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>统一响应信封</h3>
+          <ul>
+            <li>`success`</li>
+            <li>`requestId`</li>
+            <li>`brandId`</li>
+            <li>`actionCode`</li>
+            <li>`riskLevel`</li>
+            <li>`data / task / error`</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>典型错误码</h3>
+          <ul>
+            <li>`AUTH_REQUIRED`</li>
+            <li>`BRAND_CONTEXT_REQUIRED`</li>
+            <li>`ACTION_FORBIDDEN`</li>
+            <li>`CONFIRMATION_REQUIRED`</li>
+            <li>`DATA_VIEW_RESTRICTED`</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">第一阶段最小交付</h2>
+      <div class="grid-3">
+        <article class="panel recommend">
+          <div class="badge-row">
+            <span class="badge good">P0</span>
+          </div>
+          <h3>底座先行</h3>
+          <ul>
+            <li>Action Code 清单</li>
+            <li>Tool Registry v1</li>
+            <li>授权交换接口</li>
+            <li>审计日志表</li>
+            <li>品牌切换工具</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge warn">P1</span>
+          </div>
+          <h3>只读与低风险</h3>
+          <ul>
+            <li>品牌摘要、任务只读</li>
+            <li>知识库只读</li>
+            <li>技能中心只读</li>
+            <li>低风险生成类工具</li>
+            <li>Data View 裁剪层</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <div class="badge-row">
+            <span class="badge bad">P2</span>
+          </div>
+          <h3>高风险与内部治理</h3>
+          <ul>
+            <li>审批流</li>
+            <li>高风险治理动作</li>
+            <li>后台受限 CLI 作业</li>
+            <li>审计检索页面</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">最终建议</h2>
+      <div class="quote">
+        OpenClaw 的第一优先级不是先把聊天做得多聪明，而是先把
+        <strong>动作编码</strong>、<strong>工具注册</strong>、
+        <strong>权限矩阵</strong>、<strong>数据视图</strong>、
+        <strong>授权时序</strong> 和 <strong>审计日志</strong>
+        这六块底座定义清楚。底座一旦稳定，后续新增工作台、技能、知识绑定和页面重构都能低成本接入。
+      </div>
+    </section>
+
+    <div class="footer">
+      文件名：06-OpenClaw接口与权限落地规格_v1.html
+    </div>
+  </div>
+</body>
+</html>

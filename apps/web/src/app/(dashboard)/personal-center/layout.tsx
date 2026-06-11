@@ -38,6 +38,11 @@ const routeItems = [
     description: "按平台查看第三方接口地址、模型 ID、说明文档与当前账号的私有 API Key",
   },
   {
+    href: "/personal-center/openclaw",
+    label: "OpenClaw 安装",
+    description: "为当前品牌生成 MCP 正式安装令牌、复制配置片段并查看 Skill 使用说明",
+  },
+  {
     href: "/personal-center/security",
     label: "安全设置",
     description: "查看当前浏览器登录态、品牌上下文与退出入口，并为后续密码与会话管理预留位置",

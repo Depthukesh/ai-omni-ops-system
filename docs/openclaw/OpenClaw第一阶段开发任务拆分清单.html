@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw 第一阶段开发任务拆分清单</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: rgba(13, 24, 43, 0.9);
+      --line: rgba(156, 190, 255, 0.18);
+      --text: #eef4ff;
+      --muted: #b7c8e9;
+      --accent: #74e8f8;
+      --accent-2: #90a8ff;
+      --shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(116, 232, 248, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(144, 168, 255, 0.16), transparent 24%),
+        linear-gradient(180deg, #07111f 0%, #081428 100%);
+      line-height: 1.7;
+    }
+
+    .container {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 60px;
+    }
+
+    .hero, .panel, .quote, .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 36px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(18, 33, 61, 0.98), rgba(7, 17, 31, 0.98));
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -90px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(116, 232, 248, 0.22), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(116, 232, 248, 0.28);
+      background: rgba(116, 232, 248, 0.1);
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    h1 {
+      margin: 18px 0 14px;
+      font-size: clamp(34px, 4vw, 50px);
+      line-height: 1.12;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .hero-grid, .grid-2, .grid-3, .grid-4 {
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 26px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .mini-card, .panel {
+      padding: 22px;
+    }
+
+    .mini-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+
+    .mini-card strong {
+      display: block;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .mini-card span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .section { margin-top: 28px; }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      margin: 0 0 16px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 18px rgba(116, 232, 248, 0.45);
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .panel p { margin: 0; color: var(--muted); }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li + li { margin-top: 8px; }
+
+    .quote {
+      padding: 24px;
+      border-left: 4px solid var(--accent);
+      font-size: 18px;
+    }
+
+    .recommend {
+      background: linear-gradient(180deg, rgba(16, 30, 55, 0.98), rgba(11, 21, 37, 0.95));
+      outline: 1px solid rgba(116, 232, 248, 0.24);
+    }
+
+    .table-wrap { overflow: hidden; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--text);
+      background: rgba(144, 168, 255, 0.08);
+    }
+
+    td { color: var(--muted); }
+    tr:last-child td { border-bottom: none; }
+
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: #8ea3cb;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1160px) {
+      .hero-grid, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 840px) {
+      .container { width: min(100% - 24px, 100%); }
+      .hero { padding: 24px; }
+      .hero-grid, .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div class="eyebrow">可直接排期的开工清单</div>
+      <h1>OpenClaw 第一阶段开发任务拆分清单</h1>
+      <p>
+        这份文档把高频用户任务进一步拆到开发层，直接回答每个任务要接哪些后端能力、要调哪些历史数据、
+        最小渠道侧交互和网站侧配合是什么，以及应该排在什么优先级。目标不是讲方案，而是帮助研发按“任务”而不是按“模块”开工。
+      </p>
+      <div class="hero-grid">
+        <div class="mini-card">
+          <strong>拆分方式</strong>
+          <span>按用户任务拆，不按系统模块拆。</span>
+        </div>
+        <div class="mini-card">
+          <strong>第一目标</strong>
+          <span>优先打通最小闭环：能识别、能带品牌、能调历史数据、能出摘要。</span>
+        </div>
+        <div class="mini-card">
+          <strong>底座策略</strong>
+          <span>第一阶段优先复用现有认证、任务中心、知识库、技能中心和生成链路。</span>
+        </div>
+        <div class="mini-card">
+          <strong>排期策略</strong>
+          <span>P0 先做到问了就能看，P1 再做到说了就能做，P2 再做到帮我总结和判断。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">任务分组</h2>
+      <div class="grid-3">
+        <article class="panel recommend">
+          <h3>P0：问了就能看</h3>
+          <ul>
+            <li>看最近任务情况</li>
+            <li>总结失败任务原因</li>
+            <li>查看知识库和最近新增资料</li>
+            <li>看当前技能配置摘要</li>
+            <li>生成品牌增长报告</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>P1：说了就能做</h3>
+          <ul>
+            <li>生成半年营销规划</li>
+            <li>做一版小红书原创图文</li>
+            <li>生成公众号文章</li>
+            <li>新建知识库</li>
+            <li>上传知识资料</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>P2：能帮我总结和判断</h3>
+          <ul>
+            <li>总结最近表现最好的内容规律</li>
+            <li>对比这个月和上个月的变化</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">核心任务映射</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>任务</th>
+              <th>后端能力</th>
+              <th>历史数据</th>
+              <th>最小渠道侧交互 / 网站侧配合</th>
+              <th>优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>看最近任务情况</td>
+              <td>品牌上下文、任务列表、状态聚合、类型聚合</td>
+              <td>近 7/30 天任务历史、阶段、类型</td>
+              <td>渠道内返回摘要；支持展开失败任务；必要时深链接到任务中心</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>总结失败任务原因</td>
+              <td>失败任务筛选、错误聚合、原因分类</td>
+              <td>失败历史、错误摘要、重试记录、知识调用摘要</td>
+              <td>渠道内返回失败原因 Top3；必要时展开明细</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>生成品牌增长报告</td>
+              <td>报告任务触发、Task 状态读取、报告摘要回读</td>
+              <td>历史品牌增长报告、知识绑定运行时</td>
+              <td>渠道内回传任务受理、进度和摘要；需要时深链接到完整报告</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>查看知识库和最近新增资料</td>
+              <td>知识库列表、资料列表、同步状态读取</td>
+              <td>知识库历史、上传记录、同步记录</td>
+              <td>渠道内返回知识库摘要和最近资料；需要时深链接到知识库页</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>看当前技能配置摘要</td>
+              <td>能力包列表、技能详情、品牌覆盖读取</td>
+              <td>品牌覆盖历史、最近配置变更</td>
+              <td>渠道内返回配置摘要；需要时深链接到完整配置页</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>生成半年营销规划</td>
+              <td>规划任务触发、Task 回读、规划摘要</td>
+              <td>品牌档案、历史报告、产品资料、知识库资料</td>
+              <td>渠道内回传任务反馈和规划摘要；支持继续细化</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>做一版小红书原创图文</td>
+              <td>原创图文任务触发、任务状态回读、结果摘要</td>
+              <td>品牌资料、产品信息、历史小红书内容、高表现规律</td>
+              <td>渠道内回传任务反馈和摘要；支持再来一版和打开完整结果</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>生成公众号文章</td>
+              <td>文章任务触发、文章结果读取、任务状态回读</td>
+              <td>品牌资料、历史公众号文章、知识库资料</td>
+              <td>渠道内回传任务反馈和文章摘要；支持继续改写和打开全文</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>新建知识库</td>
+              <td>知识库创建接口</td>
+              <td>当前品牌上下文</td>
+              <td>渠道内缺名称时追问 1 次；创建成功后引导继续上传资料</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>上传知识资料</td>
+              <td>文件上传、资料入库、切片/同步任务触发</td>
+              <td>目标知识库、上传历史、同步任务状态</td>
+              <td>渠道内选择目标知识库并轻确认；回传上传进度和完成摘要</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>总结最近表现最好的内容规律</td>
+              <td>历史内容读取、表现数据聚合、规律摘要生成</td>
+              <td>内容历史、表现指标、时间范围、平台类型</td>
+              <td>渠道内返回规律摘要和 Top 内容；支持继续生成类似内容</td>
+              <td>P2</td>
+            </tr>
+            <tr>
+              <td>对比这个月和上个月的变化</td>
+              <td>时间对比聚合、任务/内容/报告多源聚合</td>
+              <td>任务历史、内容历史、报告历史、时间段对比结果</td>
+              <td>渠道内返回变化摘要和上升/下降项；支持展开原因</td>
+              <td>P2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">公共开发项</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <h3>后端公共项</h3>
+          <ul>
+            <li>Assistant 授权与会话</li>
+            <li>当前品牌上下文继承</li>
+            <li>MCP 工具执行层</li>
+            <li>历史数据聚合层</li>
+            <li>Data View 裁剪层</li>
+            <li>审计日志</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>渠道侧公共项</h3>
+          <ul>
+            <li>飞书 / 企微等渠道接入与会话路由</li>
+            <li>首次绑定消息与账号关联流程</li>
+            <li>渠道内结构化消息模板</li>
+            <li>文件 / 图片 / 链接回传能力</li>
+            <li>错误提示与重试消息</li>
+            <li>深链接到网站结果页或管理页</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>网站侧最小配合项</h3>
+          <ul>
+            <li>账号绑定或授权回调页</li>
+            <li>受控 API / MCP 能力层</li>
+            <li>复杂结果查看页</li>
+            <li>配置与审计管理页</li>
+            <li>深链接落点页</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">体验公共项</h2>
+      <div class="grid-3">
+        <article class="panel">
+          <h3>体验约束</h3>
+          <ul>
+            <li>默认使用当前品牌</li>
+            <li>默认时间范围策略</li>
+            <li>单次最多 1 到 2 次追问</li>
+            <li>高风险动作确认</li>
+            <li>结果先摘要</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">建议 Sprint 顺序</h2>
+      <div class="grid-4">
+        <article class="panel recommend">
+          <h3>Sprint 1</h3>
+          <ul>
+            <li>授权与会话</li>
+            <li>当前品牌上下文</li>
+            <li>看最近任务情况</li>
+            <li>查看知识库和最近新增资料</li>
+            <li>看当前技能配置摘要</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Sprint 2</h3>
+          <ul>
+            <li>总结失败任务原因</li>
+            <li>生成品牌增长报告</li>
+            <li>新建知识库</li>
+            <li>上传知识资料</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Sprint 3</h3>
+          <ul>
+            <li>生成半年营销规划</li>
+            <li>做一版小红书原创图文</li>
+            <li>生成公众号文章</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Sprint 4</h3>
+          <ul>
+            <li>总结高表现内容规律</li>
+            <li>对比这个月和上个月的变化</li>
+            <li>优化默认参数与追问策略</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">最终目标</h2>
+      <div class="quote">
+        第一阶段最重要的不是把所有能力都接上，而是先围绕 12 个高频任务打通最小闭环：
+        能识别、能自动带入品牌、能调历史数据、能输出摘要、能顺滑完成。只要这 12 个任务做顺，
+        用户就会明确感受到它不是一个聊天壳子，而是真正能帮忙完成工作的助手。
+      </div>
+    </section>
+
+    <div class="footer">
+      文件名：OpenClaw第一阶段开发任务拆分清单.html
+    </div>
+  </div>
+</body>
+</html>

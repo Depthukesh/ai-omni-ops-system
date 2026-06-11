@@ -18,6 +18,7 @@ import { BrandsModule } from "./modules/brands/brands.module";
 import { CollectorsModule } from "./modules/collectors/collectors.module";
 import { MediaModule } from "./modules/media/media.module";
 import { OrdersModule } from "./modules/orders/orders.module";
+import { OpenClawModule } from "./modules/openclaw/openclaw.module";
 import { PublishingModule } from "./modules/publishing/publishing.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
@@ -48,6 +49,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     ThirdPartyPlatformsModule,
     UserSkillsModule,
     MediaModule,
+    OpenClawModule,
     OrdersModule,
     PublishingModule,
     ReportsModule,

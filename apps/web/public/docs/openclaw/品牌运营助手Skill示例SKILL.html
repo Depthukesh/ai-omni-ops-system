@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>品牌运营助手 Skill 示例</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    main { max-width: 900px; margin: 0 auto; padding: 40px 24px 64px; }
+    h1, h2 { color: #fff; }
+    pre { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 20px; margin-top: 16px; }
+    li { line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>品牌运营助手 Skill 示例</h1>
+    <div class="card">
+      <p>这个 Skill 的职责不是直接保存网站账号密码，而是把自然语言请求编排成 MCP 工具调用。</p>
+      <ul>
+        <li>优先读取当前品牌上下文</li>
+        <li>能少追问就少追问</li>
+        <li>默认围绕当前品牌工作区处理</li>
+        <li>结果先给摘要，再按需展开</li>
+      </ul>
+    </div>
+
+    <h2>推荐提问</h2>
+    <div class="card">
+      <ul>
+        <li>帮我看当前品牌最近的增长报告重点</li>
+        <li>最近 30 天失败任务主要是什么问题</li>
+        <li>帮我创建一个知识库并上传这份资料</li>
+        <li>帮我生成一份半年营销规划</li>
+      </ul>
+    </div>
+
+    <h2>调用原则</h2>
+    <pre><code>1. 先取当前品牌上下文
+2. 能直接执行就直接执行
+3. 缺少关键信息时再补问
+4. 输出时优先给标题、摘要、重点、下一步建议</code></pre>
+  </main>
+</body>
+</html>
