@@ -32,6 +32,13 @@ export type OpenClawInstallWorkspace = {
     summary: string;
     examples: string[];
   };
+  relationshipGuide: {
+    title: string;
+    items: Array<{
+      label: string;
+      summary: string;
+    }>;
+  };
   deliveryChecklist: {
     title: string;
     summary: string;

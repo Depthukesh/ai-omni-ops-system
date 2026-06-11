@@ -25,6 +25,11 @@
     <h2>目标</h2>
     <div class="card">
       <p>正式交付时，品牌用户不需要理解 MCP、Skill、CLI 差异，也不需要暴露网站登录密码。用户只需要登录网站，切到目标品牌，打开安装中心，复制配置，粘贴到 OpenClaw 即可。</p>
+      <ul>
+        <li>当前真正需要安装的是网站 MCP。</li>
+        <li>页面里的“品牌运营助手 Skill”目前是官方使用规范和示例，不是额外必须安装的执行包。</li>
+        <li>后续如果要扩展更多网站能力，建议先补 MCP 工具，再按场景补正式 Skill。</li>
+      </ul>
     </div>
 
     <h2>为什么不再用本地联调方式</h2>
@@ -96,6 +101,17 @@
       </ul>
     </div>
 
+    <h2>MCP 与 Skill 的关系</h2>
+    <div class="card">
+      <ul>
+        <li>当前正式可交付的是 MCP 安装链路，用户安装 MCP 后已经可以直接调用网站暴露的品牌能力。</li>
+        <li>页面里的 Skill 区块主要用于说明“品牌运营助手如何理解任务、如何编排调用 MCP”，不是额外必装插件。</li>
+        <li>如果后面要增加更多网站技能，建议先沉淀新的 MCP tool，再为高频场景编写正式 Skill。</li>
+        <li>如果用户自己安装了相似 Skill，比如也能做小红书原创笔记，OpenClaw 不一定天然优先调用我们这一方。</li>
+        <li>正式场景应让官方 Skill 明确优先调用 <code>ai-omni-ops</code> MCP，避免能力重叠时路由漂移。</li>
+      </ul>
+    </div>
+
     <h2>当前测试重点</h2>
     <div class="card">
       <ol>
@@ -111,7 +127,7 @@
       <ul>
         <li>截至 2026-06-11，服务端正式链路已验证通过：安装中心、令牌轮换、MCP initialize / tools/list / tools/call 均可用。</li>
         <li>OpenClaw 安装页代码已经落地到仓库，对应页面路径为 `个人中心 -> OpenClaw 安装`。</li>
-        <li>线上站点 `https://17ai.site/personal-center/openclaw` 当前仍返回 404，说明前端新页面尚未部署到正式网站。</li>
+        <li>线上站点 `https://17ai.site/personal-center/openclaw` 已可访问，正式安装页与令牌生成链路已经可用。</li>
         <li>当前开发机本地 `Next build` 仍受 `@next/swc-win32-x64-msvc` DLL 初始化失败影响，暂时无法在这台机器上完成本地生产预览页验证。</li>
       </ul>
       <p>当前真正待完成的是：部署前端页面，并在部署后补做一次网站实页回归，而不是继续改 OpenClaw 能力层接口。</p>

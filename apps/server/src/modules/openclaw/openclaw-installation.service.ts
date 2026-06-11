@@ -53,6 +53,13 @@ export type OpenClawInstallWorkspace = {
     summary: string;
     examples: string[];
   };
+  relationshipGuide: {
+    title: string;
+    items: Array<{
+      label: string;
+      summary: string;
+    }>;
+  };
   deliveryChecklist: {
     title: string;
     summary: string;
@@ -255,6 +262,23 @@ export class OpenClawInstallationService {
           "帮我创建一个品牌知识库，并把这份资料加入进去",
           "帮我看最近 30 天失败任务主要卡在哪些问题上",
           "围绕这个品牌生成一份半年营销规划",
+        ],
+      },
+      relationshipGuide: {
+        title: "MCP 与 Skill 关系",
+        items: [
+          {
+            label: "当前正式安装",
+            summary: "现在只需要安装 MCP。页面里的品牌运营助手 Skill 还是官方示例和使用规范，不是额外必须安装的执行包。",
+          },
+          {
+            label: "后续如何扩展",
+            summary: "后面新增网站能力时，先补 MCP 工具，再按业务场景补正式 Skill，让 Skill 去编排调用同一套网站能力。",
+          },
+          {
+            label: "相似技能冲突",
+            summary: "如果用户自己安装了相似 Skill，OpenClaw 可能按描述和上下文路由到任意一方。正式场景应优先让官方 Skill 调用 ai-omni-ops MCP。",
+          },
         ],
       },
       deliveryChecklist: {

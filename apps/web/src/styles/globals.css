@@ -5089,6 +5089,27 @@ button {
   gap: 10px;
 }
 
+.openclaw-relationship-card {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid #edf1f8;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.openclaw-relationship-card strong {
+  display: block;
+  color: #24324e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.openclaw-relationship-card p {
+  margin: 8px 0 0;
+  color: #5b6986;
+  line-height: 1.75;
+  font-size: 13px;
+}
+
 .openclaw-checklist {
   margin-top: 14px;
   padding-top: 14px;

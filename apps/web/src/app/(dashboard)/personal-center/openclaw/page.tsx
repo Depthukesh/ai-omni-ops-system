@@ -317,6 +317,23 @@ export default function PersonalCenterOpenClawPage() {
           <article className="entity-card personal-card">
             <div className="entity-card-head">
               <div>
+                <strong>{workspace?.relationshipGuide.title || "MCP 与 Skill 关系"}</strong>
+                <p className="personal-meta">把“现在到底装什么”和“以后技能怎么扩展、冲突时怎么理解”直接说明清楚。</p>
+              </div>
+            </div>
+            <div className="personal-list" style={{ gap: 12 }}>
+              {(workspace?.relationshipGuide.items || []).map((item) => (
+                <div key={item.label} className="openclaw-relationship-card">
+                  <strong>{item.label}</strong>
+                  <p>{item.summary}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="entity-card personal-card">
+            <div className="entity-card-head">
+              <div>
                 <strong>安装文档</strong>
                 <p className="personal-meta">给品牌管理员和实施同学直接看的正式说明。</p>
               </div>

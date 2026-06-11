@@ -920,6 +920,23 @@ model BrandThirdPartyPlatformSecret {
   @@unique([brandId, platformId])
 }
 
+model OpenClawInstallToken {
+  id              String   @id
+  brandId         String
+  createdByUserId String
+  tokenName       String   @default("")
+  tokenHash       String   @unique(map: "OpenClawInstallToken_tokenHash_key")
+  tokenPreview    String   @default("")
+  status          String   @default("ACTIVE")
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, status, createdAt(sort: Desc)], map: "OpenClawInstallToken_brand_status_idx")
+  @@map("OpenClawInstallToken")
+}
+
 model KnowledgeBase {
   id            String                 @id
   name          String
