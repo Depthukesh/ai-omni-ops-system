@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from "@nestjs/common";
 import { OpenClawService } from "./openclaw.service";
 
 type HeadersMap = Record<string, string | string[] | undefined>;
@@ -18,6 +18,36 @@ export class OpenClawController {
   @Get("context/current-brand")
   async getCurrentBrandContext(@Headers() headers: HeadersMap) {
     return this.openClawService.getCurrentBrandContext(headers);
+  }
+
+  @Get("tasks/:taskId")
+  async getTaskDetail(
+    @Headers() headers: HeadersMap,
+    @Param("taskId") taskId: string,
+  ) {
+    return this.openClawService.getTaskDetail(headers, { taskId });
+  }
+
+  @Get("brands/products")
+  async getBrandProducts(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getBrandProducts(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("brands/platform-accounts")
+  async getPlatformAccounts(
+    @Headers() headers: HeadersMap,
+    @Query("platform") platform?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getPlatformAccounts(headers, {
+      platform,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get("tasks/recent-summary")
@@ -44,6 +74,22 @@ export class OpenClawController {
     });
   }
 
+  @Patch("tasks/:taskId/cancel")
+  async cancelTask(
+    @Headers() headers: HeadersMap,
+    @Param("taskId") taskId: string,
+  ) {
+    return this.openClawService.cancelTask(headers, { taskId });
+  }
+
+  @Patch("tasks/:taskId/retry")
+  async retryTask(
+    @Headers() headers: HeadersMap,
+    @Param("taskId") taskId: string,
+  ) {
+    return this.openClawService.retryTask(headers, { taskId });
+  }
+
   @Get("knowledge-bases/recent-files")
   async getRecentKnowledgeFiles(
     @Headers() headers: HeadersMap,
@@ -64,6 +110,48 @@ export class OpenClawController {
     @Query("skillKey") skillKey?: string,
   ) {
     return this.openClawService.getSkillConfigSummary(headers, { skillKey });
+  }
+
+  @Get("works/xiaohongshu/calendar-options")
+  async getXiaohongshuMarketingCalendarOptions(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getXiaohongshuMarketingCalendarOptions(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("works/xiaohongshu/material-library")
+  async getXiaohongshuMaterialLibraryItems(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getXiaohongshuMaterialLibraryItems(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("works/xiaohongshu/reference-templates")
+  async getXiaohongshuOriginalReferenceTemplates(
+    @Headers() headers: HeadersMap,
+    @Query("categoryId") categoryId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getXiaohongshuOriginalReferenceTemplates(headers, {
+      categoryId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("works/xiaohongshu/original/recent")
+  async getRecentXiaohongshuOriginalWorks(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getRecentXiaohongshuOriginalWorks(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post("reports/brand-growth/generate")
@@ -117,9 +205,33 @@ export class OpenClawController {
   @Post("works/xiaohongshu/original/generate")
   async createXiaohongshuOriginalNote(
     @Headers() headers: HeadersMap,
-    @Body() payload?: { topic?: string; styleHint?: string; productId?: string },
+    @Body() payload?: {
+      calendarItemId?: string;
+      customTopicName?: string;
+      topic?: string;
+      productId?: string;
+      accountRole?: string;
+      imageCount?: number;
+      includeMarketingPlan?: boolean;
+      additionalInstruction?: string;
+      styleHint?: string;
+    },
   ) {
     return this.openClawService.createXiaohongshuOriginalNote(headers, payload);
+  }
+
+  @Post("works/xiaohongshu/rewrite/generate")
+  async createXiaohongshuRewriteNote(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      sourceMaterialId?: string;
+      productId?: string;
+      accountRole?: string;
+      includeMarketingPlan?: boolean;
+      additionalInstruction?: string;
+    },
+  ) {
+    return this.openClawService.createXiaohongshuRewriteNote(headers, payload);
   }
 
   @Post("works/wechat/articles/generate")

@@ -5,6 +5,7 @@ import {
   type BrandBusinessKnowledgeBaseRecord,
   BrandsService,
 } from "../brands/brands.service";
+import { CollectorsService } from "../collectors/collectors.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { ReportsService } from "../reports/reports.service";
 import { TasksService } from "../tasks/tasks.service";
@@ -50,6 +51,65 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     name: "get_current_brand_context",
     description: "获取当前登录账号的默认品牌、角色和权限摘要。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_brand_products",
+    description: "查看当前品牌可用于内容生成的产品清单。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_platform_accounts",
+    description: "查看当前品牌的平台账号清单，可按平台筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platform: { type: "string", description: "可选：XIAOHONGSHU、DOUYIN、VIDEO_CHANNEL、WECHAT_OA。" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_task_detail",
+    description: "查看指定任务的详细状态、输入和输出摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+      },
+      required: ["taskId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "cancel_task",
+    description: "取消指定任务，仅支持排队中或运行中的任务。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+      },
+      required: ["taskId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "retry_task",
+    description: "重试指定任务，把任务重新放回排队状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+      },
+      required: ["taskId"],
+      additionalProperties: false,
+    },
   },
   {
     name: "get_recent_tasks_summary",
@@ -171,14 +231,81 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_xiaohongshu_material_library_items",
+    description: "查看当前品牌素材库里可用于小红书二创的对标作品。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 30 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_xiaohongshu_marketing_calendar_options",
+    description: "查看当前品牌最近一期小红书营销日历选题，可直接拿到 calendarItemId 供后续创作使用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 30 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_xiaohongshu_original_reference_templates",
+    description: "查看小红书原创笔记参考模板分类和模板项，可按分类筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        categoryId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_recent_xiaohongshu_original_works",
+    description: "查看当前品牌最近生成的小红书原创笔记结果和状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_xiaohongshu_rewrite_note",
+    description: "基于素材库中的对标作品触发小红书二创图文生成。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceMaterialId: { type: "string", description: "素材库作品 ID。" },
+        productId: { type: "string" },
+        accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+        includeMarketingPlan: { type: "boolean" },
+        additionalInstruction: { type: "string", description: "补充创作要求。" },
+      },
+      required: ["sourceMaterialId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_original_note",
     description: "触发小红书原创图文生成。",
     inputSchema: {
       type: "object",
       properties: {
-        topic: { type: "string" },
-        styleHint: { type: "string" },
+        calendarItemId: { type: "string", description: "可选。来自小红书营销日历的选题 ID。" },
+        customTopicName: { type: "string", description: "可选。自定义选题名称。" },
+        topic: { type: "string", description: "兼容旧写法，等同于 customTopicName。" },
         productId: { type: "string" },
+        accountRole: { type: "string", description: "可选：BRAND、STAFF、TALENT。" },
+        imageCount: { type: "integer", minimum: 2, maximum: 10 },
+        includeMarketingPlan: { type: "boolean" },
+        additionalInstruction: { type: "string", description: "补充创作要求。" },
+        styleHint: { type: "string", description: "兼容旧写法，等同于 additionalInstruction。" },
       },
       additionalProperties: false,
     },
@@ -206,6 +333,7 @@ export class OpenClawService {
     private readonly authService: AuthService,
     private readonly tasksService: TasksService,
     private readonly brandsService: BrandsService,
+    private readonly collectorsService: CollectorsService,
     private readonly reportsService: ReportsService,
     private readonly userSkillsService: UserSkillsService,
     private readonly worksService: WorksService,
@@ -250,6 +378,84 @@ export class OpenClawService {
         },
       },
       links: [],
+    });
+  }
+
+  async getBrandProducts(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const items = archive.products
+      .slice(0, this.normalizeLimit(options?.limit))
+      .map((item) => ({
+        id: item.id,
+        productName: item.productName,
+        usageScenario: item.usageScenario,
+        targetAudience: item.targetAudience,
+        differentiators: item.differentiators,
+        imageUrl: item.imageUrl,
+      }));
+
+    return this.buildSummaryResponse({
+      title: "品牌产品清单",
+      summary: items.length
+        ? `当前品牌共有 ${archive.products.length} 个产品可用于内容生成。`
+        : "当前品牌还没有可用产品，可直接按品牌通用内容生成。",
+      highlights: items.length
+        ? items.slice(0, 3).map((item) => `${item.productName}${item.targetAudience ? `｜${item.targetAudience}` : ""}`)
+        : ["产品数：0"],
+      data: {
+        total: archive.products.length,
+        items,
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+    });
+  }
+
+  async getPlatformAccounts(
+    headers: HeadersMap,
+    options?: {
+      platform?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const archive = await this.brandsService.getArchive(brandId);
+    const normalizedPlatform = this.normalizePlatformType(options?.platform);
+    const scopedAccounts = archive.platformAccounts.filter((item) => (normalizedPlatform ? item.platform === normalizedPlatform : true));
+    const items = scopedAccounts.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "品牌平台账号清单",
+      summary: items.length
+        ? `当前返回 ${items.length} 个${normalizedPlatform ? `${normalizedPlatform} ` : ""}平台账号。`
+        : normalizedPlatform
+          ? `当前品牌下没有 ${normalizedPlatform} 平台账号。`
+          : "当前品牌下还没有配置平台账号。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.platform}｜${item.accountName || item.id}`)
+        : ["账号数：0"],
+      data: {
+        total: scopedAccounts.length,
+        platform: normalizedPlatform,
+        items: items.map((item) => ({
+          id: item.id,
+          platform: item.platform,
+          accountName: item.accountName,
+          accountLink: item.accountLink,
+        })),
+      },
+      links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
     });
   }
 
@@ -301,6 +507,82 @@ export class OpenClawService {
           createdAt: item.createdAt,
         })),
       },
+      links: [{ label: "打开任务中心", url: "/brand-growth/tasks" }],
+    });
+  }
+
+  async getTaskDetail(
+    headers: HeadersMap,
+    options?: {
+      taskId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+
+    const task = await this.findTaskById(auth, taskId);
+    return this.buildSummaryResponse({
+      title: "任务详情",
+      summary: `任务“${task.taskTitle || task.id}”当前状态为 ${this.formatTaskStatus(task.taskStatus)}。`,
+      highlights: [
+        `任务类型：${task.taskType}`,
+        `任务状态：${this.formatTaskStatus(task.taskStatus)}`,
+        task.errorMessage ? `失败原因：${this.normalizeFailureReason(task.errorMessage)}` : "失败原因：无",
+      ],
+      data: task,
+      links: [{ label: "打开任务中心", url: "/brand-growth/tasks" }],
+    });
+  }
+
+  async cancelTask(
+    headers: HeadersMap,
+    options?: {
+      taskId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+
+    const task = await this.tasksService.cancelTask(taskId, auth) as Record<string, unknown>;
+    return this.buildSummaryResponse({
+      title: "任务已取消",
+      summary: `已取消任务 ${taskId}。`,
+      highlights: [
+        `任务状态：${this.formatTaskStatus(this.readStringField(task, "taskStatus"))}`,
+        `任务类型：${this.readStringField(task, "taskType") || "未知"}`,
+      ],
+      data: task,
+      links: [{ label: "打开任务中心", url: "/brand-growth/tasks" }],
+    });
+  }
+
+  async retryTask(
+    headers: HeadersMap,
+    options?: {
+      taskId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+
+    const task = await this.tasksService.retryTask(taskId, auth) as Record<string, unknown>;
+    return this.buildSummaryResponse({
+      title: "任务已重新排队",
+      summary: `已将任务 ${taskId} 重新放回排队。`,
+      highlights: [
+        `任务状态：${this.formatTaskStatus(this.readStringField(task, "taskStatus"))}`,
+        `任务类型：${this.readStringField(task, "taskType") || "未知"}`,
+      ],
+      data: task,
       links: [{ label: "打开任务中心", url: "/brand-growth/tasks" }],
     });
   }
@@ -474,6 +756,171 @@ export class OpenClawService {
         items,
       },
       links: [{ label: "打开技能中心", url: "/skills" }],
+    });
+  }
+
+  async getXiaohongshuMarketingCalendarOptions(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "view", auth);
+
+    const workspace = await this.reportsService.getXiaohongshuMarketingCalendarWorkspace(brandId);
+    const latest = workspace.latest;
+    const items = (latest?.items || []).slice(0, this.normalizeLimit(options?.limit)).map((item) => ({
+      id: item.id,
+      date: item.date,
+      topicName: item.topicName,
+      productName: item.productName,
+      noteType: item.noteType,
+      targetAudience: item.targetAudience,
+      contentGoal: item.contentGoal,
+      expressionFocus: item.expressionFocus,
+      topicContent: item.topicContent,
+      noteKeywords: item.noteKeywords,
+      titleDirections: item.titleDirections,
+    }));
+
+    return this.buildSummaryResponse({
+      title: "小红书营销日历选题",
+      summary: latest
+        ? `当前最近一期小红书营销日历共有 ${latest.items.length} 个可选选题，可直接拿 item.id 作为 calendarItemId 发起创作。`
+        : "当前品牌还没有可用的小红书营销日历，请先生成营销日历。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.date}｜${item.topicName}`)
+        : ["暂无可用选题"],
+      data: {
+        latestReportId: latest?.id,
+        latestReportTitle: latest?.title,
+        generatedAt: latest?.generatedAt,
+        total: latest?.items.length || 0,
+        items,
+      },
+      links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getXiaohongshuMaterialLibraryItems(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "view", auth);
+
+    const workspace = await this.collectorsService.getXiaohongshuWorkspace(brandId);
+    const materials = workspace.benchmarkNotes
+      .filter((item) => item.isInMaterialLibrary)
+      .sort((left, right) => this.getTimestamp(right.materialAddedAt || right.collectedAt) - this.getTimestamp(left.materialAddedAt || left.collectedAt));
+    const items = materials.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "小红书二创素材库",
+      summary: items.length
+        ? `当前品牌素材库中有 ${materials.length} 条可用于二创的对标作品。`
+        : "当前品牌素材库里还没有可用于二创的作品，请先把对标作品加入素材库。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.nickname || "未命名作者"}`)
+        : ["素材数：0"],
+      data: {
+        total: materials.length,
+        items: items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          nickname: item.nickname,
+          noteUrl: item.noteUrl,
+          sourceUrl: item.sourceUrl,
+          noteType: item.noteType,
+          likeCount: item.likeCount,
+          collectCount: item.collectCount,
+          commentCount: item.commentCount,
+          materialAddedAt: item.materialAddedAt,
+          collectedAt: item.collectedAt,
+        })),
+      },
+      links: [{ label: "打开素材库", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getXiaohongshuOriginalReferenceTemplates(
+    headers: HeadersMap,
+    options?: {
+      categoryId?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "view", auth);
+
+    const templates = await this.worksService.listXiaohongshuOriginalReferenceTemplates();
+    const filteredItems = templates.items
+      .filter((item) => (options?.categoryId ? item.categoryId === options.categoryId : true))
+      .slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "小红书原创参考模板",
+      summary: filteredItems.length
+        ? `当前返回 ${filteredItems.length} 个原创参考模板，可作为后续生成时的风格参考。`
+        : options?.categoryId
+          ? `未找到分类 ${options.categoryId} 下的参考模板。`
+          : "当前没有可用的原创参考模板。",
+      highlights: filteredItems.length
+        ? filteredItems.slice(0, 5).map((item) => `${item.categoryLabel}｜${item.title}`)
+        : ["模板数：0"],
+      data: {
+        generatedAt: templates.generatedAt,
+        categories: templates.categories,
+        total: options?.categoryId ? filteredItems.length : templates.items.length,
+        items: filteredItems,
+      },
+      links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getRecentXiaohongshuOriginalWorks(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "xiaohongshu.original", "view", auth);
+
+    const workspace = await this.worksService.listXiaohongshuOriginalWorks(brandId);
+    const items = workspace.items.slice(0, this.normalizeLimit(options?.limit));
+
+    return this.buildSummaryResponse({
+      title: "最近小红书原创笔记结果",
+      summary: items.length
+        ? `当前品牌最近共有 ${workspace.items.length} 条原创笔记结果，下面返回最新 ${items.length} 条。`
+        : "当前品牌还没有原创笔记结果。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${this.formatTaskStatus(item.taskStatus)}`)
+        : ["作品数：0"],
+      data: {
+        total: workspace.items.length,
+        items: items.map((item) => ({
+          id: item.id,
+          taskId: item.taskId,
+          title: item.title,
+          taskStatus: item.taskStatus,
+          accountRole: item.accountRole,
+          productName: item.productName,
+          customTopicName: item.customTopicName,
+          calendarLabel: item.calendarLabel,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        })),
+      },
+      links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
     });
   }
 
@@ -771,7 +1218,13 @@ export class OpenClawService {
   async createXiaohongshuOriginalNote(
     headers: HeadersMap,
     options?: {
+      calendarItemId?: string;
+      customTopicName?: string;
       topic?: string;
+      accountRole?: string;
+      imageCount?: number;
+      includeMarketingPlan?: boolean;
+      additionalInstruction?: string;
       styleHint?: string;
       productId?: string;
     },
@@ -783,10 +1236,13 @@ export class OpenClawService {
     const result = await this.worksService.generateXiaohongshuOriginalNote(
       brandId,
       {
-        customTopicName: String(options?.topic || "").trim() || "品牌内容创作",
+        calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
+        customTopicName: String(options?.customTopicName || options?.topic || "").trim() || "品牌内容创作",
         productId: options?.productId,
-        additionalInstruction: String(options?.styleHint || "").trim() || undefined,
-        includeMarketingPlan: false,
+        accountRole: this.normalizeOriginalAccountRole(options?.accountRole),
+        imageCount: this.normalizeImageCount(options?.imageCount),
+        additionalInstruction: String(options?.additionalInstruction || options?.styleHint || "").trim() || undefined,
+        includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
       },
       auth,
       access.role,
@@ -796,11 +1252,71 @@ export class OpenClawService {
       title: "小红书原创图文任务已受理",
       summary: "已为当前品牌发起小红书原创图文任务。",
       highlights: [
-        `选题：${String(options?.topic || "").trim() || "品牌内容创作"}`,
-        options?.styleHint ? `补充要求：${options.styleHint}` : "补充要求：使用系统默认策略",
+        options?.calendarItemId
+          ? `营销日历选题：${options.calendarItemId}`
+          : `自定义选题：${String(options?.customTopicName || options?.topic || "").trim() || "品牌内容创作"}`,
+        options?.productId ? `产品：${options.productId}` : "产品：未指定",
+        options?.accountRole ? `账号人设：${options.accountRole}` : "账号人设：系统默认",
+        options?.additionalInstruction || options?.styleHint
+          ? `补充要求：${String(options?.additionalInstruction || options?.styleHint || "").trim()}`
+          : "补充要求：使用系统默认策略",
       ],
       data: {
-        taskId: this.readStringField(result, "taskId") || this.readNestedStringField(result, ["task", "id"]),
+        taskId: this.readStringField(result, "taskId")
+          || this.readNestedStringField(result, ["task", "id"])
+          || this.readNestedStringField(result, ["item", "taskId"]),
+        workId: this.readNestedStringField(result, ["item", "id"]),
+        result,
+      },
+      links: [{ label: "打开作品结果", url: "/xiaohongshu" }],
+    });
+  }
+
+  async createXiaohongshuRewriteNote(
+    headers: HeadersMap,
+    options?: {
+      sourceMaterialId?: string;
+      productId?: string;
+      accountRole?: string;
+      includeMarketingPlan?: boolean;
+      additionalInstruction?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const access = await this.authService.assertBrandPermission(brandId, "xiaohongshu.remix", "edit", auth);
+
+    const sourceMaterialId = String(options?.sourceMaterialId || "").trim();
+    if (!sourceMaterialId) {
+      throw new BadRequestException("请提供 sourceMaterialId");
+    }
+
+    const result = await this.worksService.generateXiaohongshuRewriteNote(
+      brandId,
+      {
+        sourceMaterialId,
+        productId: options?.productId,
+        accountRole: this.normalizeOriginalAccountRole(options?.accountRole),
+        includeMarketingPlan: typeof options?.includeMarketingPlan === "boolean" ? options.includeMarketingPlan : false,
+        additionalInstruction: String(options?.additionalInstruction || "").trim() || undefined,
+      },
+      auth,
+      access.role,
+    ) as Record<string, unknown>;
+
+    return this.buildSummaryResponse({
+      title: "小红书二创图文任务已受理",
+      summary: "已为当前品牌发起小红书二创图文任务。",
+      highlights: [
+        `素材：${sourceMaterialId}`,
+        options?.productId ? `产品：${options.productId}` : "产品：未指定",
+        options?.accountRole ? `账号人设：${options.accountRole}` : "账号人设：系统默认",
+      ],
+      data: {
+        taskId: this.readStringField(result, "taskId")
+          || this.readNestedStringField(result, ["task", "id"])
+          || this.readNestedStringField(result, ["item", "taskId"]),
+        workId: this.readNestedStringField(result, ["item", "id"]),
         result,
       },
       links: [{ label: "打开作品结果", url: "/xiaohongshu" }],
@@ -962,6 +1478,29 @@ export class OpenClawService {
     return Math.min(50, Math.floor(Number(limit)));
   }
 
+  private normalizePlatformType(platform?: string) {
+    const normalized = String(platform || "").trim().toUpperCase();
+    if (normalized === "XIAOHONGSHU" || normalized === "DOUYIN" || normalized === "VIDEO_CHANNEL" || normalized === "WECHAT_OA") {
+      return normalized;
+    }
+    return undefined;
+  }
+
+  private normalizeOriginalAccountRole(value?: string): "BRAND" | "STAFF" | "TALENT" | undefined {
+    const normalized = String(value || "").trim().toUpperCase();
+    if (normalized === "BRAND" || normalized === "STAFF" || normalized === "TALENT") {
+      return normalized;
+    }
+    return undefined;
+  }
+
+  private normalizeImageCount(value?: number) {
+    if (!Number.isFinite(value)) {
+      return undefined;
+    }
+    return Math.min(Math.max(Math.floor(Number(value)), 2), 10);
+  }
+
   private filterTasks(tasks: TaskRecord[], brandId: string, timeRange?: string, taskTypes?: string[]) {
     const { since } = this.normalizeTimeRange(timeRange);
     const normalizedTaskTypes = new Set((taskTypes ?? []).map((item) => item.trim()).filter(Boolean));
@@ -1042,6 +1581,15 @@ export class OpenClawService {
 
   private async loadTasks(auth: RequestAuthContext): Promise<TaskRecord[]> {
     return (await this.tasksService.listTasks(auth)) as unknown as TaskRecord[];
+  }
+
+  private async findTaskById(auth: RequestAuthContext, taskId: string) {
+    const tasks = await this.loadTasks(auth);
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new BadRequestException("未找到指定任务，或当前账号无权访问该任务");
+    }
+    return task;
   }
 
   private pickLatestKnowledgeBase(knowledgeBases: BrandBusinessKnowledgeBaseRecord[]) {
@@ -1151,6 +1699,27 @@ export class OpenClawService {
     switch (toolName) {
       case "get_current_brand_context":
         return this.getCurrentBrandContext(headers);
+      case "get_task_detail":
+        return this.getTaskDetail(headers, {
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+        });
+      case "cancel_task":
+        return this.cancelTask(headers, {
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+        });
+      case "retry_task":
+        return this.retryTask(headers, {
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+        });
+      case "get_brand_products":
+        return this.getBrandProducts(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_platform_accounts":
+        return this.getPlatformAccounts(headers, {
+          platform: typeof toolArgs.platform === "string" ? toolArgs.platform : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
       case "get_recent_tasks_summary":
         return this.getRecentTasksSummary(headers, {
           timeRange: typeof toolArgs.timeRange === "string" ? toolArgs.timeRange : undefined,
@@ -1174,6 +1743,23 @@ export class OpenClawService {
       case "get_skill_config_summary":
         return this.getSkillConfigSummary(headers, {
           skillKey: typeof toolArgs.skillKey === "string" ? toolArgs.skillKey : undefined,
+        });
+      case "get_xiaohongshu_marketing_calendar_options":
+        return this.getXiaohongshuMarketingCalendarOptions(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_xiaohongshu_material_library_items":
+        return this.getXiaohongshuMaterialLibraryItems(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_xiaohongshu_original_reference_templates":
+        return this.getXiaohongshuOriginalReferenceTemplates(headers, {
+          categoryId: typeof toolArgs.categoryId === "string" ? toolArgs.categoryId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_recent_xiaohongshu_original_works":
+        return this.getRecentXiaohongshuOriginalWorks(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "get_latest_brand_growth_report_summary":
         return this.getLatestBrandGrowthReportSummary(headers);
@@ -1213,9 +1799,23 @@ export class OpenClawService {
         });
       case "create_xiaohongshu_original_note":
         return this.createXiaohongshuOriginalNote(headers, {
+          calendarItemId: typeof toolArgs.calendarItemId === "string" ? toolArgs.calendarItemId : undefined,
+          customTopicName: typeof toolArgs.customTopicName === "string" ? toolArgs.customTopicName : undefined,
           topic: typeof toolArgs.topic === "string" ? toolArgs.topic : undefined,
+          accountRole: typeof toolArgs.accountRole === "string" ? toolArgs.accountRole : undefined,
+          imageCount: typeof toolArgs.imageCount === "number" ? toolArgs.imageCount : undefined,
+          includeMarketingPlan: typeof toolArgs.includeMarketingPlan === "boolean" ? toolArgs.includeMarketingPlan : undefined,
+          additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
           styleHint: typeof toolArgs.styleHint === "string" ? toolArgs.styleHint : undefined,
           productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
+        });
+      case "create_xiaohongshu_rewrite_note":
+        return this.createXiaohongshuRewriteNote(headers, {
+          sourceMaterialId: typeof toolArgs.sourceMaterialId === "string" ? toolArgs.sourceMaterialId : undefined,
+          productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
+          accountRole: typeof toolArgs.accountRole === "string" ? toolArgs.accountRole : undefined,
+          includeMarketingPlan: typeof toolArgs.includeMarketingPlan === "boolean" ? toolArgs.includeMarketingPlan : undefined,
+          additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
         });
       case "create_wechat_article":
         return this.createWechatArticle(headers, {
