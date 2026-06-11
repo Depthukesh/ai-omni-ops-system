@@ -145,6 +145,11 @@ jobs:
                 mkdir -p apps/web/.next
               }
 
+              suspend_web_process() {
+                pm2 stop ai-omni-web || true
+                pm2 delete ai-omni-web || true
+              }
+
               backup_and_clean_worktree() {
                 local backup_root backup_dir changed_files_path
                 backup_root="$HOME/.deploy-worktree-backups"
@@ -212,10 +217,11 @@ jobs:
               run_checked "npm run build:server" npm run build:server
               run_checked "prepare web build directory" prepare_web_build_dir
               run_checked "npm run build:web" npm run build:web
+              run_checked "stop stale pm2 web process" suspend_web_process
           RUNUSER_SCRIPT
 
             clear_port_3001_conflicts() {
-              local listeners attempt
+              local listeners attempt pids
               listeners="$(ss -lntp | grep -E '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001' || true)"
               if [ -z "$listeners" ]; then
                 echo "3001 端口当前空闲，无需清理。"
@@ -225,8 +231,11 @@ jobs:
               echo "检测到 3001 端口已有监听，准备释放："
               printf '%s\n' "$listeners"
 
-              pkill -f 'next start --hostname 127.0.0.1 --port 3001' || true
-              pkill -f 'next-server.*127.0.0.1.*3001' || true
+              pids="$(printf '%s\n' "$listeners" | grep -o 'pid=[0-9]\+' | cut -d= -f2 | sort -u | tr '\n' ' ')"
+              if [ -n "$pids" ]; then
+                # root 精确回收仍占着 3001 的历史 next-server 进程
+                kill -9 $pids || true
+              fi
 
               attempt=1
               while ss -lnt | grep -qE '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001'; do
