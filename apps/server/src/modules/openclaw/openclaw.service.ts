@@ -199,6 +199,47 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_wechat_workflow_preferences",
+    description: "查看当前品牌公众号工作流的默认作者、主题色和默认输入方式等偏好。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_wechat_workflow_session_detail",
+    description: "查看指定公众号工作流会话的完整详情，包括发布配置和检查项。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+      },
+      required: ["workflowId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "check_wechat_workflow_publish_readiness",
+    description: "重新计算指定公众号工作流的发布确认状态，返回是否已具备正式发布条件。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+      },
+      required: ["workflowId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_wechat_publish_history_detail",
+    description: "查看指定公众号发布历史记录的详细结果和失败原因。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        historyId: { type: "string" },
+      },
+      required: ["historyId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "publish_wechat_article",
     description: "把指定公众号草稿正式发布到公众号账号。",
     inputSchema: {
@@ -1034,6 +1075,114 @@ export class OpenClawService {
         total: history.items.length,
         items,
       },
+      links: [{ label: "打开公众号发布记录", url: "/wechat" }],
+    });
+  }
+
+  async getWechatWorkflowPreferences(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const preference = await this.worksService.getWechatWorkflowPreferences(brandId);
+    return this.buildSummaryResponse({
+      title: "公众号工作流偏好",
+      summary: preference.item.initialized
+        ? "当前品牌已完成公众号工作流基础偏好配置。"
+        : "当前品牌尚未完成公众号工作流基础偏好配置。",
+      highlights: [
+        `默认作者：${preference.item.defaultAuthor || "未设置"}`,
+        `默认主题色：${preference.item.defaultThemeColor || "未设置"}`,
+        `默认输入方式：${preference.item.defaultInputType || "未设置"}`,
+      ],
+      data: preference,
+      links: [{ label: "打开公众号配置", url: "/wechat" }],
+    });
+  }
+
+  async getWechatWorkflowSessionDetail(
+    headers: HeadersMap,
+    options?: {
+      workflowId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const workflowId = String(options?.workflowId || "").trim();
+    if (!workflowId) {
+      throw new BadRequestException("请提供 workflowId");
+    }
+
+    const session = await this.worksService.getWechatWorkflowSession(brandId, workflowId);
+    return this.buildSummaryResponse({
+      title: "公众号工作流详情",
+      summary: `公众号工作流“${session.item.title}”当前状态为 ${session.item.status}。`,
+      highlights: [
+        `当前步骤：${session.item.currentStep}`,
+        `发布就绪：${session.item.publishConfig?.ready ? "是" : "否"}`,
+        `账号：${session.item.accountName || "未指定"}`,
+      ],
+      data: session,
+      links: [{ label: "打开公众号工作流", url: "/wechat" }],
+    });
+  }
+
+  async checkWechatWorkflowPublishReadiness(
+    headers: HeadersMap,
+    options?: {
+      workflowId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+
+    const workflowId = String(options?.workflowId || "").trim();
+    if (!workflowId) {
+      throw new BadRequestException("请提供 workflowId");
+    }
+
+    const session = await this.worksService.updateWechatWorkflowPublishConfirm(brandId, workflowId, {});
+    return this.buildSummaryResponse({
+      title: "公众号发布确认结果",
+      summary: session.item.publishConfig?.ready
+        ? `公众号工作流 ${workflowId} 已具备正式发布条件。`
+        : `公众号工作流 ${workflowId} 还未具备正式发布条件。`,
+      highlights: session.item.publishConfig?.checklist?.length
+        ? session.item.publishConfig.checklist
+        : ["暂无发布检查项"],
+      data: session,
+      links: [{ label: "打开公众号工作流", url: "/wechat" }],
+    });
+  }
+
+  async getWechatPublishHistoryDetail(
+    headers: HeadersMap,
+    options?: {
+      historyId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const historyId = String(options?.historyId || "").trim();
+    if (!historyId) {
+      throw new BadRequestException("请提供 historyId");
+    }
+
+    const history = await this.worksService.getWechatPublishHistoryItem(brandId, historyId);
+    return this.buildSummaryResponse({
+      title: "公众号发布历史详情",
+      summary: `发布记录“${history.item.workflowTitle}”当前状态为 ${history.item.status}。`,
+      highlights: [
+        `工作流：${history.item.workflowTitle}`,
+        `账号：${history.item.accountName || "未指定"}`,
+        history.item.errorDetail ? `失败原因：${history.item.errorDetail}` : "失败原因：无",
+      ],
+      data: history,
       links: [{ label: "打开公众号发布记录", url: "/wechat" }],
     });
   }
@@ -2453,6 +2602,20 @@ export class OpenClawService {
       case "get_wechat_publish_history":
         return this.getWechatPublishHistory(headers, {
           limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_wechat_workflow_preferences":
+        return this.getWechatWorkflowPreferences(headers);
+      case "get_wechat_workflow_session_detail":
+        return this.getWechatWorkflowSessionDetail(headers, {
+          workflowId: typeof toolArgs.workflowId === "string" ? toolArgs.workflowId : undefined,
+        });
+      case "check_wechat_workflow_publish_readiness":
+        return this.checkWechatWorkflowPublishReadiness(headers, {
+          workflowId: typeof toolArgs.workflowId === "string" ? toolArgs.workflowId : undefined,
+        });
+      case "get_wechat_publish_history_detail":
+        return this.getWechatPublishHistoryDetail(headers, {
+          historyId: typeof toolArgs.historyId === "string" ? toolArgs.historyId : undefined,
         });
       case "publish_wechat_article":
         return this.publishWechatArticle(headers, {

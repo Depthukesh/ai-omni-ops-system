@@ -147,6 +147,35 @@ export class OpenClawController {
     });
   }
 
+  @Get("wechat/preferences")
+  async getWechatWorkflowPreferences(@Headers() headers: HeadersMap) {
+    return this.openClawService.getWechatWorkflowPreferences(headers);
+  }
+
+  @Get("wechat/workflows/:workflowId")
+  async getWechatWorkflowSessionDetail(
+    @Headers() headers: HeadersMap,
+    @Param("workflowId") workflowId: string,
+  ) {
+    return this.openClawService.getWechatWorkflowSessionDetail(headers, { workflowId });
+  }
+
+  @Post("wechat/workflows/:workflowId/check-publish")
+  async checkWechatWorkflowPublishReadiness(
+    @Headers() headers: HeadersMap,
+    @Param("workflowId") workflowId: string,
+  ) {
+    return this.openClawService.checkWechatWorkflowPublishReadiness(headers, { workflowId });
+  }
+
+  @Get("wechat/publish-history/:historyId")
+  async getWechatPublishHistoryDetail(
+    @Headers() headers: HeadersMap,
+    @Param("historyId") historyId: string,
+  ) {
+    return this.openClawService.getWechatPublishHistoryDetail(headers, { historyId });
+  }
+
   @Post("wechat/articles/:draftId/publish")
   async publishWechatArticle(
     @Headers() headers: HeadersMap,
