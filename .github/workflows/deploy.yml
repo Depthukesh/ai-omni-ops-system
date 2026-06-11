@@ -48,6 +48,12 @@ jobs:
               printf '\n[%s] %s\n' "$(date -Iseconds)" "$1"
             }
 
+            run_checked() {
+              log_step "$1"
+              shift
+              "$@"
+            }
+
             dump_remote_debug() {
               log_step "远端调试信息"
               echo "whoami: $(whoami)"
@@ -134,6 +140,11 @@ jobs:
                 "$@"
               }
 
+              prepare_web_build_dir() {
+                rm -rf apps/web/.next
+                mkdir -p apps/web/.next
+              }
+
               backup_and_clean_worktree() {
                 local backup_root backup_dir changed_files_path
                 backup_root="$HOME/.deploy-worktree-backups"
@@ -199,7 +210,40 @@ jobs:
               run_checked "npm run prisma:seed:registration-invite-codes" npm run prisma:seed:registration-invite-codes
 
               run_checked "npm run build:server" npm run build:server
+              run_checked "prepare web build directory" prepare_web_build_dir
               run_checked "npm run build:web" npm run build:web
+          RUNUSER_SCRIPT
+
+            clear_port_3001_conflicts() {
+              local listeners attempt
+              listeners="$(ss -lntp | grep -E '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001' || true)"
+              if [ -z "$listeners" ]; then
+                echo "3001 端口当前空闲，无需清理。"
+                return 0
+              fi
+
+              echo "检测到 3001 端口已有监听，准备释放："
+              printf '%s\n' "$listeners"
+
+              pkill -f 'next start --hostname 127.0.0.1 --port 3001' || true
+              pkill -f 'next-server.*127.0.0.1.*3001' || true
+
+              attempt=1
+              while ss -lnt | grep -qE '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001'; do
+                if [ "$attempt" -gt 15 ]; then
+                  echo "部署终止：3001 端口在清理后仍被占用。"
+                  ss -lntp | grep -E '127\.0\.0\.1:3001|0\.0\.0\.0:3001|:::3001' || true
+                  return 1
+                fi
+                sleep 1
+                attempt=$((attempt + 1))
+              done
+            }
+
+            run_checked "clear stale web listener on 3001" clear_port_3001_conflicts
+
+            runuser -u "$APP_RUNTIME_USER" -- env DEPLOY_PATH="$DEPLOY_PATH" TIKHUB_API_KEY="$TIKHUB_API_KEY" bash <<'PM2_SCRIPT'
+              set -Eeuo pipefail
 
               verify_pm2_runtime_secret() {
                 if [ -z "${TIKHUB_API_KEY:-}" ]; then
@@ -209,11 +253,12 @@ jobs:
                 node -e 'const { execSync } = require("node:child_process"); const apps = JSON.parse(execSync("pm2 jlist", { encoding: "utf8" })); const server = apps.find((item) => item.name === "ai-omni-server"); if (!server) { console.error("部署终止：pm2 中未找到 ai-omni-server 进程。"); process.exit(1); } const token = server.pm2_env?.TIKHUB_API_KEY; console.log("pm2 ai-omni-server TIKHUB_API_KEY: " + (token ? "present" : "missing")); if (!token) { process.exit(1); }'
               }
 
-              run_checked "pm2 startOrReload ecosystem.config.cjs --update-env" pm2 startOrReload ecosystem.config.cjs --update-env
-              run_checked "verify pm2 runtime secret" verify_pm2_runtime_secret
-              run_checked "pm2 save" pm2 save
-              run_checked "pm2 status" pm2 status
-          RUNUSER_SCRIPT
+              cd "$DEPLOY_PATH"
+              pm2 startOrReload ecosystem.config.cjs --update-env
+              verify_pm2_runtime_secret
+              pm2 save
+              pm2 status
+          PM2_SCRIPT
 
             wait_for_http() {
               local url="$1"
