@@ -21,6 +21,15 @@ const snippetTabs: Array<{ key: SnippetTabKey; label: string }> = [
   { key: "mcpEndpoint", label: "MCP 地址" },
 ];
 
+const capabilityHighlights = [
+  "读取当前品牌上下文",
+  "汇总任务与失败原因",
+  "查看增长报告重点",
+  "创建知识库并上传资料",
+  "生成半年营销规划",
+  "生成内容草稿",
+];
+
 export default function PersonalCenterOpenClawPage() {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<OpenClawInstallWorkspace | null>(null);
@@ -201,7 +210,7 @@ export default function PersonalCenterOpenClawPage() {
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.8fr)", gap: 16 }}>
+      <div className="openclaw-layout">
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
@@ -237,7 +246,7 @@ export default function PersonalCenterOpenClawPage() {
           </label>
         </article>
 
-        <div className="personal-list" style={{ gap: 16 }}>
+        <div className="personal-list openclaw-side-column" style={{ gap: 16 }}>
           <article className="entity-card personal-card">
             <div className="entity-card-head">
               <div>
@@ -271,15 +280,20 @@ export default function PersonalCenterOpenClawPage() {
           <article className="entity-card personal-card">
             <div className="entity-card-head">
               <div>
-                <strong>{workspace?.skillGuide.title || "Skill 安装说明"}</strong>
+                <strong>推荐提问</strong>
                 <p className="personal-meta">{workspace?.skillGuide.summary || "安装 MCP 后，再按品牌运营助手 Skill 说明去编排调用。"}</p>
               </div>
             </div>
-            <div className="personal-list">
+            <div className="openclaw-prompt-grid">
               {(workspace?.skillGuide.examples || []).map((item) => (
-                <div key={item} className="empty-canvas-box" style={{ padding: 12 }}>
+                <button
+                  key={item}
+                  type="button"
+                  className="openclaw-prompt-card"
+                  onClick={() => void handleCopy(item, `prompt:${item}`)}
+                >
                   {item}
-                </div>
+                </button>
               ))}
             </div>
           </article>
@@ -287,13 +301,13 @@ export default function PersonalCenterOpenClawPage() {
           <article className="entity-card personal-card">
             <div className="entity-card-head">
               <div>
-                <strong>{workspace?.deliveryChecklist.title || "正式交付检查"}</strong>
-                <p className="personal-meta">{workspace?.deliveryChecklist.summary || "上线前请至少完成页面、文档、令牌和真实挂载四类检查。"}</p>
+                <strong>{workspace?.skillGuide.title || "品牌运营助手 Skill"}</strong>
+                <p className="personal-meta">这不是安装配置本体，而是给 OpenClaw 的业务使用提示。它会把自然语言请求编排成品牌数据查询、报告生成和知识库操作。</p>
               </div>
             </div>
-            <div className="personal-list">
-              {(workspace?.deliveryChecklist.items || []).map((item) => (
-                <div key={item} className="empty-canvas-box" style={{ padding: 12 }}>
+            <div className="openclaw-capability-grid">
+              {capabilityHighlights.map((item) => (
+                <div key={item} className="openclaw-capability-chip">
                   {item}
                 </div>
               ))}
@@ -307,13 +321,26 @@ export default function PersonalCenterOpenClawPage() {
                 <p className="personal-meta">给品牌管理员和实施同学直接看的正式说明。</p>
               </div>
             </div>
-            <div className="personal-list">
+            <div className="openclaw-doc-links">
               {(workspace?.docs || []).map((item) => (
                 <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
                   {item.label}
                 </a>
               ))}
             </div>
+            <details className="openclaw-checklist">
+              <summary>{workspace?.deliveryChecklist.title || "正式交付检查"}</summary>
+              <p className="personal-meta" style={{ marginTop: 10 }}>
+                {workspace?.deliveryChecklist.summary || "上线前请至少完成页面、文档、令牌和真实挂载四类检查。"}
+              </p>
+              <div className="personal-list" style={{ marginTop: 12 }}>
+                {(workspace?.deliveryChecklist.items || []).map((item) => (
+                  <div key={item} className="openclaw-checklist-item">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </details>
           </article>
         </div>
       </div>
