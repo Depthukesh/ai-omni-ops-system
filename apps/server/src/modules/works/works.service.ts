@@ -5784,6 +5784,7 @@ export class WorksService {
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
       });
 
+      const noteImageSize = this.resolveXiaohongshuNoteImageGenerationSize();
       const coverImage = await this.generateImageAsset({
         brandId,
         taskId: task.id,
@@ -5797,6 +5798,8 @@ export class WorksService {
         textPlan: imagePromptResult.coverText,
         referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
         referenceImagePayloads: referenceFiles.map((item) => item.payload),
+        promptMode: "social_graphic",
+        imageSizeOverride: noteImageSize,
       });
 
       const galleryImages = await Promise.all(
@@ -5814,6 +5817,8 @@ export class WorksService {
             textPlan: imagePromptResult.imageTexts[index],
             referenceImageUrls: this.collectImageReferenceUrls(selectedProduct),
             referenceImagePayloads: referenceFiles.map((item) => item.payload),
+            promptMode: "social_graphic",
+            imageSizeOverride: noteImageSize,
           }),
         ),
       );
@@ -6060,6 +6065,7 @@ export class WorksService {
         fallbackModels: ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"],
       });
 
+      const noteImageSize = this.resolveXiaohongshuNoteImageGenerationSize();
       const coverImage = await this.generateImageAsset({
         brandId,
         taskId: task.id,
@@ -6073,6 +6079,8 @@ export class WorksService {
         textPlan: imagePromptResult.coverText,
         referenceImageUrls: rewriteReferenceSources.urls,
         referenceImagePayloads: rewriteReferenceSources.payloads,
+        promptMode: "social_graphic",
+        imageSizeOverride: noteImageSize,
       });
 
       const galleryImages = await Promise.all(
@@ -6090,6 +6098,8 @@ export class WorksService {
             textPlan: imagePromptResult.imageTexts[index],
             referenceImageUrls: rewriteReferenceSources.urls,
             referenceImagePayloads: rewriteReferenceSources.payloads,
+            promptMode: "social_graphic",
+            imageSizeOverride: noteImageSize,
           }),
         ),
       );
@@ -8157,7 +8167,10 @@ export class WorksService {
                   try {
                     finalUrl = await this.cacheRemoteGeneratedImage(params.brandId, fileName, asset.url, asset.contentType);
                   } catch (error) {
-                    if (/^https?:\/\//i.test(asset.url)) {
+                    const canFallbackToRemoteUrl = /^https?:\/\//i.test(asset.url)
+                      && !params.imageSizeOverride
+                      && promptMode !== "video_storyboard";
+                    if (canFallbackToRemoteUrl) {
                       // If third-party generation already succeeded, fall back to the original remote URL
                       // instead of silently retrying another model/provider and leaving the UI hanging.
                       finalUrl = asset.url;
@@ -11203,6 +11216,13 @@ export class WorksService {
     return {
       apiz: "16:9",
       openai: "1600x900",
+    };
+  }
+
+  private resolveXiaohongshuNoteImageGenerationSize() {
+    return {
+      apiz: "3:4",
+      openai: "1242x1660",
     };
   }
 
