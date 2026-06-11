@@ -4703,6 +4703,21 @@ export class BrandsService {
     return "LINK";
   }
 
+  private deriveBusinessKnowledgeSyncStatus(
+    files: Array<{ status: "PENDING" | "INDEXED" | "FAILED" }>,
+  ): BrandBusinessKnowledgeBaseRecord["syncStatus"] {
+    if (!files.length) {
+      return "IDLE";
+    }
+    if (files.some((item) => item.status === "FAILED")) {
+      return "FAILED";
+    }
+    if (files.every((item) => item.status === "INDEXED")) {
+      return "SUCCESS";
+    }
+    return "IDLE";
+  }
+
   private async syncBusinessAssetsToKnowledgeBaseInDatabase(
     brandId: string,
     items: CreateAssetPayload["items"],
@@ -4722,7 +4737,7 @@ export class BrandsService {
     const now = new Date();
     const uploadedAt = now.toISOString();
     const managedPrefix = this.buildBusinessKnowledgeBasePrefix(brandId);
-    const [existingManagedKnowledgeBases, existingConfigs, existingBindings] = await Promise.all([
+    const [existingManagedKnowledgeBases, existingConfigs, existingBindings, existingManagedFiles] = await Promise.all([
       this.prismaService.knowledgeBase.findMany({
         where: {
           id: {
@@ -4750,6 +4765,13 @@ export class BrandsService {
           },
         },
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+      }),
+      this.prismaService.knowledgeBaseFile.findMany({
+        where: {
+          knowledgeBaseId: {
+            startsWith: managedPrefix,
+          },
+        },
       }),
     ]);
     const existingConfigsByKnowledgeBaseId = new Map(existingConfigs.map((item) => [item.knowledgeBaseId, item] as const));
@@ -4795,6 +4817,12 @@ export class BrandsService {
         ),
       ] as const),
     );
+    const existingFilesByKnowledgeBaseId = new Map<string, typeof existingManagedFiles>();
+    for (const file of existingManagedFiles) {
+      const current = existingFilesByKnowledgeBaseId.get(file.knowledgeBaseId) || [];
+      current.push(file);
+      existingFilesByKnowledgeBaseId.set(file.knowledgeBaseId, current);
+    }
     const groups = this.collectManagedKnowledgeSpaceGroups(brandId, brand.brandName, items, existingKnowledgeBaseStates);
     for (const [knowledgeBaseId, state] of existingKnowledgeBaseStates) {
       if (!groups.some((item) => item.knowledgeBaseId === knowledgeBaseId)) {
@@ -4812,16 +4840,31 @@ export class BrandsService {
     const nextKnowledgeBaseIds = groups.map((item) => item.knowledgeBaseId);
 
     for (const group of groups) {
+      const existingGroupFiles = existingFilesByKnowledgeBaseId.get(group.knowledgeBaseId) || [];
+      const existingFileById = new Map(existingGroupFiles.map((item) => [item.id, item] as const));
+      const nextFiles = group.files.map((item, index) => {
+        const mapped = this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index);
+        const existingFile = existingFileById.get(mapped.id);
+        return {
+          ...mapped,
+          status: (existingFile?.status as typeof mapped.status | undefined) ?? mapped.status,
+          chunkCount: existingFile?.chunkCount ?? mapped.chunkCount,
+          uploadedAt: existingFile?.uploadedAt?.toISOString() ?? mapped.uploadedAt,
+        };
+      });
+      const nextFileIds = nextFiles.map((item) => item.id);
+      const nextSyncStatus = this.deriveBusinessKnowledgeSyncStatus(nextFiles);
+      const nextChunkCount = nextFiles.reduce((sum, item) => sum + item.chunkCount, 0);
       await this.prismaService.knowledgeBase.upsert({
         where: { id: group.knowledgeBaseId },
         update: {
           name: group.knowledgeBaseName,
           slug: group.knowledgeBaseSlug,
           sourceType: "OSS",
-          status: group.files.length ? "ACTIVE" : "DRAFT",
-          syncStatus: "IDLE",
-          documentCount: group.files.length,
-          chunkCount: 0,
+          status: nextFiles.length ? "ACTIVE" : "DRAFT",
+          syncStatus: nextSyncStatus,
+          documentCount: nextFiles.length,
+          chunkCount: nextChunkCount,
           description: group.description,
           updatedAt: now,
         },
@@ -4830,10 +4873,10 @@ export class BrandsService {
           name: group.knowledgeBaseName,
           slug: group.knowledgeBaseSlug,
           sourceType: "OSS",
-          status: group.files.length ? "ACTIVE" : "DRAFT",
-          syncStatus: "IDLE",
-          documentCount: group.files.length,
-          chunkCount: 0,
+          status: nextFiles.length ? "ACTIVE" : "DRAFT",
+          syncStatus: nextSyncStatus,
+          documentCount: nextFiles.length,
+          chunkCount: nextChunkCount,
           description: group.description,
           createdAt: now,
           updatedAt: now,
@@ -4884,23 +4927,33 @@ export class BrandsService {
       }
 
       await this.prismaService.knowledgeBaseFile.deleteMany({
-        where: { knowledgeBaseId: group.knowledgeBaseId },
+        where: {
+          knowledgeBaseId: group.knowledgeBaseId,
+          ...(nextFileIds.length ? { id: { notIn: nextFileIds } } : {}),
+        },
       });
-      if (group.files.length) {
-        await this.prismaService.knowledgeBaseFile.createMany({
-          data: group.files.map((item, index) => {
-            const file = this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index);
-            return {
-              id: file.id,
-              knowledgeBaseId: file.knowledgeBaseId,
-              fileName: file.fileName,
-              fileType: file.fileType,
-              sourceName: file.sourceName,
-              chunkCount: file.chunkCount,
-              status: file.status,
-              uploadedAt: new Date(file.uploadedAt),
-            };
-          }),
+      for (const file of nextFiles) {
+        await this.prismaService.knowledgeBaseFile.upsert({
+          where: { id: file.id },
+          update: {
+            knowledgeBaseId: file.knowledgeBaseId,
+            fileName: file.fileName,
+            fileType: file.fileType,
+            sourceName: file.sourceName,
+            chunkCount: file.chunkCount,
+            status: file.status,
+            uploadedAt: new Date(file.uploadedAt),
+          },
+          create: {
+            id: file.id,
+            knowledgeBaseId: file.knowledgeBaseId,
+            fileName: file.fileName,
+            fileType: file.fileType,
+            sourceName: file.sourceName,
+            chunkCount: file.chunkCount,
+            status: file.status,
+            uploadedAt: new Date(file.uploadedAt),
+          },
         });
       }
     }
@@ -4943,15 +4996,27 @@ export class BrandsService {
     }
 
     for (const group of groups) {
+      const existingGroupFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId === group.knowledgeBaseId);
+      const existingFileById = new Map(existingGroupFiles.map((item) => [item.id, item] as const));
+      const nextFiles = group.files.map((item, index) => {
+        const mapped = this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index);
+        const existingFile = existingFileById.get(mapped.id);
+        return {
+          ...mapped,
+          status: existingFile?.status ?? mapped.status,
+          chunkCount: existingFile?.chunkCount ?? mapped.chunkCount,
+          uploadedAt: existingFile?.uploadedAt ?? mapped.uploadedAt,
+        };
+      });
       const knowledgeBaseRecord: KnowledgeBaseRecord = {
         id: group.knowledgeBaseId,
         name: group.knowledgeBaseName,
         slug: group.knowledgeBaseSlug,
         sourceType: "OSS",
-        status: group.files.length ? "ACTIVE" : "DRAFT",
-        syncStatus: "IDLE",
-        documentCount: group.files.length,
-        chunkCount: 0,
+        status: nextFiles.length ? "ACTIVE" : "DRAFT",
+        syncStatus: this.deriveBusinessKnowledgeSyncStatus(nextFiles),
+        documentCount: nextFiles.length,
+        chunkCount: nextFiles.reduce((sum, item) => sum + item.chunkCount, 0),
         description: group.description,
         updatedAt: uploadedAt,
       };
@@ -5007,7 +5072,7 @@ export class BrandsService {
 
       database.knowledgeBaseFiles = database.knowledgeBaseFiles.filter((item) => item.knowledgeBaseId !== group.knowledgeBaseId);
       database.knowledgeBaseFiles.unshift(
-        ...group.files.map((item, index) => this.mapBusinessAssetToKnowledgeFile(group.knowledgeBaseId, item, uploadedAt, index)),
+        ...nextFiles,
       );
     }
   }
