@@ -174,6 +174,35 @@ export class OpenClawController {
     return this.openClawService.createDouyinOriginalCopy(headers, payload);
   }
 
+  @Get("reports/douyin-remix/options")
+  async getDouyinRemixCopyOptions(@Headers() headers: HeadersMap) {
+    return this.openClawService.getDouyinRemixCopyOptions(headers);
+  }
+
+  @Get("reports/douyin-remix/recent")
+  async getRecentDouyinRemixCopies(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getRecentDouyinRemixCopies(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post("reports/douyin-remix/generate")
+  async createDouyinRemixCopy(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      materialId?: string;
+      injectBrandProfile?: boolean;
+      productId?: string;
+      injectMarketingPlan?: boolean;
+      userRequirement?: string;
+    },
+  ) {
+    return this.openClawService.createDouyinRemixCopy(headers, payload);
+  }
+
   @Get("works/xiaohongshu/calendar-options")
   async getXiaohongshuMarketingCalendarOptions(
     @Headers() headers: HeadersMap,

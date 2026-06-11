@@ -299,6 +299,38 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_douyin_remix_copy_options",
+    description: "查看抖音二创文案可用的素材库、产品和营销策划选项。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_recent_douyin_remix_copies",
+    description: "查看当前品牌最近生成的抖音二创文案结果和状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_douyin_remix_copy",
+    description: "基于素材库视频触发抖音二创文案生成。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        materialId: { type: "string", description: "必填：素材库中的视频素材 ID。" },
+        injectBrandProfile: { type: "boolean" },
+        productId: { type: "string" },
+        injectMarketingPlan: { type: "boolean" },
+        userRequirement: { type: "string" },
+      },
+      required: ["materialId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_xiaohongshu_material_library_items",
     description: "查看当前品牌素材库里可用于小红书二创的对标作品。",
     inputSchema: {
@@ -1078,6 +1110,103 @@ export class OpenClawService {
         latest: workspace.latest,
       },
       links: [{ label: "打开抖音原创文案", url: "/douyin" }],
+    });
+  }
+
+  async getDouyinRemixCopyOptions(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "view", auth);
+
+    const workspace = await this.reportsService.getDouyinRemixCopyWorkspace(brandId);
+    return this.buildSummaryResponse({
+      title: "抖音二创文案选项",
+      summary: `当前品牌可用 ${workspace.materialOptions.length} 条素材和 ${workspace.productOptions.length} 个产品，可在对话中确认后直接生成抖音二创文案。`,
+      highlights: [
+        `素材库：${workspace.materialOptions.length}`,
+        `产品选项：${workspace.productOptions.length}`,
+        workspace.hasMarketingPlan ? `营销策划：已配置《${workspace.marketingPlanTitle || "抖音营销策划"}》` : "营销策划：未配置",
+      ],
+      data: {
+        materialOptions: workspace.materialOptions.slice(0, 30),
+        productOptions: workspace.productOptions.slice(0, 20),
+        hasMarketingPlan: workspace.hasMarketingPlan,
+        marketingPlanTitle: workspace.marketingPlanTitle,
+        latestTask: workspace.latestTask,
+      },
+      links: [{ label: "打开抖音二创文案", url: "/douyin" }],
+    });
+  }
+
+  async getRecentDouyinRemixCopies(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "view", auth);
+
+    const workspace = await this.reportsService.getDouyinRemixCopyWorkspace(brandId);
+    const items = workspace.history.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "最近抖音二创文案结果",
+      summary: items.length
+        ? `当前品牌最近共有 ${workspace.history.length} 条抖音二创文案结果，下面返回最新 ${items.length} 条。`
+        : "当前品牌还没有抖音二创文案结果。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.sourceMaterialTitle}`)
+        : ["二创文案数：0"],
+      data: {
+        total: workspace.history.length,
+        latestTask: workspace.latestTask,
+        items,
+      },
+      links: [{ label: "打开抖音二创文案", url: "/douyin" }],
+    });
+  }
+
+  async createDouyinRemixCopy(
+    headers: HeadersMap,
+    options?: {
+      materialId?: string;
+      injectBrandProfile?: boolean;
+      productId?: string;
+      injectMarketingPlan?: boolean;
+      userRequirement?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.remix", "edit", auth);
+
+    const materialId = String(options?.materialId || "").trim();
+    if (!materialId) {
+      throw new BadRequestException("请提供 materialId");
+    }
+
+    const workspace = await this.reportsService.generateDouyinRemixCopy(brandId, {
+      materialId,
+      injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : false,
+      productId: String(options?.productId || "").trim() || undefined,
+      injectMarketingPlan: typeof options?.injectMarketingPlan === "boolean" ? options.injectMarketingPlan : false,
+      userRequirement: String(options?.userRequirement || "").trim() || undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: "抖音二创文案任务已受理",
+      summary: "已为当前品牌发起抖音二创文案任务。",
+      highlights: [
+        `素材：${materialId}`,
+        typeof options?.injectBrandProfile === "boolean" ? `植入品牌资料：${options.injectBrandProfile ? "是" : "否"}` : "植入品牌资料：默认关闭",
+        options?.productId ? `产品：${options.productId}` : "产品：未指定",
+      ],
+      data: {
+        latestTask: workspace.latestTask,
+        latest: workspace.latest,
+      },
+      links: [{ label: "打开抖音二创文案", url: "/douyin" }],
     });
   }
 
@@ -2074,6 +2203,20 @@ export class OpenClawService {
           copyType: typeof toolArgs.copyType === "string" ? toolArgs.copyType : undefined,
           topicId: typeof toolArgs.topicId === "string" ? toolArgs.topicId : undefined,
           calendarItemId: typeof toolArgs.calendarItemId === "string" ? toolArgs.calendarItemId : undefined,
+          injectMarketingPlan: typeof toolArgs.injectMarketingPlan === "boolean" ? toolArgs.injectMarketingPlan : undefined,
+          userRequirement: typeof toolArgs.userRequirement === "string" ? toolArgs.userRequirement : undefined,
+        });
+      case "get_douyin_remix_copy_options":
+        return this.getDouyinRemixCopyOptions(headers);
+      case "get_recent_douyin_remix_copies":
+        return this.getRecentDouyinRemixCopies(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_douyin_remix_copy":
+        return this.createDouyinRemixCopy(headers, {
+          materialId: typeof toolArgs.materialId === "string" ? toolArgs.materialId : undefined,
+          injectBrandProfile: typeof toolArgs.injectBrandProfile === "boolean" ? toolArgs.injectBrandProfile : undefined,
+          productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
           injectMarketingPlan: typeof toolArgs.injectMarketingPlan === "boolean" ? toolArgs.injectMarketingPlan : undefined,
           userRequirement: typeof toolArgs.userRequirement === "string" ? toolArgs.userRequirement : undefined,
         });
