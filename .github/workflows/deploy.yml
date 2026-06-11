@@ -134,57 +134,6 @@ jobs:
                 "$@"
               }
 
-              NEXT_STATIC_CACHE_ROOT="$HOME/.deploy-next-static-cache"
-
-              prune_next_static_cache() {
-                if [ ! -d "$NEXT_STATIC_CACHE_ROOT" ]; then
-                  return 0
-                fi
-                mapfile -t cache_dirs < <(find "$NEXT_STATIC_CACHE_ROOT" -mindepth 1 -maxdepth 1 -type d | sort)
-                local keep_count=5
-                local total_count="${#cache_dirs[@]}"
-                if [ "$total_count" -le "$keep_count" ]; then
-                  return 0
-                fi
-                local remove_count=$((total_count - keep_count))
-                local index=0
-                while [ "$index" -lt "$remove_count" ]; do
-                  rm -rf "${cache_dirs[$index]}"
-                  index=$((index + 1))
-                done
-              }
-
-              backup_previous_next_static() {
-                local source_dir="$DEPLOY_PATH/apps/web/.next/static"
-                local release_key="$1"
-                if [ ! -d "$source_dir" ]; then
-                  echo "跳过旧版 Next 静态资源备份：$source_dir 不存在"
-                  return 0
-                fi
-                mkdir -p "$NEXT_STATIC_CACHE_ROOT"
-                local target_dir="$NEXT_STATIC_CACHE_ROOT/$release_key"
-                rm -rf "$target_dir"
-                mkdir -p "$target_dir"
-                cp -a "$source_dir/." "$target_dir/"
-                echo "已备份旧版 Next 静态资源到: $target_dir"
-                prune_next_static_cache
-              }
-
-              merge_cached_next_static() {
-                local target_dir="$DEPLOY_PATH/apps/web/.next/static"
-                mkdir -p "$target_dir"
-                if [ ! -d "$NEXT_STATIC_CACHE_ROOT" ]; then
-                  echo "跳过 Next 静态资源合并：暂无历史缓存"
-                  return 0
-                fi
-                mapfile -t cache_dirs < <(find "$NEXT_STATIC_CACHE_ROOT" -mindepth 1 -maxdepth 1 -type d | sort)
-                local cache_dir
-                for cache_dir in "${cache_dirs[@]}"; do
-                  cp -an "$cache_dir/." "$target_dir/"
-                done
-                echo "已将最近 ${#cache_dirs[@]} 版 Next 静态资源补齐回当前发布目录"
-              }
-
               backup_and_clean_worktree() {
                 local backup_root backup_dir changed_files_path
                 backup_root="$HOME/.deploy-worktree-backups"
@@ -237,9 +186,6 @@ jobs:
               run_checked "git reset --hard origin/main" git reset --hard origin/main
               run_checked "git rev-parse HEAD" git rev-parse HEAD
 
-              PREVIOUS_RELEASE_KEY="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-              run_checked "backup previous Next static" backup_previous_next_static "$PREVIOUS_RELEASE_KEY"
-
               POST_SYNC_STATUS="$(git status --porcelain=v1 -uall)"
               if [ -n "$POST_SYNC_STATUS" ]; then
                 echo "部署终止：同步远端提交后工作区未保持干净，请先人工排查服务器现场。"
@@ -254,7 +200,6 @@ jobs:
 
               run_checked "npm run build:server" npm run build:server
               run_checked "npm run build:web" npm run build:web
-              run_checked "merge cached Next static" merge_cached_next_static
 
               verify_pm2_runtime_secret() {
                 if [ -z "${TIKHUB_API_KEY:-}" ]; then
