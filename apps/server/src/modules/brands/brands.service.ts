@@ -26,7 +26,11 @@ import {
 } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
-import { KnowledgeBasesService, type KnowledgeChunkRecord } from "../admin/knowledge-bases.service";
+import {
+  KnowledgeBasesService,
+  type KnowledgeChunkRecord,
+  type KnowledgeInvocationRecord,
+} from "../admin/knowledge-bases.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { OssStorageService } from "../../storage/oss-storage.service";
 import { ThirdPartyPlatformsService } from "../third-party-platforms/third-party-platforms.service";
@@ -156,6 +160,8 @@ export type BrandBusinessKnowledgeBaseFileDetailRecord = BrandBusinessKnowledgeB
   chunks: KnowledgeChunkRecord[];
   syncRuns: KnowledgeBaseSyncRunRecord[];
 };
+
+export type BrandBusinessKnowledgeInvocationRecord = KnowledgeInvocationRecord;
 
 export type CreateBrandBusinessKnowledgeBaseFilesPayload = {
   items: Array<{
@@ -1764,6 +1770,22 @@ export class BrandsService {
 
     this.deleteBusinessKnowledgeBaseFromMock(id, knowledgeBaseId);
     return this.listBusinessKnowledgeBasesFromMock(id);
+  }
+
+  async listBusinessKnowledgeInvocationRuns(id: string): Promise<BrandBusinessKnowledgeInvocationRecord[]> {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(id);
+    } else {
+      this.getBrand(id);
+    }
+    const prefix = this.buildBusinessKnowledgeBasePrefix(id);
+    const runs = await this.resolveKnowledgeBasesService().listKnowledgeInvocationRuns();
+    return runs.filter(
+      (item) =>
+        item.brandId === id
+        || item.knowledgeBaseIds.some((knowledgeBaseId) => knowledgeBaseId.startsWith(prefix))
+        || item.matchedKnowledgeBaseIds.some((knowledgeBaseId) => knowledgeBaseId.startsWith(prefix)),
+    );
   }
 
   async listBusinessKnowledgeBaseFiles(id: string, knowledgeBaseId: string): Promise<BrandBusinessKnowledgeBaseFileRecord[]> {

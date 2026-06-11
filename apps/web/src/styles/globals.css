@@ -1493,6 +1493,12 @@ button {
   min-height: 220px;
 }
 
+.business-kb-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .business-kb-card__open {
   width: 100%;
   padding: 0;
@@ -1585,6 +1591,13 @@ button {
   line-height: 1.8;
 }
 
+.business-kb-run-item p {
+  margin: 0;
+  color: #415065;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
 .business-kb-detail-grid {
   display: grid;
   gap: 14px;
@@ -1644,6 +1657,13 @@ button {
 .business-kb-upload-status span {
   color: #6b7a90;
   font-size: 12px;
+}
+
+.field-help {
+  margin: -6px 0 0;
+  color: #6f7e94;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .knowledge-draft-card {

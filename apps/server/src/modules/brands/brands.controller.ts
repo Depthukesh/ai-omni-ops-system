@@ -411,6 +411,16 @@ export class BrandsController {
     return this.brandsService.deleteBusinessKnowledgeBase(id, knowledgeBaseId);
   }
 
+  @Get(":id/business-knowledge-invocation-runs")
+  async listBusinessKnowledgeInvocationRuns(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "view", auth);
+    return this.brandsService.listBusinessKnowledgeInvocationRuns(id);
+  }
+
   @Get(":id/business-knowledge-bases/:knowledgeBaseId/files")
   async listBusinessKnowledgeBaseFiles(
     @Param("id") id: string,

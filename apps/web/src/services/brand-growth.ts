@@ -175,6 +175,10 @@ export type CreateBrandBusinessKnowledgeBasePayload = {
 export type UpdateBrandBusinessKnowledgeBasePayload = {
   name?: string;
   description?: string;
+  bindingType?: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId?: string;
+  targetKey?: string;
+  targetName?: string;
   defaultTopK?: number;
   recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled?: boolean;
@@ -234,6 +238,25 @@ export type KnowledgeBaseSyncRunRecord = {
 export type BrandBusinessKnowledgeBaseFileDetailRecord = BrandBusinessKnowledgeBaseFileRecord & {
   chunks: KnowledgeChunkRecord[];
   syncRuns: KnowledgeBaseSyncRunRecord[];
+};
+
+export type BrandBusinessKnowledgeInvocationRecord = {
+  id: string;
+  brandId?: string;
+  sourceModule: "REPORTS" | "WORKS";
+  sceneLabel: string;
+  moduleTargetId?: string;
+  skillPackageKey?: string;
+  skillSlug?: string;
+  knowledgeBaseIds: string[];
+  knowledgeBaseNames: string[];
+  matchedKnowledgeBaseIds: string[];
+  matchedKnowledgeBaseNames: string[];
+  retrievalQuery?: string;
+  hitCount: number;
+  status: "UNBOUND" | "NO_HIT" | "HIT" | "FAILED";
+  summary: string;
+  createdAt: string;
 };
 
 export type CreateBrandBusinessKnowledgeBaseFilesPayload = {
@@ -922,6 +945,12 @@ export async function deleteBrandBusinessKnowledgeBase(brandId: string | undefin
     {
       method: "DELETE",
     },
+  );
+}
+
+export async function listBrandBusinessKnowledgeInvocationRuns(brandId: string | undefined) {
+  return request<BrandBusinessKnowledgeInvocationRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-invocation-runs`,
   );
 }
 

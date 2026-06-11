@@ -7,10 +7,12 @@ import {
   deleteBrandBusinessKnowledgeBase,
   deleteBrandBusinessKnowledgeBaseFile,
   getBrandBusinessKnowledgeBaseFileDetail,
+  listBrandBusinessKnowledgeInvocationRuns,
   listBrandBusinessKnowledgeBaseFiles,
   listBrandBusinessKnowledgeBases,
   type BrandBusinessKnowledgeBaseFileDetailRecord,
   type BrandBusinessKnowledgeBaseFileRecord,
+  type BrandBusinessKnowledgeInvocationRecord,
   type BrandBusinessKnowledgeBaseRecord,
   updateBrandBusinessKnowledgeBase,
   uploadBrandAssetFile,
@@ -31,6 +33,10 @@ type UploadDraft = {
 type SettingsDraft = {
   name: string;
   description: string;
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey: string;
+  targetName: string;
   defaultTopK: string;
   recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled: boolean;
@@ -41,6 +47,136 @@ type SettingsDraft = {
   isRequired: boolean;
   enabled: boolean;
 };
+
+type BindingTargetPreset = {
+  bindingType: SettingsDraft["bindingType"];
+  label: string;
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  description: string;
+};
+
+const BINDING_TYPE_OPTIONS: Array<{ value: SettingsDraft["bindingType"]; label: string; description: string }> = [
+  { value: "MODULE", label: "模块", description: "给整个工作台或模块统一使用。" },
+  { value: "SKILL_PACKAGE", label: "能力包", description: "给一组连续技能步骤统一使用。" },
+  { value: "SKILL", label: "技能", description: "只给某个具体技能使用。" },
+];
+
+const BINDING_TARGET_PRESETS: BindingTargetPreset[] = [
+  {
+    bindingType: "MODULE",
+    label: "品牌增长工作台",
+    targetId: "brand-growth-workbench",
+    targetKey: "brand-growth-workbench",
+    targetName: "品牌增长工作台",
+    description: "品牌增长报告、半年营销规划等默认都会读取这里绑定的企业知识。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "小红书工作台",
+    targetId: "xiaohongshu-workbench",
+    targetKey: "xiaohongshu-workbench",
+    targetName: "小红书工作台",
+    description: "适合小红书营销规划、原创笔记、营销日历等场景。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "抖音工作台",
+    targetId: "douyin-workbench",
+    targetKey: "douyin-workbench",
+    targetName: "抖音工作台",
+    description: "适合抖音营销规划、热点找选题、视频与数字人场景。",
+  },
+  {
+    bindingType: "MODULE",
+    label: "公众号工作台",
+    targetId: "wechat-workbench",
+    targetKey: "wechat-workbench",
+    targetName: "公众号工作台",
+    description: "适合公众号文章创作、排版和配图场景。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "品牌增长报告能力包",
+    targetId: "brand-growth-analysis",
+    targetKey: "brand-growth-analysis",
+    targetName: "品牌增长报告能力包",
+    description: "给品牌增长报告整条分析链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "半年营销规划能力包",
+    targetId: "enterprise-annual-plan",
+    targetKey: "enterprise-annual-plan",
+    targetName: "半年营销规划能力包",
+    description: "给半年营销规划整条链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "小红书营销规划能力包",
+    targetId: "xiaohongshu-brand-marketing-plan",
+    targetKey: "xiaohongshu-brand-marketing-plan",
+    targetName: "小红书营销规划能力包",
+    description: "给小红书营销策划方案与相关计划场景使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "抖音营销规划能力包",
+    targetId: "tongcheng-brand-douyin-planning",
+    targetKey: "tongcheng-brand-douyin-planning",
+    targetName: "抖音营销规划能力包",
+    description: "给抖音营销策划和热点类链路使用。",
+  },
+  {
+    bindingType: "SKILL_PACKAGE",
+    label: "公众号文章生成能力包",
+    targetId: "wechat-article-generator",
+    targetKey: "wechat-article-generator",
+    targetName: "公众号文章生成能力包",
+    description: "给公众号文章创作链路统一使用。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "品牌增长报告",
+    targetId: "brand-omni-growth-analysis",
+    targetKey: "brand-omni-growth-analysis",
+    targetName: "品牌增长报告",
+    description: "只让品牌增长报告技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "半年营销规划",
+    targetId: "enterprise-annual-plan",
+    targetKey: "enterprise-annual-plan",
+    targetName: "半年营销规划",
+    description: "只让半年营销规划技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "小红书营销策划方案",
+    targetId: "xiaohongshu-brand-marketing-plan",
+    targetKey: "xiaohongshu-brand-marketing-plan",
+    targetName: "小红书营销策划方案",
+    description: "只让小红书营销策划方案技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "抖音热点找选题",
+    targetId: "douyin-hot-topic-candidates",
+    targetKey: "douyin-hot-topic-candidates",
+    targetName: "抖音热点找选题",
+    description: "只让抖音热点找选题技能读取这份知识。",
+  },
+  {
+    bindingType: "SKILL",
+    label: "公众号文章创作",
+    targetId: "wechat-article-composer",
+    targetKey: "wechat-article-composer",
+    targetName: "公众号文章创作",
+    description: "只让公众号文章创作技能读取这份知识。",
+  },
+];
 
 function createUploadDraft(file?: File): UploadDraft {
   return {
@@ -83,10 +219,77 @@ function getFileStatusLabel(status: BrandBusinessKnowledgeBaseFileRecord["status
   }
 }
 
+function getInvocationStatusLabel(status: BrandBusinessKnowledgeInvocationRecord["status"]) {
+  switch (status) {
+    case "HIT":
+      return "已命中";
+    case "NO_HIT":
+      return "未命中";
+    case "FAILED":
+      return "失败";
+    default:
+      return "未绑定";
+  }
+}
+
+function getSourceModuleLabel(sourceModule: BrandBusinessKnowledgeInvocationRecord["sourceModule"]) {
+  return sourceModule === "REPORTS" ? "作品链路" : "工作台";
+}
+
+function getBindingPresetValue(preset: Pick<BindingTargetPreset, "bindingType" | "targetId" | "targetKey">) {
+  return `${preset.bindingType}:${preset.targetId}:${preset.targetKey || ""}`;
+}
+
+function resolveBindingPreset(
+  bindingType: SettingsDraft["bindingType"],
+  targetId?: string,
+  targetKey?: string,
+  targetName?: string,
+) {
+  return BINDING_TARGET_PRESETS.find(
+    (item) =>
+      item.bindingType === bindingType
+      && (
+        item.targetId === targetId
+        || (targetKey && item.targetKey === targetKey)
+        || (targetName && item.targetName === targetName)
+      ),
+  );
+}
+
+function getBindingTargetOptions(settingsDraft: SettingsDraft) {
+  const options = BINDING_TARGET_PRESETS.filter((item) => item.bindingType === settingsDraft.bindingType);
+  const hasCurrent = options.some(
+    (item) =>
+      item.targetId === settingsDraft.targetId
+      || (settingsDraft.targetKey && item.targetKey === settingsDraft.targetKey)
+      || (settingsDraft.targetName && item.targetName === settingsDraft.targetName),
+  );
+  if (hasCurrent || !settingsDraft.targetId) {
+    return options;
+  }
+  return [
+    {
+      bindingType: settingsDraft.bindingType,
+      label: settingsDraft.targetName || settingsDraft.targetId,
+      targetId: settingsDraft.targetId,
+      targetKey: settingsDraft.targetKey,
+      targetName: settingsDraft.targetName || settingsDraft.targetId,
+      description: "当前已保存的接入对象，未命中预设列表。",
+    },
+    ...options,
+  ];
+}
+
 function buildSettingsDraft(item: BrandBusinessKnowledgeBaseRecord): SettingsDraft {
+  const preset = resolveBindingPreset(item.bindingType, item.targetId, item.targetKey, item.targetName);
   return {
     name: item.name,
     description: item.description || "",
+    bindingType: preset?.bindingType ?? item.bindingType,
+    targetId: preset?.targetId ?? item.targetId,
+    targetKey: preset?.targetKey ?? item.targetKey ?? "",
+    targetName: preset?.targetName ?? item.targetName ?? "",
     defaultTopK: String(item.defaultTopK ?? 8),
     recallMode: item.recallMode,
     rerankEnabled: item.rerankEnabled,
@@ -120,6 +323,9 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isInvocationModalOpen, setIsInvocationModalOpen] = useState(false);
+  const [invocationRuns, setInvocationRuns] = useState<BrandBusinessKnowledgeInvocationRecord[]>([]);
+  const [invocationLoading, setInvocationLoading] = useState(false);
 
   const [fileDetail, setFileDetail] = useState<BrandBusinessKnowledgeBaseFileDetailRecord | null>(null);
   const [fileDetailLoading, setFileDetailLoading] = useState(false);
@@ -146,6 +352,18 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
       setError(requestError instanceof Error ? requestError.message : "资料列表加载失败");
     } finally {
       setFilesLoading(false);
+    }
+  }
+
+  async function loadInvocationRuns() {
+    setInvocationLoading(true);
+    try {
+      const data = await listBrandBusinessKnowledgeInvocationRuns(brandId);
+      setInvocationRuns(data);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "调用记录加载失败");
+    } finally {
+      setInvocationLoading(false);
     }
   }
 
@@ -176,6 +394,13 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
     }, 2000);
     return () => window.clearTimeout(timer);
   }, [files, isUploadModalOpen, selectedKnowledgeBaseSummary]);
+
+  useEffect(() => {
+    if (!isInvocationModalOpen) {
+      return;
+    }
+    void loadInvocationRuns();
+  }, [brandId, isInvocationModalOpen]);
 
   async function handleCreateKnowledgeBase() {
     if (!createDraft.name.trim()) {
@@ -329,6 +554,10 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
       const nextKnowledgeBases = await updateBrandBusinessKnowledgeBase(brandId, selectedKnowledgeBaseSummary.id, {
         name: settingsDraft.name.trim(),
         description: settingsDraft.description.trim(),
+        bindingType: settingsDraft.bindingType,
+        targetId: settingsDraft.targetId,
+        targetKey: settingsDraft.targetKey || undefined,
+        targetName: settingsDraft.targetName || undefined,
         defaultTopK: Math.max(1, Number(settingsDraft.defaultTopK) || 8),
         recallMode: settingsDraft.recallMode,
         rerankEnabled: settingsDraft.rerankEnabled,
@@ -361,9 +590,14 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
             <strong>企业知识库</strong>
             <p>先创建知识库，再进入知识库添加资料和管理设置。</p>
           </div>
-          <button type="button" className="primary-button" onClick={() => setIsCreateModalOpen(true)}>
-            新增知识库
-          </button>
+          <div className="business-kb-toolbar-actions">
+            <button type="button" className="secondary-button" onClick={() => setIsInvocationModalOpen(true)}>
+              调用记录
+            </button>
+            <button type="button" className="primary-button" onClick={() => setIsCreateModalOpen(true)}>
+              新增知识库
+            </button>
+          </div>
         </div>
 
         {notice ? <p className="workspace-feedback is-success">{notice}</p> : null}
@@ -631,6 +865,78 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                 <textarea value={settingsDraft.description} onChange={(event) => setSettingsDraft((current) => current ? { ...current, description: event.target.value } : current)} />
               </label>
               <label className="field">
+                <span>接入类型</span>
+                <select
+                  value={settingsDraft.bindingType}
+                  onChange={(event) =>
+                    setSettingsDraft((current) => {
+                      if (!current) {
+                        return current;
+                      }
+                      const nextBindingType = event.target.value as SettingsDraft["bindingType"];
+                      const nextPreset = BINDING_TARGET_PRESETS.find((item) => item.bindingType === nextBindingType);
+                      return {
+                        ...current,
+                        bindingType: nextBindingType,
+                        targetId: nextPreset?.targetId || "",
+                        targetKey: nextPreset?.targetKey || "",
+                        targetName: nextPreset?.targetName || "",
+                      };
+                    })
+                  }
+                >
+                  {BINDING_TYPE_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>接入对象</span>
+                <select
+                  value={getBindingPresetValue({
+                    bindingType: settingsDraft.bindingType,
+                    targetId: settingsDraft.targetId,
+                    targetKey: settingsDraft.targetKey,
+                  })}
+                  onChange={(event) =>
+                    setSettingsDraft((current) => {
+                      if (!current) {
+                        return current;
+                      }
+                      const nextPreset = getBindingTargetOptions(current).find(
+                        (item) => getBindingPresetValue(item) === event.target.value,
+                      );
+                      if (!nextPreset) {
+                        return current;
+                      }
+                      return {
+                        ...current,
+                        bindingType: nextPreset.bindingType,
+                        targetId: nextPreset.targetId,
+                        targetKey: nextPreset.targetKey,
+                        targetName: nextPreset.targetName,
+                      };
+                    })
+                  }
+                >
+                  {getBindingTargetOptions(settingsDraft).map((item) => (
+                    <option key={getBindingPresetValue(item)} value={getBindingPresetValue(item)}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="field-help field-full">
+                {resolveBindingPreset(
+                  settingsDraft.bindingType,
+                  settingsDraft.targetId,
+                  settingsDraft.targetKey,
+                  settingsDraft.targetName,
+                )?.description || "为知识库选择一个实际使用它的工作台、能力包或技能。"}
+              </p>
+              <label className="field">
                 <span>切片长度</span>
                 <input
                   type="number"
@@ -700,6 +1006,55 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                 </button>
                 <button type="button" className="primary-button" onClick={() => void handleSaveSettings()} disabled={isSavingSettings}>
                   {isSavingSettings ? "保存中..." : "保存设置"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isInvocationModalOpen ? (
+        <div className="knowledge-asset-modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsInvocationModalOpen(false)}>
+          <div className="knowledge-asset-modal business-kb-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="knowledge-asset-modal__head">
+              <div>
+                <strong>调用记录</strong>
+                <p>确认哪些工作台、能力包和技能实际调用了企业知识库。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => void loadInvocationRuns()} disabled={invocationLoading}>
+                {invocationLoading ? "刷新中..." : "刷新记录"}
+              </button>
+            </div>
+            {invocationLoading ? (
+              <div className="empty-state">
+                <strong>调用记录加载中</strong>
+                <p>正在读取最近的知识库调用记录。</p>
+              </div>
+            ) : invocationRuns.length ? (
+              <div className="business-kb-run-list">
+                {invocationRuns.map((item) => (
+                  <article key={item.id} className="business-kb-run-item">
+                    <strong>{item.sceneLabel}</strong>
+                    <span>
+                      {formatDateTime(item.createdAt)} · {getSourceModuleLabel(item.sourceModule)} · {getInvocationStatusLabel(item.status)}
+                    </span>
+                    <span>
+                      命中知识库 {item.matchedKnowledgeBaseNames.join(" / ") || "无"} · 命中片段 {item.hitCount} 个
+                    </span>
+                    <p>{item.summary || item.retrievalQuery || "暂无调用摘要"}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <strong>还没有调用记录</strong>
+                <p>当工作台、能力包或技能使用企业知识库后，会在这里看到最近调用记录。</p>
+              </div>
+            )}
+            <div className="knowledge-asset-modal__footer">
+              <div className="knowledge-asset-modal__footer-actions">
+                <button type="button" className="primary-button" onClick={() => setIsInvocationModalOpen(false)}>
+                  关闭
                 </button>
               </div>
             </div>
