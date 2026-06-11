@@ -154,7 +154,12 @@ export type BrandBusinessKnowledgeBaseRecord = {
   defaultTopK: number;
   recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
   retrievalThreshold?: number;
+  retrievalMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired: boolean;
+  enabled: boolean;
   bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
   targetId: string;
   targetKey?: string;
@@ -173,7 +178,12 @@ export type UpdateBrandBusinessKnowledgeBasePayload = {
   defaultTopK?: number;
   recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled?: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
   retrievalThreshold?: number;
+  retrievalMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired?: boolean;
+  enabled?: boolean;
 };
 
 export type BrandBusinessKnowledgeBaseFileRecord = {

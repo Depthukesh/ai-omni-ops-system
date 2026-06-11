@@ -1069,7 +1069,7 @@ export class KnowledgeBasesService {
   }
 
   private extractBusinessAssetsBrandId(knowledgeBaseId: string) {
-    const matched = /^kb_brand_business_assets_(.+)$/.exec(String(knowledgeBaseId || "").trim());
+    const matched = /^kb_brand_business_assets_([^_]+?)(?:__.+)?$/.exec(String(knowledgeBaseId || "").trim());
     return matched?.[1] || "";
   }
 

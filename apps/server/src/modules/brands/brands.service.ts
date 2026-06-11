@@ -55,6 +55,8 @@ type BusinessAssetKnowledgeMetadata = {
   defaultTopK?: number;
   recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled?: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
   retrievalThreshold?: number;
 };
 
@@ -79,6 +81,8 @@ type ManagedKnowledgeSpaceGroup = {
     defaultTopK: number;
     recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
     rerankEnabled: boolean;
+    chunkSize?: number;
+    chunkOverlap?: number;
     retrievalThreshold?: number;
   };
   bindings: ManagedKnowledgeBindingInput[];
@@ -94,7 +98,12 @@ export type BrandBusinessKnowledgeBaseRecord = {
   defaultTopK: number;
   recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
   retrievalThreshold?: number;
+  retrievalMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired: boolean;
+  enabled: boolean;
   bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
   targetId: string;
   targetKey?: string;
@@ -117,7 +126,12 @@ export type UpdateBrandBusinessKnowledgeBasePayload = {
   defaultTopK?: number;
   recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled?: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
   retrievalThreshold?: number;
+  retrievalMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired?: boolean;
+  enabled?: boolean;
 };
 
 export type BrandBusinessKnowledgeBaseFileRecord = {
@@ -295,6 +309,8 @@ export type CreateAssetPayload = {
     defaultTopK?: number;
     recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
     rerankEnabled?: boolean;
+    chunkSize?: number;
+    chunkOverlap?: number;
     retrievalThreshold?: number;
   }>;
 };
@@ -3251,8 +3267,8 @@ export class BrandsService {
 
   private buildBrandBusinessKnowledgeBaseRecord(
     knowledgeBase: Pick<KnowledgeBaseRecord, "id" | "name" | "description" | "syncStatus" | "documentCount" | "chunkCount" | "updatedAt">,
-    retrievalConfig?: Pick<KnowledgeRetrievalConfigRecord, "defaultTopK" | "recallMode" | "rerankEnabled" | "retrievalThreshold">,
-    binding?: Pick<KnowledgeBindingRecord, "bindingType" | "targetId" | "targetKey" | "targetName">,
+    retrievalConfig?: Pick<KnowledgeRetrievalConfigRecord, "defaultTopK" | "recallMode" | "rerankEnabled" | "chunkSize" | "chunkOverlap" | "retrievalThreshold">,
+    binding?: Pick<KnowledgeBindingRecord, "bindingType" | "targetId" | "targetKey" | "targetName" | "retrievalMode" | "isRequired" | "enabled">,
   ): BrandBusinessKnowledgeBaseRecord {
     const fallbackBinding = this.buildDefaultManagedKnowledgeBinding();
     return {
@@ -3265,7 +3281,12 @@ export class BrandsService {
       defaultTopK: retrievalConfig?.defaultTopK ?? 8,
       recallMode: (retrievalConfig?.recallMode as BrandBusinessKnowledgeBaseRecord["recallMode"] | undefined) ?? "HYBRID",
       rerankEnabled: retrievalConfig?.rerankEnabled ?? false,
+      chunkSize: retrievalConfig?.chunkSize ?? undefined,
+      chunkOverlap: retrievalConfig?.chunkOverlap ?? undefined,
       retrievalThreshold: retrievalConfig?.retrievalThreshold,
+      retrievalMode: (binding?.retrievalMode as BrandBusinessKnowledgeBaseRecord["retrievalMode"] | undefined) ?? fallbackBinding.retrievalMode,
+      isRequired: binding?.isRequired ?? fallbackBinding.isRequired,
+      enabled: binding?.enabled ?? fallbackBinding.enabled,
       bindingType: (binding?.bindingType as BrandBusinessKnowledgeBaseRecord["bindingType"] | undefined) ?? fallbackBinding.bindingType,
       targetId: binding?.targetId ?? fallbackBinding.targetId,
       targetKey: binding?.targetKey ?? fallbackBinding.targetKey,
@@ -3276,7 +3297,7 @@ export class BrandsService {
 
   private buildBusinessKnowledgeBaseState(
     knowledgeBase: Pick<KnowledgeBaseRecord, "id" | "name" | "slug" | "description">,
-    retrievalConfig?: Pick<KnowledgeRetrievalConfigRecord, "defaultTopK" | "recallMode" | "rerankEnabled" | "retrievalThreshold">,
+    retrievalConfig?: Pick<KnowledgeRetrievalConfigRecord, "defaultTopK" | "recallMode" | "rerankEnabled" | "chunkSize" | "chunkOverlap" | "retrievalThreshold">,
     bindings?: Array<Pick<KnowledgeBindingRecord, "bindingType" | "targetId" | "targetKey" | "targetName" | "priority" | "retrievalMode" | "isRequired" | "enabled">>,
   ): ManagedKnowledgeBaseState {
     const fallbackBinding = this.buildDefaultManagedKnowledgeBinding();
@@ -3289,6 +3310,8 @@ export class BrandsService {
         defaultTopK: retrievalConfig?.defaultTopK ?? 8,
         recallMode: (retrievalConfig?.recallMode as ManagedKnowledgeSpaceGroup["retrievalConfig"]["recallMode"] | undefined) ?? "HYBRID",
         rerankEnabled: retrievalConfig?.rerankEnabled ?? false,
+        chunkSize: retrievalConfig?.chunkSize ?? undefined,
+        chunkOverlap: retrievalConfig?.chunkOverlap ?? undefined,
         retrievalThreshold: retrievalConfig?.retrievalThreshold,
       },
       bindings:
@@ -3407,6 +3430,8 @@ export class BrandsService {
               defaultTopK: configByKnowledgeBaseId.get(item.id)!.defaultTopK,
               recallMode: configByKnowledgeBaseId.get(item.id)!.recallMode as KnowledgeRetrievalConfigRecord["recallMode"],
               rerankEnabled: configByKnowledgeBaseId.get(item.id)!.rerankEnabled,
+              chunkSize: configByKnowledgeBaseId.get(item.id)!.chunkSize ?? undefined,
+              chunkOverlap: configByKnowledgeBaseId.get(item.id)!.chunkOverlap ?? undefined,
               retrievalThreshold: configByKnowledgeBaseId.get(item.id)!.retrievalThreshold ?? undefined,
             }
           : undefined,
@@ -3417,6 +3442,10 @@ export class BrandsService {
               targetId: firstBindingByKnowledgeBaseId.get(item.id)!.targetId,
               targetKey: firstBindingByKnowledgeBaseId.get(item.id)!.targetKey ?? undefined,
               targetName: firstBindingByKnowledgeBaseId.get(item.id)!.targetName ?? undefined,
+              retrievalMode:
+                firstBindingByKnowledgeBaseId.get(item.id)!.retrievalMode as KnowledgeBindingRecord["retrievalMode"],
+              isRequired: firstBindingByKnowledgeBaseId.get(item.id)!.isRequired,
+              enabled: firstBindingByKnowledgeBaseId.get(item.id)!.enabled,
             }
           : undefined,
       ),
@@ -3586,6 +3615,8 @@ export class BrandsService {
       defaultTopK: payload.defaultTopK ?? currentConfig?.defaultTopK ?? 8,
       recallMode: payload.recallMode ?? (currentConfig?.recallMode as UpdateBrandBusinessKnowledgeBasePayload["recallMode"] | undefined) ?? "HYBRID",
       rerankEnabled: payload.rerankEnabled ?? currentConfig?.rerankEnabled ?? false,
+      chunkSize: payload.chunkSize ?? currentConfig?.chunkSize ?? 800,
+      chunkOverlap: payload.chunkOverlap ?? currentConfig?.chunkOverlap ?? 120,
       retrievalThreshold: payload.retrievalThreshold ?? currentConfig?.retrievalThreshold ?? 0.65,
     };
     const nextBinding = {
@@ -3598,9 +3629,11 @@ export class BrandsService {
       targetName: String((payload.targetName ?? currentBinding?.targetName ?? defaultBinding.targetName) || "").trim() || undefined,
       priority: currentBinding?.priority ?? defaultBinding.priority,
       retrievalMode:
-        (currentBinding?.retrievalMode as ManagedKnowledgeBindingInput["retrievalMode"] | undefined) ?? defaultBinding.retrievalMode,
-      isRequired: currentBinding?.isRequired ?? defaultBinding.isRequired,
-      enabled: currentBinding?.enabled ?? defaultBinding.enabled,
+        payload.retrievalMode
+        ?? (currentBinding?.retrievalMode as ManagedKnowledgeBindingInput["retrievalMode"] | undefined)
+        ?? defaultBinding.retrievalMode,
+      isRequired: payload.isRequired ?? currentBinding?.isRequired ?? defaultBinding.isRequired,
+      enabled: payload.enabled ?? currentBinding?.enabled ?? defaultBinding.enabled,
     };
     const assetRows = await this.prismaService.businessAsset.findMany({
       where: {
@@ -3632,6 +3665,8 @@ export class BrandsService {
             defaultTopK: nextConfig.defaultTopK,
             recallMode: nextConfig.recallMode,
             rerankEnabled: nextConfig.rerankEnabled,
+            chunkSize: nextConfig.chunkSize,
+            chunkOverlap: nextConfig.chunkOverlap,
             retrievalThreshold: nextConfig.retrievalThreshold,
             updatedAt: now,
           },
@@ -3644,6 +3679,8 @@ export class BrandsService {
             defaultTopK: nextConfig.defaultTopK,
             recallMode: nextConfig.recallMode,
             rerankEnabled: nextConfig.rerankEnabled,
+            chunkSize: nextConfig.chunkSize,
+            chunkOverlap: nextConfig.chunkOverlap,
             retrievalThreshold: nextConfig.retrievalThreshold,
             createdAt: now,
             updatedAt: now,
@@ -3695,6 +3732,8 @@ export class BrandsService {
               defaultTopK: nextConfig.defaultTopK,
               recallMode: nextConfig.recallMode,
               rerankEnabled: nextConfig.rerankEnabled,
+              chunkSize: nextConfig.chunkSize,
+              chunkOverlap: nextConfig.chunkOverlap,
               retrievalThreshold: nextConfig.retrievalThreshold,
             }),
           },
@@ -3727,6 +3766,8 @@ export class BrandsService {
       config.defaultTopK = payload.defaultTopK ?? config.defaultTopK;
       config.recallMode = payload.recallMode ?? config.recallMode;
       config.rerankEnabled = payload.rerankEnabled ?? config.rerankEnabled;
+      config.chunkSize = payload.chunkSize ?? config.chunkSize;
+      config.chunkOverlap = payload.chunkOverlap ?? config.chunkOverlap;
       config.retrievalThreshold = payload.retrievalThreshold ?? config.retrievalThreshold;
       config.updatedAt = knowledgeBase.updatedAt;
     }
@@ -3739,9 +3780,9 @@ export class BrandsService {
       targetKey: String((payload.targetKey ?? binding?.targetKey ?? defaultBinding.targetKey) || "").trim() || undefined,
       targetName: String((payload.targetName ?? binding?.targetName ?? defaultBinding.targetName) || "").trim() || undefined,
       priority: binding?.priority ?? defaultBinding.priority,
-      retrievalMode: binding?.retrievalMode ?? defaultBinding.retrievalMode,
-      isRequired: binding?.isRequired ?? defaultBinding.isRequired,
-      enabled: binding?.enabled ?? defaultBinding.enabled,
+      retrievalMode: payload.retrievalMode ?? binding?.retrievalMode ?? defaultBinding.retrievalMode,
+      isRequired: payload.isRequired ?? binding?.isRequired ?? defaultBinding.isRequired,
+      enabled: payload.enabled ?? binding?.enabled ?? defaultBinding.enabled,
       createdAt: knowledgeBase.updatedAt,
       updatedAt: knowledgeBase.updatedAt,
     });
@@ -3970,6 +4011,8 @@ export class BrandsService {
         recallMode:
           (currentConfig?.recallMode as CreateAssetPayload["items"][number]["recallMode"] | undefined) ?? "HYBRID",
         rerankEnabled: currentConfig?.rerankEnabled ?? false,
+        chunkSize: currentConfig?.chunkSize ?? 800,
+        chunkOverlap: currentConfig?.chunkOverlap ?? 120,
         retrievalThreshold: currentConfig?.retrievalThreshold ?? undefined,
       })),
     );
@@ -4025,6 +4068,8 @@ export class BrandsService {
           defaultTopK: metadata.defaultTopK,
           recallMode: metadata.recallMode,
           rerankEnabled: metadata.rerankEnabled,
+          chunkSize: metadata.chunkSize,
+          chunkOverlap: metadata.chunkOverlap,
           retrievalThreshold: metadata.retrievalThreshold,
         };
       }),
@@ -4064,6 +4109,8 @@ export class BrandsService {
         defaultTopK: config?.defaultTopK ?? 8,
         recallMode: config?.recallMode as CreateAssetPayload["items"][number]["recallMode"] | undefined ?? "HYBRID",
         rerankEnabled: config?.rerankEnabled ?? false,
+        chunkSize: config?.chunkSize ?? 800,
+        chunkOverlap: config?.chunkOverlap ?? 120,
         retrievalThreshold: config?.retrievalThreshold ?? undefined,
       })),
     );
@@ -4105,6 +4152,8 @@ export class BrandsService {
             defaultTopK: metadata.defaultTopK,
             recallMode: metadata.recallMode,
             rerankEnabled: metadata.rerankEnabled,
+            chunkSize: metadata.chunkSize,
+            chunkOverlap: metadata.chunkOverlap,
             retrievalThreshold: metadata.retrievalThreshold,
           };
         }),
@@ -4348,6 +4397,8 @@ export class BrandsService {
       defaultTopK: typeof item.defaultTopK === "number" ? item.defaultTopK : undefined,
       recallMode: item.recallMode,
       rerankEnabled: typeof item.rerankEnabled === "boolean" ? item.rerankEnabled : undefined,
+      chunkSize: typeof item.chunkSize === "number" ? item.chunkSize : undefined,
+      chunkOverlap: typeof item.chunkOverlap === "number" ? item.chunkOverlap : undefined,
       retrievalThreshold: typeof item.retrievalThreshold === "number" ? item.retrievalThreshold : undefined,
     };
     return metadata as Prisma.InputJsonValue;
@@ -4372,6 +4423,8 @@ export class BrandsService {
       defaultTopK: typeof metadata.defaultTopK === "number" ? metadata.defaultTopK : undefined,
       recallMode: this.readString(metadata, "recallMode") as BusinessAssetKnowledgeMetadata["recallMode"] | undefined,
       rerankEnabled: typeof metadata.rerankEnabled === "boolean" ? metadata.rerankEnabled : undefined,
+      chunkSize: typeof metadata.chunkSize === "number" ? metadata.chunkSize : undefined,
+      chunkOverlap: typeof metadata.chunkOverlap === "number" ? metadata.chunkOverlap : undefined,
       retrievalThreshold: typeof metadata.retrievalThreshold === "number" ? metadata.retrievalThreshold : undefined,
     };
   }
@@ -4414,6 +4467,14 @@ export class BrandsService {
         defaultTopK: Math.max(1, Math.min(20, Math.floor(metadata.defaultTopK || 8))),
         recallMode: metadata.recallMode || "HYBRID",
         rerankEnabled: Boolean(metadata.rerankEnabled),
+        chunkSize:
+          typeof metadata.chunkSize === "number" && Number.isFinite(metadata.chunkSize)
+            ? Math.max(200, Math.floor(metadata.chunkSize))
+            : undefined,
+        chunkOverlap:
+          typeof metadata.chunkOverlap === "number" && Number.isFinite(metadata.chunkOverlap)
+            ? Math.max(0, Math.floor(metadata.chunkOverlap))
+            : undefined,
         retrievalThreshold:
           typeof metadata.retrievalThreshold === "number" && Number.isFinite(metadata.retrievalThreshold)
             ? metadata.retrievalThreshold

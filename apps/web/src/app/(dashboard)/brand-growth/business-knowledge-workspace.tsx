@@ -34,7 +34,12 @@ type SettingsDraft = {
   defaultTopK: string;
   recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
   rerankEnabled: boolean;
+  chunkSize: string;
+  chunkOverlap: string;
   retrievalThreshold: string;
+  retrievalMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  isRequired: boolean;
+  enabled: boolean;
 };
 
 function createUploadDraft(file?: File): UploadDraft {
@@ -85,7 +90,12 @@ function buildSettingsDraft(item: BrandBusinessKnowledgeBaseRecord): SettingsDra
     defaultTopK: String(item.defaultTopK ?? 8),
     recallMode: item.recallMode,
     rerankEnabled: item.rerankEnabled,
+    chunkSize: item.chunkSize === undefined ? "800" : String(item.chunkSize),
+    chunkOverlap: item.chunkOverlap === undefined ? "120" : String(item.chunkOverlap),
     retrievalThreshold: item.retrievalThreshold === undefined ? "" : String(item.retrievalThreshold),
+    retrievalMode: item.retrievalMode,
+    isRequired: item.isRequired,
+    enabled: item.enabled,
   };
 }
 
@@ -322,9 +332,14 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
         defaultTopK: Math.max(1, Number(settingsDraft.defaultTopK) || 8),
         recallMode: settingsDraft.recallMode,
         rerankEnabled: settingsDraft.rerankEnabled,
+        chunkSize: Math.max(200, Number(settingsDraft.chunkSize) || 800),
+        chunkOverlap: Math.max(0, Number(settingsDraft.chunkOverlap) || 120),
         retrievalThreshold: settingsDraft.retrievalThreshold.trim()
           ? Number(settingsDraft.retrievalThreshold)
           : undefined,
+        retrievalMode: settingsDraft.retrievalMode,
+        isRequired: settingsDraft.isRequired,
+        enabled: settingsDraft.enabled,
       });
       setKnowledgeBases(nextKnowledgeBases);
       const refreshed = nextKnowledgeBases.find((item) => item.id === selectedKnowledgeBaseSummary.id) || null;
@@ -616,8 +631,34 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                 <textarea value={settingsDraft.description} onChange={(event) => setSettingsDraft((current) => current ? { ...current, description: event.target.value } : current)} />
               </label>
               <label className="field">
+                <span>切片长度</span>
+                <input
+                  type="number"
+                  min={200}
+                  value={settingsDraft.chunkSize}
+                  onChange={(event) => setSettingsDraft((current) => current ? { ...current, chunkSize: event.target.value } : current)}
+                />
+              </label>
+              <label className="field">
+                <span>切片重叠</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={settingsDraft.chunkOverlap}
+                  onChange={(event) => setSettingsDraft((current) => current ? { ...current, chunkOverlap: event.target.value } : current)}
+                />
+              </label>
+              <label className="field">
                 <span>召回方式</span>
                 <select value={settingsDraft.recallMode} onChange={(event) => setSettingsDraft((current) => current ? { ...current, recallMode: event.target.value as SettingsDraft["recallMode"] } : current)}>
+                  <option value="HYBRID">混合检索</option>
+                  <option value="VECTOR">向量检索</option>
+                  <option value="FULL_TEXT">全文检索</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>资料检索方式</span>
+                <select value={settingsDraft.retrievalMode} onChange={(event) => setSettingsDraft((current) => current ? { ...current, retrievalMode: event.target.value as SettingsDraft["retrievalMode"] } : current)}>
                   <option value="HYBRID">混合检索</option>
                   <option value="VECTOR">向量检索</option>
                   <option value="FULL_TEXT">全文检索</option>
@@ -633,6 +674,22 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                   type="checkbox"
                   checked={settingsDraft.rerankEnabled}
                   onChange={(event) => setSettingsDraft((current) => current ? { ...current, rerankEnabled: event.target.checked } : current)}
+                />
+              </label>
+              <label className="field field-inline-toggle">
+                <span>结果必带</span>
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.isRequired}
+                  onChange={(event) => setSettingsDraft((current) => current ? { ...current, isRequired: event.target.checked } : current)}
+                />
+              </label>
+              <label className="field field-inline-toggle">
+                <span>启用知识库</span>
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.enabled}
+                  onChange={(event) => setSettingsDraft((current) => current ? { ...current, enabled: event.target.checked } : current)}
                 />
               </label>
             </div>
