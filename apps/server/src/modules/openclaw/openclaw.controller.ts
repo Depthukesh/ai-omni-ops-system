@@ -112,6 +112,65 @@ export class OpenClawController {
     return this.openClawService.getSkillConfigSummary(headers, { skillKey });
   }
 
+  @Get("wechat/drafts")
+  async getWechatArticleDrafts(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getWechatArticleDrafts(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("wechat/accounts")
+  async getWechatOfficialAccounts(@Headers() headers: HeadersMap) {
+    return this.openClawService.getWechatOfficialAccounts(headers);
+  }
+
+  @Get("wechat/workflows")
+  async getWechatWorkflowSessions(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getWechatWorkflowSessions(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("wechat/publish-history")
+  async getWechatPublishHistory(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getWechatPublishHistory(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post("wechat/articles/:draftId/publish")
+  async publishWechatArticle(
+    @Headers() headers: HeadersMap,
+    @Param("draftId") draftId: string,
+  ) {
+    return this.openClawService.publishWechatArticle(headers, { draftId });
+  }
+
+  @Post("wechat/workflows/:workflowId/publish")
+  async publishWechatWorkflow(
+    @Headers() headers: HeadersMap,
+    @Param("workflowId") workflowId: string,
+  ) {
+    return this.openClawService.publishWechatWorkflow(headers, { workflowId });
+  }
+
+  @Post("wechat/publish-history/:historyId/retry")
+  async retryWechatPublishHistory(
+    @Headers() headers: HeadersMap,
+    @Param("historyId") historyId: string,
+  ) {
+    return this.openClawService.retryWechatPublishHistory(headers, { historyId });
+  }
+
   @Get("works/design/options")
   async getDesignWorkspaceOptions(@Headers() headers: HeadersMap) {
     return this.openClawService.getDesignWorkspaceOptions(headers);

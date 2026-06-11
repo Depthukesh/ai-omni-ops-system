@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { BrandsModule } from "../brands/brands.module";
 import { CollectorsModule } from "../collectors/collectors.module";
+import { PublishingModule } from "../publishing/publishing.module";
 import { ReportsModule } from "../reports/reports.module";
 import { TasksModule } from "../tasks/tasks.module";
 import { UserSkillsModule } from "../user-skills/user-skills.module";
@@ -12,7 +13,7 @@ import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { OpenClawService } from "./openclaw.service";
 
 @Module({
-  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule],
+  imports: [AuthModule, TasksModule, BrandsModule, ReportsModule, UserSkillsModule, WorksModule, CollectorsModule, PublishingModule],
   controllers: [OpenClawController, OpenClawInstallationController],
   providers: [OpenClawService, OpenClawInstallationService],
   exports: [OpenClawService, OpenClawInstallationService],

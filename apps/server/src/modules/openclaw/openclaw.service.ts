@@ -7,6 +7,7 @@ import {
 } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
+import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
 import { TasksService } from "../tasks/tasks.service";
 import { UserSkillsService } from "../user-skills/user-skills.service";
@@ -156,6 +157,80 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       properties: {
         skillKey: { type: "string" },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_wechat_article_drafts",
+    description: "查看当前品牌最近生成的公众号文章草稿和任务状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_wechat_official_accounts",
+    description: "查看当前品牌已配置的公众号账号列表，供发布时选择。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_wechat_workflow_sessions",
+    description: "查看当前品牌最近的公众号排版工作流会话，供确认发布对象。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_wechat_publish_history",
+    description: "查看当前品牌最近的公众号发布历史和结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "publish_wechat_article",
+    description: "把指定公众号草稿正式发布到公众号账号。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        draftId: { type: "string" },
+      },
+      required: ["draftId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "publish_wechat_workflow",
+    description: "把指定公众号工作流正式发布到公众号账号。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+      },
+      required: ["workflowId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "retry_wechat_publish_history",
+    description: "重试一次失败或待处理的公众号发布历史记录。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        historyId: { type: "string" },
+      },
+      required: ["historyId"],
       additionalProperties: false,
     },
   },
@@ -434,6 +509,7 @@ export class OpenClawService {
     private readonly tasksService: TasksService,
     private readonly brandsService: BrandsService,
     private readonly collectorsService: CollectorsService,
+    private readonly publishingService: PublishingService,
     private readonly reportsService: ReportsService,
     private readonly userSkillsService: UserSkillsService,
     private readonly worksService: WorksService,
@@ -856,6 +932,196 @@ export class OpenClawService {
         items,
       },
       links: [{ label: "打开技能中心", url: "/skills" }],
+    });
+  }
+
+  async getWechatArticleDrafts(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const drafts = await this.worksService.listWechatArticleDrafts(brandId);
+    const items = drafts.items.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "公众号文章草稿",
+      summary: items.length
+        ? `当前品牌最近共有 ${drafts.items.length} 篇公众号草稿，下面返回最新 ${items.length} 篇。`
+        : "当前品牌还没有公众号文章草稿。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.publishStatus || item.taskStatus || "待处理"}`)
+        : ["草稿数：0"],
+      data: {
+        total: drafts.items.length,
+        items,
+      },
+      links: [{ label: "打开公众号结果", url: "/wechat" }],
+    });
+  }
+
+  async getWechatOfficialAccounts(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const accounts = await this.worksService.listWechatOfficialAccounts(brandId);
+    return this.buildSummaryResponse({
+      title: "公众号账号列表",
+      summary: accounts.items.length
+        ? `当前品牌已配置 ${accounts.items.length} 个公众号账号，可用于正式发布。`
+        : "当前品牌还没有配置公众号账号。",
+      highlights: accounts.items.length
+        ? accounts.items.slice(0, 5).map((item) => `${item.accountName}｜${item.isDefault ? "默认账号" : "可选账号"}`)
+        : ["公众号账号数：0"],
+      data: accounts,
+      links: [{ label: "打开公众号配置", url: "/wechat" }],
+    });
+  }
+
+  async getWechatWorkflowSessions(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const sessions = await this.worksService.listWechatWorkflowSessions(brandId);
+    const items = sessions.items.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "公众号工作流会话",
+      summary: items.length
+        ? `当前品牌最近共有 ${sessions.items.length} 个公众号工作流会话，下面返回最新 ${items.length} 个。`
+        : "当前品牌还没有公众号工作流会话。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.status}`)
+        : ["工作流会话数：0"],
+      data: {
+        total: sessions.items.length,
+        items,
+      },
+      links: [{ label: "打开公众号工作流", url: "/wechat" }],
+    });
+  }
+
+  async getWechatPublishHistory(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "view", auth);
+
+    const history = await this.worksService.listWechatPublishHistory(brandId);
+    const items = history.items.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "公众号发布历史",
+      summary: items.length
+        ? `当前品牌最近共有 ${history.items.length} 条公众号发布历史，下面返回最新 ${items.length} 条。`
+        : "当前品牌还没有公众号发布历史。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.workflowTitle}｜${item.status}`)
+        : ["发布历史数：0"],
+      data: {
+        total: history.items.length,
+        items,
+      },
+      links: [{ label: "打开公众号发布记录", url: "/wechat" }],
+    });
+  }
+
+  async publishWechatArticle(
+    headers: HeadersMap,
+    options?: {
+      draftId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+
+    const draftId = String(options?.draftId || "").trim();
+    if (!draftId) {
+      throw new BadRequestException("请提供 draftId");
+    }
+
+    const result = await this.publishingService.publishWechatArticleToOfficialAccount(brandId, draftId);
+    return this.buildSummaryResponse({
+      title: "公众号草稿已提交发布",
+      summary: `已提交公众号草稿 ${draftId} 的正式发布。`,
+      highlights: [
+        `草稿：${draftId}`,
+        `任务状态：${this.readNestedStringField(result as Record<string, unknown>, ["task", "taskStatus"]) || "未知"}`,
+        `标题：${this.readNestedStringField(result as Record<string, unknown>, ["item", "title"]) || "未命名草稿"}`,
+      ],
+      data: result,
+      links: [{ label: "打开公众号发布记录", url: "/wechat" }],
+    });
+  }
+
+  async publishWechatWorkflow(
+    headers: HeadersMap,
+    options?: {
+      workflowId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+
+    const workflowId = String(options?.workflowId || "").trim();
+    if (!workflowId) {
+      throw new BadRequestException("请提供 workflowId");
+    }
+
+    const result = await this.publishingService.publishWechatWorkflowToOfficialAccount(brandId, workflowId);
+    return this.buildSummaryResponse({
+      title: "公众号工作流已提交发布",
+      summary: `已提交公众号工作流 ${workflowId} 的正式发布。`,
+      highlights: [
+        `工作流：${workflowId}`,
+        `任务状态：${this.readNestedStringField(result as Record<string, unknown>, ["task", "taskStatus"]) || "未知"}`,
+        `标题：${this.readNestedStringField(result as Record<string, unknown>, ["item", "title"]) || "未命名工作流"}`,
+      ],
+      data: result,
+      links: [{ label: "打开公众号发布记录", url: "/wechat" }],
+    });
+  }
+
+  async retryWechatPublishHistory(
+    headers: HeadersMap,
+    options?: {
+      historyId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+
+    const historyId = String(options?.historyId || "").trim();
+    if (!historyId) {
+      throw new BadRequestException("请提供 historyId");
+    }
+
+    const result = await this.publishingService.retryWechatWorkflowPublishToOfficialAccount(brandId, historyId);
+    return this.buildSummaryResponse({
+      title: "公众号发布已重试",
+      summary: `已重试公众号发布历史 ${historyId}。`,
+      highlights: [
+        `发布历史：${historyId}`,
+        `任务状态：${this.readNestedStringField(result as Record<string, unknown>, ["task", "taskStatus"]) || "未知"}`,
+        `标题：${this.readNestedStringField(result as Record<string, unknown>, ["item", "title"]) || "未命名发布项"}`,
+      ],
+      data: result,
+      links: [{ label: "打开公众号发布记录", url: "/wechat" }],
     });
   }
 
@@ -2173,6 +2439,32 @@ export class OpenClawService {
       case "get_skill_config_summary":
         return this.getSkillConfigSummary(headers, {
           skillKey: typeof toolArgs.skillKey === "string" ? toolArgs.skillKey : undefined,
+        });
+      case "get_wechat_article_drafts":
+        return this.getWechatArticleDrafts(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_wechat_official_accounts":
+        return this.getWechatOfficialAccounts(headers);
+      case "get_wechat_workflow_sessions":
+        return this.getWechatWorkflowSessions(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_wechat_publish_history":
+        return this.getWechatPublishHistory(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "publish_wechat_article":
+        return this.publishWechatArticle(headers, {
+          draftId: typeof toolArgs.draftId === "string" ? toolArgs.draftId : undefined,
+        });
+      case "publish_wechat_workflow":
+        return this.publishWechatWorkflow(headers, {
+          workflowId: typeof toolArgs.workflowId === "string" ? toolArgs.workflowId : undefined,
+        });
+      case "retry_wechat_publish_history":
+        return this.retryWechatPublishHistory(headers, {
+          historyId: typeof toolArgs.historyId === "string" ? toolArgs.historyId : undefined,
         });
       case "get_design_workspace_options":
         return this.getDesignWorkspaceOptions(headers);
