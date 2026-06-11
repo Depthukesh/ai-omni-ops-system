@@ -26,6 +26,9 @@ import {
 } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
 import { ApiProvidersService } from "../admin/api-providers.service";
+import { ModuleDefinitionsService } from "../admin/module-definitions.service";
+import { SkillPackagesService } from "../admin/skill-packages.service";
+import { SkillsPromptsService } from "../admin/skills-prompts.service";
 import {
   KnowledgeBasesService,
   type KnowledgeChunkRecord,
@@ -162,6 +165,14 @@ export type BrandBusinessKnowledgeBaseFileDetailRecord = BrandBusinessKnowledgeB
 };
 
 export type BrandBusinessKnowledgeInvocationRecord = KnowledgeInvocationRecord;
+
+export type BrandBusinessKnowledgeBindingTargetRecord = {
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  description?: string;
+};
 
 export type CreateBrandBusinessKnowledgeBaseFilesPayload = {
   items: Array<{
@@ -483,6 +494,9 @@ export class BrandsService {
   private readonly appConfigService = new AppConfigService();
   private readonly ossStorageService = new OssStorageService(this.appConfigService);
   private knowledgeBasesServiceFallback?: KnowledgeBasesService;
+  private skillsPromptsServiceFallback?: SkillsPromptsService;
+  private moduleDefinitionsServiceFallback?: ModuleDefinitionsService;
+  private skillPackagesServiceFallback?: SkillPackagesService;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -1786,6 +1800,46 @@ export class BrandsService {
         || item.knowledgeBaseIds.some((knowledgeBaseId) => knowledgeBaseId.startsWith(prefix))
         || item.matchedKnowledgeBaseIds.some((knowledgeBaseId) => knowledgeBaseId.startsWith(prefix)),
     );
+  }
+
+  async listBusinessKnowledgeBindingTargets(id: string): Promise<BrandBusinessKnowledgeBindingTargetRecord[]> {
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(id);
+    } else {
+      this.getBrand(id);
+    }
+    const modules = await this.resolveModuleDefinitionsService().listModuleDefinitions({ moduleStatus: "ACTIVE" });
+    const skillPackages = await this.resolveSkillPackagesService().listSkillPackages({ status: "ACTIVE" });
+    const skills = await this.resolveSkillsPromptsService().listSkills();
+    return [
+      ...modules
+        .filter((item) => item.moduleStatus === "ACTIVE")
+        .map((item) => ({
+          bindingType: "MODULE" as const,
+          targetId: item.moduleKey,
+          targetKey: item.moduleKey,
+          targetName: item.moduleName,
+          description: item.description || `入口 ${item.entryRoute}`,
+        })),
+      ...skillPackages
+        .filter((item) => item.status === "ACTIVE")
+        .map((item) => ({
+          bindingType: "SKILL_PACKAGE" as const,
+          targetId: item.packageKey,
+          targetKey: item.packageKey,
+          targetName: item.packageName,
+          description: item.description || item.moduleSummaries.map((module) => module.moduleName).filter(Boolean).join(" / "),
+        })),
+      ...skills
+        .filter((item) => !["DISABLED", "ARCHIVED"].includes(String(item.status || "").toUpperCase()))
+        .map((item) => ({
+          bindingType: "SKILL" as const,
+          targetId: item.slug,
+          targetKey: item.slug,
+          targetName: item.name,
+          description: item.description || item.category,
+        })),
+    ];
   }
 
   async listBusinessKnowledgeBaseFiles(id: string, knowledgeBaseId: string): Promise<BrandBusinessKnowledgeBaseFileRecord[]> {
@@ -3257,6 +3311,30 @@ export class BrandsService {
       );
     }
     return this.knowledgeBasesServiceFallback;
+  }
+
+  private resolveSkillsPromptsService() {
+    if (!this.skillsPromptsServiceFallback) {
+      this.skillsPromptsServiceFallback = new SkillsPromptsService(this.prismaService);
+    }
+    return this.skillsPromptsServiceFallback;
+  }
+
+  private resolveModuleDefinitionsService() {
+    if (!this.moduleDefinitionsServiceFallback) {
+      this.moduleDefinitionsServiceFallback = new ModuleDefinitionsService(this.prismaService);
+    }
+    return this.moduleDefinitionsServiceFallback;
+  }
+
+  private resolveSkillPackagesService() {
+    if (!this.skillPackagesServiceFallback) {
+      this.skillPackagesServiceFallback = new SkillPackagesService(
+        this.prismaService,
+        this.resolveSkillsPromptsService(),
+      );
+    }
+    return this.skillPackagesServiceFallback;
   }
 
   private buildBusinessKnowledgeBasePrefix(brandId: string) {

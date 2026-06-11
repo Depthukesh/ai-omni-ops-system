@@ -421,6 +421,16 @@ export class BrandsController {
     return this.brandsService.listBusinessKnowledgeInvocationRuns(id);
   }
 
+  @Get(":id/business-knowledge-binding-targets")
+  async listBusinessKnowledgeBindingTargets(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "view", auth);
+    return this.brandsService.listBusinessKnowledgeBindingTargets(id);
+  }
+
   @Get(":id/business-knowledge-bases/:knowledgeBaseId/files")
   async listBusinessKnowledgeBaseFiles(
     @Param("id") id: string,

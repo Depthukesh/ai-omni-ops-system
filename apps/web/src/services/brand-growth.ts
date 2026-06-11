@@ -259,6 +259,14 @@ export type BrandBusinessKnowledgeInvocationRecord = {
   createdAt: string;
 };
 
+export type BrandBusinessKnowledgeBindingTargetRecord = {
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey: string;
+  targetName: string;
+  description?: string;
+};
+
 export type CreateBrandBusinessKnowledgeBaseFilesPayload = {
   items: Array<{
     title: string;
@@ -951,6 +959,12 @@ export async function deleteBrandBusinessKnowledgeBase(brandId: string | undefin
 export async function listBrandBusinessKnowledgeInvocationRuns(brandId: string | undefined) {
   return request<BrandBusinessKnowledgeInvocationRecord[]>(
     `/brands/${resolveBrandId(brandId)}/business-knowledge-invocation-runs`,
+  );
+}
+
+export async function listBrandBusinessKnowledgeBindingTargets(brandId: string | undefined) {
+  return request<BrandBusinessKnowledgeBindingTargetRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-binding-targets`,
   );
 }
 

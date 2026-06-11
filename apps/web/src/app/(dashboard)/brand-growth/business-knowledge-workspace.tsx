@@ -7,9 +7,11 @@ import {
   deleteBrandBusinessKnowledgeBase,
   deleteBrandBusinessKnowledgeBaseFile,
   getBrandBusinessKnowledgeBaseFileDetail,
+  listBrandBusinessKnowledgeBindingTargets,
   listBrandBusinessKnowledgeInvocationRuns,
   listBrandBusinessKnowledgeBaseFiles,
   listBrandBusinessKnowledgeBases,
+  type BrandBusinessKnowledgeBindingTargetRecord,
   type BrandBusinessKnowledgeBaseFileDetailRecord,
   type BrandBusinessKnowledgeBaseFileRecord,
   type BrandBusinessKnowledgeInvocationRecord,
@@ -48,134 +50,10 @@ type SettingsDraft = {
   enabled: boolean;
 };
 
-type BindingTargetPreset = {
-  bindingType: SettingsDraft["bindingType"];
-  label: string;
-  targetId: string;
-  targetKey: string;
-  targetName: string;
-  description: string;
-};
-
 const BINDING_TYPE_OPTIONS: Array<{ value: SettingsDraft["bindingType"]; label: string; description: string }> = [
   { value: "MODULE", label: "模块", description: "给整个工作台或模块统一使用。" },
   { value: "SKILL_PACKAGE", label: "能力包", description: "给一组连续技能步骤统一使用。" },
   { value: "SKILL", label: "技能", description: "只给某个具体技能使用。" },
-];
-
-const BINDING_TARGET_PRESETS: BindingTargetPreset[] = [
-  {
-    bindingType: "MODULE",
-    label: "品牌增长工作台",
-    targetId: "brand-growth-workbench",
-    targetKey: "brand-growth-workbench",
-    targetName: "品牌增长工作台",
-    description: "品牌增长报告、半年营销规划等默认都会读取这里绑定的企业知识。",
-  },
-  {
-    bindingType: "MODULE",
-    label: "小红书工作台",
-    targetId: "xiaohongshu-workbench",
-    targetKey: "xiaohongshu-workbench",
-    targetName: "小红书工作台",
-    description: "适合小红书营销规划、原创笔记、营销日历等场景。",
-  },
-  {
-    bindingType: "MODULE",
-    label: "抖音工作台",
-    targetId: "douyin-workbench",
-    targetKey: "douyin-workbench",
-    targetName: "抖音工作台",
-    description: "适合抖音营销规划、热点找选题、视频与数字人场景。",
-  },
-  {
-    bindingType: "MODULE",
-    label: "公众号工作台",
-    targetId: "wechat-workbench",
-    targetKey: "wechat-workbench",
-    targetName: "公众号工作台",
-    description: "适合公众号文章创作、排版和配图场景。",
-  },
-  {
-    bindingType: "SKILL_PACKAGE",
-    label: "品牌增长报告能力包",
-    targetId: "brand-growth-analysis",
-    targetKey: "brand-growth-analysis",
-    targetName: "品牌增长报告能力包",
-    description: "给品牌增长报告整条分析链路使用。",
-  },
-  {
-    bindingType: "SKILL_PACKAGE",
-    label: "半年营销规划能力包",
-    targetId: "enterprise-annual-plan",
-    targetKey: "enterprise-annual-plan",
-    targetName: "半年营销规划能力包",
-    description: "给半年营销规划整条链路使用。",
-  },
-  {
-    bindingType: "SKILL_PACKAGE",
-    label: "小红书营销规划能力包",
-    targetId: "xiaohongshu-brand-marketing-plan",
-    targetKey: "xiaohongshu-brand-marketing-plan",
-    targetName: "小红书营销规划能力包",
-    description: "给小红书营销策划方案与相关计划场景使用。",
-  },
-  {
-    bindingType: "SKILL_PACKAGE",
-    label: "抖音营销规划能力包",
-    targetId: "tongcheng-brand-douyin-planning",
-    targetKey: "tongcheng-brand-douyin-planning",
-    targetName: "抖音营销规划能力包",
-    description: "给抖音营销策划和热点类链路使用。",
-  },
-  {
-    bindingType: "SKILL_PACKAGE",
-    label: "公众号文章生成能力包",
-    targetId: "wechat-article-generator",
-    targetKey: "wechat-article-generator",
-    targetName: "公众号文章生成能力包",
-    description: "给公众号文章创作链路统一使用。",
-  },
-  {
-    bindingType: "SKILL",
-    label: "品牌增长报告",
-    targetId: "brand-omni-growth-analysis",
-    targetKey: "brand-omni-growth-analysis",
-    targetName: "品牌增长报告",
-    description: "只让品牌增长报告技能读取这份知识。",
-  },
-  {
-    bindingType: "SKILL",
-    label: "半年营销规划",
-    targetId: "enterprise-annual-plan",
-    targetKey: "enterprise-annual-plan",
-    targetName: "半年营销规划",
-    description: "只让半年营销规划技能读取这份知识。",
-  },
-  {
-    bindingType: "SKILL",
-    label: "小红书营销策划方案",
-    targetId: "xiaohongshu-brand-marketing-plan",
-    targetKey: "xiaohongshu-brand-marketing-plan",
-    targetName: "小红书营销策划方案",
-    description: "只让小红书营销策划方案技能读取这份知识。",
-  },
-  {
-    bindingType: "SKILL",
-    label: "抖音热点找选题",
-    targetId: "douyin-hot-topic-candidates",
-    targetKey: "douyin-hot-topic-candidates",
-    targetName: "抖音热点找选题",
-    description: "只让抖音热点找选题技能读取这份知识。",
-  },
-  {
-    bindingType: "SKILL",
-    label: "公众号文章创作",
-    targetId: "wechat-article-composer",
-    targetKey: "wechat-article-composer",
-    targetName: "公众号文章创作",
-    description: "只让公众号文章创作技能读取这份知识。",
-  },
 ];
 
 function createUploadDraft(file?: File): UploadDraft {
@@ -236,17 +114,18 @@ function getSourceModuleLabel(sourceModule: BrandBusinessKnowledgeInvocationReco
   return sourceModule === "REPORTS" ? "作品链路" : "工作台";
 }
 
-function getBindingPresetValue(preset: Pick<BindingTargetPreset, "bindingType" | "targetId" | "targetKey">) {
-  return `${preset.bindingType}:${preset.targetId}:${preset.targetKey || ""}`;
+function getBindingTargetValue(target: Pick<BrandBusinessKnowledgeBindingTargetRecord, "bindingType" | "targetId" | "targetKey">) {
+  return `${target.bindingType}:${target.targetId}:${target.targetKey || ""}`;
 }
 
-function resolveBindingPreset(
+function findBindingTarget(
+  bindingTargets: BrandBusinessKnowledgeBindingTargetRecord[],
   bindingType: SettingsDraft["bindingType"],
   targetId?: string,
   targetKey?: string,
   targetName?: string,
 ) {
-  return BINDING_TARGET_PRESETS.find(
+  return bindingTargets.find(
     (item) =>
       item.bindingType === bindingType
       && (
@@ -257,8 +136,11 @@ function resolveBindingPreset(
   );
 }
 
-function getBindingTargetOptions(settingsDraft: SettingsDraft) {
-  const options = BINDING_TARGET_PRESETS.filter((item) => item.bindingType === settingsDraft.bindingType);
+function getBindingTargetOptions(
+  bindingTargets: BrandBusinessKnowledgeBindingTargetRecord[],
+  settingsDraft: SettingsDraft,
+) {
+  const options = bindingTargets.filter((item) => item.bindingType === settingsDraft.bindingType);
   const hasCurrent = options.some(
     (item) =>
       item.targetId === settingsDraft.targetId
@@ -271,7 +153,6 @@ function getBindingTargetOptions(settingsDraft: SettingsDraft) {
   return [
     {
       bindingType: settingsDraft.bindingType,
-      label: settingsDraft.targetName || settingsDraft.targetId,
       targetId: settingsDraft.targetId,
       targetKey: settingsDraft.targetKey,
       targetName: settingsDraft.targetName || settingsDraft.targetId,
@@ -282,14 +163,13 @@ function getBindingTargetOptions(settingsDraft: SettingsDraft) {
 }
 
 function buildSettingsDraft(item: BrandBusinessKnowledgeBaseRecord): SettingsDraft {
-  const preset = resolveBindingPreset(item.bindingType, item.targetId, item.targetKey, item.targetName);
   return {
     name: item.name,
     description: item.description || "",
-    bindingType: preset?.bindingType ?? item.bindingType,
-    targetId: preset?.targetId ?? item.targetId,
-    targetKey: preset?.targetKey ?? item.targetKey ?? "",
-    targetName: preset?.targetName ?? item.targetName ?? "",
+    bindingType: item.bindingType,
+    targetId: item.targetId,
+    targetKey: item.targetKey ?? "",
+    targetName: item.targetName ?? "",
     defaultTopK: String(item.defaultTopK ?? 8),
     recallMode: item.recallMode,
     rerankEnabled: item.rerankEnabled,
@@ -323,6 +203,8 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [bindingTargets, setBindingTargets] = useState<BrandBusinessKnowledgeBindingTargetRecord[]>([]);
+  const [bindingTargetsLoading, setBindingTargetsLoading] = useState(false);
   const [isInvocationModalOpen, setIsInvocationModalOpen] = useState(false);
   const [invocationRuns, setInvocationRuns] = useState<BrandBusinessKnowledgeInvocationRecord[]>([]);
   const [invocationLoading, setInvocationLoading] = useState(false);
@@ -367,8 +249,21 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
     }
   }
 
+  async function loadBindingTargets() {
+    setBindingTargetsLoading(true);
+    try {
+      const data = await listBrandBusinessKnowledgeBindingTargets(brandId);
+      setBindingTargets(data);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "接入对象加载失败");
+    } finally {
+      setBindingTargetsLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadKnowledgeBases();
+    void loadBindingTargets();
   }, [brandId]);
 
   useEffect(() => {
@@ -868,19 +763,20 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
                 <span>接入类型</span>
                 <select
                   value={settingsDraft.bindingType}
+                  disabled={bindingTargetsLoading}
                   onChange={(event) =>
                     setSettingsDraft((current) => {
                       if (!current) {
                         return current;
                       }
                       const nextBindingType = event.target.value as SettingsDraft["bindingType"];
-                      const nextPreset = BINDING_TARGET_PRESETS.find((item) => item.bindingType === nextBindingType);
+                      const nextTarget = bindingTargets.find((item) => item.bindingType === nextBindingType);
                       return {
                         ...current,
                         bindingType: nextBindingType,
-                        targetId: nextPreset?.targetId || "",
-                        targetKey: nextPreset?.targetKey || "",
-                        targetName: nextPreset?.targetName || "",
+                        targetId: nextTarget?.targetId || "",
+                        targetKey: nextTarget?.targetKey || "",
+                        targetName: nextTarget?.targetName || "",
                       };
                     })
                   }
@@ -895,46 +791,48 @@ export function BusinessKnowledgeWorkspace({ brandId }: Props) {
               <label className="field">
                 <span>接入对象</span>
                 <select
-                  value={getBindingPresetValue({
+                  value={getBindingTargetValue({
                     bindingType: settingsDraft.bindingType,
                     targetId: settingsDraft.targetId,
                     targetKey: settingsDraft.targetKey,
                   })}
+                  disabled={bindingTargetsLoading}
                   onChange={(event) =>
                     setSettingsDraft((current) => {
                       if (!current) {
                         return current;
                       }
-                      const nextPreset = getBindingTargetOptions(current).find(
-                        (item) => getBindingPresetValue(item) === event.target.value,
+                      const nextTarget = getBindingTargetOptions(bindingTargets, current).find(
+                        (item) => getBindingTargetValue(item) === event.target.value,
                       );
-                      if (!nextPreset) {
+                      if (!nextTarget) {
                         return current;
                       }
                       return {
                         ...current,
-                        bindingType: nextPreset.bindingType,
-                        targetId: nextPreset.targetId,
-                        targetKey: nextPreset.targetKey,
-                        targetName: nextPreset.targetName,
+                        bindingType: nextTarget.bindingType,
+                        targetId: nextTarget.targetId,
+                        targetKey: nextTarget.targetKey,
+                        targetName: nextTarget.targetName,
                       };
                     })
                   }
                 >
-                  {getBindingTargetOptions(settingsDraft).map((item) => (
-                    <option key={getBindingPresetValue(item)} value={getBindingPresetValue(item)}>
-                      {item.label}
+                  {getBindingTargetOptions(bindingTargets, settingsDraft).map((item) => (
+                    <option key={getBindingTargetValue(item)} value={getBindingTargetValue(item)}>
+                      {item.targetName}
                     </option>
                   ))}
                 </select>
               </label>
               <p className="field-help field-full">
-                {resolveBindingPreset(
+                {(bindingTargetsLoading ? undefined : findBindingTarget(
+                  bindingTargets,
                   settingsDraft.bindingType,
                   settingsDraft.targetId,
                   settingsDraft.targetKey,
                   settingsDraft.targetName,
-                )?.description || "为知识库选择一个实际使用它的工作台、能力包或技能。"}
+                ))?.description || (bindingTargetsLoading ? "正在读取系统里真实注册的模块、能力包和技能。" : "为知识库选择一个实际使用它的工作台、能力包或技能。")}
               </p>
               <label className="field">
                 <span>切片长度</span>
