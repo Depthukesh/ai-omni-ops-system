@@ -112,6 +112,68 @@ export class OpenClawController {
     return this.openClawService.getSkillConfigSummary(headers, { skillKey });
   }
 
+  @Get("works/design/options")
+  async getDesignWorkspaceOptions(@Headers() headers: HeadersMap) {
+    return this.openClawService.getDesignWorkspaceOptions(headers);
+  }
+
+  @Get("works/design/recent")
+  async getRecentDesignWorks(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getRecentDesignWorks(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post("works/design/generate")
+  async createDesignWork(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      module?: string;
+      designType?: string;
+      title?: string;
+      calendarItemId?: string;
+      productId?: string;
+      injectBrandProfile?: boolean;
+      modelSelection?: string;
+      spec?: string;
+      additionalInstruction?: string;
+    },
+  ) {
+    return this.openClawService.createDesignWork(headers, payload);
+  }
+
+  @Get("reports/douyin-original/options")
+  async getDouyinOriginalCopyOptions(@Headers() headers: HeadersMap) {
+    return this.openClawService.getDouyinOriginalCopyOptions(headers);
+  }
+
+  @Get("reports/douyin-original/recent")
+  async getRecentDouyinOriginalCopies(
+    @Headers() headers: HeadersMap,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getRecentDouyinOriginalCopies(headers, {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post("reports/douyin-original/generate")
+  async createDouyinOriginalCopy(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      copyType?: string;
+      topicId?: string;
+      calendarItemId?: string;
+      injectMarketingPlan?: boolean;
+      userRequirement?: string;
+    },
+  ) {
+    return this.openClawService.createDouyinOriginalCopy(headers, payload);
+  }
+
   @Get("works/xiaohongshu/calendar-options")
   async getXiaohongshuMarketingCalendarOptions(
     @Headers() headers: HeadersMap,

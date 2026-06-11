@@ -160,6 +160,42 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_design_workspace_options",
+    description: "查看设计工作台可用模块、设计类型、产品、营销日历和模型选项。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_recent_design_works",
+    description: "查看当前品牌最近的设计工作台生成记录和状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_design_work",
+    description: "在网站设计工作台中直接创建一个设计任务。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        module: { type: "string", description: "必填：image、html、deck、video。" },
+        designType: { type: "string" },
+        title: { type: "string" },
+        calendarItemId: { type: "string" },
+        productId: { type: "string" },
+        injectBrandProfile: { type: "boolean" },
+        modelSelection: { type: "string" },
+        spec: { type: "string" },
+        additionalInstruction: { type: "string" },
+      },
+      required: ["module"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_latest_brand_growth_report_summary",
     description: "获取当前品牌最新品牌增长报告摘要。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -227,6 +263,38 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         },
       },
       required: ["items"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_douyin_original_copy_options",
+    description: "查看抖音原创文案可用的选题库、营销日历和文案类型选项。",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_recent_douyin_original_copies",
+    description: "查看当前品牌最近生成的抖音原创文案结果和状态。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_douyin_original_copy",
+    description: "基于选题库或营销日历触发抖音原创文案生成。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        copyType: { type: "string", description: "必填：VIEWPOINT、STORY、PROCESS、KNOWLEDGE、PLOT_SALES、SEEDING、LOCAL_SALES。" },
+        topicId: { type: "string" },
+        calendarItemId: { type: "string" },
+        injectMarketingPlan: { type: "boolean" },
+        userRequirement: { type: "string" },
+      },
+      required: ["copyType"],
       additionalProperties: false,
     },
   },
@@ -759,6 +827,109 @@ export class OpenClawService {
     });
   }
 
+  async getDesignWorkspaceOptions(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+
+    const workspace = await this.worksService.getDesignWorkspaceOptions(brandId);
+    return this.buildSummaryResponse({
+      title: "设计工作台可用选项",
+      summary: `当前品牌支持 ${Object.keys(workspace.moduleOptions).length} 个设计模块，可直接在对话里确认模块、设计类型、产品和营销日历后发起任务。`,
+      highlights: [
+        `营销日历选项：${workspace.calendarOptions.length}`,
+        `产品选项：${workspace.productOptions.length}`,
+        `推荐模块：${Object.entries(workspace.moduleOptions).map(([key, value]) => `${key}(${value.types.length})`).join("、")}`,
+      ],
+      data: {
+        brandId: workspace.brandId,
+        brandName: workspace.brandName,
+        brandProfileSummary: workspace.brandProfileSummary,
+        calendarOptions: workspace.calendarOptions.slice(0, 20),
+        productOptions: workspace.productOptions.slice(0, 20),
+        brandOptions: workspace.brandOptions,
+        moduleOptions: workspace.moduleOptions,
+      },
+      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+    });
+  }
+
+  async getRecentDesignWorks(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "view", auth);
+
+    const history = await this.worksService.listDesignHistory(brandId);
+    const items = history.items.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "最近设计工作台结果",
+      summary: items.length
+        ? `当前品牌最近共有 ${history.items.length} 条设计记录，下面返回最新 ${items.length} 条。`
+        : "当前品牌还没有设计工作台生成记录。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.module}｜${this.formatTaskStatus(item.taskStatus)}`)
+        : ["设计记录数：0"],
+      data: {
+        total: history.items.length,
+        items,
+      },
+      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+    });
+  }
+
+  async createDesignWork(
+    headers: HeadersMap,
+    options?: {
+      module?: string;
+      designType?: string;
+      title?: string;
+      calendarItemId?: string;
+      productId?: string;
+      injectBrandProfile?: boolean;
+      modelSelection?: string;
+      spec?: string;
+      additionalInstruction?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.works", "edit", auth);
+
+    const module = this.normalizeDesignModule(options?.module);
+    if (!module) {
+      throw new BadRequestException("请提供有效的设计模块：image、html、deck、video");
+    }
+
+    const result = await this.worksService.generateDesignWork(brandId, {
+      module,
+      designType: String(options?.designType || "").trim() || undefined,
+      title: String(options?.title || "").trim() || undefined,
+      calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
+      productId: String(options?.productId || "").trim() || undefined,
+      injectBrandProfile: typeof options?.injectBrandProfile === "boolean" ? options.injectBrandProfile : undefined,
+      modelSelection: String(options?.modelSelection || "").trim() || undefined,
+      spec: String(options?.spec || "").trim() || undefined,
+      additionalInstruction: String(options?.additionalInstruction || "").trim() || undefined,
+    }, auth);
+
+    return this.buildSummaryResponse({
+      title: "设计任务已受理",
+      summary: `已在网站设计工作台中创建 ${module} 设计任务。`,
+      highlights: [
+        `模块：${module}`,
+        options?.designType ? `设计类型：${options.designType}` : "设计类型：按默认技能生成",
+        options?.productId ? `产品：${options.productId}` : "产品：未指定",
+      ],
+      data: result,
+      links: [{ label: "打开设计工作台", url: "/personal-center/works" }],
+    });
+  }
+
   async getXiaohongshuMarketingCalendarOptions(
     headers: HeadersMap,
     options?: {
@@ -801,6 +972,112 @@ export class OpenClawService {
         items,
       },
       links: [{ label: "打开小红书工作区", url: "/xiaohongshu" }],
+    });
+  }
+
+  async getDouyinOriginalCopyOptions(headers: HeadersMap) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "view", auth);
+
+    const workspace = await this.reportsService.getDouyinOriginalCopyWorkspace(brandId);
+    return this.buildSummaryResponse({
+      title: "抖音原创文案选项",
+      summary: `当前品牌可用 ${workspace.topicOptions.length} 个选题、${workspace.calendarOptions.length} 个营销日历项，可在对话中选定文案类型后直接生成。`,
+      highlights: [
+        `选题库：${workspace.topicOptions.length}`,
+        `营销日历：${workspace.calendarOptions.length}`,
+        workspace.hasMarketingPlan ? `营销策划：已配置《${workspace.marketingPlanTitle || "抖音营销策划"}》` : "营销策划：未配置",
+      ],
+      data: {
+        copyTypes: [
+          { value: "VIEWPOINT", label: "聊观点" },
+          { value: "STORY", label: "讲故事" },
+          { value: "PROCESS", label: "晒过程" },
+          { value: "KNOWLEDGE", label: "教知识" },
+          { value: "PLOT_SALES", label: "剧情带货" },
+          { value: "SEEDING", label: "种草类" },
+          { value: "LOCAL_SALES", label: "同城带货" },
+        ],
+        calendarOptions: workspace.calendarOptions.slice(0, 20),
+        topicOptions: workspace.topicOptions.slice(0, 30),
+        hasMarketingPlan: workspace.hasMarketingPlan,
+        marketingPlanTitle: workspace.marketingPlanTitle,
+        latestTask: workspace.latestTask,
+      },
+      links: [{ label: "打开抖音原创文案", url: "/douyin" }],
+    });
+  }
+
+  async getRecentDouyinOriginalCopies(
+    headers: HeadersMap,
+    options?: {
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "view", auth);
+
+    const workspace = await this.reportsService.getDouyinOriginalCopyWorkspace(brandId);
+    const items = workspace.history.slice(0, this.normalizeLimit(options?.limit));
+    return this.buildSummaryResponse({
+      title: "最近抖音原创文案结果",
+      summary: items.length
+        ? `当前品牌最近共有 ${workspace.history.length} 条抖音原创文案结果，下面返回最新 ${items.length} 条。`
+        : "当前品牌还没有抖音原创文案结果。",
+      highlights: items.length
+        ? items.slice(0, 5).map((item) => `${item.title}｜${item.copyTypeLabel}`)
+        : ["原创文案数：0"],
+      data: {
+        total: workspace.history.length,
+        latestTask: workspace.latestTask,
+        items,
+      },
+      links: [{ label: "打开抖音原创文案", url: "/douyin" }],
+    });
+  }
+
+  async createDouyinOriginalCopy(
+    headers: HeadersMap,
+    options?: {
+      copyType?: string;
+      topicId?: string;
+      calendarItemId?: string;
+      injectMarketingPlan?: boolean;
+      userRequirement?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "douyin.original", "edit", auth);
+
+    const copyType = this.normalizeDouyinOriginalCopyType(options?.copyType);
+    if (!copyType) {
+      throw new BadRequestException("请提供有效的抖音原创文案类型");
+    }
+
+    const workspace = await this.reportsService.generateDouyinOriginalCopy(brandId, {
+      copyType,
+      topicId: String(options?.topicId || "").trim() || undefined,
+      calendarItemId: String(options?.calendarItemId || "").trim() || undefined,
+      injectMarketingPlan: typeof options?.injectMarketingPlan === "boolean" ? options.injectMarketingPlan : false,
+      userRequirement: String(options?.userRequirement || "").trim() || undefined,
+    });
+
+    return this.buildSummaryResponse({
+      title: "抖音原创文案任务已受理",
+      summary: `已为当前品牌发起 ${copyType} 类型的抖音原创文案任务。`,
+      highlights: [
+        `文案类型：${copyType}`,
+        options?.topicId ? `选题：${options.topicId}` : "选题：未指定",
+        options?.calendarItemId ? `营销日历：${options.calendarItemId}` : "营销日历：未指定",
+      ],
+      data: {
+        latestTask: workspace.latestTask,
+        latest: workspace.latest,
+      },
+      links: [{ label: "打开抖音原创文案", url: "/douyin" }],
     });
   }
 
@@ -1486,6 +1763,30 @@ export class OpenClawService {
     return undefined;
   }
 
+  private normalizeDesignModule(module?: string): "image" | "html" | "deck" | "video" | undefined {
+    const normalized = String(module || "").trim().toLowerCase();
+    if (normalized === "image" || normalized === "html" || normalized === "deck" || normalized === "video") {
+      return normalized;
+    }
+    return undefined;
+  }
+
+  private normalizeDouyinOriginalCopyType(value?: string) {
+    const normalized = String(value || "").trim().toUpperCase();
+    if (
+      normalized === "VIEWPOINT"
+      || normalized === "STORY"
+      || normalized === "PROCESS"
+      || normalized === "KNOWLEDGE"
+      || normalized === "PLOT_SALES"
+      || normalized === "SEEDING"
+      || normalized === "LOCAL_SALES"
+    ) {
+      return normalized as "VIEWPOINT" | "STORY" | "PROCESS" | "KNOWLEDGE" | "PLOT_SALES" | "SEEDING" | "LOCAL_SALES";
+    }
+    return undefined;
+  }
+
   private normalizeOriginalAccountRole(value?: string): "BRAND" | "STAFF" | "TALENT" | undefined {
     const normalized = String(value || "").trim().toUpperCase();
     if (normalized === "BRAND" || normalized === "STAFF" || normalized === "TALENT") {
@@ -1743,6 +2044,38 @@ export class OpenClawService {
       case "get_skill_config_summary":
         return this.getSkillConfigSummary(headers, {
           skillKey: typeof toolArgs.skillKey === "string" ? toolArgs.skillKey : undefined,
+        });
+      case "get_design_workspace_options":
+        return this.getDesignWorkspaceOptions(headers);
+      case "get_recent_design_works":
+        return this.getRecentDesignWorks(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_design_work":
+        return this.createDesignWork(headers, {
+          module: typeof toolArgs.module === "string" ? toolArgs.module : undefined,
+          designType: typeof toolArgs.designType === "string" ? toolArgs.designType : undefined,
+          title: typeof toolArgs.title === "string" ? toolArgs.title : undefined,
+          calendarItemId: typeof toolArgs.calendarItemId === "string" ? toolArgs.calendarItemId : undefined,
+          productId: typeof toolArgs.productId === "string" ? toolArgs.productId : undefined,
+          injectBrandProfile: typeof toolArgs.injectBrandProfile === "boolean" ? toolArgs.injectBrandProfile : undefined,
+          modelSelection: typeof toolArgs.modelSelection === "string" ? toolArgs.modelSelection : undefined,
+          spec: typeof toolArgs.spec === "string" ? toolArgs.spec : undefined,
+          additionalInstruction: typeof toolArgs.additionalInstruction === "string" ? toolArgs.additionalInstruction : undefined,
+        });
+      case "get_douyin_original_copy_options":
+        return this.getDouyinOriginalCopyOptions(headers);
+      case "get_recent_douyin_original_copies":
+        return this.getRecentDouyinOriginalCopies(headers, {
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "create_douyin_original_copy":
+        return this.createDouyinOriginalCopy(headers, {
+          copyType: typeof toolArgs.copyType === "string" ? toolArgs.copyType : undefined,
+          topicId: typeof toolArgs.topicId === "string" ? toolArgs.topicId : undefined,
+          calendarItemId: typeof toolArgs.calendarItemId === "string" ? toolArgs.calendarItemId : undefined,
+          injectMarketingPlan: typeof toolArgs.injectMarketingPlan === "boolean" ? toolArgs.injectMarketingPlan : undefined,
+          userRequirement: typeof toolArgs.userRequirement === "string" ? toolArgs.userRequirement : undefined,
         });
       case "get_xiaohongshu_marketing_calendar_options":
         return this.getXiaohongshuMarketingCalendarOptions(headers, {
