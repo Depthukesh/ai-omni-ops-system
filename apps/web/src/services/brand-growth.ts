@@ -144,6 +144,98 @@ export type BrandAsset = {
   retrievalThreshold?: number;
 };
 
+export type BrandBusinessKnowledgeBaseRecord = {
+  id: string;
+  name: string;
+  description: string;
+  syncStatus: "IDLE" | "SYNCING" | "FAILED" | "SUCCESS";
+  documentCount: number;
+  chunkCount: number;
+  defaultTopK: number;
+  recallMode: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  rerankEnabled: boolean;
+  retrievalThreshold?: number;
+  bindingType: "MODULE" | "SKILL_PACKAGE" | "SKILL";
+  targetId: string;
+  targetKey?: string;
+  targetName?: string;
+  updatedAt: string;
+};
+
+export type CreateBrandBusinessKnowledgeBasePayload = {
+  name: string;
+  description?: string;
+};
+
+export type UpdateBrandBusinessKnowledgeBasePayload = {
+  name?: string;
+  description?: string;
+  defaultTopK?: number;
+  recallMode?: "HYBRID" | "VECTOR" | "FULL_TEXT";
+  rerankEnabled?: boolean;
+  retrievalThreshold?: number;
+};
+
+export type BrandBusinessKnowledgeBaseFileRecord = {
+  id: string;
+  assetId: string;
+  knowledgeBaseId: string;
+  title: string;
+  description: string;
+  sourceName: string;
+  fileUrl: string;
+  priority?: number;
+  status: "PENDING" | "INDEXED" | "FAILED";
+  chunkCount: number;
+  uploadedAt: string;
+  updatedAt: string;
+  lastSyncSummary?: string;
+  lastSyncAt?: string;
+  lastError?: string;
+};
+
+export type KnowledgeChunkRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  charCount: number;
+  sourceLabel?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeBaseSyncRunRecord = {
+  id: string;
+  knowledgeBaseId: string;
+  scope: "FILE" | "FULL";
+  operator: string;
+  fileId?: string;
+  fileName?: string;
+  result: "RUNNING" | "SUCCESS" | "FAILED";
+  summary: string;
+  errorDetail?: string;
+  startedAt: string;
+  completedAt?: string;
+};
+
+export type BrandBusinessKnowledgeBaseFileDetailRecord = BrandBusinessKnowledgeBaseFileRecord & {
+  chunks: KnowledgeChunkRecord[];
+  syncRuns: KnowledgeBaseSyncRunRecord[];
+};
+
+export type CreateBrandBusinessKnowledgeBaseFilesPayload = {
+  items: Array<{
+    title: string;
+    description?: string;
+    sourceName?: string;
+    fileUrl: string;
+    priority?: number;
+  }>;
+};
+
 export type FeishuBindingRecord = {
   id: string;
   title: string;
@@ -785,6 +877,83 @@ export async function replaceBrandAssets(
   items: BrandAsset[],
 ) {
   return jsonRequest<BrandAsset[]>(`/brands/${resolveBrandId(brandId)}/${route}`, "PATCH", { items });
+}
+
+export async function listBrandBusinessKnowledgeBases(brandId: string | undefined) {
+  return request<BrandBusinessKnowledgeBaseRecord[]>(`/brands/${resolveBrandId(brandId)}/business-knowledge-bases`);
+}
+
+export async function createBrandBusinessKnowledgeBase(
+  brandId: string | undefined,
+  payload: CreateBrandBusinessKnowledgeBasePayload,
+) {
+  return jsonRequest<BrandBusinessKnowledgeBaseRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases`,
+    "POST",
+    payload,
+  );
+}
+
+export async function updateBrandBusinessKnowledgeBase(
+  brandId: string | undefined,
+  knowledgeBaseId: string,
+  payload: UpdateBrandBusinessKnowledgeBasePayload,
+) {
+  return jsonRequest<BrandBusinessKnowledgeBaseRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}`,
+    "PATCH",
+    payload,
+  );
+}
+
+export async function deleteBrandBusinessKnowledgeBase(brandId: string | undefined, knowledgeBaseId: string) {
+  return request<BrandBusinessKnowledgeBaseRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function listBrandBusinessKnowledgeBaseFiles(brandId: string | undefined, knowledgeBaseId: string) {
+  return request<BrandBusinessKnowledgeBaseFileRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}/files`,
+  );
+}
+
+export async function createBrandBusinessKnowledgeBaseFiles(
+  brandId: string | undefined,
+  knowledgeBaseId: string,
+  payload: CreateBrandBusinessKnowledgeBaseFilesPayload,
+) {
+  return jsonRequest<BrandBusinessKnowledgeBaseFileRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}/files`,
+    "POST",
+    payload,
+  );
+}
+
+export async function getBrandBusinessKnowledgeBaseFileDetail(
+  brandId: string | undefined,
+  knowledgeBaseId: string,
+  fileId: string,
+) {
+  return request<BrandBusinessKnowledgeBaseFileDetailRecord>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}/files/${fileId}`,
+  );
+}
+
+export async function deleteBrandBusinessKnowledgeBaseFile(
+  brandId: string | undefined,
+  knowledgeBaseId: string,
+  fileId: string,
+) {
+  return request<BrandBusinessKnowledgeBaseFileRecord[]>(
+    `/brands/${resolveBrandId(brandId)}/business-knowledge-bases/${knowledgeBaseId}/files/${fileId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function uploadBrandProductImage(brandId: string | undefined, file: File): Promise<BrandProductImageUploadRecord> {

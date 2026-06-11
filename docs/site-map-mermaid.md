@@ -133,6 +133,7 @@ flowchart TD
     BGW1 --> BGWC3["抖音收集"]
     BGW1 --> BGWC4["每日热点"]
     BGW --> BGW2["library-workspace.tsx 品牌资料库"]
+    BGW2 --> BGW21["business-knowledge-workspace.tsx 企业知识库"]
     BGW --> BGW3["report-workspace.tsx 品牌增长报告"]
     BGW --> BGW4["shared-types.ts"]
     BGW --> BGW5["datetime-helpers.ts"]
@@ -216,6 +217,14 @@ flowchart LR
     B --> B3["品牌运营情况"]
     B --> B4["第三方数据"]
     B --> B5["企业知识库"]
+    B5 --> B51["顶部主动作：新增知识库"]
+    B5 --> B52["创建弹窗：只填写名称 + 简介"]
+    B5 --> B53["主视图：知识库卡片列表"]
+    B5 --> B54["点卡片打开知识库弹窗"]
+    B54 --> B541["顶部按钮：添加资料 / 知识库设置"]
+    B54 --> B542["资料列表：编辑 / 删除"]
+    B54 --> B543["添加资料：批量选文件 + 可选优先级 + 自动切片"]
+    B54 --> B544["知识库设置：只保留用户需要字段"]
 
     C["report-workspace.tsx"]
     C --> C1["品牌增长报告"]
@@ -884,6 +893,7 @@ flowchart LR
 - 页面编排入口：`apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
 - 收集数据工作区：`apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
 - 品牌资料库工作区：`apps/web/src/app/(dashboard)/brand-growth/library-workspace.tsx`
+- 企业知识库工作区：`apps/web/src/app/(dashboard)/brand-growth/business-knowledge-workspace.tsx`
 - 报告工作区：`apps/web/src/app/(dashboard)/brand-growth/report-workspace.tsx`
 - 共享类型：`apps/web/src/app/(dashboard)/brand-growth/shared-types.ts`
 - 时间/排序 helper：`apps/web/src/app/(dashboard)/brand-growth/datetime-helpers.ts`

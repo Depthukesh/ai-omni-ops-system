@@ -7,15 +7,18 @@ import {
   type BrandAssetFileUploadRecord,
   type BrandProductImageUploadRecord,
   BrandsService,
+  type CreateBrandBusinessKnowledgeBaseFilesPayload,
   type CreateAssetPayload,
   type CreateBrandPayload,
   type CreateBrandInvitePayload,
+  type CreateBrandBusinessKnowledgeBasePayload,
   type CreateProductPayload,
   type FeishuBindingPayload,
   type ReplaceAccountsPayload,
   type UploadBrandAssetFilePayload,
   type UploadBrandProductImagePayload,
   type UpdateBackgroundPayload,
+  type UpdateBrandBusinessKnowledgeBasePayload,
   type UpdateBrandMemberPayload,
   type UpdateBrandPermissionSettingsPayload,
   type UpdateMyBrandInviteNotificationReadStatePayload,
@@ -365,6 +368,94 @@ export class BrandsController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
     return this.brandsService.replaceBusinessAssets(id, payload);
+  }
+
+  @Get(":id/business-knowledge-bases")
+  async listBusinessKnowledgeBases(@Param("id") id: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
+    return this.brandsService.listBusinessKnowledgeBases(id);
+  }
+
+  @Post(":id/business-knowledge-bases")
+  async createBusinessKnowledgeBase(
+    @Param("id") id: string,
+    @Body() payload: CreateBrandBusinessKnowledgeBasePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
+    return this.brandsService.createBusinessKnowledgeBase(id, payload);
+  }
+
+  @Patch(":id/business-knowledge-bases/:knowledgeBaseId")
+  async updateBusinessKnowledgeBase(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Body() payload: UpdateBrandBusinessKnowledgeBasePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
+    return this.brandsService.updateBusinessKnowledgeBase(id, knowledgeBaseId, payload);
+  }
+
+  @Delete(":id/business-knowledge-bases/:knowledgeBaseId")
+  async deleteBusinessKnowledgeBase(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
+    return this.brandsService.deleteBusinessKnowledgeBase(id, knowledgeBaseId);
+  }
+
+  @Get(":id/business-knowledge-bases/:knowledgeBaseId/files")
+  async listBusinessKnowledgeBaseFiles(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
+    return this.brandsService.listBusinessKnowledgeBaseFiles(id, knowledgeBaseId);
+  }
+
+  @Post(":id/business-knowledge-bases/:knowledgeBaseId/files")
+  async createBusinessKnowledgeBaseFiles(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Body() payload: CreateBrandBusinessKnowledgeBaseFilesPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
+    return this.brandsService.createBusinessKnowledgeBaseFiles(id, knowledgeBaseId, payload);
+  }
+
+  @Get(":id/business-knowledge-bases/:knowledgeBaseId/files/:fileId")
+  async getBusinessKnowledgeBaseFileDetail(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Param("fileId") fileId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(id, auth);
+    return this.brandsService.getBusinessKnowledgeBaseFileDetail(id, knowledgeBaseId, fileId);
+  }
+
+  @Delete(":id/business-knowledge-bases/:knowledgeBaseId/files/:fileId")
+  async deleteBusinessKnowledgeBaseFile(
+    @Param("id") id: string,
+    @Param("knowledgeBaseId") knowledgeBaseId: string,
+    @Param("fileId") fileId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(id, "brandGrowth.library.businessAssets", "edit", auth);
+    return this.brandsService.deleteBusinessKnowledgeBaseFile(id, knowledgeBaseId, fileId);
   }
 
   @Patch(":id/feishu-binding")

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { BrandGrowthLibraryPageKey } from "./shared-types";
+import { BusinessKnowledgeWorkspace } from "./business-knowledge-workspace";
 import { BRAND_SURVEY_SECTIONS } from "../../../services/brand-growth";
 import type {
   BrandArchiveBundle,
@@ -194,6 +195,10 @@ const BINDING_TARGET_PRESETS: BindingTargetPreset[] = [
 ];
 
 export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspaceProps) {
+  if (props.activeBrandPage === "businessAssets") {
+    return <BusinessKnowledgeWorkspace brandId={props.archive.brand.id} />;
+  }
+
   if (props.activeBrandPage === "background") {
     return (
       <article className="workspace-panel strategy-page-card">
@@ -469,16 +474,10 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
     );
   }
 
-  const assetTarget = props.activeBrandPage;
-  const assetTitle = assetTarget === "industryFeeds" ? "第三方数据" : "企业知识库";
-  const isBusinessAssetsPage = assetTarget === "businessAssets";
-  const businessKnowledgeSummaries = isBusinessAssetsPage
-    ? collectBusinessAssetKnowledgeSummaries(
-        props.archive.brand.id,
-        props.archive.brand.brandName,
-        props.archive.businessAssets,
-      )
-    : [];
+  const assetTarget: LibraryAssetTarget = "industryFeeds";
+  const assetTitle = "第三方数据";
+  const isBusinessAssetsPage = false;
+  const businessKnowledgeSummaries: Array<ReturnType<typeof collectBusinessAssetKnowledgeSummaries>[number]> = [];
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<"create" | "edit">("create");
   const [assetModalDrafts, setAssetModalDrafts] = useState<LibraryAssetModalDraft[]>([]);
@@ -619,9 +618,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
           <div>
             <strong>{assetTitle}</strong>
             <p>
-              {assetTarget === "industryFeeds"
-                ? "这里维护行业报告、市场资料与外部数据。"
-                : "这里维护经营报表、业务系统、门店资料与内部知识文档。上传时即可配置知识库容器、接入对象和检索策略，并会立即触发后台同步。"}
+              这里维护行业报告、市场资料与外部数据。
             </p>
           </div>
           <button type="button" className="primary-button" onClick={handleOpenCreateAssetModal}>
@@ -660,7 +657,7 @@ export function BrandGrowthLibraryWorkspace(props: BrandGrowthLibraryWorkspacePr
                     <strong>{asset.title || `资料 ${index + 1}`}</strong>
                     <p>{asset.sourceName || "未填写来源"}</p>
                   </div>
-                  <span className="archive-pill status-ready">{assetTarget === "businessAssets" ? "知识库" : "资料"}</span>
+                  <span className="archive-pill status-ready">资料</span>
                 </div>
                 <div className="knowledge-content-card__meta">
                   <span>{asset.fileUrl ? extractFileName(asset.fileUrl) : "未关联文件"}</span>
