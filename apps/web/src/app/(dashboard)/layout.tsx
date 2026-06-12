@@ -146,6 +146,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <>
           <header className="dashboard-topbar">
             <div className="dashboard-topbar-shell">
+              <div className="dashboard-topbar-head">
+                <Link href="/" className="dashboard-topbar-brand">
+                  <span className="dashboard-topbar-brandmark">17</span>
+                  <span className="dashboard-topbar-copy">
+                    <strong>17ai.site</strong>
+                    <span>品牌 / 门店全域运营工作台</span>
+                  </span>
+                </Link>
+                <div className="dashboard-topbar-actions">
+                  <Link href="/" className="dashboard-topbar-home-link">
+                    返回首页
+                  </Link>
+                </div>
+              </div>
               <nav className="dashboard-topnav" aria-label="主导航">
                 {primaryNavItems.map((item) => {
                   const isActive =

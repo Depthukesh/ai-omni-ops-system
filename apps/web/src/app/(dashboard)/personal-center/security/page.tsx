@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -105,7 +105,7 @@ export default function PersonalCenterSecurityPage() {
       setBrands(session?.brands || []);
       setCurrentBrandId(session?.currentBrandId || session?.brands?.[0]?.id || "");
       setDataSource("session");
-      setErrorMessage("安全中心当前无法刷新账号信息，页面先展示浏览器中已保存的登录态快照。");
+      setErrorMessage("安全中心当前无法刷新账号信息，页面先展示浏览器中已保存的登录状态快照。");
     }
 
     setIsLoading(false);
@@ -144,7 +144,7 @@ export default function PersonalCenterSecurityPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -184,7 +184,7 @@ export default function PersonalCenterSecurityPage() {
   async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formNickname.trim()) {
-      setErrorMessage("请输入用户名");
+      setErrorMessage("璇疯緭鍏ョ敤鎴峰悕");
       return;
     }
     if (!/^1\d{10}$/.test(formMobile.trim())) {
@@ -228,7 +228,7 @@ export default function PersonalCenterSecurityPage() {
       return;
     }
     if (!nextPassword) {
-      setErrorMessage("请输入新密码");
+      setErrorMessage("璇疯緭鍏ユ柊瀵嗙爜");
       return;
     }
     if (nextPassword.length < 6) {
@@ -240,7 +240,7 @@ export default function PersonalCenterSecurityPage() {
       return;
     }
     if (currentPassword === nextPassword) {
-      setErrorMessage("新密码不能与当前密码相同");
+      setErrorMessage("鏂板瘑鐮佷笉鑳戒笌褰撳墠瀵嗙爜鐩稿悓");
       return;
     }
 
@@ -275,13 +275,13 @@ export default function PersonalCenterSecurityPage() {
   const securityChecks = useMemo(
     () => [
       {
-        label: "Access Token 已保存",
+        label: "Access Token 状态",
         value: hasAccessToken ? "已保存" : "未保存",
         detail: "用于当前接口访问，请求层会自动附带 Authorization。",
         status: hasAccessToken ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
-        label: "Refresh Token 已保存",
+        label: "Refresh Token 状态",
         value: hasRefreshToken ? "已保存" : "未保存",
         detail: "当前请求层在遇到 401 时会自动尝试 refresh。",
         status: hasRefreshToken ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
@@ -289,13 +289,13 @@ export default function PersonalCenterSecurityPage() {
       {
         label: "当前品牌上下文",
         value: currentBrand?.brandName || "未绑定品牌",
-        detail: "请求层会自动附带 x-brand-id，个人中心相关接口跟随当前品牌工作区刷新。",
+        detail: "请求层会自动附带 x-brand-id，个人中心相关接口会跟随当前品牌工作区刷新。",
         status: currentBrand ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
         label: "邮箱验证状态",
         value: isEmailVerified ? "已验证" : "未验证",
-        detail: isEmailVerified ? "当前邮箱已经通过注册验证。" : "当前邮箱还未完成验证，后续需要补邮箱改绑与再次验证流程。",
+        detail: isEmailVerified ? "当前邮箱已经通过注册验证。" : "当前邮箱还未完成验证，后续需要补充邮箱改绑与再次验证流程。",
         status: isEmailVerified ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
     ],
@@ -309,7 +309,7 @@ export default function PersonalCenterSecurityPage() {
       <div className="panel-header">
         <div>
           <h2>账号资料与安全设置</h2>
-          <p className="panel-subtext">当前已支持用户自助维护用户名、头像和手机号，并继续保留登录态、品牌上下文、token 持有状态与退出入口。</p>
+          <p className="panel-subtext">当前已支持用户自助维护用户名、头像和手机号，并保留登录态、品牌上下文、Token 持有状态与退出登录入口。</p>
         </div>
         <span>{securityChecks.filter((item) => item.status === "SAFE").length} 项正常</span>
       </div>
@@ -335,7 +335,7 @@ export default function PersonalCenterSecurityPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -359,7 +359,7 @@ export default function PersonalCenterSecurityPage() {
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
         </Link>
-        <Link href="/?mode=login" className="secondary-button">
+        <Link href="/login" className="secondary-button">
           回到登录页
         </Link>
       </div>
@@ -369,7 +369,7 @@ export default function PersonalCenterSecurityPage() {
           <div className="entity-card-head">
             <div>
               <strong>编辑账号资料</strong>
-              <p className="personal-meta">当前支持自助维护用户名、头像地址和手机号；邮箱先保持只读，避免绕过现有注册邮箱验证链路。</p>
+              <p className="personal-meta">当前支持自助维护用户名、头像地址和手机号；邮箱暂时保持只读，避免绕过现有注册验证链路。</p>
             </div>
             <span className="archive-pill status-ready">可编辑</span>
           </div>
@@ -440,7 +440,7 @@ export default function PersonalCenterSecurityPage() {
               </label>
               <label className="field">
                 <span>邮箱改绑</span>
-                <input value="当前未开放，后续可接邮箱再次验证" disabled />
+                <input value="当前未开放，后续可接邮箱再次验证流程" disabled />
               </label>
               <div className="personal-actions personal-actions--tight field-full">
                 <button type="button" className="secondary-button" onClick={() => hydrateProfileForm(readAuthSession()?.user)} disabled={isSavingProfile}>
@@ -492,7 +492,7 @@ export default function PersonalCenterSecurityPage() {
           </div>
           <form className="form-grid two-column" onSubmit={handleChangePassword}>
             <label className="field">
-              <span>当前密码</span>
+                <span>当前密码</span>
               <input
                 type="password"
                 value={currentPassword}
@@ -502,7 +502,7 @@ export default function PersonalCenterSecurityPage() {
               />
             </label>
             <label className="field">
-              <span>新密码</span>
+                <span>新密码</span>
               <input
                 type="password"
                 value={nextPassword}
@@ -512,7 +512,7 @@ export default function PersonalCenterSecurityPage() {
               />
             </label>
             <label className="field field-full">
-              <span>确认新密码</span>
+                <span>确认新密码</span>
               <input
                 type="password"
                 value={confirmNextPassword}
@@ -532,7 +532,7 @@ export default function PersonalCenterSecurityPage() {
                 }}
                 disabled={isChangingPassword}
               >
-                清空输入
+                  清空输入
               </button>
               <button type="submit" className="primary-button" disabled={isChangingPassword}>
                 {isChangingPassword ? "修改中..." : "修改密码"}
@@ -568,7 +568,7 @@ export default function PersonalCenterSecurityPage() {
             </div>
             <div className="field-full">
               <span>后续建议</span>
-              <strong>优先补 `session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
+              <strong>优先补齐 `session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
             </div>
             <div className="field-full">
               <span>本次已验证</span>
@@ -590,3 +590,4 @@ function maskToken(value?: string) {
   }
   return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
+
