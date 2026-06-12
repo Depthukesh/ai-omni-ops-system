@@ -22,15 +22,6 @@ const snippetTabs: Array<{ key: SnippetTabKey; label: string }> = [
   { key: "mcpEndpoint", label: "MCP 地址" },
 ];
 
-const capabilityHighlights = [
-  "读取当前品牌上下文",
-  "汇总任务与失败原因",
-  "查看增长报告重点",
-  "创建知识库并上传资料",
-  "生成半年营销规划",
-  "生成内容草稿",
-];
-
 const TOKEN_PLACEHOLDER = "请先生成安装令牌";
 
 function EyeOpenIcon() {
@@ -103,6 +94,17 @@ export default function PersonalCenterOpenClawPage() {
 
   const tokenToggleLabel = isTokenVisible ? "隐藏完整令牌" : "查看完整令牌";
   const activeSkillSnippet = workspace?.skillInstall?.snippet || "";
+
+  function handleToggleTokenVisibility() {
+    if (!rawToken) {
+      setNotice("");
+      setErrorMessage("当前页面没有完整令牌可显示。请先点击“重置正式安装令牌”后，再使用眼睛查看完整令牌。");
+      return;
+    }
+    setErrorMessage("");
+    setNotice(isTokenVisible ? "已隐藏完整令牌。" : "已显示完整令牌，请注意保密。");
+    setIsTokenVisible((current) => !current);
+  }
 
   async function loadWorkspace() {
     setIsLoading(true);
@@ -234,6 +236,14 @@ export default function PersonalCenterOpenClawPage() {
         </button>
       </div>
 
+      <div className="openclaw-top-docs" style={{ marginBottom: 16 }}>
+        {(workspace?.docs || []).map((item) => (
+          <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
+            {item.label}
+          </a>
+        ))}
+      </div>
+
       <div className="personal-grid" style={{ marginBottom: 16 }}>
         <div>
           <span>MCP Server 名称</span>
@@ -254,8 +264,7 @@ export default function PersonalCenterOpenClawPage() {
             <button
               type="button"
               className="secondary-button"
-              onClick={() => setIsTokenVisible((current) => !current)}
-              disabled={!rawToken}
+              onClick={handleToggleTokenVisibility}
               aria-label={tokenToggleLabel}
               title={rawToken ? tokenToggleLabel : "完整令牌仅在本次生成后可查看"}
               style={{ padding: "6px 10px", minWidth: "auto" }}
@@ -312,7 +321,7 @@ export default function PersonalCenterOpenClawPage() {
           <div className="entity-card-head">
             <div>
               <strong>{workspace?.skillInstall?.title || "品牌运营助手 Skill 安装"}</strong>
-              <p className="personal-meta">{workspace?.skillInstall?.summary || "安装 MCP 后，再把总入口 Skill 复制到目标客户端的 Skill 配置区。"}</p>
+              <p className="personal-meta">{workspace?.skillInstall?.summary || "安装 MCP 后，再把总入口 Skill 复制到客户端的 Skill 配置区。"}</p>
             </div>
             <div className="openclaw-skill-install-actions">
               <span className={`archive-pill ${workspace?.skillInstall?.status === "ready" ? "status-ready" : "status-paused"}`}>
@@ -333,13 +342,6 @@ export default function PersonalCenterOpenClawPage() {
             <div className="openclaw-install-target">
               <span>安装位置</span>
               <strong>{workspace?.skillInstall?.installTarget || "客户端 Skill 配置区"}</strong>
-            </div>
-            <div className="openclaw-doc-links">
-              {(workspace?.docs || []).slice(0, 2).map((item) => (
-                <a key={`skill-doc:${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
-                  {item.label}
-                </a>
-              ))}
             </div>
           </div>
 
@@ -367,121 +369,6 @@ export default function PersonalCenterOpenClawPage() {
             </div>
           ) : null}
         </article>
-
-        <div className="personal-list openclaw-side-column" style={{ gap: 16 }}>
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>令牌状态</strong>
-                <p className="personal-meta">品牌级安装令牌只绑定当前品牌与生成者账号，不等于网站密码。</p>
-              </div>
-              <span className={`archive-pill ${workspace?.activeToken ? "status-ready" : "status-paused"}`}>
-                {workspace?.activeToken ? "已启用" : "未启用"}
-              </span>
-            </div>
-            <div className="personal-grid">
-              <div>
-                <span>令牌预览</span>
-                <strong>{displayedToken}</strong>
-              </div>
-              <div>
-                <span>最近使用</span>
-                <strong>{formatDateTime(workspace?.activeToken?.lastUsedAt)}</strong>
-              </div>
-              <div>
-                <span>过期时间</span>
-                <strong>{formatDateTime(workspace?.activeToken?.expiresAt)}</strong>
-              </div>
-              <div>
-                <span>更新时间</span>
-                <strong>{formatDateTime(workspace?.activeToken?.updatedAt)}</strong>
-              </div>
-            </div>
-          </article>
-
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>推荐提问</strong>
-                <p className="personal-meta">{workspace?.skillGuide.summary || "安装 MCP 后，再按品牌运营助手 Skill 说明去编排调用。"}</p>
-              </div>
-            </div>
-            <div className="openclaw-prompt-grid">
-              {(workspace?.skillGuide.examples || []).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="openclaw-prompt-card"
-                  onClick={() => void handleCopy(item, `prompt:${item}`)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </article>
-
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>{workspace?.skillGuide.title || "品牌运营助手 Skill"}</strong>
-                <p className="personal-meta">这里展示的是 Skill 的能力边界和推荐提问，正式安装请使用左侧新增的 Skill 安装区。</p>
-              </div>
-            </div>
-            <div className="openclaw-capability-grid">
-              {capabilityHighlights.map((item) => (
-                <div key={item} className="openclaw-capability-chip">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>{workspace?.relationshipGuide.title || "MCP 与 Skill 关系"}</strong>
-                <p className="personal-meta">把“现在到底装什么”和“以后技能怎么扩展、冲突时怎么理解”直接说明清楚。</p>
-              </div>
-            </div>
-            <div className="personal-list" style={{ gap: 12 }}>
-              {(workspace?.relationshipGuide.items || []).map((item) => (
-                <div key={item.label} className="openclaw-relationship-card">
-                  <strong>{item.label}</strong>
-                  <p>{item.summary}</p>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>安装文档</strong>
-                <p className="personal-meta">给品牌管理员和实施同学直接看的正式说明。</p>
-              </div>
-            </div>
-            <div className="openclaw-doc-links">
-              {(workspace?.docs || []).map((item) => (
-                <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
-                  {item.label}
-                </a>
-              ))}
-            </div>
-            <details className="openclaw-checklist">
-              <summary>{workspace?.deliveryChecklist.title || "正式交付检查"}</summary>
-              <p className="personal-meta" style={{ marginTop: 10 }}>
-                {workspace?.deliveryChecklist.summary || "上线前请至少完成页面、文档、令牌和真实挂载四类检查。"}
-              </p>
-              <div className="personal-list" style={{ marginTop: 12 }}>
-                {(workspace?.deliveryChecklist.items || []).map((item) => (
-                  <div key={item} className="openclaw-checklist-item">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </details>
-          </article>
-        </div>
       </div>
     </section>
   );

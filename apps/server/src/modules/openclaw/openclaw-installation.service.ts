@@ -290,10 +290,10 @@ export class OpenClawInstallationService {
       },
       skillInstall: {
         title: "品牌运营助手 Skill 安装",
-        summary: "这是第一版可复制的 Skill 安装内容，用于在 OpenClaw / WorkBuddy 的 Skill 配置区创建总入口 Skill，让它统一调度网站内的 MCP 能力。",
+        summary: "这是统一的一版 Skill 安装内容，用于在客户端的 Skill 配置区创建总入口 Skill，让它统一调度网站内的 MCP 能力。",
         status: "beta",
         statusLabel: "Beta",
-        installTarget: "OpenClaw / WorkBuddy 的 Skill 配置区",
+        installTarget: "客户端 Skill 配置区",
         steps: [
           "先完成上方 MCP 安装，确认品牌令牌和 MCP 地址可用",
           "复制下面的 Skill 安装内容，到目标客户端新建一个品牌运营助手 Skill",
