@@ -5089,6 +5089,71 @@ button {
   gap: 10px;
 }
 
+.openclaw-skill-install-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.openclaw-skill-install-meta {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.openclaw-install-target span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.openclaw-install-target strong {
+  color: #24324e;
+  font-size: 14px;
+}
+
+.openclaw-skill-steps {
+  margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.openclaw-skill-step {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #e8edf7;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.openclaw-skill-step span {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(91, 109, 255, 0.1);
+  color: #4f66eb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.openclaw-skill-step strong {
+  color: #33425f;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .openclaw-relationship-card {
   padding: 14px;
   border-radius: 18px;
@@ -5163,6 +5228,10 @@ button {
 
 @media (max-width: 720px) {
   .openclaw-prompt-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .openclaw-skill-steps {
     grid-template-columns: minmax(0, 1fr);
   }
 }

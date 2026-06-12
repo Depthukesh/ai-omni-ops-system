@@ -102,6 +102,7 @@ export default function PersonalCenterOpenClawPage() {
   }, [isTokenVisible, rawToken, workspace]);
 
   const tokenToggleLabel = isTokenVisible ? "隐藏完整令牌" : "查看完整令牌";
+  const activeSkillSnippet = workspace?.skillInstall?.snippet || "";
 
   async function loadWorkspace() {
     setIsLoading(true);
@@ -307,6 +308,66 @@ export default function PersonalCenterOpenClawPage() {
           </label>
         </article>
 
+        <article className="entity-card personal-card">
+          <div className="entity-card-head">
+            <div>
+              <strong>{workspace?.skillInstall?.title || "品牌运营助手 Skill 安装"}</strong>
+              <p className="personal-meta">{workspace?.skillInstall?.summary || "安装 MCP 后，再把总入口 Skill 复制到目标客户端的 Skill 配置区。"}</p>
+            </div>
+            <div className="openclaw-skill-install-actions">
+              <span className={`archive-pill ${workspace?.skillInstall?.status === "ready" ? "status-ready" : "status-paused"}`}>
+                {workspace?.skillInstall?.statusLabel || "Beta"}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleCopy(activeSkillSnippet, "skill-snippet")}
+                disabled={!activeSkillSnippet}
+              >
+                {copiedKey === "skill-snippet" ? "已复制" : "复制 Skill 安装内容"}
+              </button>
+            </div>
+          </div>
+
+          <div className="openclaw-skill-install-meta">
+            <div className="openclaw-install-target">
+              <span>安装位置</span>
+              <strong>{workspace?.skillInstall?.installTarget || "客户端 Skill 配置区"}</strong>
+            </div>
+            <div className="openclaw-doc-links">
+              {(workspace?.docs || []).slice(0, 2).map((item) => (
+                <a key={`skill-doc:${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="openclaw-skill-steps">
+            {(workspace?.skillInstall?.steps || []).map((item, index) => (
+              <div key={item} className="openclaw-skill-step">
+                <span>{index + 1}</span>
+                <strong>{item}</strong>
+              </div>
+            ))}
+          </div>
+
+          <label className="field">
+            <span>Skill 安装内容</span>
+            <textarea value={activeSkillSnippet} rows={18} readOnly spellCheck={false} />
+          </label>
+
+          {(workspace?.skillInstall?.notes || []).length ? (
+            <div className="personal-list" style={{ marginTop: 12, gap: 10 }}>
+              {(workspace?.skillInstall?.notes || []).map((item) => (
+                <div key={item} className="openclaw-checklist-item">
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </article>
+
         <div className="personal-list openclaw-side-column" style={{ gap: 16 }}>
           <article className="entity-card personal-card">
             <div className="entity-card-head">
@@ -363,7 +424,7 @@ export default function PersonalCenterOpenClawPage() {
             <div className="entity-card-head">
               <div>
                 <strong>{workspace?.skillGuide.title || "品牌运营助手 Skill"}</strong>
-                <p className="personal-meta">这不是安装配置本体，而是给 OpenClaw 的业务使用提示。它会把自然语言请求编排成品牌数据查询、报告生成和知识库操作。</p>
+                <p className="personal-meta">这里展示的是 Skill 的能力边界和推荐提问，正式安装请使用左侧新增的 Skill 安装区。</p>
               </div>
             </div>
             <div className="openclaw-capability-grid">

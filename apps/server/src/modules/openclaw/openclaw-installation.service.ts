@@ -54,6 +54,16 @@ export type OpenClawInstallWorkspace = {
     summary: string;
     examples: string[];
   };
+  skillInstall: {
+    title: string;
+    summary: string;
+    status: "ready" | "beta";
+    statusLabel: string;
+    installTarget: string;
+    steps: string[];
+    snippet: string;
+    notes: string[];
+  };
   relationshipGuide: {
     title: string;
     items: Array<{
@@ -278,12 +288,30 @@ export class OpenClawInstallationService {
           "围绕这个品牌生成一份半年营销规划",
         ],
       },
+      skillInstall: {
+        title: "品牌运营助手 Skill 安装",
+        summary: "这是第一版可复制的 Skill 安装内容，用于在 OpenClaw / WorkBuddy 的 Skill 配置区创建总入口 Skill，让它统一调度网站内的 MCP 能力。",
+        status: "beta",
+        statusLabel: "Beta",
+        installTarget: "OpenClaw / WorkBuddy 的 Skill 配置区",
+        steps: [
+          "先完成上方 MCP 安装，确认品牌令牌和 MCP 地址可用",
+          "复制下面的 Skill 安装内容，到目标客户端新建一个品牌运营助手 Skill",
+          "把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
+          "首次使用时先用推荐提问验证查询、生成和任务回读是否正常",
+        ],
+        snippet: this.buildBrandOperatorSkillSnippet(),
+        notes: [
+          "当前是总入口 Skill，重点负责理解需求、路由网站功能、控制执行顺序，不重复实现网站原生功能。",
+          "后续如果网站再补反馈闭环、提示词升级等能力，这个 Skill 会继续复用同一套 MCP 工具，不需要重做网站功能。",
+        ],
+      },
       relationshipGuide: {
         title: "MCP 与 Skill 关系",
         items: [
           {
             label: "当前正式安装",
-            summary: "现在只需要安装 MCP。页面里的品牌运营助手 Skill 还是官方示例和使用规范，不是额外必须安装的执行包。",
+            summary: "现在 MCP 已可正式安装；品牌运营助手 Skill 也已提供第一版可复制安装内容，但仍建议先完成 MCP，再安装 Skill。",
           },
           {
             label: "后续如何扩展",
@@ -328,6 +356,39 @@ export class OpenClawInstallationService {
       .replace(/^-+|-+$/g, "")
       .slice(0, 48);
     return slug ? `ai-omni-ops-${slug}` : "ai-omni-ops-brand";
+  }
+
+  private buildBrandOperatorSkillSnippet() {
+    return `# 品牌运营助手
+
+你是“品牌运营助手”，服务于 AI 全域智能体系统中的品牌员工。
+
+你的第一原则：
+- 所有数据、任务和执行动作都以网站里的现有能力为准
+- 你必须优先调用 ai-omni-ops MCP，不自行编造结果
+- 你负责理解需求、选择网站功能、补齐必要信息、控制执行顺序
+
+你的工作流程：
+1. 优先调用 \`route_website_function_by_intent\` 判断用户想使用的网站功能
+2. 再调用 \`get_website_function_execution_plan\` 判断缺失信息、确认要求和推荐工具顺序
+3. 如果信息不足，只做 1 到 2 次简短业务化追问
+4. 如果是高风险动作，先明确征得用户确认
+5. 再按推荐工具顺序调用网站 MCP 能力
+6. 返回时先给结论，再给关键结果，再给下一步建议
+
+你必须优先完成这些任务：
+- 查看品牌上下文、最近任务和增长重点
+- 创建知识库并上传资料
+- 生成小红书、抖音、公众号相关内容
+- 查看任务状态、失败原因和回执
+- 查看或调整网站里的技能配置
+
+输出要求：
+- 不直接暴露内部字段、数据库字段或原始 JSON
+- 不假装执行成功
+- 能在网站里完成的动作，优先通过网站功能完成
+- 如果动作需要回到网页承接，明确告诉用户打开哪个页面
+`;
   }
 
   private normalizeExpiresInDays(value?: number) {

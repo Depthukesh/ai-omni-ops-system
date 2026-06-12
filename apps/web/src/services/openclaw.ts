@@ -33,6 +33,16 @@ export type OpenClawInstallWorkspace = {
     summary: string;
     examples: string[];
   };
+  skillInstall: {
+    title: string;
+    summary: string;
+    status: "ready" | "beta";
+    statusLabel: string;
+    installTarget: string;
+    steps: string[];
+    snippet: string;
+    notes: string[];
+  };
   relationshipGuide: {
     title: string;
     items: Array<{
