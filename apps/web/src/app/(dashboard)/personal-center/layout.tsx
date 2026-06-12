@@ -122,7 +122,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
 
   return (
     <div className="dashboard-shell">
-      <section className="panel" style={{ marginBottom: 24 }}>
+      <section className="panel personal-center-workspace-shell" style={{ marginBottom: 24 }}>
         <div className="panel-header">
           <div>
             <h2>个人中心工作区</h2>

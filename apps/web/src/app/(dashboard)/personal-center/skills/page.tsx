@@ -549,7 +549,7 @@ export default function PersonalCenterSkillsPage() {
                 <strong>{selectedPrompt.basePrompt.temperature}</strong>
               </div>
               <div>
-                <span>骞冲彴 Tokens</span>
+                <span>平台 Tokens</span>
                 <strong>{selectedPrompt.basePrompt.maxTokens}</strong>
               </div>
               <div>
@@ -578,7 +578,7 @@ export default function PersonalCenterSkillsPage() {
 
               <div className="personal-grid">
                 <label className="field">
-                  <span>娓╁害</span>
+                  <span>温度</span>
                   <input
                     type="number"
                     step="0.1"
@@ -588,7 +588,7 @@ export default function PersonalCenterSkillsPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Max Tokens</span>
+                  <span>最大 Tokens</span>
                   <input
                     type="number"
                     step="1"
