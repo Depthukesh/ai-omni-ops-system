@@ -58,7 +58,7 @@ export default function PersonalCenterTasksPage() {
     } else {
       setTasks(taskSeed);
       setDataSource("seed");
-      setErrorMessage("任务接口暂不可用，当前展示的是本地演示任务记录。");
+      setErrorMessage("任务接口暂时不可用，当前展示的是本地演示任务记录。");
     }
 
     setIsLoading(false);
@@ -138,7 +138,7 @@ export default function PersonalCenterTasksPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -188,7 +188,7 @@ export default function PersonalCenterTasksPage() {
       <div className="panel-header">
         <div>
           <h2>任务中心</h2>
-          <p className="panel-subtext">集中查看当前用户在当前品牌工作区下发起的所有大模型任务，并可对失败任务重新排队、对运行中任务手动取消。</p>
+          <p className="panel-subtext">集中查看当前账号在当前品牌工作区下发起的全部任务，并支持重试失败任务或取消运行中任务。</p>
         </div>
         <span>{summary.total} 条任务</span>
       </div>
@@ -219,7 +219,7 @@ export default function PersonalCenterTasksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -233,7 +233,7 @@ export default function PersonalCenterTasksPage() {
         <article className="metric-card">
           <span>当前品牌</span>
           <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
-          <p>当前任务列表会跟随品牌工作区切换刷新。</p>
+          <p>当前任务列表会跟随品牌工作区切换而刷新。</p>
         </article>
         <article className="metric-card">
           <span>运行中</span>
@@ -258,7 +258,7 @@ export default function PersonalCenterTasksPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索任务名称、任务类型、模型名、品牌 ID"
+            placeholder="搜索任务名称、任务类型、模型名或品牌 ID"
           />
         </label>
         <Link href="/personal-center" className="secondary-button">
@@ -272,7 +272,7 @@ export default function PersonalCenterTasksPage() {
             <div className="entity-card-head">
               <div>
                 <strong>{task.taskTitle}</strong>
-                <p className="personal-meta">{task.taskType} · 首选 {getTaskPreferredModel(task)}</p>
+                <p className="personal-meta">{task.taskType} 路 首选 {getTaskPreferredModel(task)}</p>
               </div>
               <span className={`archive-pill ${personalTaskStatusClassMap[task.taskStatus]}`}>{task.taskStatus}</span>
             </div>
@@ -282,7 +282,7 @@ export default function PersonalCenterTasksPage() {
                 <strong>{task.brandId || "未绑定品牌"}</strong>
               </div>
               <div>
-                <span>积分消耗</span>
+                <span>点数消耗</span>
                 <strong>{task.pointsCost}</strong>
               </div>
               <div>
@@ -308,7 +308,7 @@ export default function PersonalCenterTasksPage() {
                 <strong>{getTaskPreferredModel(task)}</strong>
               </div>
               <div>
-                <span>结果模型</span>
+                <span>缁撴灉妯″瀷</span>
                 <strong>{getTaskResultModel(task)}</strong>
               </div>
             </div>
@@ -378,7 +378,7 @@ function getTaskStageLabel(task: TaskRecord) {
     return "已完成";
   }
   if (task.taskStatus === "FAILED") {
-    return "执行失败";
+    return "鎵ц澶辫触";
   }
   if (task.taskStatus === "CANCELLED") {
     return "已取消";
@@ -396,7 +396,7 @@ function getTaskHeartbeatLabel(task: TaskRecord) {
   }
   const diffMs = Date.now() - updatedMs;
   if (diffMs < 2 * 60 * 1000) {
-    return "刚刚更新";
+    return "鍒氬垰鏇存柊";
   }
   if (diffMs < 10 * 60 * 1000) {
     return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`;
@@ -413,7 +413,7 @@ function getTaskFallbackLabel(task: TaskRecord) {
     ? readOutputStringArray(task.outputJson || {}, "attemptTrail")
     : extractAttemptOrder(task.errorMessage);
   if (attemptOrder.length > 1) {
-    return "失败前已切兜底";
+    return "失败前已切换兜底";
   }
   if (task.taskStatus === "QUEUED" || task.taskStatus === "RUNNING") {
     return "等待判断";
@@ -495,7 +495,7 @@ function extractAttemptOrder(message?: string) {
   }
   return raw
     .slice(index + marker.length)
-    .split(/；|;|\||,/)
+    .split(/[;|,，；]/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
@@ -515,3 +515,4 @@ const taskStageLabelMap: Record<string, string> = {
   VIDEO_PROVIDER_TASK_CREATED: "视频任务已提交三方",
   VIDEO_READY: "视频已完成",
 };
+

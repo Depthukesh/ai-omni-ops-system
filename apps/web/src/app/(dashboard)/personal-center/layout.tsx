@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -7,56 +7,16 @@ import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeRe
 import { buildPersonalCenterLoginPath, formatCollaboratorRoleLabel, getBrandDisplayName, isAuthFailure } from "./route-helpers";
 
 const routeItems = [
-  {
-    href: "/personal-center",
-    label: "概览",
-    description: "查看个人信息、订单、点数与作品总览",
-  },
-  {
-    href: "/personal-center/tasks",
-    label: "任务中心",
-    description: "查看当前用户的所有大模型任务与执行状态",
-  },
-  {
-    href: "/personal-center/orders",
-    label: "订单中心",
-    description: "查看会员订单、点数充值记录和当前订单状态",
-  },
-  {
-    href: "/personal-center/works",
-    label: "作品中心",
-    description: "查看当前用户沉淀的作品资产，并回跳到相关工作台继续处理",
-  },
-  {
-    href: "/personal-center/skills",
-    label: "技能中心",
-    description: "查看当前账号可使用的平台技能基线，并为后续个人覆盖层预留入口",
-  },
-  {
-    href: "/personal-center/third-party-platforms",
-    label: "第三方接口配置",
-    description: "按平台查看第三方接口地址、模型 ID、说明文档与当前账号的私有 API Key",
-  },
-  {
-    href: "/personal-center/openclaw",
-    label: "OpenClaw 安装",
-    description: "为当前品牌生成 MCP 正式安装令牌、复制配置片段并查看 Skill 使用说明",
-  },
-  {
-    href: "/personal-center/security",
-    label: "安全设置",
-    description: "查看当前浏览器登录态、品牌上下文与退出入口，并为后续密码与会话管理预留位置",
-  },
-  {
-    href: "/personal-center/team",
-    label: "团队协作",
-    description: "查看当前品牌、协作角色和品牌成员管理入口",
-  },
-  {
-    href: "/personal-center/invites",
-    label: "邀请通知",
-    description: "统一查看待处理、已接受、已过期和已撤回的品牌邀请",
-  },
+  { href: "/personal-center", label: "概览", description: "查看个人信息、订单、点数与作品摘要" },
+  { href: "/personal-center/tasks", label: "任务中心", description: "查看当前账号的任务状态、执行记录与失败重试入口" },
+  { href: "/personal-center/orders", label: "订单中心", description: "查看会员订单、点数充值记录与当前订单状态" },
+  { href: "/personal-center/works", label: "作品中心", description: "集中查看作品资产，并回跳到对应工作台继续处理" },
+  { href: "/personal-center/skills", label: "技能中心", description: "查看平台技能基线，并逐步支持账号级与品牌级覆盖配置" },
+  { href: "/personal-center/third-party-platforms", label: "第三方接口配置", description: "按平台管理接口地址、模型 ID、说明文档与当前账号的 API Key" },
+  { href: "/personal-center/openclaw", label: "OpenClaw 安装", description: "为当前品牌生成 MCP 正式安装令牌，并查看 Skill 使用说明" },
+  { href: "/personal-center/security", label: "安全设置", description: "查看当前登录态、品牌上下文与退出入口，后续扩展密码和会话管理" },
+  { href: "/personal-center/team", label: "团队协作", description: "查看品牌成员、协作角色与团队管理入口" },
+  { href: "/personal-center/invites", label: "邀请通知", description: "统一查看待处理、已接受、已过期和已撤回的品牌邀请" },
 ];
 
 export default function PersonalCenterLayout({ children }: { children: ReactNode }) {
@@ -106,7 +66,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
       setBrands(session?.brands || []);
       setCurrentBrandId(session?.currentBrandId || session?.brands?.[0]?.id || "");
       setDataSource("session");
-      setErrorMessage("账号信息暂时未从接口刷新，当前展示浏览器中已保存的登录态。");
+      setErrorMessage("账号信息暂时未能从接口刷新，当前展示的是浏览器里已保存的登录态。");
     }
 
     setIsLoading(false);
@@ -146,7 +106,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -166,7 +126,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
         <div className="panel-header">
           <div>
             <h2>个人中心工作区</h2>
-            <p className="panel-subtext">从单页聚合态切到可扩展的二级路由，当前已拆出任务、订单、作品、技能、安全、团队和邀请等独立工作区。</p>
+            <p className="panel-subtext">这里统一承接账号概览、任务、订单、作品、技能、安全、团队与邀请等独立工作区。</p>
           </div>
           <div className="personal-center-workspace-meta">
             <div className="workspace-status">
@@ -191,7 +151,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
                   {brands.length ? (
                     brands.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
+                        {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
                       </option>
                     ))
                   ) : (
@@ -220,3 +180,4 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
     </div>
   );
 }
+

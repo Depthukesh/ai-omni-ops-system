@@ -82,7 +82,7 @@ export default function PersonalCenterOrdersPage() {
     } else {
       setOrders(orderSeed);
       setDataSource("seed");
-      setErrorMessage("订单接口暂不可用，当前展示的是本地演示订单数据。");
+      setErrorMessage("订单接口暂时不可用，当前展示的是本地演示订单数据。");
     }
 
     setIsLoading(false);
@@ -120,7 +120,7 @@ export default function PersonalCenterOrdersPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -173,7 +173,7 @@ export default function PersonalCenterOrdersPage() {
       <div className="panel-header">
         <div>
           <h2>订单中心</h2>
-          <p className="panel-subtext">集中查看当前登录用户的会员订单和点数充值记录，并为后续积分、会员和作品链路预留订单基座。</p>
+          <p className="panel-subtext">集中查看当前账号的会员订单与点数充值记录，为后续积分、会员和作品链路提供统一账单入口。</p>
         </div>
         <span>{summary.total} 笔订单</span>
       </div>
@@ -199,7 +199,7 @@ export default function PersonalCenterOrdersPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -213,12 +213,12 @@ export default function PersonalCenterOrdersPage() {
         <article className="metric-card">
           <span>当前品牌上下文</span>
           <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
-          <p>当前订单仍按登录用户过滤；品牌维度的精细归属将在后续订单域正式扩展时继续补齐。</p>
+          <p>当前订单列表按登录账号过滤，品牌维度的更细归属会在后续账单域继续补齐。</p>
         </article>
         <article className="metric-card">
           <span>已支付</span>
           <strong>{summary.paid}</strong>
-          <p>包括会员购买成功和点数充值到账的订单。</p>
+          <p>包含会员购买成功和点数到账的订单。</p>
         </article>
         <article className="metric-card">
           <span>待支付</span>
@@ -228,7 +228,7 @@ export default function PersonalCenterOrdersPage() {
         <article className="metric-card">
           <span>筛选金额汇总</span>
           <strong>{summary.totalAmount.toFixed(2)} 元</strong>
-          <p>按当前筛选条件统计，便于快速查看最近消费情况。</p>
+          <p>按当前筛选条件汇总，便于快速查看最近消费情况。</p>
         </article>
       </div>
 
@@ -250,7 +250,7 @@ export default function PersonalCenterOrdersPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索订单号、订单类型、状态、会员等级、充值点数"
+            placeholder="搜索订单号、订单类型、状态、会员等级或充值点数"
           />
         </label>
       </div>
@@ -311,7 +311,7 @@ export default function PersonalCenterOrdersPage() {
               <div>
                 <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? `${item.membership || "会员"} 会员订单` : `${item.pointsAmount || 0} 点充值订单`}</strong>
                 <p className="personal-meta">
-                  {item.orderNo} · {item.orderType === "MEMBERSHIP_PURCHASE" ? "会员购买" : "点数充值"}
+                  {item.orderNo} 路 {item.orderType === "MEMBERSHIP_PURCHASE" ? "会员购买" : "点数充值"}
                 </p>
               </div>
               <span className={`archive-pill ${personalOrderStatusClassMap[item.orderStatus]}`}>{item.orderStatus}</span>
@@ -350,7 +350,7 @@ export default function PersonalCenterOrdersPage() {
           </article>
         ))}
         {!filteredOrders.length ? (
-          <p className="empty-state">当前没有匹配的订单记录，可先创建会员订单或点数充值订单。</p>
+          <p className="empty-state">当前没有匹配的订单记录，可以先创建会员订单或点数充值订单。</p>
         ) : null}
       </div>
     </section>
@@ -360,3 +360,4 @@ export default function PersonalCenterOrdersPage() {
 function sortByOrderUpdatedAtDesc(a: OrderRecord, b: OrderRecord) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
+

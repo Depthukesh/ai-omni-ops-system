@@ -8,11 +8,21 @@ const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const webRoot = path.join(projectRoot, "apps", "web");
 const runtimeRoot = path.join(projectRoot, ".runtime");
 const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
-const outLog = path.join(runtimeRoot, "web-3001.out.log");
-const errLog = path.join(runtimeRoot, "web-3001.err.log");
-const pidFile = path.join(runtimeRoot, "web-3001.pid");
-const port = 3001;
+const DEFAULT_PORT = 3001;
+const port = readPortFromEnv("WEB_PORT", DEFAULT_PORT);
+const outLog = path.join(runtimeRoot, `web-${port}.out.log`);
+const errLog = path.join(runtimeRoot, `web-${port}.err.log`);
+const pidFile = path.join(runtimeRoot, `web-${port}.pid`);
 const previewUrl = `http://localhost:${port}/brand-growth`;
+
+function readPortFromEnv(key, fallback) {
+  const raw = String(process.env[key] || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
 
 function ensureDirectory(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
@@ -168,7 +178,7 @@ async function main() {
   const existingStatusCode = await requestPage();
   if (await isPortOpen()) {
     throw new Error(
-      `检测到 3001 已被未托管进程占用，页面状态码：${existingStatusCode || "未知"}。请先释放端口后再重试。`,
+      `检测到 ${port} 已被未托管进程占用，页面状态码：${existingStatusCode || "未知"}。请先释放端口后再重试。`,
     );
   }
 

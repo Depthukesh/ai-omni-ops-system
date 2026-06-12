@@ -2,7 +2,18 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
-const pidFile = path.join(projectRoot, ".runtime", "web-3001.pid");
+const DEFAULT_PORT = 3001;
+const port = readPortFromEnv("WEB_PORT", DEFAULT_PORT);
+const pidFile = path.join(projectRoot, ".runtime", `web-${port}.pid`);
+
+function readPortFromEnv(key, fallback) {
+  const raw = String(process.env[key] || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
 
 function readPidFile() {
   try {
@@ -37,7 +48,7 @@ function isProcessAlive(pid) {
 function main() {
   const pid = readPidFile();
   if (!pid) {
-    console.log("未找到受管的 3001 前端进程。");
+    console.log(`未找到受管的 ${port} 前端进程。`);
     return;
   }
 
