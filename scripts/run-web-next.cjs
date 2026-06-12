@@ -4,8 +4,28 @@ const { spawn } = require("node:child_process");
 
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const webRoot = path.join(projectRoot, "apps", "web");
-const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
 const forwardedArgs = process.argv.slice(2);
+
+function resolveNextBin() {
+  const candidates = [
+    path.join(projectRoot, "node_modules", "next", "dist", "bin", "next"),
+    path.join(webRoot, "node_modules", "next", "dist", "bin", "next"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  try {
+    return require.resolve("next/dist/bin/next", { paths: [webRoot, projectRoot] });
+  } catch {
+    return candidates[0];
+  }
+}
+
+const nextBin = resolveNextBin();
 
 if (!forwardedArgs.length) {
   console.error("缺少 Next.js 命令参数，例如：build / start / lint");

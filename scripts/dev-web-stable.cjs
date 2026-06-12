@@ -7,13 +7,33 @@ const { spawn } = require("node:child_process");
 const projectRoot = fs.realpathSync.native(path.resolve(__dirname, ".."));
 const webRoot = path.join(projectRoot, "apps", "web");
 const runtimeRoot = path.join(projectRoot, ".runtime");
-const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
 const DEFAULT_PORT = 3001;
 const port = readPortFromEnv("WEB_PORT", DEFAULT_PORT);
 const outLog = path.join(runtimeRoot, `web-${port}.out.log`);
 const errLog = path.join(runtimeRoot, `web-${port}.err.log`);
 const pidFile = path.join(runtimeRoot, `web-${port}.pid`);
 const previewUrl = `http://localhost:${port}/brand-growth`;
+
+function resolveNextBin() {
+  const candidates = [
+    path.join(projectRoot, "node_modules", "next", "dist", "bin", "next"),
+    path.join(webRoot, "node_modules", "next", "dist", "bin", "next"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  try {
+    return require.resolve("next/dist/bin/next", { paths: [webRoot, projectRoot] });
+  } catch {
+    return candidates[0];
+  }
+}
+
+const nextBin = resolveNextBin();
 
 function readPortFromEnv(key, fallback) {
   const raw = String(process.env[key] || "").trim();
