@@ -77,7 +77,7 @@ export default function PersonalCenterWorksPage() {
     } else {
       setMedia(mediaSeed);
       setDataSource("seed");
-      setErrorMessage("作品接口暂不可用，当前展示的是本地演示作品数据。");
+      setErrorMessage("作品接口暂时不可用，当前展示的是本地演示作品数据。");
     }
 
     setIsLoading(false);
@@ -115,7 +115,7 @@ export default function PersonalCenterWorksPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -161,7 +161,7 @@ export default function PersonalCenterWorksPage() {
       <div className="panel-header">
         <div>
           <h2>作品中心</h2>
-          <p className="panel-subtext">集中查看当前登录用户沉淀下来的 HTML、图片、视频与文档资产，并优先承接小红书作品回跳闭环。</p>
+          <p className="panel-subtext">集中查看当前账号沉淀下来的 HTML、图片、视频与文档资产，并优先承接小红书作品回跳链路。</p>
         </div>
         <span>{summary.total} 个作品</span>
       </div>
@@ -187,7 +187,7 @@ export default function PersonalCenterWorksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -201,7 +201,7 @@ export default function PersonalCenterWorksPage() {
         <article className="metric-card">
           <span>当前品牌上下文</span>
           <strong>{getBrandDisplayName(currentBrand, currentBrandId)}</strong>
-          <p>当前作品列表仍按登录用户过滤；品牌内作品共享与更细权限边界后续继续扩展。</p>
+          <p>当前作品列表仍按登录账号过滤，品牌内作品共享与更细权限边界会继续扩展。</p>
         </article>
         <article className="metric-card">
           <span>小红书作品</span>
@@ -211,7 +211,7 @@ export default function PersonalCenterWorksPage() {
         <article className="metric-card">
           <span>HTML / 图片</span>
           <strong>{summary.html} / {summary.image}</strong>
-          <p>便于快速判断当前作品沉淀以文案稿为主，还是以封面和配图为主。</p>
+          <p>便于快速判断当前作品沉淀是以文稿页为主，还是以封面和配图为主。</p>
         </article>
         <article className="metric-card">
           <span>最近产出</span>
@@ -235,7 +235,7 @@ export default function PersonalCenterWorksPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索作品名称、类型、任务 ID、品牌 ID"
+            placeholder="搜索作品名称、类型、任务 ID 或品牌 ID"
           />
         </label>
       </div>
@@ -282,7 +282,7 @@ export default function PersonalCenterWorksPage() {
                   <div className="entity-card-head">
                     <div>
                       <strong>{item.title}</strong>
-                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} · {item.mimeType || "未记录 MIME"}</p>
+                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} 路 {item.mimeType || "未记录 MIME"}</p>
                     </div>
                     <div className="personal-actions">
                       <span className="archive-pill status-ready">{item.mediaType}</span>
@@ -303,7 +303,7 @@ export default function PersonalCenterWorksPage() {
             <div className="entity-card-head">
               <div>
                 <strong>其他作品资产</strong>
-                <p className="personal-meta">保留当前登录用户的其他 HTML、图片、视频与文档资产，便于后续扩展更多作品分类。</p>
+                <p className="personal-meta">保留当前登录账号的其他 HTML、图片、视频与文档资产，便于后续扩展更多作品分类。</p>
               </div>
               <span className="archive-pill status-in_progress">{otherMedia.length} 个资产</span>
             </div>
@@ -313,7 +313,7 @@ export default function PersonalCenterWorksPage() {
                   <div className="entity-card-head">
                     <div>
                       <strong>{item.title}</strong>
-                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} · {item.mimeType || "未记录 MIME"}</p>
+                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} 路 {item.mimeType || "未记录 MIME"}</p>
                     </div>
                     <div className="personal-actions">
                       <span className="archive-pill status-ready">{item.mediaType}</span>
@@ -403,3 +403,4 @@ function getMediaTypeLabel(type: MediaRecord["mediaType"]) {
   }
   return "HTML";
 }
+
