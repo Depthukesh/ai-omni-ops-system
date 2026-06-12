@@ -268,6 +268,58 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "create_xiaohongshu_mobile_draft_session",
+    description: "为指定小红书图文作品创建手机扫码接力草稿会话，便于在手机端保存到小红书草稿箱。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workId: { type: "string" },
+        accountId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_xiaohongshu_desktop_draft_session",
+    description: "为指定小红书图文作品创建电脑端草稿会话，便于通过浏览器扩展自动填充保存草稿。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workId: { type: "string" },
+        accountId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_douyin_mobile_publish_session",
+    description: "为指定抖音视频作品创建手机接力发布会话，便于在手机端继续完成发布。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workId: { type: "string" },
+        accountId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_douyin_desktop_publish_session",
+    description: "为指定抖音视频作品创建电脑端发布会话，便于通过浏览器扩展自动填充发布信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workId: { type: "string" },
+        accountId: { type: "string" },
+      },
+      required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "publish_wechat_workflow",
     description: "把指定公众号工作流正式发布到公众号账号。",
     inputSchema: {
@@ -1229,6 +1281,202 @@ export class OpenClawService {
       ],
       data: result,
       links: [{ label: "打开公众号发布记录", url: "/wechat" }],
+    });
+  }
+
+  async createXiaohongshuMobileDraftSession(
+    headers: HeadersMap,
+    options?: {
+      workId?: string;
+      accountId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+    await this.assertXiaohongshuPublishPermission(brandId, workId, auth);
+
+    const result = await this.publishingService.createXiaohongshuMobileDraftSession(brandId, workId, {
+      accountId: String(options?.accountId || "").trim() || undefined,
+    });
+    const mobileUrl = this.readNestedStringField(result as Record<string, unknown>, ["session", "mobileUrl"]);
+    const accountName = this.readNestedStringField(result as Record<string, unknown>, ["session", "accountName"]) || "未指定账号";
+    const title = this.readNestedStringField(result as Record<string, unknown>, ["session", "title"]) || "未命名作品";
+    const sessionToken = this.readNestedStringField(result as Record<string, unknown>, ["session", "token"]) || "未返回";
+    const expiresAt = this.readNestedStringField(result as Record<string, unknown>, ["session", "expiresAt"]) || "未返回";
+    const accessHint = this.readNestedStringField(result as Record<string, unknown>, ["session", "accessHint"]) || "请在手机端打开接力页完成保存。";
+
+    return this.buildSummaryResponse({
+      title: "已创建小红书手机草稿接力",
+      summary: `已为作品 ${workId} 创建手机扫码接力草稿会话，请在过期前打开接力页完成保存。`,
+      highlights: [
+        `作品标题：${title}`,
+        `发布账号：${accountName}`,
+        `会话令牌：${sessionToken}`,
+        `过期时间：${expiresAt}`,
+        accessHint,
+      ],
+      data: result,
+      links: [
+        ...(mobileUrl ? [{ label: "打开手机接力页", url: mobileUrl }] : []),
+        { label: "打开作品工作台", url: "/personal-center/works" },
+      ],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(mobileUrl ? [{ label: "打开手机接力页", action: "open_page" as const, target: mobileUrl }] : []),
+        { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: workId },
+      ],
+    });
+  }
+
+  async createXiaohongshuDesktopDraftSession(
+    headers: HeadersMap,
+    options?: {
+      workId?: string;
+      accountId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+    await this.assertXiaohongshuPublishPermission(brandId, workId, auth);
+
+    const result = await this.publishingService.createXiaohongshuDesktopDraftSession(brandId, workId, {
+      accountId: String(options?.accountId || "").trim() || undefined,
+    });
+    const creatorUrl = this.readNestedStringField(result as Record<string, unknown>, ["session", "creatorUrl"]);
+    const accountName = this.readNestedStringField(result as Record<string, unknown>, ["session", "accountName"]) || "未指定账号";
+    const title = this.readNestedStringField(result as Record<string, unknown>, ["session", "title"]) || "未命名作品";
+    const sessionToken = this.readNestedStringField(result as Record<string, unknown>, ["session", "token"]) || "未返回";
+    const expiresAt = this.readNestedStringField(result as Record<string, unknown>, ["session", "expiresAt"]) || "未返回";
+    const accessHint = this.readNestedStringField(result as Record<string, unknown>, ["session", "accessHint"]) || "请在电脑端打开创作者中心并使用浏览器扩展接力。";
+
+    return this.buildSummaryResponse({
+      title: "已创建小红书电脑端草稿接力",
+      summary: `已为作品 ${workId} 创建电脑端草稿接力，请在浏览器中打开创作者中心并完成自动填充。`,
+      highlights: [
+        `作品标题：${title}`,
+        `发布账号：${accountName}`,
+        `会话令牌：${sessionToken}`,
+        `过期时间：${expiresAt}`,
+        accessHint,
+      ],
+      data: result,
+      links: [
+        ...(creatorUrl ? [{ label: "打开小红书创作者中心", url: creatorUrl }] : []),
+        { label: "打开作品工作台", url: "/personal-center/works" },
+      ],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(creatorUrl ? [{ label: "打开创作者中心", action: "open_page" as const, target: creatorUrl }] : []),
+        { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: workId },
+      ],
+    });
+  }
+
+  async createDouyinMobilePublishSession(
+    headers: HeadersMap,
+    options?: {
+      workId?: string;
+      accountId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+    await this.assertDouyinPublishPermission(brandId, workId, auth);
+
+    const result = await this.publishingService.createDouyinMobilePublishSession(brandId, workId, {
+      accountId: String(options?.accountId || "").trim() || undefined,
+    });
+    const mobileUrl = this.readNestedStringField(result as Record<string, unknown>, ["session", "mobileUrl"]);
+    const accountName = this.readNestedStringField(result as Record<string, unknown>, ["session", "accountName"]) || "未指定账号";
+    const title = this.readNestedStringField(result as Record<string, unknown>, ["session", "title"]) || "未命名作品";
+    const sessionToken = this.readNestedStringField(result as Record<string, unknown>, ["session", "token"]) || "未返回";
+    const expiresAt = this.readNestedStringField(result as Record<string, unknown>, ["session", "expiresAt"]) || "未返回";
+    const accessHint = this.readNestedStringField(result as Record<string, unknown>, ["session", "accessHint"]) || "请在手机端打开接力页继续完成抖音发布。";
+
+    return this.buildSummaryResponse({
+      title: "已创建抖音手机发布接力",
+      summary: `已为作品 ${workId} 创建手机发布接力会话，请在手机端继续完成抖音发布。`,
+      highlights: [
+        `作品标题：${title}`,
+        `发布账号：${accountName}`,
+        `会话令牌：${sessionToken}`,
+        `过期时间：${expiresAt}`,
+        accessHint,
+      ],
+      data: result,
+      links: [
+        ...(mobileUrl ? [{ label: "打开手机发布页", url: mobileUrl }] : []),
+        { label: "打开作品工作台", url: "/personal-center/works" },
+      ],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(mobileUrl ? [{ label: "打开手机发布页", action: "open_page" as const, target: mobileUrl }] : []),
+        { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: workId },
+      ],
+    });
+  }
+
+  async createDouyinDesktopPublishSession(
+    headers: HeadersMap,
+    options?: {
+      workId?: string;
+      accountId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const workId = String(options?.workId || "").trim();
+    if (!workId) {
+      throw new BadRequestException("请提供 workId");
+    }
+    await this.assertDouyinPublishPermission(brandId, workId, auth);
+
+    const result = await this.publishingService.createDouyinDesktopPublishSession(brandId, workId, {
+      accountId: String(options?.accountId || "").trim() || undefined,
+    });
+    const creatorUrl = this.readNestedStringField(result as Record<string, unknown>, ["session", "creatorUrl"]);
+    const accountName = this.readNestedStringField(result as Record<string, unknown>, ["session", "accountName"]) || "未指定账号";
+    const title = this.readNestedStringField(result as Record<string, unknown>, ["session", "title"]) || "未命名作品";
+    const sessionToken = this.readNestedStringField(result as Record<string, unknown>, ["session", "token"]) || "未返回";
+    const expiresAt = this.readNestedStringField(result as Record<string, unknown>, ["session", "expiresAt"]) || "未返回";
+    const accessHint = this.readNestedStringField(result as Record<string, unknown>, ["session", "accessHint"]) || "请在电脑端打开抖音创作者中心并使用浏览器扩展接力。";
+
+    return this.buildSummaryResponse({
+      title: "已创建抖音电脑端发布接力",
+      summary: `已为作品 ${workId} 创建电脑端发布接力，请在创作者中心完成自动填充后继续发布。`,
+      highlights: [
+        `作品标题：${title}`,
+        `发布账号：${accountName}`,
+        `会话令牌：${sessionToken}`,
+        `过期时间：${expiresAt}`,
+        accessHint,
+      ],
+      data: result,
+      links: [
+        ...(creatorUrl ? [{ label: "打开抖音创作者中心", url: creatorUrl }] : []),
+        { label: "打开作品工作台", url: "/personal-center/works" },
+      ],
+      resultStatus: "IN_PROGRESS",
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(creatorUrl ? [{ label: "打开创作者中心", action: "open_page" as const, target: creatorUrl }] : []),
+        { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: workId },
+      ],
     });
   }
 
@@ -2694,6 +2942,28 @@ export class OpenClawService {
     return typeof current === "string" ? current : undefined;
   }
 
+  private async assertXiaohongshuPublishPermission(brandId: string, workId: string, auth: RequestAuthContext) {
+    const work = await this.worksService.getXiaohongshuPublishableWork(brandId, workId);
+    await this.authService.assertBrandPermission(
+      brandId,
+      work.workKind === "REWRITE" ? "xiaohongshu.remix" : "xiaohongshu.original",
+      "edit",
+      auth,
+    );
+    return work;
+  }
+
+  private async assertDouyinPublishPermission(brandId: string, workId: string, auth: RequestAuthContext) {
+    const work = await this.worksService.getDouyinPublishableWork(brandId, workId);
+    const permissionKey = work.workKind === "DIGITAL_HUMAN"
+      ? "douyin.digitalHuman"
+      : work.workKind === "VIDEO_DIRECT"
+        ? "douyin.videoDirect"
+        : "douyin.video";
+    await this.authService.assertBrandPermission(brandId, permissionKey, "edit", auth);
+    return work;
+  }
+
   private readToolArguments(value: unknown) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return {};
@@ -2781,6 +3051,26 @@ export class OpenClawService {
       case "publish_wechat_article":
         return this.publishWechatArticle(headers, {
           draftId: typeof toolArgs.draftId === "string" ? toolArgs.draftId : undefined,
+        });
+      case "create_xiaohongshu_mobile_draft_session":
+        return this.createXiaohongshuMobileDraftSession(headers, {
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
+        });
+      case "create_xiaohongshu_desktop_draft_session":
+        return this.createXiaohongshuDesktopDraftSession(headers, {
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
+        });
+      case "create_douyin_mobile_publish_session":
+        return this.createDouyinMobilePublishSession(headers, {
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
+        });
+      case "create_douyin_desktop_publish_session":
+        return this.createDouyinDesktopPublishSession(headers, {
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
         });
       case "publish_wechat_workflow":
         return this.publishWechatWorkflow(headers, {

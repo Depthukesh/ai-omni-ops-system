@@ -184,6 +184,38 @@ export class OpenClawController {
     return this.openClawService.publishWechatArticle(headers, { draftId });
   }
 
+  @Post("works/xiaohongshu/mobile-draft-session")
+  async createXiaohongshuMobileDraftSession(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: { workId?: string; accountId?: string },
+  ) {
+    return this.openClawService.createXiaohongshuMobileDraftSession(headers, payload);
+  }
+
+  @Post("works/xiaohongshu/desktop-draft-session")
+  async createXiaohongshuDesktopDraftSession(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: { workId?: string; accountId?: string },
+  ) {
+    return this.openClawService.createXiaohongshuDesktopDraftSession(headers, payload);
+  }
+
+  @Post("works/douyin/mobile-publish-session")
+  async createDouyinMobilePublishSession(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: { workId?: string; accountId?: string },
+  ) {
+    return this.openClawService.createDouyinMobilePublishSession(headers, payload);
+  }
+
+  @Post("works/douyin/desktop-publish-session")
+  async createDouyinDesktopPublishSession(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: { workId?: string; accountId?: string },
+  ) {
+    return this.openClawService.createDouyinDesktopPublishSession(headers, payload);
+  }
+
   @Post("wechat/workflows/:workflowId/publish")
   async publishWechatWorkflow(
     @Headers() headers: HeadersMap,
