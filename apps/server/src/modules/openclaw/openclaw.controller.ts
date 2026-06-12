@@ -192,12 +192,28 @@ export class OpenClawController {
     return this.openClawService.createXiaohongshuMobileDraftSession(headers, payload);
   }
 
+  @Get("works/xiaohongshu/mobile-draft-session/:token")
+  async getXiaohongshuMobileDraftSession(
+    @Headers() headers: HeadersMap,
+    @Param("token") token: string,
+  ) {
+    return this.openClawService.getXiaohongshuMobileDraftSession(headers, { token });
+  }
+
   @Post("works/xiaohongshu/desktop-draft-session")
   async createXiaohongshuDesktopDraftSession(
     @Headers() headers: HeadersMap,
     @Body() payload?: { workId?: string; accountId?: string },
   ) {
     return this.openClawService.createXiaohongshuDesktopDraftSession(headers, payload);
+  }
+
+  @Get("works/xiaohongshu/desktop-draft-session/:token")
+  async getXiaohongshuDesktopDraftSession(
+    @Headers() headers: HeadersMap,
+    @Param("token") token: string,
+  ) {
+    return this.openClawService.getXiaohongshuDesktopDraftSession(headers, { token });
   }
 
   @Post("works/douyin/mobile-publish-session")
@@ -208,12 +224,28 @@ export class OpenClawController {
     return this.openClawService.createDouyinMobilePublishSession(headers, payload);
   }
 
+  @Get("works/douyin/mobile-publish-session/:token")
+  async getDouyinMobilePublishSession(
+    @Headers() headers: HeadersMap,
+    @Param("token") token: string,
+  ) {
+    return this.openClawService.getDouyinMobilePublishSession(headers, { token });
+  }
+
   @Post("works/douyin/desktop-publish-session")
   async createDouyinDesktopPublishSession(
     @Headers() headers: HeadersMap,
     @Body() payload?: { workId?: string; accountId?: string },
   ) {
     return this.openClawService.createDouyinDesktopPublishSession(headers, payload);
+  }
+
+  @Get("works/douyin/desktop-publish-session/:token")
+  async getDouyinDesktopPublishSession(
+    @Headers() headers: HeadersMap,
+    @Param("token") token: string,
+  ) {
+    return this.openClawService.getDouyinDesktopPublishSession(headers, { token });
   }
 
   @Post("wechat/workflows/:workflowId/publish")

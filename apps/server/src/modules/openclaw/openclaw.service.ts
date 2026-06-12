@@ -281,6 +281,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_xiaohongshu_mobile_draft_session",
+    description: "查询指定小红书手机草稿接力会话的最新状态、入口和完成结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        token: { type: "string" },
+      },
+      required: ["token"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_xiaohongshu_desktop_draft_session",
     description: "为指定小红书图文作品创建电脑端草稿会话，便于通过浏览器扩展自动填充保存草稿。",
     inputSchema: {
@@ -290,6 +302,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         accountId: { type: "string" },
       },
       required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_xiaohongshu_desktop_draft_session",
+    description: "查询指定小红书电脑端草稿接力会话的最新状态、入口和完成结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        token: { type: "string" },
+      },
+      required: ["token"],
       additionalProperties: false,
     },
   },
@@ -307,6 +331,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
     },
   },
   {
+    name: "get_douyin_mobile_publish_session",
+    description: "查询指定抖音手机发布接力会话的最新状态、入口和完成结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        token: { type: "string" },
+      },
+      required: ["token"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_douyin_desktop_publish_session",
     description: "为指定抖音视频作品创建电脑端发布会话，便于通过浏览器扩展自动填充发布信息。",
     inputSchema: {
@@ -316,6 +352,18 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
         accountId: { type: "string" },
       },
       required: ["workId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_douyin_desktop_publish_session",
+    description: "查询指定抖音电脑端发布接力会话的最新状态、入口和完成结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        token: { type: "string" },
+      },
+      required: ["token"],
       additionalProperties: false,
     },
   },
@@ -1382,6 +1430,82 @@ export class OpenClawService {
     });
   }
 
+  async getXiaohongshuMobileDraftSession(
+    headers: HeadersMap,
+    options?: {
+      token?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const token = String(options?.token || "").trim();
+    if (!token) {
+      throw new BadRequestException("请提供 token");
+    }
+
+    const result = await this.publishingService.getXiaohongshuMobileDraftSession(token);
+    const session = (result as Record<string, unknown>).session as Record<string, unknown>;
+    const workId = this.readStringField(session, "workId");
+    if (workId) {
+      await this.assertXiaohongshuPublishPermission(brandId, workId, auth);
+    }
+    return this.buildPublishSessionSummary({
+      data: result,
+      platformLabel: "小红书",
+      channelLabel: "手机草稿接力",
+      workId,
+      title: this.readStringField(session, "title"),
+      accountName: this.readStringField(session, "accountName"),
+      token: this.readStringField(session, "token"),
+      status: this.readStringField(session, "status"),
+      expiresAt: this.readStringField(session, "expiresAt"),
+      completedAt: this.readStringField(session, "completedAt"),
+      note: this.readStringField(session, "note"),
+      accessHint: this.readStringField(session, "accessHint"),
+      primaryUrl: this.readStringField(session, "mobileUrl"),
+      primaryLabel: "打开手机接力页",
+      fallbackPageUrl: "/personal-center/works",
+    });
+  }
+
+  async getXiaohongshuDesktopDraftSession(
+    headers: HeadersMap,
+    options?: {
+      token?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const token = String(options?.token || "").trim();
+    if (!token) {
+      throw new BadRequestException("请提供 token");
+    }
+
+    const result = await this.publishingService.getXiaohongshuDesktopDraftSession(token);
+    const session = (result as Record<string, unknown>).session as Record<string, unknown>;
+    const workId = this.readStringField(session, "workId");
+    if (workId) {
+      await this.assertXiaohongshuPublishPermission(brandId, workId, auth);
+    }
+    return this.buildPublishSessionSummary({
+      data: result,
+      platformLabel: "小红书",
+      channelLabel: "电脑端草稿接力",
+      workId,
+      title: this.readStringField(session, "title"),
+      accountName: this.readStringField(session, "accountName"),
+      token: this.readStringField(session, "token"),
+      status: this.readStringField(session, "status"),
+      expiresAt: this.readStringField(session, "expiresAt"),
+      completedAt: this.readStringField(session, "completedAt"),
+      note: this.readStringField(session, "note"),
+      accessHint: this.readStringField(session, "accessHint"),
+      primaryUrl: this.readStringField(session, "creatorUrl"),
+      primaryLabel: "打开小红书创作者中心",
+      fallbackPageUrl: "/personal-center/works",
+    });
+  }
+
   async createDouyinMobilePublishSession(
     headers: HeadersMap,
     options?: {
@@ -1477,6 +1601,82 @@ export class OpenClawService {
         ...(creatorUrl ? [{ label: "打开创作者中心", action: "open_page" as const, target: creatorUrl }] : []),
         { label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: workId },
       ],
+    });
+  }
+
+  async getDouyinMobilePublishSession(
+    headers: HeadersMap,
+    options?: {
+      token?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const token = String(options?.token || "").trim();
+    if (!token) {
+      throw new BadRequestException("请提供 token");
+    }
+
+    const result = await this.publishingService.getDouyinMobilePublishSession(token);
+    const session = (result as Record<string, unknown>).session as Record<string, unknown>;
+    const workId = this.readStringField(session, "workId");
+    if (workId) {
+      await this.assertDouyinPublishPermission(brandId, workId, auth);
+    }
+    return this.buildPublishSessionSummary({
+      data: result,
+      platformLabel: "抖音",
+      channelLabel: "手机发布接力",
+      workId,
+      title: this.readStringField(session, "title"),
+      accountName: this.readStringField(session, "accountName"),
+      token: this.readStringField(session, "token"),
+      status: this.readStringField(session, "status"),
+      expiresAt: this.readStringField(session, "expiresAt"),
+      completedAt: this.readStringField(session, "completedAt"),
+      note: this.readStringField(session, "note"),
+      accessHint: this.readStringField(session, "accessHint"),
+      primaryUrl: this.readStringField(session, "mobileUrl"),
+      primaryLabel: "打开手机发布页",
+      fallbackPageUrl: "/personal-center/works",
+    });
+  }
+
+  async getDouyinDesktopPublishSession(
+    headers: HeadersMap,
+    options?: {
+      token?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    const token = String(options?.token || "").trim();
+    if (!token) {
+      throw new BadRequestException("请提供 token");
+    }
+
+    const result = await this.publishingService.getDouyinDesktopPublishSession(token);
+    const session = (result as Record<string, unknown>).session as Record<string, unknown>;
+    const workId = this.readStringField(session, "workId");
+    if (workId) {
+      await this.assertDouyinPublishPermission(brandId, workId, auth);
+    }
+    return this.buildPublishSessionSummary({
+      data: result,
+      platformLabel: "抖音",
+      channelLabel: "电脑端发布接力",
+      workId,
+      title: this.readStringField(session, "title"),
+      accountName: this.readStringField(session, "accountName"),
+      token: this.readStringField(session, "token"),
+      status: this.readStringField(session, "status"),
+      expiresAt: this.readStringField(session, "expiresAt"),
+      completedAt: this.readStringField(session, "completedAt"),
+      note: this.readStringField(session, "note"),
+      accessHint: this.readStringField(session, "accessHint"),
+      primaryUrl: this.readStringField(session, "creatorUrl"),
+      primaryLabel: "打开抖音创作者中心",
+      fallbackPageUrl: "/personal-center/works",
     });
   }
 
@@ -2942,6 +3142,68 @@ export class OpenClawService {
     return typeof current === "string" ? current : undefined;
   }
 
+  private buildPublishSessionSummary(payload: {
+    data: Record<string, unknown>;
+    platformLabel: string;
+    channelLabel: string;
+    workId?: string;
+    title?: string;
+    accountName?: string;
+    token?: string;
+    status?: string;
+    expiresAt?: string;
+    completedAt?: string;
+    note?: string;
+    accessHint?: string;
+    primaryUrl?: string;
+    primaryLabel: string;
+    fallbackPageUrl: string;
+  }) {
+    const normalizedStatus = payload.status === "SUCCESS" || payload.status === "FAILED" || payload.status === "QUEUED"
+      ? payload.status
+      : "QUEUED";
+    const resultStatus: OpenClawResultStatus = normalizedStatus === "SUCCESS"
+      ? "COMPLETED"
+      : normalizedStatus === "FAILED"
+        ? "ACTION_REQUIRED"
+        : "IN_PROGRESS";
+    const summary = normalizedStatus === "SUCCESS"
+      ? `${payload.platformLabel}${payload.channelLabel}已完成。`
+      : normalizedStatus === "FAILED"
+        ? `${payload.platformLabel}${payload.channelLabel}执行失败，请根据提示重新发起或手动处理。`
+        : `${payload.platformLabel}${payload.channelLabel}仍在等待完成，请继续前往目标端处理。`;
+
+    return this.buildSummaryResponse({
+      title: `${payload.platformLabel}${payload.channelLabel}状态`,
+      summary,
+      highlights: [
+        `状态：${normalizedStatus}`,
+        `作品标题：${payload.title || "未命名作品"}`,
+        `发布账号：${payload.accountName || "未指定账号"}`,
+        `会话令牌：${payload.token || "未返回"}`,
+        `过期时间：${payload.expiresAt || "未返回"}`,
+        payload.completedAt ? `完成时间：${payload.completedAt}` : "完成时间：未完成",
+        payload.note ? `结果备注：${payload.note}` : "结果备注：无",
+        payload.accessHint || "可继续打开目标端完成处理。",
+      ],
+      data: payload.data,
+      links: [
+        ...(payload.primaryUrl ? [{ label: payload.primaryLabel, url: payload.primaryUrl }] : []),
+        { label: "打开作品工作台", url: payload.fallbackPageUrl },
+      ],
+      resultStatus,
+      resourceKind: "publish_session",
+      nextActions: [
+        ...(payload.primaryUrl && normalizedStatus !== "SUCCESS"
+          ? [{ label: payload.primaryLabel, action: "open_page" as const, target: payload.primaryUrl }]
+          : []),
+        ...(payload.workId
+          ? [{ label: "回到对话继续确认结果", action: "continue_in_chat" as const, target: payload.workId }]
+          : []),
+      ],
+    });
+  }
+
   private async assertXiaohongshuPublishPermission(brandId: string, workId: string, auth: RequestAuthContext) {
     const work = await this.worksService.getXiaohongshuPublishableWork(brandId, workId);
     await this.authService.assertBrandPermission(
@@ -3057,20 +3319,36 @@ export class OpenClawService {
           workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
         });
+      case "get_xiaohongshu_mobile_draft_session":
+        return this.getXiaohongshuMobileDraftSession(headers, {
+          token: typeof toolArgs.token === "string" ? toolArgs.token : undefined,
+        });
       case "create_xiaohongshu_desktop_draft_session":
         return this.createXiaohongshuDesktopDraftSession(headers, {
           workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
+        });
+      case "get_xiaohongshu_desktop_draft_session":
+        return this.getXiaohongshuDesktopDraftSession(headers, {
+          token: typeof toolArgs.token === "string" ? toolArgs.token : undefined,
         });
       case "create_douyin_mobile_publish_session":
         return this.createDouyinMobilePublishSession(headers, {
           workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
         });
+      case "get_douyin_mobile_publish_session":
+        return this.getDouyinMobilePublishSession(headers, {
+          token: typeof toolArgs.token === "string" ? toolArgs.token : undefined,
+        });
       case "create_douyin_desktop_publish_session":
         return this.createDouyinDesktopPublishSession(headers, {
           workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
           accountId: typeof toolArgs.accountId === "string" ? toolArgs.accountId : undefined,
+        });
+      case "get_douyin_desktop_publish_session":
+        return this.getDouyinDesktopPublishSession(headers, {
+          token: typeof toolArgs.token === "string" ? toolArgs.token : undefined,
         });
       case "publish_wechat_workflow":
         return this.publishWechatWorkflow(headers, {
