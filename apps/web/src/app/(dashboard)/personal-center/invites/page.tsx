@@ -623,7 +623,7 @@ export default function PersonalCenterInvitesPage() {
             去团队协作页
           </Link>
         </div>
-        <table className="soft-table">
+        <table className="soft-table table-responsive-stack">
           <thead>
             <tr>
               <th>品牌</th>
@@ -637,12 +637,28 @@ export default function PersonalCenterInvitesPage() {
           <tbody>
             {filteredPendingInvites.map((item) => (
               <tr key={item.id}>
-                <td>{item.brandName}</td>
-                <td>{formatCollaboratorRoleLabel(item.role)}</td>
-                <td>{item.invitedByName}</td>
-                <td>{item.inviteAccount || "邀请链接"}</td>
-                <td>{formatDateTime(item.expiresAt)}</td>
                 <td>
+                  <span className="mobile-table-label">品牌</span>
+                  {item.brandName}
+                </td>
+                <td>
+                  <span className="mobile-table-label">角色</span>
+                  {formatCollaboratorRoleLabel(item.role)}
+                </td>
+                <td>
+                  <span className="mobile-table-label">邀请人</span>
+                  {item.invitedByName}
+                </td>
+                <td>
+                  <span className="mobile-table-label">邀请对象</span>
+                  {item.inviteAccount || "邀请链接"}
+                </td>
+                <td>
+                  <span className="mobile-table-label">过期时间</span>
+                  {formatDateTime(item.expiresAt)}
+                </td>
+                <td>
+                  <span className="mobile-table-label">操作</span>
                   <div className="table-action-row">
                     {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
                     <button
@@ -693,7 +709,7 @@ export default function PersonalCenterInvitesPage() {
           </div>
         ) : (
           <>
-            <table className="soft-table">
+            <table className="soft-table table-responsive-stack">
               <thead>
                 <tr>
                   <th>品牌</th>
@@ -708,18 +724,37 @@ export default function PersonalCenterInvitesPage() {
               <tbody>
                 {pagedInviteItems.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.brandName}</td>
-                    <td>{formatCollaboratorRoleLabel(item.role)}</td>
                     <td>
+                      <span className="mobile-table-label">品牌</span>
+                      {item.brandName}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">角色</span>
+                      {formatCollaboratorRoleLabel(item.role)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">状态</span>
                       <div className="table-status-stack">
                         <span>{item.status}</span>
                         {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
                       </div>
                     </td>
-                    <td>{item.invitedByName}</td>
-                    <td>{item.inviteAccount || "邀请链接"}</td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                    <td>{formatDateTime(item.revokedAt || item.expiresAt || item.createdAt)}</td>
+                    <td>
+                      <span className="mobile-table-label">邀请人</span>
+                      {item.invitedByName}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">邀请对象</span>
+                      {item.inviteAccount || "邀请链接"}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">创建时间</span>
+                      {formatDateTime(item.createdAt)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">更新时间</span>
+                      {formatDateTime(item.revokedAt || item.expiresAt || item.createdAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

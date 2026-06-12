@@ -758,7 +758,7 @@ export default function PersonalCenterTeamPage() {
       {canManageMembers ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
           <h3>待处理邀请</h3>
-          <table className="soft-table">
+          <table className="soft-table table-responsive-stack">
             <thead>
               <tr>
                 <th>邀请对象</th>
@@ -776,8 +776,12 @@ export default function PersonalCenterTeamPage() {
             <tbody>
               {invites.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.inviteAccount}</td>
                   <td>
+                    <span className="mobile-table-label">邀请对象</span>
+                    {item.inviteAccount}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">邀请链接</span>
                     <div style={{ display: "grid", gap: 8 }}>
                       <a href={item.inviteLink} target="_blank" rel="noreferrer">
                         打开邀请链接
@@ -792,14 +796,36 @@ export default function PersonalCenterTeamPage() {
                       </button>
                     </div>
                   </td>
-                  <td>{roleLabel(item.role)}</td>
-                  <td>{item.status}</td>
-                  <td>{item.isMatchedUser ? (item.inviteeNickname || item.inviteeMobile || item.inviteeEmail || item.inviteeUserId) : "未匹配到现有用户"}</td>
-                  <td>{item.invitedByName}</td>
-                  <td>{formatDateTime(item.createdAt)}</td>
-                  <td>{formatDateTime(item.expiresAt)}</td>
-                  <td>{item.note || "-"}</td>
                   <td>
+                    <span className="mobile-table-label">角色</span>
+                    {roleLabel(item.role)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">状态</span>
+                    {item.status}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">匹配用户</span>
+                    {item.isMatchedUser ? (item.inviteeNickname || item.inviteeMobile || item.inviteeEmail || item.inviteeUserId) : "未匹配到现有用户"}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">邀请人</span>
+                    {item.invitedByName}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">创建时间</span>
+                    {formatDateTime(item.createdAt)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">过期时间</span>
+                    {formatDateTime(item.expiresAt)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">备注</span>
+                    {item.note || "-"}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">操作</span>
                     {item.status === "PENDING" ? (
                       <button
                         type="button"
@@ -923,7 +949,7 @@ export default function PersonalCenterTeamPage() {
 
       <article className="light-data-panel" style={{ marginBottom: 16 }}>
         <h3>当前品牌成员</h3>
-        <table className="soft-table">
+        <table className="soft-table table-responsive-stack">
           <thead>
             <tr>
               <th>成员</th>
@@ -939,17 +965,34 @@ export default function PersonalCenterTeamPage() {
             {members.map((item) => (
               <tr key={item.id}>
                 <td>
+                  <span className="mobile-table-label">成员</span>
                   {item.nickname}
                   {item.isCurrentUser ? "（我）" : ""}
                   {item.isOwner ? " · 品牌主账号" : ""}
                 </td>
-                <td>{roleLabel(item.role)}</td>
-                <td>{memberStatusLabels[item.status] || item.status}</td>
-                <td>{item.mobile}</td>
-                <td>{item.email || "未记录"}</td>
-                <td>{formatDateTime(item.joinedAt)}</td>
+                <td>
+                  <span className="mobile-table-label">角色</span>
+                  {roleLabel(item.role)}
+                </td>
+                <td>
+                  <span className="mobile-table-label">状态</span>
+                  {memberStatusLabels[item.status] || item.status}
+                </td>
+                <td>
+                  <span className="mobile-table-label">手机号</span>
+                  {item.mobile}
+                </td>
+                <td>
+                  <span className="mobile-table-label">邮箱</span>
+                  {item.email || "未记录"}
+                </td>
+                <td>
+                  <span className="mobile-table-label">加入时间</span>
+                  {formatDateTime(item.joinedAt)}
+                </td>
                 {canManageMembers ? (
                   <td>
+                    <span className="mobile-table-label">管理</span>
                     {item.isOwner || item.isCurrentUser ? (
                       <span>当前版本不支持修改</span>
                     ) : (
@@ -1000,7 +1043,7 @@ export default function PersonalCenterTeamPage() {
       {canManageMembers ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
           <h3>品牌成员审计日志</h3>
-          <table className="soft-table">
+          <table className="soft-table table-responsive-stack">
             <thead>
               <tr>
                 <th>时间</th>
@@ -1013,11 +1056,26 @@ export default function PersonalCenterTeamPage() {
             <tbody>
               {auditLogs.map((item) => (
                 <tr key={item.id}>
-                  <td>{formatDateTime(item.createdAt)}</td>
-                  <td>{item.action}</td>
-                  <td>{item.summary}</td>
-                  <td>{item.operatorName}</td>
-                  <td>{item.targetUserName || item.targetUserId || item.targetInviteId || "-"}</td>
+                  <td>
+                    <span className="mobile-table-label">时间</span>
+                    {formatDateTime(item.createdAt)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">动作</span>
+                    {item.action}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">摘要</span>
+                    {item.summary}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">操作人</span>
+                    {item.operatorName}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">目标成员</span>
+                    {item.targetUserName || item.targetUserId || item.targetInviteId || "-"}
+                  </td>
                 </tr>
               ))}
               {!auditLogs.length ? (
