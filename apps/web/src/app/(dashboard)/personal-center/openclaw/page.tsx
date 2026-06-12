@@ -264,7 +264,39 @@ export default function PersonalCenterOpenClawPage() {
         </button>
       </div>
 
-      <div className="openclaw-top-docs" style={{ marginBottom: 16 }}>
+      <div className="personal-context-banner">
+        <div>
+          <strong>当前安装流程按“生成令牌 -> 复制 MCP 配置 -> 下载 Skill ZIP”执行</strong>
+          <p>
+            {workspace?.canManage
+              ? "品牌管理员可以在这里重置正式安装令牌，并把统一配置分发给成员。普通成员只需要复制片段完成接入。"
+              : "当前账号可以查看当前品牌的 MCP 配置和 Skill 安装说明；如需重置令牌，请联系品牌管理员。"}
+          </p>
+        </div>
+        <div className="personal-context-actions">
+          {workspace?.mcpUrl ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleCopy(workspace.mcpUrl, "mcp-url")}
+            >
+              {copiedKey === "mcp-url" ? "已复制地址" : "复制 MCP 地址"}
+            </button>
+          ) : null}
+          {workspace?.skillInstall?.downloadPath ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleDownloadSkillPackage()}
+              disabled={isDownloadingSkill}
+            >
+              {isDownloadingSkill ? "下载中..." : "下载 Skill ZIP"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="openclaw-doc-links" style={{ marginBottom: 16 }}>
         {(workspace?.docs || []).map((item) => (
           <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="secondary-button">
             {item.label}
@@ -299,6 +331,15 @@ export default function PersonalCenterOpenClawPage() {
             >
               {isTokenVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
             </button>
+                {rawToken ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleCopy(rawToken, "install-token")}
+                  >
+                    {copiedKey === "install-token" ? "已复制令牌" : "复制令牌"}
+                  </button>
+                ) : null}
           </div>
         </div>
       </div>
@@ -306,24 +347,45 @@ export default function PersonalCenterOpenClawPage() {
       {rawToken ? (
         <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
           完整安装令牌仅展示这一次，请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌。
-        </div>
+          <strong>完整安装令牌只会在本次生成后展示</strong>
+          <p>请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌；离开当前页面后不会再次展示完整值。</p>
+          <div className="personal-actions">
+            <button type="button" className="primary-button" onClick={() => void handleCopy(rawToken, "install-token-inline")}>
+              {copiedKey === "install-token-inline" ? "已复制令牌" : "立即复制完整令牌"}
+            </button>
+            <button type="button" className="secondary-button" onClick={handleToggleTokenVisibility}>
+              {tokenToggleLabel}
+            </button>
+          </div>
       ) : null}
 
       <div className="openclaw-layout">
         <article className="entity-card personal-card">
           <div className="entity-card-head">
+          <div className="entity-card-head">
             <div>
               <strong>MCP 安装配置</strong>
               <p className="personal-meta">面向正式环境，直接复制到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop 对应的 MCP 配置位置。</p>
             </div>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void handleCopy(activeSnippet, `snippet:${selectedTab}`)}
-              disabled={!activeSnippet}
-            >
-              {copiedKey === `snippet:${selectedTab}` ? "已复制" : "复制当前配置"}
-            </button>
+            <div className="personal-context-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleCopy(activeSnippet, `snippet:${selectedTab}`)}
+                disabled={!activeSnippet}
+              >
+                {copiedKey === `snippet:${selectedTab}` ? "已复制" : "复制当前配置"}
+              </button>
+              {rawToken ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleToggleTokenVisibility}
+                >
+                  {tokenToggleLabel}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="tab-switcher" style={{ marginBottom: 12 }}>

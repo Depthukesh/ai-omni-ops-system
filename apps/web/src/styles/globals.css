@@ -3341,6 +3341,81 @@ button {
   gap: 12px 14px;
 }
 
+.personal-center-panel .personal-split-layout {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.personal-center-panel .personal-context-banner {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px 16px;
+  flex-wrap: wrap;
+  border: 1px solid #e4e9f4;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 249, 254, 0.98) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    0 10px 22px rgba(21, 33, 60, 0.06);
+}
+
+.personal-center-panel .personal-context-banner strong,
+.personal-center-panel .personal-inline-hint strong,
+.personal-center-panel .empty-canvas-box strong {
+  display: block;
+  color: #22304a;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.personal-center-panel .personal-context-banner p,
+.personal-center-panel .personal-inline-hint,
+.personal-center-panel .empty-canvas-box p {
+  color: #5b6782;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.personal-center-panel .personal-context-banner p {
+  margin: 8px 0 0;
+  max-width: 60ch;
+}
+
+.personal-center-panel .personal-context-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.personal-center-panel .personal-inline-hint {
+  padding: 14px 16px;
+  border: 1px solid #e6ebf5;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.personal-center-panel .personal-inline-hint strong {
+  margin-bottom: 6px;
+}
+
+.personal-center-panel .empty-canvas-box p {
+  max-width: 48ch;
+  margin: 8px auto 0;
+}
+
+.personal-center-panel .empty-canvas-box .personal-actions {
+  justify-content: center;
+  margin-top: 16px;
+}
+
 .mobile-table-label {
   display: none;
   margin-bottom: 6px;
@@ -11135,6 +11210,14 @@ button {
 
   .personal-center-panel .metric-card strong {
     font-size: 26px;
+  }
+
+  .personal-center-panel .personal-split-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .personal-center-panel .personal-context-banner {
+    padding: 14px 16px;
   }
 
   .personal-center-panel .empty-canvas-box {

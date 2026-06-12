@@ -378,7 +378,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       <div className="panel-header">
         <div>
           <h2>第三方平台配置</h2>
-          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID 和说明文档；拥有该板块编辑权限的成员才可以维护品牌共享 API Key。</p>
+          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID 和说明文档；拥有该板块编辑权限的成员才可以维护品牌共享 API Key，并同步给当前品牌工作区使用。</p>
         </div>
         <span>{search.trim() ? `${filteredPlatforms.length}/${platforms.length}` : platforms.length} 个平台</span>
       </div>
@@ -451,7 +451,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)", gap: 16, marginTop: 16 }}>
+      <div className="personal-split-layout" style={{ gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)" }}>
         <div className="personal-list">
           {filteredPlatforms.map((platform) => (
             <button
@@ -496,7 +496,23 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               {isChanjingPlatform(platform) ? <p className="panel-subtext" style={{ marginTop: 12 }}>{getChanjingStatsSummary(platform)}</p> : null}
             </button>
           ))}
-          {!filteredPlatforms.length ? <div className="empty-canvas-box">暂无匹配平台，请调整搜索词。</div> : null}
+          {!filteredPlatforms.length ? (
+            <div className="empty-canvas-box">
+              <strong>没有找到匹配的平台</strong>
+              <p>{search.trim() ? "可以先清空搜索词，再从左侧平台清单里重新选择。" : "当前品牌暂时没有可展示的第三方平台配置，请稍后刷新后再试。"}</p>
+              <div className="personal-actions">
+                {search.trim() ? (
+                  <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                    清空搜索词
+                  </button>
+                ) : (
+                  <button type="button" className="secondary-button" onClick={() => void loadPage()} disabled={isLoading || isSwitchingBrand}>
+                    重新刷新
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {selectedPlatform && selectedDraft ? (
@@ -511,33 +527,50 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </span>
             </div>
 
-            <div className="personal-actions" style={{ marginBottom: 16 }}>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void handleSavePlatform(selectedPlatform.id)}
-                disabled={!canManage || !isDirty || savingPlatformId === selectedPlatform.id}
-              >
-                {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存品牌共享 API Key"}
-              </button>
+            <div className="personal-context-banner">
+              <div>
+                <strong>当前正在维护「{selectedPlatform.name}」的品牌共享配置</strong>
+                <p>
+                  {canManage
+                    ? isDirty
+                      ? "当前品牌共享 API Key 已有未保存修改。确认无误后保存，当前品牌下具备权限的成员会共用这份配置。"
+                      : "可以在这里校验当前品牌的共享 Key、默认模型和说明文档，再按需更新。"
+                    : "当前角色只有查看权限。你仍可核对平台基线、说明文档与已脱敏的品牌共享 Key。"}
+                </p>
+              </div>
+              <div className="personal-context-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void handleSavePlatform(selectedPlatform.id)}
+                  disabled={!canManage || !isDirty || savingPlatformId === selectedPlatform.id}
+                >
+                  {savingPlatformId === selectedPlatform.id ? "保存中..." : "保存品牌共享 API Key"}
+                </button>
+                {selectedPlatform.baseUrl ? (
+                  <a href={selectedPlatform.baseUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    打开第三方平台
+                  </a>
+                ) : null}
+                {selectedPlatform.tutorialUrl ? (
+                  <a href={selectedPlatform.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button">
+                    打开说明文档
+                  </a>
+                ) : null}
+              </div>
             </div>
 
             {!canManage ? (
-              <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-                当前角色没有第三方接口配置的编辑权限，只能查看平台基线与已脱敏的品牌共享 Key。
+              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                <strong>当前为只读模式</strong>
+                当前角色没有第三方接口配置的编辑权限，只能查看平台基线与已脱敏的品牌共享 Key。如需更新，请联系当前品牌管理员处理。
               </div>
             ) : null}
 
             <div className="personal-grid" style={{ marginBottom: 16 }}>
               <div>
                 <span>第三方平台链接</span>
-                {selectedPlatform.baseUrl ? (
-                  <a href={selectedPlatform.baseUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ width: "fit-content", marginTop: 8 }}>
-                    打开第三方平台
-                  </a>
-                ) : (
-                  <strong>-</strong>
-                )}
+                <strong style={{ wordBreak: "break-all" }}>{selectedPlatform.baseUrl || "-"}</strong>
               </div>
               <div>
                 <span>{getPlatformDefaultLabel(selectedPlatform)}</span>
@@ -553,7 +586,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
               </div>
             </div>
             {selectedPlatformIsChanjing ? (
-              <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
+              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                <strong>蝉镜同步摘要</strong>
                 {getChanjingStatsSummary(selectedPlatform)}
               </div>
             ) : null}
@@ -605,13 +639,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
 
               <div className="field">
                 <span>说明文档</span>
-                {selectedPlatform.tutorialUrl ? (
-                  <a href={selectedPlatform.tutorialUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ width: "fit-content" }}>
-                    打开说明文档
-                  </a>
-                ) : (
-                  <div className="personal-meta">未配置说明文档</div>
-                )}
+                <strong style={{ wordBreak: "break-all" }}>{selectedPlatform.tutorialUrl || "未配置说明文档"}</strong>
               </div>
 
               <label className="field">
@@ -622,7 +650,19 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
           </article>
         ) : (
           <div className="empty-canvas-box">
-            {search.trim() ? "暂无匹配平台，请先清空搜索词后再查看配置详情。" : "请选择左侧平台查看配置详情。"}
+            <strong>{search.trim() ? "当前搜索结果为空" : "请选择左侧平台查看配置详情"}</strong>
+            <p>{search.trim() ? "可以先清空搜索词，再从平台清单里重新选择需要维护的平台。" : "进入右侧详情后即可核对共享 Key、说明文档和当前品牌的同步状态。"}</p>
+            <div className="personal-actions">
+              {search.trim() ? (
+                <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                  清空搜索词
+                </button>
+              ) : (
+                <Link href="/personal-center" className="secondary-button">
+                  返回个人中心概览
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>

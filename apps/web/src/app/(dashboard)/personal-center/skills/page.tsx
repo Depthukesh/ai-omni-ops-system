@@ -370,6 +370,11 @@ export default function PersonalCenterSkillsPage() {
             placeholder="搜索分类、提示词名称、场景、slug、模型"
           />
         </label>
+        {search.trim() ? (
+          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+            清空搜索
+          </button>
+        ) : null}
         <div className="workspace-status">
           <span className="status-text">当前品牌：{currentBrand?.brandName || "未绑定品牌"}</span>
           <span className="status-text">{canManageCurrentBrandSkills ? "当前账号可管理该品牌技能库" : "当前账号仅可查看该品牌技能库"}</span>
@@ -389,7 +394,7 @@ export default function PersonalCenterSkillsPage() {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)", gap: 16, marginTop: 16 }}>
+      <div className="personal-split-layout" style={{ gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)" }}>
         <div className="personal-list">
           {groupedPromptLeaves.map((group) => (
             <article key={group.id} className="entity-card personal-card">
@@ -461,7 +466,7 @@ export default function PersonalCenterSkillsPage() {
                                     <strong>{item.skill.effectiveSkill.name}</strong>
                                   </div>
                                   <div>
-                                    <span>妯″瀷</span>
+                                    <span>模型</span>
                                     <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
                                   </div>
                                 </div>
@@ -476,7 +481,24 @@ export default function PersonalCenterSkillsPage() {
               ) : null}
             </article>
           ))}
-          {!groupedPromptLeaves.length ? <div className="empty-canvas-box">暂无匹配提示词，请调整搜索词或状态筛选。</div> : null}
+          {!groupedPromptLeaves.length ? (
+            <div className="empty-canvas-box">
+              <strong>没有找到匹配的提示词</strong>
+              <p>可以先清空搜索词，或切换状态筛选后重新查看当前品牌技能库。</p>
+              <div className="personal-actions">
+                {search.trim() ? (
+                  <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                    清空搜索词
+                  </button>
+                ) : null}
+                {statusFilter !== "ALL" ? (
+                  <button type="button" className="secondary-button" onClick={() => setStatusFilter("ALL")}>
+                    查看全部状态
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {selectedLeaf && selectedSkill && selectedPrompt && currentPromptDraft ? (
@@ -497,28 +519,48 @@ export default function PersonalCenterSkillsPage() {
               {selectedLeaf.leafDescription}
             </p>
 
-            <div className="personal-actions" style={{ marginBottom: 16 }}>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void handleSaveSkill(selectedSkill.id)}
-                disabled={!canManageCurrentBrandSkills || !isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
-              >
-                {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleResetSkill(selectedSkill.id)}
-                disabled={!canManageCurrentBrandSkills || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
-              >
-                {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
-              </button>
+            <div className="personal-context-banner">
+              <div>
+                <strong>当前正在编辑「{selectedLeaf.leafLabel}」所在技能</strong>
+                <p>
+                  {canManageCurrentBrandSkills
+                    ? isCurrentSkillDirty
+                      ? "当前技能下存在未保存修改。保存时会一并提交该执行技能下所有已变更提示词。"
+                      : "可以先检查模型、温度和内容，再决定是否覆盖当前品牌共享版本。"
+                    : "当前账号只有查看权限，可用来核对平台基线与当前品牌覆盖状态。"}
+                </p>
+              </div>
+              <div className="personal-context-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void handleSaveSkill(selectedSkill.id)}
+                  disabled={!canManageCurrentBrandSkills || !isCurrentSkillDirty || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+                >
+                  {savingSkillId === selectedSkill.id ? "保存中..." : "保存当前技能修改"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleResetSkill(selectedSkill.id)}
+                  disabled={!canManageCurrentBrandSkills || savingSkillId === selectedSkill.id || resettingSkillId === selectedSkill.id}
+                >
+                  {resettingSkillId === selectedSkill.id ? "重置中..." : "恢复平台基线"}
+                </button>
+              </div>
             </div>
 
-            <p className="personal-meta" style={{ marginBottom: 16 }}>
+            {!canManageCurrentBrandSkills ? (
+              <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+                <strong>当前为只读模式</strong>
+                当前账号不是该品牌管理员，无法直接保存或重置品牌技能库。如需调整，请切换到有权限的账号后再操作。
+              </div>
+            ) : null}
+
+            <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+              <strong>本次编辑范围</strong>
               当前正在编辑 1 条提示词；保存时会一并提交该执行技能下所有已修改提示词，并写入当前品牌共享技能库。当前提示词{isCurrentPromptDirty ? "已" : "未"}发生改动。
-            </p>
+            </div>
 
             <div className="personal-grid" style={{ marginBottom: 12 }}>
               <div>
@@ -614,7 +656,21 @@ export default function PersonalCenterSkillsPage() {
             </div>
           </article>
         ) : (
-          <div className="empty-canvas-box">请选择左侧提示词查看并编辑当前品牌版本。</div>
+          <div className="empty-canvas-box">
+            <strong>{search.trim() ? "当前搜索结果为空" : "请选择左侧提示词查看并编辑当前品牌版本"}</strong>
+            <p>{search.trim() ? "可以先清空搜索词，或切换状态筛选后重新定位需要编辑的提示词。" : "进入右侧详情后即可核对平台基线、品牌覆盖内容和当前技能的修改状态。"}</p>
+            <div className="personal-actions">
+              {search.trim() ? (
+                <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                  清空搜索词
+                </button>
+              ) : (
+                <Link href="/personal-center" className="secondary-button">
+                  返回个人中心概览
+                </Link>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </section>
