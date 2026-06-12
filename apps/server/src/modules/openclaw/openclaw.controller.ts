@@ -15,6 +15,26 @@ export class OpenClawController {
     return this.openClawService.handleMcpRpcRequest(headers, payload);
   }
 
+  @Get("website-functions")
+  async getWebsiteFunctionCatalog(
+    @Headers() headers: HeadersMap,
+    @Query("domainKey") domainKey?: string,
+    @Query("riskLevel") riskLevel?: string,
+  ) {
+    return this.openClawService.getWebsiteFunctionCatalog(headers, {
+      domainKey,
+      riskLevel,
+    });
+  }
+
+  @Get("website-functions/:functionKey")
+  async getWebsiteFunctionDetail(
+    @Headers() headers: HeadersMap,
+    @Param("functionKey") functionKey: string,
+  ) {
+    return this.openClawService.getWebsiteFunctionDetail(headers, { functionKey });
+  }
+
   @Get("context/current-brand")
   async getCurrentBrandContext(@Headers() headers: HeadersMap) {
     return this.openClawService.getCurrentBrandContext(headers);
@@ -90,6 +110,84 @@ export class OpenClawController {
     return this.openClawService.retryTask(headers, { taskId });
   }
 
+  @Post("tasks/:taskId/feedback")
+  async submitTaskResultFeedback(
+    @Headers() headers: HeadersMap,
+    @Param("taskId") taskId: string,
+    @Body() payload?: {
+      rating?: string;
+      adopted?: boolean;
+      comment?: string;
+      feedbackTags?: string[];
+      skillId?: string;
+      promptId?: string;
+      promptVersion?: string;
+      workId?: string;
+      editedOutput?: Record<string, unknown>;
+    },
+  ) {
+    return this.openClawService.submitTaskResultFeedback(headers, {
+      taskId,
+      rating: payload?.rating,
+      adopted: payload?.adopted,
+      comment: payload?.comment,
+      feedbackTags: payload?.feedbackTags,
+      skillId: payload?.skillId,
+      promptId: payload?.promptId,
+      promptVersion: payload?.promptVersion,
+      workId: payload?.workId,
+      editedOutput: payload?.editedOutput,
+    });
+  }
+
+  @Get("feedback/summary")
+  async getFeedbackSummary(
+    @Headers() headers: HeadersMap,
+    @Query("timeRange") timeRange?: string,
+    @Query("skillId") skillId?: string,
+    @Query("promptId") promptId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getFeedbackSummary(headers, {
+      timeRange,
+      skillId,
+      promptId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("feedback/analysis")
+  async getFeedbackAnalysis(
+    @Headers() headers: HeadersMap,
+    @Query("timeRange") timeRange?: string,
+    @Query("skillId") skillId?: string,
+    @Query("promptId") promptId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getFeedbackAnalysis(headers, {
+      timeRange,
+      skillId,
+      promptId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("feedback/optimization-suggestions")
+  async getPromptOptimizationSuggestions(
+    @Headers() headers: HeadersMap,
+    @Query("timeRange") timeRange?: string,
+    @Query("skillId") skillId?: string,
+    @Query("promptId") promptId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.openClawService.getPromptOptimizationSuggestions(headers, {
+      timeRange,
+      skillId,
+      promptId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get("knowledge-bases/recent-files")
   async getRecentKnowledgeFiles(
     @Headers() headers: HeadersMap,
@@ -110,6 +208,48 @@ export class OpenClawController {
     @Query("skillKey") skillKey?: string,
   ) {
     return this.openClawService.getSkillConfigSummary(headers, { skillKey });
+  }
+
+  @Get("skills/:skillId")
+  async getSkillConfigDetail(
+    @Headers() headers: HeadersMap,
+    @Param("skillId") skillId: string,
+  ) {
+    return this.openClawService.getSkillConfigDetail(headers, { skillId });
+  }
+
+  @Patch("skills/:skillId")
+  async updateSkillConfig(
+    @Headers() headers: HeadersMap,
+    @Param("skillId") skillId: string,
+    @Body() payload?: {
+      displayName?: string;
+      defaultModel?: string;
+      description?: string;
+      promptOverrides?: Array<{
+        promptId: string;
+        content?: string;
+        modelName?: string;
+        temperature?: number;
+        maxTokens?: number;
+      }>;
+    },
+  ) {
+    return this.openClawService.updateSkillConfig(headers, {
+      skillId,
+      displayName: payload?.displayName,
+      defaultModel: payload?.defaultModel,
+      description: payload?.description,
+      promptOverrides: payload?.promptOverrides,
+    });
+  }
+
+  @Post("skills/:skillId/reset")
+  async resetSkillToPlatformBaseline(
+    @Headers() headers: HeadersMap,
+    @Param("skillId") skillId: string,
+  ) {
+    return this.openClawService.resetSkillToPlatformBaseline(headers, { skillId });
   }
 
   @Get("wechat/drafts")

@@ -625,6 +625,35 @@ model Task {
   @@index([taskStatus, createdAt])
 }
 
+model AiResultFeedback {
+  id               String   @id @default(cuid())
+  userId           String
+  brandId          String?
+  taskId           String?
+  workId           String?
+  skillId          String?
+  promptId         String?
+  promptVersion    String?
+  rating           String
+  adopted          Boolean?
+  feedbackTagsJson Json?
+  comment          String?
+  editedOutputJson Json?
+  taskType         String?
+  taskTitle        String?
+  promptName       String?
+  modelName        String?
+  source           String   @default("USER")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([brandId, createdAt])
+  @@index([taskId, createdAt])
+  @@index([skillId, createdAt])
+  @@index([promptId, createdAt])
+  @@index([rating, createdAt])
+}
+
 model MediaAsset {
   id                  String       @id @default(cuid())
   userId              String

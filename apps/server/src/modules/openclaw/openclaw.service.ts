@@ -6,6 +6,7 @@ import {
   BrandsService,
 } from "../brands/brands.service";
 import { CollectorsService } from "../collectors/collectors.service";
+import { FeedbackService } from "../feedback/feedback.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 import { PublishingService } from "../publishing/publishing.service";
 import { ReportsService } from "../reports/reports.service";
@@ -58,12 +59,159 @@ type OpenClawMcpToolDefinition = {
   inputSchema: Record<string, unknown>;
 };
 
+type OpenClawWebsiteFunctionRiskLevel = "low" | "medium" | "high";
+
+type OpenClawWebsiteFunctionCatalogItem = {
+  key: string;
+  domainKey: string;
+  domainName: string;
+  name: string;
+  summary: string;
+  pageUrl: string;
+  pageLabel: string;
+  riskLevel: OpenClawWebsiteFunctionRiskLevel;
+  requiredInputs: string[];
+  recommendedQuestions: string[];
+  mcpTools: string[];
+};
+
 const OPENCLAW_MCP_SERVER_INFO = {
   name: "ai-omni-ops-openclaw-mcp-http",
   version: "0.2.0",
 };
 
+const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = [
+  {
+    key: "brand_context_overview",
+    domainKey: "brand_growth",
+    domainName: "品牌增长",
+    name: "查看品牌上下文与任务概况",
+    summary: "适合先了解当前品牌、最近任务、失败分布和增长报告重点。",
+    pageUrl: "/brand-growth",
+    pageLabel: "打开品牌增长工作台",
+    riskLevel: "low",
+    requiredInputs: ["当前品牌"],
+    recommendedQuestions: ["帮我看当前品牌最近的任务概况", "帮我总结最近失败任务主要卡在哪些问题上"],
+    mcpTools: ["get_current_brand_context", "get_recent_tasks_summary", "get_failed_tasks_summary", "create_brand_growth_report"],
+  },
+  {
+    key: "knowledge_base_management",
+    domainKey: "brand_assets",
+    domainName: "品牌资产",
+    name: "创建知识库并管理资料",
+    summary: "适合通过对话创建品牌知识库、上传资料并查看最近知识文件。",
+    pageUrl: "/brand-growth/business-assets",
+    pageLabel: "打开知识库",
+    riskLevel: "medium",
+    requiredInputs: ["知识库名称", "资料文件或资料说明"],
+    recommendedQuestions: ["帮我创建一个品牌知识库", "把这份资料加入当前品牌知识库"],
+    mcpTools: ["create_knowledge_base", "upload_knowledge_base_files", "get_recent_knowledge_files"],
+  },
+  {
+    key: "skill_configuration_control",
+    domainKey: "skill_center",
+    domainName: "技能中心",
+    name: "查看并调整品牌技能配置",
+    summary: "适合查看网站技能当前生效配置、调整品牌级覆盖或恢复平台基线。",
+    pageUrl: "/skills",
+    pageLabel: "打开技能中心",
+    riskLevel: "high",
+    requiredInputs: ["skillId 或技能名称", "修改目标"],
+    recommendedQuestions: ["帮我看当前品牌小红书技能用的是什么配置", "把这个技能恢复到平台基线"],
+    mcpTools: ["get_skill_config_summary", "get_skill_config_detail", "update_skill_config", "reset_skill_to_platform_baseline"],
+  },
+  {
+    key: "xiaohongshu_content_production",
+    domainKey: "xiaohongshu",
+    domainName: "小红书",
+    name: "生成原创或二创笔记",
+    summary: "适合围绕品牌产品、选题模板和素材库生成小红书内容。",
+    pageUrl: "/xiaohongshu",
+    pageLabel: "打开小红书工作区",
+    riskLevel: "medium",
+    requiredInputs: ["产品或主题", "账号或发布方向"],
+    recommendedQuestions: ["帮我生成一篇小红书原创笔记", "帮我基于最近素材做一篇二创笔记"],
+    mcpTools: ["get_xiaohongshu_marketing_calendar_options", "get_xiaohongshu_original_reference_templates", "get_recent_xiaohongshu_original_works", "create_xiaohongshu_original_note", "get_xiaohongshu_material_library_items", "create_xiaohongshu_rewrite_note"],
+  },
+  {
+    key: "douyin_copy_production",
+    domainKey: "douyin",
+    domainName: "抖音",
+    name: "生成抖音原创或二创文案",
+    summary: "适合围绕抖音账号、产品和主题生成原创或二创文案。",
+    pageUrl: "/douyin",
+    pageLabel: "打开抖音工作台",
+    riskLevel: "medium",
+    requiredInputs: ["产品或主题", "账号或内容方向"],
+    recommendedQuestions: ["帮我生成一条抖音原创文案", "帮我做一条抖音二创文案"],
+    mcpTools: ["get_douyin_original_copy_options", "get_recent_douyin_original_copies", "create_douyin_original_copy", "get_douyin_remix_copy_options", "get_recent_douyin_remix_copies", "create_douyin_remix_copy"],
+  },
+  {
+    key: "wechat_workflow_control",
+    domainKey: "wechat",
+    domainName: "公众号",
+    name: "创建公众号内容并跟踪发布",
+    summary: "适合查看草稿、账号、工作流会话、发布准备状态和发布结果。",
+    pageUrl: "/wechat",
+    pageLabel: "打开公众号工作台",
+    riskLevel: "high",
+    requiredInputs: ["公众号主题或草稿", "账号或发布目标"],
+    recommendedQuestions: ["帮我看最近的公众号草稿", "帮我把这个公众号草稿正式发布"],
+    mcpTools: ["get_wechat_article_drafts", "get_wechat_official_accounts", "get_wechat_workflow_sessions", "get_wechat_publish_history", "check_wechat_workflow_publish_readiness", "publish_wechat_article", "publish_wechat_workflow"],
+  },
+  {
+    key: "design_workspace_control",
+    domainKey: "design",
+    domainName: "设计工作台",
+    name: "生成设计作品并查看结果",
+    summary: "适合通过对话发起图片、HTML、PPT 等设计任务并查看最近作品。",
+    pageUrl: "/more-features/design",
+    pageLabel: "打开设计工作台",
+    riskLevel: "medium",
+    requiredInputs: ["设计目标", "素材或风格要求"],
+    recommendedQuestions: ["帮我生成一张活动海报", "帮我看最近的设计作品结果"],
+    mcpTools: ["get_design_workspace_options", "get_recent_design_works", "create_design_work"],
+  },
+  {
+    key: "task_feedback_and_tracking",
+    domainKey: "task_center",
+    domainName: "任务中心",
+    name: "跟踪任务并提交结果反馈",
+    summary: "适合查看任务详情、取消重试任务并记录结果反馈。",
+    pageUrl: "/brand-growth/tasks",
+    pageLabel: "打开任务中心",
+    riskLevel: "medium",
+    requiredInputs: ["taskId", "反馈内容或重试原因"],
+    recommendedQuestions: ["帮我看这个任务现在怎么样了", "帮我记录这次生成结果不满意的原因"],
+    mcpTools: ["get_task_detail", "cancel_task", "retry_task", "submit_task_result_feedback", "get_feedback_summary", "get_feedback_analysis"],
+  },
+];
+
 const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
+  {
+    name: "get_website_function_catalog",
+    description: "查看当前网站可由 Skill 控制的功能目录，包括业务域、页面入口、风险级别和推荐使用的 MCP tools。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        domainKey: { type: "string" },
+        riskLevel: { type: "string", description: "可选：low、medium、high。" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_website_function_detail",
+    description: "查看指定网站功能的详细控制说明，包括页面入口、必需信息、推荐追问和对应工具。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        functionKey: { type: "string" },
+      },
+      required: ["functionKey"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "get_current_brand_context",
     description: "获取当前登录账号的默认品牌、角色和权限摘要。",
@@ -172,6 +320,123 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       type: "object",
       properties: {
         skillKey: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_skill_config_detail",
+    description: "查看指定网站技能的有效配置、关联提示词以及品牌覆盖详情。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skillId: { type: "string" },
+      },
+      required: ["skillId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_skill_config",
+    description: "更新指定网站技能的品牌级配置与提示词覆盖，让后续网页生成直接使用新的有效设置。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skillId: { type: "string" },
+        displayName: { type: "string" },
+        defaultModel: { type: "string" },
+        description: { type: "string" },
+        promptOverrides: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              promptId: { type: "string" },
+              content: { type: "string" },
+              modelName: { type: "string" },
+              temperature: { type: "number" },
+              maxTokens: { type: "integer" },
+            },
+            required: ["promptId"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["skillId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "reset_skill_to_platform_baseline",
+    description: "把指定网站技能恢复到平台基线配置，移除品牌级技能和提示词覆盖。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skillId: { type: "string" },
+      },
+      required: ["skillId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "submit_task_result_feedback",
+    description: "为指定任务提交生成结果反馈，记录满意度、问题标签、备注和人工修改结果。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        rating: { type: "string", description: "仅支持 positive、neutral、negative。" },
+        adopted: { type: "boolean" },
+        comment: { type: "string" },
+        feedbackTags: { type: "array", items: { type: "string" } },
+        skillId: { type: "string" },
+        promptId: { type: "string" },
+        promptVersion: { type: "string" },
+        workId: { type: "string" },
+        editedOutput: { type: "object" },
+      },
+      required: ["taskId", "rating"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_feedback_summary",
+    description: "查看当前品牌最近的生成结果反馈摘要，可按技能或提示词筛选。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        timeRange: { type: "string", description: "可选，例如 7d、30d、90d。" },
+        skillId: { type: "string" },
+        promptId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_feedback_analysis",
+    description: "查看当前品牌生成结果反馈的问题画像，识别高频问题标签和负向任务类型。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        timeRange: { type: "string", description: "可选，例如 7d、30d、90d。" },
+        skillId: { type: "string" },
+        promptId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_prompt_optimization_suggestions",
+    description: "基于当前品牌已收集的反馈，输出针对技能或提示词的最小优化建议摘要。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        timeRange: { type: "string", description: "可选，例如 7d、30d、90d。" },
+        skillId: { type: "string" },
+        promptId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
       },
       additionalProperties: false,
     },
@@ -666,6 +931,7 @@ export class OpenClawService {
     private readonly tasksService: TasksService,
     private readonly brandsService: BrandsService,
     private readonly collectorsService: CollectorsService,
+    private readonly feedbackService: FeedbackService,
     private readonly publishingService: PublishingService,
     private readonly reportsService: ReportsService,
     private readonly userSkillsService: UserSkillsService,
@@ -749,6 +1015,81 @@ export class OpenClawService {
         items,
       },
       links: [{ label: "打开品牌档案", url: "/brand-growth/archive" }],
+    });
+  }
+
+  async getWebsiteFunctionCatalog(
+    headers: HeadersMap,
+    options?: {
+      domainKey?: string;
+      riskLevel?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const domainKey = this.normalizeOptionalString(options?.domainKey);
+    const riskLevel = this.normalizeOptionalString(options?.riskLevel);
+    const items = OPENCLAW_WEBSITE_FUNCTION_CATALOG.filter((item) =>
+      (!domainKey || item.domainKey === domainKey)
+      && (!riskLevel || item.riskLevel === riskLevel));
+    const domains = Array.from(new Map(items.map((item) => [item.domainKey, item.domainName])).entries())
+      .map(([key, name]) => ({ key, name }));
+
+    return this.buildSummaryResponse({
+      title: "网站功能目录",
+      summary: items.length
+        ? `当前共有 ${items.length} 个可由 Skill 控制的网站功能，覆盖 ${domains.length} 个业务域。`
+        : "当前筛选条件下没有匹配到可控网站功能。",
+      highlights: items.length
+        ? items.slice(0, 6).map((item) => `${item.domainName}｜${item.name}｜${item.riskLevel}`)
+        : ["功能数：0"],
+      data: {
+        domains,
+        items,
+      },
+      links: [{ label: "打开 OpenClaw 安装页", url: "/personal-center/openclaw" }],
+      resourceKind: "website_function_catalog",
+    });
+  }
+
+  async getWebsiteFunctionDetail(
+    headers: HeadersMap,
+    options?: {
+      functionKey?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const functionKey = String(options?.functionKey || "").trim();
+    if (!functionKey) {
+      throw new BadRequestException("请提供 functionKey");
+    }
+
+    const item = OPENCLAW_WEBSITE_FUNCTION_CATALOG.find((candidate) => candidate.key === functionKey);
+    if (!item) {
+      throw new BadRequestException("未找到对应的网站功能");
+    }
+
+    return this.buildSummaryResponse({
+      title: `${item.name} 控制说明`,
+      summary: `${item.name} 属于${item.domainName}域，建议由 Skill 先补齐必需信息，再调用对应 MCP tools，必要时回到网站页面继续处理。`,
+      highlights: [
+        `业务域：${item.domainName}`,
+        `风险级别：${item.riskLevel}`,
+        `页面入口：${item.pageUrl}`,
+        `对应工具：${item.mcpTools.join("、")}`,
+      ],
+      data: item,
+      links: [{ label: item.pageLabel, url: item.pageUrl }],
+      resourceKind: "website_function",
+      nextActions: [
+        { label: item.pageLabel, action: "open_page", target: item.pageUrl },
+        { label: "继续在对话中执行", action: "continue_in_chat", target: item.key },
+      ],
     });
   }
 
@@ -1089,6 +1430,318 @@ export class OpenClawService {
         items,
       },
       links: [{ label: "打开技能中心", url: "/skills" }],
+    });
+  }
+
+  async getSkillConfigDetail(
+    headers: HeadersMap,
+    options?: {
+      skillId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const skillId = String(options?.skillId || "").trim();
+    if (!skillId) {
+      throw new BadRequestException("请提供 skillId");
+    }
+
+    const skill = await this.userSkillsService.getUserSkill(skillId, { ...auth, brandId });
+    return this.buildSummaryResponse({
+      title: `${skill.effectiveSkill.name} 技能配置详情`,
+      summary: `${skill.effectiveSkill.name} 当前${skill.isCustomized ? "存在品牌级定制" : "沿用平台基线"}，共关联 ${skill.prompts.length} 条提示词。`,
+      highlights: [
+        `默认模型：${skill.effectiveSkill.defaultModel || "未设置"}`,
+        `描述：${skill.effectiveSkill.description || "未设置"}`,
+        `最近重置：${skill.lastResetAt || "暂无"}`,
+        ...skill.prompts.slice(0, 3).map((item) =>
+          `${item.effectivePrompt.name}：${item.isCustomized ? "已覆盖" : "基线"} / ${item.effectivePrompt.modelName}`),
+      ],
+      data: skill,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resourceKind: "skill_config",
+    });
+  }
+
+  async updateSkillConfig(
+    headers: HeadersMap,
+    options?: {
+      skillId?: string;
+      displayName?: string;
+      defaultModel?: string;
+      description?: string;
+      promptOverrides?: Array<{
+        promptId: string;
+        content?: string;
+        modelName?: string;
+        temperature?: number;
+        maxTokens?: number;
+      }>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAdminAccess(brandId, auth);
+
+    const skillId = String(options?.skillId || "").trim();
+    if (!skillId) {
+      throw new BadRequestException("请提供 skillId");
+    }
+
+    const skill = await this.userSkillsService.updateUserSkill(
+      skillId,
+      {
+        displayName: this.normalizeOptionalString(options?.displayName),
+        defaultModel: this.normalizeOptionalString(options?.defaultModel),
+        description: this.normalizeOptionalString(options?.description),
+        promptOverrides: (options?.promptOverrides || [])
+          .map((item) => ({
+            promptId: String(item.promptId || "").trim(),
+            content: this.normalizeOptionalString(item.content),
+            modelName: this.normalizeOptionalString(item.modelName),
+            temperature: typeof item.temperature === "number" ? item.temperature : null,
+            maxTokens: typeof item.maxTokens === "number" ? item.maxTokens : null,
+          }))
+          .filter((item) => item.promptId),
+      },
+      { ...auth, brandId },
+    );
+
+    return this.buildSummaryResponse({
+      title: `${skill.effectiveSkill.name} 技能配置已更新`,
+      summary: "品牌级技能配置与提示词覆盖已保存，后续网页生成会直接使用新的有效配置。",
+      highlights: [
+        `技能名称：${skill.effectiveSkill.name}`,
+        `默认模型：${skill.effectiveSkill.defaultModel || "未设置"}`,
+        `品牌定制：${skill.isCustomized ? "已启用" : "未启用"}`,
+        `提示词数：${skill.prompts.length}`,
+      ],
+      data: skill,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "skill_config",
+      nextActions: [
+        { label: "打开技能中心复核", action: "open_page", target: "/skills" },
+        { label: "继续在对话中生成内容", action: "continue_in_chat", target: skill.id },
+      ],
+    });
+  }
+
+  async resetSkillToPlatformBaseline(
+    headers: HeadersMap,
+    options?: {
+      skillId?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAdminAccess(brandId, auth);
+
+    const skillId = String(options?.skillId || "").trim();
+    if (!skillId) {
+      throw new BadRequestException("请提供 skillId");
+    }
+
+    const skill = await this.userSkillsService.resetUserSkill(skillId, { ...auth, brandId });
+    return this.buildSummaryResponse({
+      title: `${skill.effectiveSkill.name} 已恢复平台基线`,
+      summary: "品牌级技能覆盖和提示词覆盖已清空，后续网页生成会重新使用平台默认配置。",
+      highlights: [
+        `技能名称：${skill.effectiveSkill.name}`,
+        `默认模型：${skill.effectiveSkill.defaultModel || "未设置"}`,
+        `品牌定制：${skill.isCustomized ? "仍有定制" : "已恢复基线"}`,
+        `最近重置：${skill.lastResetAt || "刚刚完成"}`,
+      ],
+      data: skill,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "skill_config",
+      nextActions: [
+        { label: "打开技能中心复核", action: "open_page", target: "/skills" },
+        { label: "继续在对话中生成内容", action: "continue_in_chat", target: skill.id },
+      ],
+    });
+  }
+
+  async submitTaskResultFeedback(
+    headers: HeadersMap,
+    options?: {
+      taskId?: string;
+      rating?: string;
+      adopted?: boolean;
+      comment?: string;
+      feedbackTags?: string[];
+      skillId?: string;
+      promptId?: string;
+      promptVersion?: string;
+      workId?: string;
+      editedOutput?: Record<string, unknown>;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const taskId = String(options?.taskId || "").trim();
+    if (!taskId) {
+      throw new BadRequestException("请提供 taskId");
+    }
+
+    const feedback = await this.feedbackService.submitTaskFeedback(taskId, {
+      rating: String(options?.rating || "").trim(),
+      adopted: typeof options?.adopted === "boolean" ? options.adopted : null,
+      comment: this.normalizeOptionalString(options?.comment),
+      feedbackTags: Array.isArray(options?.feedbackTags)
+        ? options?.feedbackTags.map((item) => String(item || "").trim()).filter(Boolean)
+        : [],
+      skillId: this.normalizeOptionalString(options?.skillId),
+      promptId: this.normalizeOptionalString(options?.promptId),
+      promptVersion: this.normalizeOptionalString(options?.promptVersion),
+      workId: this.normalizeOptionalString(options?.workId),
+      editedOutput: options?.editedOutput && typeof options.editedOutput === "object" && !Array.isArray(options.editedOutput)
+        ? options.editedOutput
+        : null,
+    }, auth);
+
+    return this.buildSummaryResponse({
+      title: "任务结果反馈已记录",
+      summary: `已为任务 ${taskId} 记录结果反馈，后续可用于技能与提示词优化分析。`,
+      highlights: [
+        `反馈评级：${feedback.rating}`,
+        `是否采纳：${feedback.adopted === true ? "已采纳" : feedback.adopted === false ? "未采纳" : "未说明"}`,
+        feedback.feedbackTags.length ? `问题标签：${feedback.feedbackTags.join("、")}` : "问题标签：未填写",
+        feedback.comment ? `反馈备注：${feedback.comment}` : "反馈备注：未填写",
+      ],
+      data: feedback,
+      links: [{ label: "打开任务中心", url: "/brand-growth/tasks" }],
+      resultStatus: "COMPLETED",
+      resourceKind: "feedback",
+      nextActions: [
+        { label: "查看反馈摘要", action: "continue_in_chat", target: "feedback_summary" },
+      ],
+    });
+  }
+
+  async getFeedbackSummary(
+    headers: HeadersMap,
+    options?: {
+      timeRange?: string;
+      skillId?: string;
+      promptId?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const summary = await this.feedbackService.getFeedbackSummary({ ...auth, brandId }, {
+      timeRange: options?.timeRange,
+      skillId: this.normalizeOptionalString(options?.skillId) ?? undefined,
+      promptId: this.normalizeOptionalString(options?.promptId) ?? undefined,
+      limit: options?.limit,
+    });
+
+    return this.buildSummaryResponse({
+      title: "生成结果反馈摘要",
+      summary: summary.counts.total
+        ? `最近 ${summary.timeRange} 共记录 ${summary.counts.total} 条反馈，其中正向 ${summary.counts.positive} 条，负向 ${summary.counts.negative} 条。`
+        : `最近 ${summary.timeRange} 还没有生成结果反馈。`,
+      highlights: summary.counts.total
+        ? [
+            `正向反馈：${summary.counts.positive}`,
+            `中性反馈：${summary.counts.neutral}`,
+            `负向反馈：${summary.counts.negative}`,
+            summary.topTags.length
+              ? `高频标签：${summary.topTags.map((item) => `${item.tag}(${item.count})`).join("、")}`
+              : "高频标签：暂无",
+          ]
+        : ["反馈数：0"],
+      data: summary,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resourceKind: "feedback",
+    });
+  }
+
+  async getFeedbackAnalysis(
+    headers: HeadersMap,
+    options?: {
+      timeRange?: string;
+      skillId?: string;
+      promptId?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const analysis = await this.feedbackService.getFeedbackAnalysis({ ...auth, brandId }, {
+      timeRange: options?.timeRange,
+      skillId: this.normalizeOptionalString(options?.skillId) ?? undefined,
+      promptId: this.normalizeOptionalString(options?.promptId) ?? undefined,
+      limit: options?.limit,
+    });
+
+    return this.buildSummaryResponse({
+      title: "生成结果反馈分析",
+      summary: analysis.counts.total
+        ? `最近 ${analysis.timeRange} 已形成 ${analysis.issuePatterns.length} 类高频问题画像，可用于下一步优化技能和提示词。`
+        : `最近 ${analysis.timeRange} 还没有足够的反馈样本可供分析。`,
+      highlights: analysis.counts.total
+        ? [
+            `总反馈：${analysis.counts.total}`,
+            `负向反馈：${analysis.counts.negative}`,
+            analysis.issuePatterns.length
+              ? `高频问题：${analysis.issuePatterns.map((item) => `${item.tag}(${item.count})`).join("、")}`
+              : "高频问题：暂无",
+            analysis.topNegativeTaskTypes.length
+              ? `负向任务类型：${analysis.topNegativeTaskTypes.map((item) => `${item.taskType}(${item.count})`).join("、")}`
+              : "负向任务类型：暂无",
+          ]
+        : ["反馈样本不足"],
+      data: analysis,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resourceKind: "feedback",
+    });
+  }
+
+  async getPromptOptimizationSuggestions(
+    headers: HeadersMap,
+    options?: {
+      timeRange?: string;
+      skillId?: string;
+      promptId?: string;
+      limit?: number;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const result = await this.feedbackService.getPromptOptimizationSuggestions({ ...auth, brandId }, {
+      timeRange: options?.timeRange,
+      skillId: this.normalizeOptionalString(options?.skillId) ?? undefined,
+      promptId: this.normalizeOptionalString(options?.promptId) ?? undefined,
+      limit: options?.limit,
+    });
+
+    return this.buildSummaryResponse({
+      title: "提示词优化建议",
+      summary: result.suggestions.length
+        ? `最近 ${result.timeRange} 已生成 ${result.suggestions.length} 条最小优化建议，可作为下一轮提示词升级输入。`
+        : `最近 ${result.timeRange} 暂无可执行的提示词优化建议。`,
+      highlights: result.suggestions.length
+        ? result.suggestions.slice(0, 4).map((item) => `${item.priority}｜${item.title}`)
+        : ["建议数：0"],
+      data: result,
+      links: [{ label: "打开技能中心", url: "/skills" }],
+      resourceKind: "feedback",
+      nextActions: result.suggestions.length
+        ? [
+            { label: "查看技能配置详情", action: "open_page", target: "/skills" },
+            { label: "继续在对话中调整技能", action: "continue_in_chat", target: "skill_config" },
+          ]
+        : undefined,
     });
   }
 
@@ -3142,6 +3795,14 @@ export class OpenClawService {
     return typeof current === "string" ? current : undefined;
   }
 
+  private normalizeOptionalString(value: unknown) {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const normalized = value.trim();
+    return normalized ? normalized : null;
+  }
+
   private buildPublishSessionSummary(payload: {
     data: Record<string, unknown>;
     platformLabel: string;
@@ -3235,6 +3896,15 @@ export class OpenClawService {
 
   private async handleToolCall(headers: HeadersMap, toolName: string, toolArgs: Record<string, unknown>) {
     switch (toolName) {
+      case "get_website_function_catalog":
+        return this.getWebsiteFunctionCatalog(headers, {
+          domainKey: typeof toolArgs.domainKey === "string" ? toolArgs.domainKey : undefined,
+          riskLevel: typeof toolArgs.riskLevel === "string" ? toolArgs.riskLevel : undefined,
+        });
+      case "get_website_function_detail":
+        return this.getWebsiteFunctionDetail(headers, {
+          functionKey: typeof toolArgs.functionKey === "string" ? toolArgs.functionKey : undefined,
+        });
       case "get_current_brand_context":
         return this.getCurrentBrandContext(headers);
       case "get_task_detail":
@@ -3281,6 +3951,73 @@ export class OpenClawService {
       case "get_skill_config_summary":
         return this.getSkillConfigSummary(headers, {
           skillKey: typeof toolArgs.skillKey === "string" ? toolArgs.skillKey : undefined,
+        });
+      case "get_skill_config_detail":
+        return this.getSkillConfigDetail(headers, {
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+        });
+      case "update_skill_config":
+        return this.updateSkillConfig(headers, {
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+          displayName: typeof toolArgs.displayName === "string" ? toolArgs.displayName : undefined,
+          defaultModel: typeof toolArgs.defaultModel === "string" ? toolArgs.defaultModel : undefined,
+          description: typeof toolArgs.description === "string" ? toolArgs.description : undefined,
+          promptOverrides: Array.isArray(toolArgs.promptOverrides)
+            ? toolArgs.promptOverrides
+              .map((item) =>
+                item && typeof item === "object" && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : {})
+              .map((item) => ({
+                promptId: typeof item.promptId === "string" ? item.promptId : "",
+                content: typeof item.content === "string" ? item.content : undefined,
+                modelName: typeof item.modelName === "string" ? item.modelName : undefined,
+                temperature: typeof item.temperature === "number" ? item.temperature : undefined,
+                maxTokens: typeof item.maxTokens === "number" ? item.maxTokens : undefined,
+              }))
+            : undefined,
+        });
+      case "reset_skill_to_platform_baseline":
+        return this.resetSkillToPlatformBaseline(headers, {
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+        });
+      case "submit_task_result_feedback":
+        return this.submitTaskResultFeedback(headers, {
+          taskId: typeof toolArgs.taskId === "string" ? toolArgs.taskId : undefined,
+          rating: typeof toolArgs.rating === "string" ? toolArgs.rating : undefined,
+          adopted: typeof toolArgs.adopted === "boolean" ? toolArgs.adopted : undefined,
+          comment: typeof toolArgs.comment === "string" ? toolArgs.comment : undefined,
+          feedbackTags: Array.isArray(toolArgs.feedbackTags)
+            ? toolArgs.feedbackTags.map((item) => String(item || "").trim()).filter(Boolean)
+            : undefined,
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+          promptId: typeof toolArgs.promptId === "string" ? toolArgs.promptId : undefined,
+          promptVersion: typeof toolArgs.promptVersion === "string" ? toolArgs.promptVersion : undefined,
+          workId: typeof toolArgs.workId === "string" ? toolArgs.workId : undefined,
+          editedOutput: toolArgs.editedOutput && typeof toolArgs.editedOutput === "object" && !Array.isArray(toolArgs.editedOutput)
+            ? toolArgs.editedOutput as Record<string, unknown>
+            : undefined,
+        });
+      case "get_feedback_summary":
+        return this.getFeedbackSummary(headers, {
+          timeRange: typeof toolArgs.timeRange === "string" ? toolArgs.timeRange : undefined,
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+          promptId: typeof toolArgs.promptId === "string" ? toolArgs.promptId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_feedback_analysis":
+        return this.getFeedbackAnalysis(headers, {
+          timeRange: typeof toolArgs.timeRange === "string" ? toolArgs.timeRange : undefined,
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+          promptId: typeof toolArgs.promptId === "string" ? toolArgs.promptId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
+        });
+      case "get_prompt_optimization_suggestions":
+        return this.getPromptOptimizationSuggestions(headers, {
+          timeRange: typeof toolArgs.timeRange === "string" ? toolArgs.timeRange : undefined,
+          skillId: typeof toolArgs.skillId === "string" ? toolArgs.skillId : undefined,
+          promptId: typeof toolArgs.promptId === "string" ? toolArgs.promptId : undefined,
+          limit: typeof toolArgs.limit === "number" ? toolArgs.limit : undefined,
         });
       case "get_wechat_article_drafts":
         return this.getWechatArticleDrafts(headers, {

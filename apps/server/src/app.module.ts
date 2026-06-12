@@ -16,6 +16,7 @@ import { UsersAdminModule } from "./modules/admin/users-admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BrandsModule } from "./modules/brands/brands.module";
 import { CollectorsModule } from "./modules/collectors/collectors.module";
+import { FeedbackModule } from "./modules/feedback/feedback.module";
 import { MediaModule } from "./modules/media/media.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { OpenClawModule } from "./modules/openclaw/openclaw.module";
@@ -45,6 +46,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     AuthModule,
     BrandsModule,
     CollectorsModule,
+    FeedbackModule,
     TasksModule,
     ThirdPartyPlatformsModule,
     UserSkillsModule,
