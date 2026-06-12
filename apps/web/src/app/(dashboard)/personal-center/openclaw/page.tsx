@@ -266,7 +266,7 @@ export default function PersonalCenterOpenClawPage() {
 
       <div className="personal-context-banner">
         <div>
-          <strong>当前安装流程按“生成令牌 -> 复制 MCP 配置 -> 下载 Skill ZIP”执行</strong>
+          <strong>当前安装流程按“生成令牌 - 复制 MCP 配置 - 下载 Skill ZIP”执行</strong>
           <p>
             {workspace?.canManage
               ? "品牌管理员可以在这里重置正式安装令牌，并把统一配置分发给成员。普通成员只需要复制片段完成接入。"
@@ -331,22 +331,21 @@ export default function PersonalCenterOpenClawPage() {
             >
               {isTokenVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
             </button>
-                {rawToken ? (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleCopy(rawToken, "install-token")}
-                  >
-                    {copiedKey === "install-token" ? "已复制令牌" : "复制令牌"}
-                  </button>
-                ) : null}
+            {rawToken ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleCopy(rawToken, "install-token")}
+              >
+                {copiedKey === "install-token" ? "已复制令牌" : "复制令牌"}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
 
       {rawToken ? (
         <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-          完整安装令牌仅展示这一次，请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌。
           <strong>完整安装令牌只会在本次生成后展示</strong>
           <p>请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌；离开当前页面后不会再次展示完整值。</p>
           <div className="personal-actions">
@@ -357,11 +356,11 @@ export default function PersonalCenterOpenClawPage() {
               {tokenToggleLabel}
             </button>
           </div>
+        </div>
       ) : null}
 
       <div className="openclaw-layout">
         <article className="entity-card personal-card">
-          <div className="entity-card-head">
           <div className="entity-card-head">
             <div>
               <strong>MCP 安装配置</strong>
