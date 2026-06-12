@@ -3416,6 +3416,51 @@ button {
   margin-top: 16px;
 }
 
+.personal-center-panel .personal-overview-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.personal-center-panel .personal-overview-action-card {
+  min-height: 100%;
+  padding: 18px 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(229, 234, 244, 0.96);
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(247, 249, 254, 0.97) 100%);
+  box-shadow:
+    0 12px 26px rgba(20, 32, 60, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  color: inherit;
+}
+
+.personal-center-panel .personal-overview-action-card strong {
+  display: block;
+  margin-top: 10px;
+  color: #1f2940;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.personal-center-panel .personal-overview-action-card p {
+  margin: 10px 0 0;
+  color: #667089;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.personal-center-panel .personal-overview-action-label {
+  display: block;
+  color: #7a8199;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .mobile-table-label {
   display: none;
   margin-bottom: 6px;
@@ -11218,6 +11263,10 @@ button {
 
   .personal-center-panel .personal-context-banner {
     padding: 14px 16px;
+  }
+
+  .personal-center-panel .personal-overview-action-grid {
+    grid-template-columns: 1fr;
   }
 
   .personal-center-panel .empty-canvas-box {

@@ -116,6 +116,7 @@ export default function PersonalCenterPage() {
   const latestOrder = useMemo(() => [...orders].sort(sortByOrderUpdatedAtDesc)[0], [orders]);
   const latestWork = useMemo(() => [...media].sort(sortByMediaCreatedAtDesc)[0], [media]);
   const latestPointLedger = useMemo(() => [...pointLedgers].sort(sortByPointLedgerCreatedAtDesc)[0], [pointLedgers]);
+  const totalOrderCount = summary.membershipOrderCount + summary.rechargeOrderCount;
 
   const focusItems = useMemo(
     () =>
@@ -144,6 +145,14 @@ export default function PersonalCenterPage() {
               action: "查看作品",
             }
           : null,
+        totalOrderCount
+          ? {
+              title: `${totalOrderCount} 笔订单与充值待核对`,
+              detail: "订单中心已经统一收口支付状态、会员购买和点数充值，适合先确认最近是否到账。",
+              href: "/personal-center/orders",
+              action: "查看订单",
+            }
+          : null,
         {
           title: "账号安全与登录态",
           detail: "安全设置页已独立，可查看登录状态、当前品牌信息和退出登录入口。",
@@ -151,7 +160,35 @@ export default function PersonalCenterPage() {
           action: "打开安全设置",
         },
       ].filter((item): item is NonNullable<typeof item> => Boolean(item)),
-    [summary.pendingInviteCount, summary.runningTasks, summary.workCount],
+    [summary.pendingInviteCount, summary.runningTasks, summary.workCount, totalOrderCount],
+  );
+
+  const primaryActions = useMemo(
+    () => [
+      {
+        href: summary.runningTasks ? "/personal-center/tasks" : "/personal-center/works",
+        label: summary.runningTasks ? "查看进行中任务" : "去作品中心",
+        value: summary.runningTasks ? `${summary.runningTasks} 个任务待跟进` : `${summary.workCount} 份作品可继续处理`,
+        description: summary.runningTasks
+          ? "优先确认排队中和执行中的任务是否需要人工介入。"
+          : "如果当前没有运行中的任务，可以直接回到作品中心继续处理内容。",
+      },
+      {
+        href: "/personal-center/orders",
+        label: "核对订单与充值",
+        value: totalOrderCount ? `${totalOrderCount} 笔记录` : "暂无新订单",
+        description: totalOrderCount
+          ? "会员购买和点数充值都已经合并到一个入口，不需要来回切换。"
+          : "后续创建会员订单或点数充值后，会在这里统一回看支付状态。",
+      },
+      {
+        href: "/personal-center/security",
+        label: "维护账号资料",
+        value: currentBrand?.brandName || "未绑定品牌",
+        description: "昵称、头像、手机号和登录状态都统一放在安全设置里维护。",
+      },
+    ],
+    [currentBrand?.brandName, summary.runningTasks, summary.workCount, totalOrderCount],
   );
 
   const workspaceLinks = useMemo(
@@ -160,43 +197,43 @@ export default function PersonalCenterPage() {
         href: "/personal-center/orders",
         label: "订单中心",
         value: `${summary.membershipOrderCount + summary.rechargeOrderCount} 条`,
-        description: "会员订单和点数充值都在这里统一查看。",
+        description: "去核对支付状态、会员开通结果和点数到账情况。",
       },
       {
         href: "/personal-center/works",
         label: "作品中心",
         value: `${summary.workCount} 份`,
-        description: "集中查看作品资产，并回到对应工作台继续处理。",
+        description: "继续处理已生成的图片、视频、文档和归档内容。",
       },
       {
         href: "/personal-center/tasks",
         label: "任务中心",
         value: `${summary.runningTasks} 进行中`,
-        description: "统一查看任务状态、失败重试和执行记录。",
+        description: "先确认执行进度，再决定是否重试或取消。",
       },
       {
         href: "/personal-center/skills",
         label: "技能中心",
         value: "平台技能",
-        description: "查看品牌可见的技能基线与提示词配置。",
+        description: "去查看品牌当前可用的技能版本和提示词配置。",
       },
       {
         href: "/personal-center/third-party-platforms",
         label: "第三方接口配置",
         value: "平台同步",
-        description: "按平台查看接口地址、模型 ID、说明文档与品牌共享 API Key。",
+        description: "去维护平台连接、模型 ID 和品牌共享 API Key。",
       },
       {
         href: "/personal-center/team",
         label: "团队协作",
         value: `${brands.length || 0} 个品牌`,
-        description: "成员、角色、邀请和主账号转移都从这里进入。",
+        description: "去处理成员、角色、邀请和品牌协作关系。",
       },
       {
         href: "/personal-center/security",
         label: "安全设置",
         value: "登录态",
-        description: "登录态、会话安全、品牌上下文与退出入口。",
+        description: "去维护账号资料、密码和当前登录状态。",
       },
     ],
     [brands.length, summary.membershipOrderCount, summary.rechargeOrderCount, summary.runningTasks, summary.workCount],
@@ -208,9 +245,24 @@ export default function PersonalCenterPage() {
         <div className="panel-header">
           <div>
             <h2>个人中心概览</h2>
-            <p className="panel-subtext">这里只保留最重要的账号摘要、待办提醒和快捷入口，详细内容统一进入各自的独立工作区。</p>
+            <p className="panel-subtext">这里只保留最重要的账号摘要、今日待办和快捷入口，详细处理统一进入各自的独立工作区。</p>
           </div>
           <span>{summary.membership}</span>
+        </div>
+
+        <div className="personal-context-banner">
+          <div>
+            <strong>今天先处理需要动作的入口，不在首页展开长列表</strong>
+            <p>如果有正在执行的任务，先看任务中心；如果要确认支付和到账，再去订单中心；账号资料和登录状态统一放在安全设置里维护。</p>
+          </div>
+          <div className="personal-context-actions">
+            <Link href="/personal-center/tasks" className="primary-button">
+              打开任务中心
+            </Link>
+            <Link href="/personal-center/orders" className="secondary-button">
+              打开订单中心
+            </Link>
+          </div>
         </div>
 
         <div className="card-grid">
@@ -245,6 +297,16 @@ export default function PersonalCenterPage() {
             <p>{latestPointLedger?.description || "当前还没有可显示的点数变动记录。"}</p>
           </article>
         </div>
+
+        <div className="personal-overview-action-grid">
+          {primaryActions.map((item) => (
+            <Link key={item.href} href={item.href} className="personal-overview-action-card">
+              <span className="personal-overview-action-label">{item.label}</span>
+              <strong>{item.value}</strong>
+              <p>{item.description}</p>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="panel personal-center-panel">
@@ -275,6 +337,9 @@ export default function PersonalCenterPage() {
               <div className="personal-actions personal-actions--tight" style={{ justifyContent: "flex-start" }}>
                 <Link href="/personal-center/security" className="secondary-button">
                   编辑账号资料
+                </Link>
+                <Link href="/personal-center/team" className="secondary-button">
+                  查看团队协作
                 </Link>
               </div>
             </div>
