@@ -173,7 +173,7 @@ export default function PersonalCenterOrdersPage() {
       <div className="panel-header">
         <div>
           <h2>订单中心</h2>
-          <p className="panel-subtext">集中查看当前账号的会员订单与点数充值记录，为后续积分、会员和作品链路提供统一账单入口。</p>
+          <p className="panel-subtext">集中查看当前账号的会员订单与点数充值记录，方便你核对消费、补单进度和最近的充值情况。</p>
         </div>
         <span>{summary.total} 笔订单</span>
       </div>
@@ -199,7 +199,7 @@ export default function PersonalCenterOrdersPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -232,13 +232,22 @@ export default function PersonalCenterOrdersPage() {
         </article>
       </div>
 
+      <div className="personal-context-banner">
+        <div>
+          <strong>先筛状态，再按订单类型缩小范围</strong>
+          <p>如果只是确认是否到账，优先看“已支付”和“待支付”；如果要排查会员开通或点数补充，再切到对应订单类型查看。</p>
+        </div>
+        <div className="personal-context-actions">
+          <Link href="/membership-purchase" className="primary-button">
+            创建会员订单
+          </Link>
+          <Link href="/points-purchase" className="secondary-button">
+            创建充值订单
+          </Link>
+        </div>
+      </div>
+
       <div className="personal-actions" style={{ marginBottom: 16 }}>
-        <Link href="/membership-purchase" className="primary-button">
-          创建会员订单
-        </Link>
-        <Link href="/points-purchase" className="secondary-button">
-          创建充值订单
-        </Link>
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
         </Link>
@@ -253,6 +262,11 @@ export default function PersonalCenterOrdersPage() {
             placeholder="搜索订单号、订单类型、状态、会员等级或充值点数"
           />
         </label>
+        {search.trim() ? (
+          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+            清空搜索
+          </button>
+        ) : null}
       </div>
 
       <div className="tab-switcher" aria-label="订单状态筛选" style={{ marginTop: 16 }}>
@@ -311,10 +325,10 @@ export default function PersonalCenterOrdersPage() {
               <div>
                 <strong>{item.orderType === "MEMBERSHIP_PURCHASE" ? `${item.membership || "会员"} 会员订单` : `${item.pointsAmount || 0} 点充值订单`}</strong>
                 <p className="personal-meta">
-                  {item.orderNo} 路 {item.orderType === "MEMBERSHIP_PURCHASE" ? "会员购买" : "点数充值"}
+                  {item.orderNo} · {item.orderType === "MEMBERSHIP_PURCHASE" ? "会员购买" : "点数充值"}
                 </p>
               </div>
-              <span className={`archive-pill ${personalOrderStatusClassMap[item.orderStatus]}`}>{item.orderStatus}</span>
+              <span className={`archive-pill ${personalOrderStatusClassMap[item.orderStatus]}`}>{formatOrderStatusLabel(item.orderStatus)}</span>
             </div>
             <div className="personal-grid">
               <div>
@@ -331,7 +345,7 @@ export default function PersonalCenterOrdersPage() {
               </div>
               <div>
                 <span>订单状态</span>
-                <strong>{item.orderStatus}</strong>
+                <strong>{formatOrderStatusLabel(item.orderStatus)}</strong>
               </div>
               <div>
                 <span>创建时间</span>
@@ -350,7 +364,37 @@ export default function PersonalCenterOrdersPage() {
           </article>
         ))}
         {!filteredOrders.length ? (
-          <p className="empty-state">当前没有匹配的订单记录，可以先创建会员订单或点数充值订单。</p>
+          <div className="empty-canvas-box">
+            <strong>{search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL" ? "当前筛选条件下没有订单" : "当前还没有可展示的订单记录"}</strong>
+            <p>
+              {search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL"
+                ? "可以先清空搜索词，或把状态和类型切回“全部”后重新查看。"
+                : "你可以先创建会员订单或点数充值订单，后续支付状态和到账结果都会回到这里统一查看。"}
+            </p>
+            <div className="personal-actions">
+              {search.trim() || statusFilter !== "ALL" || typeFilter !== "ALL" ? (
+                <>
+                  <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                    清空搜索
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setStatusFilter("ALL");
+                      setTypeFilter("ALL");
+                    }}
+                  >
+                    查看全部订单
+                  </button>
+                </>
+              ) : (
+                <Link href="/membership-purchase" className="primary-button">
+                  去创建会员订单
+                </Link>
+              )}
+            </div>
+          </div>
         ) : null}
       </div>
     </section>
@@ -359,5 +403,22 @@ export default function PersonalCenterOrdersPage() {
 
 function sortByOrderUpdatedAtDesc(a: OrderRecord, b: OrderRecord) {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+function formatOrderStatusLabel(status: OrderRecord["orderStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "待支付";
+    case "PAID":
+      return "已支付";
+    case "FAILED":
+      return "支付失败";
+    case "REFUNDED":
+      return "已退款";
+    case "CANCELLED":
+      return "已取消";
+    default:
+      return status;
+  }
 }
 

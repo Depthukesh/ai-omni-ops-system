@@ -275,21 +275,21 @@ export default function PersonalCenterSecurityPage() {
   const securityChecks = useMemo(
     () => [
       {
-        label: "Access Token 状态",
+        label: "访问凭证状态",
         value: hasAccessToken ? "已保存" : "未保存",
-        detail: "用于当前接口访问，请求层会自动附带 Authorization。",
+        detail: "用于当前登录会话访问接口，页面会自动带上登录凭证。",
         status: hasAccessToken ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
-        label: "Refresh Token 状态",
+        label: "续期凭证状态",
         value: hasRefreshToken ? "已保存" : "未保存",
-        detail: "当前请求层在遇到 401 时会自动尝试 refresh。",
+        detail: "当登录状态快过期时，前端会尝试自动续期，减少频繁重新登录。",
         status: hasRefreshToken ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
         label: "当前品牌上下文",
         value: currentBrand?.brandName || "未绑定品牌",
-        detail: "请求层会自动附带 x-brand-id，个人中心相关接口会跟随当前品牌工作区刷新。",
+        detail: "你当前查看和操作的个人中心内容，会跟随当前品牌工作区一起刷新。",
         status: currentBrand ? ("SAFE" as SecurityStatus) : ("ATTENTION" as SecurityStatus),
       },
       {
@@ -309,7 +309,7 @@ export default function PersonalCenterSecurityPage() {
       <div className="panel-header">
         <div>
           <h2>账号资料与安全设置</h2>
-          <p className="panel-subtext">当前已支持用户自助维护用户名、头像和手机号，并保留登录态、品牌上下文、Token 持有状态与退出登录入口。</p>
+          <p className="panel-subtext">在这里统一维护账号资料、密码和当前登录状态，减少你在多个页面之间来回查找。</p>
         </div>
         <span>{securityChecks.filter((item) => item.status === "SAFE").length} 项正常</span>
       </div>
@@ -335,7 +335,7 @@ export default function PersonalCenterSecurityPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -343,6 +343,21 @@ export default function PersonalCenterSecurityPage() {
         <button type="button" className="secondary-button" onClick={() => void handleLogout()} disabled={isLoggingOut || isSwitchingBrand}>
           {isLoggingOut ? "退出中..." : "退出当前登录态"}
         </button>
+      </div>
+
+      <div className="personal-context-banner">
+        <div>
+          <strong>账号资料、密码和登录状态都集中在这里维护</strong>
+          <p>如果只是更新昵称、头像或手机号，先处理资料卡片；如果是担心账号安全，再优先检查密码和登录凭证状态。</p>
+        </div>
+        <div className="personal-context-actions">
+          <Link href="/personal-center" className="secondary-button">
+            返回个人中心概览
+          </Link>
+          <Link href="/login" className="secondary-button">
+            回到登录页
+          </Link>
+        </div>
       </div>
 
       <div className="card-grid" style={{ marginBottom: 16 }}>
@@ -355,21 +370,12 @@ export default function PersonalCenterSecurityPage() {
         ))}
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16 }}>
-        <Link href="/personal-center" className="secondary-button">
-          返回个人中心概览
-        </Link>
-        <Link href="/login" className="secondary-button">
-          回到登录页
-        </Link>
-      </div>
-
       <div className="personal-list">
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
               <strong>编辑账号资料</strong>
-              <p className="personal-meta">当前支持自助维护用户名、头像地址和手机号；邮箱暂时保持只读，避免绕过现有注册验证链路。</p>
+              <p className="personal-meta">当前支持自助维护用户名、头像地址和手机号；邮箱暂时保持只读，避免误改后影响现有登录验证。</p>
             </div>
             <span className="archive-pill status-ready">可编辑</span>
           </div>
@@ -457,8 +463,8 @@ export default function PersonalCenterSecurityPage() {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
-              <strong>Token 持有状态</strong>
-              <p className="personal-meta">这里只展示浏览器中是否已保存 access / refresh token 与脱敏摘要，不直接暴露完整凭证。</p>
+              <strong>登录凭证状态</strong>
+              <p className="personal-meta">这里只展示浏览器中是否已保存当前登录凭证，以及脱敏后的摘要，不会直接暴露完整内容。</p>
             </div>
             <span className="archive-pill status-in_progress">脱敏显示</span>
           </div>
@@ -473,11 +479,11 @@ export default function PersonalCenterSecurityPage() {
             </div>
             <div>
               <span>自动续期</span>
-              <strong>{hasRefreshToken ? "已启用前端 refresh 兜底" : "当前不可用"}</strong>
+              <strong>{hasRefreshToken ? "已启用自动续期" : "当前不可用"}</strong>
             </div>
             <div>
               <span>退出登录</span>
-              <strong>调用 `/auth/logout` 后清空本地会话</strong>
+              <strong>退出后会同步清空当前浏览器里的登录状态</strong>
             </div>
           </div>
         </article>
@@ -545,7 +551,7 @@ export default function PersonalCenterSecurityPage() {
           <div className="entity-card-head">
             <div>
               <strong>下一阶段安全能力</strong>
-              <p className="personal-meta">密码修改已补上，下面这些能力仍保留到下一轮继续实现。</p>
+              <p className="personal-meta">密码修改已经就绪，下面这些能力会在后续迭代里继续补齐。</p>
             </div>
             <span className="archive-pill status-paused">待扩展</span>
           </div>
@@ -568,7 +574,7 @@ export default function PersonalCenterSecurityPage() {
             </div>
             <div className="field-full">
               <span>后续建议</span>
-              <strong>优先补齐 `session list`、`revoke session` 和邮箱改绑验证，再把安全中心从基础资料编辑升级为完整账号中心。</strong>
+              <strong>优先补齐设备会话管理、单端下线和邮箱改绑验证，再把安全中心升级成更完整的账号中心。</strong>
             </div>
             <div className="field-full">
               <span>本次已验证</span>

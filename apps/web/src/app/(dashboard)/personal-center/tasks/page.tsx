@@ -188,7 +188,7 @@ export default function PersonalCenterTasksPage() {
       <div className="panel-header">
         <div>
           <h2>任务中心</h2>
-          <p className="panel-subtext">集中查看当前账号在当前品牌工作区下发起的全部任务，并支持重试失败任务或取消运行中任务。</p>
+          <p className="panel-subtext">集中查看当前账号在当前品牌工作区发起的全部任务，并在这里处理失败重试、运行状态和人工取消。</p>
         </div>
         <span>{summary.total} 条任务</span>
       </div>
@@ -219,7 +219,7 @@ export default function PersonalCenterTasksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -252,6 +252,23 @@ export default function PersonalCenterTasksPage() {
         </article>
       </div>
 
+      <div className="personal-context-banner">
+        <div>
+          <strong>先看“执行中”和“失败待重试”，再决定是否人工介入</strong>
+          <p>
+            任务中心会优先帮助你判断哪些任务还在排队、哪些需要重新运行、哪些已经完成，不需要在概览页反复翻历史记录。
+          </p>
+        </div>
+        <div className="personal-context-actions">
+          <Link href="/personal-center" className="secondary-button">
+            返回个人中心概览
+          </Link>
+          <Link href="/personal-center/works" className="secondary-button">
+            查看作品中心
+          </Link>
+        </div>
+      </div>
+
       <div className="personal-toolbar">
         <label className="field personal-search">
           <span>搜索任务</span>
@@ -261,9 +278,11 @@ export default function PersonalCenterTasksPage() {
             placeholder="搜索任务名称、任务类型、模型名或品牌 ID"
           />
         </label>
-        <Link href="/personal-center" className="secondary-button">
-          返回个人中心概览
-        </Link>
+        {search.trim() ? (
+          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+            清空搜索
+          </button>
+        ) : null}
       </div>
 
       <div className="personal-list" style={{ marginTop: 16 }}>
@@ -272,9 +291,9 @@ export default function PersonalCenterTasksPage() {
             <div className="entity-card-head">
               <div>
                 <strong>{task.taskTitle}</strong>
-                <p className="personal-meta">{task.taskType} 路 首选 {getTaskPreferredModel(task)}</p>
+                <p className="personal-meta">{task.taskType} · 首选模型 {getTaskPreferredModel(task)}</p>
               </div>
-              <span className={`archive-pill ${personalTaskStatusClassMap[task.taskStatus]}`}>{task.taskStatus}</span>
+              <span className={`archive-pill ${personalTaskStatusClassMap[task.taskStatus]}`}>{formatTaskStatusLabel(task.taskStatus)}</span>
             </div>
             <div className="personal-grid">
               <div>
@@ -308,7 +327,7 @@ export default function PersonalCenterTasksPage() {
                 <strong>{getTaskPreferredModel(task)}</strong>
               </div>
               <div>
-                <span>缁撴灉妯″瀷</span>
+                <span>最终使用模型</span>
                 <strong>{getTaskResultModel(task)}</strong>
               </div>
             </div>
@@ -349,7 +368,23 @@ export default function PersonalCenterTasksPage() {
             </div>
           </article>
         ))}
-        {!filteredTasks.length ? <p className="empty-state">当前没有匹配的任务记录。</p> : null}
+        {!filteredTasks.length ? (
+          <div className="empty-canvas-box">
+            <strong>{search.trim() ? "没有找到匹配的任务" : "当前还没有可展示的任务记录"}</strong>
+            <p>{search.trim() ? "可以先清空搜索词，或切换品牌后重新查看任务执行情况。" : "新创建的内容任务、图片任务和视频任务，都会在这里集中展示进度与结果。"}</p>
+            <div className="personal-actions">
+              {search.trim() ? (
+                <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                  清空搜索
+                </button>
+              ) : (
+                <Link href="/personal-center" className="secondary-button">
+                  返回概览
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -378,7 +413,7 @@ function getTaskStageLabel(task: TaskRecord) {
     return "已完成";
   }
   if (task.taskStatus === "FAILED") {
-    return "鎵ц澶辫触";
+    return "执行失败";
   }
   if (task.taskStatus === "CANCELLED") {
     return "已取消";
@@ -515,4 +550,23 @@ const taskStageLabelMap: Record<string, string> = {
   VIDEO_PROVIDER_TASK_CREATED: "视频任务已提交三方",
   VIDEO_READY: "视频已完成",
 };
+
+function formatTaskStatusLabel(status: TaskRecord["taskStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "待启动";
+    case "QUEUED":
+      return "排队中";
+    case "RUNNING":
+      return "执行中";
+    case "SUCCESS":
+      return "已完成";
+    case "FAILED":
+      return "执行失败";
+    case "CANCELLED":
+      return "已取消";
+    default:
+      return status;
+  }
+}
 
