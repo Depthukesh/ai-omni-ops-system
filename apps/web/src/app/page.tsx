@@ -9,7 +9,8 @@ export const metadata = {
 };
 
 const tailwindConfigScript = `
-  tailwind.config = {
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
     darkMode: "class",
     theme: {
       extend: {
@@ -43,6 +44,24 @@ const tailwindConfigScript = `
       }
     }
   };
+`;
+
+const homepageRootStyle = `
+  html,
+  body {
+    background: #09090b !important;
+    color: #fafafa !important;
+  }
+
+  body {
+    overflow-x: hidden !important;
+  }
+
+  [data-homepage-root="true"] {
+    position: relative;
+    min-height: 100vh;
+    isolation: isolate;
+  }
 `;
 
 const revealScript = `
@@ -82,8 +101,14 @@ export default async function HomePage() {
         {tailwindConfigScript}
       </Script>
       <Script src="https://cdn.tailwindcss.com" strategy="beforeInteractive" />
+      <style dangerouslySetInnerHTML={{ __html: homepageRootStyle }} />
       <style dangerouslySetInnerHTML={{ __html: landing.styles }} />
-      <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: landing.bodyHtml }} />
+      <div
+        data-homepage-root="true"
+        className={landing.bodyClass}
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: landing.bodyHtml }}
+      />
       <Script id="marketing-reveal-script" strategy="afterInteractive">
         {revealScript}
       </Script>
@@ -96,12 +121,14 @@ async function readLandingPageSource() {
   const html = await fs.readFile(filePath, "utf8");
   const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const bodyClassMatch = html.match(/<body[^>]*class=["']([^"']*)["'][^>]*>/i);
 
   if (!styleMatch || !bodyMatch) {
     throw new Error("无法读取官网首页模板内容");
   }
 
   return {
+    bodyClass: bodyClassMatch?.[1] ?? "",
     styles: styleMatch[1],
     bodyHtml: bodyMatch[1].replace(/<script[\s\S]*?<\/script>/gi, ""),
   };
