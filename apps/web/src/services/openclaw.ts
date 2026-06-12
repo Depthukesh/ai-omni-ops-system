@@ -23,6 +23,7 @@ export type OpenClawInstallWorkspace = {
   activeToken?: OpenClawInstallTokenRecord;
   snippetTemplates: {
     openclaw: string;
+    workbuddy: string;
     cursor: string;
     claudeDesktop: string;
     mcpEndpoint: string;

@@ -4,7 +4,7 @@
 
 把本地联调用的 `账号 + 密码 + stdio 脚本` 方式，升级成正式环境可交付的 `网站安装中心 + 品牌级安装令牌 + MCP HTTP 网关` 方式。
 
-正式交付时，品牌用户不需要理解 MCP、Skill、CLI 差异，也不需要暴露网站登录密码。用户只需要在网站里完成登录，进入安装中心，复制一段配置，粘贴到 OpenClaw 即可。
+正式交付时，品牌用户不需要理解 MCP、Skill、CLI 差异，也不需要暴露网站登录密码。用户只需要在网站里完成登录，进入安装中心，复制一段配置，粘贴到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop 即可。
 
 当前正式交付口径也需要明确：
 
@@ -41,7 +41,7 @@
 2. 切到目标品牌
 3. 打开 `个人中心 -> OpenClaw 安装`
 4. 点击“生成正式安装令牌”
-5. 复制 `OpenClaw` 或 `Cursor` 配置片段
+5. 复制 `OpenClaw`、`WorkBuddy`、`Cursor` 或 `Claude Desktop` 配置片段
 6. 粘贴到对应客户端
 7. 直接开始用自然语言操作品牌能力
 
@@ -125,6 +125,24 @@ OpenClaw 正式配置示例：
 }
 ```
 
+WorkBuddy 正式配置示例：
+
+```json
+{
+  "mcpServers": {
+    "ai-omni-ops-品牌名": {
+      "url": "https://你的域名/api/openclaw/mcp",
+      "headers": {
+        "Authorization": "Bearer ocp_xxx",
+        "x-brand-id": "br_xxx"
+      },
+      "type": "streamableHttp",
+      "timeout": 600000
+    }
+  }
+}
+```
+
 ## Skill 使用方式
 
 Skill 不再要求用户自己写复杂 prompt。网站安装中心会同时给出品牌运营助手的使用提示，用户常见提问包括：
@@ -200,7 +218,7 @@ Skill 不再要求用户自己写复杂 prompt。网站安装中心会同时给�
 3. 校验安装页里的文档链接能打开：
    - `OpenClaw正式安装与网站对接说明.html`
    - `品牌运营助手Skill示例SKILL.html`
-4. 使用页面生成的正式令牌，在真实 OpenClaw 客户端完成一次 MCP 挂载
+4. 使用页面生成的正式令牌，在真实 OpenClaw 或 WorkBuddy 客户端完成一次 MCP 挂载
 5. 在 OpenClaw 对话里至少验证一次：
    - 获取当前品牌上下文
    - 查看最近任务摘要
@@ -211,5 +229,5 @@ Skill 不再要求用户自己写复杂 prompt。网站安装中心会同时给�
 ## 后续建议
 
 - 增加调用日志表，记录工具名、品牌、调用耗时、结果状态
-- 增加多客户端安装模板，例如 Claude / Cursor / VS Code
+- 持续补充多客户端安装模板，例如 WorkBuddy / Claude / Cursor / VS Code
 - 增加安装向导页，把 Skill 与 MCP 合并成“一键安装说明”

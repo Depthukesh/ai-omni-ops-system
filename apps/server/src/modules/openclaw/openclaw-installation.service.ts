@@ -44,6 +44,7 @@ export type OpenClawInstallWorkspace = {
   activeToken?: OpenClawInstallTokenRecord;
   snippetTemplates: {
     openclaw: string;
+    workbuddy: string;
     cursor: string;
     claudeDesktop: string;
     mcpEndpoint: string;
@@ -225,6 +226,19 @@ export class OpenClawInstallationService {
                   "x-brand-id": input.brandId,
                 },
               },
+            },
+          },
+        }, null, 2),
+        workbuddy: JSON.stringify({
+          mcpServers: {
+            [mcpServerName]: {
+              url: mcpUrl,
+              headers: {
+                Authorization: headerValue,
+                "x-brand-id": input.brandId,
+              },
+              type: "streamableHttp",
+              timeout: 600000,
             },
           },
         }, null, 2),

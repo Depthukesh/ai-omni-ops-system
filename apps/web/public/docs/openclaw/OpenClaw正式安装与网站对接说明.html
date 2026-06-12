@@ -20,7 +20,7 @@
     <h1>OpenClaw 正式安装与网站对接说明</h1>
     <div class="card">
       <p>正式环境不再使用网站账号密码安装 MCP，而是使用网站安装中心生成的品牌级安装令牌。</p>
-      <p>安装流程：登录网站 -> 切到目标品牌 -> 打开 OpenClaw 安装中心 -> 生成正式安装令牌 -> 复制配置 -> 粘贴到 OpenClaw。</p>
+      <p>安装流程：登录网站 -> 切到目标品牌 -> 打开 OpenClaw 安装中心 -> 生成正式安装令牌 -> 复制配置 -> 粘贴到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop。</p>
       <p>安装页内会同时提供配置复制、令牌状态、示例提问、交付检查清单和正式文档入口。</p>
       <ul>
         <li>当前真正需要安装的是网站 MCP。</li>
@@ -52,6 +52,20 @@
           "x-brand-id": "br_xxx"
         }
       }
+    }
+  }
+}</code></pre>
+
+    <pre><code>{
+  "mcpServers": {
+    "ai-omni-ops-品牌名": {
+      "url": "https://你的域名/api/openclaw/mcp",
+      "headers": {
+        "Authorization": "Bearer ocp_xxx",
+        "x-brand-id": "br_xxx"
+      },
+      "type": "streamableHttp",
+      "timeout": 600000
     }
   }
 }</code></pre>
