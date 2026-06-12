@@ -186,7 +186,7 @@ export default function PersonalCenterInvitesPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "退出登录失败");
     } finally {
@@ -501,7 +501,7 @@ export default function PersonalCenterInvitesPage() {
     setErrorMessage("");
     try {
       await navigator.clipboard.writeText(sharableInviteUrl);
-      setNotice("已复制当前邀请通知筛选链接，可直接分享给他人。");
+      setNotice("已复制当前邀请通知筛选链接，可直接分享给其他人。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "复制当前筛选链接失败");
     } finally {
@@ -668,7 +668,7 @@ export default function PersonalCenterInvitesPage() {
             ))}
             {!filteredPendingInvites.length ? (
               <tr>
-                <td colSpan={6}>当前没有待处理邀请</td>
+                <td colSpan={6}>当前没有待处理邀请。</td>
               </tr>
             ) : null}
           </tbody>
@@ -768,3 +768,4 @@ export default function PersonalCenterInvitesPage() {
     </section>
   );
 }
+

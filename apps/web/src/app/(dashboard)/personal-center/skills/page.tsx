@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -287,7 +287,7 @@ export default function PersonalCenterSkillsPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -461,7 +461,7 @@ export default function PersonalCenterSkillsPage() {
                                     <strong>{item.skill.effectiveSkill.name}</strong>
                                   </div>
                                   <div>
-                                    <span>模型</span>
+                                    <span>妯″瀷</span>
                                     <strong>{formatScopedModelLabel(item.prompt.effectivePrompt.modelName, editorOptions.modelOptions)}</strong>
                                   </div>
                                 </div>
@@ -549,7 +549,7 @@ export default function PersonalCenterSkillsPage() {
                 <strong>{selectedPrompt.basePrompt.temperature}</strong>
               </div>
               <div>
-                <span>平台 Tokens</span>
+                <span>骞冲彴 Tokens</span>
                 <strong>{selectedPrompt.basePrompt.maxTokens}</strong>
               </div>
               <div>
@@ -578,7 +578,7 @@ export default function PersonalCenterSkillsPage() {
 
               <div className="personal-grid">
                 <label className="field">
-                  <span>温度</span>
+                  <span>娓╁害</span>
                   <input
                     type="number"
                     step="0.1"
@@ -919,3 +919,4 @@ function toNullableInt(value: string | undefined, baseValue: number | undefined)
   }
   return normalized;
 }
+

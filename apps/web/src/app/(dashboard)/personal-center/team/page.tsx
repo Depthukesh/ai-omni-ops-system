@@ -191,7 +191,7 @@ export default function PersonalCenterTeamPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -283,7 +283,7 @@ export default function PersonalCenterTeamPage() {
 
   async function handleCreateInvite() {
     if (!currentBrandId) {
-      setErrorMessage("当前品牌未识别，暂无法创建邀请链接");
+      setErrorMessage("当前品牌未识别，暂时无法创建邀请链接");
       return;
     }
 
@@ -516,7 +516,7 @@ export default function PersonalCenterTeamPage() {
       <div className="panel-header">
         <div>
           <h2>团队协作</h2>
-          <p className="panel-subtext">当前团队角色已统一为管理员、员工、达人；管理员可管理成员并配置员工/达人在各板块的可见与编辑权限。</p>
+          <p className="panel-subtext">当前团队角色统一为管理员、员工、达人；管理员可管理成员，并为员工和达人配置各板块的查看与编辑权限。</p>
         </div>
         <span>{brands.length} 个可访问品牌</span>
       </div>
@@ -524,7 +524,7 @@ export default function PersonalCenterTeamPage() {
       <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <div className="workspace-status">
           <span className={`archive-pill ${errorMessage ? "status-pending" : "status-ready"}`}>
-            {errorMessage ? "部分失败" : "成员接口已接入"}
+            {errorMessage ? "部分加载失败" : "成员接口已接入"}
           </span>
           {isLoading ? <span className="status-text">正在加载团队协作信息...</span> : null}
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
@@ -566,12 +566,12 @@ export default function PersonalCenterTeamPage() {
         <article className="metric-card">
           <span>当前角色</span>
           <strong>{currentUserRole ? roleLabelMap[currentUserRole] : "未记录"}</strong>
-          <p>团队协作角色已统一收口为管理员、员工、达人三类。</p>
+          <p>团队协作角色当前统一为管理员、员工、达人三类。</p>
         </article>
         <article className="metric-card">
           <span>成员管理权限</span>
           <strong>{canManageMembers ? "可管理" : "只读查看"}</strong>
-          <p>{canManageMembers ? "当前管理员可继续邀请成员、调整角色并配置权限模板。" : "当前账号仅可查看团队与权限结果。"}</p>
+          <p>{canManageMembers ? "当前管理员可继续邀请成员、调整角色并配置权限模板。" : "当前账号仅可查看团队与权限结构。"}</p>
         </article>
       </div>
 
@@ -613,15 +613,15 @@ export default function PersonalCenterTeamPage() {
         <article className="entity-card personal-card">
           <div className="entity-card-head">
             <div>
-              <strong>当前阶段已可见内容</strong>
+              <strong>当前已开放能力</strong>
               <p className="personal-meta">当前团队协作页已切到“三角色 + 权限矩阵”的协作口径。</p>
             </div>
             <span className="archive-pill status-ready">P1</span>
           </div>
           <div className="personal-list">
-            <p>当前品牌名称、行业和你的真实品牌角色已经可见。</p>
-            <p>管理员拥有该品牌前端所有权限，并可继续邀请成员、调整角色和查看审计记录。</p>
-            <p>员工和达人权限可按板块勾选设置，包含可见权限与编辑权限。</p>
+            <p>当前品牌名称、所属行业和你的真实品牌角色已可见。</p>
+            <p>管理员拥有该品牌前端全部权限，并可继续邀请成员、调整角色和查看审计记录。</p>
+            <p>员工和达人权限可按板块勾选配置，包含查看权限和编辑权限。</p>
           </div>
         </article>
         {inviteCodeFromQuery ? (
@@ -644,7 +644,7 @@ export default function PersonalCenterTeamPage() {
             </button>
           </div>
           <div className="personal-list">
-            <p>点击确认后会写入品牌成员关系，并自动切到对应品牌工作区。</p>
+            <p>点击确认后会写入品牌成员关系，并自动切换到对应品牌工作区。</p>
             <p>当前已移除手动输入邀请码加入的入口。</p>
           </div>
         </article>
@@ -678,7 +678,7 @@ export default function PersonalCenterTeamPage() {
                 {isSubmittingInvite ? "发送中..." : "发送加入邀请"}
               </button>
             </div>
-            <p className="panel-subtext">适用于对方已经是平台注册用户的情况，系统会向对方发送邀请提醒，确认后才会加入当前品牌。</p>
+            <p className="panel-subtext">适用于对方已是平台注册用户的情况；系统会向对方发送邀请提醒，对方确认后才会加入当前品牌。</p>
           </article>
 
           <article className="light-data-panel">
@@ -788,7 +788,7 @@ export default function PersonalCenterTeamPage() {
                         onClick={() => void handleCopyInviteValue(item.id, item.inviteLink, "邀请链接")}
                         disabled={copyingInviteId === item.id}
                       >
-                        {copyingInviteId === item.id ? "复制中..." : "复制链接"}
+                        {copyingInviteId === item.id ? "复制中..." : "复制邀请链接"}
                       </button>
                     </div>
                   </td>
@@ -798,7 +798,7 @@ export default function PersonalCenterTeamPage() {
                   <td>{item.invitedByName}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>{formatDateTime(item.expiresAt)}</td>
-                  <td>{item.note || "无"}</td>
+                  <td>{item.note || "-"}</td>
                   <td>
                     {item.status === "PENDING" ? (
                       <button
@@ -817,7 +817,7 @@ export default function PersonalCenterTeamPage() {
               ))}
               {!invites.length ? (
                 <tr>
-                  <td colSpan={10}>当前品牌暂无待处理邀请</td>
+                  <td colSpan={10}>当前品牌暂无待处理邀请。</td>
                 </tr>
               ) : null}
             </tbody>
@@ -831,7 +831,7 @@ export default function PersonalCenterTeamPage() {
             <div>
               <h3 style={{ margin: 0 }}>团队权限设置</h3>
               <p className="panel-subtext" style={{ marginTop: 8 }}>
-                位置按需求放在“待处理邀请”和“当前品牌成员”之间。管理员默认拥有全部前端权限，以下仅配置员工与达人。
+                管理员默认拥有全部前端权限，以下仅配置员工和达人的查看与编辑权限。
               </p>
             </div>
             <div className="personal-actions">
@@ -867,9 +867,9 @@ export default function PersonalCenterTeamPage() {
                           <tr>
                             <th>项目</th>
                             <th>员工可见</th>
-                            <th>员工编辑</th>
+                            <th>员工可编辑</th>
                             <th>达人可见</th>
-                            <th>达人编辑</th>
+                            <th>达人可编辑</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -970,7 +970,7 @@ export default function PersonalCenterTeamPage() {
                         >
                           {["ACTIVE", "DISABLED", "REMOVED"].map((status) => (
                             <option key={status} value={status}>
-                              {status}
+                              {memberStatusLabels[status] || status}
                             </option>
                           ))}
                         </select>
@@ -990,7 +990,7 @@ export default function PersonalCenterTeamPage() {
             ))}
             {!members.length ? (
               <tr>
-                <td colSpan={canManageMembers ? 7 : 6}>当前品牌暂无可展示的成员记录</td>
+                <td colSpan={canManageMembers ? 7 : 6}>当前品牌暂无可展示的成员记录。</td>
               </tr>
             ) : null}
           </tbody>
@@ -1022,7 +1022,7 @@ export default function PersonalCenterTeamPage() {
               ))}
               {!auditLogs.length ? (
                 <tr>
-                  <td colSpan={5}>当前品牌暂无成员审计日志</td>
+                  <td colSpan={5}>当前品牌暂无成员审计日志。</td>
                 </tr>
               ) : null}
             </tbody>
@@ -1052,3 +1052,4 @@ function buildAssignableRoleOptions(currentUserRole: BrandCollaboratorRole | "")
 function roleLabel(role: string) {
   return formatCollaboratorRoleLabel(role);
 }
+

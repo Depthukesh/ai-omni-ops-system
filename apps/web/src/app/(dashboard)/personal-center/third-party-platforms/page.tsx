@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,11 @@ type PlatformDraft = {
 };
 
 const adminSystemRoles = new Set(["SUPER_ADMIN", "ADMIN_OPERATOR", "FINANCE_OPERATOR", "SUPPORT_OPERATOR"]);
+const platformStatusLabelMap: Record<UserThirdPartyPlatformRecord["status"], string> = {
+  ACTIVE: "启用中",
+  DRAFT: "草稿",
+  DISABLED: "已停用",
+};
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value : String(value || "");
@@ -133,7 +138,7 @@ function getChanjingStatsSummary(platform: UserThirdPartyPlatformRecord) {
     return "";
   }
   if (platform.dynamicStats?.status === "ready") {
-    return `标签 ${platform.dynamicStats.tagCount ?? 0} 个，已同步真实模板与定制数字人统计`;
+    return `标签 ${platform.dynamicStats.tagCount ?? 0} 个，已同步真实模板与定制数字人统计。`;
   }
   if (platform.dynamicStats?.status === "partial") {
     const tagText = typeof platform.dynamicStats.tagCount === "number"
@@ -330,7 +335,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
           apiKey: updated.apiKey,
         },
       }));
-      setNotice(`已保存「${updated.name}」的个人 API Key。`);
+      setNotice(`已保存「${updated.name}」的品牌共享 API Key。`);
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -349,7 +354,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     setErrorMessage("");
     try {
       await logoutSession();
-      router.replace("/?mode=login");
+      router.replace("/login");
     } catch (error) {
       const message = error instanceof Error ? error.message : "退出登录失败";
       setErrorMessage(message);
@@ -372,8 +377,8 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     <section className="panel personal-center-panel">
       <div className="panel-header">
         <div>
-          <h2>第三方接口配置</h2>
-          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID、说明文档；拥有该板块编辑权限的成员才可以维护自己的 API Key。</p>
+          <h2>第三方平台配置</h2>
+          <p className="panel-subtext">按平台查看第三方平台链接、大模型 ID 和说明文档；拥有该板块编辑权限的成员才可以维护品牌共享 API Key。</p>
         </div>
         <span>{search.trim() ? `${filteredPlatforms.length}/${platforms.length}` : platforms.length} 个平台</span>
       </div>
@@ -467,7 +472,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                   <p className="personal-meta">平台类型：{platform.providerType}</p>
                 </div>
                 <span className={`archive-pill ${platform.apiKey ? "status-in_progress" : "status-ready"}`}>
-                  {platform.apiKey ? "已配置Key" : "未配置Key"}
+                  {platform.apiKey ? "已配置 Key" : "未配置 Key"}
                 </span>
               </div>
               <div className="personal-grid">
@@ -502,7 +507,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <p className="personal-meta">平台类型：{selectedPlatform.providerType}</p>
               </div>
               <span className={`archive-pill ${selectedPlatform.status === "ACTIVE" ? "status-ready" : selectedPlatform.status === "DRAFT" ? "status-in_progress" : "status-paused"}`}>
-                {selectedPlatform.status}
+                {platformStatusLabelMap[selectedPlatform.status]}
               </span>
             </div>
 
@@ -528,7 +533,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                 <span>第三方平台链接</span>
                 {selectedPlatform.baseUrl ? (
                   <a href={selectedPlatform.baseUrl} target="_blank" rel="noreferrer" className="secondary-button" style={{ width: "fit-content", marginTop: 8 }}>
-                    第三方平台链接
+                    打开第三方平台
                   </a>
                 ) : (
                   <strong>-</strong>
@@ -583,7 +588,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
                   {selectedPlatformIsChanjing ? (
                     <>
                       <span className="admin-provider-chip">模板 {selectedPlatform.dynamicStats?.templateCount ?? "-"}</span>
-                      <span className="admin-provider-chip">定制数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? "-"}</span>
+                      <span className="admin-provider-chip">数字人 {selectedPlatform.dynamicStats?.customPersonCount ?? "-"}</span>
                       <span className="admin-provider-chip">标签 {selectedPlatform.dynamicStats?.tagCount ?? "-"}</span>
                     </>
                   ) : selectedPlatform.modelIds.length ? (
@@ -624,3 +629,4 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     </section>
   );
 }
+
