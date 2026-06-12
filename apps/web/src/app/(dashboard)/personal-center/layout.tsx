@@ -123,8 +123,8 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
   return (
     <div className="dashboard-shell">
       <section className="panel personal-center-workspace-shell" style={{ marginBottom: 24 }}>
-        <div className="panel-header">
-          <div>
+        <div className="panel-header personal-center-workspace-header">
+          <div className="personal-center-workspace-copy">
             <h2>个人中心工作区</h2>
             <p className="panel-subtext">这里统一承接账号概览、任务、订单、作品、技能、安全、团队与邀请等独立工作区。</p>
           </div>
@@ -137,7 +137,7 @@ export default function PersonalCenterLayout({ children }: { children: ReactNode
               {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
               {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
             </div>
-            <div className="personal-actions personal-actions--tight">
+            <div className="personal-actions personal-actions--tight personal-center-workspace-controls">
               <button type="button" className="secondary-button" onClick={() => void loadWorkspaceAccount()} disabled={isLoading || isSwitchingBrand}>
                 刷新
               </button>

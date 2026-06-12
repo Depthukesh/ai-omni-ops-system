@@ -117,6 +117,26 @@ export default function PersonalCenterPage() {
   const latestWork = useMemo(() => [...media].sort(sortByMediaCreatedAtDesc)[0], [media]);
   const latestPointLedger = useMemo(() => [...pointLedgers].sort(sortByPointLedgerCreatedAtDesc)[0], [pointLedgers]);
   const totalOrderCount = summary.membershipOrderCount + summary.rechargeOrderCount;
+  const overviewPills = useMemo(
+    () => [
+      {
+        label: "当前品牌",
+        value: currentBrand?.brandName || "未绑定品牌",
+        detail: currentBrand ? formatCollaboratorRoleLabel(currentBrand.role) : "可先绑定品牌工作区",
+      },
+      {
+        label: "可访问品牌",
+        value: `${brands.length || 0}`,
+        detail: "当前账号可切换的协作空间数量",
+      },
+      {
+        label: "最近点数记录",
+        value: latestPointLedger ? formatDateTime(latestPointLedger.createdAt) : "未记录",
+        detail: latestPointLedger?.description || "当前还没有新的点数变动记录。",
+      },
+    ],
+    [brands.length, currentBrand, latestPointLedger],
+  );
 
   const focusItems = useMemo(
     () =>
@@ -240,243 +260,110 @@ export default function PersonalCenterPage() {
   );
 
   return (
-    <main className="dashboard-shell">
-      <section className="panel personal-center-panel">
-        <div className="panel-header">
-          <div>
-            <h2>个人中心概览</h2>
-            <p className="panel-subtext">这里只保留最重要的账号摘要、今日待办和快捷入口，详细处理统一进入各自的独立工作区。</p>
-          </div>
-          <span>{summary.membership}</span>
-        </div>
-
-        <div className="personal-context-banner">
-          <div>
-            <strong>今天先处理需要动作的入口，不在首页展开长列表</strong>
-            <p>如果有正在执行的任务，先看任务中心；如果要确认支付和到账，再去订单中心；账号资料和登录状态统一放在安全设置里维护。</p>
-          </div>
-          <div className="personal-context-actions">
-            <Link href="/personal-center/tasks" className="primary-button">
-              打开任务中心
-            </Link>
-            <Link href="/personal-center/orders" className="secondary-button">
-              打开订单中心
-            </Link>
-          </div>
-        </div>
-
-        <div className="card-grid">
-          <article className="metric-card">
-            <span>会员等级</span>
-            <strong>{summary.membership}</strong>
-            <p>当前账号的会员身份与服务层级。</p>
-          </article>
-          <article className="metric-card">
-            <span>剩余点数</span>
-            <strong>{summary.pointsBalance}</strong>
-            <p>创作点数只显示摘要，流水明细统一进入订单与点数相关工作区。</p>
-          </article>
-          <article className="metric-card">
-            <span>进行中任务</span>
-            <strong>{summary.runningTasks}</strong>
-            <p>只在概览里提醒，不在根页展示任务长列表。</p>
-          </article>
-          <article className="metric-card">
-            <span>作品资产</span>
-            <strong>{summary.workCount}</strong>
-            <p>其中小红书相关作品 {summary.xiaohongshuWorkCount} 份。</p>
-          </article>
-          <article className="metric-card">
-            <span>待处理邀请</span>
-            <strong>{summary.pendingInviteCount}</strong>
-            <p>邀请通知已经独立拆页，概览只保留提醒。</p>
-          </article>
-          <article className="metric-card">
-            <span>最近点数记录</span>
-            <strong>{latestPointLedger ? formatDateTime(latestPointLedger.createdAt) : "未记录"}</strong>
-            <p>{latestPointLedger?.description || "当前还没有可显示的点数变动记录。"}</p>
-          </article>
-        </div>
-
-        <div className="personal-overview-action-grid">
-          {primaryActions.map((item) => (
-            <Link key={item.href} href={item.href} className="personal-overview-action-card">
-              <span className="personal-overview-action-label">{item.label}</span>
-              <strong>{item.value}</strong>
-              <p>{item.description}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel personal-center-panel">
-        <div className="panel-header">
-          <div>
-            <h2>关键信息</h2>
-            <p className="panel-subtext">只保留账号、品牌和当前最需要处理的事项，避免把列表、表格和历史记录全部堆回首页。</p>
-          </div>
-        </div>
-
-        <div className="personal-list">
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>账号与品牌</strong>
-                <p className="personal-meta">确认当前是谁在使用系统、正在操作哪个品牌工作区。</p>
-              </div>
-              <span className="archive-pill status-ready">{formatCollaboratorRoleLabel(currentBrand?.role)}</span>
-            </div>
-            <div className="profile-summary-inline">
+    <main className="dashboard-shell personal-center-shell">
+      <div className="bento-container">
+        <div className="bento-grid">
+          
+          {/* Account Identity (Hero Cell) */}
+          <article className="bento-cell bento-cell-glass bento-cell--col-8 bento-cell--row-2">
+            <span className="bento-eyebrow">Personal Center</span>
+            <div className="bento-profile-wrap">
               {profile.avatarUrl ? (
-                <img className="profile-summary-avatar" src={profile.avatarUrl} alt={`${profile.nickname || "用户"}头像`} />
+                <img className="bento-avatar" src={profile.avatarUrl} alt={`${profile.nickname || "User"} Avatar`} />
               ) : (
-                <div className="profile-summary-avatar profile-summary-avatar-fallback">
+                <div className="bento-avatar">
                   {(profile.nickname || profile.email || "U").slice(0, 1).toUpperCase()}
                 </div>
               )}
-              <div className="personal-actions personal-actions--tight" style={{ justifyContent: "flex-start" }}>
-                <Link href="/personal-center/security" className="secondary-button">
-                  编辑账号资料
-                </Link>
-                <Link href="/personal-center/team" className="secondary-button">
-                  查看团队协作
-                </Link>
+              <div>
+                <h2 className="bento-title">{profile.nickname || "Current Account"}</h2>
+                <p className="bento-desc">{currentBrand?.brandName || "No Workspace Linked"}</p>
               </div>
             </div>
-            <div className="personal-grid">
-              <div>
-                <span>用户昵称</span>
-                <strong>{profile.nickname}</strong>
-              </div>
-              <div>
-                <span>用户 ID</span>
-                <strong>{profile.id}</strong>
-              </div>
-              <div>
-                <span>手机号</span>
-                <strong>{profile.mobile}</strong>
-              </div>
-              <div>
-                <span>邮箱</span>
-                <strong>{profile.email}</strong>
-              </div>
-              <div>
-                <span>当前品牌</span>
-                <strong>{currentBrand?.brandName || "未绑定品牌"}</strong>
-              </div>
-              <div>
-                <span>可访问品牌数</span>
-                <strong>{brands.length || 0}</strong>
-              </div>
+            
+            <p className="bento-desc" style={{ maxWidth: '65ch' }}>
+              Welcome back. Manage your tasks, orders, and creative assets here. Detailed workflows are accessible via dedicated workspaces below.
+            </p>
+            
+            <div className="bento-action-area">
+              <Link href="/personal-center/tasks" className="primary-button">
+                Open Task Center
+              </Link>
+              <Link href="/personal-center/security" className="secondary-button">
+                Account Security
+              </Link>
             </div>
           </article>
 
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>当前待办</strong>
-                <p className="personal-meta">首页只显示下一步该去哪里处理，不在这里继续展开明细。</p>
-              </div>
-              <span className="archive-pill status-in_progress">{focusItems.length} 项关注</span>
-            </div>
-            <div className="personal-list" style={{ gap: 12 }}>
-              {focusItems.map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="light-data-panel"
-                  style={{ textDecoration: "none", color: "inherit" }}
-                >
-                  <div className="entity-card-head">
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p className="personal-meta">{item.detail}</p>
-                    </div>
-                    <span className="archive-pill status-ready">{item.action}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+          {/* Membership Status */}
+          <article className="bento-cell bento-cell--col-4">
+            <span className="bento-eyebrow">Membership</span>
+            <h3 className="bento-title">{summary.membership}</h3>
+            <div className="bento-value bento-value-small">{summary.pointsBalance}</div>
+            <p className="bento-desc">Remaining Points</p>
           </article>
 
-          <article className="entity-card personal-card">
-            <div className="entity-card-head">
-              <div>
-                <strong>最近动态</strong>
-                <p className="personal-meta">每类只保留一条最近记录，让首页更像概览，而不是历史中心。</p>
-              </div>
-            </div>
-            <div className="personal-list" style={{ gap: 12 }}>
-              <div className="light-data-panel">
-                <div className="entity-card-head">
-                  <div>
-                    <strong>{latestTask?.taskTitle || "暂无任务"}</strong>
-                    <p className="personal-meta">任务中心最近更新</p>
-                  </div>
-                  <span className={`archive-pill ${latestTask ? personalTaskStatusClassMap[latestTask.taskStatus] : "status-paused"}`}>
-                    {latestTask ? formatTaskStatusLabel(latestTask.taskStatus) : "暂无"}
-                  </span>
-                </div>
-                <p className="personal-meta">{latestTask ? `${latestTask.taskType} · ${formatDateTime(latestTask.updatedAt)}` : "去任务中心查看执行记录。"}</p>
-              </div>
-
-              <div className="light-data-panel">
-                <div className="entity-card-head">
-                  <div>
-                    <strong>{latestOrder?.orderNo || "暂无订单"}</strong>
-                    <p className="personal-meta">订单中心最近更新</p>
-                  </div>
-                  <span className={`archive-pill ${latestOrder ? personalOrderStatusClassMap[latestOrder.orderStatus] : "status-paused"}`}>
-                    {latestOrder ? formatOrderStatusLabel(latestOrder.orderStatus) : "暂无"}
-                  </span>
-                </div>
-                <p className="personal-meta">
-                  {latestOrder
-                    ? `${latestOrder.orderType === "MEMBERSHIP_PURCHASE" ? "会员订单" : "点数充值"} · ${formatDateTime(latestOrder.updatedAt)}`
-                    : "去订单中心查看会员订单与充值记录。"}
-                </p>
-              </div>
-
-              <div className="light-data-panel">
-                <div className="entity-card-head">
-                  <div>
-                    <strong>{latestWork?.title || "暂无作品"}</strong>
-                    <p className="personal-meta">作品中心最近产出</p>
-                  </div>
-                  <span className="archive-pill status-ready">{latestWork ? formatMediaTypeLabel(latestWork.mediaType) : "暂无"}</span>
-                </div>
-                <p className="personal-meta">
-                  {latestWork ? `${formatDateTime(latestWork.createdAt)} · ${latestWork.title}` : "去作品中心查看当前账号沉淀的作品资产。"}
-                </p>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section className="panel personal-center-panel">
-        <div className="panel-header">
-          <div>
-            <h2>快捷入口</h2>
-            <p className="panel-subtext">从概览页直接进入具体工作区，首页不再承担所有业务细节。</p>
-          </div>
-        </div>
-        <div className="card-grid">
-          {workspaceLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <article className="metric-card" style={{ height: "100%" }}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.description}</p>
-              </article>
+          {/* Running Tasks */}
+          <article className="bento-cell bento-cell--col-4">
+            <Link href="/personal-center/tasks" className="bento-link">
+              <span className="bento-eyebrow">Execution</span>
+              <h3 className="bento-title">Active Tasks</h3>
+              <div className="bento-value">{summary.runningTasks}</div>
+              <p className="bento-desc">In queue or running</p>
             </Link>
-          ))}
+          </article>
+
+          {/* Creative Assets */}
+          <article className="bento-cell bento-cell--col-6">
+            <Link href="/personal-center/works" className="bento-link">
+              <span className="bento-eyebrow">Assets</span>
+              <h3 className="bento-title">Media & Works</h3>
+              <div className="bento-value bento-value-small">{summary.workCount}</div>
+              <p className="bento-desc">Generated images, videos, and documents ready for export.</p>
+            </Link>
+          </article>
+
+          {/* Orders & Recharge */}
+          <article className="bento-cell bento-cell--col-6">
+            <Link href="/personal-center/orders" className="bento-link">
+              <span className="bento-eyebrow">Billing</span>
+              <h3 className="bento-title">Orders & Recharge</h3>
+              <div className="bento-value bento-value-small">{totalOrderCount}</div>
+              <p className="bento-desc">Check payment status and top-up records.</p>
+            </Link>
+          </article>
+
+          {/* Team Collaboration */}
+          <article className="bento-cell bento-cell--col-4">
+            <Link href="/personal-center/team" className="bento-link">
+              <span className="bento-eyebrow">Network</span>
+              <h3 className="bento-title">Collaboration</h3>
+              <div className="bento-value">{brands.length || 0}</div>
+              <p className="bento-desc">Accessible workspaces</p>
+            </Link>
+          </article>
+
+          {/* Pending Invites */}
+          <article className="bento-cell bento-cell--col-4">
+            <Link href="/personal-center/invites" className="bento-link">
+              <span className="bento-eyebrow">Notifications</span>
+              <h3 className="bento-title">Pending Invites</h3>
+              <div className="bento-value">{summary.pendingInviteCount}</div>
+              <p className="bento-desc">Awaiting your response</p>
+            </Link>
+          </article>
+
+          {/* Platform Settings */}
+          <article className="bento-cell bento-cell--col-4">
+            <Link href="/personal-center/third-party-platforms" className="bento-link">
+              <span className="bento-eyebrow">Integrations</span>
+              <h3 className="bento-title">Platform API</h3>
+              <p className="bento-desc" style={{ marginTop: 'auto' }}>Configure third-party models and sync keys.</p>
+            </Link>
+          </article>
+
         </div>
-      </section>
+      </div>
     </main>
   );
 }

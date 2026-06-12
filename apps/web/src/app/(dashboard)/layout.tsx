@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ThemeModeToggle } from "../../components/theme-mode-toggle";
 import { readAuthSession } from "../../services/auth";
 import { getMyBrandInvites, type BrandInviteRecord } from "../../services/brand-growth";
 import { brandInviteReadStateChangedEvent, buildPersonalCenterLoginPath } from "./personal-center/route-helpers";
@@ -155,6 +156,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   </span>
                 </Link>
                 <div className="dashboard-topbar-actions">
+                  <ThemeModeToggle />
                   <Link href="/" className="dashboard-topbar-home-link">
                     返回首页
                   </Link>

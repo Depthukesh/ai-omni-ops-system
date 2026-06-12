@@ -9,8 +9,27 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <body>
+        <Script
+          id="theme-mode-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                var storageKey = "ai-omni-theme-mode";
+                var fallbackTheme = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+                var savedTheme = "";
+                try {
+                  savedTheme = window.localStorage.getItem(storageKey) || "";
+                } catch (_) {}
+                var theme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : fallbackTheme;
+                document.documentElement.setAttribute("data-theme", theme);
+                document.documentElement.style.colorScheme = theme;
+              })();
+            `,
+          }}
+        />
         <Script
           id="chunk-load-recovery"
           strategy="beforeInteractive"

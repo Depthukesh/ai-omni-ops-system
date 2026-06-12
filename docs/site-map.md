@@ -18,7 +18,7 @@
 
 ### 2.1 前端入口
 
-- `/`：统一认证入口，默认展示邀请码注册，并可切换到普通登录；已登录用户会自动回到目标前台页面
+- `/`：官网首页，当前已切到营销型首页模板，作为 `17ai.site` 的正式首入口
 - `/brand-growth`：品牌增长策略工作台
 - `/douyin`：抖音工作台
 - `/xiaohongshu`：小红书工作台
@@ -26,12 +26,12 @@
 - `/more-features`：更多功能入口，当前直接重定向到 `/more-features/design`
 - `/more-features/design`：设计工作台
 - `/personal-center`：个人中心
-- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、`/wechat`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/?next=...`
+- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、`/wechat`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/login?next=...`
 - `/admin`：后台管理台，仅管理员角色账号可进入
 - `/help/xhs-draft-publisher`：小红书电脑端一键发布扩展的下载与安装帮助页
-- `/login`：兼容登录页，已接入账号密码登录，并提供回流根页注册入口
-- `/register`：兼容注册页，已接入邀请码注册表单，注册成功后自动进入工作台
-- `/admin/login`：后台管理员专用登录页
+- `/login`：前台统一登录页，已接入账号密码登录，并开始接入与首页一致的品牌视觉语言
+- `/register`：前台统一注册页，已接入邀请码注册表单，并开始接入与首页一致的品牌视觉语言
+- `/admin/login`：后台管理员专用登录页，当前已按同一品牌基线收口为后台入口壳层
 - 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/register`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
 
 ### 2.2 当前主要用户链路

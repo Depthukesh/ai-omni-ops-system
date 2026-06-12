@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readAuthSession, register } from "../../../services/auth";
+import { AuthShell } from "../../../components/auth-shell";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -79,86 +80,95 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="page-shell">
-      <section className="panel auth-panel" style={{ maxWidth: 520, margin: "48px auto", width: "100%" }}>
-        <div className="panel-header">
-          <div>
-            <h1>注册</h1>
-            <p className="panel-subtext">手机号和邀请码必填。邀请码验证通过后即可完成注册并直接进入个人中心工作区。</p>
-          </div>
-        </div>
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>手机号</span>
-            <input
-              value={mobile}
-              onChange={(event) => setMobile(event.target.value)}
-              placeholder="请输入 11 位手机号"
-              autoComplete="tel"
-            />
-          </label>
-          <label className="field">
-            <span>邮箱</span>
-            <input
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setErrorMessage("");
-              }}
-              placeholder="请输入常用邮箱"
-              autoComplete="email"
-            />
-          </label>
-          <label className="field">
-            <span>邀请码</span>
-            <input
-              value={inviteCode}
-              onChange={(event) => setInviteCode(event.target.value)}
-              placeholder="请输入 6 位邀请码"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-          <label className="field">
-            <span>昵称</span>
-            <input
-              value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
-              placeholder="可选，不填则系统自动生成"
-              autoComplete="nickname"
-            />
-          </label>
-          <label className="field">
-            <span>密码</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="至少 6 位"
-              autoComplete="new-password"
-            />
-          </label>
-          <label className="field">
-            <span>确认密码</span>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="请再次输入密码"
-              autoComplete="new-password"
-            />
-          </label>
-          <p className="field-hint">当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。</p>
-          {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
-          <button type="submit" className="primary-button" disabled={isSubmitting}>
-            {isSubmitting ? "注册中..." : "完成注册并进入工作台"}
-          </button>
-        </form>
+    <AuthShell
+      badge="邀请码注册"
+      title="把品牌协作、任务与资产统一接入一个账号体系"
+      description="注册页沿用首页的品牌语言，但收口为更清晰的准入流程，保证用户第一次进入系统就知道规则。"
+      highlights={[
+        { title: "邀请码准入", description: "当前账号体系按邀请码开放，先保证品牌成员和协作边界明确。" },
+        { title: "一次注册直达", description: "通过校验后直接进入工作台，不需要再重复登录。" },
+        { title: "账号可持续扩展", description: "后续会员、积分、任务和团队页都会继续使用同一账户体系。" },
+      ]}
+      footer={
         <div className="auth-footnote">
           已有账号？<Link href={`/login?next=${encodeURIComponent(nextPath)}`}>去登录</Link>
         </div>
-      </section>
-    </main>
+      }
+    >
+      <div className="panel-header">
+        <div>
+          <h1>注册</h1>
+          <p className="panel-subtext">手机号和邀请码必填。邀请码验证通过后即可完成注册并直接进入个人中心工作区。</p>
+        </div>
+      </div>
+      <form className="form-grid" onSubmit={handleSubmit}>
+        <label className="field">
+          <span>手机号</span>
+          <input
+            value={mobile}
+            onChange={(event) => setMobile(event.target.value)}
+            placeholder="请输入 11 位手机号"
+            autoComplete="tel"
+          />
+        </label>
+        <label className="field">
+          <span>邮箱</span>
+          <input
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setErrorMessage("");
+            }}
+            placeholder="请输入常用邮箱"
+            autoComplete="email"
+          />
+        </label>
+        <label className="field">
+          <span>邀请码</span>
+          <input
+            value={inviteCode}
+            onChange={(event) => setInviteCode(event.target.value)}
+            placeholder="请输入 6 位邀请码"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <label className="field">
+          <span>昵称</span>
+          <input
+            value={nickname}
+            onChange={(event) => setNickname(event.target.value)}
+            placeholder="可选，不填则系统自动生成"
+            autoComplete="nickname"
+          />
+        </label>
+        <label className="field">
+          <span>密码</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="至少 6 位"
+            autoComplete="new-password"
+          />
+        </label>
+        <label className="field">
+          <span>确认密码</span>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="请再次输入密码"
+            autoComplete="new-password"
+          />
+        </label>
+        <p className="field-hint">当前注册采用邀请码准入，邀请码一次性使用；没有邀请码的账号无法注册。</p>
+        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
+        <button type="submit" className="primary-button auth-panel-submit" disabled={isSubmitting}>
+          {isSubmitting ? "注册中..." : "完成注册并进入工作台"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
