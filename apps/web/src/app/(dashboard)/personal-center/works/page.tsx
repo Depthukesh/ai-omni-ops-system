@@ -161,7 +161,7 @@ export default function PersonalCenterWorksPage() {
       <div className="panel-header">
         <div>
           <h2>作品中心</h2>
-          <p className="panel-subtext">集中查看当前账号沉淀下来的 HTML、图片、视频与文档资产，并优先承接小红书作品回跳链路。</p>
+          <p className="panel-subtext">集中查看当前账号沉淀下来的 HTML、图片、视频与文档资产，并从这里继续回到对应工作台处理内容。</p>
         </div>
         <span>{summary.total} 个作品</span>
       </div>
@@ -187,7 +187,7 @@ export default function PersonalCenterWorksPage() {
           >
             {brands.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.brandName} 路 {formatCollaboratorRoleLabel(item.role)}
+                {item.brandName} · {formatCollaboratorRoleLabel(item.role)}
               </option>
             ))}
           </select>
@@ -220,13 +220,39 @@ export default function PersonalCenterWorksPage() {
         </article>
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16 }}>
-        <Link href="/xiaohongshu" className="primary-button">
-          去小红书工作台
+      <div className="personal-context-banner">
+        <div>
+          <strong>先判断要处理哪一类作品，再回到对应工作台继续编辑</strong>
+          <p>如果是小红书内容，优先回到小红书工作台继续处理；如果是其他图片、视频或文档资产，就直接在这里打开和核对最终产物。</p>
+        </div>
+        <div className="personal-context-actions">
+          <Link href="/xiaohongshu" className="primary-button">
+            去小红书工作台
+          </Link>
+          <Link href="/personal-center" className="secondary-button">
+            返回个人中心概览
+          </Link>
+        </div>
+      </div>
+
+      <div className="personal-overview-action-grid" style={{ marginBottom: 16 }}>
+        <Link href="/xiaohongshu" className="personal-overview-action-card">
+          <span className="personal-overview-action-label">优先处理</span>
+          <strong>{summary.xiaohongshu}</strong>
+          <p>当前筛选结果中的小红书作品，适合直接回到工作台继续编辑、预览和发布。</p>
         </Link>
-        <Link href="/personal-center" className="secondary-button">
-          返回个人中心概览
-        </Link>
+        <div className="personal-overview-action-card">
+          <span className="personal-overview-action-label">内容结构</span>
+          <strong>
+            {summary.html} / {summary.image}
+          </strong>
+          <p>先看 HTML 和图片的比例，可以快速判断当前作品更偏文稿页还是封面配图。</p>
+        </div>
+        <div className="personal-overview-action-card">
+          <span className="personal-overview-action-label">最近产出</span>
+          <strong>{formatDateTime(summary.latestCreatedAt)}</strong>
+          <p>从最近生成的作品开始回看，通常更容易接住当前正在推进的内容任务。</p>
+        </div>
       </div>
 
       <div className="personal-toolbar" style={{ alignItems: "flex-end" }}>
@@ -238,6 +264,11 @@ export default function PersonalCenterWorksPage() {
             placeholder="搜索作品名称、类型、任务 ID 或品牌 ID"
           />
         </label>
+        {search.trim() ? (
+          <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+            清空搜索
+          </button>
+        ) : null}
       </div>
 
       <div className="tab-switcher" aria-label="作品范围筛选" style={{ marginTop: 16 }}>
@@ -282,10 +313,12 @@ export default function PersonalCenterWorksPage() {
                   <div className="entity-card-head">
                     <div>
                       <strong>{item.title}</strong>
-                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} 路 {item.mimeType || "未记录 MIME"}</p>
+                      <p className="personal-meta">
+                        {getMediaTypeLabel(item.mediaType)} · {item.mimeType || "未记录 MIME"}
+                      </p>
                     </div>
                     <div className="personal-actions">
-                      <span className="archive-pill status-ready">{item.mediaType}</span>
+                      <span className="archive-pill status-ready">{getMediaTypeLabel(item.mediaType)}</span>
                       <Link href={`/xiaohongshu?workId=${encodeURIComponent(item.id)}`} className="secondary-button">
                         回到工作台
                       </Link>
@@ -313,10 +346,12 @@ export default function PersonalCenterWorksPage() {
                   <div className="entity-card-head">
                     <div>
                       <strong>{item.title}</strong>
-                      <p className="personal-meta">{getMediaTypeLabel(item.mediaType)} 路 {item.mimeType || "未记录 MIME"}</p>
+                      <p className="personal-meta">
+                        {getMediaTypeLabel(item.mediaType)} · {item.mimeType || "未记录 MIME"}
+                      </p>
                     </div>
                     <div className="personal-actions">
-                      <span className="archive-pill status-ready">{item.mediaType}</span>
+                      <span className="archive-pill status-ready">{getMediaTypeLabel(item.mediaType)}</span>
                       {item.assetUrl ? (
                         <a href={item.assetUrl} target="_blank" rel="noreferrer" className="secondary-button">
                           打开作品
@@ -331,8 +366,39 @@ export default function PersonalCenterWorksPage() {
           </article>
         ) : null}
 
-        {!filteredMedia.length ? <div className="empty-canvas-box">暂无作品，请先到相关工作台生成或上传作品资产。</div> : null}
-        {!filteredMedia.length ? <p className="empty-state">当前没有匹配的作品记录。</p> : null}
+        {!filteredMedia.length ? (
+          <div className="empty-canvas-box">
+            <strong>{search.trim() || scopeFilter !== "ALL" || typeFilter !== "ALL" ? "当前筛选条件下没有作品" : "当前还没有可展示的作品资产"}</strong>
+            <p>
+              {search.trim() || scopeFilter !== "ALL" || typeFilter !== "ALL"
+                ? "可以先清空搜索词，或把作品范围和类型切回“全部”后重新查看。"
+                : "你可以先到小红书工作台或其他内容工作台继续生成作品，新的资产会自动回到这里统一查看。"}
+            </p>
+            <div className="personal-actions">
+              {search.trim() || scopeFilter !== "ALL" || typeFilter !== "ALL" ? (
+                <>
+                  <button type="button" className="secondary-button" onClick={() => setSearch("")}>
+                    清空搜索
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setScopeFilter("ALL");
+                      setTypeFilter("ALL");
+                    }}
+                  >
+                    查看全部作品
+                  </button>
+                </>
+              ) : (
+                <Link href="/xiaohongshu" className="primary-button">
+                  去生成作品
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -516,7 +516,7 @@ export default function PersonalCenterTeamPage() {
       <div className="panel-header">
         <div>
           <h2>团队协作</h2>
-          <p className="panel-subtext">当前团队角色统一为管理员、员工、达人；管理员可管理成员，并为员工和达人配置各板块的查看与编辑权限。</p>
+          <p className="panel-subtext">在这里统一处理成员、邀请、权限模板和主账号转移，让团队协作入口保持集中且清晰。</p>
         </div>
         <span>{brands.length} 个可访问品牌</span>
       </div>
@@ -575,6 +575,39 @@ export default function PersonalCenterTeamPage() {
         </article>
       </div>
 
+      <div className="personal-context-banner">
+        <div>
+          <strong>先处理待接受邀请，再看成员和权限模板</strong>
+          <p>如果你自己还有待加入的品牌，优先在这里确认；如果当前已经进入品牌团队，再继续处理成员邀请、角色调整和权限模板。</p>
+        </div>
+        <div className="personal-context-actions">
+          <Link href="/personal-center/invites" className="primary-button">
+            打开邀请通知中心
+          </Link>
+          <Link href="/personal-center" className="secondary-button">
+            返回个人中心概览
+          </Link>
+        </div>
+      </div>
+
+      <div className="personal-overview-action-grid" style={{ marginBottom: 16 }}>
+        <Link href="/personal-center/invites" className="personal-overview-action-card">
+          <span className="personal-overview-action-label">待处理事项</span>
+          <strong>{myPendingInvites.length}</strong>
+          <p>先看是否还有待你确认加入的品牌邀请，避免漏掉新的协作入口。</p>
+        </Link>
+        <div className="personal-overview-action-card">
+          <span className="personal-overview-action-label">当前成员规模</span>
+          <strong>{members.length}</strong>
+          <p>用成员数量快速判断这个品牌团队当前是单人管理，还是已经进入多人协作阶段。</p>
+        </div>
+        <div className="personal-overview-action-card">
+          <span className="personal-overview-action-label">协作权限</span>
+          <strong>{canManageMembers ? "可管理" : "只读查看"}</strong>
+          <p>{canManageMembers ? "你可以继续邀请成员、调整角色并保存权限模板。" : "当前账号以查看为主，无法直接修改团队设置。"}</p>
+        </div>
+      </div>
+
       <div className="card-grid" style={{ marginBottom: 16 }}>
         <article className="entity-card personal-card">
           <div className="entity-card-head">
@@ -606,7 +639,15 @@ export default function PersonalCenterTeamPage() {
                 </div>
               ))
             ) : (
-              <p>当前没有待你接受的品牌邀请。</p>
+              <div className="empty-canvas-box" style={{ minHeight: 0, padding: 18 }}>
+                <strong>当前没有待你接受的品牌邀请</strong>
+                <p>新的品牌邀请到达后，会先进入邀请通知中心；你也可以继续查看当前团队成员和权限设置。</p>
+                <div className="personal-actions">
+                  <Link href="/personal-center/invites" className="secondary-button">
+                    查看邀请通知
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </article>
@@ -754,6 +795,11 @@ export default function PersonalCenterTeamPage() {
           <p className="panel-subtext">转移后，接收成员会成为品牌归属主账号；当前账号继续以管理员身份留在团队中，并写入审计日志。</p>
         </article>
       ) : null}
+
+      <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+        <strong>成员管理和权限模板已经拆开</strong>
+        先在成员表里确认“谁加入了团队”，再在权限模板里确认“这些角色能看到和编辑什么”，这样比把所有设置堆在一张表里更容易判断当前协作状态。
+      </div>
 
       {canManageMembers ? (
         <article className="light-data-panel" style={{ marginBottom: 16 }}>
@@ -1033,7 +1079,7 @@ export default function PersonalCenterTeamPage() {
             ))}
             {!members.length ? (
               <tr>
-                <td colSpan={canManageMembers ? 7 : 6}>当前品牌暂无可展示的成员记录。</td>
+                  <td colSpan={canManageMembers ? 7 : 6}>当前品牌还没有可展示的成员记录，可以先创建邀请链接或直接发送成员邀请。</td>
               </tr>
             ) : null}
           </tbody>
@@ -1089,8 +1135,8 @@ export default function PersonalCenterTeamPage() {
       ) : null}
 
       <div className="personal-actions">
-        <Link href="/personal-center/tasks" className="primary-button">
-          去任务中心
+        <Link href="/personal-center/invites" className="primary-button">
+          去邀请通知中心
         </Link>
         <Link href="/personal-center" className="secondary-button">
           返回个人中心概览
