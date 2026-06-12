@@ -184,7 +184,7 @@ export default function PersonalCenterSecurityPage() {
   async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formNickname.trim()) {
-      setErrorMessage("璇疯緭鍏ョ敤鎴峰悕");
+      setErrorMessage("请输入用户名");
       return;
     }
     if (!/^1\d{10}$/.test(formMobile.trim())) {
@@ -228,7 +228,7 @@ export default function PersonalCenterSecurityPage() {
       return;
     }
     if (!nextPassword) {
-      setErrorMessage("璇疯緭鍏ユ柊瀵嗙爜");
+      setErrorMessage("请输入新密码");
       return;
     }
     if (nextPassword.length < 6) {
@@ -240,7 +240,7 @@ export default function PersonalCenterSecurityPage() {
       return;
     }
     if (currentPassword === nextPassword) {
-      setErrorMessage("鏂板瘑鐮佷笉鑳戒笌褰撳墠瀵嗙爜鐩稿悓");
+      setErrorMessage("新密码不能与当前密码相同");
       return;
     }
 

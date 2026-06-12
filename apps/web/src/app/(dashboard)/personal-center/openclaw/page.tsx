@@ -99,7 +99,7 @@ export default function PersonalCenterOpenClawPage() {
   function handleToggleTokenVisibility() {
     if (!rawToken) {
       setNotice("");
-      setErrorMessage("当前页面没有完整令牌可显示。请先点击“重置正式安装令牌”后，再使用眼睛查看完整令牌。");
+      setErrorMessage("当前页面没有可显示的完整令牌。请先点击“重置正式安装令牌”，再使用眼睛按钮查看完整令牌。");
       return;
     }
     setErrorMessage("");
@@ -140,7 +140,7 @@ export default function PersonalCenterOpenClawPage() {
       setRawToken(result.token);
       setIsTokenVisible(false);
       setSelectedTab("openclaw");
-      setNotice("新的正式安装令牌已生成。点击眼睛后可查看完整令牌，离开本页后将不再展示完整令牌。");
+      setNotice("新的正式安装令牌已生成。点击眼睛按钮可查看完整令牌，离开本页后将不再展示完整令牌。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -208,7 +208,7 @@ export default function PersonalCenterOpenClawPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
-      setNotice("Skill ZIP 已开始下载，请在客户端按上传技能方式导入。");
+      setNotice("Skill 压缩包已开始下载，请在客户端通过“上传技能”方式导入。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Skill ZIP 下载失败");
     } finally {
@@ -226,7 +226,7 @@ export default function PersonalCenterOpenClawPage() {
       <div className="panel-header">
         <div>
           <h2>OpenClaw 安装中心</h2>
-          <p className="panel-subtext">正式环境使用品牌级安装令牌和网站 MCP HTTP 地址，不再暴露网站登录账号密码。品牌管理员在这里生成令牌后，成员只需要复制配置即可完成安装。</p>
+          <p className="panel-subtext">正式环境使用品牌级安装令牌和网站 MCP 接入地址，不再暴露网站登录账号密码。品牌管理员在这里生成令牌后，成员只需复制配置即可完成安装。</p>
         </div>
         <span>{workspace?.brandName || "当前品牌"}</span>
       </div>
@@ -274,11 +274,11 @@ export default function PersonalCenterOpenClawPage() {
 
       <div className="personal-grid" style={{ marginBottom: 16 }}>
         <div>
-          <span>MCP Server 名称</span>
+          <span>MCP 服务名称</span>
           <strong>{workspace?.mcpServerName || "-"}</strong>
         </div>
         <div>
-          <span>MCP HTTP 地址</span>
+          <span>MCP 接入地址</span>
           <strong style={{ wordBreak: "break-all" }}>{workspace?.mcpUrl || "-"}</strong>
         </div>
         <div>
@@ -286,7 +286,7 @@ export default function PersonalCenterOpenClawPage() {
           <strong>{workspace?.brandName || "-"}</strong>
         </div>
         <div>
-          <span>当前令牌</span>
+          <span>安装令牌</span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <strong>{displayedToken}</strong>
             <button
@@ -305,7 +305,7 @@ export default function PersonalCenterOpenClawPage() {
 
       {rawToken ? (
         <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-          完整安装令牌仅展示这一次，请立即复制并保存。默认隐藏，点击眼睛后可在上方和安装片段中查看完整令牌。
+          完整安装令牌仅展示这一次，请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌。
         </div>
       ) : null}
 
@@ -314,7 +314,7 @@ export default function PersonalCenterOpenClawPage() {
           <div className="entity-card-head">
             <div>
               <strong>MCP 安装配置</strong>
-              <p className="personal-meta">面向正式环境，直接复制到 OpenClaw / WorkBuddy / Cursor / Claude Desktop 对应的 MCP 配置位置。</p>
+              <p className="personal-meta">面向正式环境，直接复制到 OpenClaw、WorkBuddy、Cursor 或 Claude Desktop 对应的 MCP 配置位置。</p>
             </div>
             <button
               type="button"

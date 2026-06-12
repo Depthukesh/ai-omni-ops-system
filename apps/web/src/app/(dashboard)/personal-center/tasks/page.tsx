@@ -238,12 +238,12 @@ export default function PersonalCenterTasksPage() {
         <article className="metric-card">
           <span>运行中</span>
           <strong>{summary.running}</strong>
-          <p>包含 `QUEUED` 与 `RUNNING` 两种状态。</p>
+          <p>包含排队中和执行中两种状态。</p>
         </article>
         <article className="metric-card">
-          <span>成功完成</span>
+          <span>已完成</span>
           <strong>{summary.success}</strong>
-          <p>用于确认当前产出链路是否稳定收口。</p>
+          <p>用于确认近期任务是否顺利完成。</p>
         </article>
         <article className="metric-card">
           <span>失败待重试</span>
@@ -396,7 +396,7 @@ function getTaskHeartbeatLabel(task: TaskRecord) {
   }
   const diffMs = Date.now() - updatedMs;
   if (diffMs < 2 * 60 * 1000) {
-    return "鍒氬垰鏇存柊";
+    return "刚刚更新";
   }
   if (diffMs < 10 * 60 * 1000) {
     return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`;

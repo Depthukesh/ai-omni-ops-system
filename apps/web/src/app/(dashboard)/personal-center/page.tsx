@@ -23,6 +23,7 @@ import {
 } from "../../../services/personal-center";
 import {
   buildPersonalCenterLoginPath,
+  formatCollaboratorRoleLabel,
   formatDateTime,
   isAuthFailure,
   personalOrderStatusClassMap,
@@ -122,7 +123,7 @@ export default function PersonalCenterPage() {
         summary.pendingInviteCount
           ? {
               title: `${summary.pendingInviteCount} 条待处理邀请`,
-              detail: "先去邀请通知中心处理待接受邀请，避免遗漏品牌协作消息。",
+              detail: "前往邀请通知处理待接受的品牌邀请，避免遗漏团队协作消息。",
               href: "/personal-center/invites",
               action: "查看邀请",
             }
@@ -130,7 +131,7 @@ export default function PersonalCenterPage() {
         summary.runningTasks
           ? {
               title: `${summary.runningTasks} 个任务正在执行`,
-              detail: "任务详情和失败重试都已经拆到独立任务中心，不再堆在概览页里。",
+              detail: "任务详情与失败重试已统一收口到任务中心，概览页只保留提醒。",
               href: "/personal-center/tasks",
               action: "查看任务",
             }
@@ -138,14 +139,14 @@ export default function PersonalCenterPage() {
         summary.workCount
           ? {
               title: `${summary.workCount} 份作品资产可继续处理`,
-              detail: "作品中心统一承接 HTML、图片、视频和文档资产，小红书作品也已独立回跳。",
+              detail: "作品中心统一管理图片、视频、文档等资产，并支持回到对应工作台继续处理。",
               href: "/personal-center/works",
               action: "查看作品",
             }
           : null,
         {
           title: "账号安全与登录态",
-          detail: "安全设置页已经独立，当前可查看 token 持有状态、品牌上下文和退出登录入口。",
+          detail: "安全设置页已独立，可查看登录状态、当前品牌信息和退出登录入口。",
           href: "/personal-center/security",
           action: "打开安全设置",
         },
@@ -165,25 +166,25 @@ export default function PersonalCenterPage() {
         href: "/personal-center/works",
         label: "作品中心",
         value: `${summary.workCount} 份`,
-        description: "作品资产集中查看，不再在概览页展开长列表。",
+        description: "集中查看作品资产，并回到对应工作台继续处理。",
       },
       {
         href: "/personal-center/tasks",
         label: "任务中心",
         value: `${summary.runningTasks} 进行中`,
-        description: "任务状态、失败重试和执行记录统一下沉到任务页。",
+        description: "统一查看任务状态、失败重试和执行记录。",
       },
       {
         href: "/personal-center/skills",
         label: "技能中心",
         value: "平台技能",
-        description: "查看账号可见的技能基线与提示词参考。",
+        description: "查看品牌可见的技能基线与提示词配置。",
       },
       {
         href: "/personal-center/third-party-platforms",
         label: "第三方接口配置",
         value: "平台同步",
-        description: "按平台查看接口地址、模型 ID、说明文档，并维护当前账号自己的 API Key。",
+        description: "按平台查看接口地址、模型 ID、说明文档与品牌共享 API Key。",
       },
       {
         href: "/personal-center/team",
@@ -261,7 +262,7 @@ export default function PersonalCenterPage() {
                 <strong>账号与品牌</strong>
                 <p className="personal-meta">确认当前是谁在使用系统、正在操作哪个品牌工作区。</p>
               </div>
-              <span className="archive-pill status-ready">{currentBrand?.role || "未绑定品牌"}</span>
+              <span className="archive-pill status-ready">{formatCollaboratorRoleLabel(currentBrand?.role)}</span>
             </div>
             <div className="profile-summary-inline">
               {profile.avatarUrl ? (
@@ -348,7 +349,7 @@ export default function PersonalCenterPage() {
                     <p className="personal-meta">任务中心最近更新</p>
                   </div>
                   <span className={`archive-pill ${latestTask ? personalTaskStatusClassMap[latestTask.taskStatus] : "status-paused"}`}>
-                    {latestTask?.taskStatus || "暂无"}
+                    {latestTask ? formatTaskStatusLabel(latestTask.taskStatus) : "暂无"}
                   </span>
                 </div>
                 <p className="personal-meta">{latestTask ? `${latestTask.taskType} · ${formatDateTime(latestTask.updatedAt)}` : "去任务中心查看执行记录。"}</p>
@@ -361,7 +362,7 @@ export default function PersonalCenterPage() {
                     <p className="personal-meta">订单中心最近更新</p>
                   </div>
                   <span className={`archive-pill ${latestOrder ? personalOrderStatusClassMap[latestOrder.orderStatus] : "status-paused"}`}>
-                    {latestOrder?.orderStatus || "暂无"}
+                    {latestOrder ? formatOrderStatusLabel(latestOrder.orderStatus) : "暂无"}
                   </span>
                 </div>
                 <p className="personal-meta">
@@ -377,7 +378,7 @@ export default function PersonalCenterPage() {
                     <strong>{latestWork?.title || "暂无作品"}</strong>
                     <p className="personal-meta">作品中心最近产出</p>
                   </div>
-                  <span className="archive-pill status-ready">{latestWork?.mediaType || "暂无"}</span>
+                  <span className="archive-pill status-ready">{latestWork ? formatMediaTypeLabel(latestWork.mediaType) : "暂无"}</span>
                 </div>
                 <p className="personal-meta">
                   {latestWork ? `${formatDateTime(latestWork.createdAt)} · ${latestWork.title}` : "去作品中心查看当前账号沉淀的作品资产。"}
@@ -433,4 +434,57 @@ function sortByOrderUpdatedAtDesc(a: OrderRecord, b: OrderRecord) {
 
 function isXiaohongshuWork(item: MediaRecord) {
   return item.scope === "XIAOHONGSHU" || item.title.toLowerCase().includes("小红书");
+}
+
+function formatTaskStatusLabel(status: TaskRecord["taskStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "待启动";
+    case "QUEUED":
+      return "排队中";
+    case "RUNNING":
+      return "执行中";
+    case "SUCCESS":
+      return "已完成";
+    case "FAILED":
+      return "执行失败";
+    case "CANCELLED":
+      return "已取消";
+    default:
+      return status;
+  }
+}
+
+function formatOrderStatusLabel(status: OrderRecord["orderStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "待支付";
+    case "PAID":
+      return "已支付";
+    case "FAILED":
+      return "支付失败";
+    case "REFUNDED":
+      return "已退款";
+    case "CANCELLED":
+      return "已取消";
+    default:
+      return status;
+  }
+}
+
+function formatMediaTypeLabel(mediaType: MediaRecord["mediaType"]) {
+  switch (mediaType) {
+    case "HTML":
+      return "HTML";
+    case "IMAGE":
+      return "图片";
+    case "VIDEO":
+      return "视频";
+    case "DOCUMENT":
+      return "文档";
+    case "ARCHIVE":
+      return "归档";
+    default:
+      return mediaType;
+  }
 }
