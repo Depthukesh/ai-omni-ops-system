@@ -155,7 +155,7 @@ export default function RegisterPage() {
           </button>
         </form>
         <div className="auth-footnote">
-          已有账号？<Link href={`/?mode=login&next=${encodeURIComponent(nextPath)}`}>去登录</Link>
+          已有账号？<Link href={`/login?next=${encodeURIComponent(nextPath)}`}>去登录</Link>
         </div>
       </section>
     </main>

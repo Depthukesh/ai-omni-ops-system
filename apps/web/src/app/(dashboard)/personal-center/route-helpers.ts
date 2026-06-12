@@ -44,7 +44,7 @@ export function isAuthFailure(error: unknown) {
 }
 
 export function buildPersonalCenterLoginPath(nextPath: string) {
-  return `/?next=${encodeURIComponent(nextPath)}`;
+  return `/login?next=${encodeURIComponent(nextPath)}`;
 }
 
 export function getBrandDisplayName(brand?: { id?: string; brandName?: string } | null, fallbackBrandId?: string) {

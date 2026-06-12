@@ -88,7 +88,7 @@ export default function LoginPage() {
           </button>
         </form>
         <div className="auth-footnote">
-          还没有账号？<Link href={`/?mode=register&next=${encodeURIComponent(nextPath)}`}>去注册</Link>
+          还没有账号？<Link href={`/register?next=${encodeURIComponent(nextPath)}`}>去注册</Link>
         </div>
       </section>
     </main>

@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>品牌/门店全域增长智能体 | 17ai.site</title>
+  <meta name="description" content="围绕品牌与门店增长场景，展示全域增长智能体如何通过数据跟踪、商业洞察、策略规划、公域获客、GEO、私域门店增长与员工达人矩阵，帮助企业构建自动化增长飞轮。">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            zinc: {
+              950: '#09090b',
+              900: '#18181b',
+              800: '#27272a',
+              700: '#3f3f46',
+              400: '#a1a1aa',
+            },
+            accent: '#38bdf8',
+            amber: {
+              400: '#fbbf24',
+              500: '#f59e0b',
+            },
+            emerald: {
+              400: '#34d399',
+              500: '#10b981',
+            }
+          },
+          fontFamily: {
+            sans: ['"Geist"', '-apple-system', 'BlinkMacSystemFont', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+          },
+          letterSpacing: {
+            tighter: '-0.04em',
+            tight: '-0.02em',
+            wide: '0.08em',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Base reset & typography rules */
+    html { 
+      scroll-behavior: smooth; 
+      background-color: #09090b; 
+    }
+    body { 
+      color: #fafafa; 
+      -webkit-font-smoothing: antialiased; 
+      -moz-osx-font-smoothing: grayscale; 
+      overflow-x: hidden;
+    }
+    
+    /* Scroll Reveal Animation */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .delay-100 { transition-delay: 100ms; }
+    .delay-200 { transition-delay: 200ms; }
+    
+    /* Premium Surface Textures */
+    .glass-panel {
+      background: linear-gradient(145deg, rgba(24, 24, 27, 0.9) 0%, rgba(24, 24, 27, 0.4) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    .card-hover {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    /* Gradients */
+    .text-gradient {
+      background: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .bg-grid-pattern {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+    }
+
+    /* Button interaction */
+    .btn-press:active {
+      transform: scale(0.98);
+    }
+
+    /* Console Integration Styles */
+    .console-window {
+      background: linear-gradient(145deg, rgba(24, 24, 27, 0.8) 0%, rgba(9, 9, 11, 0.9) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 48px rgba(0, 0, 0, 0.6);
+    }
+    .orbit-circle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+    }
+    .orbit-1 { width: 220px; height: 220px; }
+    .orbit-2 { width: 340px; height: 340px; }
+    .node-card {
+      background: rgba(24, 24, 27, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Hero dynamic visual */
+    .hero-dynamic {
+      position: relative;
+      min-height: 690px;
+      border-radius: 2rem;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 52%, rgba(56, 189, 248, 0.14) 0%, rgba(56, 189, 248, 0.04) 28%, transparent 58%),
+        radial-gradient(circle at top center, rgba(56, 189, 248, 0.12), transparent 34%),
+        linear-gradient(180deg, rgba(8, 15, 27, 0.92) 0%, rgba(9, 9, 11, 0.96) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 28px 60px rgba(0, 0, 0, 0.45);
+    }
+    .hero-dynamic::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: radial-gradient(circle at center, black 35%, transparent 88%);
+      -webkit-mask-image: radial-gradient(circle at center, black 35%, transparent 88%);
+      pointer-events: none;
+    }
+    .hero-connector {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.72;
+    }
+    .hero-connector path {
+      fill: none;
+      stroke: rgba(56, 189, 248, 0.14);
+      stroke-width: 1.2;
+      stroke-linecap: round;
+      stroke-dasharray: 8 10;
+      animation: hero-dash 28s linear infinite;
+    }
+    .hero-connector .soft {
+      stroke: rgba(56, 189, 248, 0.08);
+      stroke-dasharray: 2 0;
+      animation: none;
+    }
+    .hero-ring {
+      position: absolute;
+      border-radius: 9999px;
+      border: 1px solid rgba(56, 189, 248, 0.14);
+      left: 50%;
+      top: 52%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .hero-ring-1 {
+      width: 290px;
+      height: 290px;
+      animation: hero-spin 28s linear infinite;
+    }
+    .hero-ring-2 {
+      width: 430px;
+      height: 430px;
+      border-color: rgba(56, 189, 248, 0.1);
+      animation: hero-spin-reverse 36s linear infinite;
+    }
+    .hero-ring-3 {
+      width: 560px;
+      height: 560px;
+      border-color: rgba(56, 189, 248, 0.06);
+      animation: hero-spin 44s linear infinite;
+    }
+    .hero-center {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      transform: translate(-50%, -50%);
+      width: 240px;
+      height: 240px;
+      border-radius: 9999px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 28px;
+      background:
+        radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.12) 24%, transparent 46%),
+        radial-gradient(circle at center, rgba(56, 189, 248, 0.18) 0%, rgba(56, 189, 248, 0.08) 55%, rgba(9, 9, 11, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 0 0 18px rgba(56, 189, 248, 0.04),
+        0 0 56px rgba(56, 189, 248, 0.18);
+      z-index: 3;
+    }
+    .hero-center::after {
+      content: "";
+      position: absolute;
+      inset: 22px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      animation: hero-pulse 3.4s ease-in-out infinite;
+    }
+    .hero-center-title {
+      font-size: 2.2rem;
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: #f8fafc;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-center-copy {
+      margin-top: 0.9rem;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: #d4d4d8;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-stage-card {
+      position: absolute;
+      width: 180px;
+      padding: 1rem 1rem 0.95rem;
+      border-radius: 1.25rem;
+      background: rgba(24, 24, 27, 0.72);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+      z-index: 4;
+      animation: hero-float 6s ease-in-out infinite;
+      will-change: transform;
+    }
+    .hero-stage-card strong {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: #fafafa;
+    }
+    .hero-stage-card p {
+      margin: 0;
+      font-size: 0.84rem;
+      line-height: 1.7;
+      color: #a1a1aa;
+    }
+    .hero-stage-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-bottom: 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #09090b;
+      background: #38bdf8;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+    }
+    .stage-1 { top: 42px; left: 40px; animation-delay: -0.2s; }
+    .stage-2 { top: 42px; right: 40px; animation-delay: -2.2s; }
+    .stage-3 { top: 252px; left: 14px; animation-delay: -1.2s; }
+    .stage-4 { top: 252px; right: 14px; animation-delay: -3.1s; }
+    .stage-5 { width: 220px; bottom: 34px; left: calc(50% - 110px); animation-delay: -1.7s; }
+    .stage-2 .hero-stage-tag { background: #fbbf24; box-shadow: 0 0 18px rgba(251, 191, 36, 0.35); }
+    .stage-3 .hero-stage-tag { background: #34d399; box-shadow: 0 0 18px rgba(52, 211, 153, 0.35); }
+    .stage-4 .hero-stage-tag { background: #60a5fa; box-shadow: 0 0 18px rgba(96, 165, 250, 0.35); }
+    .stage-5 .hero-stage-tag { background: #f472b6; box-shadow: 0 0 18px rgba(244, 114, 182, 0.35); }
+
+    @keyframes hero-spin {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    @keyframes hero-spin-reverse {
+      from { transform: translate(-50%, -50%) rotate(360deg); }
+      to { transform: translate(-50%, -50%) rotate(0deg); }
+    }
+    @keyframes hero-pulse {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+    @keyframes hero-float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+    @keyframes hero-dash {
+      from { stroke-dashoffset: 0; }
+      to { stroke-dashoffset: -320; }
+    }
+
+    @media (max-width: 1024px) {
+      .hero-dynamic {
+        min-height: 760px;
+      }
+      .hero-ring-1 { width: 250px; height: 250px; }
+      .hero-ring-2 { width: 360px; height: 360px; }
+      .hero-ring-3 { width: 480px; height: 480px; }
+      .hero-center {
+        top: 52%;
+        width: 220px;
+        height: 220px;
+      }
+      .hero-center-title {
+        font-size: 1.95rem;
+      }
+      .hero-stage-card {
+        width: 170px;
+      }
+      .stage-1 { top: 40px; left: 20px; }
+      .stage-2 { top: 40px; right: 20px; }
+      .stage-3 { top: 246px; left: 6px; }
+      .stage-4 { top: 246px; right: 6px; }
+      .stage-5 { width: 200px; bottom: 30px; left: calc(50% - 100px); }
+    }
+
+    @media (max-width: 640px) {
+      .hero-dynamic {
+        min-height: 900px;
+        padding: 1rem;
+      }
+      .hero-ring-1 { width: 220px; height: 220px; top: 48%; }
+      .hero-ring-2 { width: 320px; height: 320px; top: 48%; }
+      .hero-ring-3 { width: 420px; height: 420px; top: 48%; }
+      .hero-center {
+        top: 48%;
+        width: 184px;
+        height: 184px;
+        padding: 0 20px;
+      }
+      .hero-center-title {
+        font-size: 1.7rem;
+      }
+      .hero-center-copy {
+        font-size: 0.95rem;
+      }
+      .hero-stage-card {
+        width: calc(50% - 0.75rem);
+        padding: 0.85rem 0.8rem;
+      }
+      .hero-stage-card strong {
+        font-size: 0.92rem;
+      }
+      .hero-stage-card p {
+        font-size: 0.78rem;
+      }
+      .stage-1 { top: 18px; left: 10px; }
+      .stage-2 { top: 18px; right: 10px; }
+      .stage-3 { top: 244px; left: 10px; }
+      .stage-4 { top: 244px; right: 10px; }
+      .stage-5 { width: calc(100% - 1.25rem); bottom: 22px; left: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hero-ring-1,
+      .hero-ring-2,
+      .hero-ring-3,
+      .hero-center::after,
+      .hero-stage-card,
+      .hero-connector path {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-50 relative selection:bg-accent selection:text-zinc-950">
+
+  <!-- Background Texture -->
+  <div class="fixed inset-0 pointer-events-none bg-grid-pattern z-0 opacity-60"></div>
+
+  <!-- Navigation -->
+  <header class="fixed top-0 w-full z-50 bg-zinc-950/70 backdrop-blur-md border-b border-zinc-800">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-3 group">
+        <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-950 flex items-center justify-center font-bold text-sm transition-transform group-hover:scale-105">
+          17
+        </div>
+        <span class="font-medium tracking-tight text-sm">品牌/门店全域增长智能体</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+        <a href="#problem" class="hover:text-zinc-50 transition-colors">增长困境</a>
+        <a href="#features" class="hover:text-zinc-50 transition-colors">六大功能</a>
+        <a href="#integration" class="hover:text-amber-400 transition-colors">开发者接入</a>
+        <a href="#logic" class="hover:text-zinc-50 transition-colors">增长飞轮</a>
+      </nav>
+      <div class="flex items-center gap-4">
+        <button type="button" aria-label="通知" class="btn-press w-9 h-9 flex items-center justify-center text-zinc-200 hover:text-zinc-50 transition-colors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"></path>
+            <path d="M10 17a2 2 0 0 0 4 0"></path>
+          </svg>
+        </button>
+        <a href="/login" class="btn-press bg-zinc-100 text-zinc-950 px-5 py-2 rounded-full text-sm font-semibold hover:bg-white transition-colors">
+          登录
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="relative z-10">
+    
+    <!-- Hero Section -->
+    <section class="min-h-[100dvh] flex flex-col justify-center pt-24 pb-16 px-6 max-w-7xl mx-auto">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <!-- Copy -->
+        <div class="lg:col-span-6 reveal">
+          <div class="inline-block px-3 py-1 mb-6 rounded-full border border-zinc-800 bg-zinc-900/50 text-xs font-mono tracking-wide text-zinc-300 uppercase">
+            15年全域运营经验沉淀
+          </div>
+          <h1 class="text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tighter leading-[1.05] mb-6">
+            <span class="text-gradient">全域增长智能体</span>
+          </h1>
+          <p class="text-zinc-400 text-lg md:text-xl max-w-[24ch] leading-relaxed mb-10">
+            不是再给你一个流量打法，而是给你一整套自动化增长飞轮，持续帮你获客、留客、放大经营效率。
+          </p>
+          <div class="flex flex-wrap gap-4">
+            <a href="#cta" class="btn-press bg-zinc-100 text-zinc-950 px-7 py-3.5 rounded-full font-semibold hover:bg-white transition-colors flex items-center gap-2">
+              预约线下体验
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#logic" class="btn-press bg-zinc-900 text-zinc-100 border border-zinc-800 px-7 py-3.5 rounded-full font-medium hover:bg-zinc-800 transition-colors">
+              查看增长飞轮
+            </a>
+          </div>
+        </div>
+
+        <!-- Visual -->
+        <div class="lg:col-span-6 reveal delay-100 relative">
+          <div class="absolute inset-0 bg-accent/10 blur-[100px] rounded-full"></div>
+          <div class="hero-dynamic">
+            <svg class="hero-connector" viewBox="0 0 640 760" preserveAspectRatio="none" aria-hidden="true">
+              <path class="soft" d="M320 134c140 0 252 112 252 252S460 638 320 638 68 526 68 386s112-252 252-252Z"></path>
+              <path d="M164 134c54 46 90 90 112 136"></path>
+              <path d="M476 134c-54 46-90 90-112 136"></path>
+              <path d="M106 340c72 8 120 18 170 56"></path>
+              <path d="M534 340c-72 8-120 18-170 56"></path>
+              <path d="M320 592c0-50 0-90 0-126"></path>
+            </svg>
+
+            <div class="hero-ring hero-ring-1"></div>
+            <div class="hero-ring hero-ring-2"></div>
+            <div class="hero-ring hero-ring-3"></div>
+
+            <div class="hero-stage-card stage-1">
+              <span class="hero-stage-tag">1</span>
+              <strong>数据采集</strong>
+              <p>热点、竞品、账号、作品、同城数据持续进入系统。</p>
+            </div>
+
+            <div class="hero-stage-card stage-2">
+              <span class="hero-stage-tag">2</span>
+              <strong>洞察分析</strong>
+              <p>行业趋势、用户痛点、品牌机会和竞争差异被系统性识别。</p>
+            </div>
+
+            <div class="hero-stage-card stage-3">
+              <span class="hero-stage-tag">3</span>
+              <strong>策略规划</strong>
+              <p>全年规划、平台分工、每日营销日历和具体打法自动生成。</p>
+            </div>
+
+            <div class="hero-stage-card stage-4">
+              <span class="hero-stage-tag">4</span>
+              <strong>全域执行</strong>
+              <p>公域内容、GEO、门店活动、私域动作和矩阵分发同步推进。</p>
+            </div>
+
+            <div class="hero-stage-card stage-5">
+              <span class="hero-stage-tag">5</span>
+              <strong>结果跟踪与持续优化</strong>
+              <p>看见真实反馈，自动调整选题、素材、策略和动作节奏。</p>
+            </div>
+
+            <div class="hero-center">
+              <div class="hero-center-title">AI经营中台</div>
+              <div class="hero-center-copy">从局部提效走向全局增长</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Problem Section -->
+    <section id="problem" class="py-24 px-6 max-w-7xl mx-auto border-t border-zinc-800/50">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
+        <div class="lg:col-span-5 reveal">
+          <h2 class="text-3xl md:text-4xl font-semibold tracking-tighter leading-tight mb-6">
+            增长最怕的，<br>不是没有动作，<br>而是没有飞轮。
+          </h2>
+          <p class="text-zinc-400 leading-relaxed max-w-[28ch]">
+            没有数据跟踪、没有商业洞察、没有策略规划、没有全域执行、没有复盘迭代。少任何一个环节，增长飞轮都运转不起来。
+          </p>
+        </div>
+        
+        <div class="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+          <div class="glass-panel p-8 rounded-2xl reveal delay-100 card-hover">
+            <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-100 mb-6">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <h3 class="text-lg font-medium mb-3">没数据跟踪</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">热点转瞬即逝，竞品变化很快，品牌如果无法每天稳定采集数据，就只能错过机会。</p>
+          </div>
+          
+          <div class="glass-panel p-8 rounded-2xl reveal delay-200 card-hover">
+            <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-100 mb-6">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+            </div>
+            <h3 class="text-lg font-medium mb-3">没商业洞察</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">看不清行业趋势、用户痛点和竞品机会，容易把内容做成噪音，把营销做成拍脑袋。</p>
+          </div>
+          
+          <div class="glass-panel p-8 rounded-2xl reveal delay-100 card-hover">
+            <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-100 mb-6">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/></svg>
+            </div>
+            <h3 class="text-lg font-medium mb-3">没策略规划</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">没有全年规划、每日营销日历和平台分工，执行只能被动追热点，节奏散乱。</p>
+          </div>
+          
+          <div class="glass-panel p-8 rounded-2xl reveal delay-200 card-hover">
+            <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-100 mb-6">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16M12 4v16"/></svg>
+            </div>
+            <h3 class="text-lg font-medium mb-3">没执行与复盘</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">内容发了、活动做了、私域推了，但没有形成统一执行链路，也没有每天复盘优化。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Bento Grid -->
+    <section id="features" class="py-24 px-6 max-w-7xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <h2 class="text-4xl font-semibold tracking-tighter mb-4">从数据到洞察，从公域到门店。</h2>
+        <p class="text-zinc-400 max-w-[40ch] mx-auto text-lg">这不是单一工具集合，而是一整套围绕品牌门店增长场景设计的智能体体系，把增长真正跑成闭环。</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+        
+        <!-- Large Image Cell -->
+        <div class="md:col-span-8 glass-panel rounded-3xl p-8 flex flex-col justify-between min-h-[400px] reveal relative overflow-hidden group">
+          <div class="relative z-10 max-w-[28ch]">
+            <h3 class="text-2xl font-medium mb-3">全网数据跟踪采集</h3>
+            <p class="text-zinc-400 text-sm leading-relaxed">每日热点、品牌账号、竞品账号、对标作品、低粉爆款自动跟踪。把热点捕捉和对标分析从人工切换为系统化动作。</p>
+          </div>
+          <div class="absolute right-0 bottom-0 w-2/3 h-3/4 transform translate-y-8 translate-x-8 group-hover:translate-y-4 transition-transform duration-500">
+            <img src="https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=abstract%20data%20visualization%20dark%20zinc%20minimalist%20tech%20dashboard%2C%20data%20streams%2C%20clean&image_size=landscape_4_3" alt="数据跟踪" class="rounded-tl-2xl border-t border-l border-zinc-800 shadow-2xl">
+          </div>
+        </div>
+
+        <!-- Medium Text Cell -->
+        <div class="md:col-span-4 glass-panel rounded-3xl p-8 flex flex-col reveal delay-100">
+          <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-100 mb-6">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3 class="text-xl font-medium mb-3">商业洞察与规划</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed mt-auto">结合行业报告、品牌背景和全网数据，产出趋势洞察、品牌 SWOT、全年营销规划和每日日历。提前布局，不再拍脑袋。</p>
+        </div>
+
+        <!-- Small Cell -->
+        <div class="md:col-span-4 glass-panel rounded-3xl p-8 reveal">
+          <h3 class="text-xl font-medium mb-3">公域获客增长</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">搭建从小红书、抖音到视频号的定位、选题、文案、短视频到一键发布的全业务流程。</p>
+        </div>
+
+        <!-- Small Cell -->
+        <div class="md:col-span-4 glass-panel rounded-3xl p-8 reveal delay-100">
+          <h3 class="text-xl font-medium mb-3">GEO 增长</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">深度理解产品构建知识库，生成 AI 易理解的表达内容并持续分发，让 AI 看见并推荐品牌。</p>
+        </div>
+
+        <!-- Small Cell -->
+        <div class="md:col-span-4 glass-panel rounded-3xl p-8 reveal delay-200">
+          <h3 class="text-xl font-medium mb-3">门店与私域增长</h3>
+          <p class="text-zinc-400 text-sm leading-relaxed">策划线下渠道合作、联名卡、互推方案，把门店经营真正接入全域增长链路，提升留存。</p>
+        </div>
+
+        <!-- Full Width Tech Feature Cell (Replaces MCP cell to keep grid 100% full) -->
+        <div class="md:col-span-12 glass-panel rounded-3xl p-8 md:p-12 reveal flex flex-col md:flex-row gap-8 items-center justify-between group">
+          <div class="max-w-[40ch]">
+            <h3 class="text-2xl font-medium mb-4">员工与达人矩阵</h3>
+            <p class="text-zinc-400 leading-relaxed">员工或达人绑定账号后，可直接调用公域增长智能体做二次创作并一键发布。通过系统机制，真正形成全员矩阵获客的日常习惯。</p>
+          </div>
+          <div class="w-full md:w-auto flex-shrink-0 flex items-center justify-center">
+            <div class="flex -space-x-4">
+              <div class="w-16 h-16 rounded-full border-4 border-zinc-900 bg-zinc-800 flex items-center justify-center text-zinc-400 shadow-xl z-30">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+              <div class="w-16 h-16 rounded-full border-4 border-zinc-900 bg-zinc-800 flex items-center justify-center text-zinc-400 shadow-xl z-20">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+              <div class="w-16 h-16 rounded-full border-4 border-zinc-900 bg-zinc-800 flex items-center justify-center text-zinc-400 shadow-xl z-10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- NEW: Dedicated Integration Section (from screenshot reference) -->
+    <section id="integration" class="py-24 px-6 max-w-7xl mx-auto">
+      <div class="glass-panel rounded-[2.5rem] p-8 lg:p-16 relative overflow-hidden reveal">
+        <!-- Background Glow for Integration -->
+        <div class="absolute top-1/2 right-1/4 -translate-y-1/2 w-96 h-96 bg-amber-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center relative z-10">
+          <!-- Copy & Actions -->
+          <div class="lg:col-span-6 flex flex-col items-start">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full border border-amber-500/30 bg-amber-500/10 text-xs font-mono tracking-wide text-amber-400 uppercase">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/></svg>
+              多平台 AI 助手快速集成
+            </div>
+
+            <h2 class="text-4xl md:text-5xl font-bold tracking-tighter leading-[1.1] mb-6">
+              让通用 AI 助手瞬间<br>
+              <span class="text-amber-400">接入全域增长</span> 的能力
+            </h2>
+
+            <p class="text-zinc-400 text-lg leading-relaxed max-w-[30ch] mb-8">
+              通过标准 MCP 协议与专属 Skill 配置，将整套全域增长能力无缝对接到你已经在用的 AI 助手。一句话即可完成跨平台的自动分发与执行跟踪。
+            </p>
+
+            <div class="flex flex-wrap gap-3 mb-10">
+              <span class="px-4 py-1.5 rounded-full border border-amber-500/30 text-amber-400 text-sm font-medium bg-amber-500/5">Trae</span>
+              <span class="px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 text-sm font-medium bg-zinc-900/50">Cursor</span>
+              <span class="px-4 py-1.5 rounded-full border border-emerald-500/30 text-emerald-400 text-sm font-medium bg-emerald-500/5">Claude Code</span>
+              <span class="px-4 py-1.5 rounded-full border border-sky-500/30 text-sky-400 text-sm font-medium bg-sky-500/5">OpenClaw</span>
+              <span class="px-4 py-1.5 rounded-full border border-purple-500/30 text-purple-400 text-sm font-medium bg-purple-500/5">CodX</span>
+              <span class="px-4 py-1.5 rounded-full border border-rose-500/30 text-rose-400 text-sm font-medium bg-rose-500/5">WorkBuddy</span>
+            </div>
+
+            <div class="flex flex-wrap gap-x-6 gap-y-3 text-sm text-zinc-400">
+              <div class="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-emerald-400"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                数据自动抓取与分析
+              </div>
+              <div class="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-emerald-400"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                多平台一键分发
+              </div>
+            </div>
+          </div>
+
+          <!-- Visual Console Graphic -->
+          <div class="lg:col-span-6 relative w-full flex justify-end">
+            <div class="console-window rounded-2xl overflow-hidden w-full max-w-[560px] relative">
+              <!-- Window Header -->
+              <div class="h-10 border-b border-zinc-800 flex items-center px-4 justify-between bg-zinc-900/40">
+                <div class="flex gap-2">
+                  <div class="w-3 h-3 rounded-full bg-rose-500/80"></div>
+                  <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                  <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+                </div>
+                <div class="font-mono text-xs text-zinc-500 font-medium">Agent Console</div>
+                <div class="px-2 py-0.5 rounded border border-emerald-500/20 text-emerald-400 text-[10px] font-mono tracking-wider bg-emerald-500/10">Live</div>
+              </div>
+
+              <!-- Main Interactive Area -->
+              <div class="relative h-[320px] w-full flex items-center justify-center overflow-hidden bg-[#0c0c0e]">
+                <!-- Orbits -->
+                <div class="orbit-circle orbit-1"></div>
+                <div class="orbit-circle orbit-2"></div>
+
+                <!-- Central Hub -->
+                <div class="relative z-10 w-32 h-32 rounded-full border border-zinc-700 bg-zinc-900/80 backdrop-blur-md flex flex-col items-center justify-center shadow-2xl">
+                  <span class="font-bold text-lg tracking-tight text-zinc-100">17ai</span>
+                  <span class="text-[10px] font-mono text-zinc-500 mt-1 tracking-wider">growth tools</span>
+                </div>
+
+                <!-- Orbiting Nodes -->
+                <div class="node-card absolute top-[10%] left-[5%] p-2 rounded-xl flex flex-col gap-1 min-w-[80px]">
+                  <div class="w-6 h-6 rounded bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h5l3-7 4 14 2-7h2"></path></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">Trae</span>
+                </div>
+
+                <div class="node-card absolute top-[20%] right-[5%] p-2 rounded-xl flex flex-col gap-1 min-w-[90px]">
+                  <div class="w-6 h-6 rounded bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">Claude Code</span>
+                </div>
+
+                <div class="node-card absolute bottom-[25%] right-[10%] p-2 rounded-xl flex flex-col gap-1 min-w-[80px]">
+                  <div class="w-6 h-6 rounded bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">Cursor</span>
+                </div>
+
+                <div class="node-card absolute bottom-[15%] left-[10%] p-2 rounded-xl flex flex-col gap-1 min-w-[85px]">
+                  <div class="w-6 h-6 rounded bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">OpenClaw</span>
+                </div>
+
+                <div class="node-card absolute top-[5%] left-[40%] p-2 rounded-xl flex flex-col gap-1 min-w-[80px]">
+                  <div class="w-6 h-6 rounded bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center text-fuchsia-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">CodX</span>
+                </div>
+
+                <div class="node-card absolute bottom-[5%] left-[45%] p-2 rounded-xl flex flex-col gap-1 min-w-[90px]">
+                  <div class="w-6 h-6 rounded bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                  </div>
+                  <span class="text-[10px] font-semibold text-zinc-100">WorkBuddy</span>
+                </div>
+              </div>
+
+              <!-- Bottom Status Panel -->
+              <div class="p-4 border-t border-zinc-800 bg-zinc-900/60">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="font-mono text-sm font-bold text-zinc-100">Trae <span class="text-zinc-500 font-normal ml-1">v1.0.0</span></span>
+                  <span class="px-2 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 text-[10px] font-medium bg-emerald-500/10 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Connected
+                  </span>
+                </div>
+                
+                <!-- Flow visualization -->
+                <div class="flex items-center gap-2 text-[10px] font-mono text-zinc-400 overflow-x-auto">
+                  <div class="bg-zinc-800 border border-zinc-700 px-2 py-1 rounded whitespace-nowrap">
+                    <span class="text-amber-400">&gt;_</span> 一句话需求
+                  </div>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  <div class="bg-zinc-800 border border-zinc-700 px-2 py-1 rounded whitespace-nowrap">拉取数据</div>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  <div class="text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 rounded whitespace-nowrap">
+                    一键发布
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Flywheel Pipeline -->
+    <section id="logic" class="py-24 px-6 max-w-3xl mx-auto border-t border-zinc-800/50">
+      <div class="text-center mb-16 reveal">
+        <h2 class="text-3xl font-semibold tracking-tighter mb-4">把思路变成自动化系统，<br>每天稳定转动。</h2>
+      </div>
+
+      <div class="relative border-l border-zinc-800 ml-4 md:ml-8 space-y-12 pb-8">
+        <div class="relative pl-8 reveal">
+          <div class="absolute w-3 h-3 bg-zinc-950 border-2 border-zinc-400 rounded-full -left-[6.5px] top-2"></div>
+          <h3 class="text-lg font-medium mb-2">1. 数据采集</h3>
+          <p class="text-zinc-400 text-sm">热点、竞品、账号、作品、同城数据持续进入系统。</p>
+        </div>
+        <div class="relative pl-8 reveal">
+          <div class="absolute w-3 h-3 bg-zinc-950 border-2 border-zinc-400 rounded-full -left-[6.5px] top-2"></div>
+          <h3 class="text-lg font-medium mb-2">2. 洞察分析</h3>
+          <p class="text-zinc-400 text-sm">行业趋势、用户痛点、品牌机会和竞争差异被系统性识别。</p>
+        </div>
+        <div class="relative pl-8 reveal">
+          <div class="absolute w-3 h-3 bg-zinc-950 border-2 border-zinc-400 rounded-full -left-[6.5px] top-2"></div>
+          <h3 class="text-lg font-medium mb-2">3. 策略规划</h3>
+          <p class="text-zinc-400 text-sm">全年规划、平台分工、每日营销日历和具体打法自动生成。</p>
+        </div>
+        <div class="relative pl-8 reveal">
+          <div class="absolute w-3 h-3 bg-zinc-950 border-2 border-zinc-400 rounded-full -left-[6.5px] top-2"></div>
+          <h3 class="text-lg font-medium mb-2">4. 全域执行</h3>
+          <p class="text-zinc-400 text-sm">公域内容、GEO、门店活动、私域动作和矩阵分发同步推进。</p>
+        </div>
+        <div class="relative pl-8 reveal">
+          <div class="absolute w-3 h-3 bg-zinc-950 border-2 border-accent rounded-full -left-[6.5px] top-2 shadow-[0_0_12px_rgba(56,189,248,0.5)]"></div>
+          <h3 class="text-lg font-medium mb-2 text-zinc-50">5. 结果跟踪与持续优化</h3>
+          <p class="text-zinc-400 text-sm">看见真实反馈，自动调整选题、素材、策略和动作节奏。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Delivery List -->
+    <section id="delivery" class="py-24 px-6 max-w-7xl mx-auto border-t border-zinc-800/50">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-16">
+        <div class="reveal">
+          <h2 class="text-3xl font-semibold tracking-tighter mb-6">先体验，再成交，<br>再陪跑，把系统真正跑通。</h2>
+          <p class="text-zinc-400 max-w-[28ch]">这不是卖完系统就结束的合作，而是通过线下体验、服务群和陪跑支持，确保品牌真的用起来、持续长起来。</p>
+        </div>
+        
+        <div class="grid gap-6">
+          <div class="glass-panel p-6 rounded-2xl flex gap-4 reveal">
+            <div class="font-mono text-zinc-500">01</div>
+            <div>
+              <h3 class="font-medium mb-1">免费参加沙龙</h3>
+              <p class="text-sm text-zinc-400">现场了解系统功能，直接测试体验。</p>
+            </div>
+          </div>
+          <div class="glass-panel p-6 rounded-2xl flex gap-4 reveal delay-100">
+            <div class="font-mono text-zinc-500">02</div>
+            <div>
+              <h3 class="font-medium mb-1">成交后专属陪跑</h3>
+              <p class="text-sm text-zinc-400">成立专属服务群陪跑一个月，跑通全业务流程。</p>
+            </div>
+          </div>
+          <div class="glass-panel p-6 rounded-2xl flex gap-4 reveal delay-200">
+            <div class="font-mono text-zinc-500">03</div>
+            <div>
+              <h3 class="font-medium mb-1">持续线下培训</h3>
+              <p class="text-sm text-zinc-400">每月至少 2 场线下沙龙，品牌可带领员工持续学习。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section id="cta" class="py-32 px-6 max-w-4xl mx-auto text-center reveal">
+      <h2 class="text-4xl md:text-5xl font-semibold tracking-tighter mb-6">先看系统，再谈增长，少走很多弯路。</h2>
+      <p class="text-zinc-400 text-lg max-w-[36ch] mx-auto mb-10">如果你想真正把门店增长做成可持续运转的系统，最好的起点是先来现场体验这套智能体如何跑通增长飞轮。</p>
+      <a href="#" class="btn-press inline-flex items-center gap-2 bg-zinc-100 text-zinc-950 px-8 py-4 rounded-full font-semibold hover:bg-white transition-colors">
+        预约武汉线下沙龙
+      </a>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-zinc-800/50 py-12 px-6">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
+      <div>17ai.site · 品牌/门店全域增长智能体</div>
+      <div>数据采集 · 商业洞察 · 策略规划 · 全域执行 · 复盘迭代</div>
+    </div>
+  </footer>
+
+  <script>
+    // Intersection Observer for scroll reveals
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
