@@ -35,6 +35,36 @@ export class OpenClawController {
     return this.openClawService.getWebsiteFunctionDetail(headers, { functionKey });
   }
 
+  @Post("website-functions/route")
+  async routeWebsiteFunctionByIntent(
+    @Headers() headers: HeadersMap,
+    @Body() payload?: {
+      intent?: string;
+      preferredDomain?: string;
+    },
+  ) {
+    return this.openClawService.routeWebsiteFunctionByIntent(headers, {
+      intent: payload?.intent,
+      preferredDomain: payload?.preferredDomain,
+    });
+  }
+
+  @Post("website-functions/:functionKey/execution-plan")
+  async getWebsiteFunctionExecutionPlan(
+    @Headers() headers: HeadersMap,
+    @Param("functionKey") functionKey: string,
+    @Body() payload?: {
+      providedInputs?: Record<string, unknown>;
+      confirmed?: boolean;
+    },
+  ) {
+    return this.openClawService.getWebsiteFunctionExecutionPlan(headers, {
+      functionKey,
+      providedInputs: payload?.providedInputs,
+      confirmed: payload?.confirmed,
+    });
+  }
+
   @Get("context/current-brand")
   async getCurrentBrandContext(@Headers() headers: HeadersMap) {
     return this.openClawService.getCurrentBrandContext(headers);

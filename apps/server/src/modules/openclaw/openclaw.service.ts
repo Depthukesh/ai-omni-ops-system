@@ -70,6 +70,8 @@ type OpenClawWebsiteFunctionCatalogItem = {
   pageUrl: string;
   pageLabel: string;
   riskLevel: OpenClawWebsiteFunctionRiskLevel;
+  intentKeywords: string[];
+  requiredInputKeys: string[];
   requiredInputs: string[];
   recommendedQuestions: string[];
   mcpTools: string[];
@@ -90,6 +92,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/brand-growth",
     pageLabel: "打开品牌增长工作台",
     riskLevel: "low",
+    intentKeywords: ["品牌", "任务", "报告", "增长", "失败", "概况", "上下文"],
+    requiredInputKeys: ["brandId"],
     requiredInputs: ["当前品牌"],
     recommendedQuestions: ["帮我看当前品牌最近的任务概况", "帮我总结最近失败任务主要卡在哪些问题上"],
     mcpTools: ["get_current_brand_context", "get_recent_tasks_summary", "get_failed_tasks_summary", "create_brand_growth_report"],
@@ -103,6 +107,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/brand-growth/business-assets",
     pageLabel: "打开知识库",
     riskLevel: "medium",
+    intentKeywords: ["知识库", "资料", "文档", "文件", "资产", "上传"],
+    requiredInputKeys: ["knowledgeBaseName", "assetDescription"],
     requiredInputs: ["知识库名称", "资料文件或资料说明"],
     recommendedQuestions: ["帮我创建一个品牌知识库", "把这份资料加入当前品牌知识库"],
     mcpTools: ["create_knowledge_base", "upload_knowledge_base_files", "get_recent_knowledge_files"],
@@ -116,6 +122,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/skills",
     pageLabel: "打开技能中心",
     riskLevel: "high",
+    intentKeywords: ["技能", "提示词", "prompt", "配置", "基线", "模型", "覆盖"],
+    requiredInputKeys: ["skillIdentifier", "changeTarget"],
     requiredInputs: ["skillId 或技能名称", "修改目标"],
     recommendedQuestions: ["帮我看当前品牌小红书技能用的是什么配置", "把这个技能恢复到平台基线"],
     mcpTools: ["get_skill_config_summary", "get_skill_config_detail", "update_skill_config", "reset_skill_to_platform_baseline"],
@@ -129,6 +137,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/xiaohongshu",
     pageLabel: "打开小红书工作区",
     riskLevel: "medium",
+    intentKeywords: ["小红书", "笔记", "原创", "二创", "种草", "排期", "素材"],
+    requiredInputKeys: ["topicOrProduct", "accountOrDirection"],
     requiredInputs: ["产品或主题", "账号或发布方向"],
     recommendedQuestions: ["帮我生成一篇小红书原创笔记", "帮我基于最近素材做一篇二创笔记"],
     mcpTools: ["get_xiaohongshu_marketing_calendar_options", "get_xiaohongshu_original_reference_templates", "get_recent_xiaohongshu_original_works", "create_xiaohongshu_original_note", "get_xiaohongshu_material_library_items", "create_xiaohongshu_rewrite_note"],
@@ -142,6 +152,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/douyin",
     pageLabel: "打开抖音工作台",
     riskLevel: "medium",
+    intentKeywords: ["抖音", "文案", "短视频", "视频", "原创", "二创"],
+    requiredInputKeys: ["topicOrProduct", "accountOrDirection"],
     requiredInputs: ["产品或主题", "账号或内容方向"],
     recommendedQuestions: ["帮我生成一条抖音原创文案", "帮我做一条抖音二创文案"],
     mcpTools: ["get_douyin_original_copy_options", "get_recent_douyin_original_copies", "create_douyin_original_copy", "get_douyin_remix_copy_options", "get_recent_douyin_remix_copies", "create_douyin_remix_copy"],
@@ -155,6 +167,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/wechat",
     pageLabel: "打开公众号工作台",
     riskLevel: "high",
+    intentKeywords: ["公众号", "微信", "草稿", "发布", "工作流", "图文", "文章"],
+    requiredInputKeys: ["wechatTopicOrDraft", "accountOrPublishTarget"],
     requiredInputs: ["公众号主题或草稿", "账号或发布目标"],
     recommendedQuestions: ["帮我看最近的公众号草稿", "帮我把这个公众号草稿正式发布"],
     mcpTools: ["get_wechat_article_drafts", "get_wechat_official_accounts", "get_wechat_workflow_sessions", "get_wechat_publish_history", "check_wechat_workflow_publish_readiness", "publish_wechat_article", "publish_wechat_workflow"],
@@ -168,6 +182,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/more-features/design",
     pageLabel: "打开设计工作台",
     riskLevel: "medium",
+    intentKeywords: ["设计", "海报", "图片", "封面", "ppt", "HTML", "视觉"],
+    requiredInputKeys: ["designGoal", "styleOrAssetRequirement"],
     requiredInputs: ["设计目标", "素材或风格要求"],
     recommendedQuestions: ["帮我生成一张活动海报", "帮我看最近的设计作品结果"],
     mcpTools: ["get_design_workspace_options", "get_recent_design_works", "create_design_work"],
@@ -181,6 +197,8 @@ const OPENCLAW_WEBSITE_FUNCTION_CATALOG: OpenClawWebsiteFunctionCatalogItem[] = 
     pageUrl: "/brand-growth/tasks",
     pageLabel: "打开任务中心",
     riskLevel: "medium",
+    intentKeywords: ["任务", "状态", "进度", "反馈", "重试", "取消", "结果"],
+    requiredInputKeys: ["taskId", "feedbackOrReason"],
     requiredInputs: ["taskId", "反馈内容或重试原因"],
     recommendedQuestions: ["帮我看这个任务现在怎么样了", "帮我记录这次生成结果不满意的原因"],
     mcpTools: ["get_task_detail", "cancel_task", "retry_task", "submit_task_result_feedback", "get_feedback_summary", "get_feedback_analysis"],
@@ -207,6 +225,33 @@ const OPENCLAW_MCP_TOOLS: OpenClawMcpToolDefinition[] = [
       type: "object",
       properties: {
         functionKey: { type: "string" },
+      },
+      required: ["functionKey"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "route_website_function_by_intent",
+    description: "根据用户意图把需求路由到最可能的网站功能，并返回推荐 MCP tools、缺失信息和确认策略。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "string" },
+        preferredDomain: { type: "string" },
+      },
+      required: ["intent"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_website_function_execution_plan",
+    description: "根据指定网站功能和当前已收集信息，判断是否可执行、缺少什么输入、是否需要确认，以及推荐工具顺序。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        functionKey: { type: "string" },
+        providedInputs: { type: "object" },
+        confirmed: { type: "boolean" },
       },
       required: ["functionKey"],
       additionalProperties: false,
@@ -1089,6 +1134,189 @@ export class OpenClawService {
       nextActions: [
         { label: item.pageLabel, action: "open_page", target: item.pageUrl },
         { label: "继续在对话中执行", action: "continue_in_chat", target: item.key },
+      ],
+    });
+  }
+
+  async routeWebsiteFunctionByIntent(
+    headers: HeadersMap,
+    options?: {
+      intent?: string;
+      preferredDomain?: string;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const intent = String(options?.intent || "").trim();
+    if (!intent) {
+      throw new BadRequestException("请提供 intent");
+    }
+    const preferredDomain = this.normalizeOptionalString(options?.preferredDomain);
+    const routedItems = OPENCLAW_WEBSITE_FUNCTION_CATALOG
+      .map((item) => ({
+        ...item,
+        score: this.scoreWebsiteFunctionIntentMatch(intent, item, preferredDomain),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    const primary = routedItems[0];
+    return this.buildSummaryResponse({
+      title: "网站功能意图路由",
+      summary: primary
+        ? `当前意图最匹配的网站功能是“${primary.name}”，建议先补齐必需信息后再调用对应工具。`
+        : "当前意图暂未命中明确的网站功能，建议先查看功能目录或补充更具体的需求。",
+      highlights: primary
+        ? [
+            `首选功能：${primary.name}`,
+            `业务域：${primary.domainName}`,
+            `风险级别：${primary.riskLevel}`,
+            `推荐工具：${primary.mcpTools.join("、")}`,
+          ]
+        : ["建议先调用 get_website_function_catalog 查看可控功能"],
+      data: {
+        intent,
+        preferredDomain: preferredDomain || undefined,
+        primary: primary
+          ? {
+              functionKey: primary.key,
+              domainKey: primary.domainKey,
+              domainName: primary.domainName,
+              name: primary.name,
+              summary: primary.summary,
+              riskLevel: primary.riskLevel,
+              pageUrl: primary.pageUrl,
+              requiredInputs: primary.requiredInputs,
+              recommendedQuestions: primary.recommendedQuestions,
+              mcpTools: primary.mcpTools,
+              score: primary.score,
+              requiresConfirmation: primary.riskLevel === "high",
+            }
+          : null,
+        candidates: routedItems.map((item) => ({
+          functionKey: item.key,
+          name: item.name,
+          domainKey: item.domainKey,
+          domainName: item.domainName,
+          riskLevel: item.riskLevel,
+          pageUrl: item.pageUrl,
+          mcpTools: item.mcpTools,
+          score: item.score,
+        })),
+      },
+      links: primary
+        ? [{ label: primary.pageLabel, url: primary.pageUrl }]
+        : [{ label: "打开 OpenClaw 安装页", url: "/personal-center/openclaw" }],
+      resourceKind: "website_function_route",
+      nextActions: primary
+        ? [
+            ...(primary.riskLevel === "high"
+              ? [{ label: "先确认再执行", action: "confirm" as const, target: primary.key }]
+              : []),
+            { label: "继续在对话中收集信息", action: "continue_in_chat", target: primary.key },
+            { label: primary.pageLabel, action: "open_page", target: primary.pageUrl },
+          ]
+        : [{ label: "查看功能目录", action: "continue_in_chat", target: "website_function_catalog" }],
+    });
+  }
+
+  async getWebsiteFunctionExecutionPlan(
+    headers: HeadersMap,
+    options?: {
+      functionKey?: string;
+      providedInputs?: Record<string, unknown>;
+      confirmed?: boolean;
+    },
+  ) {
+    const auth = await this.requireAuth(headers);
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandAccess(brandId, auth);
+
+    const functionKey = String(options?.functionKey || "").trim();
+    if (!functionKey) {
+      throw new BadRequestException("请提供 functionKey");
+    }
+    const item = OPENCLAW_WEBSITE_FUNCTION_CATALOG.find((candidate) => candidate.key === functionKey);
+    if (!item) {
+      throw new BadRequestException("未找到对应的网站功能");
+    }
+
+    const providedInputs = options?.providedInputs && typeof options.providedInputs === "object" && !Array.isArray(options.providedInputs)
+      ? options.providedInputs
+      : {};
+    const inputChecklist = item.requiredInputKeys.map((key, index) => ({
+      key,
+      label: item.requiredInputs[index] || key,
+      provided: this.hasProvidedExecutionInput(providedInputs[key]),
+    }));
+    const missingInputs = inputChecklist.filter((item) => !item.provided).map((item) => ({
+      key: item.key,
+      label: item.label,
+    }));
+    const confirmationRequired = item.riskLevel === "high";
+    const confirmed = options?.confirmed === true;
+    const planStatus = missingInputs.length
+      ? "NEED_INPUT"
+      : confirmationRequired && !confirmed
+        ? "NEED_CONFIRMATION"
+        : "READY";
+    const recommendedToolSequence = this.buildWebsiteFunctionToolSequence(item, planStatus);
+
+    return this.buildSummaryResponse({
+      title: `${item.name} 执行计划`,
+      summary: planStatus === "READY"
+        ? `${item.name} 当前已具备执行条件，可按建议工具顺序继续。`
+        : planStatus === "NEED_CONFIRMATION"
+          ? `${item.name} 当前信息已基本齐备，但属于高风险动作，建议先确认再执行。`
+          : `${item.name} 还缺少 ${missingInputs.length} 项关键信息，建议先追问补齐。`,
+      highlights: [
+        `执行状态：${planStatus}`,
+        `风险级别：${item.riskLevel}`,
+        missingInputs.length
+          ? `缺失信息：${missingInputs.map((input) => input.label).join("、")}`
+          : "缺失信息：无",
+        `工具顺序：${recommendedToolSequence.join(" -> ")}`,
+      ],
+      data: {
+        functionKey: item.key,
+        functionName: item.name,
+        domainKey: item.domainKey,
+        domainName: item.domainName,
+        pageUrl: item.pageUrl,
+        riskLevel: item.riskLevel,
+        status: planStatus,
+        confirmationRequired,
+        confirmed,
+        inputChecklist,
+        missingInputs,
+        recommendedQuestions: missingInputs.length
+          ? item.recommendedQuestions.slice(0, Math.max(missingInputs.length, 1))
+          : [],
+        recommendedToolSequence,
+        nextStep: planStatus === "READY"
+          ? "可以开始执行"
+          : planStatus === "NEED_CONFIRMATION"
+            ? "请先征得用户确认"
+            : "请先补齐缺失输入",
+      },
+      links: [{ label: item.pageLabel, url: item.pageUrl }],
+      resourceKind: "website_function_execution_plan",
+      resultStatus: planStatus === "READY"
+        ? "COMPLETED"
+        : planStatus === "NEED_CONFIRMATION"
+          ? "ACTION_REQUIRED"
+          : "IN_PROGRESS",
+      nextActions: [
+        ...(missingInputs.length
+          ? [{ label: "继续在对话中补充信息", action: "continue_in_chat" as const, target: item.key }]
+          : []),
+        ...(confirmationRequired && !confirmed
+          ? [{ label: "先确认再执行", action: "confirm" as const, target: item.key }]
+          : []),
+        { label: item.pageLabel, action: "open_page", target: item.pageUrl },
       ],
     });
   }
@@ -3803,6 +4031,63 @@ export class OpenClawService {
     return normalized ? normalized : null;
   }
 
+  private scoreWebsiteFunctionIntentMatch(
+    intent: string,
+    item: OpenClawWebsiteFunctionCatalogItem,
+    preferredDomain?: string | null,
+  ) {
+    const normalizedIntent = intent.toLowerCase();
+    let score = 0;
+    item.intentKeywords.forEach((keyword) => {
+      const normalizedKeyword = keyword.toLowerCase();
+      if (normalizedIntent.includes(normalizedKeyword)) {
+        score += normalizedKeyword.length >= 4 ? 3 : 2;
+      }
+    });
+    if (normalizedIntent.includes(item.domainName.toLowerCase()) || normalizedIntent.includes(item.name.toLowerCase())) {
+      score += 4;
+    }
+    if (preferredDomain && item.domainKey === preferredDomain) {
+      score += 3;
+    }
+    if (/(发布|修改|恢复|重置|配置|删除|停用)/.test(normalizedIntent) && item.riskLevel === "high") {
+      score += 1;
+    }
+    if (/(查看|总结|分析|概况|最近)/.test(normalizedIntent) && item.riskLevel === "low") {
+      score += 1;
+    }
+    return score;
+  }
+
+  private hasProvidedExecutionInput(value: unknown) {
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return true;
+    }
+    if (value && typeof value === "object") {
+      return Object.keys(value).length > 0;
+    }
+    return false;
+  }
+
+  private buildWebsiteFunctionToolSequence(
+    item: OpenClawWebsiteFunctionCatalogItem,
+    status: "READY" | "NEED_INPUT" | "NEED_CONFIRMATION",
+  ) {
+    if (status === "NEED_INPUT") {
+      return item.mcpTools.slice(0, Math.min(2, item.mcpTools.length));
+    }
+    if (status === "NEED_CONFIRMATION") {
+      return item.mcpTools.slice(0, Math.min(3, item.mcpTools.length));
+    }
+    return item.mcpTools.slice(0, Math.min(4, item.mcpTools.length));
+  }
+
   private buildPublishSessionSummary(payload: {
     data: Record<string, unknown>;
     platformLabel: string;
@@ -3904,6 +4189,19 @@ export class OpenClawService {
       case "get_website_function_detail":
         return this.getWebsiteFunctionDetail(headers, {
           functionKey: typeof toolArgs.functionKey === "string" ? toolArgs.functionKey : undefined,
+        });
+      case "route_website_function_by_intent":
+        return this.routeWebsiteFunctionByIntent(headers, {
+          intent: typeof toolArgs.intent === "string" ? toolArgs.intent : undefined,
+          preferredDomain: typeof toolArgs.preferredDomain === "string" ? toolArgs.preferredDomain : undefined,
+        });
+      case "get_website_function_execution_plan":
+        return this.getWebsiteFunctionExecutionPlan(headers, {
+          functionKey: typeof toolArgs.functionKey === "string" ? toolArgs.functionKey : undefined,
+          providedInputs: toolArgs.providedInputs && typeof toolArgs.providedInputs === "object" && !Array.isArray(toolArgs.providedInputs)
+            ? toolArgs.providedInputs as Record<string, unknown>
+            : undefined,
+          confirmed: typeof toolArgs.confirmed === "boolean" ? toolArgs.confirmed : undefined,
         });
       case "get_current_brand_context":
         return this.getCurrentBrandContext(headers);
