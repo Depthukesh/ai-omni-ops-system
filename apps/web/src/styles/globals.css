@@ -48,12 +48,13 @@ body {
   min-height: 100vh;
   padding: 18px 16px 28px;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    radial-gradient(circle at 14% 0%, rgba(242, 184, 75, 0.14), transparent 26%),
-    radial-gradient(circle at 100% 0%, rgba(77, 114, 239, 0.18), transparent 24%),
-    linear-gradient(180deg, #06080d 0%, #0a0f18 42%, #101724 100%);
-  background-size: 44px 44px, 44px 44px, auto, auto, auto;
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(242, 184, 75, 0.14), transparent 22%),
+    radial-gradient(circle at 88% 0%, rgba(101, 129, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 50% 36%, rgba(20, 28, 46, 0.46), transparent 46%),
+    linear-gradient(180deg, #05070c 0%, #0a0f18 34%, #0d1421 68%, #101929 100%);
+  background-size: 52px 52px, 52px 52px, auto, auto, auto, auto;
 }
 
 .dashboard-topbar {
@@ -72,13 +73,15 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid var(--site-hero-border);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 22px;
   background:
-    radial-gradient(circle at top left, rgba(242, 184, 75, 0.1), transparent 24%),
-    linear-gradient(180deg, rgba(17, 23, 36, 0.92) 0%, rgba(10, 15, 25, 0.94) 100%);
-  box-shadow: 0 12px 28px rgba(7, 12, 22, 0.22);
-  backdrop-filter: blur(12px);
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(18, 24, 38, 0.82) 0%, rgba(11, 16, 26, 0.88) 100%);
+  box-shadow:
+    0 18px 36px rgba(4, 10, 19, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(18px);
 }
 
 .dashboard-notice-copy {
@@ -146,11 +149,13 @@ body {
   border: 1px solid var(--site-hero-border);
   border-radius: var(--radius-shell);
   background:
-    radial-gradient(circle at top left, rgba(242, 184, 75, 0.1), transparent 22%),
-    radial-gradient(circle at 88% 0%, rgba(80, 120, 255, 0.14), transparent 26%),
-    linear-gradient(180deg, rgba(16, 22, 34, 0.96) 0%, rgba(9, 14, 23, 0.96) 100%);
-  box-shadow: var(--site-shadow-md);
-  backdrop-filter: blur(16px);
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.12), transparent 22%),
+    radial-gradient(circle at 88% 0%, rgba(96, 124, 255, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(17, 24, 38, 0.86) 0%, rgba(10, 15, 24, 0.9) 100%);
+  box-shadow:
+    0 20px 44px rgba(4, 9, 18, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
 }
 
 .dashboard-topbar-head {
@@ -243,8 +248,8 @@ body {
   gap: 10px;
   border-radius: 18px;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.02);
-  color: rgba(243, 246, 252, 0.78);
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(243, 246, 252, 0.8);
   font-size: 14px;
   font-weight: 600;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -252,8 +257,8 @@ body {
 
 .dashboard-topnav-link:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--site-hero-text);
 }
 
@@ -3168,15 +3173,15 @@ button {
 
 .personal-center-workspace-shell,
 .personal-center-panel {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.08);
   background:
-    radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 26%),
-    radial-gradient(circle at 100% 0%, rgba(88, 119, 255, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(251, 252, 255, 0.98) 0%, rgba(244, 247, 252, 0.96) 100%);
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.09), transparent 24%),
+    radial-gradient(circle at 100% 0%, rgba(88, 119, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(19, 26, 40, 0.82) 0%, rgba(13, 18, 29, 0.88) 100%);
   box-shadow:
-    0 18px 34px rgba(9, 15, 28, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px);
+    0 22px 46px rgba(3, 8, 18, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
 }
 
 .personal-center-workspace-shell .panel-header,
@@ -3187,10 +3192,24 @@ button {
 
 .personal-center-workspace-shell .panel-header span,
 .personal-center-panel .panel-header span {
-  color: #76809b;
+  color: rgba(214, 220, 234, 0.72);
   font-size: 12px;
   text-transform: none;
   letter-spacing: 0.02em;
+}
+
+.personal-center-workspace-shell h2,
+.personal-center-panel h2,
+.personal-center-panel h3,
+.personal-center-panel .entity-card-head strong,
+.personal-center-panel .panel-header h2,
+.personal-center-workspace-shell .panel-header h2 {
+  color: #eef3ff;
+}
+
+.personal-center-workspace-shell .panel-subtext,
+.personal-center-panel .panel-subtext {
+  color: rgba(198, 207, 224, 0.72);
 }
 
 .personal-center-workspace-shell .tab-switcher,
@@ -3203,26 +3222,28 @@ button {
   min-height: 40px;
   padding: 0 18px;
   border-radius: 999px;
-  border-color: rgba(214, 221, 236, 0.94);
-  background: rgba(255, 255, 255, 0.72);
-  color: #566078;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(219, 226, 240, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .personal-center-workspace-shell .tab-button.is-active,
 .personal-center-panel .tab-button.is-active {
-  border-color: rgba(242, 184, 75, 0.26);
+  border-color: rgba(242, 184, 75, 0.28);
   background: linear-gradient(180deg, rgba(242, 184, 75, 0.18) 0%, rgba(242, 184, 75, 0.08) 100%);
-  color: #3e2d0f;
-  box-shadow: 0 12px 24px rgba(242, 184, 75, 0.12);
+  color: #f7ead0;
+  box-shadow:
+    0 14px 28px rgba(242, 184, 75, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .personal-center-workspace-shell .workspace-status,
 .personal-center-panel .workspace-status {
   padding: 10px 12px;
   border-radius: 16px;
-  border: 1px solid rgba(224, 229, 239, 0.96);
-  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .personal-center-workspace-shell .status-text,
@@ -3235,12 +3256,13 @@ button {
 .personal-center-panel .light-data-panel,
 .personal-center-panel .entity-card {
   border-radius: 22px;
-  border: 1px solid #e7ebf5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 255, 0.96) 100%);
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.06), transparent 34%),
+    linear-gradient(180deg, rgba(27, 35, 52, 0.9) 0%, rgba(20, 27, 41, 0.92) 100%);
   box-shadow:
-    0 12px 28px rgba(24, 36, 66, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    0 16px 32px rgba(4, 10, 19, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .personal-center-panel .metric-card {
@@ -3251,7 +3273,7 @@ button {
 .personal-center-panel .metric-card span {
   display: block;
   margin-bottom: 8px;
-  color: #7a8199;
+  color: rgba(186, 196, 214, 0.72);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -3259,21 +3281,21 @@ button {
 
 .personal-center-panel .metric-card strong {
   display: block;
-  color: #20283d;
+  color: #f3f7ff;
   font-size: 30px;
   line-height: 1.1;
 }
 
 .personal-center-panel .metric-card p {
   margin-top: 10px;
-  color: #667089;
+  color: rgba(193, 202, 219, 0.74);
   font-size: 14px;
   line-height: 1.75;
 }
 
 .personal-center-panel .light-data-panel h3,
 .personal-center-panel .entity-card-head strong {
-  color: #26314c;
+  color: #eef3ff;
 }
 
 .personal-center-workspace-shell .field input,
@@ -3281,43 +3303,55 @@ button {
 .personal-center-panel .field input,
 .personal-center-panel .field select,
 .personal-center-panel .field textarea {
-  border-color: #dde4f2;
+  border-color: rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  color: #f2f6ff;
+}
+
+.personal-center-workspace-shell .field input::placeholder,
+.personal-center-panel .field input::placeholder,
+.personal-center-panel .field textarea::placeholder {
+  color: rgba(173, 183, 201, 0.62);
+}
+
+.personal-center-workspace-shell .field span,
+.personal-center-panel .field span {
+  color: rgba(214, 221, 235, 0.84);
 }
 
 .personal-center-panel .soft-table {
   border-radius: 18px;
-  border-color: #e6eaf3;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .personal-center-panel .soft-table th {
-  background: #f4f7fb;
-  color: #6d7590;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(183, 194, 212, 0.72);
   font-size: 12px;
   letter-spacing: 0.02em;
 }
 
 .personal-center-panel .soft-table td {
-  color: #27324b;
+  color: rgba(234, 239, 249, 0.88);
 }
 
 .personal-center-panel .soft-table tbody tr:hover td {
-  background: rgba(242, 184, 75, 0.06);
+  background: rgba(242, 184, 75, 0.08);
 }
 
 .personal-center-panel .empty-canvas-box {
   min-height: 220px;
   padding: 24px;
   border-radius: 22px;
-  border: 1px dashed #d7dfee;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
   background:
     radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(252, 253, 255, 0.96) 0%, rgba(246, 248, 253, 0.98) 100%);
-  color: #5d6883;
+    linear-gradient(180deg, rgba(22, 29, 44, 0.68) 0%, rgba(18, 24, 37, 0.76) 100%);
+  color: rgba(198, 207, 223, 0.76);
   font-size: 15px;
   line-height: 1.8;
   text-align: center;
@@ -3355,21 +3389,21 @@ button {
   justify-content: space-between;
   gap: 14px 16px;
   flex-wrap: wrap;
-  border: 1px solid #e4e9f4;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   background:
     radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 249, 254, 0.98) 100%);
+    linear-gradient(180deg, rgba(29, 38, 56, 0.9) 0%, rgba(21, 29, 44, 0.92) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 10px 22px rgba(21, 33, 60, 0.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 14px 28px rgba(4, 10, 19, 0.18);
 }
 
 .personal-center-panel .personal-context-banner strong,
 .personal-center-panel .personal-inline-hint strong,
 .personal-center-panel .empty-canvas-box strong {
   display: block;
-  color: #22304a;
+  color: #eef3ff;
   font-size: 15px;
   line-height: 1.5;
 }
@@ -3377,7 +3411,7 @@ button {
 .personal-center-panel .personal-context-banner p,
 .personal-center-panel .personal-inline-hint,
 .personal-center-panel .empty-canvas-box p {
-  color: #5b6782;
+  color: rgba(195, 204, 220, 0.76);
   font-size: 13px;
   line-height: 1.75;
 }
@@ -3396,10 +3430,10 @@ button {
 
 .personal-center-panel .personal-inline-hint {
   padding: 14px 16px;
-  border: 1px solid #e6ebf5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .personal-center-panel .personal-inline-hint strong {
@@ -3427,13 +3461,13 @@ button {
   min-height: 100%;
   padding: 18px 18px 20px;
   border-radius: 22px;
-  border: 1px solid rgba(229, 234, 244, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     radial-gradient(circle at top left, rgba(242, 184, 75, 0.1), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(247, 249, 254, 0.97) 100%);
+    linear-gradient(180deg, rgba(35, 44, 65, 0.92) 0%, rgba(25, 33, 49, 0.94) 100%);
   box-shadow:
-    0 12px 26px rgba(20, 32, 60, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    0 16px 30px rgba(4, 10, 19, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   text-decoration: none;
   color: inherit;
 }
@@ -3441,24 +3475,78 @@ button {
 .personal-center-panel .personal-overview-action-card strong {
   display: block;
   margin-top: 10px;
-  color: #1f2940;
+  color: #f4f7ff;
   font-size: 26px;
   line-height: 1.15;
 }
 
 .personal-center-panel .personal-overview-action-card p {
   margin: 10px 0 0;
-  color: #667089;
+  color: rgba(191, 201, 218, 0.76);
   font-size: 14px;
   line-height: 1.75;
 }
 
 .personal-center-panel .personal-overview-action-label {
   display: block;
-  color: #7a8199;
+  color: rgba(186, 196, 214, 0.72);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.personal-center-workspace-shell .secondary-button,
+.personal-center-panel .secondary-button {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(233, 239, 249, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.personal-center-workspace-shell .secondary-button:hover:not(:disabled),
+.personal-center-panel .secondary-button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.personal-center-workspace-shell .primary-button,
+.personal-center-panel .primary-button {
+  background: linear-gradient(180deg, rgba(37, 44, 58, 0.98) 0%, rgba(11, 15, 23, 0.98) 100%);
+  box-shadow:
+    0 14px 30px rgba(3, 8, 18, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.personal-center-panel .archive-pill.status-ready,
+.personal-center-workspace-shell .archive-pill.status-ready {
+  background: rgba(52, 211, 153, 0.14);
+  color: #78e1ba;
+}
+
+.personal-center-panel .archive-pill.status-in_progress,
+.personal-center-workspace-shell .archive-pill.status-in_progress {
+  background: rgba(242, 184, 75, 0.16);
+  color: #f3cf84;
+}
+
+.personal-center-panel .archive-pill.status-paused,
+.personal-center-workspace-shell .archive-pill.status-paused {
+  background: rgba(248, 113, 113, 0.14);
+  color: #f2a2a2;
+}
+
+.personal-center-panel .success-text,
+.personal-center-workspace-shell .success-text {
+  color: #7ce0bb;
+}
+
+.personal-center-panel .error-text,
+.personal-center-workspace-shell .error-text {
+  color: #ffb1aa;
+}
+
+.personal-center-panel .mobile-table-label {
+  color: rgba(170, 180, 198, 0.68);
 }
 
 .mobile-table-label {
