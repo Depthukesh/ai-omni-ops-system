@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Headers, Param, Post, Get, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Delete, Headers, Param, Post, Get, Res, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { OpenClawInstallationService } from "./openclaw-installation.service";
 
@@ -42,5 +42,21 @@ export class OpenClawInstallationController {
       throw new UnauthorizedException("请先登录");
     }
     return this.openClawInstallationService.revokeInstallationToken(auth, tokenId);
+  }
+
+  @Get("installation-hub/skill-package.zip")
+  async downloadSkillPackage(
+    @Headers() headers: HeadersMap,
+    @Res() response: { setHeader(name: string, value: string): unknown; send(body: Buffer): unknown },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    const file = await this.openClawInstallationService.buildSkillPackage(auth);
+    const encodedFileName = encodeURIComponent(file.fileName);
+    response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Content-Disposition", `attachment; filename="brand-operator-skill.zip"; filename*=UTF-8''${encodedFileName}`);
+    response.send(file.buffer);
   }
 }

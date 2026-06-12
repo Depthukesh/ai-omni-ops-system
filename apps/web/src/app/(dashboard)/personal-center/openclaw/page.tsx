@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { logout as logoutSession, readAuthSession } from "../../../../services/auth";
 import {
+  downloadOpenClawSkillPackage,
   getOpenClawInstallationWorkspace,
   revokeOpenClawInstallToken,
   rotateOpenClawInstallToken,
@@ -65,6 +66,7 @@ export default function PersonalCenterOpenClawPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRotating, setIsRotating] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [isDownloadingSkill, setIsDownloadingSkill] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [notice, setNotice] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -93,7 +95,6 @@ export default function PersonalCenterOpenClawPage() {
   }, [isTokenVisible, rawToken, workspace]);
 
   const tokenToggleLabel = isTokenVisible ? "隐藏完整令牌" : "查看完整令牌";
-  const activeSkillSnippet = workspace?.skillInstall?.snippet || "";
 
   function handleToggleTokenVisibility() {
     if (!rawToken) {
@@ -185,6 +186,33 @@ export default function PersonalCenterOpenClawPage() {
       }, 1600);
     } catch {
       setErrorMessage("复制失败，请手动复制。");
+    }
+  }
+
+  async function handleDownloadSkillPackage() {
+    const downloadPath = workspace?.skillInstall?.downloadPath;
+    if (!downloadPath) {
+      setErrorMessage("当前没有可下载的 Skill ZIP。");
+      return;
+    }
+    setIsDownloadingSkill(true);
+    setNotice("");
+    setErrorMessage("");
+    try {
+      const { blob, fileName } = await downloadOpenClawSkillPackage(downloadPath);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName || workspace?.skillInstall?.fileName || "brand-operator-skill.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      setNotice("Skill ZIP 已开始下载，请在客户端按上传技能方式导入。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Skill ZIP 下载失败");
+    } finally {
+      setIsDownloadingSkill(false);
     }
   }
 
@@ -321,7 +349,7 @@ export default function PersonalCenterOpenClawPage() {
           <div className="entity-card-head">
             <div>
               <strong>{workspace?.skillInstall?.title || "品牌运营助手 Skill 安装"}</strong>
-              <p className="personal-meta">{workspace?.skillInstall?.summary || "安装 MCP 后，再把总入口 Skill 复制到客户端的 Skill 配置区。"}</p>
+              <p className="personal-meta">{workspace?.skillInstall?.summary || "安装 MCP 后，下载统一的 Skill ZIP 并在客户端按上传技能方式导入。"}</p>
             </div>
             <div className="openclaw-skill-install-actions">
               <span className={`archive-pill ${workspace?.skillInstall?.status === "ready" ? "status-ready" : "status-paused"}`}>
@@ -330,10 +358,10 @@ export default function PersonalCenterOpenClawPage() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => void handleCopy(activeSkillSnippet, "skill-snippet")}
-                disabled={!activeSkillSnippet}
+                onClick={() => void handleDownloadSkillPackage()}
+                disabled={!workspace?.skillInstall?.downloadPath || isDownloadingSkill}
               >
-                {copiedKey === "skill-snippet" ? "已复制" : "复制 Skill 安装内容"}
+                {isDownloadingSkill ? "下载中..." : "下载 Skill ZIP"}
               </button>
             </div>
           </div>
@@ -354,11 +382,6 @@ export default function PersonalCenterOpenClawPage() {
             ))}
           </div>
 
-          <label className="field">
-            <span>Skill 安装内容</span>
-            <textarea value={activeSkillSnippet} rows={18} readOnly spellCheck={false} />
-          </label>
-
           {(workspace?.skillInstall?.notes || []).length ? (
             <div className="personal-list" style={{ marginTop: 12, gap: 10 }}>
               {(workspace?.skillInstall?.notes || []).map((item) => (
@@ -368,6 +391,12 @@ export default function PersonalCenterOpenClawPage() {
               ))}
             </div>
           ) : null}
+
+          <div className="openclaw-skill-download-hint">
+            <span>下载文件</span>
+            <strong>{workspace?.skillInstall?.fileName || "brand-operator-skill.zip"}</strong>
+            <p>压缩包内包含 `SKILL.md` 与 README 导入说明，按客户端“上传技能”方式导入即可。</p>
+          </div>
         </article>
       </div>
     </section>

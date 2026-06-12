@@ -5154,6 +5154,35 @@ button {
   line-height: 1.7;
 }
 
+.openclaw-skill-download-hint {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed #d9e1f2;
+  border-radius: 18px;
+  background: #fbfcff;
+}
+
+.openclaw-skill-download-hint span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.openclaw-skill-download-hint strong {
+  display: block;
+  color: #24324e;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.openclaw-skill-download-hint p {
+  margin-top: 8px;
+  color: #5a6784;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
 .openclaw-relationship-card {
   padding: 14px;
   border-radius: 18px;

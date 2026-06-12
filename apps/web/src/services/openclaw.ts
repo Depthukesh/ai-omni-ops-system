@@ -1,4 +1,4 @@
-import { jsonRequest, request } from "./http";
+import { jsonRequest, request, requestBlobByUrl } from "./http";
 
 export type OpenClawInstallTokenRecord = {
   id: string;
@@ -40,7 +40,8 @@ export type OpenClawInstallWorkspace = {
     statusLabel: string;
     installTarget: string;
     steps: string[];
-    snippet: string;
+    fileName: string;
+    downloadPath: string;
     notes: string[];
   };
   relationshipGuide: {
@@ -82,4 +83,8 @@ export async function revokeOpenClawInstallToken(tokenId: string) {
   return request<{ success: boolean; tokenId: string; workspace: OpenClawInstallWorkspace }>(`/openclaw/installation-hub/tokens/${tokenId}`, {
     method: "DELETE",
   });
+}
+
+export async function downloadOpenClawSkillPackage(downloadPath: string) {
+  return requestBlobByUrl(downloadPath);
 }

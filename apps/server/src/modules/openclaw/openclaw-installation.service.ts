@@ -61,7 +61,8 @@ export type OpenClawInstallWorkspace = {
     statusLabel: string;
     installTarget: string;
     steps: string[];
-    snippet: string;
+    fileName: string;
+    downloadPath: string;
     notes: string[];
   };
   relationshipGuide: {
@@ -86,6 +87,12 @@ export type CreateOpenClawInstallTokenResult = {
   token: string;
   record: OpenClawInstallTokenRecord;
   workspace: OpenClawInstallWorkspace;
+};
+
+export type OpenClawSkillPackageFile = {
+  fileName: string;
+  contentType: string;
+  buffer: Buffer;
 };
 
 type FallbackInstallTokenRecord = OpenClawInstallTokenRow;
@@ -169,6 +176,32 @@ export class OpenClawInstallationService {
       success: true,
       tokenId,
       workspace: await this.getInstallationWorkspace(auth),
+    };
+  }
+
+  async buildSkillPackage(auth: RequestAuthContext): Promise<OpenClawSkillPackageFile> {
+    const brandId = await this.requireCurrentBrandId(auth);
+    const access = await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "view", auth);
+    const me = await this.authService.getMe(auth);
+    const brand = me.brands.find((item) => item.id === brandId);
+    const brandName = brand?.brandName || brandId;
+    const fileName = this.buildSkillPackageFileName(brandName);
+    const skillMarkdown = this.buildBrandOperatorSkillMarkdown();
+    const installGuide = this.buildBrandOperatorSkillInstallGuide();
+    const AdmZip = require("adm-zip") as {
+      new (): {
+        addFile(entryName: string, content: Buffer): void;
+        toBuffer(): Buffer;
+      };
+    };
+    const archive = new AdmZip();
+    archive.addFile("SKILL.md", Buffer.from(skillMarkdown, "utf-8"));
+    archive.addFile("README.md", Buffer.from(installGuide, "utf-8"));
+
+    return {
+      fileName,
+      contentType: "application/zip",
+      buffer: archive.toBuffer(),
     };
   }
 
@@ -290,20 +323,21 @@ export class OpenClawInstallationService {
       },
       skillInstall: {
         title: "品牌运营助手 Skill 安装",
-        summary: "这是统一的一版 Skill 安装内容，用于在客户端的 Skill 配置区创建总入口 Skill，让它统一调度网站内的 MCP 能力。",
+        summary: "请直接下载 Skill ZIP 文件，再到客户端按上传方式导入。导入后它会作为统一的总入口 Skill，负责调度网站内的 MCP 能力。",
         status: "beta",
         statusLabel: "Beta",
         installTarget: "客户端 Skill 配置区",
         steps: [
           "先完成上方 MCP 安装，确认品牌令牌和 MCP 地址可用",
-          "复制下面的 Skill 安装内容，到目标客户端新建一个品牌运营助手 Skill",
-          "把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
-          "首次使用时先用推荐提问验证查询、生成和任务回读是否正常",
+          "下载下面提供的 Skill ZIP 文件，并在客户端按“上传技能”方式导入",
+          "导入后把该 Skill 绑定到 ai-omni-ops MCP，并确认允许调用站内工具",
+          "首次使用时先验证查询、生成和任务回读是否正常",
         ],
-        snippet: this.buildBrandOperatorSkillSnippet(),
+        fileName: this.buildSkillPackageFileName(input.brandName),
+        downloadPath: "/api/openclaw/installation-hub/skill-package.zip",
         notes: [
-          "当前是总入口 Skill，重点负责理解需求、路由网站功能、控制执行顺序，不重复实现网站原生功能。",
-          "后续如果网站再补反馈闭环、提示词升级等能力，这个 Skill 会继续复用同一套 MCP 工具，不需要重做网站功能。",
+          "压缩包内至少包含 SKILL.md，并附带 README.md 说明，适配“上传技能”导入方式。",
+          "当前是统一总入口 Skill，不按不同软件拆分不同版本。",
         ],
       },
       relationshipGuide: {
@@ -358,8 +392,13 @@ export class OpenClawInstallationService {
     return slug ? `ai-omni-ops-${slug}` : "ai-omni-ops-brand";
   }
 
-  private buildBrandOperatorSkillSnippet() {
-    return `# 品牌运营助手
+  private buildBrandOperatorSkillMarkdown() {
+    return `---
+name: 品牌运营助手
+description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负责理解需求、路由网站功能、补齐信息并调用 ai-omni-ops MCP。
+---
+
+# 品牌运营助手
 
 你是“品牌运营助手”，服务于 AI 全域智能体系统中的品牌员工。
 
@@ -389,6 +428,27 @@ export class OpenClawInstallationService {
 - 能在网站里完成的动作，优先通过网站功能完成
 - 如果动作需要回到网页承接，明确告诉用户打开哪个页面
 `;
+  }
+
+  private buildBrandOperatorSkillInstallGuide() {
+    return `# 品牌运营助手 Skill 导入说明
+
+1. 先在安装中心完成 MCP 安装。
+2. 在目标客户端打开“上传技能”或“导入技能”入口。
+3. 选择当前压缩包导入。
+4. 导入后将该 Skill 绑定到 ai-omni-ops MCP。
+5. 首次使用时先验证查询、生成和任务回读是否正常。
+`;
+  }
+
+  private buildSkillPackageFileName(brandName: string) {
+    const slug = String(brandName || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48);
+    return `${slug || "brand"}-operator-skill.zip`;
   }
 
   private normalizeExpiresInDays(value?: number) {
