@@ -718,6 +718,10 @@ export function BrandGrowthWorkspace() {
   const isAnnualMarketingPlanTaskActive =
     latestAnnualMarketingTask?.taskStatus === "QUEUED" || latestAnnualMarketingTask?.taskStatus === "RUNNING";
   const isMarketingCalendarTaskActive = latestCalendarTask?.taskStatus === "QUEUED" || latestCalendarTask?.taskStatus === "RUNNING";
+  const isGrowthReportPageActive = activePage === "growthReport";
+  const isVisualGrowthReportPageActive = activePage === "visualGrowthReport";
+  const isAnnualMarketingPlanPageActive = activePage === "annualMarketingPlan";
+  const isMarketingCalendarPageActive = activePage === "xiaohongshuMarketingCalendar";
   const canGenerateMarketingCalendar = Boolean(reportWorkspace.latest?.reportMarkdown?.trim() && annualMarketingPlanWorkspace.latest && latestMarketingPlan);
   const calendarTaskStatusText = getReportTaskStatusText(latestCalendarTask?.taskStatus);
   const calendarInlineError =
@@ -833,7 +837,7 @@ export function BrandGrowthWorkspace() {
   }, [reportWorkspace.latest?.id, reportWorkspace.latest?.reportMarkdown]);
 
   useEffect(() => {
-    if (!isGrowthReportTaskActive) {
+    if (!isGrowthReportTaskActive || !isGrowthReportPageActive) {
       return;
     }
 
@@ -842,10 +846,10 @@ export function BrandGrowthWorkspace() {
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [isGrowthReportTaskActive, latestGrowthTask?.updatedAt]);
+  }, [isGrowthReportPageActive, isGrowthReportTaskActive, latestGrowthTask?.updatedAt]);
 
   useEffect(() => {
-    if (!isVisualReportTaskActive) {
+    if (!isVisualReportTaskActive || !isVisualGrowthReportPageActive) {
       return;
     }
 
@@ -854,10 +858,10 @@ export function BrandGrowthWorkspace() {
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [isVisualReportTaskActive, latestVisualTask?.updatedAt]);
+  }, [isVisualGrowthReportPageActive, isVisualReportTaskActive, latestVisualTask?.updatedAt]);
 
   useEffect(() => {
-    if (!isAnnualMarketingPlanTaskActive) {
+    if (!isAnnualMarketingPlanTaskActive || !isAnnualMarketingPlanPageActive) {
       return;
     }
 
@@ -866,10 +870,10 @@ export function BrandGrowthWorkspace() {
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [isAnnualMarketingPlanTaskActive, latestAnnualMarketingTask?.updatedAt]);
+  }, [isAnnualMarketingPlanPageActive, isAnnualMarketingPlanTaskActive, latestAnnualMarketingTask?.updatedAt]);
 
   useEffect(() => {
-    if (!isMarketingCalendarTaskActive) {
+    if (!isMarketingCalendarTaskActive || !isMarketingCalendarPageActive) {
       return;
     }
 
@@ -878,7 +882,7 @@ export function BrandGrowthWorkspace() {
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [isMarketingCalendarTaskActive, latestCalendarTask?.updatedAt]);
+  }, [isMarketingCalendarPageActive, isMarketingCalendarTaskActive, latestCalendarTask?.updatedAt]);
 
   useEffect(() => {
     if (!isCalendarDetailOpen || !selectedCalendarItem || isEditingCalendarItem) {
@@ -920,7 +924,7 @@ export function BrandGrowthWorkspace() {
 
       const partialFailures: string[] = [];
       if (targetScope === "library") {
-        const archiveResult = await getBrandArchive(resolvedActiveBrandId);
+        const archiveResult = await getBrandArchive(resolvedActiveBrandId, { force });
         setArchive(normalizeBrandArchiveBundle(archiveResult));
         setRemovedProductIds([]);
         setLoadedScopes((current) => ({ ...current, library: true }));
@@ -1522,7 +1526,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const response = await syncXiaohongshuFromFeishu(activeBrandId || archive.brand.id);
       setCollectionWorkspace(response.workspace);
-      await loadArchive();
+      await loadArchive({ targetPage: activePage, force: true });
       setCollectionWorkspace((current) => {
         if (!current.benchmarkNotes.length && response.workspace.benchmarkNotes.length) {
           return response.workspace;
@@ -1767,7 +1771,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       "business-assets",
       nextItems.map((item) => buildBrandAssetPayload(item)),
     );
-    await loadArchive();
+    await loadArchive({ targetPage: activePage, force: true });
     setNotice(successMessage);
   }
 
@@ -1930,7 +1934,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         );
       }
 
-      await loadArchive();
+      await loadArchive({ targetPage: activePage, force: true });
       const currentStepName = archive.steps.find((step) => step.key === activeBrandPage)?.name ?? "当前页面";
       const currentIndex = stepOrder.indexOf(activeBrandPage);
       const nextStep = currentIndex >= 0 ? stepOrder[currentIndex + 1] : undefined;
@@ -1991,7 +1995,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         dataSource={dataSource}
         notice={notice}
         errorMessage={errorMessage}
-        onRefreshData={() => void loadArchive()}
+        onRefreshData={() => void loadArchive({ targetPage: activePage, force: true })}
         templateUrl={FEISHU_XHS_TEMPLATE_URL}
         activeXhsCollectionCard={activeXhsCollectionCard}
         onXhsCollectionCardChange={setActiveXhsCollectionCard}
@@ -2315,7 +2319,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
                 {!isHydrating && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
               </div>
               <div className="strategy-inline-actions">
-                <button type="button" className="secondary-button" onClick={() => void loadArchive()} disabled={isHydrating || isSaving}>
+                <button type="button" className="secondary-button" onClick={() => void loadArchive({ targetPage: activePage, force: true })} disabled={isHydrating || isSaving}>
                   刷新数据
                 </button>
                 {renderPrimaryAction()}

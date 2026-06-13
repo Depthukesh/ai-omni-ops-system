@@ -517,6 +517,7 @@ export type UpdateBrandPermissionSettingsPayload = {
 };
 
 const PERMISSION_SETTINGS_CACHE_TTL_MS = 30_000;
+const BRAND_ARCHIVE_CACHE_TTL_MS = 30_000;
 
 const permissionSettingsCache = new Map<
   string,
@@ -524,6 +525,15 @@ const permissionSettingsCache = new Map<
     data?: BrandPermissionSettingsRecord;
     expiresAt: number;
     promise?: Promise<BrandPermissionSettingsRecord>;
+  }
+>();
+
+const brandArchiveCache = new Map<
+  string,
+  {
+    data?: BrandArchiveBundle;
+    expiresAt: number;
+    promise?: Promise<BrandArchiveBundle>;
   }
 >();
 
@@ -786,8 +796,46 @@ export const brandArchiveSeed: BrandArchiveBundle = {
   ],
 };
 
-export async function getBrandArchive(brandId?: string) {
-  return request<BrandArchiveBundle>(`/brands/${resolveBrandId(brandId)}/archive`);
+export async function getBrandArchive(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  const cached = brandArchiveCache.get(resolvedBrandId);
+  if (!options?.force && cached?.data && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
+  if (!options?.force && cached?.promise) {
+    return cached.promise;
+  }
+
+  const pending = request<BrandArchiveBundle>(`/brands/${resolvedBrandId}/archive`)
+    .then((response) => {
+      brandArchiveCache.set(resolvedBrandId, {
+        data: response,
+        expiresAt: Date.now() + BRAND_ARCHIVE_CACHE_TTL_MS,
+      });
+      return response;
+    })
+    .finally(() => {
+      const latest = brandArchiveCache.get(resolvedBrandId);
+      if (latest?.promise === pending) {
+        if (latest.data) {
+          brandArchiveCache.set(resolvedBrandId, {
+            data: latest.data,
+            expiresAt: latest.expiresAt,
+          });
+        } else {
+          brandArchiveCache.delete(resolvedBrandId);
+        }
+      }
+    });
+
+  brandArchiveCache.set(resolvedBrandId, {
+    data: cached?.data,
+    expiresAt: cached?.expiresAt || 0,
+    promise: pending,
+  });
+
+  return pending;
 }
 
 export async function getBrandMembers(brandId: string) {
@@ -929,14 +977,18 @@ export async function transferBrandOwner(brandId: string, payload: TransferBrand
 }
 
 export async function updateBrandBackground(brandId: string | undefined, payload: Partial<BrandBackground>) {
-  return jsonRequest<BrandBackground>(`/brands/${resolveBrandId(brandId)}/background`, "PATCH", payload);
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandBackground>(`/brands/${resolvedBrandId}/background`, "PATCH", payload);
 }
 
 export async function createBrandProduct(
   brandId: string | undefined,
   payload: Omit<BrandProduct, "id">,
 ) {
-  return jsonRequest<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products`, "POST", payload);
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandProduct>(`/brands/${resolvedBrandId}/products`, "POST", payload);
 }
 
 export async function updateBrandProduct(
@@ -944,17 +996,23 @@ export async function updateBrandProduct(
   productId: string,
   payload: Omit<BrandProduct, "id">,
 ) {
-  return jsonRequest<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products/${productId}`, "PATCH", payload);
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandProduct>(`/brands/${resolvedBrandId}/products/${productId}`, "PATCH", payload);
 }
 
 export async function deleteBrandProduct(brandId: string | undefined, productId: string) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
   return request<BrandProduct>(`/brands/${resolveBrandId(brandId)}/products/${productId}`, {
     method: "DELETE",
   });
 }
 
 export async function replaceBrandSurvey(brandId: string | undefined, answers: BrandSurveyAnswer[]) {
-  return jsonRequest<BrandSurveyAnswer[]>(`/brands/${resolveBrandId(brandId)}/survey`, "PATCH", { answers });
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandSurveyAnswer[]>(`/brands/${resolvedBrandId}/survey`, "PATCH", { answers });
 }
 
 export async function replaceBrandAccounts(
@@ -962,7 +1020,9 @@ export async function replaceBrandAccounts(
   route: "platform-accounts" | "competitor-accounts",
   accounts: BrandAccount[],
 ) {
-  return jsonRequest<BrandAccount[]>(`/brands/${resolveBrandId(brandId)}/${route}`, "PATCH", { accounts });
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandAccount[]>(`/brands/${resolvedBrandId}/${route}`, "PATCH", { accounts });
 }
 
 export async function replaceBrandAssets(
@@ -970,7 +1030,9 @@ export async function replaceBrandAssets(
   route: "industry-feeds" | "business-assets",
   items: BrandAsset[],
 ) {
-  return jsonRequest<BrandAsset[]>(`/brands/${resolveBrandId(brandId)}/${route}`, "PATCH", { items });
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearBrandArchiveCache(resolvedBrandId);
+  return jsonRequest<BrandAsset[]>(`/brands/${resolvedBrandId}/${route}`, "PATCH", { items });
 }
 
 export async function listBrandBusinessKnowledgeBases(brandId: string | undefined) {
@@ -1099,6 +1161,14 @@ function readFileAsBase64(file: File) {
     reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
     reader.readAsDataURL(file);
   });
+}
+
+function clearBrandArchiveCache(brandId?: string) {
+  if (brandId) {
+    brandArchiveCache.delete(brandId);
+    return;
+  }
+  brandArchiveCache.clear();
 }
 
 export async function getCurrentUserProfile() {
