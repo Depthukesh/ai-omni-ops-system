@@ -4541,15 +4541,7 @@ export default function AdminPage() {
             ))}
           </div>
         ) : activeTab === "assets" ? (
-          <div
-            className="admin-skill-center-layout"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(320px, 360px) minmax(0, 1fr)",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
+          <div className="admin-skill-center-layout">
                 <aside className="panel personal-center-panel admin-skill-tree-card admin-skill-tree-card--polished admin-skill-tree-card--directory">
                   <div className="admin-skill-card-topline">
                     <span className="admin-skill-card-kicker">技能专区</span>
@@ -6911,14 +6903,8 @@ export default function AdminPage() {
                       <button
                         key={item.id}
                         type="button"
-                        className="entity-card personal-card"
+                        className={`entity-card personal-card admin-provider-list-item${item.id === selectedThirdPartyPlatform?.id ? " is-selected" : ""}`}
                         onClick={() => setSelectedThirdPartyPlatformId(item.id)}
-                        style={{
-                          width: "100%",
-                          textAlign: "left",
-                          border: item.id === selectedThirdPartyPlatform?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
-                          background: item.id === selectedThirdPartyPlatform?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
-                        }}
                       >
                         <div className="entity-card-head">
                           <div>

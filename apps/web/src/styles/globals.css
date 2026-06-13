@@ -7780,8 +7780,8 @@ button {
 
 .admin-skill-center-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -7802,10 +7802,8 @@ button {
   display: grid;
   gap: 18px;
   border: 1px solid var(--site-hero-border);
-  background:
-    radial-gradient(circle at top right, rgba(228, 236, 255, 0.58), transparent 24%),
-    linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-  box-shadow: 0 24px 44px rgba(28, 47, 78, 0.08);
+  background: var(--card-surface);
+  box-shadow: var(--panel-shadow);
 }
 
 .admin-skill-card-topline,
@@ -7829,22 +7827,22 @@ button {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(15, 91, 101, 0.08);
-  color: #0f5b65;
+  background: var(--site-accent-soft);
+  color: var(--site-accent);
   font-size: 12px;
   font-weight: 700;
 }
 
 .admin-skill-card-header strong {
   display: block;
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font-size: 26px;
   line-height: 1.28;
 }
 
 .admin-skill-card-header p {
   margin: 8px 0 0;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 14px;
   line-height: 1.7;
 }
@@ -7861,7 +7859,7 @@ button {
 }
 
 .admin-skill-field span {
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 700;
 }
@@ -7870,17 +7868,33 @@ button {
 .admin-skill-field select,
 .admin-skill-field textarea {
   width: 100%;
-  border: 1px solid var(--site-hero-border);
+  min-height: 48px;
+  border: 1px solid var(--input-border);
   border-radius: 16px;
-  background: rgba(252, 253, 255, 0.96);
+  background: var(--input-bg);
   padding: 13px 14px;
-  color: var(--site-hero-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  color: var(--text-strong);
+  font: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.admin-skill-field input::placeholder,
+.admin-skill-field textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
+.admin-skill-field input:focus,
+.admin-skill-field select:focus,
+.admin-skill-field textarea:focus {
+  outline: none;
+  border-color: var(--tab-active-border);
+  background: var(--input-bg-focus);
+  box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.12);
 }
 
 .admin-skill-field input[readonly] {
-  color: var(--site-hero-muted);
-  background: rgba(246, 249, 252, 0.98);
+  color: var(--text-faint);
+  background: var(--subtle-surface);
 }
 
 .admin-skill-field input:disabled,
@@ -7891,7 +7905,7 @@ button {
 }
 
 .admin-skill-field textarea {
-  min-height: 420px;
+  min-height: 360px;
   resize: vertical;
   line-height: 1.75;
 }
@@ -7905,9 +7919,9 @@ button {
   margin-top: 14px;
   padding: 16px 18px;
   border-radius: 16px;
-  border: 1px dashed #d7e1ea;
+  border: 1px dashed var(--site-hero-border);
   background: var(--subtle-surface);
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   line-height: 1.8;
 }
@@ -7920,12 +7934,12 @@ button {
 .admin-skill-tree-card {
   padding: 18px 16px 22px;
   border-radius: 28px;
-  border-color: var(--site-hero-muted);
-  box-shadow: none;
+  border: 1px solid var(--site-hero-border);
+  box-shadow: var(--card-shadow);
 }
 
 .admin-skill-tree-card--polished {
-  background: var(--card-surface);
+  background: var(--card-surface-strong);
 }
 
 .admin-skill-tree-card--directory {
@@ -7958,8 +7972,9 @@ button {
 
 .admin-skill-primary-group {
   padding: 0;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 20px;
+  background: var(--subtle-surface);
   box-shadow: none;
 }
 
@@ -7978,16 +7993,17 @@ button {
   min-height: 58px;
   padding: 0 14px 0 12px;
   border-radius: 18px;
-  border: 1px solid rgba(88, 122, 245, 0.1);
-  background: var(--subtle-surface);
-  color: var(--site-hero-muted);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
   font-size: 14px;
   font-weight: 700;
-  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
 }
 
 .admin-skill-primary-button:hover {
   transform: translateX(2px);
+  background: var(--subtle-surface-strong);
 }
 
 .admin-skill-primary-button-copy {
@@ -7998,13 +8014,13 @@ button {
 }
 
 .admin-skill-primary-button-copy strong {
-  color: var(--site-hero-muted);
+  color: var(--text-strong);
   font-size: 15px;
   font-weight: 700;
 }
 
 .admin-skill-primary-button-copy small {
-  color: var(--site-hero-muted);
+  color: var(--text-faint);
   font-size: 11px;
   font-weight: 600;
 }
@@ -8016,8 +8032,8 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(122, 144, 195, 0.16);
-  color: var(--site-hero-muted);
+  background: var(--subtle-surface-strong);
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 800;
 }
@@ -8029,8 +8045,8 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(91, 100, 118, 0.08);
-  color: var(--site-hero-muted);
+  background: var(--subtle-surface);
+  color: var(--text-faint);
   font-size: 14px;
   transition: transform 160ms ease, background 160ms ease, color 160ms ease;
 }
@@ -8040,10 +8056,10 @@ button {
 }
 
 .admin-skill-primary-button.active {
-  border-color: rgba(84, 125, 255, 0.18);
-  background: linear-gradient(180deg, #dfe8ff 0%, #d7e2fd 100%);
-  color: var(--text-soft);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  box-shadow: var(--tab-active-shadow);
 }
 
 .admin-skill-primary-button.active .admin-skill-primary-button-copy strong,
@@ -8055,25 +8071,30 @@ button {
   margin-top: 10px;
   display: grid;
   gap: 10px;
-  padding-left: 10px;
+  padding: 0 10px 10px;
 }
 
 .admin-skill-tree-section {
-  padding: 0;
-  border: none;
-  background: transparent;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .admin-skill-tree-section-button {
   min-height: 36px;
-  padding: 0 2px 0 6px;
-  border-radius: 0;
+  padding: 0 4px 0 6px;
+  border-radius: 12px;
   border: none;
   background: transparent;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 700;
-  border-bottom: 1px solid rgba(215, 220, 230, 0.72);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.admin-skill-tree-section-button:hover {
+  background: var(--subtle-surface);
 }
 
 .admin-skill-tree-section-label {
@@ -8089,20 +8110,20 @@ button {
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(132, 144, 166, 0.14);
-  color: var(--site-hero-muted);
+  background: var(--subtle-surface-strong);
+  color: var(--text-faint);
   font-size: 11px;
   font-weight: 700;
 }
 
 .admin-skill-tree-section-button.active {
-  color: var(--text-soft);
+  color: var(--text-strong);
 }
 
 .admin-skill-tree-leaf-list {
   margin-top: 6px;
   display: grid;
-  gap: 2px;
+  gap: 6px;
   padding: 8px 0 0 4px;
 }
 
@@ -8119,12 +8140,12 @@ button {
   font-size: 13px;
   line-height: 1.6;
   box-shadow: none;
-  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
 }
 
 .admin-skill-tree-leaf-button:hover {
   transform: translateX(2px);
-  background: rgba(220, 228, 244, 0.42);
+  background: var(--subtle-surface);
 }
 
 .admin-skill-tree-leaf-button strong {
@@ -8139,17 +8160,18 @@ button {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #c5cddd;
+  background: var(--text-faint);
   flex: 0 0 auto;
 }
 
 .admin-skill-tree-leaf-button.active {
-  background: var(--subtle-surface);
-  color: var(--text-soft);
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
 }
 
 .admin-skill-tree-leaf-button.active .admin-skill-tree-leaf-dot {
-  background: var(--card-surface);
+  background: currentColor;
 }
 
 @media (max-width: 1320px) {
@@ -8318,10 +8340,8 @@ button {
   margin-top: 0;
   border-radius: 28px;
   border: 1px solid var(--site-hero-border);
-  background:
-    radial-gradient(circle at top right, rgba(211, 228, 255, 0.44), transparent 22%),
-    linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-  box-shadow: 0 18px 38px rgba(28, 47, 78, 0.08);
+  background: var(--card-surface);
+  box-shadow: var(--panel-shadow);
 }
 
 .admin-provider-form {
@@ -8351,7 +8371,7 @@ button {
 .admin-provider-form-head p,
 .admin-provider-meta {
   margin: 0;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 14px;
   line-height: 1.8;
 }
@@ -8363,14 +8383,14 @@ button {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(15, 91, 101, 0.08);
-  color: #0f5b65;
+  background: var(--site-accent-soft);
+  color: var(--site-accent);
   font-size: 12px;
   font-weight: 700;
 }
 
 .admin-provider-type {
-  background: rgba(95, 118, 255, 0.09);
+  background: var(--subtle-surface-strong);
   color: var(--text-soft);
 }
 
@@ -8591,7 +8611,7 @@ button {
   border-radius: 24px;
   border: 1px solid var(--site-hero-border);
   background: var(--card-surface);
-  box-shadow: 0 16px 34px rgba(34, 60, 102, 0.07);
+  box-shadow: var(--card-shadow);
 }
 
 .admin-provider-filter-head {
@@ -8604,13 +8624,13 @@ button {
 .admin-provider-filter-head strong {
   display: block;
   margin-bottom: 8px;
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font-size: 18px;
 }
 
 .admin-provider-filter-head p {
   margin: 0;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   line-height: 1.75;
 }
@@ -8627,7 +8647,7 @@ button {
 }
 
 .admin-provider-title strong {
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font-size: 24px;
   line-height: 1.3;
 }
@@ -8642,19 +8662,19 @@ button {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid var(--site-hero-border);
-  background: rgba(251, 252, 254, 0.96);
+  background: var(--card-surface-strong);
 }
 
 .admin-provider-metrics span {
   display: block;
   margin-bottom: 8px;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 12px;
 }
 
 .admin-provider-metrics strong {
   display: block;
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font-size: 15px;
   line-height: 1.6;
   word-break: break-word;
@@ -8665,7 +8685,7 @@ button {
   display: grid;
   gap: 14px;
   padding-top: 18px;
-  border-top: 1px solid #edf1f7;
+  border-top: 1px solid var(--site-hero-border);
 }
 
 .admin-provider-group:first-of-type,
@@ -8707,7 +8727,7 @@ button {
 }
 
 .admin-provider-field span {
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 700;
 }
@@ -8716,13 +8736,28 @@ button {
 .admin-provider-field select,
 .admin-provider-field textarea {
   width: 100%;
-  border: 1px solid var(--site-hero-border);
+  min-height: 48px;
+  border: 1px solid var(--input-border);
   border-radius: 16px;
-  background: rgba(252, 253, 255, 0.98);
+  background: var(--input-bg);
   padding: 13px 14px;
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.admin-provider-field input::placeholder,
+.admin-provider-field textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
+.admin-provider-field input:focus,
+.admin-provider-field select:focus,
+.admin-provider-field textarea:focus {
+  outline: none;
+  border-color: var(--tab-active-border);
+  background: var(--input-bg-focus);
+  box-shadow: 0 0 0 3px rgba(108, 124, 255, 0.12);
 }
 
 .admin-provider-field textarea {
@@ -8750,7 +8785,7 @@ button {
 }
 
 .admin-provider-hint {
-  color: var(--site-hero-muted);
+  color: var(--text-faint);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -8786,9 +8821,9 @@ button {
   flex-wrap: wrap;
   padding: 12px 14px;
   border-radius: 16px;
-  border: 1px dashed #d5ddeb;
-  background: rgba(249, 251, 255, 0.96);
-  color: var(--site-hero-muted);
+  border: 1px dashed var(--site-hero-border);
+  background: var(--subtle-surface);
+  color: var(--text-soft);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -8797,21 +8832,47 @@ button {
   margin-top: 0;
   padding: 24px;
   border-radius: 24px;
-  border: 1px dashed #d7e0ec;
-  background: rgba(250, 252, 255, 0.96);
+  border: 1px dashed var(--site-hero-border);
+  background: var(--card-surface);
 }
 
 .admin-provider-empty strong {
   display: block;
   margin-bottom: 8px;
-  color: var(--site-hero-text);
+  color: var(--text-strong);
   font-size: 18px;
 }
 
 .admin-provider-empty p {
   margin: 0;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   line-height: 1.8;
+}
+
+.admin-provider-list-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface-strong);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.admin-provider-list-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--tab-active-border);
+  box-shadow: var(--tab-active-shadow);
+}
+
+.admin-provider-list-item.is-selected {
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
+  box-shadow: var(--tab-active-shadow);
+}
+
+.admin-skill-form-card > .entity-card {
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface-strong);
+  box-shadow: none;
 }
 
 .admin-provider-field--wide,
