@@ -8,5 +8,7 @@ declare module "lunar-javascript" {
     static fromDate(date: Date): Lunar;
     getFestivals(): string[];
     getJieQi(): string;
+    getDayInChinese(): string;
+    getMonthInChinese(): string;
   }
 }
