@@ -457,14 +457,9 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
             <button
               key={platform.id}
               type="button"
-              className="entity-card personal-card"
+              className={`entity-card personal-card personal-platform-card ${platform.id === selectedPlatform?.id ? "is-selected" : ""}`}
               onClick={() => setSelectedPlatformId(platform.id)}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                border: platform.id === selectedPlatform?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
-                background: platform.id === selectedPlatform?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
-              }}
+              style={{ width: "100%", textAlign: "left" }}
             >
               <div className="entity-card-head">
                 <div>
