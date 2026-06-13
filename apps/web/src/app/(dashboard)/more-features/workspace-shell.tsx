@@ -28,16 +28,15 @@ export function MoreFeaturesWorkspaceShell() {
   );
 
   return (
-    <main className="workspace-page workspace-page--strategy">
-      <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout">
+    <main className="archive-shell strategy-shell">
+      <section className="strategy-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
               {moreFeatureSections.map((item) => (
                 <button
                   key={item.key}
                   type="button"
-                  className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                  className={`strategy-level-button strategy-level-button--section ${item.key === activeSection ? "is-active" : ""}`}
                   onClick={() => setActiveSection(item.key)}
                 >
                   {item.label}
@@ -46,7 +45,7 @@ export function MoreFeaturesWorkspaceShell() {
             </div>
           </aside>
 
-          <div className="strategy-content-panel xiaohongshu-content-panel">
+          <div className="strategy-content-panel">
             <article className="workspace-panel strategy-page-header">
               <div>
                 <strong>更多功能工作区</strong>
@@ -103,7 +102,6 @@ export function MoreFeaturesWorkspaceShell() {
               </article>
             </article>
           </div>
-        </div>
       </section>
     </main>
   );

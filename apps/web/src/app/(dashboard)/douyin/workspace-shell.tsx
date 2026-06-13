@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import {
@@ -2279,11 +2278,10 @@ export function DouyinWorkspaceShell() {
   }, []);
 
   return (
-    <main className="workspace-page workspace-page--strategy">
-      <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout">
+    <main className="archive-shell strategy-shell">
+      <section className="strategy-layout">
           {!hasWorkspaceAccess ? (
-            <div className="strategy-content-panel xiaohongshu-content-panel">
+            <div className="strategy-content-panel">
               <article className="workspace-panel strategy-page-header">
                 <div>
                   <strong>当前无权限进入抖音工作区</strong>
@@ -2293,14 +2291,6 @@ export function DouyinWorkspaceShell() {
                   <div className="workspace-status">
                     <span className="archive-pill status-pending">当前板块只读</span>
                     <span className="status-text error-text">当前账号没有抖音板块的查看权限，请联系管理员开通后再进入。</span>
-                  </div>
-                  <div className="strategy-inline-actions">
-                    <Link href="/brand-growth" className="secondary-button">
-                      前往品牌增长策略
-                    </Link>
-                    <Link href="/personal-center" className="primary-button">
-                      返回个人中心
-                    </Link>
                   </div>
                 </div>
               </article>
@@ -2313,7 +2303,7 @@ export function DouyinWorkspaceShell() {
                     <button
                       key={item.key}
                       type="button"
-                      className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                      className={`strategy-level-button strategy-level-button--section ${item.key === activeSection ? "is-active" : ""}`}
                       onClick={() => setActiveSection(item.key)}
                     >
                       {item.label}
@@ -2322,7 +2312,7 @@ export function DouyinWorkspaceShell() {
                 </div>
               </aside>
 
-              <div className="strategy-content-panel xiaohongshu-content-panel">
+              <div className="strategy-content-panel">
                 <article className="workspace-panel strategy-page-header">
                   <div>
                     <strong>{heroTitle}</strong>
@@ -2349,12 +2339,6 @@ export function DouyinWorkspaceShell() {
                       >
                         刷新数据
                       </button>
-                      <Link href="/brand-growth" className="secondary-button">
-                        回到品牌增长策略
-                      </Link>
-                      <Link href="/personal-center" className="primary-button">
-                        查看个人中心
-                      </Link>
                     </div>
                   </div>
                 </article>
@@ -2679,7 +2663,6 @@ export function DouyinWorkspaceShell() {
               </div>
             </>
           )}
-        </div>
       </section>
       <DouyinPublishModal
         publishTarget={publishingTarget}

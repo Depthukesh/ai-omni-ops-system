@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   formatCalendarDate,
@@ -1217,11 +1216,10 @@ export function XiaohongshuWorkspaceShell() {
   }
 
   return (
-    <main className="dashboard-shell">
-      <section className="strategy-shell">
-        <div className="strategy-layout">
+    <main className="archive-shell strategy-shell">
+      <section className="strategy-layout">
           {!hasWorkspaceAccess ? (
-            <div className="strategy-content-panel xiaohongshu-content-panel">
+            <div className="strategy-content-panel">
               <article className="workspace-panel strategy-page-header">
                 <div>
                   <strong>当前无权限进入小红书工作区</strong>
@@ -1231,14 +1229,6 @@ export function XiaohongshuWorkspaceShell() {
                   <div className="workspace-status">
                     <span className="archive-pill status-pending">{formatCollaboratorRoleLabel(currentBrandRole)}</span>
                     <span className="status-text error-text">当前账号没有小红书板块的查看权限，请联系管理员开通后再进入。</span>
-                  </div>
-                  <div className="strategy-inline-actions">
-                    <Link href="/brand-growth" className="secondary-button">
-                      前往品牌增长策略
-                    </Link>
-                    <Link href="/personal-center" className="primary-button">
-                      返回个人中心
-                    </Link>
                   </div>
                 </div>
               </article>
@@ -1251,7 +1241,7 @@ export function XiaohongshuWorkspaceShell() {
                 <button
                   key={item.key}
                   type="button"
-                  className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                  className={`strategy-level-button strategy-level-button--section ${item.key === activeSection ? "is-active" : ""}`}
                   onClick={() => setActiveSection(item.key)}
                 >
                   {item.label}
@@ -1260,7 +1250,7 @@ export function XiaohongshuWorkspaceShell() {
             </div>
           </aside>
 
-          <div className="strategy-content-panel xiaohongshu-content-panel">
+          <div className="strategy-content-panel">
             <article className="workspace-panel strategy-page-header">
               <div>
                 <strong>{heroTitle}</strong>
@@ -1288,12 +1278,6 @@ export function XiaohongshuWorkspaceShell() {
                   <button type="button" className="secondary-button" onClick={() => void loadWorkspace()} disabled={isLoading || isPublishing}>
                     刷新数据
                   </button>
-                  <Link href="/brand-growth" className="secondary-button">
-                    回到品牌增长策略
-                  </Link>
-                  <Link href="/personal-center" className="primary-button">
-                    查看个人中心
-                  </Link>
                 </div>
               </div>
             </article>
@@ -1301,7 +1285,6 @@ export function XiaohongshuWorkspaceShell() {
           </div>
             </>
           )}
-        </div>
       </section>
       <PublishModal
         publishTarget={publishingTarget}

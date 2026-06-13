@@ -1404,11 +1404,6 @@ button {
   align-items: start;
 }
 
-.xiaohongshu-layout {
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 24px;
-}
-
 .strategy-level-panel {
   display: flex;
   flex-direction: column;
@@ -1417,6 +1412,24 @@ button {
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.strategy-level-panel--directory {
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.1), transparent 26%),
+    linear-gradient(180deg, rgba(15, 22, 35, 0.76) 0%, rgba(11, 17, 27, 0.82) 100%);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(18px);
+}
+
+:root[data-theme="light"] .strategy-level-panel--directory {
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(247, 250, 253, 0.98) 100%);
 }
 
 .strategy-level-panel--tertiary {
@@ -1447,7 +1460,7 @@ button {
 
 .strategy-level-button-list {
   display: grid;
-  gap: 4px;
+  gap: 10px;
 }
 
 .strategy-level-button-list--accordion {
@@ -1550,34 +1563,6 @@ button {
   opacity: 1;
 }
 
-.xiaohongshu-layout .strategy-level-panel {
-  padding: 12px 8px;
-  border-radius: var(--radius-panel);
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: blur(24px);
-}
-
-.xiaohongshu-layout .strategy-level-button-list {
-  gap: 4px;
-}
-
-.xiaohongshu-layout .strategy-level-button {
-  min-height: 42px;
-  padding: 0 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.xiaohongshu-layout .strategy-level-button.is-active {
-  background: var(--subtle-surface-strong);
-  color: var(--site-hero-text);
-  font-weight: 600;
-  border: none;
-  box-shadow: none;
-}
-
 .strategy-content-panel {
   min-height: 720px;
   background: transparent;
@@ -1585,12 +1570,6 @@ button {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.xiaohongshu-content-panel {
-  min-height: 760px;
-  padding: 12px;
-  gap: 12px;
 }
 
 .strategy-page-header {
@@ -1645,16 +1624,11 @@ button {
   overflow-x: hidden;
 }
 
-.xiaohongshu-content-panel .strategy-page-card,
-.xiaohongshu-content-panel .workspace-panel {
-  border-radius: var(--radius-panel);
-}
-
-.xiaohongshu-content-panel .strategy-card-toolbar {
+.strategy-content-panel .strategy-card-toolbar {
   margin-bottom: 14px;
 }
 
-.xiaohongshu-content-panel .report-editor-panel--compact {
+.strategy-content-panel .report-editor-panel--compact {
   padding: 16px;
 }
 

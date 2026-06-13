@@ -901,16 +901,15 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   };
 
   return (
-    <>
-      <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout">
+    <main className="archive-shell strategy-shell">
+      <section className="strategy-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
-              <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
+              <div className="strategy-level-button strategy-level-button--section is-active design-v3-parent-button">设计</div>
             </div>
           </aside>
 
-          <div className="strategy-content-panel xiaohongshu-content-panel">
+          <div className="strategy-content-panel">
             <article className="workspace-panel strategy-page-header">
               <div>
                 <strong>{section.label}</strong>
@@ -980,9 +979,7 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
               />
             </article>
           </div>
-        </div>
       </section>
-
       <DesignCreateDialog
         module={activeMeta}
         open={dialogOpen}
@@ -1003,6 +1000,6 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
         imageUrl={previewWork?.assetUrl ?? ""}
         onClose={() => setPreviewWork(null)}
       />
-    </>
+    </main>
   );
 }
