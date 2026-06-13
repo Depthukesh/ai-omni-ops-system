@@ -537,6 +537,16 @@ const brandArchiveCache = new Map<
   }
 >();
 
+const MY_BRAND_INVITES_CACHE_TTL_MS = 15_000;
+
+let myBrandInvitesCache:
+  | {
+      data?: PendingBrandInviteListRecord;
+      expiresAt: number;
+      promise?: Promise<PendingBrandInviteListRecord>;
+    }
+  | undefined;
+
 export type BrandArchiveBundle = {
   brand: BrandBackground;
   products: BrandProduct[];
@@ -927,7 +937,37 @@ export async function revokeBrandInvite(brandId: string, inviteId: string) {
 }
 
 export async function getMyBrandInvites() {
-  return request<PendingBrandInviteListRecord>("/brands/me/invites");
+  if (myBrandInvitesCache?.data && myBrandInvitesCache.expiresAt > Date.now()) {
+    return myBrandInvitesCache.data;
+  }
+
+  if (myBrandInvitesCache?.promise) {
+    return myBrandInvitesCache.promise;
+  }
+
+  const pending = request<PendingBrandInviteListRecord>("/brands/me/invites")
+    .then((response) => {
+      myBrandInvitesCache = {
+        data: response,
+        expiresAt: Date.now() + MY_BRAND_INVITES_CACHE_TTL_MS,
+      };
+      return response;
+    })
+    .finally(() => {
+      if (myBrandInvitesCache?.promise === pending) {
+        myBrandInvitesCache = myBrandInvitesCache.data
+          ? { data: myBrandInvitesCache.data, expiresAt: myBrandInvitesCache.expiresAt }
+          : undefined;
+      }
+    });
+
+  myBrandInvitesCache = {
+    data: myBrandInvitesCache?.data,
+    expiresAt: myBrandInvitesCache?.expiresAt || 0,
+    promise: pending,
+  };
+
+  return pending;
 }
 
 export async function getMyBrandInviteHistory() {
@@ -939,12 +979,14 @@ export async function getMyBrandInviteNotifications() {
 }
 
 export async function acceptMyBrandInvite(inviteId: string) {
+  clearMyBrandInvitesCache();
   return request<{ brandId: string; brandName: string; accepted: boolean }>(`/brands/me/invites/${inviteId}/accept`, {
     method: "PATCH",
   });
 }
 
 export async function acceptMyBrandInviteByCode(payload: AcceptBrandInviteByCodePayload) {
+  clearMyBrandInvitesCache();
   return request<{ brandId: string; brandName: string; accepted: boolean }>("/brands/me/invites/accept-by-code", {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -952,6 +994,7 @@ export async function acceptMyBrandInviteByCode(payload: AcceptBrandInviteByCode
 }
 
 export async function updateMyBrandInviteReadState(payload: UpdateMyBrandInviteReadStatePayload) {
+  clearMyBrandInvitesCache();
   return request<UpdateMyBrandInviteReadStateRecord>("/brands/me/invites/read-state", {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -1169,6 +1212,10 @@ function clearBrandArchiveCache(brandId?: string) {
     return;
   }
   brandArchiveCache.clear();
+}
+
+function clearMyBrandInvitesCache() {
+  myBrandInvitesCache = undefined;
 }
 
 export async function getCurrentUserProfile() {

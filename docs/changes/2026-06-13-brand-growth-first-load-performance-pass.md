@@ -113,6 +113,36 @@
   - 未再次请求 `/api/brands/{id}/archive`
 - 说明品牌增长页的“用户上下文 + 权限上下文 + 资料库上下文”已全部进入短时复用状态。
 
+## 第六轮补充优化
+
+- 为 `getMyBrandInvites()` 增加 15 秒短时缓存与并发请求复用。
+- 为 report 相关工作区服务增加 30 秒 TTL 缓存，并在生成、保存、删除等写操作后按品牌维度失效缓存。
+- report 任务轮询刷新继续显式走 `force: true`，保证后台任务状态回读不会被缓存吞掉。
+- 在稳定预览环境下补了一层页面级 `report` 工作区快照：
+  - `collectionWorkspace`
+  - `reportWorkspace`
+  - `visualReportWorkspace`
+  - `annualMarketingPlanWorkspace`
+  - `xiaohongshuMarketingPlanWorkspace`
+  - `marketingCalendarWorkspace`
+- 上述数据会在 report 作用域加载完成后写入 `sessionStorage`，品牌增长页重新挂载后优先恢复，并直接把 `report` 作用域标记为已加载。
+
+### 第六轮验证
+
+- 首次进入 `personal-center`：
+  - `/api/brands/me/invites` 仅出现 1 次
+- 在同一浏览器会话中执行：
+  - `brand-growth(report) -> personal-center -> brand-growth(report)`
+- 在 30 秒缓存窗口内重新回到 report 板块时：
+  - 未再次请求 `/api/reports/brands/{id}/growth-report`
+  - 未再次请求 `/api/reports/brands/{id}/visual-growth-report`
+  - 未再次请求 `/api/reports/brands/{id}/half-year-marketing-plan`
+  - 未再次请求 `/api/reports/brands/{id}/xiaohongshu-marketing-plan`
+  - 未再次请求 `/api/reports/brands/{id}/xiaohongshu-marketing-calendar`
+  - 未再次请求 `/api/collectors/xiaohongshu/brands/{id}/workspace`
+  - 仅保留品牌页重新挂载时仍需要的 `/api/brands/{id}/member-permissions` 与 `/api/brands/{id}/archive`
+- 说明第六轮收口后，report 板块在短时间页面往返中的重复请求已经被压缩到最小可接受范围。
+
 ## 后续建议
 
 - 收紧 `DashboardLayout` 中邀请数据的首屏请求与轮询范围。

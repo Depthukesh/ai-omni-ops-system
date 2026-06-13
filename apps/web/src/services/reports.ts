@@ -2,6 +2,27 @@ import { getStoredCurrentBrandId } from "./auth-session";
 import { DEMO_BRAND_ID } from "./brand-growth";
 import { jsonRequest, request } from "./http";
 
+const REPORT_WORKSPACE_CACHE_TTL_MS = 30_000;
+const REPORT_WORKSPACE_STORAGE_PREFIX = "brand-growth:report-workspace:";
+
+type ReportWorkspaceCacheEntry = {
+  data?: unknown;
+  expiresAt: number;
+  promise?: Promise<unknown>;
+};
+
+function getReportWorkspaceCacheStore() {
+  const scope = globalThis as typeof globalThis & {
+    __brandGrowthReportWorkspaceCache?: Map<string, ReportWorkspaceCacheEntry>;
+  };
+  if (!scope.__brandGrowthReportWorkspaceCache) {
+    scope.__brandGrowthReportWorkspaceCache = new Map<string, ReportWorkspaceCacheEntry>();
+  }
+  return scope.__brandGrowthReportWorkspaceCache;
+}
+
+const reportWorkspaceCache = getReportWorkspaceCacheStore();
+
 export type GrowthReportRecord = {
   id: string;
   title: string;
@@ -457,53 +478,85 @@ function resolveBrandId(brandId?: string) {
   return getStoredCurrentBrandId(brandId || DEMO_BRAND_ID) || DEMO_BRAND_ID;
 }
 
-export async function getGrowthReportWorkspace(brandId?: string) {
-  return request<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report`);
+export async function getGrowthReportWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<GrowthReportWorkspace>(
+    buildReportWorkspaceCacheKey("growth-report", resolvedBrandId),
+    () => request<GrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/growth-report`),
+    options,
+  );
 }
 
 export async function generateGrowthReport(brandId?: string) {
-  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report/generate`, "POST", {});
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/growth-report/generate`, "POST", {});
 }
 
 export async function updateGrowthReport(reportId: string, reportMarkdown: string, title?: string, brandId?: string) {
-  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/growth-report/${reportId}`, "PATCH", {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<GrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/growth-report/${reportId}`, "PATCH", {
     title,
     reportMarkdown,
   });
 }
 
-export async function getVisualGrowthReportWorkspace(brandId?: string) {
-  return request<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report`);
+export async function getVisualGrowthReportWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<VisualGrowthReportWorkspace>(
+    buildReportWorkspaceCacheKey("visual-growth-report", resolvedBrandId),
+    () => request<VisualGrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/visual-growth-report`),
+    options,
+  );
 }
 
 export async function generateVisualGrowthReport(brandId?: string) {
-  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report/generate`, "POST", {});
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/visual-growth-report/generate`, "POST", {});
 }
 
 export async function updateVisualGrowthReport(reportId: string, htmlBody: string, title?: string, brandId?: string) {
-  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/visual-growth-report/${reportId}`, "PATCH", {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<VisualGrowthReportWorkspace>(`/reports/brands/${resolvedBrandId}/visual-growth-report/${reportId}`, "PATCH", {
     title,
     htmlBody,
   });
 }
 
-export async function getHalfYearMarketingPlanWorkspace(brandId?: string) {
-  return request<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/half-year-marketing-plan`);
+export async function getHalfYearMarketingPlanWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<HalfYearMarketingPlanWorkspace>(
+    buildReportWorkspaceCacheKey("half-year-marketing-plan", resolvedBrandId),
+    () => request<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/half-year-marketing-plan`),
+    options,
+  );
 }
 
 export async function generateHalfYearMarketingPlan(brandId?: string) {
-  return jsonRequest<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/half-year-marketing-plan/generate`, "POST", {});
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<HalfYearMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/half-year-marketing-plan/generate`, "POST", {});
 }
 
 export const getAnnualMarketingPlanWorkspace = getHalfYearMarketingPlanWorkspace;
 export const generateAnnualMarketingPlan = generateHalfYearMarketingPlan;
 
-export async function getXiaohongshuMarketingPlanWorkspace(brandId?: string) {
-  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan`);
+export async function getXiaohongshuMarketingPlanWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<XiaohongshuMarketingPlanWorkspace>(
+    buildReportWorkspaceCacheKey("xiaohongshu-marketing-plan", resolvedBrandId),
+    () => request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan`),
+    options,
+  );
 }
 
 export async function generateXiaohongshuMarketingPlan(brandId?: string) {
-  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/generate`, "POST", {});
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan/generate`, "POST", {});
 }
 
 export async function updateXiaohongshuMarketingPlan(
@@ -512,14 +565,18 @@ export async function updateXiaohongshuMarketingPlan(
   title?: string,
   brandId?: string,
 ) {
-  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/${reportId}`, "PATCH", {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan/${reportId}`, "PATCH", {
     title,
     reportMarkdown,
   });
 }
 
 export async function deleteXiaohongshuMarketingPlan(reportId: string, brandId?: string) {
-  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-plan/${reportId}`, {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return request<XiaohongshuMarketingPlanWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-plan/${reportId}`, {
     method: "DELETE",
   });
 }
@@ -636,12 +693,19 @@ export async function deleteDouyinRemixCopy(reportId: string, brandId?: string) 
   });
 }
 
-export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string) {
-  return request<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar`);
+export async function getXiaohongshuMarketingCalendarWorkspace(brandId?: string, options?: { force?: boolean }) {
+  const resolvedBrandId = resolveBrandId(brandId);
+  return getCachedReportWorkspace<XiaohongshuMarketingCalendarWorkspace>(
+    buildReportWorkspaceCacheKey("xiaohongshu-marketing-calendar", resolvedBrandId),
+    () => request<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar`),
+    options,
+  );
 }
 
 export async function generateXiaohongshuMarketingCalendar(brandId?: string) {
-  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar/generate`, "POST", {});
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar/generate`, "POST", {});
 }
 
 export async function updateXiaohongshuMarketingCalendar(
@@ -650,8 +714,134 @@ export async function updateXiaohongshuMarketingCalendar(
   title?: string,
   brandId?: string,
 ) {
-  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolveBrandId(brandId)}/xiaohongshu-marketing-calendar/${reportId}`, "PATCH", {
+  const resolvedBrandId = resolveBrandId(brandId);
+  clearReportWorkspaceCacheByBrand(resolvedBrandId);
+  return jsonRequest<XiaohongshuMarketingCalendarWorkspace>(`/reports/brands/${resolvedBrandId}/xiaohongshu-marketing-calendar/${reportId}`, "PATCH", {
     title,
     items,
   });
+}
+
+function buildReportWorkspaceCacheKey(scope: string, brandId: string) {
+  return `${scope}:${brandId}`;
+}
+
+async function getCachedReportWorkspace<T>(cacheKey: string, loader: () => Promise<T>, options?: { force?: boolean }) {
+  let cached = reportWorkspaceCache.get(cacheKey) as
+    | {
+        data?: T;
+        expiresAt: number;
+        promise?: Promise<T>;
+      }
+    | undefined;
+
+  if (!options?.force && (!cached?.data || cached.expiresAt <= Date.now())) {
+    const stored = readReportWorkspaceCache<T>(cacheKey);
+    if (stored) {
+      cached = stored;
+      reportWorkspaceCache.set(cacheKey, stored);
+    }
+  }
+
+  if (!options?.force && cached?.data && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
+  if (!options?.force && cached?.promise) {
+    return cached.promise;
+  }
+
+  const pending = loader()
+    .then((response) => {
+      const nextEntry = {
+        data: response,
+        expiresAt: Date.now() + REPORT_WORKSPACE_CACHE_TTL_MS,
+      };
+      reportWorkspaceCache.set(cacheKey, nextEntry);
+      writeReportWorkspaceCache(cacheKey, nextEntry);
+      return response;
+    })
+    .finally(() => {
+      const latest = reportWorkspaceCache.get(cacheKey);
+      if (latest?.promise === pending) {
+        if (latest.data !== undefined) {
+          reportWorkspaceCache.set(cacheKey, {
+            data: latest.data,
+            expiresAt: latest.expiresAt,
+          });
+        } else {
+          reportWorkspaceCache.delete(cacheKey);
+        }
+      }
+    });
+
+  reportWorkspaceCache.set(cacheKey, {
+    data: cached?.data,
+    expiresAt: cached?.expiresAt || 0,
+    promise: pending,
+  });
+
+  return pending;
+}
+
+function clearReportWorkspaceCacheByBrand(brandId: string) {
+  for (const key of reportWorkspaceCache.keys()) {
+    if (key.endsWith(`:${brandId}`)) {
+      reportWorkspaceCache.delete(key);
+    }
+  }
+  clearStoredReportWorkspaceCacheByBrand(brandId);
+}
+
+function readReportWorkspaceCache<T>(cacheKey: string) {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(`${REPORT_WORKSPACE_STORAGE_PREFIX}${cacheKey}`);
+    if (!raw) {
+      return undefined;
+    }
+
+    const parsed = JSON.parse(raw) as {
+      data?: T;
+      expiresAt: number;
+    };
+
+    if (!parsed || parsed.expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(`${REPORT_WORKSPACE_STORAGE_PREFIX}${cacheKey}`);
+      return undefined;
+    }
+
+    return parsed;
+  } catch {
+    window.sessionStorage.removeItem(`${REPORT_WORKSPACE_STORAGE_PREFIX}${cacheKey}`);
+    return undefined;
+  }
+}
+
+function writeReportWorkspaceCache(cacheKey: string, entry: { data?: unknown; expiresAt: number }) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(`${REPORT_WORKSPACE_STORAGE_PREFIX}${cacheKey}`, JSON.stringify(entry));
+  } catch {
+    // Ignore storage quota or serialization failures and keep in-memory cache only.
+  }
+}
+
+function clearStoredReportWorkspaceCacheByBrand(brandId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.sessionStorage.key(index);
+    if (key?.startsWith(REPORT_WORKSPACE_STORAGE_PREFIX) && key.endsWith(`:${brandId}`)) {
+      window.sessionStorage.removeItem(key);
+    }
+  }
 }

@@ -133,6 +133,7 @@ type StrategyPageKey =
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar";
 type BrandGrowthLoadScope = "library" | "collection" | "report";
+const REPORT_SCOPE_SNAPSHOT_TTL_MS = 30_000;
 
 const BrandGrowthLibraryWorkspace = dynamic(
   () => import("./library-workspace").then((module) => module.BrandGrowthLibraryWorkspace),
@@ -495,6 +496,64 @@ function getLoadScopeByPage(key: StrategyPageKey): BrandGrowthLoadScope {
   return "report";
 }
 
+type ReportScopeSnapshot = {
+  expiresAt: number;
+  collectionWorkspace: XhsCollectionWorkspace;
+  reportWorkspace: GrowthReportWorkspace;
+  visualReportWorkspace: VisualGrowthReportWorkspace;
+  annualMarketingPlanWorkspace: AnnualMarketingPlanWorkspace;
+  xiaohongshuMarketingPlanWorkspace: XiaohongshuMarketingPlanWorkspace;
+  marketingCalendarWorkspace: XiaohongshuMarketingCalendarWorkspace;
+};
+
+function buildReportScopeSnapshotKey(brandId: string) {
+  return `brand-growth:report-scope:${brandId}`;
+}
+
+function readReportScopeSnapshot(brandId: string) {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const storageKey = buildReportScopeSnapshotKey(brandId);
+
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) {
+      return undefined;
+    }
+
+    const parsed = JSON.parse(raw) as ReportScopeSnapshot;
+    if (!parsed?.expiresAt || parsed.expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(storageKey);
+      return undefined;
+    }
+
+    return parsed;
+  } catch {
+    window.sessionStorage.removeItem(storageKey);
+    return undefined;
+  }
+}
+
+function writeReportScopeSnapshot(brandId: string, snapshot: Omit<ReportScopeSnapshot, "expiresAt">) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      buildReportScopeSnapshotKey(brandId),
+      JSON.stringify({
+        ...snapshot,
+        expiresAt: Date.now() + REPORT_SCOPE_SNAPSHOT_TTL_MS,
+      } satisfies ReportScopeSnapshot),
+    );
+  } catch {
+    // Ignore storage failures and keep runtime state only.
+  }
+}
+
 type DouyinSyncForm = {
   brandAccountLinks: string;
   competitorAccountLinks: string;
@@ -761,6 +820,22 @@ export function BrandGrowthWorkspace() {
     void loadArchive({ targetPage: "background" });
   }, []);
 
+  useEffect(() => {
+    const cachedBrandId = getStoredCurrentBrandId(DEMO_BRAND_ID) || DEMO_BRAND_ID;
+    const cachedSnapshot = readReportScopeSnapshot(cachedBrandId);
+    if (!cachedSnapshot) {
+      return;
+    }
+
+    setCollectionWorkspace(cachedSnapshot.collectionWorkspace);
+    setReportWorkspace(cachedSnapshot.reportWorkspace);
+    setVisualReportWorkspace(cachedSnapshot.visualReportWorkspace);
+    setAnnualMarketingPlanWorkspace(cachedSnapshot.annualMarketingPlanWorkspace);
+    setXiaohongshuMarketingPlanWorkspace(cachedSnapshot.xiaohongshuMarketingPlanWorkspace);
+    setMarketingCalendarWorkspace(cachedSnapshot.marketingCalendarWorkspace);
+    setLoadedScopes((current) => (current.report ? current : { ...current, report: true }));
+  }, []);
+
   async function resolveActiveBrandId(fallbackBrandId: string, me?: Awaited<ReturnType<typeof getMe>> | null) {
     const resolvedMe = me ?? await getMe().catch(() => null);
     const storedBrandId = getStoredCurrentBrandId(fallbackBrandId) || "";
@@ -890,6 +965,30 @@ export function BrandGrowthWorkspace() {
     }
     setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
   }, [isCalendarDetailOpen, isEditingCalendarItem, selectedCalendarItem]);
+
+  useEffect(() => {
+    if (!loadedScopes.report || !activeBrandId) {
+      return;
+    }
+
+    writeReportScopeSnapshot(activeBrandId, {
+      collectionWorkspace,
+      reportWorkspace,
+      visualReportWorkspace,
+      annualMarketingPlanWorkspace,
+      xiaohongshuMarketingPlanWorkspace,
+      marketingCalendarWorkspace,
+    });
+  }, [
+    activeBrandId,
+    annualMarketingPlanWorkspace,
+    collectionWorkspace,
+    loadedScopes.report,
+    marketingCalendarWorkspace,
+    reportWorkspace,
+    visualReportWorkspace,
+    xiaohongshuMarketingPlanWorkspace,
+  ]);
 
   async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {
     const targetPage = options?.targetPage ?? activePage;
@@ -1068,7 +1167,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshVisualReportWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getVisualGrowthReportWorkspace(archive.brand.id);
+      const nextWorkspace = await getVisualGrowthReportWorkspace(archive.brand.id, { force: true });
       setVisualReportWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
@@ -1083,7 +1182,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshGrowthReportWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getGrowthReportWorkspace(archive.brand.id);
+      const nextWorkspace = await getGrowthReportWorkspace(archive.brand.id, { force: true });
       setReportWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
@@ -1098,7 +1197,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshAnnualMarketingPlanWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getAnnualMarketingPlanWorkspace(archive.brand.id);
+      const nextWorkspace = await getAnnualMarketingPlanWorkspace(archive.brand.id, { force: true });
       setAnnualMarketingPlanWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
@@ -1113,7 +1212,7 @@ export function BrandGrowthWorkspace() {
 
   async function refreshMarketingCalendarWorkspace(silent = false) {
     try {
-      const nextWorkspace = await getXiaohongshuMarketingCalendarWorkspace(archive.brand.id);
+      const nextWorkspace = await getXiaohongshuMarketingCalendarWorkspace(archive.brand.id, { force: true });
       setMarketingCalendarWorkspace(nextWorkspace);
       if (nextWorkspace.latestTask?.taskStatus === "FAILED" && nextWorkspace.latestTask.errorMessage) {
         setErrorMessage(`生成失败：${nextWorkspace.latestTask.errorMessage}`);
