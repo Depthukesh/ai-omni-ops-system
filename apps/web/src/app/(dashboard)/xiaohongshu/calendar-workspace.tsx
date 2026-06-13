@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { type XiaohongshuMarketingCalendarItem, type XiaohongshuMarketingCalendarRecord, type XiaohongshuMarketingCalendarTaskRecord } from "../../../services/reports";
-import { type AsyncAction, type OptionalDateFormatter } from "./shared-types";
+import { type AsyncAction } from "./shared-types";
+import { buildCalendarMonthMatrix, formatCalendarMonthLabel, getCalendarMonthKey } from "./calendar-helpers";
 
 export interface CalendarWorkspaceProps {
   sectionLabel: string;
@@ -44,13 +46,8 @@ export interface CalendarWorkspaceProps {
     value: string,
   ) => void;
   onDetailListFieldChange: (field: "noteKeywords" | "titleDirections" | "coverKeywords", value: string) => void;
-  getTaskStatusClass: (status?: XiaohongshuMarketingCalendarTaskRecord["taskStatus"]) => string;
-  formatDateTime: OptionalDateFormatter;
-  formatCalendarMonthDay: (value: string) => string;
   formatCalendarWeekday: (value: string) => string;
-  getCalendarFestivalLabel: (value: string) => string;
   formatCalendarDate: (value: string) => string;
-  formatCalendarOptionalValue: OptionalDateFormatter;
   formatCalendarListValue: (value?: string[]) => string;
 }
 
@@ -65,7 +62,6 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     isCalendarTaskActive,
     latestCalendar,
     latestCalendarTask,
-    calendarTaskStatusText,
     calendarInlineError,
     calendarAllItems,
     isCalendarDetailOpen,
@@ -82,15 +78,47 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     onSaveDetail,
     onDetailFieldChange,
     onDetailListFieldChange,
-    getTaskStatusClass,
-    formatDateTime,
-    formatCalendarMonthDay,
     formatCalendarWeekday,
-    getCalendarFestivalLabel,
     formatCalendarDate,
-    formatCalendarOptionalValue,
     formatCalendarListValue,
   } = props;
+
+  const initialMonthKey = useMemo(() => {
+    const latestMonthKey = getCalendarMonthKey(latestCalendar?.items?.[0]?.date);
+    if (latestMonthKey) {
+      return latestMonthKey;
+    }
+
+    const firstItemMonthKey = getCalendarMonthKey(calendarAllItems[0]?.date);
+    if (firstItemMonthKey) {
+      return firstItemMonthKey;
+    }
+
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  }, [calendarAllItems, latestCalendar?.items]);
+
+  const [visibleMonthKey, setVisibleMonthKey] = useState(initialMonthKey);
+  const [showGregorianFestivals, setShowGregorianFestivals] = useState(false);
+  const [showSolarTerms, setShowSolarTerms] = useState(false);
+
+  useEffect(() => {
+    setVisibleMonthKey((current) => current || initialMonthKey);
+  }, [initialMonthKey]);
+
+  const monthCells = useMemo(() => buildCalendarMonthMatrix(visibleMonthKey, calendarAllItems), [calendarAllItems, visibleMonthKey]);
+
+  function shiftMonth(offset: number) {
+    const [yearText, monthText] = visibleMonthKey.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!year || !month) {
+      return;
+    }
+
+    const next = new Date(year, month - 1 + offset, 1);
+    setVisibleMonthKey(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
+  }
 
   return (
     <article className="workspace-panel strategy-page-card">
@@ -114,29 +142,46 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
             onClick={() => void onGenerate()}
             disabled={isLoading || isPublishing || isGeneratingCalendar || !canGenerateCalendar || isCalendarTaskActive}
           >
-            {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "生成接下来7天" : "一键生成"}
+            {isGeneratingCalendar ? "提交中..." : isCalendarTaskActive ? "后台生成中..." : latestCalendar ? "重新生成日历" : "生成营销日历"}
           </button>
         </div>
       </div>
 
-      <article className="light-data-panel report-editor-panel report-editor-panel--compact">
-        <div className="report-editor-head">
-          <div>
-            <strong>{latestCalendar?.title || "营销日历"}</strong>
-            <p>按未来 7 天查看营销日历；点击任一日期卡片后，在详情面板中查看当天的完整执行方案。</p>
+      <section className="calendar-month-shell">
+        <div className="calendar-month-toolbar">
+          <div className="calendar-month-toolbar__main">
+            <div className="calendar-month-nav">
+              <button type="button" className="calendar-nav-button" onClick={() => shiftMonth(-1)} aria-label="查看上个月">
+                &lt;
+              </button>
+              <button type="button" className="calendar-nav-button" onClick={() => shiftMonth(1)} aria-label="查看下个月">
+                &gt;
+              </button>
+            </div>
+            <div className="calendar-month-toolbar__label">
+              <strong>{formatCalendarMonthLabel(visibleMonthKey)}</strong>
+            </div>
           </div>
-          <div className="report-editor-actions">
-            <span className={`archive-pill ${canGenerateCalendar ? "status-ready" : "status-in_progress"}`}>
-              {canGenerateCalendar ? "已满足生成条件" : "等待前置输入"}
-            </span>
-            {latestCalendarTask ? (
-              <span className={`archive-pill ${getTaskStatusClass(latestCalendarTask.taskStatus)}`}>{calendarTaskStatusText}</span>
-            ) : null}
-            {latestCalendar?.generatedAt ? (
-              <span className="archive-pill status-ready">{formatDateTime(latestCalendar.generatedAt)}</span>
-            ) : null}
+          <div className="calendar-month-toolbar__filters">
+            <button
+              type="button"
+              className={`calendar-filter-button ${showGregorianFestivals ? "is-active" : ""}`}
+              onClick={() => setShowGregorianFestivals((current) => !current)}
+              aria-pressed={showGregorianFestivals}
+            >
+              公历节日
+            </button>
+            <button
+              type="button"
+              className={`calendar-filter-button ${showSolarTerms ? "is-active" : ""}`}
+              onClick={() => setShowSolarTerms((current) => !current)}
+              aria-pressed={showSolarTerms}
+            >
+              节气
+            </button>
           </div>
         </div>
+
         {!canGenerateCalendar ? <div className="report-inline-tip">请先完成品牌增长报告、半年营销规划和小红书营销策划方案，再开始生成营销日历。</div> : null}
         {isCalendarTaskActive ? (
           <div className="report-inline-tip">
@@ -148,44 +193,76 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
           </div>
         ) : null}
         {calendarInlineError ? <div className="report-inline-tip report-inline-tip--error">{calendarInlineError}</div> : null}
-        {!calendarAllItems.length ? (
-          <div className="empty-state">当前还没有营销日历，点击右上角“一键生成”开始生成未来 7 天排期。</div>
-        ) : (
-          <div>
-            <div className="calendar-seven-day-toolbar">
-              <div>
-                <span>未来 7 天日历</span>
-                <strong>{latestCalendar?.summary || "点击单日卡片查看详情，并在详情弹窗中直接修改当天内容。"}</strong>
-              </div>
-            </div>
-            <div className="calendar-grid calendar-grid--seven-day">
-              {calendarAllItems.map((item) => (
-                <article
-                  className="entity-card personal-card calendar-card calendar-card--seven-day calendar-card--interactive"
-                  key={item.id}
-                  onClick={() => onOpenDetail(item.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenDetail(item.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="calendar-card-date">
-                    <strong>{formatCalendarMonthDay(item.date)}</strong>
-                    <span>{formatCalendarWeekday(item.date)}</span>
+        {!calendarAllItems.length ? <div className="calendar-month-empty">当前还没有营销日历内容，先点击右上角按钮生成排期，月历仍可用于查看节日与节气。</div> : null}
+
+        <div className="calendar-weekdays">
+          {["周一", "周二", "周三", "周四", "周五", "周六", "周日"].map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+
+        <div className="calendar-grid calendar-grid--month calendar-grid--month-view">
+          {monthCells.map((cell) => {
+            const cellClasses = [
+              "calendar-month-cell",
+              cell.inCurrentMonth ? "" : "is-outside-month",
+              cell.isToday ? "is-today" : "",
+              cell.isRestDay ? "is-rest-day" : "",
+              selectedCalendarItem?.date === cell.date ? "is-selected" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            const festivalLabels = showGregorianFestivals ? cell.gregorianFestivals.slice(0, 2) : [];
+            const hasInteractiveTopic = Boolean(cell.item);
+
+            return (
+              <article
+                className={cellClasses}
+                key={cell.date}
+                aria-label={`${cell.date} ${cell.lunarLabel}${cell.isRestDay ? " 休" : ""}`}
+                onClick={cell.item ? () => onOpenDetail(cell.item!.id) : undefined}
+                onKeyDown={
+                  cell.item
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onOpenDetail(cell.item!.id);
+                        }
+                      }
+                    : undefined
+                }
+                role={hasInteractiveTopic ? "button" : undefined}
+                tabIndex={hasInteractiveTopic ? 0 : undefined}
+              >
+                <div className="calendar-month-cell__header">
+                  <div className="calendar-month-cell__date">
+                    <strong>{cell.inCurrentMonth ? cell.day : `${cell.month}/${cell.day}`}</strong>
+                    <span>{cell.lunarLabel}</span>
                   </div>
-                  <div className="calendar-card-body">
-                    <p className="calendar-card-topic">{item.topicName}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
-      </article>
+                  {cell.isRestDay ? <span className="calendar-rest-badge">休</span> : null}
+                </div>
+                <div className="calendar-month-cell__body">
+                  {festivalLabels.map((label) => (
+                    <p key={`${cell.date}-${label}`} className="calendar-annotation calendar-annotation--festival">
+                      {label}
+                    </p>
+                  ))}
+                  {showSolarTerms && cell.solarTerm ? <p className="calendar-annotation calendar-annotation--solar">{cell.solarTerm}</p> : null}
+                  {cell.item ? (
+                    <div className="calendar-month-entry">
+                      <span className="calendar-month-entry__weekday">{formatCalendarWeekday(cell.item.date)}</span>
+                      <p className="calendar-month-entry__title">{cell.item.topicName}</p>
+                    </div>
+                  ) : (
+                    <div className="calendar-month-entry calendar-month-entry--placeholder" />
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
       {isCalendarDetailOpen && selectedCalendarItem ? (
         <div className="media-preview-overlay" onClick={onCloseDetail}>

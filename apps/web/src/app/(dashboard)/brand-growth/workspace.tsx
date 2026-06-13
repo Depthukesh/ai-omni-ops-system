@@ -202,7 +202,7 @@ const strategySections: Array<{
       { key: "growthReport", label: "生成品牌增长报告", description: "根据品牌资料与收集数据生成分析报告。" },
       { key: "visualGrowthReport", label: "品牌增长可视化报告", description: "输出图表化的品牌增长可视化结果。" },
       { key: "annualMarketingPlan", label: "半年营销规划", description: "形成未来半年节奏、战役安排与重点营销规划。" },
-      { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于半年营销规划和小红书营销策划方案生成未来 7 天排期。" },
+      { key: "xiaohongshuMarketingCalendar", label: "营销日历", description: "基于半年营销规划和小红书营销策划方案生成整月运营排期与节日节气月历。" },
     ],
   },
 ];
@@ -1400,7 +1400,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     try {
       const nextWorkspace = await generateXiaohongshuMarketingCalendar(archive.brand.id);
       setMarketingCalendarWorkspace(nextWorkspace);
-      setNotice("已提交后台生成任务，正在生成接下来 7 天营销日历。");
+      setNotice("已提交后台生成任务，正在生成营销日历。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setErrorMessage(`生成失败：${message}`);
@@ -2233,13 +2233,8 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           onSaveDetail={() => handleSaveCalendarItem()}
           onDetailFieldChange={handleCalendarItemFieldChange}
           onDetailListFieldChange={handleCalendarItemListFieldChange}
-          getTaskStatusClass={getReportTaskStatusClass}
-          formatDateTime={formatDateTime}
-          formatCalendarMonthDay={formatCalendarMonthDay}
           formatCalendarWeekday={formatCalendarWeekday}
-          getCalendarFestivalLabel={getCalendarFestivalLabel}
           formatCalendarDate={formatCalendarDate}
-          formatCalendarOptionalValue={formatCalendarOptionalValue}
           formatCalendarListValue={formatCalendarListValue}
         />
       );
