@@ -642,6 +642,11 @@ export function BrandGrowthWorkspace() {
   const [hotspotPageSize, setHotspotPageSize] = useState(10);
   const [activeSection, setActiveSection] = useState<StrategySectionKey>("library");
   const [activePage, setActivePage] = useState<StrategyPageKey>("background");
+  const [expandedSections, setExpandedSections] = useState<Record<StrategySectionKey, boolean>>({
+    library: true,
+    collection: false,
+    report: false,
+  });
   const [activeXhsCollectionCard, setActiveXhsCollectionCard] = useState<XiaohongshuCollectionCardKey>("brandAccount");
   const [activeDouyinCollectionCard, setActiveDouyinCollectionCard] = useState<DouyinCollectionCardKey>("brandAccount");
   const [selectedHotspotDate, setSelectedHotspotDate] = useState(getDefaultHotspotDate);
@@ -815,6 +820,13 @@ export function BrandGrowthWorkspace() {
       setActivePage(matchedSection.pages[0]?.key ?? "background");
     }
   }, [activePage, activeSection, visibleStrategySections]);
+
+  useEffect(() => {
+    setExpandedSections((current) => ({
+      ...current,
+      [activeSection]: true,
+    }));
+  }, [activeSection]);
 
   useEffect(() => {
     void loadArchive({ targetPage: "background" });
@@ -1948,14 +1960,39 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   }
 
   function switchSection(sectionKey: StrategySectionKey) {
-    const targetSection = strategySections.find((item) => item.key === sectionKey) ?? strategySections[0];
+    const targetSection = visibleStrategySections.find((item) => item.key === sectionKey) ?? visibleStrategySections[0] ?? strategySections[0];
     setActiveSection(targetSection.key);
-    setActivePage(targetSection.pages[0]?.key ?? "background");
+    setExpandedSections((current) => ({
+      ...current,
+      [targetSection.key]: true,
+    }));
+    if (!targetSection.pages.some((page) => page.key === activePage)) {
+      setActivePage(targetSection.pages[0]?.key ?? "background");
+    }
     setActiveXhsCollectionCard("brandAccount");
     setActiveDouyinCollectionCard("brandAccount");
   }
 
+  function toggleSection(sectionKey: StrategySectionKey) {
+    if (expandedSections[sectionKey]) {
+      setExpandedSections((current) => ({
+        ...current,
+        [sectionKey]: false,
+      }));
+      return;
+    }
+    switchSection(sectionKey);
+  }
+
   function switchPage(pageKey: StrategyPageKey) {
+    const parentSection = visibleStrategySections.find((section) => section.pages.some((page) => page.key === pageKey));
+    if (parentSection) {
+      setActiveSection(parentSection.key);
+      setExpandedSections((current) => ({
+        ...current,
+        [parentSection.key]: true,
+      }));
+    }
     setActivePage(pageKey);
     if (pageKey !== "xiaohongshuCollection") {
       setActiveXhsCollectionCard("brandAccount");
@@ -2350,33 +2387,44 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
   return (
     <main className="archive-shell strategy-shell">
       <section className="strategy-layout">
-        <aside className="strategy-level-panel strategy-level-panel--directory">
-          <div className="strategy-level-button-list">
-            {visibleStrategySections.map((section) => (
-              <button
-                key={section.key}
-                type="button"
-                className={`strategy-level-button ${section.key === activeSection ? "is-active" : ""}`}
-                onClick={() => switchSection(section.key)}
-              >
-                {section.label}
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <aside className="strategy-level-panel strategy-level-panel--directory strategy-level-panel--tertiary">
-          <div className="strategy-level-button-list">
-            {currentSection.pages.map((page) => (
-              <button
-                key={page.key}
-                type="button"
-                className={`strategy-level-button ${page.key === activePage ? "is-active" : ""}`}
-                onClick={() => switchPage(page.key)}
-              >
-                {page.label}
-              </button>
-            ))}
+        <aside className="strategy-level-panel strategy-level-panel--directory strategy-level-panel--accordion">
+          <div className="strategy-level-button-list strategy-level-button-list--accordion">
+            {visibleStrategySections.map((section) => {
+              const isExpanded = expandedSections[section.key];
+              const isSectionActive = section.key === activeSection;
+              return (
+                <div
+                  key={section.key}
+                  className={`strategy-section-group ${isExpanded ? "is-expanded" : ""} ${isSectionActive ? "is-active" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className={`strategy-level-button strategy-level-button--section ${isSectionActive ? "is-active" : ""}`}
+                    onClick={() => toggleSection(section.key)}
+                    aria-expanded={isExpanded}
+                  >
+                    <span>{section.label}</span>
+                    <span className={`strategy-level-chevron ${isExpanded ? "is-expanded" : ""}`} aria-hidden="true">
+                      ▾
+                    </span>
+                  </button>
+                  <div className={`strategy-submenu ${isExpanded ? "is-expanded" : ""}`}>
+                    <div className="strategy-level-button-list strategy-level-button-list--nested">
+                      {section.pages.map((page) => (
+                        <button
+                          key={page.key}
+                          type="button"
+                          className={`strategy-level-button strategy-level-button--nested ${page.key === activePage ? "is-active" : ""}`}
+                          onClick={() => switchPage(page.key)}
+                        >
+                          {page.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </aside>
 
