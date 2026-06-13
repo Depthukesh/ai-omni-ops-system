@@ -9,7 +9,6 @@ import {
   formatCalendarListValue,
   formatCalendarMonthDay,
   formatCalendarOptionalValue,
-  formatCalendarWeekday,
   getCalendarFestivalLabel,
 } from "../xiaohongshu/calendar-helpers";
 import {
@@ -2233,7 +2232,6 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
           onSaveDetail={() => handleSaveCalendarItem()}
           onDetailFieldChange={handleCalendarItemFieldChange}
           onDetailListFieldChange={handleCalendarItemListFieldChange}
-          formatCalendarWeekday={formatCalendarWeekday}
           formatCalendarDate={formatCalendarDate}
           formatCalendarListValue={formatCalendarListValue}
         />

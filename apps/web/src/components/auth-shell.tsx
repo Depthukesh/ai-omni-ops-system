@@ -33,7 +33,7 @@ export function AuthShell({ badge, title, description, highlights, children, foo
 
           <div>
             <h1>{title}</h1>
-            <p className="auth-brand-description">{description}</p>
+            {description ? <p className="auth-brand-description">{description}</p> : null}
           </div>
 
           <div className="auth-highlight-list">
@@ -44,13 +44,13 @@ export function AuthShell({ badge, title, description, highlights, children, foo
               </article>
             ))}
           </div>
-
-          <div className="auth-form-note">第一阶段先统一认证体验与视觉基线，后续工作台和后台继续沿同一品牌系统推进。</div>
         </section>
 
         <section className="auth-form-panel">
-          {children}
-          {footer}
+          <div className="auth-form-surface">
+            {children}
+            {footer}
+          </div>
         </section>
       </div>
     </main>

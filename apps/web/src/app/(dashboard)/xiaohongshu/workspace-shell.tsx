@@ -6,7 +6,6 @@ import {
   formatCalendarListValue,
   formatCalendarMonthDay,
   formatCalendarOptionalValue,
-  formatCalendarWeekday,
   getCalendarFestivalLabel,
 } from "./calendar-helpers";
 import { formatDateTime } from "./datetime-helpers";

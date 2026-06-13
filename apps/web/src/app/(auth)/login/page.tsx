@@ -69,8 +69,8 @@ export default function LoginPage() {
   return (
     <AuthShell
       badge="统一账号入口"
-      title="登录后直接进入你的增长工作台"
-      description="保持首页同一品牌调性，把账号、品牌切换、任务隔离和目标页面跳转统一收口到一个入口。"
+      title="登录后直接回到你的增长工作台"
+      description=""
       highlights={[
         { title: "统一身份", description: "同一个账号进入个人中心、品牌协作和内容工作台。" },
         { title: "目标回跳", description: "登录成功后自动回到你原本想进入的页面，不重新找入口。" },
@@ -84,8 +84,7 @@ export default function LoginPage() {
     >
       <div className="panel-header">
         <div>
-          <h1>登录</h1>
-          <p className="panel-subtext">接入真实多用户登录态，支持个人中心、品牌切换和任务隔离。</p>
+          <h1>欢迎回来</h1>
         </div>
       </div>
       <form className="form-grid" onSubmit={handleSubmit}>

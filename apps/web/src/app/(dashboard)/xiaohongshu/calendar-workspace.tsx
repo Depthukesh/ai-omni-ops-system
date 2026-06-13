@@ -46,7 +46,6 @@ export interface CalendarWorkspaceProps {
     value: string,
   ) => void;
   onDetailListFieldChange: (field: "noteKeywords" | "titleDirections" | "coverKeywords", value: string) => void;
-  formatCalendarWeekday: (value: string) => string;
   formatCalendarDate: (value: string) => string;
   formatCalendarListValue: (value?: string[]) => string;
 }
@@ -78,7 +77,6 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
     onSaveDetail,
     onDetailFieldChange,
     onDetailListFieldChange,
-    formatCalendarWeekday,
     formatCalendarDate,
     formatCalendarListValue,
   } = props;
@@ -196,7 +194,7 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
         {!calendarAllItems.length ? <div className="calendar-month-empty">当前还没有营销日历内容，先点击右上角按钮生成排期，月历仍可用于查看节日与节气。</div> : null}
 
         <div className="calendar-weekdays">
-          {["周一", "周二", "周三", "周四", "周五", "周六", "周日"].map((label) => (
+          {["周日", "周一", "周二", "周三", "周四", "周五", "周六"].map((label) => (
             <span key={label}>{label}</span>
           ))}
         </div>
@@ -251,7 +249,6 @@ export function CalendarWorkspace(props: CalendarWorkspaceProps) {
                   {showSolarTerms && cell.solarTerm ? <p className="calendar-annotation calendar-annotation--solar">{cell.solarTerm}</p> : null}
                   {cell.item ? (
                     <div className="calendar-month-entry">
-                      <span className="calendar-month-entry__weekday">{formatCalendarWeekday(cell.item.date)}</span>
                       <p className="calendar-month-entry__title">{cell.item.topicName}</p>
                     </div>
                   ) : (
