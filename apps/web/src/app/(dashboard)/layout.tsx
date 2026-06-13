@@ -23,6 +23,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const hideTopbar = pathname === "/admin" || pathname.startsWith("/admin/");
+  const shouldSyncInvites = pathname === "/personal-center" || pathname.startsWith("/personal-center/");
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [myPendingInvites, setMyPendingInvites] = useState<Array<BrandInviteRecord & { brandId: string; brandName: string }>>([]);
   const [dismissedInviteBanner, setDismissedInviteBanner] = useState(false);
@@ -46,7 +47,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [hideTopbar, pathname, router]);
 
   useEffect(() => {
-    if (hideTopbar) {
+    if (hideTopbar || !shouldSyncInvites) {
+      setMyPendingInvites([]);
+      setUnreadPendingCount(0);
+      setLastInviteSyncAt("");
       return;
     }
 
@@ -109,7 +113,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
       window.removeEventListener(brandInviteReadStateChangedEvent, handleReadStateChanged);
     };
-  }, [hideTopbar, pathname]);
+  }, [hideTopbar, pathname, shouldSyncInvites]);
 
   const nextInviteHref = useMemo(() => {
     return myPendingInvites.length ? "/personal-center/invites" : "/personal-center/team";
@@ -184,7 +188,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          {myPendingInvites.length && !dismissedInviteBanner ? (
+          {shouldSyncInvites && myPendingInvites.length && !dismissedInviteBanner ? (
             <div className="dashboard-notice-bar">
               <div className="dashboard-notice-bar-shell">
                 <div className="dashboard-notice-copy">

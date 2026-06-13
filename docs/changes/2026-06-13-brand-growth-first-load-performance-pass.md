@@ -52,12 +52,27 @@
 
 - 首屏 API 请求数量：
   - 优化前：30+ 条
-  - 优化后：4 条
+  - 第二轮优化后：4 条
+  - 第三轮优化后：3 条
 - 本地浏览器请求路径：
   - 优化前：`http://127.0.0.1:3011/api/...`
   - 优化后：`http://localhost:3002/api/...`
 - `next build` 结果：
   - `/brand-growth` 页面体积由约 `140 kB / 248 kB` 下降到约 `120 kB / 228 kB`
+
+## 第三轮补充优化
+
+- 将 `DashboardLayout` 中的邀请数据同步范围收紧到 `personal-center` 相关页面。
+- 在品牌增长页、抖音、小红书、公众号等工作台页面，不再首屏请求 `getMyBrandInvites()`。
+- 邀请数据轮询也只在个人中心场景内运行，避免全站顶层常驻轮询。
+
+### 第三轮验证
+
+- 品牌增长页首屏 API 请求进一步收敛为：
+  - `/api/auth/me`
+  - `/api/brands/{id}/member-permissions`
+  - `/api/brands/{id}/archive`
+- 原先顶层布局注入的 `/api/brands/me/invites` 已从品牌增长页首屏移除。
 
 ## 后续建议
 
