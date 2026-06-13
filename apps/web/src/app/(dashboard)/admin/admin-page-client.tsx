@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SKILL_CENTER_TREE as DASHBOARD_SKILL_CENTER_TREE } from "../skill-center-config";
@@ -115,6 +116,7 @@ import {
   getXiaohongshuMarketingPlanWorkspace,
   getXiaohongshuMarketingCalendarWorkspace,
 } from "../../../services/reports";
+import { ThemeModeToggle } from "../../../components/theme-mode-toggle";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
 import { UsersManagementPanel } from "./users-management-panel";
 
@@ -544,6 +546,13 @@ const ADMIN_ROLE_TAB_MATRIX: Record<AdminSystemRole, AdminTab[]> = {
   ADMIN_OPERATOR: ["dashboard", "orders", "users", "usage", "assets", "modules", "knowledge", "providers"],
   FINANCE_OPERATOR: ["dashboard", "orders", "rules"],
   SUPPORT_OPERATOR: ["dashboard", "orders", "users", "usage"],
+};
+
+const ADMIN_ROLE_LABELS: Record<AdminSystemRole, string> = {
+  SUPER_ADMIN: "超级管理员",
+  ADMIN_OPERATOR: "运营管理员",
+  FINANCE_OPERATOR: "财务管理员",
+  SUPPORT_OPERATOR: "支持管理员",
 };
 
 const DATABASE_INJECT_PARAMETER_OPTIONS: DatabaseInjectParameterOption[] = [
@@ -4252,6 +4261,32 @@ export default function AdminPage() {
   return (
     <main className="dashboard-shell admin-console-shell">
       <section className="admin-console-stack">
+        <section className="admin-console-hero">
+          <div className="admin-console-hero-copy">
+            <span className="admin-console-eyebrow">17ai.site / Admin Console</span>
+            <h1>后台管理台</h1>
+            <p>{activeTabMeta.description}</p>
+            <div className="admin-console-hero-meta">
+              <span className="archive-pill status-ready">{dataSource === "api" ? "真实接口" : "演示数据"}</span>
+              {adminSystemRole ? <span className="archive-pill status-in_progress">{ADMIN_ROLE_LABELS[adminSystemRole]}</span> : null}
+              <span className="admin-console-hero-meta-text">{adminName ? `当前管理员：${adminName}` : "后台身份已验证"}</span>
+            </div>
+          </div>
+          <div className="admin-console-toolbar">
+            <div className="admin-console-toolbar-actions">
+              <ThemeModeToggle />
+              <Link href="/" className="dashboard-topbar-home-link admin-console-home-link">
+                返回首页
+              </Link>
+            </div>
+            <article className="admin-console-status-card">
+              <span>当前栏目</span>
+              <strong>{activeTabMeta.label}</strong>
+              <p>后台和前台共用一套主题系统，支持 dark / light 双模式切换。</p>
+            </article>
+          </div>
+        </section>
+
         <nav className="admin-console-nav" aria-label="后台导航">
           {accessibleTabs.map((tab) => (
             <button

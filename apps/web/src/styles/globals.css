@@ -7246,24 +7246,23 @@ button {
 
 .admin-console-shell {
   max-width: 1440px;
+  padding-bottom: 24px;
 }
 
 .admin-console-stack {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .admin-console-nav {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 12px;
+  padding: 14px;
   border-radius: 24px;
   border: 1px solid var(--site-hero-border);
-  background:
-    radial-gradient(circle at top left, rgba(215, 226, 255, 0.4), transparent 32%),
-    linear-gradient(180deg, #f8f9fb 0%, #f3f5f8 100%);
-  box-shadow: 0 16px 34px rgba(30, 45, 71, 0.06);
+  background: var(--card-surface);
+  box-shadow: var(--card-shadow);
 }
 
 .admin-console-tab {
@@ -7274,22 +7273,23 @@ button {
   justify-content: center;
   border-radius: 18px;
   border: 1px solid transparent;
-  background: transparent;
-  color: var(--site-hero-muted);
+  background: rgba(255, 255, 255, 0);
+  color: var(--text-soft);
   text-align: center;
-  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
 .admin-console-tab:hover {
   transform: translateY(-1px);
-  background: rgba(220, 228, 243, 0.56);
+  background: var(--subtle-surface);
+  color: var(--text-strong);
 }
 
 .admin-console-tab.active {
-  border-color: rgba(89, 126, 255, 0.14);
-  background: linear-gradient(180deg, #dce7fb 0%, #d6e2fb 100%);
-  color: var(--text-strong);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  box-shadow: var(--tab-active-shadow);
 }
 
 .admin-console-tab-title {
@@ -7320,17 +7320,16 @@ button {
   padding: 18px 14px;
   border-radius: 28px;
   border: 1px solid var(--site-hero-border);
-  background:
-    radial-gradient(circle at top left, rgba(215, 226, 255, 0.58), transparent 30%),
-    linear-gradient(180deg, #f8f9fb 0%, #f1f3f6 100%);
+  background: var(--card-surface);
   color: var(--text-soft);
-  box-shadow: 0 18px 44px rgba(30, 45, 71, 0.08);
+  box-shadow: var(--panel-shadow);
 }
 
 .admin-sidebar-brand {
   padding: 16px 18px;
   border-radius: 22px;
-  background: linear-gradient(180deg, #dfe8fb 0%, #d7e3fb 100%);
+  background: var(--card-surface-strong);
+  border: 1px solid var(--site-hero-border);
 }
 
 .admin-sidebar-brand strong {
@@ -7343,7 +7342,7 @@ button {
 .admin-sidebar-brand p,
 .admin-sidebar-foot p {
   margin-top: 4px;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -7351,7 +7350,7 @@ button {
 .admin-sidebar-brand-kicker {
   display: block;
   margin-bottom: 6px;
-  color: var(--site-hero-muted);
+  color: var(--text-faint);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -7364,7 +7363,7 @@ button {
 
 .admin-sidebar-section-label {
   font-size: 12px;
-  color: rgba(233, 251, 255, 0.64);
+  color: var(--text-faint);
   letter-spacing: 0.08em;
 }
 
@@ -7384,21 +7383,21 @@ button {
   border: 1px solid transparent;
   border-radius: 18px;
   background: transparent;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   text-align: left;
   transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .admin-sidebar-link:hover {
   transform: translateX(2px);
-  background: rgba(220, 228, 243, 0.56);
+  background: var(--subtle-surface);
 }
 
 .admin-sidebar-link.active {
-  border-color: rgba(89, 126, 255, 0.14);
-  background: linear-gradient(180deg, #dce7fb 0%, #d6e2fb 100%);
-  color: var(--text-strong);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  box-shadow: var(--tab-active-shadow);
 }
 
 .admin-sidebar-link-badge {
@@ -7408,15 +7407,15 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(129, 147, 181, 0.12);
-  color: var(--site-hero-muted);
+  background: var(--subtle-surface-strong);
+  color: var(--text-soft);
   font-size: 12px;
   font-weight: 700;
 }
 
 .admin-sidebar-link.active .admin-sidebar-link-badge {
-  background: rgba(73, 113, 255, 0.12);
-  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
 }
 
 .admin-sidebar-link-copy {
@@ -7431,13 +7430,13 @@ button {
 }
 
 .admin-sidebar-link-arrow {
-  color: var(--site-hero-muted);
+  color: var(--text-faint);
   font-size: 18px;
   line-height: 1;
 }
 
 .admin-sidebar-link.active .admin-sidebar-link-arrow {
-  color: var(--text-soft);
+  color: inherit;
 }
 
 .admin-sidebar-foot {
@@ -7445,7 +7444,7 @@ button {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid var(--site-hero-border);
-  background: var(--card-surface);
+  background: var(--card-surface-strong);
 }
 
 .status-pill-muted {
@@ -7462,13 +7461,25 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) 320px;
   gap: 18px;
-  padding: 24px 26px;
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at top right, rgba(255, 186, 112, 0.14), transparent 30%),
-    linear-gradient(180deg, #f7fbff 0%, #eef4fb 100%);
+  padding: 28px;
+  border-radius: 32px;
+  background: var(--workspace-bg);
   border: 1px solid var(--site-hero-border);
-  box-shadow: 0 24px 48px rgba(31, 58, 93, 0.08);
+  box-shadow: var(--panel-shadow);
+}
+
+.admin-console-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--site-hero-border);
+  background: var(--subtle-surface);
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .admin-console-hero-copy h1 {
@@ -7479,15 +7490,43 @@ button {
 }
 
 .admin-console-hero-copy p {
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
   font-size: 15px;
-  line-height: 1.9;
+  line-height: 1.8;
+  max-width: 54ch;
+}
+
+.admin-console-hero-meta {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-console-hero-meta-text {
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .admin-console-toolbar {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   align-content: start;
+  justify-items: stretch;
+}
+
+.admin-console-toolbar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-console-home-link {
+  min-height: 38px;
 }
 
 .admin-console-actions {
@@ -7508,11 +7547,12 @@ button {
   border: 1px solid var(--site-hero-border);
   border-radius: 24px;
   background: var(--card-surface);
-  box-shadow: 0 18px 34px rgba(28, 47, 78, 0.08);
+  box-shadow: var(--card-shadow);
 }
 
 .admin-console-status-card {
-  padding: 18px;
+  padding: 20px;
+  background: var(--card-surface-strong);
 }
 
 .admin-console-status-card span,
@@ -7555,15 +7595,15 @@ button {
 }
 
 .admin-console-message.success {
-  border: 1px solid rgba(31, 157, 97, 0.18);
-  background: rgba(226, 248, 235, 0.95);
-  color: var(--text-strong);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: var(--status-ready-bg);
+  color: var(--status-ready-text);
 }
 
 .admin-console-message.error {
-  border: 1px solid rgba(201, 79, 66, 0.2);
-  background: rgba(255, 242, 239, 0.98);
-  color: var(--site-hero-muted);
+  border: 1px solid var(--button-danger-border);
+  background: var(--button-danger-bg);
+  color: var(--button-danger-text);
 }
 
 .admin-dashboard-stack {
@@ -7653,7 +7693,7 @@ button {
 .admin-pulse-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0f5b65 0%, #1ea3b0 100%);
+  background: linear-gradient(90deg, var(--site-accent) 0%, var(--primary) 100%);
 }
 
 .admin-pulse-copy {
@@ -7677,8 +7717,15 @@ button {
   gap: 6px;
   border: 1px solid var(--site-hero-border);
   border-radius: 18px;
-  background: var(--subtle-surface);
+  background: var(--card-surface-strong);
   text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.admin-spotlight-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--tab-active-border);
+  background: var(--tab-active-bg);
 }
 
 .admin-spotlight-item small,
@@ -7700,13 +7747,16 @@ button {
   padding: 16px;
   border: 1px solid var(--site-hero-border);
   border-radius: 18px;
-  background: var(--subtle-surface);
+  background: var(--card-surface-strong);
 }
 
 .admin-module-panel {
   margin-top: 0;
   border-radius: 30px;
   padding: 24px;
+  border: 1px solid var(--site-hero-border);
+  background: var(--card-surface);
+  box-shadow: var(--card-shadow);
 }
 
 .admin-module-heading {
@@ -7722,8 +7772,8 @@ button {
   display: inline-flex;
   padding: 7px 12px;
   border-radius: 999px;
-  background: rgba(15, 91, 101, 0.1);
-  color: #0f5b65;
+  background: var(--site-accent-soft);
+  color: var(--site-accent);
   font-size: 12px;
   font-weight: 700;
 }
@@ -8115,6 +8165,10 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .admin-console-toolbar-actions {
+    justify-content: flex-start;
+  }
+
   .admin-console-sidebar {
     position: static;
   }
@@ -8148,6 +8202,19 @@ button {
 
   .admin-console-nav {
     gap: 8px;
+  }
+
+  .admin-console-hero {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .admin-console-hero-copy h1 {
+    font-size: 30px;
+  }
+
+  .admin-console-hero-meta {
+    align-items: flex-start;
   }
 
   .admin-console-tab {
