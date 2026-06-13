@@ -108,6 +108,214 @@
       transform: scale(0.98);
     }
 
+    /* Trial modal */
+    .trial-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .trial-modal:target {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .trial-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.14), transparent 34%),
+        rgba(3, 7, 18, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .trial-modal__dialog {
+      position: relative;
+      z-index: 1;
+      width: min(920px, 100%);
+      border-radius: 32px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 24%),
+        linear-gradient(145deg, rgba(16, 23, 37, 0.96) 0%, rgba(9, 12, 20, 0.98) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 32px 80px rgba(0, 0, 0, 0.5);
+    }
+    .trial-modal__content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+      gap: 0;
+    }
+    .trial-modal__copy {
+      padding: 40px 36px;
+      background:
+        linear-gradient(180deg, rgba(9, 12, 20, 0.9) 0%, rgba(7, 10, 18, 0.96) 100%);
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .trial-modal__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.24);
+      color: #fbbf24;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    .trial-modal__title {
+      margin-top: 20px;
+      font-size: clamp(32px, 4vw, 46px);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      font-weight: 700;
+      color: #fafafa;
+      max-width: 9ch;
+    }
+    .trial-modal__lead {
+      margin-top: 18px;
+      color: rgba(228, 228, 231, 0.74);
+      font-size: 16px;
+      line-height: 1.8;
+      max-width: 30ch;
+    }
+    .trial-modal__list {
+      margin-top: 28px;
+      display: grid;
+      gap: 14px;
+    }
+    .trial-modal__item {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .trial-modal__item-index {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(245, 158, 11, 0.14);
+      color: #fbbf24;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+    }
+    .trial-modal__item strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fafafa;
+    }
+    .trial-modal__item span {
+      display: block;
+      margin-top: 4px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(212, 212, 216, 0.72);
+    }
+    .trial-modal__panel {
+      padding: 36px 32px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 18px;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 28%),
+        linear-gradient(180deg, rgba(18, 24, 38, 0.94) 0%, rgba(10, 14, 24, 0.98) 100%);
+    }
+    .trial-modal__qr-shell {
+      width: min(100%, 320px);
+      padding: 18px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 244, 245, 0.98) 100%);
+      box-shadow: 0 20px 46px rgba(0, 0, 0, 0.28);
+    }
+    .trial-modal__qr-shell img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 20px;
+    }
+    .trial-modal__hint {
+      font-size: 14px;
+      line-height: 1.75;
+      color: rgba(228, 228, 231, 0.8);
+      text-align: center;
+      max-width: 24ch;
+    }
+    .trial-modal__hint strong {
+      color: #fafafa;
+      font-weight: 600;
+    }
+    .trial-modal__actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    .trial-modal__close,
+    .trial-modal__anchor {
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.24s ease;
+    }
+    .trial-modal__close {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fafafa;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .trial-modal__close:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .trial-modal__anchor {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.22);
+    }
+    .trial-modal__anchor:hover {
+      background: rgba(245, 158, 11, 0.18);
+    }
+
+    @media (max-width: 820px) {
+      .trial-modal__content {
+        grid-template-columns: 1fr;
+      }
+      .trial-modal__copy {
+        padding: 30px 24px 22px;
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .trial-modal__panel {
+        padding: 28px 22px 30px;
+      }
+      .trial-modal__title {
+        max-width: none;
+      }
+    }
+
     /* Console Integration Styles */
     .console-window {
       background: linear-gradient(145deg, rgba(24, 24, 27, 0.8) 0%, rgba(9, 9, 11, 0.9) 100%);
@@ -853,10 +1061,56 @@
     <section id="cta" class="py-32 px-6 max-w-4xl mx-auto text-center reveal">
       <h2 class="text-4xl md:text-5xl font-semibold tracking-tighter mb-6">先看系统，再谈增长，少走很多弯路。</h2>
       <p class="text-zinc-400 text-lg max-w-[36ch] mx-auto mb-10">如果你想真正把门店增长做成可持续运转的系统，最好的起点是先来现场体验这套智能体如何跑通增长飞轮。</p>
-      <a href="#" class="btn-press inline-flex items-center gap-2 bg-zinc-100 text-zinc-950 px-8 py-4 rounded-full font-semibold hover:bg-white transition-colors">
-        预约武汉线下沙龙
+      <a href="#trial-modal" class="btn-press inline-flex items-center gap-2 bg-zinc-100 text-zinc-950 px-8 py-4 rounded-full font-semibold hover:bg-white transition-colors">
+        申请试用
       </a>
     </section>
+
+    <div id="trial-modal" class="trial-modal" aria-labelledby="trial-modal-title">
+      <a href="#cta" class="trial-modal__backdrop" aria-label="关闭申请试用弹窗"></a>
+      <div class="trial-modal__dialog">
+        <div class="trial-modal__content">
+          <div class="trial-modal__copy">
+            <span class="trial-modal__eyebrow">申请试用</span>
+            <h3 id="trial-modal-title" class="trial-modal__title">先加微信，再安排试用沟通。</h3>
+            <p class="trial-modal__lead">扫码后把你的品牌名称、门店类型和核心诉求发过来，我们会按你的业务场景安排试用说明与后续对接。</p>
+            <div class="trial-modal__list">
+              <div class="trial-modal__item">
+                <span class="trial-modal__item-index">01</span>
+                <div>
+                  <strong>先发一句申请试用</strong>
+                  <span>添加后直接备注“申请试用 + 品牌/门店名称”，我们能更快识别你的咨询来源。</span>
+                </div>
+              </div>
+              <div class="trial-modal__item">
+                <span class="trial-modal__item-index">02</span>
+                <div>
+                  <strong>补充你的业务场景</strong>
+                  <span>可简单说明你更关注获客、投放、门店增长、内容生产，还是全域运营协同。</span>
+                </div>
+              </div>
+              <div class="trial-modal__item">
+                <span class="trial-modal__item-index">03</span>
+                <div>
+                  <strong>安排下一步沟通</strong>
+                  <span>确认需求后，我们会继续安排演示、试用说明或线下体验建议。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="trial-modal__panel">
+            <div class="trial-modal__qr-shell">
+              <img src="/images/trial-qr.png" alt="申请试用二维码">
+            </div>
+            <p class="trial-modal__hint"><strong>微信扫码添加</strong><br>备注“申请试用 + 品牌名”，方便我们尽快和你对接。</p>
+            <div class="trial-modal__actions">
+              <a href="#cta" class="trial-modal__close">我知道了</a>
+              <a href="/login" class="trial-modal__anchor">先去登录看看</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </main>
 
