@@ -45,6 +45,11 @@ import {
 type WechatSectionKey = "setup" | "workflow" | "history";
 type ThemeOption = { label: string; color: string };
 const NO_PRODUCT_VALUE = "__no_product__";
+const wechatSections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
+  { key: "setup", label: "配置初始化", description: "完成公众号 API 凭据、默认账号和发布基础设置。" },
+  { key: "workflow", label: "创作工作流", description: "围绕营销日历、品牌资料和模型配置推进完整的公众号内容生产链路。" },
+  { key: "history", label: "发布历史", description: "查看已发布记录、结果状态和失败重试入口。" },
+];
 
 const themeOptions: ThemeOption[] = [
   { label: "墨绿", color: "#25554a" },
@@ -325,6 +330,10 @@ export function WechatWorkspaceShell() {
   }, [calendarWorkspace]);
 
   const products = archive?.products || [];
+  const activeSectionMeta = useMemo(
+    () => wechatSections.find((item) => item.key === activeSection) ?? wechatSections[0],
+    [activeSection],
+  );
   const selectedWorkflow = useMemo(
     () => sessions.find((item) => item.id === selectedWorkflowId) || null,
     [sessions, selectedWorkflowId],
@@ -839,37 +848,38 @@ export function WechatWorkspaceShell() {
 
   return (
     <main className="workspace-page workspace-page--strategy">
-      <section className="workspace-card workspace-card--bleed strategy-page-card" style={{ overflow: "hidden" }}>
-        <div className="wechat-layout">
-          <aside className="wechat-section-nav">
-            <div className="wechat-nav-head">
-              <strong>公众号模块</strong>
-              <p>已独立收口为正式模块：初始化配置、创作工作流、发布历史。</p>
+      <section className="workspace-card workspace-card--bleed strategy-page-card">
+        <div className="strategy-layout">
+          <aside className="strategy-level-panel strategy-level-panel--directory">
+            <div className="strategy-level-button-list">
+              {wechatSections.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`strategy-level-button ${item.key === activeSection ? "is-active" : ""}`}
+                  onClick={() => setActiveSection(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
-            <button
-              type="button"
-              className={`wechat-nav-item ${activeSection === "setup" ? "is-active" : ""}`}
-              onClick={() => setActiveSection("setup")}
-            >
-              配置初始化
-            </button>
-            <button
-              type="button"
-              className={`wechat-nav-item ${activeSection === "workflow" ? "is-active" : ""}`}
-              onClick={() => setActiveSection("workflow")}
-            >
-              创作工作流
-            </button>
-            <button
-              type="button"
-              className={`wechat-nav-item ${activeSection === "history" ? "is-active" : ""}`}
-              onClick={() => setActiveSection("history")}
-            >
-              发布历史
-            </button>
           </aside>
 
-          <div className="wechat-stage">
+          <div className="strategy-content-panel xiaohongshu-content-panel wechat-stage">
+            <article className="workspace-panel strategy-page-header">
+              <div>
+                <strong>{activeSectionMeta.label}</strong>
+                <p>{activeSectionMeta.description}</p>
+              </div>
+              <div className="strategy-page-header-actions">
+                <div className="workspace-status">
+                  <span className="archive-pill status-ready">公众号工作区</span>
+                  <span className={`archive-pill ${isLoading ? "status-in_progress" : "status-ready"}`}>{isLoading ? "加载中" : "已同步"}</span>
+                  {hasRunningWechatImageTask ? <span className="archive-pill status-pending">生图任务运行中</span> : null}
+                  {isLoading ? <span className="status-text">正在同步公众号配置、工作流和发布记录...</span> : null}
+                </div>
+              </div>
+            </article>
             {errorMessage ? <div className="wechat-banner wechat-banner--error">{errorMessage}</div> : null}
             {notice ? <div className="wechat-banner wechat-banner--notice">{notice}</div> : null}
 
@@ -1603,54 +1613,12 @@ export function WechatWorkspaceShell() {
       ) : null}
 
       <style jsx>{`
-        .wechat-layout {
-          display: grid;
-          grid-template-columns: 200px minmax(0, 1fr);
-          gap: 20px;
-          padding: 20px;
-          background: linear-gradient(180deg, #f7f8fc 0%, #eef2f8 100%);
-        }
-
-        .wechat-section-nav {
-          display: grid;
-          align-content: start;
-          gap: 10px;
-          padding: 18px;
-          border-right: 1px solid #e6ebf5;
-          background: rgba(255, 255, 255, 0.75);
-        }
-
-        .wechat-nav-head strong {
-          display: block;
-          font-size: 18px;
-          color: #1f2937;
-        }
-
-        .wechat-nav-head p,
         .wechat-description,
         .wechat-inline-tip {
           margin: 6px 0 0;
-          color: var(--muted);
+          color: var(--site-hero-muted);
           font-size: 13px;
           line-height: 1.7;
-        }
-
-        .wechat-nav-item {
-          width: 100%;
-          padding: 12px 14px;
-          border: 1px solid #dbe2f4;
-          border-radius: 14px;
-          background: #ffffff;
-          text-align: left;
-          color: #31415f;
-          cursor: pointer;
-        }
-
-        .wechat-nav-item.is-active {
-          border-color: rgba(87, 119, 255, 0.28);
-          background: rgba(87, 119, 255, 0.1);
-          color: #3556e8;
-          font-weight: 600;
         }
 
         .wechat-stage,
@@ -1664,21 +1632,23 @@ export function WechatWorkspaceShell() {
           padding: 12px 14px;
           border-radius: 14px;
           font-size: 13px;
+          border: 1px solid var(--site-hero-border);
+          background: var(--subtle-surface);
         }
 
         .wechat-banner--error {
-          background: rgba(255, 236, 237, 0.96);
-          color: #b42318;
+          background: rgba(172, 60, 60, 0.16);
+          color: #ffc7c2;
         }
 
         .wechat-banner--notice {
-          background: rgba(236, 247, 240, 0.96);
-          color: #147a46;
+          background: rgba(45, 125, 78, 0.18);
+          color: #baf2cb;
         }
 
         .wechat-banner--warning {
-          background: rgba(255, 247, 237, 0.98);
-          color: #b45309;
+          background: rgba(190, 136, 54, 0.16);
+          color: #ffe2a3;
         }
 
         .wechat-config-grid,
@@ -1746,13 +1716,13 @@ export function WechatWorkspaceShell() {
         .wechat-history-body strong,
         .wechat-step-card strong {
           display: block;
-          color: #18243e;
+          color: var(--site-hero-text);
         }
 
         .wechat-field {
           display: grid;
           gap: 8px;
-          color: var(--muted);
+          color: var(--site-hero-muted);
           font-size: 13px;
         }
 
@@ -1764,11 +1734,11 @@ export function WechatWorkspaceShell() {
         .wechat-field select,
         .wechat-field textarea {
           width: 100%;
-          border: 1px solid #dbe2f4;
+          border: 1px solid var(--site-hero-border);
           border-radius: 14px;
           padding: 12px 14px;
-          background: #ffffff;
-          color: #1f2937;
+          background: var(--subtle-surface);
+          color: var(--site-hero-text);
           font: inherit;
         }
 
@@ -1782,7 +1752,7 @@ export function WechatWorkspaceShell() {
           display: flex;
           gap: 10px;
           align-items: center;
-          color: #50617b;
+          color: var(--site-hero-muted);
           font-size: 13px;
         }
 
@@ -1799,8 +1769,8 @@ export function WechatWorkspaceShell() {
           width: 36px;
           height: 36px;
           border-radius: 12px;
-          border: 2px solid rgba(255, 255, 255, 0.92);
-          box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+          border: 2px solid rgba(255, 255, 255, 0.5);
+          box-shadow: 0 10px 18px rgba(6, 11, 21, 0.2);
           cursor: pointer;
         }
 
@@ -1820,8 +1790,8 @@ export function WechatWorkspaceShell() {
         .wechat-generated-thumb {
           width: 100%;
           border-radius: 18px;
-          border: 1px solid #e4e8f0;
-          background: #ffffff;
+          border: 1px solid var(--site-hero-border);
+          background: var(--card-surface);
           object-fit: cover;
         }
 
@@ -1832,10 +1802,10 @@ export function WechatWorkspaceShell() {
 
         .wechat-history-work-card {
           overflow: hidden;
-          border: 1px solid #e4e8f0;
+          border: 1px solid var(--site-hero-border);
           border-radius: 22px;
-          background: #ffffff;
-          box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+          background: var(--card-surface);
+          box-shadow: var(--card-shadow);
         }
 
         .wechat-history-work-card.is-active {
@@ -1849,7 +1819,7 @@ export function WechatWorkspaceShell() {
           width: 100%;
           padding: 0;
           border: none;
-          background: linear-gradient(180deg, #f6f8ff 0%, #eef2ff 100%);
+          background: var(--subtle-surface);
           cursor: pointer;
         }
 
@@ -1858,7 +1828,7 @@ export function WechatWorkspaceShell() {
           align-items: center;
           justify-content: center;
           min-height: 220px;
-          color: #64748b;
+          color: var(--site-hero-muted);
           font-size: 14px;
         }
 
@@ -1940,7 +1910,8 @@ export function WechatWorkspaceShell() {
           max-height: calc(100vh - 48px);
           padding: 18px;
           border-radius: 24px;
-          background: #ffffff;
+          border: 1px solid var(--site-hero-border);
+          background: var(--card-surface);
           box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
         }
 
@@ -1948,9 +1919,9 @@ export function WechatWorkspaceShell() {
           justify-self: end;
           padding: 8px 14px;
           border-radius: 999px;
-          border: 1px solid #d6dce7;
-          background: #f8fafc;
-          color: #24314a;
+          border: 1px solid var(--button-secondary-border);
+          background: var(--button-secondary-bg);
+          color: var(--button-secondary-text);
           cursor: pointer;
         }
 
@@ -1959,8 +1930,8 @@ export function WechatWorkspaceShell() {
           max-height: calc(100vh - 180px);
           object-fit: contain;
           border-radius: 18px;
-          background: #f8fafc;
-          border: 1px solid #e4e8f0;
+          background: var(--subtle-surface);
+          border: 1px solid var(--site-hero-border);
         }
 
         .wechat-account-card,
@@ -1968,9 +1939,9 @@ export function WechatWorkspaceShell() {
         .wechat-session-item,
         .wechat-step-card,
         .wechat-session-result-card {
-          border: 1px solid #e4e8f0;
+          border: 1px solid var(--site-hero-border);
           border-radius: 18px;
-          background: #ffffff;
+          background: var(--card-surface);
         }
 
         .wechat-account-card,
@@ -1985,7 +1956,7 @@ export function WechatWorkspaceShell() {
         .wechat-history-body p,
         .wechat-session-result-card p {
           margin: 0;
-          color: #607089;
+          color: var(--site-hero-muted);
           font-size: 13px;
           line-height: 1.7;
         }
@@ -1999,12 +1970,12 @@ export function WechatWorkspaceShell() {
 
         .wechat-session-item.is-active {
           border-color: rgba(87, 119, 255, 0.28);
-          background: rgba(87, 119, 255, 0.08);
+          background: var(--subtle-surface-strong);
         }
 
         .wechat-session-item span,
         .wechat-session-item small {
-          color: #607089;
+          color: var(--site-hero-muted);
         }
 
         .wechat-step-grid {
@@ -2014,13 +1985,13 @@ export function WechatWorkspaceShell() {
         }
 
         .wechat-step-card.is-done {
-          background: rgba(236, 247, 240, 0.96);
-          border-color: rgba(32, 133, 78, 0.18);
+          background: rgba(45, 125, 78, 0.14);
+          border-color: rgba(45, 125, 78, 0.3);
         }
 
         .wechat-step-card.is-current {
-          background: rgba(87, 119, 255, 0.08);
-          border-color: rgba(87, 119, 255, 0.22);
+          background: var(--subtle-surface-strong);
+          border-color: rgba(108, 124, 255, 0.28);
         }
 
         .wechat-step-card.is-upcoming {
@@ -2045,8 +2016,8 @@ export function WechatWorkspaceShell() {
         .wechat-meta-list span {
           padding: 6px 10px;
           border-radius: 999px;
-          background: #f3f5f9;
-          color: #607089;
+          background: var(--subtle-surface);
+          color: var(--site-hero-muted);
           font-size: 12px;
         }
 
@@ -2060,7 +2031,6 @@ export function WechatWorkspaceShell() {
         }
 
         @media (max-width: 1120px) {
-          .wechat-layout,
           .wechat-config-grid,
           .wechat-form-grid,
           .wechat-account-grid,
@@ -2071,10 +2041,6 @@ export function WechatWorkspaceShell() {
             grid-template-columns: 1fr;
           }
 
-          .wechat-section-nav {
-            border-right: 0;
-            border-bottom: 1px solid #e6ebf5;
-          }
         }
       `}</style>
     </main>

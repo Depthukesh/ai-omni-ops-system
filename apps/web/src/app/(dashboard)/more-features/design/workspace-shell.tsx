@@ -903,32 +903,34 @@ export function DesignWorkspaceShell({ section }: DesignWorkspaceShellProps) {
   return (
     <>
       <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout xiaohongshu-layout">
+        <div className="strategy-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
-            <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
+            <div className="strategy-level-button-list">
+              <div className="strategy-level-button is-active design-v3-parent-button">设计</div>
+            </div>
           </aside>
 
           <div className="strategy-content-panel xiaohongshu-content-panel">
-            <section className="dashboard-hero xiaohongshu-hero">
+            <article className="workspace-panel strategy-page-header">
               <div>
-                <h1>{section.label}</h1>
+                <strong>{section.label}</strong>
                 <p>{section.description}</p>
-                <div className="workspace-toolbar top-toolbar">
-                  <div className="workspace-status">
-                    <span className="archive-pill status-ready">真实数据驱动</span>
-                    <span className="archive-pill status-pending">第三方模型配置</span>
-                    <span className="status-text">
-                      当前设计模块会读取品牌档案、营销日历和后台启用的运行时模型；创建时直接调用后端生成接口。
-                    </span>
-                  </div>
-                  <div className="personal-actions">
-                    <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
-                      {loadingOptions ? "刷新中..." : "刷新数据"}
-                    </button>
-                  </div>
+              </div>
+              <div className="strategy-page-header-actions">
+                <div className="workspace-status">
+                  <span className="archive-pill status-ready">真实数据驱动</span>
+                  <span className="archive-pill status-pending">第三方模型配置</span>
+                  <span className="status-text">
+                    当前设计模块会读取品牌档案、营销日历和后台启用的运行时模型；创建时直接调用后端生成接口。
+                  </span>
+                </div>
+                <div className="strategy-inline-actions">
+                  <button type="button" className="secondary-button" onClick={handleRefresh} disabled={loadingOptions}>
+                    {loadingOptions ? "刷新中..." : "刷新数据"}
+                  </button>
                 </div>
               </div>
-            </section>
+            </article>
 
             <article className="workspace-panel strategy-page-card">
               <div className="design-v3-tab-row" aria-label="设计子板块切换">

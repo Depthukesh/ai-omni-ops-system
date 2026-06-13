@@ -30,7 +30,7 @@ export function MoreFeaturesWorkspaceShell() {
   return (
     <main className="workspace-page workspace-page--strategy">
       <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout xiaohongshu-layout">
+        <div className="strategy-layout">
           <aside className="strategy-level-panel strategy-level-panel--directory">
             <div className="strategy-level-button-list">
               {moreFeatureSections.map((item) => (
@@ -47,19 +47,19 @@ export function MoreFeaturesWorkspaceShell() {
           </aside>
 
           <div className="strategy-content-panel xiaohongshu-content-panel">
-            <section className="dashboard-hero xiaohongshu-hero">
+            <article className="workspace-panel strategy-page-header">
               <div>
-                <h1>更多功能工作区</h1>
+                <strong>更多功能工作区</strong>
                 <p>这里用于承接独立扩展板块，当前先开放“设计”栏目，方便另一个 Agent 在不影响现有主链路的情况下继续开发。</p>
-                <div className="workspace-toolbar top-toolbar">
-                  <div className="workspace-status">
-                    <span className="archive-pill status-ready">已开放入口</span>
-                    <span className="archive-pill status-pending">独立扩展区</span>
-                    <span className="status-text">当前只保留简洁导航和基础占位，便于继续接力开发。</span>
-                  </div>
+              </div>
+              <div className="strategy-page-header-actions">
+                <div className="workspace-status">
+                  <span className="archive-pill status-ready">已开放入口</span>
+                  <span className="archive-pill status-pending">独立扩展区</span>
+                  <span className="status-text">当前只保留简洁导航和基础占位，便于继续接力开发。</span>
                 </div>
               </div>
-            </section>
+            </article>
 
             <article className="workspace-panel strategy-page-card">
               <div className="strategy-card-toolbar">

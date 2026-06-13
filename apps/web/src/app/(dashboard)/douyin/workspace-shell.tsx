@@ -2281,29 +2281,29 @@ export function DouyinWorkspaceShell() {
   return (
     <main className="workspace-page workspace-page--strategy">
       <section className="workspace-card workspace-card--bleed strategy-page-card">
-        <div className="strategy-layout xiaohongshu-layout">
+        <div className="strategy-layout">
           {!hasWorkspaceAccess ? (
             <div className="strategy-content-panel xiaohongshu-content-panel">
-              <section className="dashboard-hero xiaohongshu-hero">
+              <article className="workspace-panel strategy-page-header">
                 <div>
-                  <h1>当前无权限进入抖音工作区</h1>
+                  <strong>当前无权限进入抖音工作区</strong>
                   <p>当前账号未获得抖音板块的查看权限，请联系管理员在团队权限设置中为对应板块勾选可见权限。</p>
-                  <div className="workspace-toolbar top-toolbar">
-                    <div className="workspace-status">
-                      <span className="archive-pill status-pending">当前板块只读</span>
-                      <span className="status-text error-text">当前账号没有抖音板块的查看权限，请联系管理员开通后再进入。</span>
-                    </div>
-                    <div className="personal-actions">
-                      <Link href="/brand-growth" className="secondary-button">
-                        前往品牌增长策略
-                      </Link>
-                      <Link href="/personal-center" className="primary-button">
-                        返回个人中心
-                      </Link>
-                    </div>
+                </div>
+                <div className="strategy-page-header-actions">
+                  <div className="workspace-status">
+                    <span className="archive-pill status-pending">当前板块只读</span>
+                    <span className="status-text error-text">当前账号没有抖音板块的查看权限，请联系管理员开通后再进入。</span>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <Link href="/brand-growth" className="secondary-button">
+                      前往品牌增长策略
+                    </Link>
+                    <Link href="/personal-center" className="primary-button">
+                      返回个人中心
+                    </Link>
                   </div>
                 </div>
-              </section>
+              </article>
             </div>
           ) : (
             <>
@@ -2323,41 +2323,41 @@ export function DouyinWorkspaceShell() {
               </aside>
 
               <div className="strategy-content-panel xiaohongshu-content-panel">
-                <section className="dashboard-hero xiaohongshu-hero">
+                <article className="workspace-panel strategy-page-header">
                   <div>
-                    <h1>{heroTitle}</h1>
+                    <strong>{heroTitle}</strong>
                     <p>{heroDescription}</p>
-                    <div className="workspace-toolbar top-toolbar">
-                      <div className="workspace-status">
-                        <span className={`archive-pill ${canEditCurrentSection ? "status-ready" : "status-pending"}`}>
-                          {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
-                        </span>
-                        <span className={`archive-pill ${loadState === "api" ? "status-ready" : loadState === "partial" ? "status-pending" : "status-in_progress"}`}>
-                          {loadState === "api" ? "接口数据" : loadState === "partial" ? "部分接口降级" : "加载中"}
-                        </span>
-                        {isLoading ? <span className="status-text">正在加载抖音工作台...</span> : null}
-                        {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
-                        {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
-                      </div>
-                      <div className="personal-actions">
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => void loadWorkspace()}
-                          disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSubmittingDigitalHuman || isSaving || isDeleting}
-                        >
-                          刷新数据
-                        </button>
-                        <Link href="/brand-growth" className="secondary-button">
-                          回到品牌增长策略
-                        </Link>
-                        <Link href="/personal-center" className="primary-button">
-                          查看个人中心
-                        </Link>
-                      </div>
+                  </div>
+                  <div className="strategy-page-header-actions">
+                    <div className="workspace-status">
+                      <span className={`archive-pill ${canEditCurrentSection ? "status-ready" : "status-pending"}`}>
+                        {canEditCurrentSection ? "当前板块可编辑" : "当前板块只读"}
+                      </span>
+                      <span className={`archive-pill ${loadState === "api" ? "status-ready" : loadState === "partial" ? "status-pending" : "status-in_progress"}`}>
+                        {loadState === "api" ? "接口数据" : loadState === "partial" ? "部分接口降级" : "加载中"}
+                      </span>
+                      {isLoading ? <span className="status-text">正在加载抖音工作台...</span> : null}
+                      {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
+                      {!isLoading && errorMessage ? <span className="status-text error-text">{errorMessage}</span> : null}
+                    </div>
+                    <div className="strategy-inline-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void loadWorkspace()}
+                        disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSubmittingDigitalHuman || isSaving || isDeleting}
+                      >
+                        刷新数据
+                      </button>
+                      <Link href="/brand-growth" className="secondary-button">
+                        回到品牌增长策略
+                      </Link>
+                      <Link href="/personal-center" className="primary-button">
+                        查看个人中心
+                      </Link>
                     </div>
                   </div>
-                </section>
+                </article>
 
                 {activeSection === "assets" ? (
                   <DouyinAssetsWorkspace
