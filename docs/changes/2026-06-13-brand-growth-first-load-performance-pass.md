@@ -74,6 +74,23 @@
   - `/api/brands/{id}/archive`
 - 原先顶层布局注入的 `/api/brands/me/invites` 已从品牌增长页首屏移除。
 
+## 第四轮补充优化
+
+- 为 `getMe()` 增加 30 秒短时缓存与并发请求复用。
+- 为 `getBrandPermissionSettings(brandId)` 增加按品牌维度的 30 秒短时缓存与并发请求复用。
+- 登录、注册、切换品牌、更新资料、退出登录后会主动清理 `getMe()` 缓存，避免脏数据残留。
+- 更新权限设置后会同步刷新对应品牌的权限缓存。
+
+### 第四轮验证
+
+- 在同一浏览器会话中执行：
+  - `brand-growth -> personal-center -> brand-growth`
+- 30 秒缓存窗口内再次回到品牌增长页时：
+  - 未再次请求 `/api/auth/me`
+  - 未再次请求 `/api/brands/{id}/member-permissions`
+  - 仅补发了 `/api/brands/{id}/archive`
+- 说明用户上下文和权限上下文已成功从“重复请求”收敛为“短时复用”。
+
 ## 后续建议
 
 - 收紧 `DashboardLayout` 中邀请数据的首屏请求与轮询范围。

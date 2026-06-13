@@ -516,6 +516,17 @@ export type UpdateBrandPermissionSettingsPayload = {
   permissionConfig: BrandPermissionConfig;
 };
 
+const PERMISSION_SETTINGS_CACHE_TTL_MS = 30_000;
+
+const permissionSettingsCache = new Map<
+  string,
+  {
+    data?: BrandPermissionSettingsRecord;
+    expiresAt: number;
+    promise?: Promise<BrandPermissionSettingsRecord>;
+  }
+>();
+
 export type BrandArchiveBundle = {
   brand: BrandBackground;
   products: BrandProduct[];
@@ -808,15 +819,57 @@ export async function createBrandInvite(brandId: string, payload: CreateBrandInv
   });
 }
 
-export async function getBrandPermissionSettings(brandId: string) {
-  return request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`);
+export async function getBrandPermissionSettings(brandId: string, options?: { force?: boolean }) {
+  const cached = permissionSettingsCache.get(brandId);
+  if (!options?.force && cached?.data && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
+  if (!options?.force && cached?.promise) {
+    return cached.promise;
+  }
+
+  const pending = request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`)
+    .then((response) => {
+      permissionSettingsCache.set(brandId, {
+        data: response,
+        expiresAt: Date.now() + PERMISSION_SETTINGS_CACHE_TTL_MS,
+      });
+      return response;
+    })
+    .finally(() => {
+      const latest = permissionSettingsCache.get(brandId);
+      if (latest?.promise === pending) {
+        if (latest.data) {
+          permissionSettingsCache.set(brandId, {
+            data: latest.data,
+            expiresAt: latest.expiresAt,
+          });
+        } else {
+          permissionSettingsCache.delete(brandId);
+        }
+      }
+    });
+
+  permissionSettingsCache.set(brandId, {
+    data: cached?.data,
+    expiresAt: cached?.expiresAt || 0,
+    promise: pending,
+  });
+
+  return pending;
 }
 
 export async function updateBrandPermissionSettings(brandId: string, payload: UpdateBrandPermissionSettingsPayload) {
-  return request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`, {
+  const response = await request<BrandPermissionSettingsRecord>(`/brands/${brandId}/member-permissions`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+  permissionSettingsCache.set(brandId, {
+    data: response,
+    expiresAt: Date.now() + PERMISSION_SETTINGS_CACHE_TTL_MS,
+  });
+  return response;
 }
 
 export async function revokeBrandInvite(brandId: string, inviteId: string) {

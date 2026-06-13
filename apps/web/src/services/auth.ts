@@ -54,8 +54,19 @@ export type MeResponse = {
   currentBrandId?: string;
 };
 
+const ME_CACHE_TTL_MS = 30_000;
+
+let meCache:
+  | {
+      data?: MeResponse;
+      expiresAt: number;
+      promise?: Promise<MeResponse>;
+    }
+  | undefined;
+
 export async function login(payload: LoginPayload) {
   const response = await jsonRequest<AuthSuccessPayload>("/auth/login", "POST", payload);
+  clearMeCache();
   setStoredAuthSession({
     accessToken: response.accessToken,
     refreshToken: response.refreshToken,
@@ -68,6 +79,7 @@ export async function login(payload: LoginPayload) {
 
 export async function register(payload: RegisterPayload) {
   const response = await jsonRequest<AuthSuccessPayload>("/auth/register", "POST", payload);
+  clearMeCache();
   setStoredAuthSession({
     accessToken: response.accessToken,
     refreshToken: response.refreshToken,
@@ -78,8 +90,36 @@ export async function register(payload: RegisterPayload) {
   return response;
 }
 
-export async function getMe() {
-  const response = await request<MeResponse>("/auth/me");
+export async function getMe(options?: { force?: boolean }) {
+  if (!options?.force && meCache?.data && meCache.expiresAt > Date.now()) {
+    return meCache.data;
+  }
+
+  if (!options?.force && meCache?.promise) {
+    return meCache.promise;
+  }
+
+  const pending = request<MeResponse>("/auth/me").then((response) => {
+    meCache = {
+      data: response,
+      expiresAt: Date.now() + ME_CACHE_TTL_MS,
+    };
+    return response;
+  }).finally(() => {
+    if (meCache?.promise === pending) {
+      meCache = meCache.data
+        ? { data: meCache.data, expiresAt: meCache.expiresAt }
+        : undefined;
+    }
+  });
+
+  meCache = {
+    data: meCache?.data,
+    expiresAt: meCache?.expiresAt || 0,
+    promise: pending,
+  };
+
+  const response = await pending;
   mergeStoredAuthSession({
     brands: response.brands,
     currentBrandId: response.currentBrandId,
@@ -93,6 +133,7 @@ export async function updateProfile(payload: UpdateProfilePayload) {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+  clearMeCache();
   mergeStoredAuthSession({
     user: response,
   });
@@ -117,6 +158,7 @@ export async function uploadProfileAvatar(file: File) {
 
 export async function getBrands() {
   const response = await request<Pick<AuthSession, "brands" | "currentBrandId">>("/auth/brands");
+  clearMeCache();
   mergeStoredAuthSession(response);
   return response;
 }
@@ -129,6 +171,7 @@ export async function switchBrand(brandId: string) {
       body: JSON.stringify({ brandId }),
     },
   );
+  clearMeCache();
   mergeStoredAuthSession({
     accessToken: response.accessToken,
     refreshToken: response.refreshToken,
@@ -144,12 +187,17 @@ export async function logout() {
       method: "POST",
     });
   } finally {
+    clearMeCache();
     clearStoredAuthSession();
   }
 }
 
 export function readAuthSession() {
   return getStoredAuthSession();
+}
+
+function clearMeCache() {
+  meCache = undefined;
 }
 
 function readFileAsBase64(file: File) {
