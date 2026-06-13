@@ -46,9 +46,6 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
-    // #region debug-point D:proxy-request-start
-    fetch("http://127.0.0.1:7777/event", { method: "POST", body: JSON.stringify({ sessionId: "login-stuck", runId: "pre-fix", hypothesisId: "D", location: "api/[...path]/route.ts:49", msg: "[DEBUG] proxy forwarding request", data: { method: request.method, inboundPath: requestUrl.pathname, targetUrl }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
     const body = request.method === "GET" || request.method === "HEAD"
       ? undefined
       : Buffer.from(await request.arrayBuffer());
@@ -61,9 +58,6 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
       redirect: "manual",
       signal: controller.signal,
     });
-    // #region debug-point D:proxy-request-response
-    fetch("http://127.0.0.1:7777/event", { method: "POST", body: JSON.stringify({ sessionId: "login-stuck", runId: "pre-fix", hypothesisId: "D", location: "api/[...path]/route.ts:65", msg: "[DEBUG] proxy received upstream response", data: { method: request.method, inboundPath: requestUrl.pathname, targetUrl, status: upstreamResponse.status }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
 
     const responseHeaders = new Headers(upstreamResponse.headers);
     responseHeaders.delete("content-length");
@@ -75,9 +69,6 @@ async function proxyToBackend(request: NextRequest, context: RouteContext) {
       headers: responseHeaders,
     });
   } catch (error) {
-    // #region debug-point D:proxy-request-error
-    fetch("http://127.0.0.1:7777/event", { method: "POST", body: JSON.stringify({ sessionId: "login-stuck", runId: "pre-fix", hypothesisId: "D", location: "api/[...path]/route.ts:78", msg: "[DEBUG] proxy request failed", data: { method: request.method, inboundPath: requestUrl.pathname, targetUrl, message: error instanceof Error ? error.message : String(error) }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
     const message = error instanceof Error ? error.message : "上游接口代理失败";
     return NextResponse.json(
       {

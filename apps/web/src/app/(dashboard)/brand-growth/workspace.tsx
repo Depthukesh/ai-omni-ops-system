@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { getStoredCurrentBrandId } from "../../../services/auth-session";
 import { getMe, switchBrand } from "../../../services/auth";
@@ -11,9 +12,7 @@ import {
   formatCalendarWeekday,
   getCalendarFestivalLabel,
 } from "../xiaohongshu/calendar-helpers";
-import { CalendarWorkspace } from "../xiaohongshu/calendar-workspace";
 import {
-  BrandGrowthCollectionWorkspace,
   type DouyinCollectionCardKey,
   type XiaohongshuCollectionCardKey,
 } from "./collection-workspace";
@@ -26,7 +25,6 @@ import {
   sortByCollectedAtDesc,
 } from "./datetime-helpers";
 import {
-  BrandGrowthLibraryWorkspace,
   type LibraryAssetModalDraft,
   type LibraryAssetTarget,
 } from "./library-workspace";
@@ -34,7 +32,6 @@ import {
   buildVisualReportPreviewDocument,
   renderMarkdownToHtml,
 } from "./markdown-render";
-import { BrandGrowthReportWorkspace } from "./report-workspace";
 import type {
   BrandGrowthLibraryPageKey,
   MediaPreviewState,
@@ -135,6 +132,41 @@ type StrategyPageKey =
   | "visualGrowthReport"
   | "annualMarketingPlan"
   | "xiaohongshuMarketingCalendar";
+type BrandGrowthLoadScope = "library" | "collection" | "report";
+
+const BrandGrowthLibraryWorkspace = dynamic(
+  () => import("./library-workspace").then((module) => module.BrandGrowthLibraryWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="资料库" /> },
+);
+
+const BrandGrowthCollectionWorkspace = dynamic(
+  () => import("./collection-workspace").then((module) => module.BrandGrowthCollectionWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="收集数据" /> },
+);
+
+const CalendarWorkspace = dynamic(
+  () => import("../xiaohongshu/calendar-workspace").then((module) => module.CalendarWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="营销日历" /> },
+);
+
+const BrandGrowthReportWorkspace = dynamic(
+  () => import("./report-workspace").then((module) => module.BrandGrowthReportWorkspace),
+  { loading: () => <WorkspaceChunkFallback label="品牌增长报告" /> },
+);
+
+function WorkspaceChunkFallback({ label }: { label: string }) {
+  return (
+    <section className="strategy-workspace-shell" aria-live="polite">
+      <div className="strategy-workspace-surface brand-growth-shell">
+        <div className="brand-growth-panel stack gap-12">
+          <p className="section-eyebrow">模块加载中</p>
+          <h3>{label}正在准备</h3>
+          <p className="section-subtitle">按需加载对应工作区资源，避免首屏下载全部板块脚本。</p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const strategySections: Array<{
   key: StrategySectionKey;
@@ -453,6 +485,16 @@ function isLibraryPageKey(key?: BrandArchiveStepKey): key is BrandGrowthLibraryP
   return key === "background" || key === "products" || key === "survey" || key === "industryFeeds" || key === "businessAssets";
 }
 
+function getLoadScopeByPage(key: StrategyPageKey): BrandGrowthLoadScope {
+  if (isBrandArchiveStep(key)) {
+    return "library";
+  }
+  if (key === "feishuCollection" || key === "xiaohongshuCollection" || key === "douyinCollection" || key === "dailyHotspot") {
+    return "collection";
+  }
+  return "report";
+}
+
 type DouyinSyncForm = {
   brandAccountLinks: string;
   competitorAccountLinks: string;
@@ -569,6 +611,11 @@ export function BrandGrowthWorkspace() {
   const [dataSource, setDataSource] = useState<"api" | "error" | "loading">("loading");
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
+  const [loadedScopes, setLoadedScopes] = useState<Record<BrandGrowthLoadScope, boolean>>({
+    library: false,
+    collection: false,
+    report: false,
+  });
   const completion = useMemo(() => getCompletion(archive), [archive]);
   const visibleStrategySections = useMemo(() => {
     const permissionMap = brandPermissionSettings?.currentUserPermissions;
@@ -707,14 +754,14 @@ export function BrandGrowthWorkspace() {
   }, [activePage, activeSection, visibleStrategySections]);
 
   useEffect(() => {
-    void loadArchive();
+    void loadArchive({ targetPage: "background" });
   }, []);
 
-  async function resolveActiveBrandId(fallbackBrandId: string) {
-    const me = await getMe().catch(() => null);
+  async function resolveActiveBrandId(fallbackBrandId: string, me?: Awaited<ReturnType<typeof getMe>> | null) {
+    const resolvedMe = me ?? await getMe().catch(() => null);
     const storedBrandId = getStoredCurrentBrandId(fallbackBrandId) || "";
-    const preferredNonDemoBrandId = me?.brands?.find((item) => item.id && item.id !== DEMO_BRAND_ID)?.id || "";
-    const directCandidate = me?.currentBrandId || storedBrandId || fallbackBrandId;
+    const preferredNonDemoBrandId = resolvedMe?.brands?.find((item) => item.id && item.id !== DEMO_BRAND_ID)?.id || "";
+    const directCandidate = resolvedMe?.currentBrandId || storedBrandId || fallbackBrandId;
 
     if (preferredNonDemoBrandId && directCandidate === DEMO_BRAND_ID) {
       const switched = await switchBrand(preferredNonDemoBrandId).catch(() => null);
@@ -747,8 +794,19 @@ export function BrandGrowthWorkspace() {
       setErrorMessage(oauthMessage || "飞书账号连接失败。");
     }
     window.history.replaceState({}, "", window.location.pathname);
-    void loadArchive();
+    void loadArchive({ targetPage: activePage, force: true });
   }, []);
+
+  useEffect(() => {
+    if (!brandPermissionSettings || !hasOwnerAccess || isHydrating) {
+      return;
+    }
+    const targetScope = getLoadScopeByPage(activePage);
+    if (loadedScopes[targetScope]) {
+      return;
+    }
+    void loadArchive({ targetPage: activePage });
+  }, [activePage, brandPermissionSettings, hasOwnerAccess, isHydrating, loadedScopes]);
 
   useEffect(() => {
     setBrandNotesPage(1);
@@ -829,15 +887,21 @@ export function BrandGrowthWorkspace() {
     setCalendarItemDraft(cloneMarketingCalendarItem(selectedCalendarItem));
   }, [isCalendarDetailOpen, isEditingCalendarItem, selectedCalendarItem]);
 
-  async function loadArchive() {
+  async function loadArchive(options?: { targetPage?: StrategyPageKey; force?: boolean }) {
+    const targetPage = options?.targetPage ?? activePage;
+    const targetScope = getLoadScopeByPage(targetPage);
+    const force = options?.force === true;
     setIsHydrating(true);
     setErrorMessage("");
     setDataSource("loading");
 
     try {
-      const activeBrandId = await resolveActiveBrandId(archive.brand.id);
       const me = await getMe().catch(() => null);
-      const permissionSettingsResult = await getBrandPermissionSettings(activeBrandId);
+      const resolvedActiveBrandId = await resolveActiveBrandId(archive.brand.id, me);
+      const permissionSettingsResult =
+        !force && brandPermissionSettings && activeBrandId === resolvedActiveBrandId
+          ? brandPermissionSettings
+          : await getBrandPermissionSettings(resolvedActiveBrandId);
       const hasAnyBrandGrowthViewPermission = Object.entries(permissionSettingsResult.currentUserPermissions).some(
         ([key, flags]) => key.startsWith("brandGrowth.") && Boolean(flags.view),
       );
@@ -852,115 +916,134 @@ export function BrandGrowthWorkspace() {
       }
 
       setHasOwnerAccess(true);
-      setActiveBrandId(activeBrandId);
-      const currentProfile = await getCurrentUserProfile().catch(() => null);
-      const [
-        archiveResult,
-        collectionResult,
-        douyinCollectionResult,
-        dailyHotspotResult,
-        reportResult,
-        visualReportResult,
-        annualMarketingPlanResult,
-        xiaohongshuMarketingPlanResult,
-        marketingCalendarResult,
-        feishuBindingResult,
-        feishuAppConfigResult,
-        feishuAuthStatusResult,
-      ] = await Promise.allSettled([
-        getBrandArchive(activeBrandId),
-        getXiaohongshuCollectionWorkspace(activeBrandId),
-        getDouyinCollectionWorkspace(activeBrandId),
-        getDailyHotspotWorkspace(activeBrandId),
-        getGrowthReportWorkspace(activeBrandId),
-        getVisualGrowthReportWorkspace(activeBrandId),
-        getAnnualMarketingPlanWorkspace(activeBrandId),
-        getXiaohongshuMarketingPlanWorkspace(activeBrandId),
-        getXiaohongshuMarketingCalendarWorkspace(activeBrandId),
-        getBrandFeishuBinding(activeBrandId),
-        getFeishuAppConfig(currentProfile?.id),
-        getFeishuAuthStatus(currentProfile?.id),
-      ]);
-
-      if (archiveResult.status !== "fulfilled") {
-        throw archiveResult.reason;
-      }
+      setActiveBrandId(resolvedActiveBrandId);
 
       const partialFailures: string[] = [];
-      setCurrentUser(currentProfile);
-      setArchive(normalizeBrandArchiveBundle(archiveResult.value));
-
-      if (collectionResult.status === "fulfilled") {
-        setCollectionWorkspace(collectionResult.value);
-      } else {
-        partialFailures.push("小红书收集数据");
+      if (targetScope === "library") {
+        const archiveResult = await getBrandArchive(resolvedActiveBrandId);
+        setArchive(normalizeBrandArchiveBundle(archiveResult));
+        setRemovedProductIds([]);
+        setLoadedScopes((current) => ({ ...current, library: true }));
       }
 
-      if (douyinCollectionResult.status === "fulfilled") {
-        setDouyinCollectionWorkspace(douyinCollectionResult.value);
-      } else {
-        partialFailures.push("抖音采集数据");
+      if (targetScope === "collection") {
+        const currentProfile = currentUser ?? await getCurrentUserProfile().catch(() => null);
+        setCurrentUser(currentProfile);
+        const [
+          collectionResult,
+          douyinCollectionResult,
+          dailyHotspotResult,
+          feishuBindingResult,
+          feishuAppConfigResult,
+          feishuAuthStatusResult,
+        ] = await Promise.allSettled([
+          getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
+          getDouyinCollectionWorkspace(resolvedActiveBrandId),
+          getDailyHotspotWorkspace(resolvedActiveBrandId),
+          getBrandFeishuBinding(resolvedActiveBrandId),
+          getFeishuAppConfig(currentProfile?.id),
+          getFeishuAuthStatus(currentProfile?.id),
+        ]);
+
+        if (collectionResult.status === "fulfilled") {
+          setCollectionWorkspace(collectionResult.value);
+        } else {
+          partialFailures.push("小红书收集数据");
+        }
+
+        if (douyinCollectionResult.status === "fulfilled") {
+          setDouyinCollectionWorkspace(douyinCollectionResult.value);
+        } else {
+          partialFailures.push("抖音采集数据");
+        }
+
+        if (dailyHotspotResult.status === "fulfilled") {
+          setDailyHotspotWorkspace(dailyHotspotResult.value);
+          setSelectedHotspotDate(dailyHotspotResult.value.selectedDate || getDefaultHotspotDate());
+        } else {
+          partialFailures.push("每日热点");
+        }
+
+        if (feishuBindingResult.status === "fulfilled") {
+          setFeishuBinding(feishuBindingResult.value);
+          setFeishuBindingForm(createFeishuBindingFormFromRecord(feishuBindingResult.value));
+        } else {
+          partialFailures.push("飞书绑定");
+        }
+
+        if (feishuAppConfigResult.status === "fulfilled") {
+          setFeishuAppConfig(feishuAppConfigResult.value);
+          setFeishuAppConfigForm(createFeishuAppConfigFormFromRecord(feishuAppConfigResult.value));
+        } else {
+          partialFailures.push("飞书应用配置");
+        }
+
+        if (feishuAuthStatusResult.status === "fulfilled") {
+          setFeishuAuthStatus(feishuAuthStatusResult.value);
+        } else {
+          partialFailures.push("飞书授权状态");
+        }
+
+        setLoadedScopes((current) => ({ ...current, collection: true }));
       }
 
-      if (dailyHotspotResult.status === "fulfilled") {
-        setDailyHotspotWorkspace(dailyHotspotResult.value);
-        setSelectedHotspotDate(dailyHotspotResult.value.selectedDate || getDefaultHotspotDate());
-      } else {
-        partialFailures.push("每日热点");
-      }
+      if (targetScope === "report") {
+        const [
+          collectionResult,
+          reportResult,
+          visualReportResult,
+          annualMarketingPlanResult,
+          xiaohongshuMarketingPlanResult,
+          marketingCalendarResult,
+        ] = await Promise.allSettled([
+          getXiaohongshuCollectionWorkspace(resolvedActiveBrandId),
+          getGrowthReportWorkspace(resolvedActiveBrandId),
+          getVisualGrowthReportWorkspace(resolvedActiveBrandId),
+          getAnnualMarketingPlanWorkspace(resolvedActiveBrandId),
+          getXiaohongshuMarketingPlanWorkspace(resolvedActiveBrandId),
+          getXiaohongshuMarketingCalendarWorkspace(resolvedActiveBrandId),
+        ]);
 
-      if (reportResult.status === "fulfilled") {
-        setReportWorkspace(reportResult.value);
-      } else {
-        partialFailures.push("品牌增长报告");
-      }
+        if (collectionResult.status === "fulfilled") {
+          setCollectionWorkspace(collectionResult.value);
+        } else {
+          partialFailures.push("小红书收集数据");
+        }
 
-      if (visualReportResult.status === "fulfilled") {
-        setVisualReportWorkspace(visualReportResult.value);
-      } else {
-        partialFailures.push("可视化报告");
-      }
+        if (reportResult.status === "fulfilled") {
+          setReportWorkspace(reportResult.value);
+        } else {
+          partialFailures.push("品牌增长报告");
+        }
 
-      if (annualMarketingPlanResult.status === "fulfilled") {
-        setAnnualMarketingPlanWorkspace(annualMarketingPlanResult.value);
-      } else {
-        partialFailures.push("半年营销规划");
-      }
+        if (visualReportResult.status === "fulfilled") {
+          setVisualReportWorkspace(visualReportResult.value);
+        } else {
+          partialFailures.push("可视化报告");
+        }
 
-      if (xiaohongshuMarketingPlanResult.status === "fulfilled") {
-        setXiaohongshuMarketingPlanWorkspace(xiaohongshuMarketingPlanResult.value);
-      } else {
-        partialFailures.push("小红书营销策划方案");
-      }
+        if (annualMarketingPlanResult.status === "fulfilled") {
+          setAnnualMarketingPlanWorkspace(annualMarketingPlanResult.value);
+        } else {
+          partialFailures.push("半年营销规划");
+        }
 
-      if (marketingCalendarResult.status === "fulfilled") {
-        setMarketingCalendarWorkspace(marketingCalendarResult.value);
-      } else {
-        partialFailures.push("营销日历");
-      }
+        if (xiaohongshuMarketingPlanResult.status === "fulfilled") {
+          setXiaohongshuMarketingPlanWorkspace(xiaohongshuMarketingPlanResult.value);
+        } else {
+          partialFailures.push("小红书营销策划方案");
+        }
 
-      if (feishuBindingResult.status === "fulfilled") {
-        setFeishuBinding(feishuBindingResult.value);
-        setFeishuBindingForm(createFeishuBindingFormFromRecord(feishuBindingResult.value));
-      } else {
-        partialFailures.push("飞书绑定");
-      }
+        if (marketingCalendarResult.status === "fulfilled") {
+          setMarketingCalendarWorkspace(marketingCalendarResult.value);
+        } else {
+          partialFailures.push("营销日历");
+        }
 
-      if (feishuAppConfigResult.status === "fulfilled") {
-        setFeishuAppConfig(feishuAppConfigResult.value);
-        setFeishuAppConfigForm(createFeishuAppConfigFormFromRecord(feishuAppConfigResult.value));
-      } else {
-        partialFailures.push("飞书应用配置");
-      }
-
-      if (feishuAuthStatusResult.status === "fulfilled") {
-        setFeishuAuthStatus(feishuAuthStatusResult.value);
-      } else {
-        partialFailures.push("飞书授权状态");
+        setLoadedScopes((current) => ({ ...current, report: true }));
       }
 
       setDataSource("api");
-      setRemovedProductIds([]);
       if (partialFailures.length > 0) {
         setErrorMessage(`部分接口暂不可用：${partialFailures.join("、")}。页面保留已获取到的真实数据，不再回退到演示数据。`);
       }
