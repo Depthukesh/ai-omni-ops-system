@@ -3,6 +3,7 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import {
+  buildDesktopCreatorLaunchUrl,
   notifyExtensionStartDraft,
   probeDesktopPublisher,
   startDesktopPublisherBridge,
@@ -159,6 +160,7 @@ export function usePublishFlow(options: {
       return;
     }
 
+    const creatorPopup = typeof window !== "undefined" ? window.open("", "_blank", "noopener") : null;
     setIsCreatingDesktopPublishSession(true);
     options.setNotice("");
     options.setErrorMessage("");
@@ -169,20 +171,32 @@ export function usePublishFlow(options: {
       });
 
       setActiveDesktopPublishSession(result.session);
+      const creatorLaunchUrl = buildDesktopCreatorLaunchUrl(result.session);
       const installed = await probeDesktopPublisher({
         timeoutMs: 3600,
         onReady: () => setIsDesktopExtensionReady(true),
         onMissing: () => setIsDesktopExtensionReady(false),
       });
       if (installed) {
+        if (creatorPopup && !creatorPopup.closed) {
+          creatorPopup.location.href = creatorLaunchUrl;
+        } else if (typeof window !== "undefined") {
+          window.open(creatorLaunchUrl, "_blank", "noopener");
+        }
         options.setNotice(`${publishingTarget.noteCategory}笔记的电脑端一键发布任务已创建，正在自动打开小红书创作者中心并写入草稿箱。`);
         notifyExtensionStartDraft(result.session);
       } else {
+        if (creatorPopup && !creatorPopup.closed) {
+          creatorPopup.close();
+        }
         options.setErrorMessage("当前未检测到小红书图文发布扩展。原创笔记和二创笔记的电脑端发布只支持图文草稿流，请先安装/重载扩展，或改用手机扫码接力。");
         options.setNotice("已保留本次电脑端图文草稿会话，但不会再自动打开小红书创作者页。安装或重载扩展后重新点击“电脑端一键发布到草稿箱”，或直接改用手机扫码接力。");
       }
       await options.onRefreshWorkspace({ preserveMessages: true });
     } catch (error) {
+      if (creatorPopup && !creatorPopup.closed) {
+        creatorPopup.close();
+      }
       const message = error instanceof Error ? error.message : "电脑端一键发布失败";
       options.setErrorMessage(`发布失败：${message}`);
     } finally {

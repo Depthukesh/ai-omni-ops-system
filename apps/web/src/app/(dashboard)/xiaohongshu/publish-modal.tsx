@@ -6,6 +6,7 @@ import {
   type XiaohongshuDesktopDraftSession,
   type XiaohongshuMobileDraftSession,
 } from "../../../services/publishing";
+import { buildDesktopCreatorLaunchUrl } from "./desktop-publish-bridge";
 import { ManagedImage } from "./managed-image";
 
 const EXTENSION_DOWNLOAD_URL = "/extensions/xhs-draft-publisher.zip";
@@ -36,6 +37,10 @@ export function PublishModal(props: PublishModalProps) {
   if (!props.publishTarget) {
     return null;
   }
+
+  const desktopCreatorLaunchUrl = props.activeDesktopPublishSession
+    ? buildDesktopCreatorLaunchUrl(props.activeDesktopPublishSession)
+    : "";
 
   return (
     <div className="media-preview-overlay" onClick={props.onClose}>
@@ -125,7 +130,7 @@ export function PublishModal(props: PublishModalProps) {
                   {props.activeDesktopPublishSession.accessHint ? (
                     <p className="publish-qr-meta publish-qr-meta--warn">{props.activeDesktopPublishSession.accessHint}</p>
                   ) : null}
-                  <a className="xhs-material-detail-button" href={props.activeDesktopPublishSession.creatorUrl} target="_blank" rel="noreferrer">
+                  <a className="xhs-material-detail-button" href={desktopCreatorLaunchUrl} target="_blank" rel="noreferrer">
                     手动打开小红书创作者页
                   </a>
                 </div>
