@@ -1,893 +1,308 @@
 # AI全域运营系统全站地图
 
-## 1. 文档说明
+## 1. 文档定位
 
-本文件记录当前系统的真实结构，用于回答三个问题：
+本文件只记录当前系统的真实结构，不再混入历史规划稿、已放弃路线或展示镜像。
 
-1. 系统现在有哪些已落地功能
-2. 这些功能从哪里进入、由谁承接
-3. 当前哪些部分是主链路，哪些部分仍是占位或过渡实现
+它需要回答四个问题：
 
-补充说明：
+1. 现在有哪些真实入口
+2. 每条主链路由哪些前后端模块承接
+3. 哪些能力已经正式落地
+4. 哪些目录是当前真相，哪些目录只是历史参考
 
-- 若需要查看可视化结构图，请同时参考 `docs/site-map-mermaid.md`
-- 若需要查看数据库与持久化边界，请同时参考 `docs/database-archive.md`
-- 该文件负责文字化说明，本文件继续作为“真实结构的文字基线”
+## 2. 顶层结构
 
-## 2. 当前产品主入口
+### 2.1 代码目录
 
-### 2.1 前端入口
+- `apps/web`
+  - 官网首页、认证页、前台工作台、个人中心、后台管理台、帮助页、发布页
+- `apps/server`
+  - 认证、品牌、采集、报告、作品、任务、发布、OpenClaw、后台治理等 API 模块
+- `packages/config`
+  - 配置相关共享包
+- `packages/prompt-runtime`
+  - 提示词与运行时能力
+- `packages/shared`
+  - 前后端共享类型与常量
+- `packages/ui`
+  - 共享 UI 预留层
+- `docs`
+  - 当前真相文档、专题方案、变更记录、历史规划
 
-- `/`：官网首页，当前已切到营销型首页模板，作为 `17ai.site` 的正式首入口
-- `/brand-growth`：品牌增长策略工作台
-- `/douyin`：抖音工作台
-- `/xiaohongshu`：小红书工作台
-- `/wechat`：公众号工作台
-- `/more-features`：更多功能入口，当前直接重定向到 `/more-features/design`
-- `/more-features/design`：设计工作台
-- `/personal-center`：个人中心
-- `/personal-center/*`、`/brand-growth`、`/douyin`、`/xiaohongshu`、`/wechat`、会员/点数/订单等前台工作台页面：统一要求登录后访问，未登录自动回到 `/login?next=...`
-- `/admin`：后台管理台，仅管理员角色账号可进入
-- `/help/xhs-draft-publisher`：小红书电脑端一键发布扩展的下载与安装帮助页
-- `/login`：前台统一登录页，已接入账号密码登录，并开始接入与首页一致的品牌视觉语言
-- `/register`：前台统一注册页，已接入邀请码注册表单，并开始接入与首页一致的品牌视觉语言
-- `/admin/login`：后台管理员专用登录页，当前已按同一品牌基线收口为后台入口壳层
-- 后端已新增真实登录态接口：`/api/auth/login`、`/api/auth/register`、`/api/auth/refresh`、`/api/auth/me`、`/api/auth/brands`、`/api/auth/switch-brand`、`/api/auth/logout`
+### 2.2 文档目录
 
-### 2.2 当前主要用户链路
+- `docs/README.md`
+  - 文档总入口
+- `docs/changes/`
+  - 真实变更记录
+- `docs/project_planning/`
+  - 历史规划与阶段草案，仅作参考
+- `docs/openclaw/`
+  - OpenClaw 相关专题文档
 
-1. 品牌建档
-2. 收集数据
-3. 生成品牌增长报告
-4. 生成可视化报告/半年营销规划
-5. 进入小红书继续策划、排期和内容生产
-6. 进入公众号工作台完成账号配置、原创创作与发布
-7. 进入 `/more-features/design` 进行图片、HTML、PPT、视频等设计生成
-8. 到个人中心查看任务、订单、作品
+## 3. 前端路由地图
 
-### 2.3 部署与运行入口
+### 3.1 公共与认证入口
 
-- GitHub 自动部署入口：`.github/workflows/deploy.yml`
-- 生产 PM2 进程定义：`ecosystem.config.cjs`
-- 当前部署约束：
-  - 部署前会先检查服务器仓库 `git status --porcelain -uall`；如发现额外文件或未收口改动，当前工作流会先把现场导出到运行用户家目录的 `$HOME/.deploy-worktree-backups/`，再自动执行 `git reset --hard` 与 `git clean -fd` 收口后继续部署
-  - 生产前后端统一通过 `PM2 + ecosystem.config.cjs` 启动
-  - 对第三方运行时 Secret，除了在部署脚本里透传给 `pm2 startOrReload --update-env`，还要在 `ecosystem.config.cjs` 的目标进程 `env` 中显式映射，并在部署后校验该 Secret 已进入目标 PM2 进程
-  - `apps/server` 默认通过 `SERVER_HOST=127.0.0.1` 仅监听本机 `3011`
-  - `apps/web` 生产启动统一绑定 `127.0.0.1:3001`，外部访问只允许经 `nginx` 反代
-  - 参考变更：`docs/changes/2026-05-17-deploy-worktree-auto-backup.md`
+- `/`
+  - 官网首页，当前是营销型首页
+- `/login`
+  - 前台登录页
+- `/register`
+  - 前台注册页
+- `/admin/login`
+  - 后台管理员登录页
+- `/help/xhs-draft-publisher`
+  - 小红书扩展帮助页
+- `/help/publisher`
+  - 统一发布扩展帮助页
+- `/help/douyin-publisher`
+  - 抖音扩展帮助页
+- `/help/wechat-channel-publisher`
+  - 视频号扩展帮助页
+- `/publish/mobile/[token]`
+  - 移动发布接力页
 
-## 3. 前端结构地图
+### 3.2 受保护工作台入口
 
-### 3.1 品牌增长策略 `/brand-growth`
+- `/brand-growth`
+  - 品牌增长策略工作台
+- `/xiaohongshu`
+  - 小红书工作台
+- `/douyin`
+  - 抖音工作台
+- `/wechat`
+  - 公众号工作台
+- `/more-features`
+  - 更多功能入口，当前重定向到 `/more-features/design`
+- `/more-features/design`
+  - 设计工作台
+- `/personal-center`
+  - 个人中心总入口
+- `/admin`
+  - 后台管理台
+- `/membership-purchase`
+  - 会员购买
+- `/points-purchase`
+  - 点数购买
+- `/orders/[id]`
+  - 订单详情
 
-- 顶部导航：已统一为后台同语言的浅底导航壳，使用短标签徽标与当前栏目高亮
-- 左侧导航：已改为目录式浅底菜单，当前仅保留分区与页面按钮本体，去掉上方说明标题头
+### 3.3 登录门卫规则
 
-#### 一级分区
+- `/brand-growth`、`/xiaohongshu`、`/douyin`、`/wechat`、`/more-features/design`、`/personal-center/*` 默认要求登录
+- 未登录时统一跳转 `/login?next=...`
+- `/admin` 额外要求管理员身份
+
+## 4. 主要业务板块
+
+### 4.1 品牌增长策略 `/brand-growth`
+
+包含三类主工作区：
 
 - 品牌资料库
+  - 品牌背景、产品资料、品牌运营情况、第三方数据、企业知识库
 - 收集数据
+  - 小红书采集、抖音采集、每日热点、飞书绑定
 - 品牌增长报告
-- 当前品牌上下文：
-  - 前端请求默认优先读取当前登录品牌，不再把工作区硬编码到 `DEMO_BRAND_ID`
-  - `brand-growth/workspace.tsx` 进入页面时会先调用 `/api/auth/me` 校正当前登录用户的 `currentBrandId`，再加载品牌档案、飞书绑定、收集工作区与报告工作区，避免浏览器残留 demo brand 把整页请求继续打到 `br_super_admin_demo`
-  - 后端 `brands / reports / collectors / daily-hotspots` 相关品牌接口已补当前用户品牌访问校验，避免新账号继续读到演示品牌或其他品牌数据
+  - 品牌增长报告、可视化报告、半年营销规划、营销日历
 
-#### 品牌资料库
+当前特点：
 
-- 品牌背景资料
-- 产品资料库
-- 品牌运营情况
-- 第三方数据
-- 企业知识库
-  - 当前企业知识库前台已切成“知识库优先”主流程：顶部主动作是“新增知识库”，创建时只填写名称和简介
-  - 当前主视图改为知识库卡片列表，不再在前台暴露“后台知识库容器”之类技术概念
-  - 当前点击知识库卡片后，会在弹窗中查看资料列表；弹窗顶部固定提供“添加资料”和“知识库设置”
-  - 当前“添加资料”流程只处理资料本身：支持批量选文件、可选填写资料优先级、上传后自动切片，并在知识库内持续刷新切片状态
-  - 当前“知识库设置”只保留用户真正需要理解的字段，如名称、简介、默认召回条数、召回方式、检索阈值和重排开关
+- 首次进入会通过 `/auth/me` 校正真实品牌上下文
+- 报告类任务走后台任务中心
+- 知识绑定已进入部分报告运行时
+- 营销日历已收口在品牌增长策略，而不是继续挂在小红书首页
 
-#### 收集数据
+### 4.2 小红书工作台 `/xiaohongshu`
 
-- 小红书平台
-  - 当前“小红书平台”中的“打开飞书模板”入口已直接指向最新的飞书 Base 副本链接 `https://acn8dzidreuv.feishu.cn/base/Q4UNbUmY1acU9rsiYaAcobZwnte?from=from_copylink`
-  - 飞书同步排障阶段临时加入的“同步诊断”折叠面板已从正式页面移除；作品卡片默认只保留正文、指标、附件与作品链接等用户向信息
-  - 当前品牌作品/对标作品中的受保护附件预览已切到 `(dashboard)` 共享 blob 缓存层；同一飞书附件在翻页、重复预览和跨卡片回看时不再总是重新鉴权拉取
-- 抖音平台
-  - 当前收集页已去掉顶部重复头部和关闭式叉号区，页面标题、刷新按钮、提交按钮与状态提示统一下沉到各自内容容器内，后续新增子板块默认沿用这一容器结构
-  - 当前抖音采集已扩展为 7 个子板块：品牌账号信息、竞品账号信息、品牌作品信息及数据、对标作品信息及数据、获取低粉爆款榜、获取高完播率榜、获取高点赞率榜
-  - 当前“对标作品信息及数据”继续保留手动输入 `aweme_id` 的方式；3 个新增榜单都要求先选择一级分类和二级分类，再提交采集
-  - 当前抖音作品采集会在后端采集完成时立即下载视频并写入 OSS 或开发态本地回退存储，页面与素材库优先读取缓存视频，不再直接依赖会过期的抖音临时视频直链
-  - 当前抖音视频缓存按 `collectors/<brandId>/douyin/videos/<workId>.<ext>` 存储，并由 scheduler 每日清理超过 7 天的缓存对象
-  - 当前抖音对标作品和 3 个榜单结果表首列都支持素材库勾选；勾选后进入抖音素材库，再次取消勾选会同步移出素材库
-  - 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
-  - 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
-  - 参考变更：`docs/changes/2026-05-24-douyin-billboards-and-collection-container.md`
-- 每日热点
+包含：
 
-#### 品牌增长报告
-
-- 生成品牌增长报告
-  - 当前已改为后台任务异步生成；点击“生成报告”后接口立即返回工作区，前端轮询 `latestTask`
-  - 当前品牌增长报告在运行时会严格先尝试后台技能中心当前选中的首选模型，再按兼容 provider 继续 fallback；失败提示会展示实际尝试顺序，避免把最后一次失败误看成第一跳模型
-  - 当前已开始接入知识库“接入对象”运行时链路：会按“模块 -> 能力包 -> 技能”的继承顺序解析知识绑定；品牌增长报告当前至少会带上 `MODULE/brand-growth-workbench`、`SKILL_PACKAGE/brand-growth-analysis`、`SKILL/brand-omni-growth-analysis` 这三层执行身份，再从企业知识库召回片段作为补充上下文送入模型
-  - 当前这条知识注入链路仍采用 best-effort 方式；若检索失败或无命中，报告仍会继续生成，不会直接中断
-- 报告类技能当前已统一接入公共 Provider / 模型选择规则：先严格命中技能中心显式选择的 Provider，再严格命中首选模型，只有两者都匹配不到时才回退到通用 runtime 候选链路
-- 品牌增长可视化报告
-- 半年营销规划
-  - 当前已与品牌增长报告共用同一套继承式知识绑定入口：会先解析 `brand-growth-workbench -> enterprise-annual-plan -> enterprise-annual-plan` 这组模块/能力包/技能身份，再把召回片段作为半年营销规划的补充上下文
-- 营销日历
-  - 当前“小红书营销日历”入口已从 `/xiaohongshu` 工作台左侧导航迁到 `品牌增长报告 -> 半年营销规划` 下方，生成、刷新和单日编辑入口统一在品牌增长策略工作台内完成
-  - 当前仍继续复用原有 `GET/POST/PATCH /reports/brands/:brandId/xiaohongshu-marketing-calendar` 接口与同一份工作区数据，不额外复制第二套营销日历存储
-  - 小红书 `原创笔记 / 视频笔记` 的营销日历选题下拉仍继续读取同一份营销日历结果，未改动选题来源
-- 当前三条报告链路会先按技能配置尝试匹配兼容的文本 provider；若技能默认 provider 与链路不兼容，例如把可视化报告误绑到 `图像生成`，后端会自动回退到正确的文本 runtime，并按 provider 白名单收敛可用模型
-- 当前页面已接入品牌成员权限模板：管理员默认拥有全部权限；员工/达人按团队页配置的 `view/edit` 模板决定是否可进入页面以及是否可执行保存、同步和报告生成动作
-- 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
-- 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
-- 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
-- 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
-- 参考变更：`docs/changes/2026-05-27-xiaohongshu-calendar-moved-under-brand-growth.md`
-- 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
-
-### 3.2 小红书 `/xiaohongshu`
-
-- 顶部导航：已统一为后台同语言的浅底导航壳，使用短标签徽标与当前栏目高亮
-- 左侧导航：已改为更简化的目录式浅底菜单，仅保留分区按钮本体；当前只展示当前账号有 `view` 权限的小红书板块
-- 当前页面入口已拆为薄路由 + 工作区壳层：`page.tsx` 只负责挂载 `workspace-shell.tsx`，原有品牌上下文校正、权限闸门、工作区聚合加载、轮询与弹窗编排统一下沉到壳层文件，便于后续继续拆分 section 容器与共享 hook
-- 当前工作区壳层里的品牌上下文校正、权限门卫、聚合加载和局部刷新，已进一步抽到 `use-xiaohongshu-workspace-loader.ts`，壳层开始从“异步 orchestration + 视图混写”转向“状态消费 + section 装配”
-- 当前营销策划方案、营销日历、原创/二创/视频和发布任务的最新状态派生与轮询刷新，已进一步抽到 `use-xiaohongshu-workspace-tasks.ts`；`workspace-shell.tsx` 不再内联拼装多组 `findLatestTaskByTypes + useDelayedTaskPolling`
-- 当前原创、二创、视频三个工作区的 props 装配已进一步抽到 `note-workspace-section-props.ts`；`workspace-shell.tsx` 的 `renderSectionCard()` 不再内联维护三大段超长 section 参数拼装
-- 当前原创、二创、视频三个笔记 section 的 container 层已进一步抽到 `note-workspace-section-containers.tsx`；壳层开始只向 note section 传 grouped hooks 与少量共享数据
-- 当前原创、二创、视频三个笔记 section 已进一步拆成独立叶子 container：`original-workspace-section-container.tsx`、`rewrite-workspace-section-container.tsx`、`video-workspace-section-container.tsx`；中间层 `note-workspace-section-containers.tsx` 当前只保留共享类型与路由分发，旧的 `note-workspace-sections.tsx` 集合出口已退出主链路
-- 当前 `note-workspaces.tsx` 内部重复的顶部工具栏、创作状态面板和发布状态面板已进一步抽到 `note-workspace-shared-panels.tsx`，面板本体开始只保留原创/二创/视频各自的差异化内容
-- 当前 `note-workspaces.tsx` 里原创、二创、视频三类模态的 `editModalProps/createModalProps` 参数装配已进一步抽到 `note-workspace-modal-props.ts`，面板本体不再内联维护三大段超长映射对象
-- 当前原创、二创、视频三类创建弹窗的共享 overlay、标题区和底部动作区已进一步抽到 `note-create-modal-shell.tsx`，三个创建弹窗文件只保留字段区差异编排
-- 当前原创、二创、视频三类创建弹窗的标题与说明文案已进一步抽到 `note-create-modal-copy.ts`，并统一收口为 `NOTE_CREATE_MODAL_COPY_MAP` 静态配置入口，modal 文件不再各自维护重复静态文案
-- 当前 `VideoWorkspace` 里“修改故事板 / 生成短视频 / 找回视频结果”三类按钮的可用性派生已进一步抽到 `video-workspace-stage-flags.ts`，面板本体不再内联维护三段 workflowStage 判断
-- 当前 `VideoWorkspaceDetailPanel` 的 props 装配已进一步抽到 `video-workspace-detail-props.ts`，视频工作区本体不再内联维护整段详情区参数透传
-- 当前视频详情区的判空与挂载逻辑已进一步抽到 `video-workspace-detail-section.tsx`，`VideoWorkspace` 不再直接内联维护 `selectedItem ? ... : null` 分支
-- 当前 `VideoWorkspace` 里的详情区已进一步抽到 `video-workspace-detail-panel.tsx`，把阶段状态、故事板区、视频预览和操作按钮从面板本体中继续拆出
-- 当前原创、二创、视频三类面板的编辑弹窗与创建弹窗挂载实现已进一步统一收口到 `note-workspace-modals.tsx`；`video-workspace-modals.tsx` 当前只保留兼容导出层，外部接线保持不变
-- 当前原创创建弹窗里的“封面参考图 / 配图参考图 / 模板选择器应用”局部块已进一步抽到 `original-create-reference-fields.tsx`，`note-create-modals.tsx` 不再内联维护模板应用状态与上传区细节
-- 当前原创、二创、视频三类编辑弹窗共用的文本编辑壳层已进一步抽到 `note-text-edit-modal.tsx`，`note-edit-modals.tsx` 当前更聚焦标题、摘要和视频差异字段映射
 - 营销策划方案
-  - 当前页面已去掉 Hero 徽标和重复说明，聚焦标题、状态、动作按钮与 Markdown 编辑/预览主链路
-  - 当前会先读取团队权限模板；若只有 `view` 没有 `edit`，则板块切换为只读态，编辑、删除、重新生成、保存按钮都会禁用
 - 素材库
-  - 当前素材库中的飞书图片/视频预览若命中站内 `feishu-media` 代理，会先通过前端鉴权请求拉取 blob，再转 object URL 给卡片和灯箱展示，避免浏览器媒体请求不带 Bearer Token 导致空白
-  - 当前素材库第一版性能优化已落地：受保护媒体改为接近视口后再触发 blob 拉取，非当前可视区域素材不再在首屏一次性全部并发请求
-  - 当前素材库第二版性能优化已落地：受保护媒体 blob 预览已切到 `(dashboard)` 共享缓存层；同一素材在滚动回看、重复选中或再次打开时，优先复用已创建的 object URL，并对同 URL 并发请求做去重
-  - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
-  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
-  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
 - 原创笔记
-  - 已支持原创图文作品列表、添加弹窗、编辑、删除
-  - 已接入营销日历选题、产品选择、参考图上传、配图数量、用户要求；营销日历选题来源仍为同一份“小红书营销日历”工作区数据，即使页面入口已迁到 `品牌增长报告`
-  - 创建弹窗新增“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
-  - 原创文案与配图提示词链路会感知当前选择的账号角色，让生成结果的人设和表达更贴近发布主体
-  - 原创作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
-  - “封面参考图 / 配图参考图”已升级为模板图库选择 + 本地上传兜底双入口；模板选中后会先下载成 `File`，再继续复用现有参考图分析与生图链路
-  - 当前原创链路已拆成两层技能：`原创配图提示词` 负责生成封面/内页提示词，`原创图片生成` 负责选择最终图像模型、继承参考图结构并执行成品图生成
-  - 原创模板图库当前通过 `GET /api/works/xiaohongshu/original/reference-templates` 返回分类与模板清单，并通过站内 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域受控读取图片资源；若某张模板对象缺失，前端会显示“模板预览加载失败”占位而不是只保留浏览器裂图图标
-  - 当前原创模板图库第一版性能优化已落地：模板卡片改为统一懒加载图片组件，并对长列表卡片启用浏览器级内容可见性裁剪，降低模板库首屏渲染开销
-  - 本地开发因前端走 `3001`、后端走 `3011` 属于跨端口请求；模板资源接口现已暴露 `Content-Disposition` 给浏览器端 `fetch`，回填表单时可保留真实模板文件名，不再退回显示 `asset`
-  - 上传参考图当前会同时参与两步：先进入 `analyzeReferenceImages()` 做风格拆解，再在最终文生图阶段以原图 data URL 形式继续传给图像模型，不再只保留文字化风格档案
-  - 最终成品图 prompt 已显式增加竖版 `1242x1660`、中文排版、标题层级和 8% 安全边距约束，用于收紧文字贴边和越界问题
-  - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，可在个人中心任务中心继续查看
-  - 当前支持在小红书工作区和个人中心任务中心对运行中的任务发起 `取消任务`；取消属于 best-effort 中断，会尽量阻止后续步骤继续写回成功状态
-- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`、`docs/changes/2026-05-15-xhs-reference-template-same-origin-preview-fallback.md`
-- 参考变更：`docs/changes/2026-05-15-xhs-original-account-role.md`
-- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 二创笔记
-  - 已支持二创图文作品列表、添加弹窗、编辑、删除
-  - 已接入素材库作品选择、产品选择、账号角色、用户要求
-  - 创建弹窗现已补入“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
-  - 二创文案与配图提示词链路现会感知当前选择的账号角色，让生成结果的人设、口吻和画面关系更贴近发布主体
-  - 二创作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
-  - 当前二创链路已拆成两层技能：`二创配图提示词` 负责生成封面/内页提示词，`二创图片生成` 负责选择最终图像模型、跟随对标图结构并执行成品图生成
-  - 创作成功后会自动刷新任务状态和作品列表；新任务按当前登录用户归属，并可在工作区内直接取消最近一次运行中任务
-- 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
-- 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
-- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
 - 视频笔记
-  - 已支持视频作品列表、三阶段详情面板、添加弹窗、编辑、删除
-  - 已接入营销日历选题、自定义选题、产品选择、视频素材库、账号角色、参考图上传、视频模型、时长和双段用户要求
-  - 视频类型已收口为 `品牌宣传视频 / 口播带货视频 / 短剧带货视频 / 复刻视频`；其中 `复刻视频` 必须选择视频素材
-  - 视频时长只保留 `10 秒 / 15 秒`，不再提供“输出视频提示词”选项
-  - 创建弹窗现已补入“账号角色”选择：管理员可选 `品牌号 / 员工号 / 达人号`，员工只可选员工号，达人只可选达人号
-  - 视频三阶段链路现会感知当前选择的账号角色，让剧本、故事板和短视频提示词的人设与口吻更贴近发布主体
-  - 视频作品主记录会把账号角色写入 `MediaAsset.metadataJson`；作品卡片左上角直接显示 `品牌号 / 员工号 / 达人号`
-  - 视频作品会把 `workflowStage / creativeScript / storyboardPrompt / storyboardImageUrl / storyboardRevisions` 等中间结果持久化到 `MediaAsset.metadataJson`，支持离开页面后回来继续查看和操作
-  - 视频模型下拉现通过 `/api/works/brands/:brandId/xiaohongshu/video/providers` 动态读取后台当前启用的视频 Provider，不再写死前端枚举
-  - 创作成功后会自动刷新任务状态和作品列表；故事板阶段完成后可直接在详情区修改提示词并重生故事板，或继续生成短视频
-- 参考变更：`docs/changes/2026-05-16-xhs-all-works-account-role.md`
-- 参考变更：`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
-- 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
-- 当前品牌上下文：
-  - 前端工作区聚合读取、作品生成、素材代理和报告依赖现统一优先读取当前登录品牌
-  - `xiaohongshu/workspace-shell.tsx` 当前通过 `use-xiaohongshu-workspace-loader.ts` 先调用 `/api/auth/me` 刷新当前品牌，再决定营销方案、营销日历、作品列表和收集工作区应该读取哪个 `brandId`，避免旧会话把页面长期锁在 demo 工作区
-  - `xiaohongshu/assets-workspace.tsx` 生成飞书素材图片/视频代理 URL 时也会显式透传当前真实 `brandId`，避免素材库媒体预览继续回退到 `DEMO_BRAND_ID`
-  - 后端按 `brandId` 读取的小红书收集、营销方案、营销日历等接口已补当前用户品牌访问校验，避免跨用户串读数据
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-shell-split.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-loader-hook.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-workspace-task-hook.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-props-split.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-router-split.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-section-containers.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-leaf-section-containers.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-workspace-shared-panels.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-video-detail-panel-split.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-video-modal-mount-split.md`
-  - 参考变更：`docs/changes/2026-05-18-xiaohongshu-note-modal-mount-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-reference-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-basic-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-original-create-tail-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-rewrite-create-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-create-modal-shell-files-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-workspace-modals-unify.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-basic-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-create-config-fields-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-text-edit-modal-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-workspace-modal-props-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-create-modal-shell-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-note-create-modal-copy-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-structure-governance-winddown.md`
-- 阶段交接：`docs/xiaohongshu-structure-governance-handoff-2026-05-19.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-stage-flags-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-props-split.md`
-- 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-workspace-detail-section-split.md`
+- 发布工作流
 
-### 3.3 抖音 `/douyin`
+当前特点：
 
-- 当前页面已作为独立工作台存在，入口为 `apps/web/src/app/(dashboard)/douyin/page.tsx`，业务编排壳层为 `workspace-shell.tsx`
-- 当前板块已包含：
-  - 营销策划方案
-  - 素材库
-  - 热点找选题
-  - 选题库
+- 页面结构已拆成薄入口 + `workspace-shell`
+- 原创 / 二创 / 视频创建与编辑已经拆分为独立字段组件和模态组件
+- 受保护媒体预览已走鉴权 blob / 共享缓存
+- 账号角色已进入作品元数据
+
+### 4.3 抖音工作台 `/douyin`
+
+包含：
+
+- 营销策划方案
+- 素材库
+- 热点找选题
+- 选题库
 - 原创文案
-  - 已支持营销日历选题、选题库、文案类型、是否植入抖音营销策划方案与用户要求
-  - 当前创建弹窗与结果区已统一使用“原创文案”口径，不再沿用“小红书原创笔记”文案
 - 二创文案
-  - 已支持从抖音素材库视频中选择素材，可选植入品牌资料、产品资料、营销策划方案和用户要求
-  - 后端会先通过 MathMind 提取视频文案，再按“拆解开头 / 拆解正文 / 拆解结尾 / 二创整合”四段技能生成最终抖音二创文案
-- AI生视频（故事板）
-  - 已支持营销日历、产品、账号角色、视频类型、抖音素材库、上传产品图/参考图、视频大模型、故事板生图大模型、视频时长、是否植入抖音营销策划方案与用户要求
-  - 当前创建后会先生成创意剧本和故事板，故事板确认后再继续生成短视频，并支持按第三方任务结果找回最终视频
-- AI生视频
-  - 已支持营销日历、产品、账号角色、视频类型、抖音素材库、上传产品图/参考图、视频大模型、视频时长、视频比例、是否植入抖音营销策划方案与用户要求
-  - 当前创建后会直接生成 Seedance 2.0 生视频提示词，用户可在详情区修改后继续生成短视频，并支持按第三方任务结果找回最终视频
+- AI 生视频（故事板）
+- AI 生视频（直接视频）
 - 数字人
-  - 已接入蝉镜 OpenAPI 公共数字人模板库、模板标签、数字人口播视频创建、作品中心和结果找回
-  - 当前模板库支持按标签服务端筛选与分页增量加载，避免后续模板数量继续增长后一次性全量拉取
-  - 当前数字人作品继续复用 `works` 模块的 `Task + MediaAsset + HTML 壳 + OSS 资产缓存` 链路，不额外新建独立作品表
-  - 当前品牌需先在个人中心第三方平台里按 `appId::secretKey` 形式配置蝉镜凭证，工作台再按品牌维度读取共享凭证创建和轮询数字人视频
-- 当前素材库直接消费品牌增长策略中“收集数据 -> 抖音 -> 对标作品信息及数据 / 获取低粉爆款榜 / 获取高完播率榜 / 获取高点赞率榜”被勾选入库的作品
-- 当前素材卡片中的视频预览优先读取抖音采集阶段缓存到 OSS 的视频签名地址，降低采集直链过期后素材库打不开的概率
-- 当前“热点找选题”会先提供每日热点日期下拉；选中日期后，后端把该日全部热点榜单和品牌背景资料一起送入统一技能，输出 3 条可勾选的抖音选题，并支持加入当前品牌独立存储的“选题库”
-- 当前“选题库”已拆为独立页面：一行展示两条选题记录，超过 20 行按固定分页展示
-- 参考变更：`docs/changes/2026-05-23-douyin-material-library.md`
-- 参考变更：`docs/changes/2026-05-23-douyin-video-cache-and-collection-copy-cleanup.md`
-- 参考变更：`docs/changes/2026-05-24-douyin-billboards-and-collection-container.md`
-- 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
-- 参考变更：`docs/changes/2026-05-30-douyin-remix-copy-and-ai-video-workspace.md`
-- 参考变更：`docs/changes/2026-05-30-douyin-digital-human-workspace.md`
+- 发布工作流
 
-### 3.3B 公众号 `/wechat`
+当前特点：
 
-- 当前页面已作为独立工作台存在，入口为 `apps/web/src/app/(dashboard)/wechat/page.tsx`，业务编排壳层为 `workspace-shell.tsx`
-- 顶部导航：已进入前台统一浅底导航，导航中已有独立 `公众号` 入口
-- 左侧导航：当前固定收口为两个正式板块：
-  - 配置页面
-  - 原创创作
-- 配置页面
-  - 当前只保留 `AppID / AppSecret / IP 白名单`
-  - 前端通过 `getWechatAccountConfig / saveWechatAccountConfig` 读取和保存配置
-  - 后端返回 `appSecretMasked` 供页面回显掩码；若本次保存未重新填写 `AppSecret`，服务端会沿用已有密钥，不强制用户每次重填
-  - 当前发布前会校验是否已完成 `AppID / AppSecret / IP 白名单` 配置
+- 多板块已独立分区
+- 采集结果可进入素材库
+- 视频与数字人能力已经接入
+- 发布与视频号桥接能力位于同一工作台体系
+
+### 4.4 公众号工作台 `/wechat`
+
+包含：
+
+- 账号配置
 - 原创创作
-  - 页面会并行读取当前品牌档案与同一份小红书营销日历工作区，作为公众号创作的资料来源
-  - 当前“添加原创文章”弹窗已收口为：
-    - 营销日历下拉
-    - 产品信息下拉
-    - 品牌资料是否植入
-    - 图片生成策略
-    - 主题颜色
-    - 创作要求
-  - 输入阶段当前先保存原始输入资料，并推进到文章阶段
-  - 文章阶段新增显式 `执行文章AI` 动作，调用 `公众号-创作文章` 对应的第三方文本模型生成标题、摘要、公众号 HTML 排版结果，以及封面图/正文配图 briefs
-  - 页面中的正文输入框保留纯文本编辑体验，但真正预览与发布优先使用文章 AI 返回的 `htmlContent`
-  - 生图阶段会分别调用 `公众号-封面图生成` 与 `公众号-正文配图生成` 对应的第三方图片模型，并优先消费文章阶段返回的 `coverImageBrief` 与 `bodyImageBriefs`
-  - 生图完成后会自动把封面图与正文配图同步植入当前 `htmlContent`；若 HTML 内已有 `<img>` 占位则按顺序替换，否则自动追加图片区块
-  - 生成后按作品卡片展示公众号文章草稿，支持查看 HTML 预览；历史 HTML 预览也会按当前图片任务结果做前端补图兜底
-  - 工作流中的封面图、正文配图和发布历史封面图都支持点击弹出站内预览窗口
-  - 作品记录当前固定输出 `HTML`，并保存营销日历、产品、品牌资料、主题色、配图策略和技能执行信息
-- 技能与发布接线
-  - 后台技能中心与前台技能中心已补入 `公众号-创作文章 / 公众号-封面图生成 / 公众号-正文配图生成 / 公众号-API发布` 四个技能叶子项
-  - 文章草稿当前记录 `wechat-article-composer`，图片任务按封面图 `wechat-cover-image-designer` 与正文配图 `wechat-body-image-designer` 分开记录
-  - 前端通过 `publishWechatArticleToOfficialAccount()` 命中 `POST /publishing/brands/:brandId/wechat/articles/:draftId/publish`
-  - 后端发布入口当前已接入 `PublishingModule -> WorksModule -> WechatOfficialAccountApiService`，会真实执行 `access_token -> 封面素材上传 -> draft/add` 并把草稿状态回写为 `PUBLISHED`
-- 当前边界
-  - 公众号工作台、配置保存、草稿生成、真实文本/生图模型调用、HTML 预览和真实公众号 API 发布已经独立落地
-  - 当前剩余主要是 mock store 正式入库、多账号联调和生产态验收，不再是“是否已接通第三方模型/真实发布 API”
-- 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
+- HTML 草稿生成
+- 一键发布
 
-### 3.3C 更多功能 `/more-features -> /more-features/design`
+### 4.5 设计工作台 `/more-features/design`
 
-- 当前 `/more-features` 已不再停留在旧占位页，入口会直接重定向到 `/more-features/design`
-- 设计工作台当前固定为 4 个横向二级模块：
-  - 图片设计
-  - HTML 设计
-  - PPT 设计
-  - 视频设计
-- 当前前后台技能中心已补入设计类技能映射，覆盖：
-  - 图片设计：`design-social-carousel`、`design-magazine-poster`
-  - HTML 设计：`design-web-prototype`、`design-dashboard`、`design-mobile-onboarding`
-  - PPT 设计：`design-pitch-deck`
-  - 视频设计：`design-video-storyboard`
-- 设计工作台当前类型与技能中心能力已开始对齐为 Open Design 风格的设计项，例如社媒轮播图、杂志风海报、单页 HTML 原型、数据看板、Pitch Deck、视频故事板
-- 当前设计工作台创建弹窗已改为真实接口驱动：
-  - 营销日历下拉来自 `ReportsModule` 的小红书营销日历工作区
-  - 产品下拉来自 `BrandsModule` 的当前品牌产品档案，并保留 `不植入产品` 入口
-  - 品牌资料开关来自真实品牌档案上下文，不再使用前端硬编码文案
-  - 模型下拉来自 `WorksModule` 聚合的运行时 Provider 列表；图片模块读取图像生成 Provider，HTML/PPT/视频模块读取文本生成 Provider
-  - 模型值按 `providerId::modelName` 作用域值提交，确保同名模型能精确命中对应第三方接口
-- 当前设计工作台前端通过 `apps/web/src/services/design.ts` 调用：
-  - `GET /api/works/brands/:brandId/design/options`
-  - `POST /api/works/brands/:brandId/design/generate`
-- 当前设计工作台后端依赖：
-  - `BrandsModule`：品牌档案、产品信息、品牌资料摘要
-  - `ReportsModule`：营销日历选题
-  - `WorksModule`：设计参数聚合、设计产物生成、HTML/图片产物落盘
-  - `ApiProvidersModule + ThirdPartyPlatformsModule`：运行时模型配置与品牌级第三方接口密钥解析
-- 当前作品区已展示真实创建结果，并支持查看详情、标记完成和删除；但“历史设计作品列表”仍以本次会话内结果展示为主，尚未补单独查询接口
-- 参考变更：`docs/changes/2026-06-03-design-workspace-real-data-and-provider-integration.md`
+包含：
 
-### 3.4 个人中心 `/personal-center`
+- 图片设计
+- HTML 设计
+- PPT 设计
+- 视频方案设计
 
-- 个人信息
-- 点数流水
-- 会员订单
-- 充值明细
-- 任务记录
-- 我的作品
-- 当前已接入真实登录态：
-  - 无登录态时统一跳转 `/?next=...`
-  - 页面会通过 `/api/auth/me` 获取当前用户和品牌信息
-  - 已支持当前品牌切换与退出登录
-  - 请求层会自动附带 `Authorization` 和 `x-brand-id`
-- 前台品牌列表已收口为真实 `BrandMember` 可访问范围，不再因为后台 `SUPER_ADMIN` 身份在个人中心直接暴露全品牌
-- 当前采用“真数据优先、局部种子兜底”：
-  - 用户资料优先走真实接口
-  - 点数流水、订单、任务、作品任一接口失败时仅该部分回退演示数据
-- 当前已进入二级路由阶段：
-  - `/personal-center`：个人中心概览页，已从旧聚合页收成简洁首页；当前只保留账号摘要、品牌上下文、待处理事项、最近动态和快捷入口，不再在根页堆点数流水、订单列表、任务列表与作品长列表，详细内容统一进入对应二级工作区
-- `/personal-center`：概览页中的“账号与品牌”卡现已补充“编辑账号资料”直达入口，便于从首页快速进入资料维护
-- `/personal-center/orders`：订单中心第一版，已接真实 `/orders` 列表接口，按当前登录用户查看会员订单和点数充值记录，支持状态筛选、类型筛选、关键词搜索、品牌上下文切换、筛选金额汇总和订单详情跳转；当前订单仍主要按用户维度过滤，品牌级订单归属后续继续扩展
-- `/personal-center/works`：作品中心第一版，已接真实 `/media` 列表接口，按当前登录用户查看 HTML、图片、视频与文档资产，支持作品范围筛选、类型筛选、关键词搜索、品牌上下文切换、小红书作品回跳与源文件打开；当前作品仍主要按用户维度过滤，品牌内共享与更细作品分类后续继续扩展
-- `/personal-center/skills`：技能中心已升级为“平台基线 + 品牌共享覆盖”双层结构；当前采用左侧分类树、右侧单条提示词编辑器，支持按当前品牌读取真实 `/api/user-skills`
-  - 左侧不再按“总技能卡”展示，而是按统一分类树直接展开到“可编辑提示词叶子项”；视频笔记会明确拆成 `品牌宣传剧本 / 口播带货剧本 / 短剧带货剧本 / 复刻视频拆解 / 故事板提示词 / 短视频提示词`
-  - 左侧一级分类和二级分类现都支持折叠；搜索时会自动展开全部结果分组，选中某条提示词时也会自动展开到对应位置
-  - 右侧当前聚焦所选提示词本身，展示所属分类、所属执行技能、提示词场景和提示词编辑字段；保存时写入当前品牌共享覆盖层
-  - 提示词模型当前改为下拉框，选项通过 `/api/user-skills/editor-options` 动态读取后台激活 `ApiProviderConfig` 的默认模型与模型白名单；未覆盖时默认跟随后台平台模型
-  - 当多个平台存在同名模型时，`/api/user-skills/editor-options` 会返回带 Provider 作用域的模型值，前端以下拉标签 `模型名 · Provider名` 区分；保存时会把 `providerId::modelName` 写回技能配置，供运行时精确命中对应 Provider
-  - 当前 `/api/user-skills/:skillId` 保存链路会先把传入模型值归一化为“精确作用域值 / 兼容 label / 纯模型名”三类之一，再写入品牌共享覆盖层；前端也只提交实际改动的 `promptOverrides`，避免仅切换模型时被无关字段放大为保存失败
-  - 当前旧环境首次命中 `/api/user-skills` 相关接口时，会自动补齐 `BrandSkillProfile`、`BrandPromptOverride`、`BrandSkillResetLog` 缺失的基础列；保存与重置链路也已兼容 `undefined -> null` 与 `promptIdsJson -> jsonb` 写入
-  - 原创图片生成、二创图片生成两条技能当前平台默认模型已正式切到 `provider_runtime_image_generation_right_codes::gpt-image-2`；若品牌覆盖层中还残留旧的 `provider_runtime_image_generation::gpt-image-2`，后端会在接口初始化时自动安全回填到 `Right Codes`，保证页面展示与实际运行时一致
-  - 视频笔记技能若数据库或品牌覆盖层里仍残留旧默认值 `seedance`，当前也会在接口初始化时自动安全回填到火山方舟 `doubao-seedance-2-0-260128`，避免柏拉图下线后技能中心继续显示不可用模型
-  - 当前仍支持保存到当前品牌技能库、重置回后台平台基线、品牌上下文切换与退出登录；保存与重置操作仅品牌管理员可执行
-  - 后台继续通过 `/admin/skills` 与 `/admin/prompts` 维护平台技能基线
-  - 参考变更：`docs/changes/2026-05-11-personal-center-user-skills-overrides.md`
-  - 参考变更：`docs/changes/2026-05-14-personal-center-skill-editor-layout-and-model-options.md`
-  - 参考变更：`docs/changes/2026-05-15-user-skills-table-compat-fix.md`
-  - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
-  - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
-  - 参考变更：`docs/changes/2026-05-28-brand-skill-center-shared-overrides.md`
-- `/personal-center/third-party-platforms`：第三方接口配置页已落地，布局对齐技能中心，当前采用左侧平台列表、右侧单平台详情
-  - 页面统一展示平台基线：第三方平台链接、默认模型、大模型 ID、说明文档与备注
-  - 当前页面改为按 `personalCenter.thirdPartyPlatforms` 权限控制：拥有该板块 `edit` 的成员可维护当前品牌的共享 API Key，仅有 `view` 的成员保持只读
-  - 当前品牌与角色展示已统一到三角色口径，品牌切换下拉与页面头部状态均显示 `管理员 / 员工 / 达人`
-  - 页面通过 `/api/third-party-platforms` 读取平台基线，通过 `/api/third-party-platforms/:id/secret` 保存当前品牌下的平台共享 Key
-  - 当前页面已对手机号/数字串误填搜索框做自动清空兜底，避免左侧平台列表被浏览器自动填充意外过滤成 0 条
-  - 后台 `/admin` 的接口供应商页现与这里同步同一份平台基线
-  - 当前平台基线已补入 `Right Codes 平台`，基础链接为 `https://www.right.codes/draw`；平台页统一聚合文生文（可带图）与文生图/图生图两类模型，并由有权限的管理员共同维护该平台品牌共享 Key
-  - 当前平台基线已补入火山方舟视频模型 `doubao-seedance-2-0-260128 / doubao-seedance-2-0-fast-260128`；平台页会把这两条模型并入既有 `火山方舟平台`，无需手工新增第二个平台
-  - 柏拉图平台当前已正式下线；服务启动时会自动清理 `hk-api.gptbest.vip / api.gptbest.vip / api.bltcy.ai` 对应的平台基线与共享 Key 残留，前后台都不再展示该平台
-  - 当前前台保存的 API Key 已接入 `ReportsModule` / `WorksModule` 的真实运行时调用链：运行时按 `brandId + platformId(baseUrl 匹配)` 读取品牌共享 Key；命中平台后必须使用品牌共享密钥，若当前品牌尚未配置则直接返回中文提醒，不再回退 `ApiProviderConfig` 公共 Key
-  - 当前品牌间第三方模型调用已按 `brandId + platformId` 隔离，不再直接共用同一套品牌外私钥
-  - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
-  - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
-  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
-- `/personal-center/security`：安全设置第二版，已从纯只读会话页升级为“账号资料 + 会话安全”组合页；当前支持用户自助编辑用户名、头像地址、手机号，支持上传头像到 OSS 并通过站内头像接口读取，支持查看邮箱验证状态、账号与品牌上下文、access/refresh token 持有状态、自动 refresh 机制说明和退出当前登录态入口；邮箱改绑、密码修改、会话列表、多端下线后续继续扩展
-- `/personal-center/invites`：邀请通知中心，现已接入邀请站内消息表第一版；统一查看待处理、已接受、已过期和已撤回的品牌邀请，并支持直接接受待处理邀请、后端持久化未读/已读、只看未读、状态筛选、关键词搜索、排序、分页总览、URL 参数状态回放、复制当前筛选链接与一键重置筛选
-- `/personal-center/tasks`：用户任务中心，已接真实任务接口、品牌切换、失败重试与运行中任务取消；小红书原创/二创/视频任务现按当前登录用户归属，可在这里直接追踪
-- `/personal-center/team`：团队协作页已统一三角色 `管理员 / 员工 / 达人`
-  - 团队成员、邀请和审计对外统一显示三角色；内部仍保留 `OWNER` 仅表示品牌归属主账号
-  - 管理员拥有该品牌前端全部权限，可邀请成员、查看审计、调整成员角色，并配置员工/达人的权限模板
-  - 权限设置区位于“待处理邀请”和“当前品牌成员”之间，按一级目录/分组/项目展示，每项支持勾选 `可见权限 / 编辑权限`
-  - “直接添加成员”继续走待确认邀请；“创建邀请”继续只生成邀请链接；手动邀请码加入入口保持移除；未登录打开邀请链接时会保留 `inviteCode` 并回流到登录后页面
-  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
-- 前台共享顶栏已新增全局待处理邀请提示条，登录后若存在待接受邀请，会在导航下方直接提醒，并每 60 秒自动刷新一次邀请状态；提示条已联动未读待处理数量
-  - 该提示条现默认跳转到 `/personal-center/invites`
-- 规划中：
-  - `/personal-center/security`：登录态、密码、安全设置
+当前已经接入真实品牌档案、营销日历和 Provider 配置。
 
-### 3.5 后台管理 `/admin`
+### 4.6 个人中心 `/personal-center`
 
-- 仪表盘
-- 订单管理
-- 会员/积分规则
+子页面包括：
+
+- `/personal-center`
+  - 概览
+- `/personal-center/tasks`
+  - 任务中心
+- `/personal-center/orders`
+  - 订单中心
+- `/personal-center/works`
+  - 作品中心
+- `/personal-center/skills`
+  - 技能中心
+- `/personal-center/third-party-platforms`
+  - 第三方接口配置
+- `/personal-center/openclaw`
+  - OpenClaw 安装中心
+- `/personal-center/security`
+  - 安全设置
+- `/personal-center/team`
+  - 团队协作
+- `/personal-center/invites`
+  - 邀请通知
+
+### 4.7 后台管理台 `/admin`
+
+当前后台已包含的主栏目：
+
 - 用户管理
-- 用户管理当前已升级为“筛选区 + 用户表格 + 弹窗详情编辑”结构：
-  - 支持按关键词、会员等级、账号状态、系统角色、邮箱验证状态筛选
-  - 支持普通用户和管理员账号统一查看
-  - 支持点进单个账号详情后，通过弹窗编辑用户名、手机号、邮箱、头像地址、会员等级、账号状态、系统角色、积分余额、邮箱验证状态与密码
-  - 支持直接删除单个账号，并在删除前弹出确认框
-  - 用户列表已移除“角色”“会员”列，操作区保留统一样式按钮
-  - 前端用户管理已从 `admin/page.tsx` 中拆到独立组件 `users-management-panel.tsx`
-  - 后端用户管理已补 `GET /api/admin/users/:id`、筛选型 `GET /api/admin/users` 与 `DELETE /api/admin/users/:id`
-- 任务管理
-- 品牌成员与权限管理
-- API/模型消耗管理
-- 技能中心
-  - 左侧目录树：品牌增长策略 / 小红书 / 抖音，一级分类支持展开/收起
-  - 左侧二级分类：按业务模块展开，例如品牌增长报告、半年营销规划；二级分类同样支持展开/收起
-  - 左侧三级分类：具体技能项，例如“品牌增长报告-生成品牌增长报告”
-  - 小红书内容生产：已拆分为 `原创笔记-原创文案`、`原创笔记-原创配图`、`二创笔记-二创文案`、`二创笔记-二创配图`，以及视频笔记的 `品牌宣传剧本 / 口播带货剧本 / 短剧带货剧本 / 复刻视频拆解 / 故事板提示词 / 短视频提示词`
-  - 当前目录树样式：已改为目录式展开菜单，与左侧后台导航保持同一视觉语言
-  - 中间只展示当前选中三级提示词叶子项的一张精简详情卡
-  - 详情卡字段：当前提示词、所属执行技能、提示词场景、状态、默认模型、点数成本、更新时间、提示词内容、保存当前提示词
-  - 后台技能中心当前所有文本类技能已统一运行逻辑：先严格尝试当前卡片里选中的默认模型，再按兼容 provider / model 继续 fallback；失败时统一展示实际尝试顺序
-- 当前后台技能中心与个人中心技能中心的 Provider / 模型偏好，已经统一按公共规则分发到 `ReportsModule` 与 `WorksModule`：先 Provider、再模型、最后通用 fallback，不再允许各板块私写固定优先级
-  - 技能提示词：后台当前仅对 `SKILL.md` 这类总技能入口自动聚合技能源目录下的顶层 `.md` / `.txt` 参考资料；独立提示词叶子项（如视频笔记 6 条 `.txt`）只展示自身内容，不再拼接同目录其它文件
-  - 视频笔记提示词现按“剧本策划 / 视频生成”两组分类展示，前后台都可按单条 prompt 修改
-  - 平台级提示词当前已恢复为数据库真源：后台保存后以 `PromptTemplate.content` 为准，正常读取链路不再让本地提示词文件反向覆盖数据库
-  - 视频笔记 6 条提示词源文件现已正式纳入仓库 `提示词/视频生成提示词/`；运行时优先读取仓库内路径，避免部署环境因缺少仓库外文件而继续显示错误内容
-  - 当前选中某个三级提示词时，会自动展开对应一级/二级目录，避免所选项被折叠隐藏
-  - 聚合型提示词在后台当前以只读方式展示，需回到原始提示词目录维护，避免把整份聚合内容误写回单个 `SKILL.md`
-  - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
-  - 参考变更：`docs/changes/2026-05-13-global-skill-model-priority-unification.md`
-  - 参考变更：`docs/changes/2026-05-17-video-note-staged-workflow-and-prompts.md`
-  - 参考变更：`docs/changes/2026-05-17-skill-center-prompt-leaf-classification.md`
-  - 参考变更：`docs/changes/2026-05-17-skill-center-collapsible-tree.md`
-  - 参考变更：`docs/changes/2026-05-18-skill-center-video-prompts-file-sync-fix.md`
-  - 参考变更：`docs/changes/2026-05-18-video-prompt-files-moved-into-repo.md`
-  - 参考变更：`docs/changes/2026-05-18-video-prompt-leaf-no-reference-bundle.md`
-- 知识库管理
-  - 当前后台知识库页已改成左侧知识库列表/板块菜单、右侧当前内容的工作台式布局
-  - 当前后台知识库页已支持知识库主档、文件、同步记录、检索配置与绑定关系统一管理
-  - 当前文件同步与全量同步已支持真实正文提取、切片、embedding 写入与检索测试；企业知识库上传后也会自动触发同步
-  - 当前可直接维护默认 TopK、召回模式、重排开关、切片大小/重叠和检索阈值
-  - 当前“接入对象”处于“治理层已落地、运行时部分生效”状态：
-    - 已落地：后台可维护绑定关系，前端企业知识库会自动补品牌增长工作台的默认绑定
-  - 已生效：品牌增长报告、半年营销规划、小红书营销策划方案、抖音营销策划方案、抖音热点找选题、公众号工作流里的文章生成 / HTML 渲染 / 配图生成、小红书原创文案 / 原创配图提示词 / 二创文案 / 二创配图提示词 / 视频笔记文案 / 视频提示词 / 故事板、抖音视频阶段技能、抖音数字人口播脚本，以及设计工作台的图片 / HTML / PPT / 视频方案，已经按“模块 -> 能力包 -> 技能”继承解析自动召回企业知识库片段，旧版 `PROMPT / WORKFLOW_STEP` 仅做兼容读取
-  - 生效前提：这些技能只是“具备可接知识库能力”；是否真的注入，仍取决于用户是否给对应模块 / 能力包 / 技能绑定了知识库，不是默认全量强绑
-  - 未完全生效：其余尚未绑定到模块 / 能力包 / 技能解析链的执行入口，仍未统一接入同一套运行时知识注入链
-
-- 企业知识库
-  - 当前前端已改成品牌域知识库独立主流程：先创建知识库，再进入知识库逐步添加资料和维护设置
-  - 当前品牌侧已新增独立接口：`GET/POST/PATCH/DELETE /api/brands/:id/business-knowledge-bases*`，以及资料级 `files` 子路由
-  - 当前知识库创建时只要求名称和简介；系统字段、绑定细节和治理字段默认下沉到后台或自动推导
-  - 当前知识库资料上传后会自动触发切片与同步；知识库本身作为主实体保留，不再因为临时没有资料而被同步删除
-  - 当前品牌知识库仍会默认绑定到 `品牌增长工作台 / brand-growth-workbench`，供增长报告运行时优先召回企业背景、产品资料和经营信息
 - 接口供应商
-  - 当前后台 `/admin` 的“接口供应商”页已切到平台级第三方接口配置中心，布局改为左侧平台列表 + 右侧单平台详情编辑
-  - 后台当前按平台维护 `名称 / Provider 类型 / 状态 / 第三方平台链接 / 说明文档 / 大模型 ID / 默认模型 / 备注`，当前页面不再提供新增入口
-  - 后台页不再填写 API Key；前台个人中心由拥有 `personalCenter.thirdPartyPlatforms.edit` 的成员在 `/personal-center/third-party-platforms` 维护当前品牌下自己的私有 Key
-  - 当前后台平台页与前台个人中心同步同一份 `ThirdPartyPlatformConfig` 平台基线
-  - 当前 `ApiProviderConfig` 已补入 `Right Codes · 文生文（可带图）` 与 `Right Codes · 文生图/图生图` 两条运行时 Provider 种子；若数据库里还没有对应平台基线，`ThirdPartyPlatformsService` 会在引导时自动补齐缺失的 `ThirdPartyPlatformConfig`
-  - 柏拉图共享代理 Provider 已从系统基线移除；若历史数据库里仍残留其接口供应商或平台记录，`ApiProvidersService` 与 `ThirdPartyPlatformsService` 会在启动时自动清理，避免后台继续展示已失效模型
-  - 原 `ApiProviderConfig` 运行时表仍保留给 `ReportsModule` 与 `WorksModule` 按 `runtimeKey` 读取，不直接暴露给前台用户设置私有 Key
-  - 参考变更：`docs/changes/2026-05-11-admin-api-provider-config-center.md`
-  - 参考变更：`docs/changes/2026-05-14-third-party-platform-config-center-and-personal-page.md`
-- 当前后台入口已支持角色矩阵：
-  - `SUPER_ADMIN`：可见全部后台栏目
-  - `ADMIN_OPERATOR`：侧重订单、用户、模型资产、知识库和接口供应商
-  - `FINANCE_OPERATOR`：侧重订单与会员/积分规则
-  - `SUPPORT_OPERATOR`：侧重订单、用户与模型消耗排查
+- 计费规则
+- 技能中心
+- 模块注册中心
+- 能力包总览
+- 能力包与模块绑定
+- 能力包与知识库绑定
+- 能力包与技能绑定
+- 知识库管理
+- 模型用量
 
-### 后台左侧导航
+## 5. 前端服务层
 
-- 当前采用浅底目录式导航，弱化大卡片感，栏目切换以单行标签为主
-- 激活态强调当前栏目，未激活项仅保留简洁标签和方向箭头
+主要 service 文件：
 
-### 前后台共享视觉壳层
+- `services/auth.ts`
+- `services/auth-session.ts`
+- `services/brand-growth.ts`
+- `services/collectors.ts`
+- `services/daily-hotspots.ts`
+- `services/reports.ts`
+- `services/works.ts`
+- `services/publishing.ts`
+- `services/design.ts`
+- `services/personal-center.ts`
+- `services/openclaw.ts`
+- `services/admin.ts`
 
-- `dashboard` 顶栏、前台左侧工作区导航、后台左右导航已统一为浅底圆角目录式风格
-- 前台顶部左侧品牌说明卡已移除，前台顶栏当前只保留横向主导航
-- 前后台主内容卡片已统一为浅灰背景、大圆角、轻阴影与蓝灰状态高亮体系
+规则：
 
-## 4. 后端结构地图
+- service 只做请求层
+- 页面或工作区壳层负责业务编排
+- 当前品牌、权限和 Provider 选择必须由后端结果校正
 
-### 4.1 基础模块
+## 6. 后端模块地图
 
-- `PrismaModule`：数据库访问
-- `SchedulerModule`：统一定时任务注册与调度
+### 6.1 核心业务模块
 
-### 4.2 业务模块
+- `auth`
+- `brands`
+- `collectors`
+- `reports`
+- `works`
+- `tasks`
+- `publishing`
+- `media`
+- `orders`
+- `third-party-platforms`
+- `user-skills`
+- `openclaw`
+- `feedback`
+- `scheduler`
 
-- `AuthModule`：登录、注册、用户资料、飞书 OAuth、飞书应用配置
-- `AuthModule`
-  - 当前已接入基于签名 token 的 access/refresh 登录态
-  - 已支持邀请码注册；注册时会校验 `RegistrationInviteCode` 是否存在且未被消费，并在成功注册后一次性标记使用状态
-  - 已移除 `register/email-code` 注册验证码发送链路；当前不再要求注册前完成邮箱验证码校验
-  - 已支持 `PATCH /auth/profile`，允许当前登录用户自助更新昵称、头像地址和手机号
-  - 已支持 `POST /api/auth/profile/avatar` 上传头像到 OSS，并通过 `GET /api/auth/users/:userId/avatar/:fileName` 返回站内可访问头像
-  - 已支持 `me`、品牌列表、切换当前品牌、logout
-  - 兼容历史明文密码登录，并会在成功登录时自动升级为哈希密码
-- `apps/web/src/services/auth-session.ts`
-  - 前端登录态本地存储层
-  - 负责保存 `accessToken`、`refreshToken`、当前品牌和用户信息
-- `apps/web/src/services/auth.ts`
-  - 前端认证服务层
-  - 已接入 `login`、`register`、`me`、`profile update`、`brands`、`switch-brand`、`logout`
-- `apps/web/src/app/(dashboard)/brand-growth/workspace.tsx`
-  - 当前会在初始化工作区前先通过 `/api/auth/me` 校正真实品牌上下文，再并行读取品牌档案、飞书绑定、小红书收集、每日热点和报告相关工作区
-  - 当前 `FEISHU_XHS_TEMPLATE_URL` 已改为最新飞书 Base 副本链接，品牌增长页顶部与收集区的“打开飞书模板”入口统一复用这一路径
-  - 当前品牌增长页里的飞书媒体地址会先校验是否为真实飞书/Lark 附件链接；命中飞书附件才走站内 `feishu-media` 代理，普通外链资源继续直出，非法串直接丢弃
-- 当前品牌增长策略会先读取当前品牌的团队权限模板，并按页面映射到 `brandGrowth.*` 权限键：
-  - 无任一 `view` 权限时直接拦截进入
-  - 当前页无 `edit` 权限时，保存/同步/生成类按钮直接禁用或拦截
-  - 参考变更：`docs/changes/2026-05-15-team-role-unification-and-permission-matrix.md`
-  - 进入 `/brand-growth` 时先读取当前品牌团队权限；若当前账号在品牌增长策略下所有板块都没有 `view`，前端直接提示联系管理员开通
-  - 品牌资料保存、飞书绑定、热点同步、报告生成等操作按对应板块的 `edit` 权限控制
-  - 当前已接入的权限键覆盖品牌资料库、收集数据、品牌增长报告三组目录
- - `apps/web/src/app/(dashboard)/brand-growth/collection-workspace.tsx`
-  - 当前不再默认展示飞书同步原始字段、来源表格和来源记录等临时诊断内容；排障信息改回仅在开发时临时加挂，不作为正式界面的一部分
-  - 当前“收集数据”子页已去掉页面顶部重复头部，标题、刷新、提交和状态提示统一收口到各自板块内容容器内；抖音收集页已在手动对标作品后补入 3 个榜单卡片与二级分类下拉提交流程，公众号收集页新增 3 个独立采集卡片
-- `apps/web/src/app/(dashboard)/xiaohongshu/page.tsx`
-  - 当前已收成薄入口文件，仅负责挂载 `XiaohongshuWorkspaceShell`
-- `apps/web/src/app/(dashboard)/xiaohongshu/workspace-shell.tsx`
-  - 当前通过 `use-xiaohongshu-workspace-loader.ts` 在初始化工作区前先校正真实品牌上下文，并优先读取当前品牌的小红书权限模板
-  - 若当前账号在小红书目录下所有板块都没有 `view`，前端会直接显示无权限提示，不再继续进入工作区
-  - 进入工作区后只会继续请求当前账号有查看权限的营销方案、营销日历、作品列表、视频 Provider 与模板数据，避免无权限板块继续报错
-- `apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-loader.ts`
-  - 当前承接品牌上下文校正、权限门卫、工作区聚合加载、原创模板刷新以及营销方案/营销日历局部刷新逻辑
-- `apps/web/src/app/(dashboard)/xiaohongshu/use-xiaohongshu-workspace-tasks.ts`
-  - 当前承接营销策划方案、营销日历、原创/二创/视频与发布任务的状态派生、失败内联错误、取消中态和延迟轮询刷新
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-props.ts`
-  - 当前承接原创、二创、视频三类 section 的 props 拼装、发布目标包装与部分局部字段联动，进一步降低壳层渲染函数密度
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-section-containers.tsx`
-  - 当前主要承接原创、二创、视频三类 note section 的共享类型与路由分发，作为壳层与叶子 container 之间的中间路由层
-- `apps/web/src/app/(dashboard)/xiaohongshu/original-workspace-section-container.tsx`
-  - 当前承接原创笔记 section 的状态派生、动作包装与 props 组装
-- `apps/web/src/app/(dashboard)/xiaohongshu/rewrite-workspace-section-container.tsx`
-  - 当前承接二创笔记 section 的状态派生、动作包装与 props 组装
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-section-container.tsx`
-  - 当前承接视频笔记 section 的状态派生、动作包装与 props 组装
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-shared-panels.tsx`
-  - 当前承接原创、二创、视频三个 note 面板复用的头部工具栏、创作状态面板和发布状态面板
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modal-props.ts`
-  - 当前承接原创、二创、视频工作区到模态挂载层的参数装配 builder
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-shell.tsx`
-  - 当前承接原创、二创、视频三类创建弹窗的共享外层壳与底部动作区
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-create-modal-copy.ts`
-  - 当前承接原创、二创、视频三类创建弹窗的标题与说明静态配置 map
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-panel.tsx`
-  - 当前承接视频 note 面板详情区的阶段状态、故事板提示词、媒体预览、修改记录和动作按钮
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-stage-flags.ts`
-  - 当前承接视频详情区阶段按钮可用性的纯派生判断
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-props.ts`
-  - 当前承接视频工作区到详情区面板的参数装配 builder
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-detail-section.tsx`
-  - 当前承接视频详情区的判空、阶段派生与面板挂载层
-- `apps/web/src/app/(dashboard)/xiaohongshu/video-workspace-modals.tsx`
-  - 当前收敛为视频 note 模态挂载的兼容导出层，继续对外暴露 `VideoWorkspaceModals`
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-workspace-modals.tsx`
-  - 当前统一承接原创、二创、视频三类 note 面板的编辑弹窗与创建弹窗挂载实现
-- `apps/web/src/app/(dashboard)/xiaohongshu/original-create-reference-fields.tsx`
-  - 当前承接原创创建弹窗中的封面参考图、配图参考图、本地上传和模板应用局部块
-- `apps/web/src/app/(dashboard)/xiaohongshu/note-text-edit-modal.tsx`
-  - 当前承接原创、二创、视频编辑弹窗共用的文本编辑壳层，视频通过额外字段扩展故事板提示词
-- `apps/web/src/app/(dashboard)/xiaohongshu/assets-workspace.tsx`
-  - 当前素材库预览图片/视频时，会显式把当前工作区 `brandId` 透传给飞书媒体代理地址，避免附件预览继续误打到 demo brand
-  - 对受保护的飞书代理资源，当前会先用前端鉴权请求拉 blob，再以 object URL 渲染卡片和灯箱；普通外链继续直出
-  - 参考变更：`docs/changes/2026-05-13-xiaohongshu-assets-protected-media-preview.md`
-- `apps/web/src/services/http.ts`
-  - 当前已支持自动附带 `Authorization`、`x-brand-id`
-  - `401` 时会自动尝试 `refresh`
-  - 浏览器端默认走同域 `/api`
-- `apps/web/src/app/api/[...path]/route.ts`
-  - 生产同域 API 统一入口：将 `/api/*` 显式代理到 `127.0.0.1:3011/api` 或 `INTERNAL_API_BASE_URL`
-  - 用于替代对长响应 POST 不稳定的 `next.config.ts` rewrite
-- `PersonalCenterModule`：规划中；负责个人中心聚合视图、我的任务、我的作品、我的技能、我的团队
-- `BrandsModule`：品牌档案、产品、调研、经营资产、飞书绑定
-- `BrandMembersModule`：规划中；负责品牌主账号、子用户邀请、品牌角色与权限
-- `BrandsModule`
-  - 当前已新增 `/api/brands/:id/members`
-  - 当前已新增 `POST /api/brands/:id/members`
-  - 当前已新增 `PATCH /api/brands/:id/members/:memberId`
-  - 当前已新增 `/api/brands/:id/invites`
-  - 当前已新增 `POST /api/brands/:id/invites`
-  - 当前已新增 `PATCH /api/brands/:id/invites/:inviteId/revoke`
-  - 当前已新增 `PATCH /api/brands/me/invites/read-state`
-  - 当前已新增 `PATCH /api/brands/me/invites/accept-by-code`
-  - 当前已新增 `GET /api/brands/me/invites/history`
-  - 当前已新增 `GET /api/brands/me/invite-notifications`
-  - 当前已新增 `PATCH /api/brands/me/invite-notifications/read-state`
-  - 已修复 `/api/brands/me/invites*` 与 `/:id/invites*` 的路由优先级冲突，当前终端用户邀请接口会优先命中 `me` 路由
-  - 当前已新增 `GET /api/brands/:id/role-audit-logs`
-  - 当前已新增 `PATCH /api/brands/:id/transfer-owner`
-  - 已开始按当前登录用户校验品牌成员访问范围，并返回当前品牌成员列表与当前用户角色
-- 当前团队成员管理、邀请创建、邀请撤回与成员审计已收口为 `Owner` 权限；`POST /api/brands/:id/members` 不再直接写入成员，而是改为给已注册账号创建待确认邀请
-- 当前 `POST /api/brands/:id/invites` 改为只生成邀请链接，不再要求输入邀请账号
-- 参考变更：`docs/changes/2026-05-13-team-collaboration-owner-guard-and-invite-confirmation.md`
-  - 品牌资料库中的产品图片与资料附件现已统一写入 OSS，并分别通过 `/api/brands/:id/product-images/:fileName`、`/api/brands/:id/asset-files/:fileName` 代理读取
-- `CollectorsModule`：小红书收集、飞书同步、每日热点
-  - 飞书作品同步时会把附件字段先按图片/视频类型分流，再决定写入 `imageList` 或 `videoUrl`，避免把任意附件下载链接都当图片缩略图渲染
-  - 飞书媒体代理第一版已把浏览器缓存时间从 5 分钟提升到 30 分钟，用于降低同一素材在工作区反复滚动、打开和灯箱预览时的重复回源成本
-  - 当前前端品牌增长工作区与小红书素材库对飞书附件预览已共享同一套受保护媒体 blob 缓存 hook，减少相同代理地址在会话内的重复请求与重复 `createObjectURL`
-  - 当前抖音采集已支持 3 个榜单接口：低粉爆款榜、高完播率榜、高点赞率榜；后端会先读取垂类标签、按一级/二级分类组装 `tags` 请求，再把结果映射为统一抖音作品资产
-  - 当前 3 个抖音榜单结果会复用既有视频缓存与素材库链路，采集后自动进入 OSS 缓存队列，并可与手动对标作品一起沉淀到抖音素材库
-- `ReportsModule`：品牌增长报告、可视化报告、半年营销规划、小红书策划与日历、抖音热点找选题
-- `ReportsModule`
-  - 品牌增长报告、可视化报告、半年营销规划、小红书营销策划方案 4 类 HTML 产物现已真实写入 OSS
-  - 报告产物统一通过 `/api/reports/brands/:brandId/assets/:fileName` 代理读取，不再只保存占位外链
-  - 报告生成链路当前不再盲信技能里写入的 provider 名称；会先校验 `runtimeKey` 是否与当前文本生成任务兼容，再决定优先 provider 与可用模型，避免把文本报告请求误发到图像 provider 或与白名单不兼容的模型
-  - 当 `ApiProviderConfig` 的 `baseUrl` 能匹配到平台级 `ThirdPartyPlatformConfig` 时，报告链路必须读取当前品牌在 `BrandThirdPartyPlatformSecret` 中保存的共享 Key；若未配置则直接中断并提醒先到个人中心完成配置
-  - 当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，报告链路会优先按该 Provider 解析同名模型，再进入兼容模型 fallback
-  - 品牌增长报告现已对齐可视化报告/半年营销规划的后台任务模式：`generate -> create task -> background run -> persist asset -> polling latestTask`
-  - 品牌增长报告现以后台技能中心当前首选模型作为真实第一跳模型；若首选模型失败，再按兼容 provider 顺序 fallback，并把实际尝试顺序写入失败提示
-  - 品牌增长可视化报告、半年营销规划、小红书营销策划方案与营销日历现也对齐相同模型优先级规则，不再只让单条报告链路先吃后台默认模型
-  - 抖音“热点找选题”当前也走 `ReportsModule` 的异步任务工作区模式；工作区按热点日期读取结果，后台任务输入固定包含当天“每日热点”全部榜单与品牌背景资料
-  - 抖音“热点找选题”现在也会按 `douyin-workbench -> tongcheng-brand-douyin-planning -> douyin-hot-topic-candidates` 继承解析企业知识库绑定，再把召回片段拼进热点分析输入
-  - 半年营销规划当前以 `/reports/brands/:brandId/half-year-marketing-plan` 作为主读取与生成路径，同时保留旧 `annual-marketing-plan` 路径兼容历史前端和外部调用
-  - 本地开发若未配置 OSS，`OssStorageService` 会临时回退到 `.runtime/local-oss/<storageKey>`；但 `reports/<brandId>/<fileName>` 和站内 `/api/reports/.../assets/...` 读取接口保持不变，避免本地与正式结构分叉
-  - 本地浏览器端若运行在 `localhost/127.0.0.1`，统一 HTTP 客户端会优先直连 `http://127.0.0.1:3011/api`，绕开 Next `/api` rewrite 对长响应 POST 的 `ECONNRESET` 问题；生产环境继续走同域 `/api`
-  - 线上 `17ai.site` 现应通过 `apps/web/src/app/api/[...path]/route.ts` 承接同域 `/api` 请求，再转发到 `3011/api`，避免 `next.config.ts` rewrite 在品牌增长报告这类长请求上触发 `502/socket hang up`
-  - 参考变更：`docs/changes/2026-05-13-brand-growth-report-provider-routing-fix.md`
-  - 参考变更：`docs/changes/2026-05-13-brand-growth-report-async-task.md`
-  - 参考变更：`docs/changes/2026-05-13-brand-growth-report-model-priority-and-attempt-order.md`
-  - 参考变更：`docs/changes/2026-05-13-local-report-storage-fallback.md`
-  - 参考变更：`docs/changes/2026-05-13-local-web-api-direct-backend.md`
-  - 参考变更：`docs/changes/2026-05-13-production-api-route-proxy-fix.md`
-  - 参考变更：`docs/changes/2026-05-13-half-year-marketing-plan-refactor.md`
-- `WorksModule`：原创笔记作品生成、列表、编辑、删除、作品文件读取
-  - 原创/二创配图现在会结构化保存 `coverText`、`imageTexts`，并在出图前把标题/小标签强制注入最终图片 prompt
-  - 原创/二创生成图在保存本站副本前会统一规范为 `1242x1660` 的竖版 `3:4`，避免历史横图或方图继续进入作品库
-  - 二创链路在“未选产品”时会强约束禁止扩写具体 SKU、价格、门店购买引导，默认优先围绕对标素材的主事件与主场景生成
-  - `works` 生成出来的 HTML、图片、视频现已统一持久化到 OSS，前端仍通过 `/api/works/brands/:brandId/assets/:fileName` 读取
-  - 当前作品卡片第一版性能优化已落地：首屏前三张图片优先加载，其余卡片图改为延后懒加载；视频卡片预览视频改为 `preload="none"`，降低打开工作区时的媒体并发压力
-  - 当前发布弹窗二维码与视频详情故事板图片也已补入统一图片组件，避免小红书工作区继续散落原生 `<img>` 的默认加载行为
-  - 当前作品资产读取接口 `GET /api/works/brands/:brandId/assets/:fileName` 第一版已补浏览器缓存头 `private, max-age=86400`，用于减少图片/视频预览反复回源应用服务
-  - 原创参考模板库现由 `xhs-original-reference-templates.generated.ts` 作为静态清单真源，配合 `scripts/import-xhs-original-reference-templates.cjs` 把本地素材批量导入 OSS 或 `.runtime/local-oss`
-  - 原创参考模板资产统一通过 `/api/works/xiaohongshu/original/reference-templates/:templateId/asset` 同域站内接口读取，不直接暴露底层 OSS 链接，降低不同浏览器因绝对地址不一致导致的裂图差异
-  - 原创文案、原创配图提示词、原创图片生成、二创文案、二创配图提示词、二创图片生成、参考图分析、图像生成、视频文案、视频提示词、视频成片生成现统一通过后台 API Provider 配置中心读取运行时模型配置
-  - 当运行时 Provider 的 `baseUrl` 命中平台级第三方接口配置时，原创/二创/视频链路会优先使用当前品牌在 `BrandThirdPartyPlatformSecret` 中保存的共享 Key；文案、配图提示词、参考图分析、文生图与视频生成均走同一套品牌隔离规则
-  - 原创/二创文案与配图提示词链路当前已支持多个 `text-global` Provider 并发存在；当技能或提示词保存了 `providerId::modelName` 形式的作用域模型值时，运行时会优先命中对应平台的同名模型
-  - 文生图链路当前已兼容两种请求模式：OpenAI 兼容的多模态 `chat/completions`，以及 `Right Codes` 使用的 `/v1/images/generations`
-  - 视频生成链路当前已从固定后端硬编码改为按 `ApiProviderConfig.extraParams` 驱动；支持 `backendKey / requestProfile / createPath / queryPath / queryMethod / queryBodyMode`
-  - 当前火山方舟视频 Provider 已补入 `doubao-seedance-2-0-260128` 与 `doubao-seedance-2-0-fast-260128`；运行时创建接口兼容 `POST /api/v3/contents/generations/tasks`，查询接口兼容 `GET /api/v3/contents/generations/tasks/{id}`
-  - 柏拉图共享代理视频 Provider 已从系统基线移除；旧视频任务元数据里若仍残留兼容值 `seedance / seedance20`，运行时会自动映射到 `volcengine_seedance_20`，避免历史默认值在创建新任务时直接落到已下线平台
-  - 当前视频笔记已补入按第三方 `providerTaskId` 的手动恢复入口：`POST /api/works/brands/:brandId/xiaohongshu/video/recover`；可直接复查第三方任务状态，并在成功时把视频重新抓回站内 OSS 与作品元数据，不必再次扣费重跑
-  - 当前 Seedance 视频链路会额外强制执行“至少 15 分钟”的有效轮询窗口；即使后台 Provider 元数据仍残留较短轮询参数，也不会在 15 分钟内因轮询查询异常或旧配置覆盖而提前报错
-  - 当前视频第 3 阶段在第三方创建任务成功后，会立刻把 `providerTaskId` 写进作品元数据和站内任务 `outputJson`；即使后续轮询失败，也不会再丢失恢复所需的第三方任务 ID
-  - 当前 `/xiaohongshu` 视频详情面板已补入“找回视频结果”入口；只要当前作品已带 `providerTaskId` 且尚未回填成片，可直接从页面内触发第三方任务复查并把结果同步回当前列表
-  - 参考图风格分析当前对 `提示词/拆解图片提示词.txt` 增加了内置 fallback；即使外部 txt 缺失，也会回退到“反推出参考图 AI 生图中文描述词”的默认拆解提示词，不再直接因文件缺失中断原创笔记创作
-  - 原创/二创最终出图阶段当前会把上传参考图原图与产品图/素材图一并传给图像模型，不再只把参考图拆成文字后就丢失原图输入
-  - 后台技能中心当前已补入 `原创笔记-图片生成`、`二创笔记-图片生成` 两个独立技能节点，用于单独控制最终文生图模型和执行提示词
-  - 原创/二创两条图片生成技能当前默认指向 `Right Codes · 文生图/图生图 / provider_runtime_image_generation_right_codes::gpt-image-2`；若数据库里仍残留旧的 `provider_runtime_image_generation::gpt-image-2` 基线，启动时会自动安全回填到新 provider，但不会覆盖后台后来手动改成的其他模型
-  - 原创文案、原创配图提示词、二创文案、二创配图提示词、视频文案、视频提示词现已统一按后台技能中心当前默认模型作为真实第一跳模型；若失败再继续 fallback，并把实际尝试顺序写入错误提示
-- 小红书内容生产链路当前也已统一接入公共 Provider / 模型选择规则：若技能中心明确指定供应商，则只先在该供应商下执行；若只指定模型，则只先在包含该模型的 Provider 中执行；都匹配不到时才回退到通用链路
-  - 参考变更：`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
-  - 参考变更：`docs/changes/2026-05-17-volcengine-seedance-video-providers.md`
-  - 参考变更：`docs/changes/2026-05-18-remove-platogram-platform.md`
-  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-1.md`
-  - 参考变更：`docs/changes/2026-05-18-image-loading-optimization-phase-2.md`
-  - 参考变更：`docs/changes/2026-05-18-seedance-video-poll-window-fix.md`
-  - 参考变更：`docs/changes/2026-05-18-video-note-provider-task-recovery.md`
-  - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-timeout-hardening-and-recovery-entry.md`
-  - 参考变更：`docs/changes/2026-05-19-xiaohongshu-video-provider-taskid-early-persist.md`
-  - 当前已新增公众号工作台数据链路：
-    - `GET /api/works/brands/:brandId/wechat/config`
-    - `POST /api/works/brands/:brandId/wechat/config`
-    - `GET /api/works/brands/:brandId/wechat/articles`
-    - `POST /api/works/brands/:brandId/wechat/articles/generate`
-    - `PATCH /api/works/brands/:brandId/wechat/articles/:draftId`
-  - 公众号草稿当前固定输出 HTML，并在作品记录中保存 `publishStatus / publishedAt / publishTaskId / imageTask` 等状态字段
-- 公众号文章、生图链路当前与小红书、报告链路共用同一套 Provider / 模型公共选择规则，不再单独维护公众号私有优先级
-  - 公众号文章生成现在也会按 `wechat-workbench -> wechat-article-generator -> wechat-article-composer` 继承解析企业知识库绑定，再把召回片段拼进文章生成输入
-  - 公众号 HTML 渲染现在也会按 `wechat-workbench -> wechat-html-renderer -> wechat-html-renderer` 继承解析企业知识库绑定，再把召回片段拼进 HTML 渲染输入
-  - 公众号封面图和正文配图生成现在也会按 `wechat-workbench -> wechat-image-designer -> wechat-cover-image-designer / wechat-body-image-designer` 继承解析企业知识库绑定，再把召回片段拼进最终生图 prompt
-- 公众号配置、工作流偏好、官方账号、工作流会话、文章草稿、发布历史当前都已切到数据库优先持久化；数据库不可用时才回退到内存 mock store
-- 生图链路当前会在 `rate_limit_exceeded / 429 / quota` 时停止同模型下的 prompt 级重复尝试，并继续切换下一候选模型/供应商
-- 参考变更：`docs/changes/2026-06-06-skill-provider-selection-rule-unification.md`
-  - 当前已新增设计工作台数据链路：
-    - `GET /api/works/brands/:brandId/design/options`
-    - `POST /api/works/brands/:brandId/design/generate`
-    - 设计工作台参数聚合会同时读取品牌档案、产品库、小红书营销日历和运行时 Provider 列表
-    - 设计生成会按模块类型分流到图像生成或文本生成链路，并继续复用品牌级第三方接口密钥解析与产物持久化能力
-- `PublishingModule`：小红书发布会话、公众号发布入口
-  - 小红书继续承接手机扫码草稿与电脑端草稿接力链路
-  - 当前已新增 `POST /api/publishing/brands/:brandId/wechat/articles/:draftId/publish`
-  - 公众号发布当前通过 `PublishingModule -> WorksModule.publishWechatArticleDraft()` 统一执行发布前校验、任务创建和发布状态回写
-- `TasksModule`：任务记录与重试
-- `TasksModule`
-  - 当前已开始按请求登录态过滤用户任务，不再固定读取首个用户
-- `MembershipModule`：规划中；负责会员套餐、会员实例与权益判断
-- `PointsModule`：规划中；负责积分账户、积分规则、积分流水与返还
-- `MediaModule`：媒体资产
-- `MediaModule`
-  - 当前已开始按请求登录态过滤用户媒体，不再固定读取首个用户
-- `OrdersModule`：订单、支付、取消、后台订单视图
-- `OrdersModule`
-  - 当前已开始按请求登录态过滤订单访问，不再固定绑定首个用户
-- `admin/skills-prompts`：后台技能中心；当前技能与提示词已新增 `SkillConfig` / `PromptTemplate` 注册表，技能元数据继续走“数据库优先、Mock 兜底”，但提示词正文会优先回源读取真实 `SKILL.md + 同目录参考资料`
-  - 当前自动聚合 `SKILL.md`、`00_资料总索引.md`、模块参考稿、原始 `.txt` 与补出的 `.md` 参考文档，不纳入 `outputs/`、`scripts/`、`__pycache__/` 等运行产物目录
-  - 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
-
-### 4.3 管理模块
+### 6.2 后台治理模块
 
 - `admin/api-providers`
-  - 当前已支持后台真实读取与保存接口供应商配置；数据库可用时优先读写 `ApiProviderConfig` 运行时表，不可用时回退到 `mock-data`
-- `ThirdPartyPlatformsModule`
-  - 当前已新增平台级第三方接口配置模块，后台通过 `/api/admin/third-party-platforms` 维护平台基线，个人中心通过 `/api/third-party-platforms` 读取并由拥有对应权限的成员保存品牌共享 API Key
-  - 当前该模块还负责把平台基线 + 品牌共享密钥映射回 `ReportsModule` 与 `WorksModule` 的真实运行时；解析顺序为 `brandId -> platformId(baseUrl 匹配)`，命中平台后若缺少品牌共享密钥会直接返回提醒，不再允许继续落回 `ApiProviderConfig` 公共 Key
-  - 数据库可用时优先读写 `ThirdPartyPlatformConfig` 与 `BrandThirdPartyPlatformSecret`，数据库不可用时回退到 `mock-data`
 - `admin/billing-rules`
 - `admin/knowledge-bases`
 - `admin/model-usage`
+- `admin/module-definitions`
+- `admin/skill-packages`
+- `admin/skill-package-modules`
+- `admin/skill-package-knowledge-spaces`
+- `admin/skill-package-skills`
 - `admin/skills-prompts`
 - `admin/users-admin`
 
-## 5. 关键数据链路
+## 7. 当前主链路
 
-### 5.1 品牌增长主链路
+### 7.1 品牌增长主链路
 
-1. 品牌基础资料进入 `BrandsModule`
-2. 小红书与每日热点进入 `CollectorsModule`
-3. 报告类生成进入 `ReportsModule`
-4. 任务状态进入 `TasksModule`
-5. 结果资产进入 `MediaModule` 或品牌相关资产表，并用 `storageKey + 站内 sourceUrl/fileUrl` 指向 OSS 真源
+1. 登录并进入品牌工作区
+2. 维护品牌资料与企业知识库
+3. 收集小红书 / 抖音 / 热点数据
+4. 生成品牌增长报告 / 半年营销规划 / 营销日历
+5. 将结果继续送往小红书、抖音、公众号、设计工作台
+6. 在个人中心查看任务、订单、作品
 
-### 5.2 小红书数据链路
+### 7.2 OpenClaw 链路
 
-1. 用户在飞书多维表格中维护品牌/竞品主页链接
-2. 前端在 `/brand-growth` 里保存飞书应用配置和飞书副本绑定；品牌域 service 若已显式传入 `brandId`，必须优先使用该值，不能再被本地会话缓存品牌覆盖
-3. 后端通过用户级飞书 OAuth 读取飞书表；同步时采用“表名优先、内容补齐缺项、唯一表去重分配”的匹配策略，避免只命中部分表名后直接跳过剩余表，也避免同一张表被多个角色重复占用并抬高命中表数
-4. 飞书同步接口除返回总 `syncedCount`、`tableCount` 外，还会补充各角色命中的 `matchedTables`、分类写入条数 `syncBreakdown` 和同步后工作区计数 `workspaceCounts`，便于直接区分“未命中对标表”“命中但写入 0 条”与“写入后重载读空”
-5. 品牌增长页点击“从飞书同步”后会先落同步响应里的 `workspace`，再触发 `loadArchive()`；若重载后把 `benchmarkNotes` 刷成 0，但同步响应中已有对标作品，则继续保留该结果，避免页面把刚同步出来的数据瞬间刷没
-6. `/xiaohongshu` 页面消费这些结果继续生成策划方案与营销日历
-- 参考变更：`docs/changes/2026-05-14-feishu-partial-table-match-backfill.md`
-- 参考变更：`docs/changes/2026-05-14-feishu-table-dedup-and-unique-count.md`
-- 参考变更：`docs/changes/2026-05-14-feishu-sync-diagnostics-and-workspace-fallback.md`
-- 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
+1. 在个人中心 OpenClaw 页面生成正式安装令牌
+2. 使用 MCP 地址与 Skill ZIP 完成客户端接入
+3. 通过受控 API / MCP 读取当前品牌上下文与能力
+4. 在用户权限范围内触发查询、生成和执行动作
 
-### 5.3 每日热点链路
+## 8. 当前关键技术边界
 
-1. 后端读取 `TIKHUB_API_KEY`；生产部署时必须把该 Secret 显式传给 PM2 运行环境，并在 `ecosystem.config.cjs` 的 `ai-omni-server.env` 中映射 `process.env.TIKHUB_API_KEY`
-2. `SchedulerModule` 注册每日热点任务
-3. `CollectorsModule` 每天 4:00 自动拉取热点
-4. 数据写回每日热点工作区；若当天快照缺失，工作区接口会在读取时自动补抓一次
-5. `/brand-growth` 的“每日热点”页面直接展示，并支持“手动搜索”即时刷新当天数据
+- 官网首页与登录页已分离
+- 前后台技能、Provider、知识绑定逐步收口到治理后台
+- 长耗时生成任务统一走任务中心
+- 正式资源以 OSS 为真源，本地仅允许受控回退
+- `docs/project_planning/` 不代表当前实现
 
-### 5.3B 抖音榜单采集链路
+## 9. 相关文档
 
-1. 用户在 `/brand-growth` 的“收集数据 -> 抖音”中切到 `获取低粉爆款榜 / 获取高完播率榜 / 获取高点赞率榜`
-2. 页面先通过工作区返回的 `contentTags` 渲染一级分类和二级分类下拉；用户选择完成后点击提交
-3. 前端 `collectors.ts` 把所选一级/二级分类写入 `contentTagSelection`，并通过 `/collectors/douyin/brands/:brandId/sync` 按榜单 scope 发起同步
-4. 后端 `CollectorsModule` 先读取 TikHub 垂类标签，再按榜单接口要求组装 `POST` 请求体中的 `tags`
-5. 榜单结果统一映射为抖音作品采集资产，并补齐榜单名、一级分类、二级分类和榜单分数字段
-6. 若返回的是短视频作品，后端会沿用既有抖音视频缓存链路，把视频副本写入 OSS 或开发态本地回退目录
-7. 前端结果表复用“对标作品信息及数据”的素材库勾选列；勾选后作品可直接进入 `/douyin` 的素材库分区
-
-### 5.3A 营销日历链路
-
-1. 用户在 `/xiaohongshu` 的“营销日历”点击“一键生成”或“生成接下来 7 天”
-2. 前端先校验 `品牌增长报告`、`半年营销规划`、`小红书营销策划方案` 是否已存在
-3. 后端 `ReportsModule` 创建 `XHS_MARKETING_CALENDAR` 后台任务，并把状态写入任务记录
-4. 任务执行时读取品牌资料、小红书收集结果、每日热点、历史营销日历，以及前后台统一注册的 `xiaohongshu-marketing-calendar / prompt_xhs_calendar` 技能配置
-5. 运行时优先采用后台技能中心为营销日历指定的模型，默认以 `deepseek-v4-pro` 作为文本模型兜底
-6. 生成成功后写回新的 7 天营销日历；前端按 7 张真实日历卡片展示月份、日期与主题，点击后查看当天详情并支持直接编辑保存；失败时前端直接展示中文错误
-7. 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
-
-### 5.4 原创笔记链路
-
-1. 用户在 `/xiaohongshu` 的“原创笔记”中选择营销日历选题或自定义选题
-2. 页面可选带入产品、封面参考图、配图参考图、配图数量、是否植入营销策划方案与用户要求；参考图既可本地上传，也可从模板图库选择
-3. 模板图库会先从 `/api/works/xiaohongshu/original/reference-templates` 拉分类与模板清单，支持关键词搜索、点击提示与每页 10 张分页；用户选中后再通过站内模板资产接口下载成 `File`
-4. 后端 `WorksModule` 串联参考图分析、原创文案、`xhs-original-image-prompt` 配图提示词与文生图生成
-5. 当前最终文生图阶段会继续读取 `xhs-original-image-generation / prompt_xhs_original_image_generation`，并把上传参考图原图一起传给图像模型
-6. 当用户选择 `不植入营销策划方案` 时，原创生成可直接基于营销日历、产品、参考图和用户要求继续执行，不再强依赖先生成营销策划方案
-7. 原创模板素材统一走 `reference-templates/xiaohongshu/original/...` 存储前缀；开发态未配置 OSS 时可临时回退到 `.runtime/local-oss`
-8. 生成任务优先归属当前登录用户，并在创作完成后同步刷新小红书工作区与个人中心任务视图
-9. 成品图文保存到作品记录，并同步沉淀到“我的作品”
-10. `/admin` 技能中心当前可分别查看原创文案、原创配图提示词与原创图片生成三段技能
-11. 模板库当前已移除 `夏日出行露营city walk小红书封面` 与 `夏日出行露营city walk小红书封面 / 效果图` 两组模板，封面模板与配图模板入口共用同一份裁剪后的清单
-12. 参考变更：`docs/changes/2026-05-14-xhs-original-reference-template-library.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-14-xhs-template-picker-pagination-and-pruning.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`
-
-### 5.4B 二创笔记链路
-
-1. 用户在 `/xiaohongshu` 的“二创笔记”中从素材库选择一条已入库作品
-2. 页面可选带入产品、账号角色、是否植入营销策划方案与用户要求
-3. 后端 `WorksModule` 会先按当前团队角色收口账号角色，再基于素材库作品、二创文案提示词、二创配图提示词与独立的二创图片生成技能链路生成成品
-4. 当前二创文案与配图提示词都会感知账号角色，让语气、人设和画面主体跟随发布主体调整
-5. 当前最终文生图阶段会读取 `rewrite_image_generation / prompt_xhs_rewrite_image_generation`，并继续把素材库来源图片与产品图一并传给图像模型
-6. 当用户选择 `不植入营销策划方案` 时，二创生成可直接基于素材库内容、产品信息和用户要求继续执行，不再强依赖先生成营销策划方案
-7. 成品图文保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
-8. 参考变更：`docs/changes/2026-05-05-rewrite-note-workflow.md`、`docs/changes/2026-05-14-xhs-note-marketing-plan-toggle.md`、`docs/changes/2026-05-15-xhs-extension-and-image-generation-runtime.md`、`docs/changes/2026-05-16-xhs-all-works-account-role.md`
-
-### 5.5 视频笔记链路
-
-1. 用户在 `/xiaohongshu` 的“视频笔记”中选择营销日历选题或自定义选题
-2. 创建弹窗当前固定只提供 `10 秒 / 15 秒` 两种时长，并新增 `品牌宣传视频 / 口播带货视频 / 短剧带货视频 / 复刻视频` 类型；`复刻视频` 必须选择视频素材
-3. 页面可选带入产品或参考图、账号角色、视频素材、视频模型、是否植入营销策划方案，以及“剧本要求 / 故事板与视频要求”两组输入
-4. 后端 `WorksModule` 会先按当前团队角色收口账号角色，再按视频类型读取对应提示词：品牌宣传剧本、口播带货剧本、短剧带货剧本、复刻视频拆解、故事板提示词
-5. 第 1 阶段先生成创意剧本；品牌宣传 / 口播带货 / 短剧带货直接根据用户输入生成，复刻视频则先基于所选素材的视频链接和拆解提示词生成剧情脚本
-6. 第 2 阶段根据剧本和用户产品图生成故事板提示词，并调用 `gpt-image-2` 产出故事板图片
-7. 第 2 阶段完成后，作品会停在 `WAITING_VIDEO`；前端详情区会显示进度、创意剧本、可编辑故事板提示词和故事板图片，用户可选择“修改”或“生成短视频”
-8. 第 3 阶段直接使用固定视频生成提示词结合故事板图片，调用用户选择的视频模型生成最终短视频，不再额外生成“短视频提示词”
-9. 成品视频、中间剧本、故事板提示词、故事板图片与阶段状态都保存到作品记录，并把账号角色写入 `MediaAsset.metadataJson`，同步沉淀到“我的作品”
-
-### 5.5B 公众号原创文章链路
-
-1. 用户进入 `/wechat` 后，工作台先读取当前品牌档案、小红书营销日历工作区、公众号配置和公众号文章草稿列表
-2. 用户在“配置页面”填写 `AppID / AppSecret / IP 白名单`，前端通过 `saveWechatAccountConfig()` 提交到 `WorksModule`
-3. 用户在“原创创作”中打开添加弹窗，按需选择营销日历、产品信息、品牌资料是否植入、图片生成策略、主题颜色和创作要求
-4. 前端通过 `generateWechatArticleDraft()` 提交到 `POST /api/works/brands/:brandId/wechat/articles/generate`
-5. 后端 `WorksModule` 会基于营销节点、产品信息和品牌资料组装公众号文章内容，生成固定 `HTML` 草稿，并回写文章技能、图片任务和作品状态信息
-6. 草稿生成后，前端按作品卡片展示，可直接查看 HTML 预览；若图片已生成，会优先将真实图片 URL 回写并植入 HTML
-7. 用户点击“一键发布”后，前端通过 `publishWechatArticleToOfficialAccount()` 命中 `PublishingModule`
-8. 后端发布入口会先校验当前品牌是否已配置 `AppID / AppSecret / IP 白名单`，再创建发布任务并把草稿状态更新为 `PUBLISHED`
-9. 公众号工作流 `执行文章AI` 当前也已正式接入 `Task` 表；任务中心会记录 `WECHAT_ARTICLE_AI`，不再只在工作流会话表里留痕
-10. 当前发布链路已完成正式工作台接线，并会真实调用公众号官方 API 发布到草稿箱；公众号发布任务也已使用独立 `WECHAT_*` 类型，不再复用 `XHS_ORIGINAL_NOTE`
-11. 参考变更：`docs/changes/2026-06-03-wechat-workspace-and-publishing.md`
-12. 参考变更：`docs/changes/2026-06-06-wechat-task-center-and-prompt-db-source-fix.md`
-
-### 5.6 技能与提示词注册链路
-
-1. 后台 `/admin` 的技能中心通过 `admin/skills-prompts` 读取技能配置与提示词模板
-2. `SkillsPromptsService` 启动时优先检查 PostgreSQL 中的 `SkillConfig`、`PromptTemplate`
-3. 若注册表为空，则把 `mock-data` 与真实 `SKILL.md + 同目录参考资料` 回填进数据库
-4. `ReportsModule` 与 `WorksModule` 当前已优先从注册表读取品牌增长、小红书原创/二创/视频相关提示词
-5. 小红书营销日历现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `xiaohongshu-marketing-calendar / prompt_xhs_calendar`
-6. 抖音热点找选题现也已纳入注册表：后台技能中心、个人中心技能中心与 `ReportsModule` 统一使用 `douyin-hot-topic-candidates / prompt_douyin_hot_topic_candidates`
-7. 平台级提示词当前以数据库 `PromptTemplate.content` 为唯一真源；文件仅用于首次种子导入、数据库不可用时 fallback，以及开发阶段文件基线维护
-8. 个人中心用户技能覆盖层对营销日历提示词也会做同样的占位短文案矫正，避免历史 `UserPromptOverride.content` 把平台完整提示词重新覆盖坏
-9. 数据库不可用时，后端才回退到 `mock-data + 文件/内置 fallback`
-- 参考变更：`docs/changes/2026-05-13-admin-skill-center-reference-bundles.md`
-- 参考变更：`docs/changes/2026-05-14-xhs-marketing-calendar-skill-and-seven-day-view.md`
-- 参考变更：`docs/changes/2026-06-06-wechat-task-center-and-prompt-db-source-fix.md`
-- 参考变更：`docs/changes/2026-05-27-douyin-hot-topic-candidates.md`
-
-## 6. 当前已确认的真实能力
-
-- `3001` 前端可打开品牌增长页
-- `3011` 后端健康检查通过
-- 小红书飞书绑定和同步状态可持久化
-- 每日热点工作区和手动同步接口已跑通
-- 定时器能力已独立为 `SchedulerModule`
-- `works` 作品文件已切到纯 OSS 持久化，站内资产接口可直接代理读取
-- `reports` HTML 产物已切到 OSS 持久化，站内报告资产接口可直接代理读取
-- 品牌产品图、品牌资料附件和用户头像已切到 OSS 持久化
-- `/wechat` 已独立落地正式工作台，支持公众号配置、原创文章草稿生成、真实第三方文本/图片模型执行、HTML 预览和一键发布入口
-- `/more-features/design` 已接入真实品牌数据、营销日历和第三方模型配置，支持图片/HTML/PPT/视频四类设计创建
-- 抖音当前已补齐第一版电脑端辅助发布链路：视频作品可通过独立浏览器扩展自动打开创作者中心、上传视频并填写标题/描述，最后一步由人工确认发布
-- 小红书当前已补齐第一版电脑端草稿发布链路：图文笔记可通过独立浏览器扩展自动打开创作者中心并写入草稿箱
-
-## 7. 当前仍属过渡或待完善部分
-
-- `/` 已改为统一认证入口，默认展示邀请码注册；`/login`、`/register` 作为兼容入口保留
-- 视频号/私域尚未独立落地；当前已确认视频号官方存在 `channels.weixin.qq.com` 电脑端发布入口，后续可评估独立浏览器辅助发布链路，但尚未开始正式开发
-- 公众号已独立落地正式工作台，文本生成、生图、一键发布与数据库持久化均已接入；当前剩余工作集中在多账号联调和生产验收
-- 当前桌面发布扩展仍按平台独立维护：
-  - 小红书仅支持图文笔记草稿箱
-  - 抖音仅支持视频作品辅助发布
-  - 统一插件技术上可做，但第一版已验证会产生平台脚本互相干扰，当前不作为主路线
-- 设计工作台已接真实创建链路，但当前作品区仍以本次会话内生成结果为主，尚未补独立历史列表接口
-- 多品牌切换底座已接入登录态与当前品牌上下文，但更多页面的细粒度成员权限、品牌内共享和后台运营闭环仍待继续收口
-- 部分后端仍存在过渡性 DI 写法，需要继续收敛
-- `apps/server/src/common/mock-data.ts` 中仍保留少量 `oss.example.com` 演示占位链接，尚未全部替换为真实站内资源路径
-- 个人中心已接入第一版真实多用户登录态，并已落地概览页、`/orders`、`/works`、`/skills`、`/third-party-platforms`、`/security`、`/tasks`、`/team`、`/invites` 九段前端路由；其中 `orders` 已支持用户级订单查询、状态/类型筛选与订单详情跳转，`works` 已支持用户级作品资产查询、范围/类型筛选、小红书工作台回跳与源文件打开，`skills` 已支持平台技能基线查看、状态筛选与提示词场景参考，`third-party-platforms` 已支持按平台查看基线并由 Owner 保存私有 API Key，`security` 已支持当前浏览器登录态、token 持有状态、品牌上下文与退出入口可视化，`team` 已支持成员添加、角色/状态修改、创建邀请、撤回邀请、接受邀请、邀请码加入、邀请链接复制、成员审计日志查看和主账号转移入口；真正的用户技能覆盖层、更细的任务中心能力与安全设置写操作仍待继续升级
-- 后台管理台现已增加独立 `/admin/login` 登录入口，并在 `/admin` 页面按 `SUPER_ADMIN / ADMIN_OPERATOR / FINANCE_OPERATOR / SUPPORT_OPERATOR` 收口后台栏目；非后台角色账号不会再直接进入后台页
-- 注册当前已切为邀请码准入；项目内已预置 300 个 6 位邀请码，并通过 seed 写入 `RegistrationInviteCode`
-- 后台用户管理已进入“单用户弹窗编辑”阶段，但批量操作、分页排序和更完整的品牌权限运营闭环仍待继续补齐
-- P0 已完成两段半底座：后端登录态、`BrandMember`、`UserSession`、当前用户任务/订单/媒体过滤已落地；前端登录页、token 刷新、个人中心登录态校验与品牌切换已接入，并已开始拆个人中心二级路由
-
-## 8. 维护规则
-
-- 新增页面、模块、接口时，必须同步更新本文件
-- 如果只是实现细节变化，但入口、职责、主链路没变，可只更新变更记录
-- 若主链路发生变化，应先更新本文件，再继续后续开发
-- 若数据库结构或入库边界变化，应同时更新 `docs/database-archive.md`
-- 若用户只说“更新一下”，默认本文件与 `docs/site-map-mermaid.md` 一起更新，不再单独等待补充说明
+- `docs/site-map-mermaid.md`
+- `docs/engineering-standards.md`
+- `docs/database-archive.md`
+- `docs/generated-content-storage-standards.md`
+- `docs/openclaw/README.md`
+- `docs/changes/2026-06-13-docs-baseline-cleanup.md`

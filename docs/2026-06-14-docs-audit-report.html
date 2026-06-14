@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI全域运营系统文档审计报告 - 2026-06-14</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #121a2b;
+        --panel-2: #182238;
+        --text: #e8eefc;
+        --muted: #a8b6d3;
+        --line: #2a3550;
+        --ok: #35c48b;
+        --warn: #ffb648;
+        --danger: #ff7b7b;
+        --accent: #6ea8fe;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: linear-gradient(180deg, #09111f 0%, #0f172a 100%);
+        color: var(--text);
+        line-height: 1.65;
+      }
+
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 40px 24px 64px;
+      }
+
+      .hero,
+      .section,
+      .card,
+      .table-wrap,
+      .note {
+        background: rgba(18, 26, 43, 0.92);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+      }
+
+      .hero {
+        padding: 28px;
+        margin-bottom: 24px;
+      }
+
+      .hero h1 {
+        margin: 0 0 10px;
+        font-size: 32px;
+        line-height: 1.2;
+      }
+
+      .hero p,
+      .section p,
+      .note p,
+      li,
+      td,
+      th {
+        color: var(--muted);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(110, 168, 254, 0.12);
+        border: 1px solid rgba(110, 168, 254, 0.26);
+        color: #d8e8ff;
+        font-size: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin: 24px 0;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .card .label {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      .card .value {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+
+      .ok {
+        color: var(--ok);
+      }
+
+      .warn {
+        color: var(--warn);
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      .section {
+        padding: 24px;
+        margin-top: 20px;
+      }
+
+      .section h2 {
+        margin: 0 0 14px;
+        font-size: 22px;
+      }
+
+      .section h3 {
+        margin: 18px 0 10px;
+        font-size: 17px;
+      }
+
+      ul {
+        margin: 10px 0 0 20px;
+        padding: 0;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        margin-top: 16px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      th {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.03);
+        font-weight: 600;
+      }
+
+      code {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        color: #d8e8ff;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 2px 7px;
+      }
+
+      .note {
+        padding: 18px 20px;
+        margin-top: 16px;
+      }
+
+      .footer {
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 960px) {
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          padding: 24px 14px 40px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero h1 {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <h1>AI全域运营系统文档审计报告</h1>
+        <p>
+          本报告针对 <code>docs/</code> 目录做一次完整的清理、校准和结构收口，目标是让系统文档重新回到“当前真相优先、结构清晰、入口明确、便于辅助开发”的状态。
+        </p>
+        <div class="meta">
+          <span class="pill">审计日期：2026-06-14</span>
+          <span class="pill">审计范围：<code>ai-omni-ops-system/docs</code></span>
+          <span class="pill">对照对象：<code>apps/web/src/app</code>、<code>apps/server/src/app.module.ts</code></span>
+          <span class="pill">目标：删冗余、修错误、补缺口、重建文档层次</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <span class="label">本轮状态总项</span>
+          <div class="value">71</div>
+          <p>按 <code>git status --short -- docs</code> 统计。</p>
+        </article>
+        <article class="card">
+          <span class="label">删除文件</span>
+          <div class="value danger">61</div>
+          <p>主要是镜像 HTML 和已放弃路线文档。</p>
+        </article>
+        <article class="card">
+          <span class="label">修订文件</span>
+          <div class="value warn">9</div>
+          <p>以关键基线文档和少量历史记录纠偏为主。</p>
+        </article>
+        <article class="card">
+          <span class="label">新增文件</span>
+          <div class="value ok">1</div>
+          <p>新增本轮文档清理变更记录。</p>
+        </article>
+      </section>
+
+      <section class="section">
+        <h2>1. 审计目标</h2>
+        <ul>
+          <li>把 <code>docs/</code> 从历史堆积状态收回到“当前系统真相 + 必要专题 + 变更记录 + 历史规划”的四层结构。</li>
+          <li>逐项比对实际代码，修正与现状不符的规范、站点地图、Git 流程和入口说明。</li>
+          <li>删除已失去储存价值的重复镜像、废弃路线和误导性文档。</li>
+          <li>保留真正仍有价值的历史资料，但明确它们不是当前实现依据。</li>
+          <li>让后续开发、排查、交接、标准化都能先从文档获得正确起点。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>2. 对照方法</h2>
+        <ul>
+          <li>核对前端真实路由目录：<code>apps/web/src/app</code>。</li>
+          <li>核对个人中心真实子路由：<code>apps/web/src/app/(dashboard)/personal-center/layout.tsx</code>。</li>
+          <li>核对前端首页与认证入口：<code>apps/web/src/app/page.tsx</code>、<code>apps/web/src/app/(auth)/*</code>、<code>apps/web/src/app/(dashboard)/more-features/page.tsx</code>。</li>
+          <li>核对后端真实模块装配：<code>apps/server/src/app.module.ts</code>。</li>
+          <li>核对 OpenClaw 当前安装中心：<code>apps/web/src/app/(dashboard)/personal-center/openclaw/page.tsx</code>。</li>
+          <li>复查文档内是否仍保留多-agent 默认开发模式、失效 HTML 镜像依赖或错误入口口径。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>3. 关键结论</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>核查项</th>
+                <th>代码现状</th>
+                <th>文档处理结果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>首页与认证关系</td>
+                <td><code>/</code> 为营销官网首页；<code>/login</code>、<code>/register</code>、<code>/admin/login</code> 为明确认证入口。</td>
+                <td>已在 <code>engineering-standards.md</code>、<code>site-map.md</code>、<code>site-map-mermaid.md</code> 统一修正，不再把根页写成默认登录入口。</td>
+              </tr>
+              <tr>
+                <td>个人中心结构</td>
+                <td>已存在概览、任务、订单、作品、技能、第三方接口、OpenClaw、安全、团队、邀请等子页。</td>
+                <td>已在站点地图和工程规范中补齐，特别纳入 <code>/personal-center/openclaw</code>。</td>
+              </tr>
+              <tr>
+                <td>更多功能入口</td>
+                <td><code>/more-features</code> 当前重定向到 <code>/more-features/design</code>。</td>
+                <td>已写入 <code>site-map.md</code> 和 Mermaid 图，不再把“更多功能”写成未定义入口。</td>
+              </tr>
+              <tr>
+                <td>后台模块</td>
+                <td><code>app.module.ts</code> 已注册用户、Provider、计费、知识库、模块注册、能力包、技能提示词、OpenClaw 等模块。</td>
+                <td>已补齐后台治理模块地图，避免继续沿用旧的后台范围描述。</td>
+              </tr>
+              <tr>
+                <td>协作模式</td>
+                <td>当前实际开发模式已收口为单 Agent。</td>
+                <td>已删除多-agent 主文档，并把基线文档口径改为单 Agent 收口；历史残留表述只保留为必要背景或最小中性说明。</td>
+              </tr>
+              <tr>
+                <td>OpenClaw 文档关系</td>
+                <td>安装中心仍使用公开 HTML 交付页，但这部分位于 <code>apps/web/public/docs/openclaw/</code>，不属于 <code>docs/</code> 源文档目录。</td>
+                <td>已在 <code>docs/README.md</code>、<code>docs/openclaw/README.md</code> 和变更记录中明确区分“源 Markdown”与“公开交付 HTML”。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>4. 本轮核心修订</h2>
+        <h3>4.1 重写的关键基线文档</h3>
+        <ul>
+          <li><code>docs/README.md</code>：重建文档总入口和分层规则。</li>
+          <li><code>docs/engineering-standards.md</code>：按当前产品结构重写入口、工作台、任务、OpenClaw、Provider、资源规则。</li>
+          <li><code>docs/git-workflow.md</code>：改成当前实际适用的提交流程和混合工作区处理规则。</li>
+          <li><code>docs/site-map.md</code>：重写文字版系统地图，补齐真实入口、后台模块和主链路。</li>
+          <li><code>docs/site-map-mermaid.md</code>：重画结构图，明确当前真相与历史规划的边界。</li>
+        </ul>
+
+        <h3>4.2 收口的专题入口</h3>
+        <ul>
+          <li><code>docs/openclaw/README.md</code>：不再把 HTML 镜像当主入口，而是以 Markdown 主文档为准。</li>
+          <li><code>docs/changes/2026-06-13-docs-baseline-cleanup.md</code>：记录本轮文档治理范围、原则和保留边界。</li>
+        </ul>
+
+        <h3>4.3 纠偏的历史记录</h3>
+        <ul>
+          <li><code>docs/changes/2026-05-10-auth-invite-registration-and-gated-frontend.md</code>：补充阶段性说明，防止被误读成当前入口结构。</li>
+          <li><code>docs/changes/2026-05-20-douyin-tikhub-field-model.md</code>：去除多-agent 过程表述。</li>
+          <li><code>docs/changes/2026-05-26-video-note-direct-video-and-storyboard-image-model.md</code>：继续清掉“并行 Agent”语义残留。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>5. 删除清单摘要</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>删除类别</th>
+                <th>处理原则</th>
+                <th>代表样例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Markdown 镜像 HTML</td>
+                <td>与源码文档一一重复，不再作为 <code>docs/</code> 目录长期保留内容。</td>
+                <td><code>docs/*.html</code>、<code>docs/openclaw/*.html</code>、<code>docs/project_planning/*.html</code></td>
+              </tr>
+              <tr>
+                <td>已放弃的多-agent 路线</td>
+                <td>与当前技术选择不匹配，继续保留只会误导后续开发。</td>
+                <td><code>docs/ai-multi-agent-collaboration-playbook.md</code>、<code>docs/ai-agent-access-and-secrets-policy.md</code></td>
+              </tr>
+              <tr>
+                <td>对应变更记录</td>
+                <td>如果只服务于已废弃路线，且不再具有独立追溯价值，则同步移除。</td>
+                <td><code>docs/changes/2026-05-19-*.md</code>、<code>docs/changes/2026-05-20-multi-agent-feishu-shared-log.md</code>、<code>docs/changes/2026-05-25-single-agent-mode-reinstated.md</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <p>
+            特别说明：本轮删除的是 <code>docs/</code> 目录里的镜像 HTML，不是站点真正需要公开访问的交付页。当前 OpenClaw 安装中心仍依赖的公开 HTML 位于 <code>apps/web/public/docs/openclaw/</code>，该部分没有纳入删除范围。
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>6. 目前保留的文档结构</h2>
+        <ul>
+          <li><strong>核心基线：</strong><code>README.md</code>、<code>engineering-standards.md</code>、<code>git-workflow.md</code>、<code>site-map.md</code>、<code>site-map-mermaid.md</code>、数据库和存储规范。</li>
+          <li><strong>当前专题：</strong>个人中心协作方案、系统重构路线、OpenClaw 专题、生产端口冲突恢复等。</li>
+          <li><strong>变更记录：</strong><code>docs/changes/</code> 继续承担演进留痕。</li>
+          <li><strong>历史规划：</strong><code>docs/project_planning/</code> 仍保留，但明确仅作阶段性参考。</li>
+          <li><strong>输出报告：</strong><code>docs/*.html</code> 仅保留当前仍需交付或汇报的报告，不再和 Markdown 互相镜像。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>7. 发现的额外情况</h2>
+        <ul>
+          <li><code>apps/web/src/app/home-page-client.tsx</code> 内仍保留旧的 <code>/?mode=login</code> / <code>/?mode=register</code> 兼容逻辑，但当前首页真实入口已由 <code>apps/web/src/app/page.tsx</code> 的营销模板承接。</li>
+          <li>因此本轮基线文档仍以“<code>/</code> 是官网首页，<code>/login</code> 和 <code>/register</code> 是当前认证入口”作为对外真相，这与当前实际路由装配一致。</li>
+          <li>若后续确认 <code>home-page-client.tsx</code> 已彻底废弃，可在代码层进一步清理，以减少历史路径误导。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>8. 结论</h2>
+        <ul>
+          <li>本轮文档治理已经完成核心目标：关键基线文档与当前代码结构重新对齐，文档目录从“历史堆积”收口为“当前真相优先”。</li>
+          <li>多-agent 相关文档已从主体系移除，当前技术选择和开发模式已经明确回到单 Agent 收口。</li>
+          <li>站点地图、工程规范、Git 规则、OpenClaw 文档入口都已更适合作为后续开发、排查和标准化的起点。</li>
+          <li>仍建议后续持续遵循“结构变化先改站点地图、规则变化先改基线文档、代码改动同步补变更记录”的维护策略，避免再次回到文档失真状态。</li>
+        </ul>
+      </section>
+
+      <p class="footer">
+        生成说明：本报告依据当前工作区真实状态整理，统计口径来自 <code>git status --short -- docs</code>；结构结论来自对前端路由目录、个人中心布局、后端模块装配和 OpenClaw 安装中心实现的实际比对。
+      </p>
+    </main>
+  </body>
+</html>
