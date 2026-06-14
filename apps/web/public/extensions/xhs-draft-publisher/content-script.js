@@ -3,6 +3,7 @@ const EXTENSION_SOURCE = "ai-omni-xhs-extension";
 const PENDING_DRAFT_KEY = "aiOmniPendingDraft";
 const CREATOR_BADGE_ID = "ai-omni-xhs-extension-badge";
 const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
+const RESOLVED_LOCATION_SESSION_TOKENS = new Set();
 let isRunningPendingDraft = false;
 
 if (location.hostname === "creator.xiaohongshu.com") {
@@ -134,6 +135,17 @@ function setupCreatorBridge() {
   void resumePendingDraft();
   void queryPendingDraftFromBackground();
   void resolveDraftFromLocation();
+  window.addEventListener("hashchange", () => {
+    void resolveDraftFromLocation();
+  });
+  window.addEventListener("pageshow", () => {
+    void resolveDraftFromLocation();
+  });
+  for (const delay of [600, 1500, 3200, 5200]) {
+    window.setTimeout(() => {
+      void resolveDraftFromLocation();
+    }, delay);
+  }
 }
 
 async function runCreatorDraft(payload) {
@@ -527,7 +539,11 @@ async function resolveDraftFromLocation() {
     if (!sessionToken || !apiBaseUrl) {
       return;
     }
+    if (RESOLVED_LOCATION_SESSION_TOKENS.has(sessionToken)) {
+      return;
+    }
     const appTabId = /^\d+$/.test(appTabIdRaw) ? Number(appTabIdRaw) : undefined;
+    RESOLVED_LOCATION_SESSION_TOKENS.add(sessionToken);
     updateCreatorBadge("从页面地址读取到待发布任务，正在向后台获取完整素材");
     const response = await chrome.runtime.sendMessage({
       source: EXTENSION_SOURCE,
@@ -547,6 +563,11 @@ async function resolveDraftFromLocation() {
     updateCreatorBadge("已从页面地址解析到完整任务，准备执行");
     await runCreatorDraft(response.draftPayload);
   } catch (error) {
+    const hash = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
+    const sessionToken = hash.get("ai_omni_token") || "";
+    if (sessionToken) {
+      RESOLVED_LOCATION_SESSION_TOKENS.delete(sessionToken);
+    }
     updateCreatorBadge(`页面地址任务解析失败：${error instanceof Error ? error.message : "未知错误"}`);
   }
 }

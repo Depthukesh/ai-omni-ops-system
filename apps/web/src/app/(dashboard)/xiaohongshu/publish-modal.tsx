@@ -124,6 +124,7 @@ export function PublishModal(props: PublishModalProps) {
                 <div className="publish-qr-copy publish-qr-copy--single">
                   <strong>电脑端自动发布进行中</strong>
                   <p>扩展会自动打开小红书创作者中心，切到图文发布页，上传配图并填写标题、正文，然后保存到草稿箱。</p>
+                  <p className="publish-qr-meta">如果创作者页左上角没有出现 “AI发布扩展” 黑色状态条，说明扩展还没有注入到 `creator.xiaohongshu.com`，请到扩展详情页放开站点权限并点击“刷新”后重试。</p>
                   {props.notice ? <p className="publish-qr-meta">{props.notice}</p> : null}
                   {props.errorMessage ? <p className="publish-qr-meta publish-qr-meta--warn">{props.errorMessage}</p> : null}
                   <p className="publish-qr-meta">有效期至：{props.formatDateTime(props.activeDesktopPublishSession.expiresAt)}</p>

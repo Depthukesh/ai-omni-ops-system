@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI全域运营 - 小红书草稿发布扩展",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "接收 AI全域运营工作台里的发布指令，自动写入小红书创作者中心草稿箱。",
   "permissions": ["tabs", "storage", "scripting"],
   "host_permissions": [
