@@ -24,6 +24,32 @@ const snippetTabs: Array<{ key: SnippetTabKey; label: string }> = [
 ];
 
 const TOKEN_PLACEHOLDER = "请先生成安装令牌";
+const INSTALL_TOKEN_SESSION_PREFIX = "openclaw-install-token";
+
+function buildInstallTokenSessionKey(brandId: string, tokenId: string) {
+  return `${INSTALL_TOKEN_SESSION_PREFIX}:${brandId}:${tokenId}`;
+}
+
+function readInstallTokenFromSession(brandId?: string, tokenId?: string) {
+  if (!brandId || !tokenId || typeof window === "undefined") {
+    return "";
+  }
+  return window.sessionStorage.getItem(buildInstallTokenSessionKey(brandId, tokenId)) || "";
+}
+
+function writeInstallTokenToSession(brandId?: string, tokenId?: string, rawToken?: string) {
+  if (!brandId || !tokenId || !rawToken || typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.setItem(buildInstallTokenSessionKey(brandId, tokenId), rawToken);
+}
+
+function removeInstallTokenFromSession(brandId?: string, tokenId?: string) {
+  if (!brandId || !tokenId || typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.removeItem(buildInstallTokenSessionKey(brandId, tokenId));
+}
 
 function EyeOpenIcon() {
   return (
@@ -98,8 +124,6 @@ export default function PersonalCenterOpenClawPage() {
 
   function handleToggleTokenVisibility() {
     if (!rawToken) {
-      setNotice("");
-      setErrorMessage("当前页面没有可显示的完整令牌。请先点击“重置正式安装令牌”，再使用眼睛按钮查看完整令牌。");
       return;
     }
     setErrorMessage("");
@@ -114,7 +138,7 @@ export default function PersonalCenterOpenClawPage() {
     try {
       const result = await getOpenClawInstallationWorkspace();
       setWorkspace(result);
-      setRawToken("");
+      setRawToken(readInstallTokenFromSession(result.brandId, result.activeToken?.id));
       setIsTokenVisible(false);
     } catch (error) {
       if (isAuthFailure(error)) {
@@ -132,15 +156,19 @@ export default function PersonalCenterOpenClawPage() {
     setNotice("");
     setErrorMessage("");
     try {
+      const previousTokenId = workspace?.activeToken?.id;
+      const previousBrandId = workspace?.brandId;
       const result = await rotateOpenClawInstallToken({
         tokenName: "OpenClaw 正式安装令牌",
         expiresInDays: 30,
       });
+      removeInstallTokenFromSession(previousBrandId, previousTokenId);
+      writeInstallTokenToSession(result.workspace.brandId, result.record.id, result.token);
       setWorkspace(result.workspace);
       setRawToken(result.token);
       setIsTokenVisible(false);
       setSelectedTab("openclaw");
-      setNotice("新的正式安装令牌已生成。点击眼睛按钮可查看完整令牌，离开本页后将不再展示完整令牌。");
+      setNotice("新的正式安装令牌已生成。点击眼睛按钮可查看完整令牌；当前浏览器会话内可恢复显示，离开会话后不会再次展示完整值。");
     } catch (error) {
       if (isAuthFailure(error)) {
         await handleSessionExpired();
@@ -161,6 +189,7 @@ export default function PersonalCenterOpenClawPage() {
     setErrorMessage("");
     try {
       const result = await revokeOpenClawInstallToken(workspace.activeToken.id);
+      removeInstallTokenFromSession(workspace.brandId, workspace.activeToken.id);
       setWorkspace(result.workspace);
       setRawToken("");
       setIsTokenVisible(false);
@@ -326,7 +355,8 @@ export default function PersonalCenterOpenClawPage() {
               className="secondary-button"
               onClick={handleToggleTokenVisibility}
               aria-label={tokenToggleLabel}
-              title={rawToken ? tokenToggleLabel : "完整令牌仅在本次生成后可查看"}
+              title={rawToken ? tokenToggleLabel : "当前浏览器会话内没有可显示的完整令牌，请先重置正式安装令牌"}
+              disabled={!rawToken}
               style={{ padding: "6px 10px", minWidth: "auto" }}
             >
               {isTokenVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
@@ -346,8 +376,8 @@ export default function PersonalCenterOpenClawPage() {
 
       {rawToken ? (
         <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-          <strong>完整安装令牌只会在本次生成后展示</strong>
-          <p>请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌；离开当前页面后不会再次展示完整值。</p>
+          <strong>完整安装令牌不会存入服务器明文</strong>
+          <p>请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌；当前浏览器会话内可恢复显示，关闭会话后不会再次展示完整值。</p>
           <div className="personal-actions">
             <button type="button" className="primary-button" onClick={() => void handleCopy(rawToken, "install-token-inline")}>
               {copiedKey === "install-token-inline" ? "已复制令牌" : "立即复制完整令牌"}
