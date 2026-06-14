@@ -1,4 +1,4 @@
-﻿"use client";
+﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -395,7 +395,7 @@ export default function PersonalCenterSkillsPage() {
       </div>
 
       <div className="personal-split-layout" style={{ gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)" }}>
-        <div className="personal-list">
+        <div className="personal-list personal-split-sidebar">
           {groupedPromptLeaves.map((group) => (
             <article key={group.id} className="entity-card personal-card">
               <button
@@ -502,7 +502,7 @@ export default function PersonalCenterSkillsPage() {
         </div>
 
         {selectedLeaf && selectedSkill && selectedPrompt && currentPromptDraft ? (
-          <article className="entity-card personal-card">
+          <article className="entity-card personal-card personal-split-main">
             <div className="entity-card-head">
               <div>
                 <strong>{selectedLeaf.leafLabel}</strong>
@@ -644,9 +644,10 @@ export default function PersonalCenterSkillsPage() {
               <label className="field">
                 <span>提示词内容</span>
                 <textarea
+                  className="skill-editor-textarea"
                   value={currentPromptDraft.content}
                   onChange={(event) => updatePromptDraftField(selectedSkill.id, selectedPrompt.id, "content", event.target.value, setSkillDrafts)}
-                  rows={14}
+                  rows={10}
                   placeholder={selectedPrompt.basePrompt.content}
                 />
                 <small className="personal-meta">
@@ -975,4 +976,3 @@ function toNullableInt(value: string | undefined, baseValue: number | undefined)
   }
   return normalized;
 }
-

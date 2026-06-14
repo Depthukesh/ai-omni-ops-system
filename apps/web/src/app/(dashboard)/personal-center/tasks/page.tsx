@@ -193,7 +193,7 @@ export default function PersonalCenterTasksPage() {
         <span>{summary.total} 条任务</span>
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="personal-actions personal-toolbar-cluster" style={{ marginBottom: 16 }}>
         <div className="workspace-status">
           <span className={`archive-pill ${dataSource === "api" ? "status-ready" : "status-in_progress"}`}>
             {dataSource === "api" ? "接口数据" : "演示数据"}
@@ -285,9 +285,9 @@ export default function PersonalCenterTasksPage() {
         ) : null}
       </div>
 
-      <div className="personal-list" style={{ marginTop: 16 }}>
+      <div className="personal-list personal-task-list" style={{ marginTop: 16 }}>
         {filteredTasks.map((task) => (
-          <article className="entity-card personal-card" key={task.id}>
+          <article className="entity-card personal-card personal-task-card" key={task.id}>
             <div className="entity-card-head">
               <div>
                 <strong>{task.taskTitle}</strong>
@@ -569,4 +569,3 @@ function formatTaskStatusLabel(status: TaskRecord["taskStatus"]) {
       return status;
   }
 }
-

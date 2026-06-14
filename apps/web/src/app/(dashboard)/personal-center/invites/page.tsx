@@ -519,7 +519,7 @@ export default function PersonalCenterInvitesPage() {
         <span>{filteredInviteItems.length} / {inviteItems.length} 条邀请记录</span>
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="personal-actions personal-toolbar-cluster" style={{ marginBottom: 16 }}>
         <div className="workspace-status">
           {isLoading ? <span className="status-text">正在加载邀请通知...</span> : null}
           {!isLoading && notice ? <span className="status-text success-text">{notice}</span> : null}
@@ -613,7 +613,12 @@ export default function PersonalCenterInvitesPage() {
         </article>
       </div>
 
-      <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <div className="personal-inline-hint" style={{ marginBottom: 16 }}>
+        <strong>先处理“待处理邀请”，再回看总览历史</strong>
+        当前页的第一张表只保留需要你立即动作的邀请；历史接受、过期和撤回记录继续放在下方总览里，避免同一屏同时堆太多状态。
+      </div>
+
+      <article className="light-data-panel personal-table-panel" style={{ marginBottom: 16 }}>
         <div className="panel-header">
           <div>
             <h3>待处理邀请</h3>
@@ -623,75 +628,77 @@ export default function PersonalCenterInvitesPage() {
             去团队协作页
           </Link>
         </div>
-        <table className="soft-table table-responsive-stack">
-          <thead>
-            <tr>
-              <th>品牌</th>
-              <th>角色</th>
-              <th>邀请人</th>
-              <th>邀请对象</th>
-              <th>过期时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPendingInvites.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <span className="mobile-table-label">品牌</span>
-                  {item.brandName}
-                </td>
-                <td>
-                  <span className="mobile-table-label">角色</span>
-                  {formatCollaboratorRoleLabel(item.role)}
-                </td>
-                <td>
-                  <span className="mobile-table-label">邀请人</span>
-                  {item.invitedByName}
-                </td>
-                <td>
-                  <span className="mobile-table-label">邀请对象</span>
-                  {item.inviteAccount || "邀请链接"}
-                </td>
-                <td>
-                  <span className="mobile-table-label">过期时间</span>
-                  {formatDateTime(item.expiresAt)}
-                </td>
-                <td>
-                  <span className="mobile-table-label">操作</span>
-                  <div className="table-action-row">
-                    {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void handleAcceptInvite(item.id)}
-                      disabled={acceptingInviteId === item.id}
-                    >
-                      {acceptingInviteId === item.id ? "接受中..." : "接受邀请"}
-                    </button>
-                    {unreadInviteIdSet.has(item.id) ? (
-                      <button type="button" className="secondary-button" onClick={() => void handleMarkInviteAsRead(item.id)} disabled={isUpdatingReadState}>
-                        标记已读
-                      </button>
-                    ) : (
-                      <button type="button" className="secondary-button" onClick={() => void handleMarkInviteAsUnread(item.id)} disabled={isUpdatingReadState}>
-                        恢复未读
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!filteredPendingInvites.length ? (
+        <div className="table-scroll-shell table-scroll-shell--compact">
+          <table className="soft-table table-responsive-stack">
+            <thead>
               <tr>
-                <td colSpan={6}>当前没有待处理邀请。</td>
+                <th>品牌</th>
+                <th>角色</th>
+                <th>邀请人</th>
+                <th>邀请对象</th>
+                <th>过期时间</th>
+                <th>操作</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredPendingInvites.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <span className="mobile-table-label">品牌</span>
+                    {item.brandName}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">角色</span>
+                    {formatCollaboratorRoleLabel(item.role)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">邀请人</span>
+                    {item.invitedByName}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">邀请对象</span>
+                    {item.inviteAccount || "邀请链接"}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">过期时间</span>
+                    {formatDateTime(item.expiresAt)}
+                  </td>
+                  <td>
+                    <span className="mobile-table-label">操作</span>
+                    <div className="table-action-row">
+                      {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleAcceptInvite(item.id)}
+                        disabled={acceptingInviteId === item.id}
+                      >
+                        {acceptingInviteId === item.id ? "接受中..." : "接受邀请"}
+                      </button>
+                      {unreadInviteIdSet.has(item.id) ? (
+                        <button type="button" className="secondary-button" onClick={() => void handleMarkInviteAsRead(item.id)} disabled={isUpdatingReadState}>
+                          标记已读
+                        </button>
+                      ) : (
+                        <button type="button" className="secondary-button" onClick={() => void handleMarkInviteAsUnread(item.id)} disabled={isUpdatingReadState}>
+                          恢复未读
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!filteredPendingInvites.length ? (
+                <tr>
+                  <td colSpan={6}>当前没有待处理邀请。</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </article>
 
-      <article className="light-data-panel">
+      <article className="light-data-panel personal-table-panel">
         <div className="panel-header">
           <div>
             <h3>邀请总览</h3>
@@ -709,56 +716,58 @@ export default function PersonalCenterInvitesPage() {
           </div>
         ) : (
           <>
-            <table className="soft-table table-responsive-stack">
-              <thead>
-                <tr>
-                  <th>品牌</th>
-                  <th>角色</th>
-                  <th>状态</th>
-                  <th>邀请人</th>
-                  <th>邀请对象</th>
-                  <th>创建时间</th>
-                  <th>更新时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedInviteItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <span className="mobile-table-label">品牌</span>
-                      {item.brandName}
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">角色</span>
-                      {formatCollaboratorRoleLabel(item.role)}
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">状态</span>
-                      <div className="table-status-stack">
-                        <span>{item.status}</span>
-                        {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">邀请人</span>
-                      {item.invitedByName}
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">邀请对象</span>
-                      {item.inviteAccount || "邀请链接"}
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">创建时间</span>
-                      {formatDateTime(item.createdAt)}
-                    </td>
-                    <td>
-                      <span className="mobile-table-label">更新时间</span>
-                      {formatDateTime(item.revokedAt || item.expiresAt || item.createdAt)}
-                    </td>
+            <div className="table-scroll-shell">
+              <table className="soft-table table-responsive-stack">
+                <thead>
+                  <tr>
+                    <th>品牌</th>
+                    <th>角色</th>
+                    <th>状态</th>
+                    <th>邀请人</th>
+                    <th>邀请对象</th>
+                    <th>创建时间</th>
+                    <th>更新时间</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pagedInviteItems.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <span className="mobile-table-label">品牌</span>
+                        {item.brandName}
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">角色</span>
+                        {formatCollaboratorRoleLabel(item.role)}
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">状态</span>
+                        <div className="table-status-stack">
+                          <span>{item.status}</span>
+                          {unreadInviteIdSet.has(item.id) ? <span className="invite-read-badge is-unread">未读</span> : <span className="invite-read-badge is-read">已读</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">邀请人</span>
+                        {item.invitedByName}
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">邀请对象</span>
+                        {item.inviteAccount || "邀请链接"}
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">创建时间</span>
+                        {formatDateTime(item.createdAt)}
+                      </td>
+                      <td>
+                        <span className="mobile-table-label">更新时间</span>
+                        {formatDateTime(item.revokedAt || item.expiresAt || item.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="note-pagination-bar">
               <div className="note-pagination-summary">
@@ -803,4 +812,3 @@ export default function PersonalCenterInvitesPage() {
     </section>
   );
 }
-

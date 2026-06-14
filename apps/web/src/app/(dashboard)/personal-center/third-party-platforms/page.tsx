@@ -1,4 +1,4 @@
-﻿"use client";
+﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -452,7 +452,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
       </div>
 
       <div className="personal-split-layout" style={{ gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)" }}>
-        <div className="personal-list">
+        <div className="personal-list personal-split-sidebar">
           {filteredPlatforms.map((platform) => (
             <button
               key={platform.id}
@@ -511,7 +511,7 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
         </div>
 
         {selectedPlatform && selectedDraft ? (
-          <article className="entity-card personal-card">
+          <article className="entity-card personal-card personal-split-main">
             <div className="entity-card-head">
               <div>
                 <strong>{selectedPlatform.name}</strong>
@@ -664,4 +664,3 @@ export default function PersonalCenterThirdPartyPlatformsPage() {
     </section>
   );
 }
-

@@ -333,7 +333,7 @@ export default function PersonalCenterOpenClawPage() {
         ))}
       </div>
 
-      <div className="personal-grid" style={{ marginBottom: 16 }}>
+      <div className="personal-grid openclaw-meta-grid" style={{ marginBottom: 16 }}>
         <div>
           <span>MCP 服务名称</span>
           <strong>{workspace?.mcpServerName || "-"}</strong>
@@ -348,8 +348,8 @@ export default function PersonalCenterOpenClawPage() {
         </div>
         <div>
           <span>安装令牌</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <strong>{displayedToken}</strong>
+          <div className="openclaw-token-row">
+            <strong className="openclaw-token-value">{displayedToken}</strong>
             <button
               type="button"
               className="secondary-button"
@@ -373,21 +373,6 @@ export default function PersonalCenterOpenClawPage() {
           </div>
         </div>
       </div>
-
-      {rawToken ? (
-        <div className="empty-canvas-box" style={{ marginBottom: 16 }}>
-          <strong>完整安装令牌不会存入服务器明文</strong>
-          <p>请立即复制并妥善保存。默认隐藏，点击眼睛按钮后可在上方和安装片段中查看完整令牌；当前浏览器会话内可恢复显示，关闭会话后不会再次展示完整值。</p>
-          <div className="personal-actions">
-            <button type="button" className="primary-button" onClick={() => void handleCopy(rawToken, "install-token-inline")}>
-              {copiedKey === "install-token-inline" ? "已复制令牌" : "立即复制完整令牌"}
-            </button>
-            <button type="button" className="secondary-button" onClick={handleToggleTokenVisibility}>
-              {tokenToggleLabel}
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       <div className="openclaw-layout">
         <article className="entity-card personal-card">
@@ -432,7 +417,7 @@ export default function PersonalCenterOpenClawPage() {
 
           <label className="field">
             <span>安装片段</span>
-            <textarea value={activeSnippet} rows={20} readOnly spellCheck={false} />
+            <textarea className="openclaw-snippet-textarea" value={activeSnippet} rows={14} readOnly spellCheck={false} />
           </label>
         </article>
 

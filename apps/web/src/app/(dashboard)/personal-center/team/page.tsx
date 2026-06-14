@@ -521,7 +521,7 @@ export default function PersonalCenterTeamPage() {
         <span>{brands.length} 个可访问品牌</span>
       </div>
 
-      <div className="personal-actions" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="personal-actions personal-toolbar-cluster" style={{ marginBottom: 16 }}>
         <div className="workspace-status">
           <span className={`archive-pill ${errorMessage ? "status-pending" : "status-ready"}`}>
             {errorMessage ? "部分加载失败" : "成员接口已接入"}
@@ -552,7 +552,7 @@ export default function PersonalCenterTeamPage() {
         </button>
       </div>
 
-      <div className="card-grid" style={{ marginBottom: 16 }}>
+      <div className="card-grid personal-management-grid" style={{ marginBottom: 16 }}>
         <article className="metric-card">
           <span>当前登录人</span>
           <strong>{userName || "未识别"}</strong>
@@ -617,7 +617,7 @@ export default function PersonalCenterTeamPage() {
             </div>
             <span className={`archive-pill ${myPendingInvites.length ? "status-in_progress" : "status-ready"}`}>{myPendingInvites.length} 条</span>
           </div>
-          <div className="personal-list">
+          <div className="personal-list personal-list--dense">
             {myPendingInvites.length ? (
               myPendingInvites.map((item) => (
                 <div key={item.id} style={{ display: "grid", gap: 6, padding: "10px 0", borderBottom: "1px solid rgba(148,163,184,0.18)" }}>
@@ -693,7 +693,7 @@ export default function PersonalCenterTeamPage() {
       </div>
 
       {canManageMembers ? (
-        <div className="card-grid" style={{ marginBottom: 16 }}>
+        <div className="card-grid personal-management-grid" style={{ marginBottom: 16 }}>
           <article className="light-data-panel">
             <h3>直接添加成员</h3>
             <div className="personal-actions" style={{ flexWrap: "wrap" }}>
@@ -802,98 +802,100 @@ export default function PersonalCenterTeamPage() {
       </div>
 
       {canManageMembers ? (
-        <article className="light-data-panel" style={{ marginBottom: 16 }}>
+        <article className="light-data-panel personal-table-panel" style={{ marginBottom: 16 }}>
           <h3>待处理邀请</h3>
-          <table className="soft-table table-responsive-stack">
-            <thead>
-              <tr>
-                <th>邀请对象</th>
-                <th>邀请链接</th>
-                <th>角色</th>
-                <th>状态</th>
-                <th>匹配用户</th>
-                <th>邀请人</th>
-                <th>创建时间</th>
-                <th>过期时间</th>
-                <th>备注</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invites.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <span className="mobile-table-label">邀请对象</span>
-                    {item.inviteAccount}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">邀请链接</span>
-                    <div style={{ display: "grid", gap: 8 }}>
-                      <a href={item.inviteLink} target="_blank" rel="noreferrer">
-                        打开邀请链接
-                      </a>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleCopyInviteValue(item.id, item.inviteLink, "邀请链接")}
-                        disabled={copyingInviteId === item.id}
-                      >
-                        {copyingInviteId === item.id ? "复制中..." : "复制邀请链接"}
-                      </button>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">角色</span>
-                    {roleLabel(item.role)}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">状态</span>
-                    {item.status}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">匹配用户</span>
-                    {item.isMatchedUser ? (item.inviteeNickname || item.inviteeMobile || item.inviteeEmail || item.inviteeUserId) : "未匹配到现有用户"}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">邀请人</span>
-                    {item.invitedByName}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">创建时间</span>
-                    {formatDateTime(item.createdAt)}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">过期时间</span>
-                    {formatDateTime(item.expiresAt)}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">备注</span>
-                    {item.note || "-"}
-                  </td>
-                  <td>
-                    <span className="mobile-table-label">操作</span>
-                    {item.status === "PENDING" ? (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => void handleRevokeInvite(item.id)}
-                        disabled={revokingInviteId === item.id}
-                      >
-                        {revokingInviteId === item.id ? "撤回中..." : "撤回"}
-                      </button>
-                    ) : (
-                      <span>不可操作</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {!invites.length ? (
+          <div className="table-scroll-shell">
+            <table className="soft-table table-responsive-stack">
+              <thead>
                 <tr>
-                  <td colSpan={10}>当前品牌暂无待处理邀请。</td>
+                  <th>邀请对象</th>
+                  <th>邀请链接</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>匹配用户</th>
+                  <th>邀请人</th>
+                  <th>创建时间</th>
+                  <th>过期时间</th>
+                  <th>备注</th>
+                  <th>操作</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {invites.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <span className="mobile-table-label">邀请对象</span>
+                      {item.inviteAccount}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">邀请链接</span>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <a href={item.inviteLink} target="_blank" rel="noreferrer">
+                          打开邀请链接
+                        </a>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleCopyInviteValue(item.id, item.inviteLink, "邀请链接")}
+                          disabled={copyingInviteId === item.id}
+                        >
+                          {copyingInviteId === item.id ? "复制中..." : "复制邀请链接"}
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">角色</span>
+                      {roleLabel(item.role)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">状态</span>
+                      {item.status}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">匹配用户</span>
+                      {item.isMatchedUser ? (item.inviteeNickname || item.inviteeMobile || item.inviteeEmail || item.inviteeUserId) : "未匹配到现有用户"}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">邀请人</span>
+                      {item.invitedByName}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">创建时间</span>
+                      {formatDateTime(item.createdAt)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">过期时间</span>
+                      {formatDateTime(item.expiresAt)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">备注</span>
+                      {item.note || "-"}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">操作</span>
+                      {item.status === "PENDING" ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void handleRevokeInvite(item.id)}
+                          disabled={revokingInviteId === item.id}
+                        >
+                          {revokingInviteId === item.id ? "撤回中..." : "撤回"}
+                        </button>
+                      ) : (
+                        <span>不可操作</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {!invites.length ? (
+                  <tr>
+                    <td colSpan={10}>当前品牌暂无待处理邀请。</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </article>
       ) : null}
 
@@ -934,56 +936,58 @@ export default function PersonalCenterTeamPage() {
                   {section.groups.map((group) => (
                     <div key={group.key} style={{ display: "grid", gap: 8 }}>
                       <strong>{group.label}</strong>
-                      <table className="soft-table">
-                        <thead>
-                          <tr>
-                            <th>项目</th>
-                            <th>员工可见</th>
-                            <th>员工可编辑</th>
-                            <th>达人可见</th>
-                            <th>达人可编辑</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.items.map((item) => (
-                            <tr key={item.key}>
-                              <td>{item.label}</td>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={permissionSettings.permissionConfig.STAFF[item.key].view}
-                                  onChange={(event) => handlePermissionToggle("STAFF", item.key, "view", event.target.checked)}
-                                  disabled={!permissionSettings.canManagePermissions}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={permissionSettings.permissionConfig.STAFF[item.key].edit}
-                                  onChange={(event) => handlePermissionToggle("STAFF", item.key, "edit", event.target.checked)}
-                                  disabled={!permissionSettings.canManagePermissions}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={permissionSettings.permissionConfig.TALENT[item.key].view}
-                                  onChange={(event) => handlePermissionToggle("TALENT", item.key, "view", event.target.checked)}
-                                  disabled={!permissionSettings.canManagePermissions}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={permissionSettings.permissionConfig.TALENT[item.key].edit}
-                                  onChange={(event) => handlePermissionToggle("TALENT", item.key, "edit", event.target.checked)}
-                                  disabled={!permissionSettings.canManagePermissions}
-                                />
-                              </td>
+                      <div className="table-scroll-shell table-scroll-shell--compact">
+                        <table className="soft-table">
+                          <thead>
+                            <tr>
+                              <th>项目</th>
+                              <th>员工可见</th>
+                              <th>员工可编辑</th>
+                              <th>达人可见</th>
+                              <th>达人可编辑</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {group.items.map((item) => (
+                              <tr key={item.key}>
+                                <td>{item.label}</td>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={permissionSettings.permissionConfig.STAFF[item.key].view}
+                                    onChange={(event) => handlePermissionToggle("STAFF", item.key, "view", event.target.checked)}
+                                    disabled={!permissionSettings.canManagePermissions}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={permissionSettings.permissionConfig.STAFF[item.key].edit}
+                                    onChange={(event) => handlePermissionToggle("STAFF", item.key, "edit", event.target.checked)}
+                                    disabled={!permissionSettings.canManagePermissions}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={permissionSettings.permissionConfig.TALENT[item.key].view}
+                                    onChange={(event) => handlePermissionToggle("TALENT", item.key, "view", event.target.checked)}
+                                    disabled={!permissionSettings.canManagePermissions}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={permissionSettings.permissionConfig.TALENT[item.key].edit}
+                                    onChange={(event) => handlePermissionToggle("TALENT", item.key, "edit", event.target.checked)}
+                                    disabled={!permissionSettings.canManagePermissions}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -993,144 +997,148 @@ export default function PersonalCenterTeamPage() {
         </article>
       ) : null}
 
-      <article className="light-data-panel" style={{ marginBottom: 16 }}>
+      <article className="light-data-panel personal-table-panel" style={{ marginBottom: 16 }}>
         <h3>当前品牌成员</h3>
-        <table className="soft-table table-responsive-stack">
-          <thead>
-            <tr>
-              <th>成员</th>
-              <th>角色</th>
-              <th>状态</th>
-              <th>手机号</th>
-              <th>邮箱</th>
-              <th>加入时间</th>
-              {canManageMembers ? <th>管理</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <span className="mobile-table-label">成员</span>
-                  {item.nickname}
-                  {item.isCurrentUser ? "（我）" : ""}
-                  {item.isOwner ? " · 品牌主账号" : ""}
-                </td>
-                <td>
-                  <span className="mobile-table-label">角色</span>
-                  {roleLabel(item.role)}
-                </td>
-                <td>
-                  <span className="mobile-table-label">状态</span>
-                  {memberStatusLabels[item.status] || item.status}
-                </td>
-                <td>
-                  <span className="mobile-table-label">手机号</span>
-                  {item.mobile}
-                </td>
-                <td>
-                  <span className="mobile-table-label">邮箱</span>
-                  {item.email || "未记录"}
-                </td>
-                <td>
-                  <span className="mobile-table-label">加入时间</span>
-                  {formatDateTime(item.joinedAt)}
-                </td>
-                {canManageMembers ? (
-                  <td>
-                    <span className="mobile-table-label">管理</span>
-                    {item.isOwner || item.isCurrentUser ? (
-                      <span>当前版本不支持修改</span>
-                    ) : (
-                      <div style={{ display: "grid", gap: 8 }}>
-                        <select
-                          value={memberRoleDrafts[item.id] ?? item.role}
-                          onChange={(event) => setMemberRoleDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                        >
-                          {buildAssignableRoleOptions(currentUserRole).map((role) => (
-                            <option key={role} value={role}>
-                              {roleLabelMap[role]}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={memberStatusDrafts[item.id] ?? item.status}
-                          onChange={(event) => setMemberStatusDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                        >
-                          {["ACTIVE", "DISABLED", "REMOVED"].map((status) => (
-                            <option key={status} value={status}>
-                              {memberStatusLabels[status] || status}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => void handleSaveMember(item.id)}
-                          disabled={savingMemberId === item.id}
-                        >
-                          {savingMemberId === item.id ? "保存中..." : "保存"}
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-            {!members.length ? (
-              <tr>
-                  <td colSpan={canManageMembers ? 7 : 6}>当前品牌还没有可展示的成员记录，可以先创建邀请链接或直接发送成员邀请。</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </article>
-
-      {canManageMembers ? (
-        <article className="light-data-panel" style={{ marginBottom: 16 }}>
-          <h3>品牌成员审计日志</h3>
+        <div className="table-scroll-shell">
           <table className="soft-table table-responsive-stack">
             <thead>
               <tr>
-                <th>时间</th>
-                <th>动作</th>
-                <th>摘要</th>
-                <th>操作人</th>
-                <th>目标成员</th>
+                <th>成员</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th>手机号</th>
+                <th>邮箱</th>
+                <th>加入时间</th>
+                {canManageMembers ? <th>管理</th> : null}
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((item) => (
+              {members.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <span className="mobile-table-label">时间</span>
-                    {formatDateTime(item.createdAt)}
+                    <span className="mobile-table-label">成员</span>
+                    {item.nickname}
+                    {item.isCurrentUser ? "（我）" : ""}
+                    {item.isOwner ? " · 品牌主账号" : ""}
                   </td>
                   <td>
-                    <span className="mobile-table-label">动作</span>
-                    {item.action}
+                    <span className="mobile-table-label">角色</span>
+                    {roleLabel(item.role)}
                   </td>
                   <td>
-                    <span className="mobile-table-label">摘要</span>
-                    {item.summary}
+                    <span className="mobile-table-label">状态</span>
+                    {memberStatusLabels[item.status] || item.status}
                   </td>
                   <td>
-                    <span className="mobile-table-label">操作人</span>
-                    {item.operatorName}
+                    <span className="mobile-table-label">手机号</span>
+                    {item.mobile}
                   </td>
                   <td>
-                    <span className="mobile-table-label">目标成员</span>
-                    {item.targetUserName || item.targetUserId || item.targetInviteId || "-"}
+                    <span className="mobile-table-label">邮箱</span>
+                    {item.email || "未记录"}
                   </td>
+                  <td>
+                    <span className="mobile-table-label">加入时间</span>
+                    {formatDateTime(item.joinedAt)}
+                  </td>
+                  {canManageMembers ? (
+                    <td>
+                      <span className="mobile-table-label">管理</span>
+                      {item.isOwner || item.isCurrentUser ? (
+                        <span>当前版本不支持修改</span>
+                      ) : (
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <select
+                            value={memberRoleDrafts[item.id] ?? item.role}
+                            onChange={(event) => setMemberRoleDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                          >
+                            {buildAssignableRoleOptions(currentUserRole).map((role) => (
+                              <option key={role} value={role}>
+                                {roleLabelMap[role]}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={memberStatusDrafts[item.id] ?? item.status}
+                            onChange={(event) => setMemberStatusDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                          >
+                            {["ACTIVE", "DISABLED", "REMOVED"].map((status) => (
+                              <option key={status} value={status}>
+                                {memberStatusLabels[status] || status}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => void handleSaveMember(item.id)}
+                            disabled={savingMemberId === item.id}
+                          >
+                            {savingMemberId === item.id ? "保存中..." : "保存"}
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
-              {!auditLogs.length ? (
+              {!members.length ? (
                 <tr>
-                  <td colSpan={5}>当前品牌暂无成员审计日志。</td>
+                    <td colSpan={canManageMembers ? 7 : 6}>当前品牌还没有可展示的成员记录，可以先创建邀请链接或直接发送成员邀请。</td>
                 </tr>
               ) : null}
             </tbody>
           </table>
+        </div>
+      </article>
+
+      {canManageMembers ? (
+        <article className="light-data-panel personal-table-panel" style={{ marginBottom: 16 }}>
+          <h3>品牌成员审计日志</h3>
+          <div className="table-scroll-shell table-scroll-shell--compact">
+            <table className="soft-table table-responsive-stack">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>动作</th>
+                  <th>摘要</th>
+                  <th>操作人</th>
+                  <th>目标成员</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <span className="mobile-table-label">时间</span>
+                      {formatDateTime(item.createdAt)}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">动作</span>
+                      {item.action}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">摘要</span>
+                      {item.summary}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">操作人</span>
+                      {item.operatorName}
+                    </td>
+                    <td>
+                      <span className="mobile-table-label">目标成员</span>
+                      {item.targetUserName || item.targetUserId || item.targetInviteId || "-"}
+                    </td>
+                  </tr>
+                ))}
+                {!auditLogs.length ? (
+                  <tr>
+                    <td colSpan={5}>当前品牌暂无成员审计日志。</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </article>
       ) : null}
 
@@ -1156,4 +1164,3 @@ function buildAssignableRoleOptions(currentUserRole: BrandCollaboratorRole | "")
 function roleLabel(role: string) {
   return formatCollaboratorRoleLabel(role);
 }
-

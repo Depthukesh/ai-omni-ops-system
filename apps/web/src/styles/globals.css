@@ -3512,6 +3512,12 @@ button {
   gap: 16px;
 }
 
+.personal-center-workspace-shell .panel-header > div,
+.personal-center-panel .panel-header > div,
+.personal-center-panel .entity-card-head > div {
+  min-width: 0;
+}
+
 .personal-center-workspace-shell .panel-header span,
 .personal-center-panel .panel-header span {
   color: var(--text-faint);
@@ -3618,6 +3624,15 @@ button {
   color: var(--text-strong);
 }
 
+.personal-center-panel .entity-card-head {
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+
+.personal-center-panel .entity-card-head p {
+  margin: 6px 0 0;
+}
+
 .personal-center-workspace-shell .field input,
 .personal-center-workspace-shell .field select,
 .personal-center-panel .field input,
@@ -3628,6 +3643,12 @@ button {
   background: var(--input-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   color: var(--text-strong);
+}
+
+.personal-center-panel .field textarea {
+  min-height: 180px;
+  max-height: 56vh;
+  line-height: 1.68;
 }
 
 .personal-center-workspace-shell .field input::placeholder,
@@ -3642,6 +3663,7 @@ button {
 }
 
 .personal-center-panel .soft-table {
+  width: 100%;
   border-radius: 18px;
   border-color: var(--site-hero-border);
   background: var(--subtle-surface);
@@ -3657,6 +3679,8 @@ button {
 
 .personal-center-panel .soft-table td {
   color: var(--text-strong);
+  vertical-align: top;
+  word-break: break-word;
 }
 
 .personal-center-panel .soft-table tbody tr:hover td {
@@ -3686,17 +3710,43 @@ button {
 }
 
 .personal-center-panel .personal-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.personal-center-panel .personal-toolbar-cluster {
+  align-items: flex-start;
 }
 
 .personal-center-panel .personal-grid {
   gap: 12px 14px;
 }
 
+.personal-center-panel .personal-grid > div {
+  min-width: 0;
+}
+
+.personal-center-panel .personal-grid strong {
+  word-break: break-word;
+}
+
 .personal-center-panel .personal-split-layout {
   display: grid;
   gap: 16px;
   margin-top: 16px;
+  align-items: start;
+}
+
+.personal-center-panel .personal-split-sidebar {
+  min-width: 0;
+  max-height: min(72vh, 1080px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.personal-center-panel .personal-split-main {
+  min-width: 0;
 }
 
 .personal-center-panel .personal-context-banner {
@@ -3777,6 +3827,28 @@ button {
   margin-bottom: 6px;
 }
 
+.personal-center-panel .personal-list--dense {
+  gap: 10px;
+}
+
+.personal-center-panel .personal-management-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.personal-center-panel .personal-task-list {
+  gap: 16px;
+}
+
+.personal-center-panel .personal-task-card {
+  gap: 0;
+}
+
+.personal-center-panel .personal-task-card .personal-grid + .personal-grid,
+.personal-center-panel .personal-task-card .workspace-status,
+.personal-center-panel .personal-task-card .personal-actions {
+  margin-top: 12px;
+}
+
 .personal-center-panel .empty-canvas-box p {
   max-width: 48ch;
   margin: 8px auto 0;
@@ -3828,6 +3900,24 @@ button {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.personal-center-panel .personal-table-panel {
+  overflow: hidden;
+}
+
+.personal-center-panel .table-scroll-shell {
+  margin-top: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.personal-center-panel .table-scroll-shell .soft-table {
+  min-width: 920px;
+}
+
+.personal-center-panel .table-scroll-shell--compact .soft-table {
+  min-width: 720px;
 }
 
 .personal-center-workspace-shell .secondary-button,
@@ -6642,6 +6732,28 @@ button {
   gap: 10px;
 }
 
+.openclaw-meta-grid > div {
+  min-width: 0;
+}
+
+.openclaw-token-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.openclaw-token-value {
+  font-family: Consolas, "SFMono-Regular", monospace;
+  word-break: break-all;
+}
+
+.openclaw-snippet-textarea {
+  min-height: 320px !important;
+  max-height: 58vh;
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
 .openclaw-skill-install-actions {
   display: flex;
   align-items: center;
@@ -6800,6 +6912,12 @@ button {
   display: block;
   font-size: 15px;
   line-height: 1.7;
+}
+
+.skill-editor-textarea {
+  min-height: 320px !important;
+  max-height: 60vh;
+  font-family: Consolas, "SFMono-Regular", monospace;
 }
 
 @media (max-width: 1180px) {
