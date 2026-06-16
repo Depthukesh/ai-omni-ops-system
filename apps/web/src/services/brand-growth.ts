@@ -35,6 +35,7 @@ export type BrandPermissionKey =
   | "douyin.video"
   | "douyin.videoDirect"
   | "douyin.digitalHuman"
+  | "douyin.adPreAudit"
   | "wechat.config"
   | "wechat.original"
   | "personalCenter.skills"

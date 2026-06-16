@@ -4,6 +4,7 @@ import {
   type CreateDouyinDigitalHumanCustomPersonPayload,
   type CreateDouyinVoiceClonePayload,
   type CreateDouyinLipSyncPayload,
+  type CreateDouyinAdPreAuditPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
@@ -355,6 +356,51 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.videoDirect", "view", auth);
     return this.worksService.listDouyinDirectVideoProviderOptions();
+  }
+
+  @Get("brands/:brandId/douyin/ad-preaudit")
+  async listDouyinAdPreAuditWorks(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+    return this.worksService.listDouyinAdPreAuditWorks(brandId);
+  }
+
+  @Post("brands/:brandId/douyin/ad-preaudit/submit")
+  createDouyinAdPreAudit(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinAdPreAuditPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+      return this.worksService.createDouyinAdPreAudit(brandId, payload, auth);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/ad-preaudit/:taskId/refresh")
+  refreshDouyinAdPreAudit(
+    @Param("brandId") brandId: string,
+    @Param("taskId") taskId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+      return this.worksService.refreshDouyinAdPreAudit(brandId, taskId);
+    });
+  }
+
+  @Delete("brands/:brandId/douyin/ad-preaudit/:taskId")
+  async deleteDouyinAdPreAudit(
+    @Param("brandId") brandId: string,
+    @Param("taskId") taskId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+    return this.worksService.deleteDouyinAdPreAudit(brandId, taskId);
   }
 
   @Get("brands/:brandId/design/options")

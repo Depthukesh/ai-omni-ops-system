@@ -140,6 +140,18 @@ function buildThirdPartyPlatformSeeds() {
         remark: "用于抖音数字人模板库与数字人视频合成。当前品牌 Owner 请在个人中心按 `appId::secretKey` 形式填写凭证。",
         updatedAt: "2026-05-30T00:00:00.000Z",
       },
+      {
+        id: "platform_https_vod_volcengineapi_com",
+        name: "火山引擎 VOD OpenAPI",
+        providerType: "CUSTOM" as const,
+        status: "ACTIVE" as const,
+        baseUrl: "https://vod.volcengineapi.com",
+        tutorialUrl: "https://www.volcengine.com/docs/4/1511923?lang=zh",
+        modelIds: [],
+        defaultModel: "",
+        remark: "用于抖音广告预审。当前品牌 Owner 请在个人中心按 `accessKeyId::secretAccessKey` 形式填写凭证；如需自定义地域，可追加 `::cn-north-1`。",
+        updatedAt: "2026-06-16T00:00:00.000Z",
+      },
     ])
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }

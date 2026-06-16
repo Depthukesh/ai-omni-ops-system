@@ -44,10 +44,12 @@ import {
   type DouyinMarketingPlanWorkspace,
 } from "../../../services/reports";
 import {
+  createDouyinAdPreAudit,
   createDouyinCustomVoice,
   createDouyinDigitalHumanCustomPerson,
   createDouyinDigitalHumanScriptTemplate,
   createDouyinSpeechTask,
+  deleteDouyinAdPreAudit,
   deleteDouyinCustomVoice,
   deleteDouyinDigitalHumanCustomPerson,
   deleteDouyinLipSyncWork,
@@ -64,6 +66,7 @@ import {
   generateDouyinLipSyncWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinAdPreAuditWorks,
   getDouyinDigitalHumanCustomPersons,
   getDouyinDigitalHumanFavoriteTemplates,
   getDouyinDigitalHumanScriptTemplates,
@@ -73,6 +76,7 @@ import {
   getDouyinCustomVoices,
   getDouyinLipSyncWorks,
   getDouyinSpeechTaskDetail,
+  refreshDouyinAdPreAudit,
   getDouyinDirectVideoProviders,
   getDouyinDirectVideoWorks,
   getDouyinVideoProviders,
@@ -86,6 +90,7 @@ import {
   regenerateDouyinVideoStoryboard,
   saveDouyinDigitalHumanFavoriteTemplate,
   updateDouyinDigitalHumanScriptTemplate,
+  type DouyinAdPreAuditRecord,
   type DouyinDigitalHumanFavoriteTemplateRecord,
   type DouyinDigitalHumanCustomPersonRecord,
   type DouyinLipSyncWorkRecord,
@@ -108,6 +113,7 @@ import {
 import { MediaLightbox } from "../xiaohongshu/media-lightbox";
 import { type MediaLightboxState } from "../xiaohongshu/shared-types";
 import { DouyinAssetsWorkspace } from "./assets-workspace";
+import { DouyinAdPreAuditWorkspace } from "./ad-preaudit-workspace";
 import { DouyinDigitalHumanWorkspace } from "./digital-human-workspace";
 import { formatDateTime } from "../xiaohongshu/datetime-helpers";
 import { renderMarkdownToHtml } from "../xiaohongshu/markdown-render";
@@ -132,7 +138,8 @@ type DouyinSectionKey =
   | "remixCopy"
   | "video"
   | "videoDirect"
-  | "digitalHuman";
+  | "digitalHuman"
+  | "adPreAudit";
 
 const douyinSections: Array<{ key: DouyinSectionKey; label: string; description: string }> = [
   { key: "plan", label: "营销策划方案", description: "围绕品牌增长报告、半年营销规划和抖音采集数据生成可编辑的 Markdown 方案。" },
@@ -144,6 +151,7 @@ const douyinSections: Array<{ key: DouyinSectionKey; label: string; description:
   { key: "video", label: "AI生视频（故事板）", description: "基于营销日历、抖音素材库、产品与营销策划方案，先生成剧本和故事板，再继续生成短视频。" },
   { key: "videoDirect", label: "AI生视频", description: "基于营销日历、抖音素材库、产品与营销策划方案直接生成 Seedance 2.0 生视频提示词，确认后继续生成短视频。" },
   { key: "digitalHuman", label: "数字人", description: "对接蝉镜 OpenAPI，支持公共模板库、数字人口播视频创建、结果找回和作品中心管理。" },
+  { key: "adPreAudit", label: "广告预审", description: "对接火山引擎 VOD 广告预审，对已上传到 VOD 的 Vid 发起审核并查看通过、驳回和原因。" },
 ];
 
 const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> = {
@@ -156,6 +164,7 @@ const douyinSectionPermissionMap: Record<DouyinSectionKey, BrandPermissionKey> =
   video: "douyin.video",
   videoDirect: "douyin.videoDirect",
   digitalHuman: "douyin.digitalHuman",
+  adPreAudit: "douyin.adPreAudit",
 };
 
 function readRequestErrorMessage(error: unknown, fallback: string) {
@@ -224,6 +233,7 @@ export function DouyinWorkspaceShell() {
   const [directVideoWorks, setDirectVideoWorks] = useState<DouyinDirectVideoWorkRecord[]>([]);
   const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
+  const [adPreAuditWorks, setAdPreAuditWorks] = useState<DouyinAdPreAuditRecord[]>([]);
   const [digitalHumanCustomPersons, setDigitalHumanCustomPersons] = useState<DouyinDigitalHumanCustomPersonRecord[]>([]);
   const [digitalHumanLipSyncWorks, setDigitalHumanLipSyncWorks] = useState<DouyinLipSyncWorkRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
@@ -253,6 +263,7 @@ export function DouyinWorkspaceShell() {
   const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
   const [isSubmittingDirectVideo, setIsSubmittingDirectVideo] = useState(false);
   const [isSubmittingDigitalHuman, setIsSubmittingDigitalHuman] = useState(false);
+  const [isSubmittingAdPreAudit, setIsSubmittingAdPreAudit] = useState(false);
   const [isSavingTopicLibrary, setIsSavingTopicLibrary] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -287,6 +298,13 @@ export function DouyinWorkspaceShell() {
     || digitalHumanLipSyncWorks.some((item) => item.status === "PENDING" || item.status === "RUNNING")
     || digitalHumanCustomVoices.some((item) => item.status === 1)
     || Boolean(digitalHumanCurrentSpeechTaskId && digitalHumanCurrentSpeechTask?.status !== 9 && !digitalHumanCurrentSpeechTask?.errMsg && !digitalHumanCurrentSpeechTask?.errReason);
+  const isAdPreAuditTaskActive = adPreAuditWorks.some((item) =>
+    item.taskStatus === "RUNNING"
+    || item.taskStatus === "QUEUED"
+    || item.taskStatus === "PENDING"
+    || item.executionStatus === "PendingStart"
+    || item.executionStatus === "Running",
+  );
   const permissionMap = brandPermissionSettings?.currentUserPermissions;
   const visibleSections = useMemo(
     () =>
@@ -305,6 +323,7 @@ export function DouyinWorkspaceShell() {
   const canEditVideo = brandPermissionSettings ? (permissionMap?.["douyin.video"]?.edit ?? false) : true;
   const canEditDirectVideo = brandPermissionSettings ? (permissionMap?.["douyin.videoDirect"]?.edit ?? false) : true;
   const canEditDigitalHuman = brandPermissionSettings ? (permissionMap?.["douyin.digitalHuman"]?.edit ?? false) : true;
+  const canEditAdPreAudit = brandPermissionSettings ? (permissionMap?.["douyin.adPreAudit"]?.edit ?? false) : true;
   const defaultDouyinAccountId = useMemo(
     () => brandArchive.platformAccounts.find((item) => item.platform === "DOUYIN")?.id || "",
     [brandArchive.platformAccounts],
@@ -393,7 +412,7 @@ export function DouyinWorkspaceShell() {
   );
   const currentSection = visibleSections.find((item) => item.key === activeSection) ?? visibleSections[0] ?? douyinSections[0];
   const heroTitle = "抖音工作台";
-  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频和数字人，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
+  const heroDescription = "当前开放营销策划方案、素材库、热点找选题、选题库、原创文案、二创文案、AI 生视频（故事板）、AI 生视频、数字人和广告预审，可直接复用品牌增长策略里沉淀的抖音对标作品、每日热点与品牌资料。";
   const videoMarketingPlanTitle = marketingPlanWorkspace.latest?.title || originalCopyWorkspace.marketingPlanTitle || remixCopyWorkspace.marketingPlanTitle;
   const hasVideoMarketingPlan = Boolean(marketingPlanWorkspace.latest || originalCopyWorkspace.hasMarketingPlan || remixCopyWorkspace.hasMarketingPlan);
 
@@ -446,6 +465,12 @@ export function DouyinWorkspaceShell() {
     setDirectVideoWorks(items.items || []);
     setDirectVideoProviderOptions(providers.items || []);
     return items.items || [];
+  }, [activeBrandId]);
+
+  const refreshAdPreAuditWorkspace = useCallback(async () => {
+    const response = await getDouyinAdPreAuditWorks(activeBrandId);
+    setAdPreAuditWorks(response.items || []);
+    return response.items || [];
   }, [activeBrandId]);
 
   const refreshDigitalHumanPublicVoices = useCallback(async (page = 1) => {
@@ -646,7 +671,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, adPreAuditResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -663,6 +688,7 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("adPreAudit") ? getDouyinAdPreAuditWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinLipSyncWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman")
@@ -784,8 +810,16 @@ export function DouyinWorkspaceShell() {
       setDigitalHumanWorks([]);
     }
 
+    if (adPreAuditResult.status === "fulfilled") {
+      setAdPreAuditWorks(adPreAuditResult.value.items || []);
+    } else {
+      hasFallback = true;
+      failedInterfaceNames.push("广告预审记录");
+      setAdPreAuditWorks([]);
+    }
+
+
     if (digitalHumanCustomPersonsResult.status === "fulfilled") {
-      setDigitalHumanCustomPersons(digitalHumanCustomPersonsResult.value.items || []);
     } else {
       hasFallback = true;
       failedInterfaceNames.push("我的数字人");
@@ -1041,6 +1075,16 @@ export function DouyinWorkspaceShell() {
   }, [isDirectVideoTaskActive, refreshDirectVideoWorkspace]);
 
   useEffect(() => {
+    if (!isAdPreAuditTaskActive) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshAdPreAuditWorkspace().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isAdPreAuditTaskActive, refreshAdPreAuditWorkspace]);
+
+  useEffect(() => {
     if (!isDigitalHumanTaskActive) {
       return undefined;
     }
@@ -1051,10 +1095,10 @@ export function DouyinWorkspaceShell() {
   }, [isDigitalHumanTaskActive, refreshDigitalHumanWorkspace]);
 
   useEffect(() => {
-    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && !isDigitalHumanTaskActive && notice.includes("任务已提交")) {
+    if (!isTaskActive && !isHotTopicTaskActive && !isOriginalCopyTaskActive && !isRemixCopyTaskActive && !isVideoTaskActive && !isDirectVideoTaskActive && !isAdPreAuditTaskActive && !isDigitalHumanTaskActive && notice.includes("任务已提交")) {
       setNotice("");
     }
-  }, [isDigitalHumanTaskActive, isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
+  }, [isAdPreAuditTaskActive, isDigitalHumanTaskActive, isDirectVideoTaskActive, isHotTopicTaskActive, isOriginalCopyTaskActive, isRemixCopyTaskActive, isTaskActive, isVideoTaskActive, notice]);
 
   useEffect(() => {
     setOriginalCopyWorkspace((current) => ({
@@ -1729,6 +1773,81 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditDirectVideo, refreshDirectVideoWorkspace]);
 
+  const handleCreateAdPreAudit = useCallback(async (payload: {
+    vid?: string;
+    fileId?: string;
+    advertiserId?: string;
+    businessType?: string;
+    materialLabel?: string;
+  }) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能提交广告预审。");
+      return false;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await createDouyinAdPreAudit(activeBrandId, payload);
+      await refreshAdPreAuditWorkspace();
+      setNotice("广告预审任务已提交，系统正在后台拉取火山引擎结果。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "广告预审提交失败。");
+      return false;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
+  const handleRefreshAdPreAudit = useCallback(async (taskId: string) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能刷新广告预审结果。");
+      return false;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await refreshDouyinAdPreAudit(activeBrandId, taskId);
+      await refreshAdPreAuditWorkspace();
+      setNotice(
+        response.item.auditStatus === "AuditResult__PASS"
+          ? "广告预审已通过。"
+          : response.item.auditStatus === "AuditResult__REJECT"
+            ? "广告预审已返回驳回结果。"
+            : "广告预审状态已刷新。",
+      );
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "广告预审结果刷新失败。");
+      return false;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
+  const handleDeleteAdPreAudit = useCallback(async (taskId: string) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能删除广告预审记录。");
+      return false;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      await deleteDouyinAdPreAudit(activeBrandId, taskId);
+      await refreshAdPreAuditWorkspace();
+      setNotice("广告预审记录已删除。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "广告预审记录删除失败。");
+      return false;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
   const handleCreateDigitalHuman = useCallback(async (payload: Parameters<typeof generateDouyinDigitalHumanVideoWork>[1]) => {
     if (!canEditDigitalHuman) {
       setErrorMessage("当前账号只有查看权限，不能生成数字人视频。");
@@ -2335,7 +2454,7 @@ export function DouyinWorkspaceShell() {
                         type="button"
                         className="secondary-button"
                         onClick={() => void loadWorkspace()}
-                        disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSubmittingDigitalHuman || isSaving || isDeleting}
+                        disabled={isLoading || isGenerating || isGeneratingHotTopics || isSubmittingOriginalCopy || isSubmittingRemixCopy || isSubmittingVideo || isSubmittingDirectVideo || isSubmittingDigitalHuman || isSubmittingAdPreAudit || isSaving || isDeleting}
                       >
                         刷新数据
                       </button>
@@ -2561,6 +2680,22 @@ export function DouyinWorkspaceShell() {
                     onCreateRemixCopy={handleCreateRemixCopy}
                     onOpenPublishModal={handleOpenPublishModal}
                     onOpenWechatChannelPublishModal={handleOpenWechatChannelPublishModal}
+                    formatDateTime={formatDateTime}
+                  />
+                ) : activeSection === "adPreAudit" ? (
+                  <DouyinAdPreAuditWorkspace
+                    sectionLabel={currentSection.label}
+                    sectionDescription={currentSection.description}
+                    isLoading={isLoading}
+                    isSubmitting={isSubmittingAdPreAudit}
+                    canEdit={canEditAdPreAudit}
+                    items={adPreAuditWorks}
+                    onRefresh={async () => {
+                      await refreshAdPreAuditWorkspace();
+                    }}
+                    onCreate={handleCreateAdPreAudit}
+                    onRefreshItem={handleRefreshAdPreAudit}
+                    onDelete={handleDeleteAdPreAudit}
                     formatDateTime={formatDateTime}
                   />
                 ) : (

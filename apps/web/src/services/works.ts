@@ -222,6 +222,31 @@ export type XiaohongshuVideoWorkRecord = {
 
 export type DouyinVideoWorkRecord = XiaohongshuVideoWorkRecord;
 export type DouyinDirectVideoWorkRecord = XiaohongshuVideoWorkRecord;
+export type DouyinAdPreAuditExecutionStatus = "PendingStart" | "Running" | "Success" | "Failed" | "Terminated" | "Unknown";
+export type DouyinAdPreAuditResultStatus = "AuditResult__PASS" | "AuditResult__REJECT" | "PENDING" | "UNKNOWN";
+
+export type DouyinAdPreAuditRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  runId?: string;
+  vid: string;
+  fileId?: string;
+  advertiserId: string;
+  businessType: string;
+  materialLabel?: string;
+  executionStatus: DouyinAdPreAuditExecutionStatus;
+  executionStatusLabel: string;
+  auditStatus: DouyinAdPreAuditResultStatus;
+  auditStatusLabel: string;
+  reason?: string;
+  durationSec?: number;
+  taskStatus?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  errorMessage?: string;
+  lastPolledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
 export type DigitalHumanSource = "COMMON" | "CUSTOM";
@@ -764,6 +789,14 @@ export type GenerateDouyinDirectVideoForm = {
   includeMarketingPlan?: boolean;
 };
 
+export type CreateDouyinAdPreAuditForm = {
+  vid?: string;
+  fileId?: string;
+  advertiserId?: string;
+  businessType?: string;
+  materialLabel?: string;
+};
+
 export type GenerateDouyinDigitalHumanVideoForm = {
   title?: string;
   personId?: string;
@@ -1232,6 +1265,32 @@ export async function updateDouyinDirectVideoWork(
 
 export async function deleteDouyinDirectVideoWork(brandId: string, workId: string) {
   return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/direct-video/${workId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDouyinAdPreAuditWorks(brandId: string) {
+  return request<{ items: DouyinAdPreAuditRecord[] }>(`/works/brands/${brandId}/douyin/ad-preaudit`);
+}
+
+export async function createDouyinAdPreAudit(brandId: string, form: CreateDouyinAdPreAuditForm) {
+  return jsonRequest<{ item: DouyinAdPreAuditRecord }>(
+    `/works/brands/${brandId}/douyin/ad-preaudit/submit`,
+    "POST",
+    form,
+  );
+}
+
+export async function refreshDouyinAdPreAudit(brandId: string, taskId: string) {
+  return jsonRequest<{ item: DouyinAdPreAuditRecord }>(
+    `/works/brands/${brandId}/douyin/ad-preaudit/${taskId}/refresh`,
+    "POST",
+    {},
+  );
+}
+
+export async function deleteDouyinAdPreAudit(brandId: string, taskId: string) {
+  return request<{ success: boolean }>(`/works/brands/${brandId}/douyin/ad-preaudit/${taskId}`, {
     method: "DELETE",
   });
 }

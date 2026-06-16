@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
-import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { MediaType, TaskStatus, type Prisma } from "@prisma/client";
 import { createId, database, type ApiProviderRecord } from "../../common/mock-data";
 import { XHS_IMAGE_ANALYSIS_PROMPT_FALLBACK } from "../../common/prompt-fallbacks";
@@ -51,6 +51,11 @@ const VIDEO_TASK_QUERY_TIMEOUT_MS = 20 * 1000;
 const VIDEO_TASK_TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 const WORKS_KNOWLEDGE_BINDING_LIMIT = 3;
 const WORKS_KNOWLEDGE_TOP_K = 4;
+const DOUYIN_AD_PRE_AUDIT_TASK_TYPE = "DOUYIN_AD_PRE_AUDIT";
+const VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION = "cn-north-1";
+const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
+const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
+const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
@@ -254,6 +259,14 @@ export type GenerateDouyinDirectVideoPayload = {
   durationSec?: number;
   aspectRatio?: VideoAspectRatio;
   includeMarketingPlan?: boolean;
+};
+
+export type CreateDouyinAdPreAuditPayload = {
+  vid?: string;
+  fileId?: string;
+  advertiserId?: string;
+  businessType?: string;
+  materialLabel?: string;
 };
 
 export type UpdateXiaohongshuVideoNotePayload = {
@@ -1718,6 +1731,40 @@ export type DouyinDigitalHumanVideoWorkRecord = {
   taskStatus?: WorkTaskStatus;
   createdAt: string;
   updatedAt: string;
+};
+
+type DouyinAdPreAuditExecutionStatus = "PendingStart" | "Running" | "Success" | "Failed" | "Terminated" | "Unknown";
+type DouyinAdPreAuditResultStatus = "AuditResult__PASS" | "AuditResult__REJECT" | "PENDING" | "UNKNOWN";
+
+type DouyinAdPreAuditRecord = {
+  id: string;
+  taskId: string;
+  brandId?: string;
+  runId?: string;
+  vid: string;
+  fileId?: string;
+  advertiserId: string;
+  businessType: string;
+  materialLabel?: string;
+  executionStatus: DouyinAdPreAuditExecutionStatus;
+  executionStatusLabel: string;
+  auditStatus: DouyinAdPreAuditResultStatus;
+  auditStatusLabel: string;
+  reason?: string;
+  durationSec?: number;
+  taskStatus?: string;
+  errorMessage?: string;
+  lastPolledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type VolcengineVodCredential = {
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  service: string;
+  host: string;
 };
 
 type NormalizedDigitalHumanCreatePayload = {
@@ -3289,6 +3336,110 @@ export class WorksService {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return { items };
+  }
+
+  async listDouyinAdPreAuditWorks(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const tasks = await this.prismaService.task.findMany({
+        where: {
+          brandId,
+          taskType: DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return {
+        items: tasks.map((item) => this.mapDouyinAdPreAuditTask(item)),
+      };
+    }
+
+    const items = database.tasks
+      .filter((item) => item.brandId === brandId && item.taskType === DOUYIN_AD_PRE_AUDIT_TASK_TYPE)
+      .map((item) => this.mapDouyinAdPreAuditTask(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return { items };
+  }
+
+  async createDouyinAdPreAudit(
+    brandId: string,
+    payload: CreateDouyinAdPreAuditPayload,
+    auth?: RequestAuthContext,
+  ) {
+    const userId = this.requireAuthenticatedUserId(auth);
+    const normalizedPayload = this.normalizeDouyinAdPreAuditPayload(payload);
+    const task = await this.createDouyinAdPreAuditTask({
+      userId,
+      brandId,
+      payload: normalizedPayload,
+    });
+
+    await this.markTaskRunning(task.id);
+    try {
+      const snapshot = await this.startDouyinAdPreAuditExecution(brandId, normalizedPayload);
+      await this.persistDouyinAdPreAuditSnapshot(brandId, task.id, normalizedPayload, snapshot);
+      return {
+        item: await this.getDouyinAdPreAuditItem(brandId, task.id),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "广告预审任务提交失败。";
+      await this.markTaskFailed(task.id, message, {
+        modelName: "volcengine-vod-ad-audit",
+        outputJson: this.buildDouyinAdPreAuditTaskOutput({
+          taskId: task.id,
+          brandId,
+          payload: normalizedPayload,
+          executionStatus: "Failed",
+          reason: message,
+        }),
+      });
+      throw error;
+    }
+  }
+
+  async refreshDouyinAdPreAudit(brandId: string, taskId: string) {
+    const task = await this.getDouyinAdPreAuditTaskById(brandId, taskId);
+    const inputPayload = this.normalizeDouyinAdPreAuditPayload(this.asRecord(task.inputJson) || {});
+    const runId = this.readOptionalString(this.asRecord(task.outputJson)?.runId);
+    if (!runId) {
+      throw new BadRequestException("当前预审任务缺少 RunId，请重新提交一次广告预审。");
+    }
+    const snapshot = await this.fetchDouyinAdPreAuditSnapshot(brandId, inputPayload, runId);
+    await this.persistDouyinAdPreAuditSnapshot(brandId, taskId, inputPayload, snapshot);
+    return {
+      item: await this.getDouyinAdPreAuditItem(brandId, taskId),
+    };
+  }
+
+  async deleteDouyinAdPreAudit(brandId: string, taskId: string) {
+    const normalizedTaskId = String(taskId || "").trim();
+    if (!normalizedTaskId) {
+      throw new BadRequestException("预审记录不存在");
+    }
+
+    if (await this.prismaService.canUseDatabase()) {
+      const current = await this.prismaService.task.findFirst({
+        where: {
+          id: normalizedTaskId,
+          brandId,
+          taskType: DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+        },
+      });
+      if (!current) {
+        throw new NotFoundException("广告预审记录不存在");
+      }
+      await this.prismaService.task.delete({
+        where: { id: normalizedTaskId },
+      });
+      return { success: true };
+    }
+
+    const exists = database.tasks.some((item) =>
+      item.id === normalizedTaskId && item.brandId === brandId && item.taskType === DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+    );
+    if (!exists) {
+      throw new NotFoundException("广告预审记录不存在");
+    }
+    database.tasks = database.tasks.filter((item) => item.id !== normalizedTaskId);
+    return { success: true };
   }
 
   async listWechatArticleDrafts(brandId: string) {
@@ -8310,6 +8461,534 @@ export class WorksService {
     };
     database.tasks.unshift(task);
     return task;
+  }
+
+  private requireAuthenticatedUserId(auth?: RequestAuthContext) {
+    const userId = String(auth?.userId || "").trim();
+    if (!userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    return userId;
+  }
+
+  private normalizeDouyinAdPreAuditPayload(payload: Partial<CreateDouyinAdPreAuditPayload> | Record<string, unknown>) {
+    const vid = this.readOptionalString(payload?.vid);
+    const fileId = this.readOptionalString(payload?.fileId);
+    const advertiserId = this.readOptionalString(payload?.advertiserId);
+    const businessType = this.readOptionalString(payload?.businessType) || "ad";
+    const materialLabel = this.readOptionalString(payload?.materialLabel);
+    if (!vid) {
+      throw new BadRequestException("请先填写 VOD 的 Vid。");
+    }
+    if (!advertiserId) {
+      throw new BadRequestException("请先填写广告主账户 ID。");
+    }
+    return {
+      vid,
+      fileId: fileId || undefined,
+      advertiserId,
+      businessType,
+      materialLabel: materialLabel || undefined,
+    };
+  }
+
+  private async createDouyinAdPreAuditTask(params: {
+    userId: string;
+    brandId: string;
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>;
+  }) {
+    const taskTitle = `抖音广告预审 · ${params.payload.materialLabel || params.payload.vid}`;
+    const outputJson = this.buildDouyinAdPreAuditTaskOutput({
+      taskId: "",
+      brandId: params.brandId,
+      payload: params.payload,
+      executionStatus: "PendingStart",
+      auditStatus: "PENDING",
+    });
+    if (await this.prismaService.canUseDatabase()) {
+      return this.prismaService.task.create({
+        data: {
+          userId: params.userId,
+          brandId: params.brandId,
+          taskType: DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+          taskTitle,
+          taskStatus: TaskStatus.QUEUED,
+          modelName: "volcengine-vod-ad-audit",
+          pointsCost: 0,
+          inputJson: params.payload as Prisma.InputJsonValue,
+          outputJson: outputJson as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    const now = new Date().toISOString();
+    const task = {
+      id: createId("tsk"),
+      userId: params.userId,
+      brandId: params.brandId,
+      taskType: DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+      taskTitle,
+      taskStatus: "QUEUED" as const,
+      modelName: "volcengine-vod-ad-audit",
+      pointsCost: 0,
+      inputJson: params.payload,
+      outputJson,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.tasks.unshift(task);
+    return task;
+  }
+
+  private async getDouyinAdPreAuditTaskById(brandId: string, taskId: string) {
+    const normalizedTaskId = String(taskId || "").trim();
+    if (!normalizedTaskId) {
+      throw new NotFoundException("广告预审记录不存在");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      const task = await this.prismaService.task.findFirst({
+        where: {
+          id: normalizedTaskId,
+          brandId,
+          taskType: DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+        },
+      });
+      if (!task) {
+        throw new NotFoundException("广告预审记录不存在");
+      }
+      return task;
+    }
+
+    const task = database.tasks.find((item) =>
+      item.id === normalizedTaskId && item.brandId === brandId && item.taskType === DOUYIN_AD_PRE_AUDIT_TASK_TYPE,
+    );
+    if (!task) {
+      throw new NotFoundException("广告预审记录不存在");
+    }
+    return task;
+  }
+
+  private async getDouyinAdPreAuditItem(brandId: string, taskId: string) {
+    const task = await this.getDouyinAdPreAuditTaskById(brandId, taskId);
+    return this.mapDouyinAdPreAuditTask(task);
+  }
+
+  private mapDouyinAdPreAuditTask(task: {
+    id: string;
+    brandId?: string | null;
+    taskStatus?: TaskStatus | string;
+    taskTitle?: string | null;
+    inputJson?: unknown;
+    outputJson?: unknown;
+    errorMessage?: string | null;
+    createdAt?: Date | string | null;
+    updatedAt?: Date | string | null;
+    finishedAt?: Date | string | null;
+  }): DouyinAdPreAuditRecord {
+    const input = this.asRecord(task.inputJson);
+    const output = this.asRecord(task.outputJson);
+    const taskStatus = String(task.taskStatus || "PENDING");
+    const executionStatus = this.normalizeDouyinAdPreAuditExecutionStatus(output?.executionStatus, taskStatus);
+    const auditStatus = this.normalizeDouyinAdPreAuditResultStatus(output?.auditStatus, executionStatus, taskStatus);
+    const createdAt = this.normalizeHistoryTimestamp(task.createdAt) || new Date().toISOString();
+    const updatedAt =
+      this.normalizeHistoryTimestamp(task.updatedAt)
+      || this.normalizeHistoryTimestamp(task.finishedAt)
+      || createdAt;
+    return {
+      id: task.id,
+      taskId: task.id,
+      brandId: task.brandId ?? undefined,
+      runId: this.readOptionalString(output?.runId),
+      vid: this.readOptionalString(output?.vid) || this.readOptionalString(input?.vid) || "",
+      fileId: this.readOptionalString(output?.fileId) || this.readOptionalString(input?.fileId) || undefined,
+      advertiserId: this.readOptionalString(output?.advertiserId) || this.readOptionalString(input?.advertiserId) || "",
+      businessType: this.readOptionalString(output?.businessType) || this.readOptionalString(input?.businessType) || "ad",
+      materialLabel:
+        this.readOptionalString(output?.materialLabel)
+        || this.readOptionalString(input?.materialLabel)
+        || this.readOptionalString(task.taskTitle)
+        || undefined,
+      executionStatus,
+      executionStatusLabel: this.getDouyinAdPreAuditExecutionStatusLabel(executionStatus),
+      auditStatus,
+      auditStatusLabel: this.getDouyinAdPreAuditResultStatusLabel(auditStatus),
+      reason:
+        this.readOptionalString(output?.reason)
+        || (taskStatus === "FAILED" ? this.readOptionalString(task.errorMessage) : "")
+        || undefined,
+      durationSec: this.readOptionalNumber(output?.durationSec),
+      taskStatus,
+      errorMessage: this.readOptionalString(task.errorMessage) || undefined,
+      lastPolledAt: this.readOptionalString(output?.lastPolledAt) || undefined,
+      createdAt,
+      updatedAt,
+    };
+  }
+
+  private async startDouyinAdPreAuditExecution(
+    brandId: string,
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>,
+  ) {
+    const credential = await this.resolveVolcengineVodCredential(brandId);
+    const response = await this.callVolcengineVodOpenApi(credential, "StartExecution", {
+      Input: payload.fileId
+        ? {
+            Type: "FileId",
+            FileId: {
+              Vid: payload.vid,
+              FileId: payload.fileId,
+            },
+          }
+        : {
+            Type: "Vid",
+            Vid: payload.vid,
+          },
+      Operation: {
+        Type: "Task",
+        Task: {
+          Type: "AdAudit",
+          AdAudit: {
+            AdvertiserId: payload.advertiserId,
+            BusinessType: payload.businessType,
+          },
+        },
+      },
+    });
+    const result = this.asRecord(response?.Result);
+    const runId = this.readOptionalString(result?.RunId) || this.readOptionalString(result?.RunID);
+    if (!runId) {
+      throw new ServiceUnavailableException("广告预审任务提交失败：火山引擎未返回 RunId。");
+    }
+    try {
+      return await this.fetchDouyinAdPreAuditSnapshotWithCredential(credential, payload, runId);
+    } catch {
+      return {
+        runId,
+        executionStatus: "PendingStart" as DouyinAdPreAuditExecutionStatus,
+        auditStatus: "PENDING" as DouyinAdPreAuditResultStatus,
+      };
+    }
+  }
+
+  private async fetchDouyinAdPreAuditSnapshot(
+    brandId: string,
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>,
+    runId: string,
+  ) {
+    const credential = await this.resolveVolcengineVodCredential(brandId);
+    return this.fetchDouyinAdPreAuditSnapshotWithCredential(credential, payload, runId);
+  }
+
+  private async fetchDouyinAdPreAuditSnapshotWithCredential(
+    credential: VolcengineVodCredential,
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>,
+    runId: string,
+  ) {
+    const response = await this.callVolcengineVodOpenApi(credential, "GetExecution", {
+      RunId: runId,
+    });
+    const result = this.asRecord(response?.Result);
+    const output = this.asRecord(result?.Output);
+    const taskOutput = this.asRecord(output?.Task);
+    const adAudit = this.asRecord(taskOutput?.AdAudit);
+    const executionStatus = this.normalizeDouyinAdPreAuditExecutionStatus(
+      result?.Status,
+      this.readOptionalString(adAudit?.Status),
+    );
+    return {
+      runId,
+      executionStatus,
+      auditStatus: this.normalizeDouyinAdPreAuditResultStatus(adAudit?.Status, executionStatus),
+      reason: this.readOptionalString(adAudit?.Reason) || undefined,
+      durationSec: this.readOptionalNumber(adAudit?.Duration),
+      lastPolledAt: new Date().toISOString(),
+      vid: payload.vid,
+      fileId: payload.fileId,
+      advertiserId: payload.advertiserId,
+      businessType: payload.businessType,
+      materialLabel: payload.materialLabel,
+    };
+  }
+
+  private async persistDouyinAdPreAuditSnapshot(
+    brandId: string,
+    taskId: string,
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>,
+    snapshot: {
+      runId: string;
+      executionStatus: DouyinAdPreAuditExecutionStatus;
+      auditStatus: DouyinAdPreAuditResultStatus;
+      reason?: string;
+      durationSec?: number;
+      lastPolledAt?: string;
+      vid?: string;
+      fileId?: string;
+      advertiserId?: string;
+      businessType?: string;
+      materialLabel?: string;
+    },
+  ) {
+    const outputJson = this.buildDouyinAdPreAuditTaskOutput({
+      taskId,
+      brandId,
+      payload,
+      runId: snapshot.runId,
+      executionStatus: snapshot.executionStatus,
+      auditStatus: snapshot.auditStatus,
+      reason: snapshot.reason,
+      durationSec: snapshot.durationSec,
+      lastPolledAt: snapshot.lastPolledAt,
+    });
+    if (snapshot.executionStatus === "Failed" || snapshot.executionStatus === "Terminated") {
+      await this.markTaskFailed(taskId, snapshot.reason || "广告预审执行失败，请检查火山引擎返回结果。", {
+        modelName: "volcengine-vod-ad-audit",
+        outputJson,
+      });
+      return;
+    }
+    if (snapshot.executionStatus === "Success") {
+      await this.markTaskSuccess(taskId, outputJson, {
+        modelName: "volcengine-vod-ad-audit",
+      });
+      return;
+    }
+    await this.updateTaskRunningOutput(taskId, outputJson, {
+      modelName: "volcengine-vod-ad-audit",
+    });
+  }
+
+  private buildDouyinAdPreAuditTaskOutput(params: {
+    taskId: string;
+    brandId: string;
+    payload: ReturnType<WorksService["normalizeDouyinAdPreAuditPayload"]>;
+    runId?: string;
+    executionStatus: DouyinAdPreAuditExecutionStatus;
+    auditStatus?: DouyinAdPreAuditResultStatus;
+    reason?: string;
+    durationSec?: number;
+    lastPolledAt?: string;
+  }) {
+    return {
+      taskId: params.taskId,
+      brandId: params.brandId,
+      runId: params.runId || "",
+      vid: params.payload.vid,
+      fileId: params.payload.fileId || "",
+      advertiserId: params.payload.advertiserId,
+      businessType: params.payload.businessType,
+      materialLabel: params.payload.materialLabel || "",
+      executionStatus: params.executionStatus,
+      auditStatus: params.auditStatus || "PENDING",
+      reason: params.reason || "",
+      durationSec: params.durationSec ?? null,
+      lastPolledAt: params.lastPolledAt || "",
+    };
+  }
+
+  private normalizeDouyinAdPreAuditExecutionStatus(...values: unknown[]): DouyinAdPreAuditExecutionStatus {
+    for (const value of values) {
+      const normalized = (this.readOptionalString(value) || "").toLowerCase();
+      if (normalized === "pendingstart") {
+        return "PendingStart";
+      }
+      if (normalized === "running" || normalized === "queued" || normalized === "pending") {
+        return "Running";
+      }
+      if (normalized === "success") {
+        return "Success";
+      }
+      if (normalized === "failed") {
+        return "Failed";
+      }
+      if (normalized === "terminated" || normalized === "cancelled" || normalized === "canceled") {
+        return "Terminated";
+      }
+    }
+    return "Unknown";
+  }
+
+  private normalizeDouyinAdPreAuditResultStatus(
+    rawStatus: unknown,
+    executionStatus?: DouyinAdPreAuditExecutionStatus,
+    taskStatus?: string,
+  ): DouyinAdPreAuditResultStatus {
+    const normalized = this.readOptionalString(rawStatus);
+    if (normalized === "AuditResult__PASS") {
+      return "AuditResult__PASS";
+    }
+    if (normalized === "AuditResult__REJECT") {
+      return "AuditResult__REJECT";
+    }
+    if (executionStatus === "PendingStart" || executionStatus === "Running") {
+      return "PENDING";
+    }
+    if (String(taskStatus || "").toUpperCase() === "FAILED") {
+      return "UNKNOWN";
+    }
+    return executionStatus === "Success" ? "UNKNOWN" : "PENDING";
+  }
+
+  private getDouyinAdPreAuditExecutionStatusLabel(status: DouyinAdPreAuditExecutionStatus) {
+    switch (status) {
+      case "PendingStart":
+        return "待启动";
+      case "Running":
+        return "执行中";
+      case "Success":
+        return "执行完成";
+      case "Failed":
+        return "执行失败";
+      case "Terminated":
+        return "已终止";
+      default:
+        return "状态未知";
+    }
+  }
+
+  private getDouyinAdPreAuditResultStatusLabel(status: DouyinAdPreAuditResultStatus) {
+    switch (status) {
+      case "AuditResult__PASS":
+        return "预审通过";
+      case "AuditResult__REJECT":
+        return "预审驳回";
+      case "PENDING":
+        return "等待结果";
+      default:
+        return "待确认";
+    }
+  }
+
+  private async resolveVolcengineVodCredential(brandId: string) {
+    const resolution = await this.thirdPartyPlatformsService.resolveBrandRuntimeApiKeys(brandId, [
+      "https://vod.volcengineapi.com",
+    ]);
+    if (resolution.status === "resolved") {
+      const apiKey = String(resolution.apiKeys[0] || "").trim();
+      if (apiKey) {
+        return this.parseVolcengineVodCredential(apiKey);
+      }
+    }
+    throw new ServiceUnavailableException(
+      "当前品牌尚未配置火山引擎 VOD OpenAPI 凭证，请先在个人中心第三方平台中按 `accessKeyId::secretAccessKey` 格式填写，必要时可追加 `::cn-north-1`。",
+    );
+  }
+
+  private parseVolcengineVodCredential(rawCredential: string): VolcengineVodCredential {
+    const parts = String(rawCredential || "").split("::").map((item) => item.trim()).filter(Boolean);
+    if (parts.length < 2) {
+      throw new ServiceUnavailableException(
+        "火山引擎 VOD OpenAPI 凭证格式不正确，请按 `accessKeyId::secretAccessKey` 重新填写。",
+      );
+    }
+    return {
+      accessKeyId: parts[0],
+      secretAccessKey: parts[1],
+      region: parts[2] || VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION,
+      host: parts[3] || VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST,
+      service: parts[4] || VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE,
+    };
+  }
+
+  private async callVolcengineVodOpenApi(
+    credential: VolcengineVodCredential,
+    action: string,
+    body: Record<string, unknown>,
+  ) {
+    const bodyText = JSON.stringify(body || {});
+    const query = this.buildVolcengineOpenApiQuery({
+      Action: action,
+      Version: VOLCENGINE_VOD_OPENAPI_VERSION,
+    });
+    const headers = this.signVolcengineOpenApiRequest(credential, query, bodyText);
+    const response = await fetch(`https://${credential.host}/?${query}`, {
+      method: "POST",
+      headers,
+      body: bodyText,
+    });
+    const rawText = await response.text();
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = rawText ? JSON.parse(rawText) as Record<string, unknown> : {};
+    } catch {
+      payload = {};
+    }
+    const metadata = this.asRecord(payload.ResponseMetadata);
+    const errorRecord = this.asRecord(metadata?.Error);
+    const message = this.readOptionalString(errorRecord?.Message)
+      || this.readOptionalString(metadata?.ErrorMessage)
+      || rawText.trim();
+    if (!response.ok || errorRecord) {
+      throw new ServiceUnavailableException(message || `${action} 调用失败，请稍后重试。`);
+    }
+    return payload;
+  }
+
+  private signVolcengineOpenApiRequest(
+    credential: VolcengineVodCredential,
+    canonicalQuery: string,
+    bodyText: string,
+  ) {
+    const xDate = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const shortDate = xDate.slice(0, 8);
+    const contentSha = createHash("sha256").update(bodyText, "utf8").digest("hex");
+    const signedHeaders = "content-type;host;x-content-sha256;x-date";
+    const canonicalHeaders = [
+      "content-type:application/json",
+      `host:${credential.host}`,
+      `x-content-sha256:${contentSha}`,
+      `x-date:${xDate}`,
+    ].join("\n");
+    const canonicalRequest = [
+      "POST",
+      "/",
+      canonicalQuery,
+      `${canonicalHeaders}\n`,
+      signedHeaders,
+      contentSha,
+    ].join("\n");
+    const credentialScope = `${shortDate}/${credential.region}/${credential.service}/request`;
+    const stringToSign = [
+      "HMAC-SHA256",
+      xDate,
+      credentialScope,
+      createHash("sha256").update(canonicalRequest, "utf8").digest("hex"),
+    ].join("\n");
+    const dateKey = createHmac("sha256", credential.secretAccessKey).update(shortDate, "utf8").digest();
+    const regionKey = createHmac("sha256", dateKey).update(credential.region, "utf8").digest();
+    const serviceKey = createHmac("sha256", regionKey).update(credential.service, "utf8").digest();
+    const signingKey = createHmac("sha256", serviceKey).update("request", "utf8").digest();
+    const signature = createHmac("sha256", signingKey).update(stringToSign, "utf8").digest("hex");
+    return {
+      "Content-Type": "application/json",
+      Host: credential.host,
+      "X-Date": xDate,
+      "X-Content-Sha256": contentSha,
+      Authorization: `HMAC-SHA256 Credential=${credential.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    };
+  }
+
+  private buildVolcengineOpenApiQuery(params: Record<string, string>) {
+    return Object.keys(params)
+      .sort((a, b) => a.localeCompare(b))
+      .map((key) => `${this.encodeVolcengineOpenApiComponent(key)}=${this.encodeVolcengineOpenApiComponent(params[key] || "")}`)
+      .join("&");
+  }
+
+  private encodeVolcengineOpenApiComponent(value: string) {
+    return encodeURIComponent(String(value || ""))
+      .replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  }
+
+  private readOptionalNumber(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
   }
 
   private async createRewriteTask(params: { userId: string; brandId: string; taskTitle: string; modelName?: string }) {
