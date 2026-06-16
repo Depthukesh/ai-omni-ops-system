@@ -39,6 +39,7 @@ export interface DouyinAdPreAuditWorkspaceProps {
 }
 
 const DEFAULT_BUSINESS_TYPE = "ad";
+const VOLCENGINE_VOD_TUTORIAL_URL = "https://www.volcengine.com/docs/4/1511923?lang=zh";
 
 export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps) {
   const [vid, setVid] = useState("");
@@ -205,6 +206,9 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
               <span className={`archive-pill ${props.config.vodSpaceName ? "status-ready" : "status-pending"}`}>
                 {props.config.vodSpaceName ? "已配置 SpaceName" : "未配置 SpaceName"}
               </span>
+              <a className="secondary-button" href={VOLCENGINE_VOD_TUTORIAL_URL} target="_blank" rel="noreferrer">
+                配置教程
+              </a>
             </div>
           </div>
           <div

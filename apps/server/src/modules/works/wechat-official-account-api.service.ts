@@ -38,6 +38,12 @@ type WechatDraftAddResponse = {
   errmsg?: string;
 };
 
+type WechatContentImageUploadResponse = {
+  url?: string;
+  errcode?: number;
+  errmsg?: string;
+};
+
 type CachedToken = {
   accessToken: string;
   expireAtMs: number;
@@ -57,6 +63,7 @@ export class WechatOfficialAccountApiService {
   async publishDraft(credential: WechatCredential, payload: PublishWechatDraftPayload) {
     return this.withAccessTokenRetry(credential, async (accessToken) => {
       const thumbMediaId = await this.uploadCoverImage(accessToken, payload.coverImageUrl);
+      const resolvedHtmlContent = await this.uploadContentImages(accessToken, payload.htmlContent);
       const response = await this.requestJson<WechatDraftAddResponse>(
         `/cgi-bin/draft/add?access_token=${encodeURIComponent(accessToken)}`,
         {
@@ -67,7 +74,7 @@ export class WechatOfficialAccountApiService {
                 title: payload.title,
                 author: payload.author || "",
                 digest: payload.summary || "",
-                content: payload.htmlContent,
+                content: resolvedHtmlContent,
                 thumb_media_id: thumbMediaId,
                 need_open_comment: payload.needOpenComment ? 1 : 0,
                 only_fans_can_comment: payload.onlyFansCanComment ? 1 : 0,
@@ -104,6 +111,71 @@ export class WechatOfficialAccountApiService {
       throw new ServiceUnavailableException("微信公众号素材上传失败：未返回 media_id");
     }
     return mediaId;
+  }
+
+  private async uploadContentImages(accessToken: string, htmlContent: string) {
+    const normalizedHtml = String(htmlContent || "").trim();
+    if (!normalizedHtml) {
+      return normalizedHtml;
+    }
+    const imageTags = Array.from(normalizedHtml.matchAll(/<img\b[^>]*>/gi));
+    if (!imageTags.length) {
+      return normalizedHtml;
+    }
+    const uploadCache = new Map<string, string>();
+    for (const tagMatch of imageTags) {
+      const tag = String(tagMatch[0] || "");
+      const sourceUrl = this.extractImageSource(tag);
+      if (!sourceUrl || uploadCache.has(sourceUrl) || this.isWechatHostedImageUrl(sourceUrl)) {
+        continue;
+      }
+      uploadCache.set(sourceUrl, await this.uploadContentImage(accessToken, sourceUrl));
+    }
+    if (!uploadCache.size) {
+      return normalizedHtml;
+    }
+    return normalizedHtml.replace(/<img\b[^>]*>/gi, (tag) => {
+      const sourceUrl = this.extractImageSource(tag);
+      if (!sourceUrl) {
+        return tag;
+      }
+      const uploadedUrl = uploadCache.get(sourceUrl);
+      if (!uploadedUrl || uploadedUrl === sourceUrl) {
+        return tag;
+      }
+      if (/\bsrc\s*=/i.test(tag)) {
+        return tag.replace(/\bsrc\s*=\s*(['"])(.*?)\1/i, `src="${uploadedUrl}"`);
+      }
+      return tag.replace(/<img\b/i, `<img src="${uploadedUrl}"`);
+    });
+  }
+
+  private async uploadContentImage(accessToken: string, imageUrl: string) {
+    const file = await this.downloadRemoteFile(imageUrl);
+    const form = new FormData();
+    form.set("media", new Blob([file.buffer], { type: file.contentType }), file.fileName);
+    const response = await this.requestJson<WechatContentImageUploadResponse>(
+      `/cgi-bin/media/uploadimg?access_token=${encodeURIComponent(accessToken)}`,
+      {
+        method: "POST",
+        body: form,
+        contentType: "multipart/form-data",
+      },
+    );
+    const uploadedUrl = String(response.url || "").trim();
+    if (!uploadedUrl) {
+      throw new ServiceUnavailableException("微信公众号正文图片上传失败：未返回 url");
+    }
+    return uploadedUrl;
+  }
+
+  private extractImageSource(tag: string) {
+    const match = String(tag || "").match(/\bsrc\s*=\s*(['"])(.*?)\1/i);
+    return String(match?.[2] || "").trim();
+  }
+
+  private isWechatHostedImageUrl(url: string) {
+    return /^https?:\/\/mmbiz\.qpic\.cn\//i.test(String(url || "").trim());
   }
 
   private async withAccessTokenRetry<T>(credential: WechatCredential, run: (accessToken: string) => Promise<T>) {
