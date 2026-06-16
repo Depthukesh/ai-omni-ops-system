@@ -5,6 +5,7 @@ import {
   type CreateDouyinVoiceClonePayload,
   type CreateDouyinLipSyncPayload,
   type CreateDouyinAdPreAuditPayload,
+  type CreateDouyinAdPreAuditUploadPayload,
   type CreateDouyinDigitalHumanScriptTemplatePayload,
   type ContinueDouyinDirectVideoGenerationPayload,
   type ContinueDouyinVideoGenerationPayload,
@@ -12,6 +13,7 @@ import {
   type GenerateDesignWorkPayload,
   type CreateWechatWorkflowPayload,
   type SaveWechatAccountConfigPayload,
+  type SaveDouyinAdPreAuditConfigPayload,
   type SaveWechatWorkflowPreferencePayload,
   type GenerateDouyinDigitalHumanCompleteVideoPayload,
   type GenerateDouyinDigitalHumanScriptPayload,
@@ -366,6 +368,62 @@ export class WorksController {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
     return this.worksService.listDouyinAdPreAuditWorks(brandId);
+  }
+
+  @Get("brands/:brandId/douyin/ad-preaudit/config")
+  async getDouyinAdPreAuditConfig(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+    return this.worksService.getDouyinAdPreAuditConfig(brandId);
+  }
+
+  @Patch("brands/:brandId/douyin/ad-preaudit/config")
+  saveDouyinAdPreAuditConfig(
+    @Param("brandId") brandId: string,
+    @Body() payload: SaveDouyinAdPreAuditConfigPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+      return this.worksService.saveDouyinAdPreAuditConfig(brandId, payload);
+    });
+  }
+
+  @Get("brands/:brandId/douyin/ad-preaudit/media")
+  async listDouyinAdPreAuditMediaAssets(
+    @Param("brandId") brandId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "view", auth);
+    return this.worksService.listDouyinAdPreAuditMediaAssets(brandId);
+  }
+
+  @Post("brands/:brandId/douyin/ad-preaudit/upload")
+  createDouyinAdPreAuditUpload(
+    @Param("brandId") brandId: string,
+    @Body() payload: CreateDouyinAdPreAuditUploadPayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+      return this.worksService.createDouyinAdPreAuditUpload(brandId, payload);
+    });
+  }
+
+  @Post("brands/:brandId/douyin/ad-preaudit/media/:mediaAssetId/upload/refresh")
+  refreshDouyinAdPreAuditUpload(
+    @Param("brandId") brandId: string,
+    @Param("mediaAssetId") mediaAssetId: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "douyin.adPreAudit", "edit", auth);
+      return this.worksService.refreshDouyinAdPreAuditUpload(brandId, mediaAssetId);
+    });
   }
 
   @Post("brands/:brandId/douyin/ad-preaudit/submit")

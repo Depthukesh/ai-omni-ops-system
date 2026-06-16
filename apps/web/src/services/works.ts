@@ -248,6 +248,50 @@ export type DouyinAdPreAuditRecord = {
   updatedAt: string;
 };
 
+export type DouyinAdPreAuditConfigRecord = {
+  brandId: string;
+  defaultAdvertiserId?: string;
+  defaultBusinessType: string;
+  vodSpaceName?: string;
+  updatedAt: string;
+};
+
+export type DouyinVodUploadStatus = "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "UNKNOWN";
+
+export type DouyinVodUploadTaskRecord = {
+  mediaAssetId: string;
+  jobId?: string;
+  sourceUrl?: string;
+  fileName?: string;
+  title?: string;
+  status: DouyinVodUploadStatus;
+  statusLabel: string;
+  message?: string;
+  vid?: string;
+  fileId?: string;
+  storeUri?: string;
+  durationSec?: number;
+  vodSpaceName?: string;
+  uploadedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DouyinAdPreAuditMediaAssetRecord = {
+  id: string;
+  brandId?: string;
+  title: string;
+  mediaType: string;
+  assetUrl?: string;
+  sourceUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  durationSec?: number;
+  createdAt: string;
+  updatedAt: string;
+  vodUpload?: DouyinVodUploadTaskRecord;
+};
+
 export type DigitalHumanFigureType = "whole_body" | "sit_body" | "circle_view";
 export type DigitalHumanSource = "COMMON" | "CUSTOM";
 export type DigitalHumanVideoStage = "QUEUED" | "GENERATING" | "SUCCESS" | "FAILED";
@@ -797,6 +841,16 @@ export type CreateDouyinAdPreAuditForm = {
   materialLabel?: string;
 };
 
+export type SaveDouyinAdPreAuditConfigForm = {
+  defaultAdvertiserId?: string;
+  defaultBusinessType?: string;
+  vodSpaceName?: string;
+};
+
+export type CreateDouyinAdPreAuditUploadForm = {
+  mediaAssetId?: string;
+};
+
 export type GenerateDouyinDigitalHumanVideoForm = {
   title?: string;
   personId?: string;
@@ -1271,6 +1325,38 @@ export async function deleteDouyinDirectVideoWork(brandId: string, workId: strin
 
 export async function getDouyinAdPreAuditWorks(brandId: string) {
   return request<{ items: DouyinAdPreAuditRecord[] }>(`/works/brands/${brandId}/douyin/ad-preaudit`);
+}
+
+export async function getDouyinAdPreAuditConfig(brandId: string) {
+  return request<{ item: DouyinAdPreAuditConfigRecord }>(`/works/brands/${brandId}/douyin/ad-preaudit/config`);
+}
+
+export async function saveDouyinAdPreAuditConfig(brandId: string, form: SaveDouyinAdPreAuditConfigForm) {
+  return jsonRequest<{ item: DouyinAdPreAuditConfigRecord }>(
+    `/works/brands/${brandId}/douyin/ad-preaudit/config`,
+    "PATCH",
+    form,
+  );
+}
+
+export async function getDouyinAdPreAuditMediaAssets(brandId: string) {
+  return request<{ items: DouyinAdPreAuditMediaAssetRecord[] }>(`/works/brands/${brandId}/douyin/ad-preaudit/media`);
+}
+
+export async function createDouyinAdPreAuditUpload(brandId: string, form: CreateDouyinAdPreAuditUploadForm) {
+  return jsonRequest<{ item: DouyinAdPreAuditMediaAssetRecord }>(
+    `/works/brands/${brandId}/douyin/ad-preaudit/upload`,
+    "POST",
+    form,
+  );
+}
+
+export async function refreshDouyinAdPreAuditUpload(brandId: string, mediaAssetId: string) {
+  return jsonRequest<{ item: DouyinAdPreAuditMediaAssetRecord }>(
+    `/works/brands/${brandId}/douyin/ad-preaudit/media/${mediaAssetId}/upload/refresh`,
+    "POST",
+    {},
+  );
 }
 
 export async function createDouyinAdPreAudit(brandId: string, form: CreateDouyinAdPreAuditForm) {

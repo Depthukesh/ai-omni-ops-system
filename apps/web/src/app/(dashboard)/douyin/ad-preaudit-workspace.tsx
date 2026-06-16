@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { type DouyinAdPreAuditRecord } from "../../../services/works";
+import { useEffect, useMemo, useState } from "react";
+import {
+  type DouyinAdPreAuditConfigRecord,
+  type DouyinAdPreAuditMediaAssetRecord,
+  type DouyinAdPreAuditRecord,
+  type DouyinVodUploadStatus,
+} from "../../../services/works";
 import { type OptionalDateFormatter } from "../xiaohongshu/shared-types";
 
 export interface DouyinAdPreAuditWorkspaceProps {
@@ -10,8 +15,17 @@ export interface DouyinAdPreAuditWorkspaceProps {
   isLoading: boolean;
   isSubmitting: boolean;
   canEdit: boolean;
+  config: DouyinAdPreAuditConfigRecord;
+  mediaAssets: DouyinAdPreAuditMediaAssetRecord[];
   items: DouyinAdPreAuditRecord[];
   onRefresh: () => void | Promise<void>;
+  onSaveConfig: (payload: {
+    defaultAdvertiserId?: string;
+    defaultBusinessType?: string;
+    vodSpaceName?: string;
+  }) => unknown | Promise<unknown>;
+  onUploadMedia: (mediaAssetId: string) => DouyinAdPreAuditMediaAssetRecord | null | Promise<DouyinAdPreAuditMediaAssetRecord | null>;
+  onRefreshUpload: (mediaAssetId: string) => DouyinAdPreAuditMediaAssetRecord | null | Promise<DouyinAdPreAuditMediaAssetRecord | null>;
   onCreate: (payload: {
     vid?: string;
     fileId?: string;
@@ -32,11 +46,37 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
   const [advertiserId, setAdvertiserId] = useState("");
   const [businessType, setBusinessType] = useState(DEFAULT_BUSINESS_TYPE);
   const [materialLabel, setMaterialLabel] = useState("");
+  const [selectedMediaAssetId, setSelectedMediaAssetId] = useState("");
+  const [configAdvertiserId, setConfigAdvertiserId] = useState("");
+  const [configBusinessType, setConfigBusinessType] = useState(DEFAULT_BUSINESS_TYPE);
+  const [vodSpaceName, setVodSpaceName] = useState("");
 
   const runningCount = useMemo(
     () => props.items.filter((item) => item.taskStatus === "RUNNING" || item.taskStatus === "QUEUED" || item.taskStatus === "PENDING").length,
     [props.items],
   );
+  const uploadedCount = useMemo(
+    () => props.mediaAssets.filter((item) => item.vodUpload?.status === "SUCCESS").length,
+    [props.mediaAssets],
+  );
+  const selectedAsset = useMemo(
+    () => props.mediaAssets.find((item) => item.id === selectedMediaAssetId),
+    [props.mediaAssets, selectedMediaAssetId],
+  );
+
+  useEffect(() => {
+    setConfigAdvertiserId(props.config.defaultAdvertiserId || "");
+    setConfigBusinessType(props.config.defaultBusinessType || DEFAULT_BUSINESS_TYPE);
+    setVodSpaceName(props.config.vodSpaceName || "");
+    setAdvertiserId((current) => current.trim() || props.config.defaultAdvertiserId || "");
+    setBusinessType((current) => current.trim() || props.config.defaultBusinessType || DEFAULT_BUSINESS_TYPE);
+  }, [props.config.defaultAdvertiserId, props.config.defaultBusinessType, props.config.vodSpaceName]);
+
+  useEffect(() => {
+    if (!selectedMediaAssetId && props.mediaAssets[0]?.id) {
+      setSelectedMediaAssetId(props.mediaAssets[0].id);
+    }
+  }, [props.mediaAssets, selectedMediaAssetId]);
 
   async function handleSubmit() {
     const normalizedVid = vid.trim();
@@ -59,6 +99,44 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
     setVid("");
     setFileId("");
     setMaterialLabel("");
+  }
+
+  async function handleSaveConfig() {
+    await props.onSaveConfig({
+      defaultAdvertiserId: configAdvertiserId.trim() || undefined,
+      defaultBusinessType: configBusinessType.trim() || DEFAULT_BUSINESS_TYPE,
+      vodSpaceName: vodSpaceName.trim() || undefined,
+    });
+  }
+
+  function applyUploadedAssetToForm(item: DouyinAdPreAuditMediaAssetRecord | null) {
+    if (!item) {
+      return;
+    }
+    setSelectedMediaAssetId(item.id);
+    setMaterialLabel(item.title || "");
+    if (item.vodUpload?.status === "SUCCESS" && item.vodUpload.vid) {
+      setVid(item.vodUpload.vid);
+      setFileId(item.vodUpload.fileId || "");
+    }
+  }
+
+  async function handleUploadMedia() {
+    if (!selectedMediaAssetId) {
+      window.alert("请先选择一个作品区视频。");
+      return;
+    }
+    const item = await props.onUploadMedia(selectedMediaAssetId);
+    applyUploadedAssetToForm(item);
+  }
+
+  async function handleRefreshUpload() {
+    if (!selectedMediaAssetId) {
+      window.alert("请先选择一个作品区视频。");
+      return;
+    }
+    const item = await props.onRefreshUpload(selectedMediaAssetId);
+    applyUploadedAssetToForm(item);
   }
 
   async function handleDelete(taskId: string) {
@@ -113,6 +191,157 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
         {!props.canEdit ? <div className="report-inline-tip">当前账号只有查看权限，不能提交、刷新或删除广告预审任务。</div> : null}
 
         <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+          <div className="report-editor-head">
+            <div>
+              <strong>默认配置</strong>
+              <p className="panel-subtext" style={{ margin: 0 }}>
+                广告主账户 ID、BusinessType 和 VOD SpaceName 会按品牌单独保存，后续上传和预审可以直接复用。
+              </p>
+            </div>
+            <div className="report-editor-actions">
+              <span className={`archive-pill ${props.config.defaultAdvertiserId ? "status-ready" : "status-pending"}`}>
+                {props.config.defaultAdvertiserId ? "已保存广告主" : "未保存广告主"}
+              </span>
+              <span className={`archive-pill ${props.config.vodSpaceName ? "status-ready" : "status-pending"}`}>
+                {props.config.vodSpaceName ? "已配置 SpaceName" : "未配置 SpaceName"}
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">默认广告主账户 ID</span>
+              <input
+                value={configAdvertiserId}
+                onChange={(event) => setConfigAdvertiserId(event.target.value)}
+                placeholder="保存后可作为预审默认值"
+                disabled={props.isSubmitting}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">默认 BusinessType</span>
+              <input
+                value={configBusinessType}
+                onChange={(event) => setConfigBusinessType(event.target.value)}
+                placeholder="默认 ad"
+                disabled={props.isSubmitting}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="status-text">VOD SpaceName</span>
+              <input
+                value={vodSpaceName}
+                onChange={(event) => setVodSpaceName(event.target.value)}
+                placeholder="上传到火山 VOD 时必填"
+                disabled={props.isSubmitting}
+              />
+            </label>
+          </div>
+          <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleSaveConfig()}
+              disabled={!props.canEdit || props.isSubmitting}
+            >
+              {props.isSubmitting ? "保存中..." : "保存默认配置"}
+            </button>
+          </div>
+        </section>
+
+        <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+          <div className="report-editor-head">
+            <div>
+              <strong>作品区上传到 VOD</strong>
+              <p className="panel-subtext" style={{ margin: 0 }}>
+                选择网站作品区里的视频，调用 VOD 的 URL 拉取上传；上传成功后会自动回填 Vid / FileId 到下面的预审表单。
+              </p>
+            </div>
+            <div className="report-editor-actions">
+              <span className={`archive-pill ${props.mediaAssets.length ? "status-ready" : "status-pending"}`}>视频 {props.mediaAssets.length} 条</span>
+              <span className={`archive-pill ${uploadedCount ? "status-ready" : "status-pending"}`}>已入 VOD {uploadedCount} 条</span>
+            </div>
+          </div>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span className="status-text">选择作品区视频</span>
+            <select
+              value={selectedMediaAssetId}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setSelectedMediaAssetId(nextId);
+                const nextAsset = props.mediaAssets.find((item) => item.id === nextId);
+                if (nextAsset?.vodUpload?.status === "SUCCESS" && nextAsset.vodUpload.vid) {
+                  applyUploadedAssetToForm(nextAsset);
+                }
+              }}
+              disabled={props.isSubmitting || !props.mediaAssets.length}
+            >
+              <option value="">请选择视频作品</option>
+              {props.mediaAssets.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedAsset ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div className="report-inline-tip">
+                当前作品：{selectedAsset.title}
+                {selectedAsset.durationSec ? `，时长 ${selectedAsset.durationSec}s` : ""}
+                {typeof selectedAsset.fileSize === "number" ? `，大小 ${Math.round(selectedAsset.fileSize / 1024 / 1024 * 10) / 10} MB` : ""}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span className={`archive-pill ${getVodUploadStatusClass(selectedAsset.vodUpload?.status)}`}>
+                  {selectedAsset.vodUpload?.statusLabel || "尚未上传到 VOD"}
+                </span>
+                {selectedAsset.vodUpload?.jobId ? <span className="archive-pill status-pending">JobId: {selectedAsset.vodUpload.jobId}</span> : null}
+                {selectedAsset.vodUpload?.vid ? <span className="archive-pill status-ready">Vid: {selectedAsset.vodUpload.vid}</span> : null}
+              </div>
+              {selectedAsset.vodUpload?.message ? <div className="report-inline-tip">{selectedAsset.vodUpload.message}</div> : null}
+              <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
+                {selectedAsset.assetUrl ? (
+                  <a className="note-inline-button" href={selectedAsset.assetUrl} target="_blank" rel="noreferrer">
+                    打开作品
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleUploadMedia()}
+                  disabled={!props.canEdit || props.isSubmitting}
+                >
+                  {props.isSubmitting ? "提交中..." : "上传到 VOD"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleRefreshUpload()}
+                  disabled={!props.canEdit || props.isSubmitting}
+                >
+                  刷新上传状态
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="report-inline-tip">当前品牌下还没有可用的视频作品，请先在作品区生成或沉淀视频素材。</div>
+          )}
+        </section>
+
+        <section className="light-data-panel" style={{ display: "grid", gap: 12 }}>
+          <div className="report-editor-head">
+            <div>
+              <strong>广告预审提交</strong>
+              <p className="panel-subtext" style={{ margin: 0 }}>
+                既支持手动填写 Vid，也支持先从作品区上传到 VOD，再把返回的 Vid 自动带入这里发起预审。
+              </p>
+            </div>
+          </div>
           <div
             style={{
               display: "grid",
@@ -167,7 +396,7 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
             </label>
           </div>
           <div className="report-inline-tip">
-            当前预审仅接入 VOD 已存在媒资，不负责上传；凭证格式为 `accessKeyId::secretAccessKey`，必要时可追加 `::cn-north-1`。
+            凭证格式为 `accessKeyId::secretAccessKey`，必要时可追加 `::cn-north-1`。如果上方作品上传成功，Vid / FileId 会自动带入这里。
           </div>
           <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
             <button
@@ -266,6 +495,20 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
       </article>
     </article>
   );
+}
+
+function getVodUploadStatusClass(status?: DouyinVodUploadStatus) {
+  switch (status) {
+    case "SUCCESS":
+      return "status-ready";
+    case "PROCESSING":
+    case "PENDING":
+      return "status-in_progress";
+    case "FAILED":
+      return "status-pending";
+    default:
+      return "status-pending";
+  }
 }
 
 function getExecutionStatusClass(status: DouyinAdPreAuditRecord["executionStatus"]) {

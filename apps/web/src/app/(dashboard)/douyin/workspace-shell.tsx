@@ -45,6 +45,7 @@ import {
 } from "../../../services/reports";
 import {
   createDouyinAdPreAudit,
+  createDouyinAdPreAuditUpload,
   createDouyinCustomVoice,
   createDouyinDigitalHumanCustomPerson,
   createDouyinDigitalHumanScriptTemplate,
@@ -66,6 +67,8 @@ import {
   generateDouyinLipSyncWork,
   generateDouyinDirectVideoWork,
   generateDouyinVideoWork,
+  getDouyinAdPreAuditConfig,
+  getDouyinAdPreAuditMediaAssets,
   getDouyinAdPreAuditWorks,
   getDouyinDigitalHumanCustomPersons,
   getDouyinDigitalHumanFavoriteTemplates,
@@ -83,13 +86,17 @@ import {
   getDouyinVideoStoryboardImageProviders,
   getDouyinVideoWorks,
   getDouyinVoiceLibrary,
+  refreshDouyinAdPreAuditUpload,
   recoverDouyinDigitalHumanVideo,
   recoverDouyinLipSyncGeneration,
   recoverDouyinDirectVideoGeneration,
   recoverDouyinVideoGeneration,
   regenerateDouyinVideoStoryboard,
+  saveDouyinAdPreAuditConfig,
   saveDouyinDigitalHumanFavoriteTemplate,
   updateDouyinDigitalHumanScriptTemplate,
+  type DouyinAdPreAuditConfigRecord,
+  type DouyinAdPreAuditMediaAssetRecord,
   type DouyinAdPreAuditRecord,
   type DouyinDigitalHumanFavoriteTemplateRecord,
   type DouyinDigitalHumanCustomPersonRecord,
@@ -234,6 +241,12 @@ export function DouyinWorkspaceShell() {
   const [directVideoProviderOptions, setDirectVideoProviderOptions] = useState<VideoProviderOptionRecord[]>([]);
   const [digitalHumanWorks, setDigitalHumanWorks] = useState<DouyinDigitalHumanVideoWorkRecord[]>([]);
   const [adPreAuditWorks, setAdPreAuditWorks] = useState<DouyinAdPreAuditRecord[]>([]);
+  const [adPreAuditConfig, setAdPreAuditConfig] = useState<DouyinAdPreAuditConfigRecord>({
+    brandId: activeBrandId,
+    defaultBusinessType: "ad",
+    updatedAt: "",
+  });
+  const [adPreAuditMediaAssets, setAdPreAuditMediaAssets] = useState<DouyinAdPreAuditMediaAssetRecord[]>([]);
   const [digitalHumanCustomPersons, setDigitalHumanCustomPersons] = useState<DouyinDigitalHumanCustomPersonRecord[]>([]);
   const [digitalHumanLipSyncWorks, setDigitalHumanLipSyncWorks] = useState<DouyinLipSyncWorkRecord[]>([]);
   const [digitalHumanTemplates, setDigitalHumanTemplates] = useState<DigitalHumanTemplateRecord[]>([]);
@@ -468,9 +481,21 @@ export function DouyinWorkspaceShell() {
   }, [activeBrandId]);
 
   const refreshAdPreAuditWorkspace = useCallback(async () => {
-    const response = await getDouyinAdPreAuditWorks(activeBrandId);
-    setAdPreAuditWorks(response.items || []);
-    return response.items || [];
+    const [worksResponse, configResponse, mediaResponse] = await Promise.all([
+      getDouyinAdPreAuditWorks(activeBrandId),
+      getDouyinAdPreAuditConfig(activeBrandId),
+      getDouyinAdPreAuditMediaAssets(activeBrandId),
+    ]);
+    setAdPreAuditWorks(worksResponse.items || []);
+    setAdPreAuditConfig(
+      configResponse.item || {
+        brandId: activeBrandId,
+        defaultBusinessType: "ad",
+        updatedAt: "",
+      },
+    );
+    setAdPreAuditMediaAssets(mediaResponse.items || []);
+    return worksResponse.items || [];
   }, [activeBrandId]);
 
   const refreshDigitalHumanPublicVoices = useCallback(async (page = 1) => {
@@ -1800,6 +1825,80 @@ export function DouyinWorkspaceShell() {
     }
   }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
 
+  const handleSaveAdPreAuditConfig = useCallback(async (payload: {
+    defaultAdvertiserId?: string;
+    defaultBusinessType?: string;
+    vodSpaceName?: string;
+  }) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能保存广告预审配置。");
+      return false;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await saveDouyinAdPreAuditConfig(activeBrandId, payload);
+      setAdPreAuditConfig(response.item);
+      await refreshAdPreAuditWorkspace();
+      setNotice("广告预审默认配置已保存。");
+      return true;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "广告预审配置保存失败。");
+      return false;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
+  const handleUploadAdPreAuditMedia = useCallback(async (mediaAssetId: string) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能上传作品到 VOD。");
+      return null;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await createDouyinAdPreAuditUpload(activeBrandId, { mediaAssetId });
+      await refreshAdPreAuditWorkspace();
+      setNotice("VOD 上传任务已提交，可继续刷新查看 Vid 返回结果。");
+      return response.item;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "VOD 上传任务提交失败。");
+      return null;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
+  const handleRefreshAdPreAuditUpload = useCallback(async (mediaAssetId: string) => {
+    if (!canEditAdPreAudit) {
+      setErrorMessage("当前账号只有查看权限，不能刷新 VOD 上传结果。");
+      return null;
+    }
+    setIsSubmittingAdPreAudit(true);
+    setErrorMessage("");
+    setNotice("");
+    try {
+      const response = await refreshDouyinAdPreAuditUpload(activeBrandId, mediaAssetId);
+      await refreshAdPreAuditWorkspace();
+      setNotice(
+        response.item.vodUpload?.status === "SUCCESS"
+          ? "VOD 上传已完成，Vid 已可用于广告预审。"
+          : response.item.vodUpload?.status === "FAILED"
+            ? "VOD 上传已失败，请检查源视频地址或火山引擎配置。"
+            : "VOD 上传状态已刷新。",
+      );
+      return response.item;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "VOD 上传状态刷新失败。");
+      return null;
+    } finally {
+      setIsSubmittingAdPreAudit(false);
+    }
+  }, [activeBrandId, canEditAdPreAudit, refreshAdPreAuditWorkspace]);
+
   const handleRefreshAdPreAudit = useCallback(async (taskId: string) => {
     if (!canEditAdPreAudit) {
       setErrorMessage("当前账号只有查看权限，不能刷新广告预审结果。");
@@ -2689,10 +2788,15 @@ export function DouyinWorkspaceShell() {
                     isLoading={isLoading}
                     isSubmitting={isSubmittingAdPreAudit}
                     canEdit={canEditAdPreAudit}
+                    config={adPreAuditConfig}
+                    mediaAssets={adPreAuditMediaAssets}
                     items={adPreAuditWorks}
                     onRefresh={async () => {
                       await refreshAdPreAuditWorkspace();
                     }}
+                    onSaveConfig={handleSaveAdPreAuditConfig}
+                    onUploadMedia={handleUploadAdPreAuditMedia}
+                    onRefreshUpload={handleRefreshAdPreAuditUpload}
                     onCreate={handleCreateAdPreAudit}
                     onRefreshItem={handleRefreshAdPreAudit}
                     onDelete={handleDeleteAdPreAudit}

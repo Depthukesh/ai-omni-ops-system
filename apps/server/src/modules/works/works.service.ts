@@ -56,6 +56,7 @@ const VOLCENGINE_VOD_OPENAPI_DEFAULT_REGION = "cn-north-1";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_SERVICE = "vod";
 const VOLCENGINE_VOD_OPENAPI_DEFAULT_HOST = "vod.volcengineapi.com";
 const VOLCENGINE_VOD_OPENAPI_VERSION = "2023-01-01";
+const VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION = "2020-08-01";
 
 const DESIGN_MODULE_TYPES: Record<DesignWorkModuleKey, string[]> = {
   image: ["社媒轮播图", "杂志风海报", "动效首帧", "像素动画首帧", "电商主视觉", "品牌封面图", "信息图海报"],
@@ -267,6 +268,16 @@ export type CreateDouyinAdPreAuditPayload = {
   advertiserId?: string;
   businessType?: string;
   materialLabel?: string;
+};
+
+export type SaveDouyinAdPreAuditConfigPayload = {
+  defaultAdvertiserId?: string;
+  defaultBusinessType?: string;
+  vodSpaceName?: string;
+};
+
+export type CreateDouyinAdPreAuditUploadPayload = {
+  mediaAssetId?: string;
 };
 
 export type UpdateXiaohongshuVideoNotePayload = {
@@ -997,6 +1008,22 @@ type WechatPublishHistoryRow = {
   updatedAt: Date | string;
 };
 
+type DouyinAdPreAuditConfigStoreItem = {
+  brandId: string;
+  defaultAdvertiserId?: string;
+  defaultBusinessType: string;
+  vodSpaceName?: string;
+  updatedAt: string;
+};
+
+type DouyinAdPreAuditConfigRow = {
+  brandId: string;
+  defaultAdvertiserId: string | null;
+  defaultBusinessType: string;
+  vodSpaceName: string | null;
+  updatedAt: Date | string;
+};
+
 type DigitalHumanFavoriteTemplateStoreItem = {
   id: string;
   userId: string;
@@ -1022,6 +1049,7 @@ type DigitalHumanScriptTemplateStoreItem = {
 
 const digitalHumanFavoriteTemplateMockStore: DigitalHumanFavoriteTemplateStoreItem[] = [];
 const digitalHumanScriptTemplateMockStore: DigitalHumanScriptTemplateStoreItem[] = [];
+const douyinAdPreAuditConfigMockStore: DouyinAdPreAuditConfigStoreItem[] = [];
 const wechatAccountConfigMockStore: WechatAccountConfigStoreItem[] = [
   {
     brandId: "br_demo_001",
@@ -1759,6 +1787,50 @@ type DouyinAdPreAuditRecord = {
   updatedAt: string;
 };
 
+type DouyinAdPreAuditConfigRecord = {
+  brandId: string;
+  defaultAdvertiserId?: string;
+  defaultBusinessType: string;
+  vodSpaceName?: string;
+  updatedAt: string;
+};
+
+type DouyinVodUploadStatus = "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "UNKNOWN";
+
+type DouyinVodUploadTaskRecord = {
+  mediaAssetId: string;
+  jobId?: string;
+  sourceUrl?: string;
+  fileName?: string;
+  title?: string;
+  status: DouyinVodUploadStatus;
+  statusLabel: string;
+  message?: string;
+  vid?: string;
+  fileId?: string;
+  storeUri?: string;
+  durationSec?: number;
+  vodSpaceName?: string;
+  uploadedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DouyinAdPreAuditMediaAssetRecord = {
+  id: string;
+  brandId?: string;
+  title: string;
+  mediaType: string;
+  assetUrl?: string;
+  sourceUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  durationSec?: number;
+  createdAt: string;
+  updatedAt: string;
+  vodUpload?: DouyinVodUploadTaskRecord;
+};
+
 type VolcengineVodCredential = {
   accessKeyId: string;
   secretAccessKey: string;
@@ -2218,6 +2290,7 @@ type VideoProviderFailureDisposition = "hard" | "retryable";
 @Injectable()
 export class WorksService {
   private wechatPersistenceBootstrapPromise?: Promise<void>;
+  private douyinAdPreAuditBootstrapPromise?: Promise<void>;
 
   constructor(
     @Inject(AppConfigService)
@@ -3359,13 +3432,148 @@ export class WorksService {
     return { items };
   }
 
+  async getDouyinAdPreAuditConfig(brandId: string) {
+    const item = await this.loadDouyinAdPreAuditConfigStoreItem(brandId);
+    return {
+      item: this.toDouyinAdPreAuditConfigRecord(brandId, item),
+    };
+  }
+
+  async saveDouyinAdPreAuditConfig(brandId: string, payload: SaveDouyinAdPreAuditConfigPayload) {
+    const existing = await this.loadDouyinAdPreAuditConfigStoreItem(brandId);
+    const next: DouyinAdPreAuditConfigStoreItem = {
+      brandId,
+      defaultAdvertiserId: this.readOptionalString(payload.defaultAdvertiserId) || undefined,
+      defaultBusinessType: this.readOptionalString(payload.defaultBusinessType) || existing?.defaultBusinessType || "ad",
+      vodSpaceName: this.readOptionalString(payload.vodSpaceName) || undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.persistDouyinAdPreAuditConfigStoreItem(next);
+    return {
+      item: this.toDouyinAdPreAuditConfigRecord(brandId, next),
+    };
+  }
+
+  async listDouyinAdPreAuditMediaAssets(brandId: string) {
+    if (await this.prismaService.canUseDatabase()) {
+      const items = await this.prismaService.mediaAsset.findMany({
+        where: {
+          brandId,
+          mediaType: MediaType.VIDEO,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return {
+        items: items.map((item) => this.mapDouyinAdPreAuditMediaAsset(item)),
+      };
+    }
+
+    const items = database.media
+      .filter((item) => item.brandId === brandId && item.mediaType === "VIDEO")
+      .map((item) => this.mapDouyinAdPreAuditMediaAsset(item))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return { items };
+  }
+
+  async createDouyinAdPreAuditUpload(brandId: string, payload: CreateDouyinAdPreAuditUploadPayload) {
+    const mediaAssetId = this.readOptionalString(payload.mediaAssetId);
+    if (!mediaAssetId) {
+      throw new BadRequestException("请选择要上传到 VOD 的视频作品。");
+    }
+    const [config, asset, credential] = await Promise.all([
+      this.loadDouyinAdPreAuditConfigStoreItem(brandId),
+      this.loadDouyinAdPreAuditMediaAssetById(brandId, mediaAssetId),
+      this.resolveVolcengineVodCredential(brandId),
+    ]);
+    const vodSpaceName = this.readOptionalString(config?.vodSpaceName);
+    if (!vodSpaceName) {
+      throw new BadRequestException("请先在广告预审配置里保存 VOD SpaceName。");
+    }
+    const uploadSource = await this.resolveDouyinAdPreAuditUploadSource(asset, brandId);
+    const response = await this.callVolcengineVodOpenApi(
+      credential,
+      "UploadMediaByUrl",
+      {
+        SpaceName: vodSpaceName,
+        URLSets: [
+          {
+            SourceUrl: uploadSource.sourceUrl,
+            FileName: uploadSource.fileName,
+            Title: uploadSource.title,
+            CallbackArgs: JSON.stringify({
+              brandId,
+              mediaAssetId: asset.id,
+            }),
+          },
+        ],
+      },
+      { version: VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION },
+    );
+    const result = this.asRecord(response?.Result);
+    const dataList = Array.isArray(result?.Data) ? result.Data : [];
+    const firstItem = this.asRecord(dataList[0]);
+    const jobId = this.readOptionalString(firstItem?.JobId);
+    if (!jobId) {
+      throw new ServiceUnavailableException("VOD 上传任务提交失败：火山引擎未返回 JobId。");
+    }
+    await this.persistDouyinVodUploadSnapshot(brandId, asset.id, {
+      mediaAssetId: asset.id,
+      jobId,
+      sourceUrl: uploadSource.sourceUrl,
+      fileName: uploadSource.fileName,
+      title: uploadSource.title,
+      vodSpaceName,
+      status: "PENDING",
+      statusLabel: this.getDouyinVodUploadStatusLabel("PENDING"),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return {
+      item: await this.getDouyinAdPreAuditMediaAssetItem(brandId, asset.id),
+    };
+  }
+
+  async refreshDouyinAdPreAuditUpload(brandId: string, mediaAssetId: string) {
+    const asset = await this.loadDouyinAdPreAuditMediaAssetById(brandId, mediaAssetId);
+    const currentUpload = this.readDouyinVodUploadTaskRecord(asset.id, asset.metadataJson);
+    const jobId = this.readOptionalString(currentUpload?.jobId);
+    if (!jobId) {
+      throw new BadRequestException("当前作品还没有 VOD 上传任务，请先发起上传。");
+    }
+    const credential = await this.resolveVolcengineVodCredential(brandId);
+    const response = await this.callVolcengineVodOpenApiGet(
+      credential,
+      "QueryUploadTaskInfo",
+      { JobIds: jobId },
+      { version: VOLCENGINE_VOD_UPLOAD_OPENAPI_VERSION },
+    );
+    const result = this.asRecord(response?.Result);
+    const data = this.asRecord(result?.Data);
+    const mediaInfoList = Array.isArray(data?.MediaInfoList) ? data.MediaInfoList : [];
+    const matchedItem = mediaInfoList
+      .map((item) => this.asRecord(item))
+      .find((item) => this.readOptionalString(item?.JobId) === jobId);
+    if (!matchedItem) {
+      const notExistJobIds = Array.isArray(data?.NotExistJobIds) ? data.NotExistJobIds.map((item) => String(item || "").trim()) : [];
+      if (notExistJobIds.includes(jobId)) {
+        throw new NotFoundException("当前上传任务不存在或已过期，请重新上传。");
+      }
+      throw new ServiceUnavailableException("暂未获取到该上传任务的最新状态，请稍后重试。");
+    }
+    const snapshot = this.buildDouyinVodUploadSnapshotFromMediaInfo(asset.id, matchedItem, currentUpload);
+    await this.persistDouyinVodUploadSnapshot(brandId, asset.id, snapshot);
+    return {
+      item: await this.getDouyinAdPreAuditMediaAssetItem(brandId, asset.id),
+    };
+  }
+
   async createDouyinAdPreAudit(
     brandId: string,
     payload: CreateDouyinAdPreAuditPayload,
     auth?: RequestAuthContext,
   ) {
     const userId = this.requireAuthenticatedUserId(auth);
-    const normalizedPayload = this.normalizeDouyinAdPreAuditPayload(payload);
+    const normalizedPayload = await this.normalizeDouyinAdPreAuditPayloadForBrand(brandId, payload);
     const task = await this.createDouyinAdPreAuditTask({
       userId,
       brandId,
@@ -8492,6 +8700,288 @@ export class WorksService {
     };
   }
 
+  private async normalizeDouyinAdPreAuditPayloadForBrand(
+    brandId: string,
+    payload: Partial<CreateDouyinAdPreAuditPayload> | Record<string, unknown>,
+  ) {
+    const config = await this.loadDouyinAdPreAuditConfigStoreItem(brandId);
+    return this.normalizeDouyinAdPreAuditPayload({
+      ...payload,
+      advertiserId: this.readOptionalString(payload?.advertiserId) || config?.defaultAdvertiserId,
+      businessType: this.readOptionalString(payload?.businessType) || config?.defaultBusinessType || "ad",
+    });
+  }
+
+  private toDouyinAdPreAuditConfigRecord(
+    brandId: string,
+    item?: DouyinAdPreAuditConfigStoreItem,
+  ): DouyinAdPreAuditConfigRecord {
+    return {
+      brandId,
+      defaultAdvertiserId: item?.defaultAdvertiserId,
+      defaultBusinessType: item?.defaultBusinessType || "ad",
+      vodSpaceName: item?.vodSpaceName,
+      updatedAt: item?.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  private mapDouyinAdPreAuditMediaAsset(item: {
+    id: string;
+    brandId?: string | null;
+    title: string;
+    mediaType: MediaType | string;
+    sourceUrl?: string | null;
+    storageKey?: string | null;
+    mimeType?: string | null;
+    fileSize?: number | null;
+    durationSec?: number | null;
+    metadataJson?: unknown;
+    createdAt?: Date | string | null;
+    updatedAt?: Date | string | null;
+  }): DouyinAdPreAuditMediaAssetRecord {
+    const createdAt = this.normalizeHistoryTimestamp(item.createdAt) || new Date().toISOString();
+    const updatedAt = this.normalizeHistoryTimestamp(item.updatedAt) || createdAt;
+    const assetUrl = this.resolveWorksMediaAssetUrl(item.brandId ?? undefined, item.storageKey ?? undefined, item.sourceUrl ?? undefined);
+    return {
+      id: item.id,
+      brandId: item.brandId ?? undefined,
+      title: item.title,
+      mediaType: String(item.mediaType || "VIDEO"),
+      assetUrl,
+      sourceUrl: this.readOptionalString(item.sourceUrl) || assetUrl,
+      mimeType: this.readOptionalString(item.mimeType) || undefined,
+      fileSize: item.fileSize ?? undefined,
+      durationSec: item.durationSec ?? undefined,
+      createdAt,
+      updatedAt,
+      vodUpload: this.readDouyinVodUploadTaskRecord(item.id, item.metadataJson),
+    };
+  }
+
+  private async getDouyinAdPreAuditMediaAssetItem(brandId: string, mediaAssetId: string) {
+    const asset = await this.loadDouyinAdPreAuditMediaAssetById(brandId, mediaAssetId);
+    return this.mapDouyinAdPreAuditMediaAsset(asset);
+  }
+
+  private async loadDouyinAdPreAuditMediaAssetById(brandId: string, mediaAssetId: string) {
+    const normalizedMediaAssetId = String(mediaAssetId || "").trim();
+    if (!normalizedMediaAssetId) {
+      throw new NotFoundException("视频作品不存在。");
+    }
+    if (await this.prismaService.canUseDatabase()) {
+      const asset = await this.prismaService.mediaAsset.findFirst({
+        where: {
+          id: normalizedMediaAssetId,
+          brandId,
+          mediaType: MediaType.VIDEO,
+        },
+      });
+      if (!asset) {
+        throw new NotFoundException("视频作品不存在。");
+      }
+      return asset;
+    }
+
+    const asset = database.media.find((item) =>
+      item.id === normalizedMediaAssetId && item.brandId === brandId && item.mediaType === "VIDEO",
+    );
+    if (!asset) {
+      throw new NotFoundException("视频作品不存在。");
+    }
+    return asset;
+  }
+
+  private resolveWorksMediaAssetUrl(brandId?: string, storageKey?: string | null, sourceUrl?: string | null) {
+    const normalizedStorageKey = String(storageKey || "").trim();
+    if (brandId && normalizedStorageKey.startsWith(`works/${brandId}/`)) {
+      return this.resolveGeneratedAssetUrl(brandId, normalizedStorageKey.slice(`works/${brandId}/`.length));
+    }
+    return this.readOptionalString(sourceUrl) || undefined;
+  }
+
+  private async resolveDouyinAdPreAuditUploadSource(
+    asset: {
+      id: string;
+      brandId?: string | null;
+      title: string;
+      sourceUrl?: string | null;
+      storageKey?: string | null;
+      metadataJson?: unknown;
+    },
+    brandId: string,
+  ) {
+    const assetUrl = this.resolveWorksMediaAssetUrl(brandId, asset.storageKey ?? undefined, asset.sourceUrl ?? undefined);
+    const sourceUrl = await this.resolveThirdPartyAccessibleAssetUrl(assetUrl || this.readOptionalString(asset.sourceUrl), brandId);
+    if (!sourceUrl) {
+      throw new BadRequestException("当前作品缺少可供火山 VOD 拉取的公开视频地址，请先确认作品已生成并可访问。");
+    }
+    return {
+      sourceUrl,
+      fileName: this.buildDouyinVodUploadFileName(brandId, asset.id, sourceUrl),
+      title: String(asset.title || "抖音广告预审视频").trim() || "抖音广告预审视频",
+    };
+  }
+
+  private buildDouyinVodUploadFileName(brandId: string, mediaAssetId: string, sourceUrl: string) {
+    const extension = extname(String(sourceUrl || "").split("?")[0] || "").toLowerCase() || ".mp4";
+    return `works/${brandId}/ad-preaudit/${mediaAssetId}${extension}`;
+  }
+
+  private readDouyinVodUploadTaskRecord(mediaAssetId: string, metadataJson: unknown): DouyinVodUploadTaskRecord | undefined {
+    const metadata = this.asRecord(metadataJson);
+    const upload = this.asRecord(metadata?.vodUpload);
+    if (!upload) {
+      return undefined;
+    }
+    const status = this.normalizeDouyinVodUploadStatus(upload.status, upload.state);
+    const createdAt = this.readOptionalString(upload.createdAt) || this.readOptionalString(upload.updatedAt) || new Date().toISOString();
+    const updatedAt = this.readOptionalString(upload.updatedAt) || createdAt;
+    return {
+      mediaAssetId,
+      jobId: this.readOptionalString(upload.jobId) || undefined,
+      sourceUrl: this.readOptionalString(upload.sourceUrl) || undefined,
+      fileName: this.readOptionalString(upload.fileName) || undefined,
+      title: this.readOptionalString(upload.title) || undefined,
+      status,
+      statusLabel: this.getDouyinVodUploadStatusLabel(status),
+      message: this.readOptionalString(upload.message) || undefined,
+      vid: this.readOptionalString(upload.vid) || undefined,
+      fileId: this.readOptionalString(upload.fileId) || undefined,
+      storeUri: this.readOptionalString(upload.storeUri) || undefined,
+      durationSec: this.readOptionalNumber(upload.durationSec),
+      vodSpaceName: this.readOptionalString(upload.vodSpaceName) || undefined,
+      uploadedAt: this.readOptionalString(upload.uploadedAt) || undefined,
+      createdAt,
+      updatedAt,
+    };
+  }
+
+  private buildDouyinVodUploadSnapshotFromMediaInfo(
+    mediaAssetId: string,
+    mediaInfo: Record<string, unknown>,
+    currentUpload?: DouyinVodUploadTaskRecord,
+  ): DouyinVodUploadTaskRecord {
+    const sourceInfo = this.asRecord(mediaInfo.SourceInfo);
+    const videoStreamMeta = this.asRecord(mediaInfo.VideoStreamMeta);
+    const status = this.normalizeDouyinVodUploadStatus(mediaInfo.State);
+    const createdAt = currentUpload?.createdAt || this.readOptionalString(mediaInfo.CreateTime) || new Date().toISOString();
+    return {
+      mediaAssetId,
+      jobId: this.readOptionalString(mediaInfo.JobId) || currentUpload?.jobId,
+      sourceUrl: this.readOptionalString(mediaInfo.SourceUrl) || currentUpload?.sourceUrl,
+      fileName: this.readOptionalString(mediaInfo.FileName) || currentUpload?.fileName,
+      title: currentUpload?.title,
+      status,
+      statusLabel: this.getDouyinVodUploadStatusLabel(status),
+      message:
+        this.readOptionalString(mediaInfo.Message)
+        || this.readOptionalString(mediaInfo.ErrorMessage)
+        || currentUpload?.message,
+      vid: this.readOptionalString(mediaInfo.Vid) || currentUpload?.vid,
+      fileId: this.readOptionalString(mediaInfo.FileId) || this.readOptionalString(sourceInfo?.FileId) || currentUpload?.fileId,
+      storeUri: this.readOptionalString(mediaInfo.StoreUri) || this.readOptionalString(sourceInfo?.StoreUri) || currentUpload?.storeUri,
+      durationSec:
+        this.readOptionalNumber(sourceInfo?.Duration)
+        || this.readOptionalNumber(videoStreamMeta?.Duration)
+        || currentUpload?.durationSec,
+      vodSpaceName: this.readOptionalString(mediaInfo.SpaceName) || currentUpload?.vodSpaceName,
+      uploadedAt:
+        status === "SUCCESS"
+          ? this.readOptionalString(mediaInfo.CreateTime) || new Date().toISOString()
+          : currentUpload?.uploadedAt,
+      createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  private normalizeDouyinVodUploadStatus(...values: unknown[]): DouyinVodUploadStatus {
+    for (const value of values) {
+      const normalized = (this.readOptionalString(value) || "").toLowerCase();
+      if (normalized === "initial" || normalized === "pending") {
+        return "PENDING";
+      }
+      if (normalized === "processing" || normalized === "running") {
+        return "PROCESSING";
+      }
+      if (normalized === "success") {
+        return "SUCCESS";
+      }
+      if (normalized === "failed" || normalized === "error") {
+        return "FAILED";
+      }
+    }
+    return "UNKNOWN";
+  }
+
+  private getDouyinVodUploadStatusLabel(status: DouyinVodUploadStatus) {
+    switch (status) {
+      case "PENDING":
+        return "待上传";
+      case "PROCESSING":
+        return "上传处理中";
+      case "SUCCESS":
+        return "已上传到 VOD";
+      case "FAILED":
+        return "上传失败";
+      default:
+        return "状态未知";
+    }
+  }
+
+  private async persistDouyinVodUploadSnapshot(
+    brandId: string,
+    mediaAssetId: string,
+    snapshot: DouyinVodUploadTaskRecord,
+  ) {
+    if (await this.prismaService.canUseDatabase()) {
+      const asset = await this.loadDouyinAdPreAuditMediaAssetById(brandId, mediaAssetId);
+      const metadata = this.mergeDouyinVodUploadMetadata(asset.metadataJson, snapshot);
+      await this.prismaService.mediaAsset.update({
+        where: { id: mediaAssetId },
+        data: {
+          metadataJson: metadata as Prisma.InputJsonValue,
+          durationSec: snapshot.durationSec ?? (asset as { durationSec?: number | null }).durationSec ?? undefined,
+        },
+      });
+      return;
+    }
+
+    const asset = database.media.find((item) => item.id === mediaAssetId && item.brandId === brandId && item.mediaType === "VIDEO");
+    if (!asset) {
+      throw new NotFoundException("视频作品不存在。");
+    }
+    asset.metadataJson = this.mergeDouyinVodUploadMetadata((asset as { metadataJson?: unknown }).metadataJson, snapshot);
+    if (snapshot.durationSec !== undefined) {
+      (asset as { durationSec?: number }).durationSec = snapshot.durationSec;
+    }
+    asset.updatedAt = new Date().toISOString();
+  }
+
+  private mergeDouyinVodUploadMetadata(metadataJson: unknown, snapshot: DouyinVodUploadTaskRecord) {
+    const baseMetadata = this.asRecord(metadataJson) ? { ...this.asRecord(metadataJson)! } : {};
+    return {
+      ...baseMetadata,
+      vodUpload: {
+        mediaAssetId: snapshot.mediaAssetId,
+        jobId: snapshot.jobId || "",
+        sourceUrl: snapshot.sourceUrl || "",
+        fileName: snapshot.fileName || "",
+        title: snapshot.title || "",
+        status: snapshot.status,
+        statusLabel: snapshot.statusLabel,
+        message: snapshot.message || "",
+        vid: snapshot.vid || "",
+        fileId: snapshot.fileId || "",
+        storeUri: snapshot.storeUri || "",
+        durationSec: snapshot.durationSec ?? null,
+        vodSpaceName: snapshot.vodSpaceName || "",
+        uploadedAt: snapshot.uploadedAt || "",
+        createdAt: snapshot.createdAt,
+        updatedAt: snapshot.updatedAt,
+      },
+    };
+  }
+
   private async createDouyinAdPreAuditTask(params: {
     userId: string;
     brandId: string;
@@ -8894,17 +9384,63 @@ export class WorksService {
     credential: VolcengineVodCredential,
     action: string,
     body: Record<string, unknown>,
+    options?: {
+      version?: string;
+      query?: Record<string, string>;
+    },
   ) {
-    const bodyText = JSON.stringify(body || {});
-    const query = this.buildVolcengineOpenApiQuery({
-      Action: action,
-      Version: VOLCENGINE_VOD_OPENAPI_VERSION,
-    });
-    const headers = this.signVolcengineOpenApiRequest(credential, query, bodyText);
-    const response = await fetch(`https://${credential.host}/?${query}`, {
+    return this.requestVolcengineVodOpenApi(credential, {
+      action,
       method: "POST",
+      version: options?.version || VOLCENGINE_VOD_OPENAPI_VERSION,
+      bodyText: JSON.stringify(body || {}),
+      query: options?.query,
+      contentType: "application/json",
+    });
+  }
+
+  private async callVolcengineVodOpenApiGet(
+    credential: VolcengineVodCredential,
+    action: string,
+    query: Record<string, string>,
+    options?: { version?: string },
+  ) {
+    return this.requestVolcengineVodOpenApi(credential, {
+      action,
+      method: "GET",
+      version: options?.version || VOLCENGINE_VOD_OPENAPI_VERSION,
+      bodyText: "",
+      query,
+    });
+  }
+
+  private async requestVolcengineVodOpenApi(
+    credential: VolcengineVodCredential,
+    params: {
+      action: string;
+      method: "GET" | "POST";
+      version: string;
+      bodyText: string;
+      query?: Record<string, string>;
+      contentType?: string;
+    },
+  ) {
+    const bodyText = params.bodyText || "";
+    const query = this.buildVolcengineOpenApiQuery({
+      Action: params.action,
+      Version: params.version,
+      ...(params.query || {}),
+    });
+    const headers = this.signVolcengineOpenApiRequest(credential, {
+      method: params.method,
+      canonicalQuery: query,
+      bodyText,
+      contentType: params.contentType,
+    });
+    const response = await fetch(`https://${credential.host}/?${query}`, {
+      method: params.method,
       headers,
-      body: bodyText,
+      ...(params.method === "POST" ? { body: bodyText } : {}),
     });
     const rawText = await response.text();
     let payload: Record<string, unknown> = {};
@@ -8919,30 +9455,39 @@ export class WorksService {
       || this.readOptionalString(metadata?.ErrorMessage)
       || rawText.trim();
     if (!response.ok || errorRecord) {
-      throw new ServiceUnavailableException(message || `${action} 调用失败，请稍后重试。`);
+      throw new ServiceUnavailableException(message || `${params.action} 调用失败，请稍后重试。`);
     }
     return payload;
   }
 
   private signVolcengineOpenApiRequest(
     credential: VolcengineVodCredential,
-    canonicalQuery: string,
-    bodyText: string,
+    params: {
+      method: "GET" | "POST";
+      canonicalQuery: string;
+      bodyText: string;
+      contentType?: string;
+    },
   ) {
     const xDate = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
     const shortDate = xDate.slice(0, 8);
-    const contentSha = createHash("sha256").update(bodyText, "utf8").digest("hex");
-    const signedHeaders = "content-type;host;x-content-sha256;x-date";
-    const canonicalHeaders = [
-      "content-type:application/json",
+    const contentSha = createHash("sha256").update(params.bodyText || "", "utf8").digest("hex");
+    const canonicalHeaderEntries = [
+      params.contentType ? `content-type:${params.contentType}` : "",
       `host:${credential.host}`,
       `x-content-sha256:${contentSha}`,
       `x-date:${xDate}`,
+    ].filter(Boolean);
+    const signedHeaders = canonicalHeaderEntries
+      .map((item) => item.split(":")[0])
+      .join(";");
+    const canonicalHeaders = [
+      ...canonicalHeaderEntries,
     ].join("\n");
     const canonicalRequest = [
-      "POST",
+      params.method,
       "/",
-      canonicalQuery,
+      params.canonicalQuery,
       `${canonicalHeaders}\n`,
       signedHeaders,
       contentSha,
@@ -8960,7 +9505,7 @@ export class WorksService {
     const signingKey = createHmac("sha256", serviceKey).update("request", "utf8").digest();
     const signature = createHmac("sha256", signingKey).update(stringToSign, "utf8").digest("hex");
     return {
-      "Content-Type": "application/json",
+      ...(params.contentType ? { "Content-Type": params.contentType } : {}),
       Host: credential.host,
       "X-Date": xDate,
       "X-Content-Sha256": contentSha,
@@ -9622,6 +10167,42 @@ export class WorksService {
     return this.getBrandOwnerUserId(brandId);
   }
 
+  private async canUseDouyinAdPreAuditPersistenceDatabase() {
+    const dbAvailable = await this.prismaService.canUseDatabase();
+    if (dbAvailable) {
+      return true;
+    }
+    if (this.prismaService.isConfigured()) {
+      throw new ServiceUnavailableException("广告预审配置数据库当前不可用，请先恢复数据库连接后再操作。");
+    }
+    return false;
+  }
+
+  private async ensureDouyinAdPreAuditTablesReady() {
+    if (!(await this.canUseDouyinAdPreAuditPersistenceDatabase())) {
+      return;
+    }
+    if (!this.douyinAdPreAuditBootstrapPromise) {
+      this.douyinAdPreAuditBootstrapPromise = this.bootstrapDouyinAdPreAuditTables();
+    }
+    await this.douyinAdPreAuditBootstrapPromise;
+  }
+
+  private async bootstrapDouyinAdPreAuditTables() {
+    await this.prismaService.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "DouyinAdPreAuditConfig" (
+        "brandId" TEXT PRIMARY KEY,
+        "defaultAdvertiserId" TEXT NULL,
+        "defaultBusinessType" TEXT NOT NULL DEFAULT 'ad',
+        "vodSpaceName" TEXT NULL,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.prismaService.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "DouyinAdPreAuditConfig_updatedAt_idx" ON "DouyinAdPreAuditConfig" ("updatedAt" DESC)`,
+    );
+  }
+
   private async canUseWechatPersistenceDatabase() {
     const dbAvailable = await this.prismaService.canUseDatabase();
     if (dbAvailable) {
@@ -9787,6 +10368,65 @@ export class WorksService {
     await this.prismaService.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "WechatPublishHistory_brandId_updatedAt_idx" ON "WechatPublishHistory" ("brandId", "updatedAt" DESC)`,
     );
+  }
+
+  private normalizeDouyinAdPreAuditConfigRow(row: DouyinAdPreAuditConfigRow): DouyinAdPreAuditConfigStoreItem {
+    return {
+      brandId: row.brandId,
+      defaultAdvertiserId: this.readOptionalString(row.defaultAdvertiserId) || undefined,
+      defaultBusinessType: this.readOptionalString(row.defaultBusinessType) || "ad",
+      vodSpaceName: this.readOptionalString(row.vodSpaceName) || undefined,
+      updatedAt: this.normalizeHistoryTimestamp(row.updatedAt) || new Date().toISOString(),
+    };
+  }
+
+  private async loadDouyinAdPreAuditConfigStoreItem(brandId: string) {
+    if (!(await this.canUseDouyinAdPreAuditPersistenceDatabase())) {
+      return douyinAdPreAuditConfigMockStore.find((item) => item.brandId === brandId);
+    }
+    await this.ensureDouyinAdPreAuditTablesReady();
+    const rows = await this.prismaService.$queryRaw<DouyinAdPreAuditConfigRow[]>`
+      SELECT *
+      FROM "DouyinAdPreAuditConfig"
+      WHERE "brandId" = ${brandId}
+      LIMIT 1
+    `;
+    return rows[0] ? this.normalizeDouyinAdPreAuditConfigRow(rows[0]) : undefined;
+  }
+
+  private async persistDouyinAdPreAuditConfigStoreItem(item: DouyinAdPreAuditConfigStoreItem) {
+    if (!(await this.canUseDouyinAdPreAuditPersistenceDatabase())) {
+      const current = douyinAdPreAuditConfigMockStore.find((entry) => entry.brandId === item.brandId);
+      if (current) {
+        Object.assign(current, item);
+      } else {
+        douyinAdPreAuditConfigMockStore.unshift(item);
+      }
+      return;
+    }
+    await this.ensureDouyinAdPreAuditTablesReady();
+    await this.prismaService.$executeRaw`
+      INSERT INTO "DouyinAdPreAuditConfig" (
+        "brandId",
+        "defaultAdvertiserId",
+        "defaultBusinessType",
+        "vodSpaceName",
+        "updatedAt"
+      )
+      VALUES (
+        ${item.brandId},
+        ${item.defaultAdvertiserId || null},
+        ${item.defaultBusinessType || "ad"},
+        ${item.vodSpaceName || null},
+        ${new Date(item.updatedAt)}
+      )
+      ON CONFLICT ("brandId")
+      DO UPDATE SET
+        "defaultAdvertiserId" = EXCLUDED."defaultAdvertiserId",
+        "defaultBusinessType" = EXCLUDED."defaultBusinessType",
+        "vodSpaceName" = EXCLUDED."vodSpaceName",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
   }
 
   private async loadWechatAccountConfigStoreItem(brandId: string) {
