@@ -68,7 +68,6 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
     setConfigAdvertiserId(props.config.defaultAdvertiserId || "");
     setConfigBusinessType(props.config.defaultBusinessType || DEFAULT_BUSINESS_TYPE);
     setVodSpaceName(props.config.vodSpaceName || "");
-    setAdvertiserId((current) => current.trim() || props.config.defaultAdvertiserId || "");
     setBusinessType((current) => current.trim() || props.config.defaultBusinessType || DEFAULT_BUSINESS_TYPE);
   }, [props.config.defaultAdvertiserId, props.config.defaultBusinessType, props.config.vodSpaceName]);
 
@@ -81,18 +80,19 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
   async function handleSubmit() {
     const normalizedVid = vid.trim();
     const normalizedAdvertiserId = advertiserId.trim();
+    const effectiveAdvertiserId = normalizedAdvertiserId || props.config.defaultAdvertiserId || "";
     if (!normalizedVid) {
       window.alert("请先填写 VOD 的 Vid。");
       return;
     }
-    if (!normalizedAdvertiserId) {
-      window.alert("请先填写广告主账户 ID。");
+    if (!effectiveAdvertiserId) {
+      window.alert("请先在默认配置中保存广告主账户 ID，或在这里临时填写一个广告主账户 ID。");
       return;
     }
     await props.onCreate({
       vid: normalizedVid,
       fileId: fileId.trim() || undefined,
-      advertiserId: normalizedAdvertiserId,
+      advertiserId: normalizedAdvertiserId || undefined,
       businessType: businessType.trim() || DEFAULT_BUSINESS_TYPE,
       materialLabel: materialLabel.trim() || undefined,
     });
@@ -368,11 +368,13 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
               />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
-              <span className="status-text">广告主账户 ID</span>
+              <span className="status-text">
+                {props.config.defaultAdvertiserId ? "广告主账户 ID（可选覆盖默认值）" : "广告主账户 ID"}
+              </span>
               <input
                 value={advertiserId}
                 onChange={(event) => setAdvertiserId(event.target.value)}
-                placeholder="请输入广告主账户 ID"
+                placeholder={props.config.defaultAdvertiserId ? `留空则使用默认值：${props.config.defaultAdvertiserId}` : "请输入广告主账户 ID"}
                 disabled={props.isSubmitting}
               />
             </label>
@@ -397,6 +399,7 @@ export function DouyinAdPreAuditWorkspace(props: DouyinAdPreAuditWorkspaceProps)
           </div>
           <div className="report-inline-tip">
             凭证格式为 `accessKeyId::secretAccessKey`，必要时可追加 `::cn-north-1`。如果上方作品上传成功，Vid / FileId 会自动带入这里。
+            {props.config.defaultAdvertiserId ? ` 当前默认广告主账户 ID：${props.config.defaultAdvertiserId}，这里留空即可直接复用。` : ""}
           </div>
           <div className="strategy-inline-actions" style={{ justifyContent: "flex-end" }}>
             <button

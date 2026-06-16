@@ -3459,19 +3459,18 @@ export class WorksService {
       const items = await this.prismaService.mediaAsset.findMany({
         where: {
           brandId,
-          mediaType: MediaType.VIDEO,
+          mediaType: { in: [MediaType.VIDEO, MediaType.HTML] },
         },
         orderBy: { createdAt: "desc" },
       });
       return {
-        items: items.map((item) => this.mapDouyinAdPreAuditMediaAsset(item)),
+        items: this.mapDouyinAdPreAuditMediaAssetList(items),
       };
     }
 
-    const items = database.media
-      .filter((item) => item.brandId === brandId && item.mediaType === "VIDEO")
-      .map((item) => this.mapDouyinAdPreAuditMediaAsset(item))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const items = this.mapDouyinAdPreAuditMediaAssetList(
+      database.media.filter((item) => item.brandId === brandId && (item.mediaType === "VIDEO" || item.mediaType === "HTML")),
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return { items };
   }
 
@@ -8739,23 +8738,60 @@ export class WorksService {
     createdAt?: Date | string | null;
     updatedAt?: Date | string | null;
   }): DouyinAdPreAuditMediaAssetRecord {
+    const derived = this.extractDouyinAdPreAuditVideoSource(item.metadataJson);
     const createdAt = this.normalizeHistoryTimestamp(item.createdAt) || new Date().toISOString();
     const updatedAt = this.normalizeHistoryTimestamp(item.updatedAt) || createdAt;
-    const assetUrl = this.resolveWorksMediaAssetUrl(item.brandId ?? undefined, item.storageKey ?? undefined, item.sourceUrl ?? undefined);
+    const assetUrl = this.resolveWorksMediaAssetUrl(
+      item.brandId ?? undefined,
+      item.storageKey ?? undefined,
+      item.sourceUrl ?? derived.sourceUrl ?? undefined,
+    );
     return {
       id: item.id,
       brandId: item.brandId ?? undefined,
       title: item.title,
       mediaType: String(item.mediaType || "VIDEO"),
       assetUrl,
-      sourceUrl: this.readOptionalString(item.sourceUrl) || assetUrl,
+      sourceUrl: this.readOptionalString(item.sourceUrl) || derived.sourceUrl || assetUrl,
       mimeType: this.readOptionalString(item.mimeType) || undefined,
       fileSize: item.fileSize ?? undefined,
-      durationSec: item.durationSec ?? undefined,
+      durationSec: item.durationSec ?? derived.durationSec ?? undefined,
       createdAt,
       updatedAt,
       vodUpload: this.readDouyinVodUploadTaskRecord(item.id, item.metadataJson),
     };
+  }
+
+  private mapDouyinAdPreAuditMediaAssetList(items: Array<{
+    id: string;
+    brandId?: string | null;
+    title: string;
+    mediaType: MediaType | string;
+    sourceUrl?: string | null;
+    storageKey?: string | null;
+    mimeType?: string | null;
+    fileSize?: number | null;
+    durationSec?: number | null;
+    metadataJson?: unknown;
+    createdAt?: Date | string | null;
+    updatedAt?: Date | string | null;
+  }>) {
+    const itemIds = new Set(items.map((item) => item.id));
+    return items
+      .filter((item) => {
+        if (item.mediaType === MediaType.VIDEO || item.mediaType === "VIDEO") {
+          return true;
+        }
+        const derived = this.extractDouyinAdPreAuditVideoSource(item.metadataJson);
+        if (!derived.sourceUrl) {
+          return false;
+        }
+        if (derived.videoAssetId && itemIds.has(derived.videoAssetId)) {
+          return false;
+        }
+        return true;
+      })
+      .map((item) => this.mapDouyinAdPreAuditMediaAsset(item));
   }
 
   private async getDouyinAdPreAuditMediaAssetItem(brandId: string, mediaAssetId: string) {
@@ -8773,19 +8809,19 @@ export class WorksService {
         where: {
           id: normalizedMediaAssetId,
           brandId,
-          mediaType: MediaType.VIDEO,
+          mediaType: { in: [MediaType.VIDEO, MediaType.HTML] },
         },
       });
-      if (!asset) {
+      if (!asset || !this.isDouyinAdPreAuditVideoCandidate(asset)) {
         throw new NotFoundException("视频作品不存在。");
       }
       return asset;
     }
 
     const asset = database.media.find((item) =>
-      item.id === normalizedMediaAssetId && item.brandId === brandId && item.mediaType === "VIDEO",
+      item.id === normalizedMediaAssetId && item.brandId === brandId,
     );
-    if (!asset) {
+    if (!asset || !this.isDouyinAdPreAuditVideoCandidate(asset)) {
       throw new NotFoundException("视频作品不存在。");
     }
     return asset;
@@ -8810,8 +8846,16 @@ export class WorksService {
     },
     brandId: string,
   ) {
-    const assetUrl = this.resolveWorksMediaAssetUrl(brandId, asset.storageKey ?? undefined, asset.sourceUrl ?? undefined);
-    const sourceUrl = await this.resolveThirdPartyAccessibleAssetUrl(assetUrl || this.readOptionalString(asset.sourceUrl), brandId);
+    const derived = this.extractDouyinAdPreAuditVideoSource(asset.metadataJson);
+    const assetUrl = this.resolveWorksMediaAssetUrl(
+      brandId,
+      asset.storageKey ?? undefined,
+      asset.sourceUrl ?? derived.sourceUrl ?? undefined,
+    );
+    const sourceUrl = await this.resolveThirdPartyAccessibleAssetUrl(
+      assetUrl || this.readOptionalString(asset.sourceUrl) || derived.sourceUrl,
+      brandId,
+    );
     if (!sourceUrl) {
       throw new BadRequestException("当前作品缺少可供火山 VOD 拉取的公开视频地址，请先确认作品已生成并可访问。");
     }
@@ -8955,6 +8999,48 @@ export class WorksService {
       (asset as { durationSec?: number }).durationSec = snapshot.durationSec;
     }
     asset.updatedAt = new Date().toISOString();
+  }
+
+  private isDouyinAdPreAuditVideoCandidate(item: {
+    mediaType?: MediaType | string | null;
+    metadataJson?: unknown;
+  }) {
+    if (item.mediaType === MediaType.VIDEO || item.mediaType === "VIDEO") {
+      return true;
+    }
+    return Boolean(this.extractDouyinAdPreAuditVideoSource(item.metadataJson).sourceUrl);
+  }
+
+  private extractDouyinAdPreAuditVideoSource(metadataJson: unknown): {
+    sourceUrl?: string;
+    durationSec?: number;
+    videoAssetId?: string;
+  } {
+    if (this.isVideoWorkMeta(metadataJson)) {
+      const meta = this.readVideoWorkMeta(metadataJson);
+      return {
+        sourceUrl: meta.videoUrl || undefined,
+        durationSec: meta.renderedDurationSec,
+        videoAssetId: meta.videoAssetId,
+      };
+    }
+    if (this.isDigitalHumanVideoWorkMeta(metadataJson)) {
+      const meta = this.readDigitalHumanVideoWorkMeta(metadataJson);
+      return {
+        sourceUrl: meta.videoUrl || undefined,
+        durationSec: meta.renderedDurationSec,
+        videoAssetId: meta.videoAssetId,
+      };
+    }
+    if (this.isDouyinLipSyncWorkMeta(metadataJson)) {
+      const meta = this.readDouyinLipSyncWorkMeta(metadataJson);
+      return {
+        sourceUrl: meta.videoUrl || undefined,
+        durationSec: meta.renderedDurationSec,
+        videoAssetId: meta.videoAssetId,
+      };
+    }
+    return {};
   }
 
   private mergeDouyinVodUploadMetadata(metadataJson: unknown, snapshot: DouyinVodUploadTaskRecord) {
