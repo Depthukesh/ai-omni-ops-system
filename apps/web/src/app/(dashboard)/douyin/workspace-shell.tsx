@@ -696,7 +696,7 @@ export function DouyinWorkspaceShell() {
     const canViewSection = (sectionKey: DouyinSectionKey) =>
       !resolvedPermissionSettings || Boolean(resolvedPermissionSettings.currentUserPermissions?.[douyinSectionPermissionMap[sectionKey]]?.view);
 
-    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, adPreAuditResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
+    const [planResult, hotTopicResult, originalCopyResult, remixCopyResult, videoResult, videoProvidersResult, storyboardModelsResult, directVideoResult, directVideoProvidersResult, digitalHumanResult, adPreAuditResult, adPreAuditConfigResult, adPreAuditMediaResult, digitalHumanCustomPersonsResult, digitalHumanLipSyncResult, digitalHumanTemplatesResult, digitalHumanTagGroupsResult, digitalHumanFavoritesResult, digitalHumanScriptTemplatesResult, digitalHumanVoiceLibraryResult, digitalHumanCustomVoicesResult, digitalHumanSpeechTaskResult] = await Promise.allSettled([
       canViewSection("plan") ? getDouyinMarketingPlanWorkspace(activeBrandId) : Promise.resolve(douyinMarketingPlanSeed),
       canViewSection("hotTopics") || canViewSection("topicLibrary")
         ? getDouyinHotTopicCandidatesWorkspace(activeBrandId)
@@ -714,6 +714,10 @@ export function DouyinWorkspaceShell() {
       canViewSection("videoDirect") ? getDouyinDirectVideoProviders(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanVideoWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("adPreAudit") ? getDouyinAdPreAuditWorks(activeBrandId) : Promise.resolve({ items: [] }),
+      canViewSection("adPreAudit")
+        ? getDouyinAdPreAuditConfig(activeBrandId)
+        : Promise.resolve({ item: { brandId: activeBrandId, defaultBusinessType: "ad", updatedAt: "" } }),
+      canViewSection("adPreAudit") ? getDouyinAdPreAuditMediaAssets(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinDigitalHumanCustomPersons(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman") ? getDouyinLipSyncWorks(activeBrandId) : Promise.resolve({ items: [] }),
       canViewSection("digitalHuman")
@@ -841,6 +845,32 @@ export function DouyinWorkspaceShell() {
       hasFallback = true;
       failedInterfaceNames.push("广告预审记录");
       setAdPreAuditWorks([]);
+    }
+
+    if (adPreAuditConfigResult.status === "fulfilled") {
+      setAdPreAuditConfig(
+        adPreAuditConfigResult.value.item || {
+          brandId: activeBrandId,
+          defaultBusinessType: "ad",
+          updatedAt: "",
+        },
+      );
+    } else {
+      hasFallback = true;
+      failedInterfaceNames.push("广告预审默认配置");
+      setAdPreAuditConfig({
+        brandId: activeBrandId,
+        defaultBusinessType: "ad",
+        updatedAt: "",
+      });
+    }
+
+    if (adPreAuditMediaResult.status === "fulfilled") {
+      setAdPreAuditMediaAssets(adPreAuditMediaResult.value.items || []);
+    } else {
+      hasFallback = true;
+      failedInterfaceNames.push("广告预审可选视频");
+      setAdPreAuditMediaAssets([]);
     }
 
 
