@@ -956,6 +956,7 @@ model OpenClawInstallToken {
   tokenName       String   @default("")
   tokenHash       String   @unique(map: "OpenClawInstallToken_tokenHash_key")
   tokenPreview    String   @default("")
+  encryptedToken  String   @default("")
   status          String   @default("ACTIVE")
   lastUsedAt      DateTime?
   expiresAt       DateTime?
