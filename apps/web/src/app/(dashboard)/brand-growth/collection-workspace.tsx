@@ -199,6 +199,18 @@ export interface BrandGrowthCollectionWorkspaceProps {
   templateUrl: string;
   activeXhsCollectionCard: XiaohongshuCollectionCardKey;
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
+  xhsSyncForm: {
+    brandAccountLocators: string;
+    competitorAccountLocators: string;
+    brandWorkLocators: string;
+    benchmarkNoteLocators: string;
+  };
+  setXhsSyncForm: Dispatch<SetStateAction<{
+    brandAccountLocators: string;
+    competitorAccountLocators: string;
+    brandWorkLocators: string;
+    benchmarkNoteLocators: string;
+  }>>;
   activeDouyinCollectionCard: DouyinCollectionCardKey;
   onDouyinCollectionCardChange: ValueAction<DouyinCollectionCardKey>;
   feishuBinding: FeishuBindingRecord | null;
@@ -213,6 +225,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   isSavingFeishuAppConfig: boolean;
   isSavingFeishuBinding: boolean;
   isSyncingFeishuWorkspace: boolean;
+  isSyncingXhsWorkspace: boolean;
   douyinWorkspace: DouyinCollectionWorkspace;
   isSyncingDouyinWorkspace: boolean;
   douyinSyncForm: {
@@ -259,6 +272,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onStartFeishuAuth: AsyncAction;
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
+  onSyncXhsWorkspace: AsyncAction;
   onSyncDouyinWorkspace: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
@@ -1370,6 +1384,233 @@ function DouyinCityHotspotTable(props: {
   );
 }
 
+function XhsAccountTable(props: {
+  items: XhsCollectedAccountRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>昵称</th>
+            <th>用户 ID</th>
+            <th>简介</th>
+            <th>头像</th>
+            <th>粉丝数</th>
+            <th>关注数</th>
+            <th>作品数</th>
+            <th>获赞数</th>
+            <th>收藏数</th>
+            <th>IP 属地</th>
+            <th>主页链接</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.accountName || "-"}</td>
+              <td><CopyableCell value={item.externalUserId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description} emptyText="未提供简介" compactRows={2} />
+              </td>
+              <td>
+                <AvatarPreviewLink src={item.avatar} alt={`${item.accountName || "小红书账号"}头像`} />
+              </td>
+              <td>{props.formatCount(item.fanCount)}</td>
+              <td>{props.formatCount(item.followCount)}</td>
+              <td>{props.formatCount(item.postedCount)}</td>
+              <td>{props.formatCount(item.likedCount)}</td>
+              <td>{props.formatCount(item.collectedCount)}</td>
+              <td>{item.ipLocation || "-"}</td>
+              <td>
+                {item.sourceAccountLink ? (
+                  <a href={item.sourceAccountLink} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开主页
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function XhsNotesTable(props: {
+  items: XhsCollectedNoteRecord[];
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>笔记 ID</th>
+            <th>标题</th>
+            <th>笔记类型</th>
+            <th>作者</th>
+            <th>用户 ID</th>
+            <th>正文摘要</th>
+            <th>发布时间</th>
+            <th>点赞</th>
+            <th>收藏</th>
+            <th>分享</th>
+            <th>评论</th>
+            <th>图片</th>
+            <th>视频</th>
+            <th>作品链接</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td><CopyableCell value={item.noteId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.title} emptyText="未提供标题" compactRows={2} />
+              </td>
+              <td>{item.noteType || "-"}</td>
+              <td>{item.nickname || "-"}</td>
+              <td><CopyableCell value={item.externalUserId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description} emptyText="暂无正文内容" compactRows={2} />
+              </td>
+              <td>{item.createdAtText || "-"}</td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.collectCount)}</td>
+              <td>{props.formatCount(item.shareCount)}</td>
+              <td>{props.formatCount(item.commentCount)}</td>
+              <td>
+                {item.imageList?.length ? (
+                  <a href={item.imageList[0]} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看首图 ({item.imageList.length} 张)
+                  </a>
+                ) : "-"}
+              </td>
+              <td>
+                {item.videoUrl ? (
+                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开视频
+                  </a>
+                ) : "-"}
+              </td>
+              <td>
+                {item.noteUrl ? (
+                  <a href={item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看作品
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
+function XhsBenchmarkNotesTable(props: {
+  items: XhsCollectedNoteRecord[];
+  addingMaterialAssetId: string;
+  onAddToMaterialLibrary: ValueAction<string>;
+  formatDateTime: OptionalDateFormatter;
+  formatCount: OptionalNumberFormatter;
+  formatMetric: OptionalNumberFormatter;
+}) {
+  return (
+    <ScrollableTableShell>
+      <table className="soft-table douyin-data-table">
+        <thead>
+          <tr>
+            <th>素材库</th>
+            <th>笔记 ID</th>
+            <th>标题</th>
+            <th>笔记类型</th>
+            <th>作者</th>
+            <th>正文摘要</th>
+            <th>点赞</th>
+            <th>收藏</th>
+            <th>评论</th>
+            <th>分享</th>
+            <th>赞藏率</th>
+            <th>赞评率</th>
+            <th>分享率</th>
+            <th>图片</th>
+            <th>视频</th>
+            <th>作品链接</th>
+            <th>采集时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.items.map((item) => (
+            <tr key={item.id}>
+              <td>
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() => void props.onAddToMaterialLibrary(item.id)}
+                  disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
+                >
+                  {item.isInMaterialLibrary
+                    ? "已加入"
+                    : props.addingMaterialAssetId === item.id
+                      ? "加入中..."
+                      : "加入素材库"}
+                </button>
+              </td>
+              <td><CopyableCell value={item.noteId} /></td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.title} emptyText="未提供标题" compactRows={2} />
+              </td>
+              <td>{item.noteType || "-"}</td>
+              <td>{item.nickname || "-"}</td>
+              <td className="table-cell-wide">
+                <ExpandableTextCell value={item.description} emptyText="暂无正文内容" compactRows={2} />
+              </td>
+              <td>{props.formatCount(item.likeCount)}</td>
+              <td>{props.formatCount(item.collectCount)}</td>
+              <td>{props.formatCount(item.commentCount)}</td>
+              <td>{props.formatCount(item.shareCount)}</td>
+              <td>{props.formatMetric(item.likeCollectRatio)}</td>
+              <td>{props.formatMetric(item.likeCommentRatio)}</td>
+              <td>{props.formatMetric(item.shareRatio)}</td>
+              <td>
+                {item.imageList?.length ? (
+                  <a href={item.imageList[0]} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看首图 ({item.imageList.length} 张)
+                  </a>
+                ) : "-"}
+              </td>
+              <td>
+                {item.videoUrl ? (
+                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    打开视频
+                  </a>
+                ) : "-"}
+              </td>
+              <td>
+                {item.sourceUrl || item.noteUrl ? (
+                  <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
+                    查看作品
+                  </a>
+                ) : "-"}
+              </td>
+              <td>{props.formatDateTime(item.collectedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTableShell>
+  );
+}
+
 export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorkspaceProps) {
   const xiaohongshuSyncedCount =
     props.sortedBrandAccounts.length +
@@ -1701,19 +1942,11 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           <div className="strategy-card-toolbar">
             <div>
               <strong>{props.pageTitle}</strong>
-              <p>小红书板块只保留同步入口与结果展示，飞书应用和副本绑定已移动到独立飞书配置板块。</p>
+              <p>不再同步飞书多维表格，改为直接通过 Tikhub 提取品牌账号、竞品账号、品牌作品和对标作品数据。</p>
             </div>
             <div className="strategy-inline-actions">
               <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
                 刷新数据
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void props.onSyncFeishuWorkspace()}
-                disabled={props.isHydrating || props.isSyncingFeishuWorkspace || !props.canSyncFeishuWorkspace}
-              >
-                {props.isSyncingFeishuWorkspace ? "同步中..." : "同步数据"}
               </button>
             </div>
           </div>
@@ -1724,11 +1957,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             isHydrating={props.isHydrating}
           />
           <div className="strategy-chip-row">
+            <span className="archive-pill status-ready">数据源：Tikhub</span>
             <span className={`archive-pill ${xiaohongshuSyncedCount ? "status-ready" : "status-pending"}`}>
               已同步 {xiaohongshuSyncedCount} 条
-            </span>
-            <span className={`archive-pill ${props.canSyncFeishuWorkspace ? "status-ready" : "status-pending"}`}>
-              {props.canSyncFeishuWorkspace ? "可重新同步" : "需先完成飞书配置"}
             </span>
           </div>
           <div className="strategy-chip-row">
@@ -1744,453 +1975,187 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             ))}
           </div>
           {props.activeXhsCollectionCard === "brandAccount" ? (
-            <article className="light-data-panel">
-              <div className="collection-result-head">
-                <div>
-                  <h3>品牌账号信息</h3>
-                  <p>直接展示飞书多维表格同步回来的品牌账号结果。</p>
+            <>
+              <DouyinSubmitPanel
+                title="品牌账号信息"
+                value={props.xhsSyncForm.brandAccountLocators}
+                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, brandAccountLocators: value }))}
+                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置品牌账号"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌账号信息</h3>
+                    <p>调用 Tikhub 用户信息接口获取品牌账号画像。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedBrandAccounts.length ? "status-ready" : "status-pending"}`}>
+                    已同步 {props.sortedBrandAccounts.length} 条
+                  </span>
                 </div>
-                <span className={`archive-pill ${props.sortedBrandAccounts.length ? "status-ready" : "status-pending"}`}>
-                  已同步 {props.sortedBrandAccounts.length} 条
-                </span>
-              </div>
-              <div className="collection-card-list">
                 {props.sortedBrandAccounts.length ? (
-                  props.sortedBrandAccounts.map((item) => (
-                    <article key={item.id} className="collection-sync-card">
-                      <div className="collection-sync-head">
-                        <div className="collection-sync-title">
-                          <strong>{item.accountName || "-"}</strong>
-                          <span>
-                            {item.sourceAccountLink ? (
-                              <a href={item.sourceAccountLink} target="_blank" rel="noreferrer">
-                                {item.sourceAccountLink}
-                              </a>
-                            ) : (
-                              "未提供主页链接"
-                            )}
-                          </span>
-                        </div>
-                        <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                      </div>
-                      <div className="collection-sync-grid">
-                        <div className="collection-sync-item">
-                          <span>外部用户 ID</span>
-                          <strong className="collection-sync-code">{item.externalUserId || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>作品数</span>
-                          <strong>{props.formatCount(item.postedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>粉丝数</span>
-                          <strong>{props.formatCount(item.fanCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>获赞数</span>
-                          <strong>{props.formatCount(item.likedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>收藏数</span>
-                          <strong>{props.formatCount(item.collectedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>IP 属地</span>
-                          <strong>{item.ipLocation || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>关注数</span>
-                          <strong>{props.formatCount(item.followCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item collection-sync-item--full">
-                          <span>账号简介</span>
-                          <strong>{item.description || "未提供简介"}</strong>
-                        </div>
-                      </div>
-                    </article>
-                  ))
+                  <XhsAccountTable
+                    items={props.sortedBrandAccounts}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
                 ) : (
-                  <div className="note-empty-state">当前还没有同步到品牌账号结果。</div>
+                  <div className="note-empty-state">当前还没有品牌账号结果，先提交链接或 user_id。</div>
                 )}
-              </div>
-            </article>
+              </article>
+            </>
           ) : null}
           {props.activeXhsCollectionCard === "competitorAccount" ? (
-            <article className="light-data-panel">
-              <div className="collection-result-head">
-                <div>
-                  <h3>竞品账号信息</h3>
-                  <p>直接展示飞书多维表格同步回来的竞品账号结果。</p>
+            <>
+              <DouyinSubmitPanel
+                title="竞品账号信息"
+                value={props.xhsSyncForm.competitorAccountLocators}
+                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, competitorAccountLocators: value }))}
+                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置竞品账号"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>竞品账号信息</h3>
+                    <p>调用 Tikhub 用户信息接口获取竞品账号画像。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedCompetitorAccounts.length ? "status-ready" : "status-pending"}`}>
+                    已同步 {props.sortedCompetitorAccounts.length} 条
+                  </span>
                 </div>
-                <span className={`archive-pill ${props.sortedCompetitorAccounts.length ? "status-ready" : "status-pending"}`}>
-                  已同步 {props.sortedCompetitorAccounts.length} 条
-                </span>
-              </div>
-              <div className="collection-card-list">
                 {props.sortedCompetitorAccounts.length ? (
-                  props.sortedCompetitorAccounts.map((item) => (
-                    <article key={item.id} className="collection-sync-card">
-                      <div className="collection-sync-head">
-                        <div className="collection-sync-title">
-                          <strong>{item.accountName || "-"}</strong>
-                          <span>
-                            {item.sourceAccountLink ? (
-                              <a href={item.sourceAccountLink} target="_blank" rel="noreferrer">
-                                {item.sourceAccountLink}
-                              </a>
-                            ) : (
-                              "未提供主页链接"
-                            )}
-                          </span>
-                        </div>
-                        <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                      </div>
-                      <div className="collection-sync-grid">
-                        <div className="collection-sync-item">
-                          <span>外部用户 ID</span>
-                          <strong className="collection-sync-code">{item.externalUserId || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>作品数</span>
-                          <strong>{props.formatCount(item.postedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>粉丝数</span>
-                          <strong>{props.formatCount(item.fanCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>获赞数</span>
-                          <strong>{props.formatCount(item.likedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>收藏数</span>
-                          <strong>{props.formatCount(item.collectedCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>IP 属地</span>
-                          <strong>{item.ipLocation || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>关注数</span>
-                          <strong>{props.formatCount(item.followCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item collection-sync-item--full">
-                          <span>账号简介</span>
-                          <strong>{item.description || "未提供简介"}</strong>
-                        </div>
-                      </div>
-                    </article>
-                  ))
+                  <XhsAccountTable
+                    items={props.sortedCompetitorAccounts}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
                 ) : (
-                  <div className="note-empty-state">当前还没有同步到竞品账号结果。</div>
+                  <div className="note-empty-state">当前还没有竞品账号结果，先提交链接或 user_id。</div>
                 )}
-              </div>
-            </article>
+              </article>
+            </>
           ) : null}
           {props.activeXhsCollectionCard === "brandWorks" ? (
-            <article className="light-data-panel">
-              <div className="collection-result-head">
-                <div>
-                  <h3>品牌作品信息及数据</h3>
-                  <p>直接展示飞书多维表格同步回来的品牌作品内容。</p>
+            <>
+              <DouyinSubmitPanel
+                title="品牌作品信息及数据"
+                value={props.xhsSyncForm.brandWorkLocators}
+                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, brandWorkLocators: value }))}
+                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置品牌账号"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌作品信息及数据</h3>
+                    <p>调用 Tikhub 作者作品接口，按列表形式展示品牌账号下的作品及基础数据。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedBrandNotes.length ? "status-ready" : "status-pending"}`}>
+                    已同步 {props.sortedBrandNotes.length} 条
+                  </span>
                 </div>
-                <span className={`archive-pill ${props.sortedBrandNotes.length ? "status-ready" : "status-pending"}`}>
-                  已同步 {props.sortedBrandNotes.length} 条
-                </span>
-              </div>
-              <div className="note-results-list">
                 {props.sortedBrandNotes.length ? (
-                  props.paginatedBrandNotes.map((item) => (
-                    <article key={item.id} className="note-result-card">
-                      <div className="note-result-top">
-                        <div className="note-result-title-block">
-                          <div className="note-title-meta">
-                            <span className={`note-type-badge ${item.noteType === "video" ? "is-video" : "is-normal"}`}>
-                              {item.noteType || "-"}
-                            </span>
-                            <span className="note-id-text">{item.noteId}</span>
-                          </div>
-                          <strong>{item.title}</strong>
-                        </div>
-                        <div className="note-result-summary-grid">
-                          <div className="note-summary-item">
-                            <span>作者</span>
-                            <strong>{item.nickname || "-"}</strong>
-                          </div>
-                          <div className="note-summary-item">
-                            <span>用户 ID</span>
-                            <strong className="note-summary-code">{item.externalUserId || "-"}</strong>
-                          </div>
-                          <div className="note-summary-item">
-                            <span>创建时间</span>
-                            <strong>{item.createdAtText || "-"}</strong>
-                          </div>
-                          <div className="note-summary-item">
-                            <span>来源账号</span>
-                            <strong className="note-summary-code">{item.sourceAccountId}</strong>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="note-result-middle">
-                        <div className="note-metric-grid note-metric-grid--compact">
-                          <div>
-                            <span>点赞</span>
-                            <strong>{item.likeCount ?? 0}</strong>
-                          </div>
-                          <div>
-                            <span>收藏</span>
-                            <strong>{item.collectCount ?? 0}</strong>
-                          </div>
-                          <div>
-                            <span>分享</span>
-                            <strong>{item.shareCount ?? 0}</strong>
-                          </div>
-                          <div>
-                            <span>评论</span>
-                            <strong>{item.commentCount ?? 0}</strong>
-                          </div>
-                        </div>
-                        <div className="note-description-panel">
-                          <span className="note-panel-label">正文</span>
-                          <div className="note-description-inline">{item.description || "暂无正文内容"}</div>
-                        </div>
-                      </div>
-                      <div className="note-result-bottom">
-                        <div className="note-media-panel">
-                          <span className="note-panel-label">附件</span>
-                          {item.imageList?.length ? (
-                            <div className="note-image-grid">
-                              {item.imageList.map((mediaUrl, index) => {
-                                const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
-                                if (!previewUrl) {
-                                  return null;
-                                }
-                                return (
-                                  <ProtectedImageCard
-                                    key={`${item.id}-image-${index}`}
-                                    sourceUrl={previewUrl}
-                                    title={`${item.title}-附件-${index + 1}`}
-                                    onPreviewMedia={props.onPreviewMedia}
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="note-empty-media">暂无附件</div>
-                          )}
-                          <ProtectedVideoPanel sourceUrl={props.buildFeishuMediaProxyUrl(item.videoUrl)} />
-                          <div className="note-media-actions">
-                            {item.noteUrl ? (
-                              <a href={item.noteUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                                查看作品链接
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  ))
+                  <XhsNotesTable
+                    items={props.paginatedBrandNotes}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                  />
                 ) : (
-                  <div className="note-empty-state">
-                    当前还没有同步到品牌作品结果，先在飞书副本里执行插件收集，再回到本站查看。
-                  </div>
+                  <div className="note-empty-state">当前还没有品牌作品结果，先提交作者主页链接或 user_id。</div>
                 )}
-              </div>
-              {props.sortedBrandNotes.length ? (
-                <div className="note-pagination-bar">
-                  <div className="note-pagination-summary">
-                    <span>共 {props.sortedBrandNotes.length} 条</span>
-                    <span>
-                      第 {props.brandNotesPage} / {props.brandNotesPageCount} 页
-                    </span>
-                  </div>
-                  <div className="note-pagination-actions">
-                    <button
-                      type="button"
-                      className="note-inline-button"
-                      onClick={() => props.setBrandNotesPage((current) => Math.max(1, current - 1))}
-                      disabled={props.brandNotesPage === 1}
-                    >
-                      上一页
-                    </button>
-                    {Array.from({ length: props.brandNotesPageCount }, (_, index) => index + 1).map((page) => (
+                {props.sortedBrandNotes.length ? (
+                  <div className="note-pagination-bar">
+                    <div className="note-pagination-summary">
+                      <span>共 {props.sortedBrandNotes.length} 条</span>
+                      <span>
+                        第 {props.brandNotesPage} / {props.brandNotesPageCount} 页
+                      </span>
+                    </div>
+                    <div className="note-pagination-actions">
                       <button
-                        key={`brand-note-page-${page}`}
                         type="button"
-                        className={`note-page-button ${page === props.brandNotesPage ? "is-active" : ""}`}
-                        onClick={() => props.setBrandNotesPage(page)}
+                        className="note-inline-button"
+                        onClick={() => props.setBrandNotesPage((current) => Math.max(1, current - 1))}
+                        disabled={props.brandNotesPage === 1}
                       >
-                        {page}
+                        上一页
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="note-inline-button"
-                      onClick={() =>
-                        props.setBrandNotesPage((current) => Math.min(props.brandNotesPageCount, current + 1))
-                      }
-                      disabled={props.brandNotesPage === props.brandNotesPageCount}
-                    >
-                      下一页
-                    </button>
-                    <label className="note-page-size-picker">
-                      <span>每页</span>
-                      <select
-                        value={props.brandNotesPageSize}
-                        onChange={(event) => props.setBrandNotesPageSize(Number(event.target.value))}
+                      {Array.from({ length: props.brandNotesPageCount }, (_, index) => index + 1).map((page) => (
+                        <button
+                          key={`brand-note-page-${page}`}
+                          type="button"
+                          className={`note-page-button ${page === props.brandNotesPage ? "is-active" : ""}`}
+                          onClick={() => props.setBrandNotesPage(page)}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="note-inline-button"
+                        onClick={() => props.setBrandNotesPage((current) => Math.min(props.brandNotesPageCount, current + 1))}
+                        disabled={props.brandNotesPage === props.brandNotesPageCount}
                       >
-                        {[10, 20, 30, 50].map((size) => (
-                          <option key={`page-size-${size}`} value={size}>
-                            {size}
-                          </option>
-                        ))}
-                      </select>
-                      <span>个</span>
-                    </label>
+                        下一页
+                      </button>
+                      <label className="note-page-size-picker">
+                        <span>每页</span>
+                        <select
+                          value={props.brandNotesPageSize}
+                          onChange={(event) => props.setBrandNotesPageSize(Number(event.target.value))}
+                        >
+                          {[10, 20, 30, 50].map((size) => (
+                            <option key={`page-size-${size}`} value={size}>
+                              {size}
+                            </option>
+                          ))}
+                        </select>
+                        <span>个</span>
+                      </label>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </article>
+                ) : null}
+              </article>
+            </>
           ) : null}
           {props.activeXhsCollectionCard === "benchmarkWorks" ? (
-            <article className="light-data-panel">
-              <div className="collection-result-head">
-                <div>
-                  <h3>对标作品信息及数据</h3>
-                  <p>直接展示飞书多维表格同步回来的对标作品内容。</p>
+            <>
+              <DouyinSubmitPanel
+                title="对标作品信息及数据"
+                value={props.xhsSyncForm.benchmarkNoteLocators}
+                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, benchmarkNoteLocators: value }))}
+                placeholder="每行一个小红书作品链接、分享链接或 note_id"
+                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
+                onSubmit={props.onSyncXhsWorkspace}
+              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>对标作品信息及数据</h3>
+                    <p>调用 Tikhub 作品详情接口获取单条作品的详情与互动数据。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedBenchmarkNotes.length ? "status-ready" : "status-pending"}`}>
+                    已同步 {props.sortedBenchmarkNotes.length} 条
+                  </span>
                 </div>
-                <span className={`archive-pill ${props.sortedBenchmarkNotes.length ? "status-ready" : "status-pending"}`}>
-                  已同步 {props.sortedBenchmarkNotes.length} 条
-                </span>
-              </div>
-              <div className="collection-card-list">
                 {props.sortedBenchmarkNotes.length ? (
-                  props.sortedBenchmarkNotes.map((item) => (
-                    <article key={item.id} className="collection-sync-card">
-                      <div className="collection-sync-head">
-                        <div className="collection-sync-title">
-                          <strong>{item.title || "-"}</strong>
-                          <span>
-                            {item.sourceUrl || item.noteUrl ? (
-                              <a href={item.sourceUrl || item.noteUrl} target="_blank" rel="noreferrer">
-                                {item.sourceUrl || item.noteUrl}
-                              </a>
-                            ) : (
-                              "未提供来源链接"
-                            )}
-                          </span>
-                        </div>
-                        <div className="collection-sync-actions">
-                          <span className="collection-sync-time">{props.formatDateTime(item.collectedAt)}</span>
-                          <button
-                            type="button"
-                            className={`secondary-button ${item.isInMaterialLibrary ? "is-disabled" : ""}`}
-                            onClick={() => void props.onAddBenchmarkNoteToMaterial(item.id)}
-                            disabled={props.addingMaterialAssetId === item.id || Boolean(item.isInMaterialLibrary)}
-                          >
-                            {item.isInMaterialLibrary
-                              ? "已加入素材库"
-                              : props.addingMaterialAssetId === item.id
-                                ? "加入中..."
-                                : "加入素材库"}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="collection-sync-grid">
-                        <div className="collection-sync-item">
-                          <span>作者</span>
-                          <strong>{item.nickname || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>笔记类型</span>
-                          <strong>{item.noteType || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>赞藏率</span>
-                          <strong>{props.formatMetric(item.likeCollectRatio)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>赞评率</span>
-                          <strong>{props.formatMetric(item.likeCommentRatio)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>分享率</span>
-                          <strong>{props.formatMetric(item.shareRatio)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>是否爆款</span>
-                          <strong>{item.isExplosive || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>是否选用</span>
-                          <strong>{item.followUpDecision || "-"}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>点赞</span>
-                          <strong>{props.formatCount(item.likeCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>收藏</span>
-                          <strong>{props.formatCount(item.collectCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>评论</span>
-                          <strong>{props.formatCount(item.commentCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item">
-                          <span>分享</span>
-                          <strong>{props.formatCount(item.shareCount)}</strong>
-                        </div>
-                        <div className="collection-sync-item collection-sync-item--full">
-                          <span>正文</span>
-                          <strong>{item.description || "暂无正文内容"}</strong>
-                        </div>
-                      </div>
-                      <div className="note-result-bottom">
-                        <div className="note-media-panel">
-                          <span className="note-panel-label">附件</span>
-                          {item.imageList?.length ? (
-                            <div className="note-image-grid">
-                              {item.imageList.map((mediaUrl, index) => {
-                                const previewUrl = props.buildFeishuMediaProxyUrl(mediaUrl);
-                                if (!previewUrl) {
-                                  return null;
-                                }
-                                return (
-                                  <ProtectedImageCard
-                                    key={`${item.id}-benchmark-image-${index}`}
-                                    sourceUrl={previewUrl}
-                                    title={`${item.title}-附件-${index + 1}`}
-                                    onPreviewMedia={props.onPreviewMedia}
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="note-empty-media">暂无附件</div>
-                          )}
-                          <ProtectedVideoPanel sourceUrl={props.buildFeishuMediaProxyUrl(item.videoUrl)} />
-                          <div className="note-media-actions">
-                            {item.sourceUrl || item.noteUrl ? (
-                              <a
-                                href={item.sourceUrl || item.noteUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="note-data-link"
-                              >
-                                查看作品链接
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  ))
+                  <XhsBenchmarkNotesTable
+                    items={props.sortedBenchmarkNotes}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddBenchmarkNoteToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    formatMetric={props.formatMetric}
+                  />
                 ) : (
-                  <div className="note-empty-state">当前还没有同步到对标作品结果。</div>
+                  <div className="note-empty-state">当前还没有对标作品结果，先提交作品链接或 note_id。</div>
                 )}
-              </div>
-            </article>
+              </article>
+            </>
           ) : null}
         </article>
       ) : null}

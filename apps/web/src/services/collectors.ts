@@ -77,6 +77,11 @@ export type XhsCollectionWorkspace = {
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
+export type XhsSyncPayload = {
+  accountLocators?: string[];
+  sourceUrls?: string[];
+};
+
 export type DouyinCollectedAccountRecord = {
   id: string;
   kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT";
@@ -447,27 +452,27 @@ export async function getXiaohongshuCollectionWorkspace(brandId?: string) {
   return request<XhsCollectionWorkspace>(`/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/workspace`);
 }
 
-export async function syncXiaohongshuBrandAccounts(brandId?: string) {
+export async function syncXiaohongshuBrandAccounts(payload: XhsSyncPayload = {}, brandId?: string) {
   return jsonRequest<{ syncedCount: number; workspace: XhsCollectionWorkspace }>(
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/brand-accounts/sync`,
     "POST",
-    {},
+    payload,
   );
 }
 
-export async function syncXiaohongshuCompetitorAccounts(brandId?: string) {
+export async function syncXiaohongshuCompetitorAccounts(payload: XhsSyncPayload = {}, brandId?: string) {
   return jsonRequest<{ syncedCount: number; workspace: XhsCollectionWorkspace }>(
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/competitor-accounts/sync`,
     "POST",
-    {},
+    payload,
   );
 }
 
-export async function syncXiaohongshuBrandNotes(brandId?: string) {
+export async function syncXiaohongshuBrandNotes(payload: XhsSyncPayload = {}, brandId?: string) {
   return jsonRequest<{ syncedCount: number; workspace: XhsCollectionWorkspace }>(
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/brand-notes/sync`,
     "POST",
-    {},
+    payload,
   );
 }
 

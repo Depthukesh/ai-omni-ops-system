@@ -51,6 +51,10 @@ type DouyinSyncInput = {
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
 };
+type XhsSyncInput = {
+  accountLocators?: string[];
+  sourceUrls?: string[];
+};
 export type DouyinContentTagOption = {
   label: string;
   value: number;
@@ -416,8 +420,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.getDouyinWorkspaceFromMock(brandId, contentTags, cityOptions);
   }
 
-  async syncBrandAccounts(brandId: string) {
-    const accounts = await this.getConfiguredAccounts(brandId, "brand");
+  async syncBrandAccounts(brandId: string, input: XhsSyncInput = {}) {
+    const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand");
     const collected = await Promise.all(
       accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_BRAND_ACCOUNT")),
     );
@@ -428,8 +433,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async syncCompetitorAccounts(brandId: string) {
-    const accounts = await this.getConfiguredAccounts(brandId, "competitor");
+  async syncCompetitorAccounts(brandId: string, input: XhsSyncInput = {}) {
+    const presetAccounts = await this.getConfiguredAccounts(brandId, "competitor");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "competitor");
     const collected = await Promise.all(
       accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_COMPETITOR_ACCOUNT")),
     );
@@ -440,8 +446,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async syncBrandNotes(brandId: string) {
-    const accounts = await this.getConfiguredAccounts(brandId, "brand");
+  async syncBrandNotes(brandId: string, input: XhsSyncInput = {}) {
+    const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand");
     const rows = await Promise.all(accounts.map((account) => this.collectAndStoreNotes(brandId, account)));
     return {
       syncedCount: rows.reduce((sum, items) => sum + items.length, 0),
@@ -2906,30 +2913,42 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     account: PlatformAccountRecord,
     kind: CollectorAccountKind,
   ): Promise<XhsCollectedAccountRecord> {
-    const raw = await this.fetchXhs("/api/v1/xiaohongshu/app/get_user_info", {
-      user_id: this.extractUserIdFromUrl(account.accountLink),
-      user_url: account.accountLink,
-    });
+    const userQuery = this.resolveXhsUserQuery(account.accountLink);
+    if (!userQuery.userId && !userQuery.shareText) {
+      throw new BadRequestException(`小红书账号链接或用户 ID 无效：${account.accountLink}`);
+    }
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/get_user_info",
+      {
+        user_id: userQuery.userId,
+        share_text: userQuery.shareText,
+      },
+      brandId,
+    );
 
-    const accountName = this.pickString(raw, ["nickname"]) || account.accountName;
-    const externalUserId = this.pickString(raw, ["userid", "user_id", "userId", "uid", "id"]) || this.extractUserIdFromUrl(account.accountLink);
+    const accountName = this.pickString(raw, ["nickname", "name"]) || account.accountName;
+    const externalUserId =
+      this.pickString(raw, ["user_id", "userid", "userId", "uid", "id"])
+      || userQuery.userId
+      || this.extractUserIdFromUrl(account.accountLink);
     const collectedAt = new Date().toISOString();
+    const accountLink = this.normalizeXhsShareText(this.extractShareUrl(raw) || account.accountLink) || account.accountLink;
 
     const payload = {
       kind,
       sourceAccountId: account.id,
-      sourceAccountLink: account.accountLink,
+      sourceAccountLink: accountLink,
       externalUserId,
-      postedCount: this.pickNumber(raw, ["posted"]),
-      likedCount: this.pickNumber(raw, ["liked"]),
-      collectedCount: this.pickNumber(raw, ["collected"]),
-      avatar: this.pickString(raw, ["avatar"]),
-      description: this.pickString(raw, ["desc"]),
+      postedCount: this.pickNumber(raw, ["posted", "note_count", "notes_count", "post_count"]),
+      likedCount: this.pickNumber(raw, ["liked", "liked_count", "total_liked", "total_favorited"]),
+      collectedCount: this.pickNumber(raw, ["collected", "collected_count", "collect_count"]),
+      avatar: this.pickString(raw, ["avatar", "avatar_url", "image"]),
+      description: this.pickString(raw, ["desc", "description", "bio"]),
       ipLocation: this.pickString(raw, ["ip_location"]),
-      followCount: this.pickNumber(raw, ["follows"]),
-      fanCount: this.pickNumber(raw, ["fans"]),
+      followCount: this.pickNumber(raw, ["follows", "follow_count", "following_count"]),
+      fanCount: this.pickNumber(raw, ["fans", "fan_count", "follower_count"]),
       collectedAt,
-      raw,
+      rawFields: this.asMeta(raw),
     };
 
     const asset = await this.upsertCollectorAsset({
@@ -2938,6 +2957,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       matchValue: account.id,
       title: accountName,
       description: kind === "XHS_BRAND_ACCOUNT" ? "小红书品牌账号采集快照" : "小红书竞品账号采集快照",
+      fileUrl: accountLink,
       metadata: payload,
     });
 
@@ -2945,11 +2965,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async collectAndStoreNotes(brandId: string, account: PlatformAccountRecord): Promise<XhsCollectedNoteRecord[]> {
-    const raw = await this.fetchXhs("/api/v1/xiaohongshu/web/get_user_notes_v2", {
-      user_id: this.extractUserIdFromUrl(account.accountLink),
-      user_url: account.accountLink,
-      lastCursor: "",
-    });
+    const userQuery = this.resolveXhsUserQuery(account.accountLink);
+    if (!userQuery.userId && !userQuery.shareText) {
+      throw new BadRequestException(`小红书账号链接或用户 ID 无效：${account.accountLink}`);
+    }
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/get_user_posted_notes",
+      {
+        user_id: userQuery.userId,
+        share_text: userQuery.shareText,
+        cursor: "",
+      },
+      brandId,
+    );
 
     const noteItems = this.extractNoteItems(raw);
     const collectedAt = new Date().toISOString();
@@ -2963,19 +2991,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
       const noteUrl =
         this.pickString(item, ["note_url", "noteUrl", "share_url", "shareUrl"])
+        || this.extractShareUrl(item)
         || `https://www.xiaohongshu.com/explore/${noteId}`;
       const title = this.pickString(item, ["title", "name"]) || `小红书作品 ${noteId}`;
       const description = this.pickString(item, ["desc", "description", "content", "text"]) || "";
-      const likeCount = this.pickNumber(item, ["likes", "liked_count", "like_count", "likedCount"]);
-      const collectCount = this.pickNumber(item, ["collected_count", "collect_count", "collectedCount"]);
-      const shareCount = this.pickNumber(item, ["share_count", "shareCount", "shared_count"]);
-      const commentCount = this.pickNumber(item, ["comments_count", "comment_count", "commentCount"]);
-      const noteType = this.pickString(item, ["type"]);
-      const nickname = this.pickString(item, ["nickname"]);
-      const imageList = this.pickStringArray(item, ["images_list"]);
-      const externalUserId = this.pickString(item, ["userid", "user_id", "userId"]);
-      const createdAtText = this.pickString(item, ["create_time"]);
-      const videoUrl = this.pickString(item, ["video_download_url"]);
+      const likeCount = this.pickNumber(item, ["likes", "liked_count", "like_count", "likedCount", "digg_count"]);
+      const collectCount = this.pickNumber(item, ["collected_count", "collect_count", "collectedCount", "collect_num"]);
+      const shareCount = this.pickNumber(item, ["share_count", "shareCount", "shared_count", "share_num"]);
+      const commentCount = this.pickNumber(item, ["comments_count", "comment_count", "commentCount", "comment_num"]);
+      const noteType = this.pickString(item, ["type", "note_type"]);
+      const nickname = this.pickString(item, ["nickname", "user_name", "author_name"]);
+      const imageList = this.extractXhsImageList(item);
+      const externalUserId = this.pickString(item, ["userid", "user_id", "userId", "author_id"]);
+      const createdAtText = this.pickString(item, ["create_time", "time", "publish_time"]);
+      const videoUrl = this.extractXhsVideoUrl(item);
 
       const asset = await this.upsertCollectorAsset({
         brandId,
@@ -3001,7 +3030,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           commentCount,
           videoUrl,
           collectedAt,
-          raw: item,
+          rawFields: this.asMeta(item),
         },
       });
 
@@ -3439,33 +3468,74 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async collectAndStoreBenchmarkNote(brandId: string, sourceUrl: string): Promise<XhsCollectedNoteRecord> {
     const collectedAt = new Date().toISOString();
-    const nextRetryAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-
-    try {
-      throw new Error("缺少 1.4 对标作品接口的可访问文档链接，当前先记录重试任务");
-    } catch (error) {
-      const asset = await this.upsertCollectorAsset({
-        brandId,
-        kind: "XHS_BENCHMARK_NOTE",
-        matchValue: sourceUrl,
-        title: `待采集对标作品`,
-        description: "等待对接对标作品接口",
-        fileUrl: sourceUrl,
-        metadata: {
-          kind: "XHS_BENCHMARK_NOTE",
-          sourceUrl,
-          noteId: this.extractNoteIdFromUrl(sourceUrl),
-          noteUrl: sourceUrl,
-          collectedAt,
-          syncStatus: "FAILED",
-          retryCount: 1,
-          nextRetryAt,
-          lastError: error instanceof Error ? error.message : "采集失败",
-        },
-      });
-
-      return this.mapCollectedNote(asset);
+    const noteQuery = this.resolveXhsNoteQuery(sourceUrl);
+    if (!noteQuery.noteId && !noteQuery.shareText) {
+      throw new BadRequestException(`小红书作品链接或 note_id 无效：${sourceUrl}`);
     }
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/get_image_note_detail",
+      {
+        note_id: noteQuery.noteId,
+        share_text: noteQuery.shareText,
+      },
+      brandId,
+    );
+
+    const noteId = this.pickString(raw, ["note_id", "noteId", "id"]) || noteQuery.noteId || this.extractNoteIdFromUrl(sourceUrl);
+    const noteUrl =
+      this.pickString(raw, ["note_url", "noteUrl", "share_url", "shareUrl"])
+      || this.extractShareUrl(raw)
+      || this.normalizeXhsShareText(sourceUrl)
+      || (noteId ? `https://www.xiaohongshu.com/explore/${noteId}` : sourceUrl);
+    const title = this.pickString(raw, ["title", "name"]) || `小红书作品 ${noteId || sourceUrl}`;
+    const description = this.pickString(raw, ["desc", "description", "content", "text"]) || "";
+    const likeCount = this.pickNumber(raw, ["likes", "liked_count", "like_count", "likedCount", "digg_count"]);
+    const collectCount = this.pickNumber(raw, ["collected_count", "collect_count", "collectedCount", "collect_num"]);
+    const shareCount = this.pickNumber(raw, ["share_count", "shareCount", "shared_count", "share_num"]);
+    const commentCount = this.pickNumber(raw, ["comments_count", "comment_count", "commentCount", "comment_num"]);
+    const imageList = this.extractXhsImageList(raw);
+    const videoUrl = this.extractXhsVideoUrl(raw);
+    const noteType = this.pickString(raw, ["type", "note_type"]);
+    const nickname = this.pickString(raw, ["nickname", "user_name", "author_name"]);
+    const externalUserId = this.pickString(raw, ["userid", "user_id", "userId", "author_id"]);
+    const createdAtText = this.pickString(raw, ["create_time", "time", "publish_time"]);
+
+    const asset = await this.upsertCollectorAsset({
+      brandId,
+      kind: "XHS_BENCHMARK_NOTE",
+      matchValue: noteId || sourceUrl,
+      title,
+      description,
+      fileUrl: noteUrl,
+      metadata: {
+        kind: "XHS_BENCHMARK_NOTE",
+        sourceUrl,
+        sourceAccountId: externalUserId || "",
+        noteId,
+        noteUrl,
+        noteType,
+        nickname,
+        imageList,
+        externalUserId,
+        likeCount,
+        collectCount,
+        createdAtText,
+        shareCount,
+        commentCount,
+        likeCollectRatio: this.computeRatio(likeCount, collectCount),
+        likeCommentRatio: this.computeRatio(likeCount, commentCount),
+        shareRatio: this.computeRatio(shareCount, likeCount),
+        videoUrl,
+        collectedAt,
+        syncStatus: "SUCCESS",
+        retryCount: 0,
+        nextRetryAt: "",
+        lastError: "",
+        rawFields: this.asMeta(raw),
+      },
+    });
+
+    return this.mapCollectedNote(asset);
   }
 
   private async collectAndStoreTargetUser(brandId: string, sourceUrl: string): Promise<XhsCollectedTargetUserRecord> {
@@ -4104,6 +4174,36 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         platform: "DOUYIN",
         accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
         accountLink: normalizedLink,
+      });
+    }
+
+    return results;
+  }
+
+  private mergeXhsManualAccounts(
+    presetAccounts: PlatformAccountRecord[],
+    manualLocators: string[] | undefined,
+    target: "brand" | "competitor",
+  ) {
+    const results = [...presetAccounts];
+    const existingKeys = new Set(
+      presetAccounts
+        .map((item) => this.normalizeXhsAccountLocator(item.accountLink))
+        .filter(Boolean),
+    );
+
+    for (const rawLocator of manualLocators ?? []) {
+      const normalizedLocator = this.normalizeXhsAccountLocator(rawLocator);
+      if (!normalizedLocator || existingKeys.has(normalizedLocator)) {
+        continue;
+      }
+      existingKeys.add(normalizedLocator);
+      results.push({
+        id: `manual_xhs_${target}_${existingKeys.size}`,
+        brandId: "",
+        platform: "XIAOHONGSHU",
+        accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
+        accountLink: normalizedLocator,
       });
     }
 
@@ -4779,6 +4879,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return Array.from(new Set(values));
   }
 
+  private extractXhsImageList(raw: unknown) {
+    return this.extractUrlsFromUnknown(raw)
+      .filter((item) => this.isLikelyImageUrl(item))
+      .slice(0, 12);
+  }
+
+  private extractXhsVideoUrl(raw: unknown) {
+    return this.extractUrlsFromUnknown(raw)
+      .find((item) => this.isLikelyVideoUrl(item))
+      || "";
+  }
+
   private deriveDouyinWorkType(raw: unknown, detail: unknown) {
     const imageCount = this.extractDouyinImageList(detail).length || this.extractDouyinImageList(raw).length;
     if (imageCount > 0) {
@@ -4802,6 +4914,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return `https://${value}`;
     }
     return value;
+  }
+
+  private normalizeXhsShareText(value: string) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    if (/^https?:\/\//i.test(text)) {
+      return text;
+    }
+    if (/^xhslink\.com/i.test(text) || /^www\.xiaohongshu\.com/i.test(text)) {
+      return `https://${text}`;
+    }
+    return text;
   }
 
   private normalizeHttpUrl(value: string) {
@@ -4860,6 +4986,26 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.buildDouyinUserUrl(secUserId);
   }
 
+  private normalizeXhsAccountLocator(value: string) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const userId = this.extractUserIdFromUrl(text);
+    if (userId) {
+      return this.buildXhsProfileUrl(userId);
+    }
+    if (/^[a-z0-9]{8,}$/i.test(text) && !/^https?:\/\//i.test(text)) {
+      return `user_id:${text}`;
+    }
+    return this.normalizeXhsShareText(text);
+  }
+
+  private buildXhsProfileUrl(userId: string) {
+    const normalized = String(userId || "").trim();
+    return normalized ? `https://www.xiaohongshu.com/user/profile/${normalized}` : "";
+  }
+
   private buildDouyinUserUrl(secUserId: string) {
     const normalized = String(secUserId || "").trim();
     return normalized ? `https://www.douyin.com/user/${normalized}` : "";
@@ -4876,6 +5022,39 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
     const urlMatch = text.match(/\/(?:video|note)\/(\d{8,})/i) || text.match(/aweme_id=(\d{8,})/i);
     return urlMatch?.[1] || "";
+  }
+
+  private resolveXhsUserQuery(value: string) {
+    const normalized = this.normalizeXhsAccountLocator(value);
+    if (!normalized) {
+      return { userId: "", shareText: "" };
+    }
+    if (normalized.startsWith("user_id:")) {
+      return {
+        userId: normalized.slice("user_id:".length),
+        shareText: "",
+      };
+    }
+    const userId = this.extractUserIdFromUrl(normalized);
+    return {
+      userId,
+      shareText: userId ? "" : normalized,
+    };
+  }
+
+  private resolveXhsNoteQuery(value: string) {
+    const normalized = this.normalizeXhsShareText(value);
+    if (!normalized) {
+      return { noteId: "", shareText: "" };
+    }
+    const noteId = this.extractNoteIdFromUrl(normalized);
+    if (noteId) {
+      return { noteId, shareText: "" };
+    }
+    if (/^[a-z0-9]{8,}$/i.test(normalized) && !/^https?:\/\//i.test(normalized)) {
+      return { noteId: normalized, shareText: "" };
+    }
+    return { noteId: "", shareText: normalized };
   }
 
   private normalizeDouyinNoteUrl(workId: string, workType: string) {

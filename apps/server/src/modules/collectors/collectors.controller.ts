@@ -17,24 +17,36 @@ export class CollectorsController {
   }
 
   @Post("brands/:brandId/brand-accounts/sync")
-  async syncBrandAccounts(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async syncBrandAccounts(
+    @Param("brandId") brandId: string,
+    @Body() payload: { accountLocators?: string[] },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.syncBrandAccounts(brandId);
+    return this.collectorsService.syncBrandAccounts(brandId, payload ?? {});
   }
 
   @Post("brands/:brandId/competitor-accounts/sync")
-  async syncCompetitorAccounts(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async syncCompetitorAccounts(
+    @Param("brandId") brandId: string,
+    @Body() payload: { accountLocators?: string[] },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.syncCompetitorAccounts(brandId);
+    return this.collectorsService.syncCompetitorAccounts(brandId, payload ?? {});
   }
 
   @Post("brands/:brandId/brand-notes/sync")
-  async syncBrandNotes(@Param("brandId") brandId: string, @Headers() headers: Record<string, string | string[] | undefined>) {
+  async syncBrandNotes(
+    @Param("brandId") brandId: string,
+    @Body() payload: { accountLocators?: string[] },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
     await this.authService.assertBrandAccess(brandId, auth);
-    return this.collectorsService.syncBrandNotes(brandId);
+    return this.collectorsService.syncBrandNotes(brandId, payload ?? {});
   }
 
   @Post("brands/:brandId/benchmark-notes/sync")
