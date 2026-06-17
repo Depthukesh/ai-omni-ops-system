@@ -2125,7 +2125,7 @@ export function WechatWorkspaceShell() {
           font-size: 28px;
           line-height: 1.08;
           letter-spacing: -0.03em;
-          color: #16203b;
+          color: var(--site-hero-text);
         }
 
         .wechat-stage-kicker {
@@ -2135,8 +2135,8 @@ export function WechatWorkspaceShell() {
           gap: 8px;
           padding: 6px 10px;
           border-radius: 999px;
-          background: rgba(71, 94, 214, 0.1);
-          color: #5263b8;
+          background: rgba(97, 123, 255, 0.14);
+          color: var(--site-hero-muted);
           font-size: 11px;
           font-weight: 700;
           letter-spacing: 0.08em;
@@ -2155,10 +2155,12 @@ export function WechatWorkspaceShell() {
         .wechat-stage-empty {
           padding: 16px 18px;
           border-radius: 20px;
-          border: 1px solid rgba(125, 138, 170, 0.18);
-          background: rgba(255, 255, 255, 0.78);
-          color: #52607d;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+          border: 1px solid var(--site-hero-border);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+            var(--site-hero-surface);
+          color: var(--site-hero-muted);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .wechat-html-console {

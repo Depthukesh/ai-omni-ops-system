@@ -154,8 +154,14 @@ const DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
   prompt_douyin_original_copy_local_sales: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成同城带货类抖音原创文案。",
 };
 
+const WECHAT_HTML_RENDER_PROMPT_ID = "prompt_wechat_html_render";
+const WECHAT_HTML_RENDER_SCENE = "公众号HTML渲染";
+const WECHAT_HTML_RENDER_REQUIRED_MARKER = "## 参数映射协议";
+const WECHAT_HTML_RENDER_LEGACY_SUMMARY =
+  "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。";
+
 const WECHAT_HTML_RENDER_LEGACY_FALLBACKS: Record<string, string> = {
-  prompt_wechat_html_render: [
+  [WECHAT_HTML_RENDER_PROMPT_ID]: [
     "---",
     "name: wechat-html-renderer",
     "source: wechat-workflow",
@@ -1240,6 +1246,9 @@ export class SkillsPromptsService {
   async getPromptById(id: string) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
+      if (id === WECHAT_HTML_RENDER_PROMPT_ID) {
+        await this.syncWechatHtmlRenderPromptIfNeeded();
+      }
       const row = await this.findPromptByIdFromDatabase(id);
       if (row) {
         return this.hydratePromptTemplateRecord(this.normalizePromptTemplateRow(row));
@@ -1260,6 +1269,9 @@ export class SkillsPromptsService {
   async getActivePromptByScene(scenes: string[]) {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
+      if (scenes.includes(WECHAT_HTML_RENDER_SCENE)) {
+        await this.syncWechatHtmlRenderPromptIfNeeded();
+      }
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
         FROM "PromptTemplate"
@@ -1346,6 +1358,7 @@ export class SkillsPromptsService {
   private async listPromptRows() {
     if (await this.prismaService.canUseDatabase()) {
       await this.ensureRegistryTablesReady();
+      await this.syncWechatHtmlRenderPromptIfNeeded();
       const rows = await this.prismaService.$queryRaw<PromptTemplateRow[]>`
         SELECT *
         FROM "PromptTemplate"
@@ -1525,33 +1538,43 @@ export class SkillsPromptsService {
   }
 
   private async backfillWechatHtmlRenderPromptContents() {
-    for (const prompt of database.promptTemplates) {
-      const legacyFallback = WECHAT_HTML_RENDER_LEGACY_FALLBACKS[prompt.id];
-      if (!legacyFallback) {
-        continue;
-      }
-      const seedContent = this.readPromptContent(prompt.id, prompt.content);
-      if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
-        continue;
-      }
-      await this.prismaService.$executeRaw`
-        UPDATE "PromptTemplate"
-        SET
-          "content" = ${seedContent},
-          "version" = ${prompt.version},
-          "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${prompt.id}
-          AND (
-            COALESCE(BTRIM("content"), '') = ''
-            OR BTRIM("content") = ${legacyFallback.trim()}
-            OR POSITION(${legacyFallback.trim()} IN BTRIM("content")) = 1
-            OR (
-              POSITION('用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。' IN BTRIM("content")) > 0
-              AND POSITION('## 参数映射协议' IN BTRIM("content")) = 0
-            )
-          )
-      `;
+    await this.syncWechatHtmlRenderPromptIfNeeded();
+  }
+
+  private async syncWechatHtmlRenderPromptIfNeeded() {
+    const prompt = database.promptTemplates.find((item) => item.id === WECHAT_HTML_RENDER_PROMPT_ID);
+    if (!prompt) {
+      return;
     }
+    const legacyFallback = WECHAT_HTML_RENDER_LEGACY_FALLBACKS[prompt.id];
+    if (!legacyFallback) {
+      return;
+    }
+    const seedContent = this.readPromptContent(prompt.id, prompt.content);
+    if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
+      return;
+    }
+    await this.prismaService.$executeRaw`
+      UPDATE "PromptTemplate"
+      SET
+        "content" = ${seedContent},
+        "version" = ${prompt.version},
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${prompt.id}
+        AND (
+          COALESCE(BTRIM("content"), '') = ''
+          OR BTRIM("content") = ${legacyFallback.trim()}
+          OR POSITION(${legacyFallback.trim()} IN BTRIM("content")) = 1
+          OR (
+            POSITION(${WECHAT_HTML_RENDER_LEGACY_SUMMARY} IN BTRIM("content")) > 0
+            AND POSITION(${WECHAT_HTML_RENDER_REQUIRED_MARKER} IN BTRIM("content")) = 0
+          )
+          OR (
+            COALESCE(BTRIM("version"), '') <> ${prompt.version}
+            AND POSITION(${WECHAT_HTML_RENDER_REQUIRED_MARKER} IN BTRIM("content")) = 0
+          )
+        )
+    `;
   }
 
   private async backfillImageGenerationSkillDefaults() {

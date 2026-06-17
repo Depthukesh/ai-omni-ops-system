@@ -1197,14 +1197,14 @@ export const promptTemplateSeed: PromptTemplateRecord[] = [
     id: "prompt_wechat_html_render",
     name: "公众号HTML渲染提示词",
     scene: "公众号HTML渲染",
-    version: "v1.0",
+    version: "v1.1",
     status: "ACTIVE",
     modelName: "provider_runtime_text_deepseek::deepseek-v4-pro",
     temperature: 0.2,
     maxTokens: 8000,
     content:
-      "基于公众号 HTML 渲染工作流，把已确认的 title、summary、author、content、coverImageUrl、bodyImageUrls 和主题色渲染为最终可发布的公众号 HTML。必须输出单个 htmlContent JSON 字段，图片要自然植入正文对应位置，禁止附加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录。",
-    updatedAt: "2026-06-06T20:30:00.000Z",
+      "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并优先服从 htmlStyleConfig：主题风格决定整体气质，布局方式决定标题区与章节结构，字体/字号/密度决定阅读节奏。输出必须是单个 htmlContent JSON 字段，不同配置必须产生肉眼可见的结构差异，不能只改颜色。",
+    updatedAt: "2026-06-17T11:30:00.000Z",
   },
   {
     id: "prompt_wechat_api_publish",
