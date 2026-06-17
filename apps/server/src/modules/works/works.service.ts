@@ -622,6 +622,8 @@ export type GenerateWechatWorkflowHtmlPayload = {
   htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
 };
 
+export type UpdateWechatWorkflowHtmlStylePayload = GenerateWechatWorkflowHtmlPayload;
+
 function buildDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
   return {
     themePreset: "magazine",
@@ -4252,6 +4254,20 @@ export class WorksService {
     target.publishConfig = undefined;
     target.status = "IMAGE_PENDING";
     target.currentStep = "image";
+    target.updatedAt = new Date().toISOString();
+    await this.persistWechatWorkflowSessionStoreItem(target);
+    return {
+      item: this.toWechatWorkflowSessionRecord(target),
+    };
+  }
+
+  async updateWechatWorkflowHtmlStyle(
+    brandId: string,
+    workflowId: string,
+    payload: UpdateWechatWorkflowHtmlStylePayload = {},
+  ) {
+    const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
+    target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(payload.htmlStyleConfig, target.htmlStyleConfig);
     target.updatedAt = new Date().toISOString();
     await this.persistWechatWorkflowSessionStoreItem(target);
     return {

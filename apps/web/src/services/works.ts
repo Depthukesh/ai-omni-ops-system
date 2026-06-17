@@ -804,6 +804,8 @@ export type GenerateWechatWorkflowHtmlForm = {
   htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
 };
 
+export type UpdateWechatWorkflowHtmlStyleForm = GenerateWechatWorkflowHtmlForm;
+
 export type GenerateXiaohongshuRewriteNoteForm = {
   sourceMaterialId?: string;
   productId?: string;
@@ -1501,6 +1503,18 @@ export async function generateWechatWorkflowHtml(
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/html/generate`,
     "POST",
+    payload,
+  );
+}
+
+export async function updateWechatWorkflowHtmlStyle(
+  brandId: string,
+  workflowId: string,
+  payload: UpdateWechatWorkflowHtmlStyleForm = {},
+) {
+  return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
+    `/works/brands/${brandId}/wechat/workflows/${workflowId}/html-style`,
+    "PATCH",
     payload,
   );
 }

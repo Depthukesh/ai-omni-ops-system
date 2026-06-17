@@ -13,6 +13,7 @@ import {
   type GenerateDesignWorkPayload,
   type CreateWechatWorkflowPayload,
   type GenerateWechatWorkflowHtmlPayload,
+  type UpdateWechatWorkflowHtmlStylePayload,
   type SaveWechatAccountConfigPayload,
   type SaveDouyinAdPreAuditConfigPayload,
   type SaveWechatWorkflowPreferencePayload,
@@ -289,6 +290,19 @@ export class WorksController {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
       return this.worksService.generateWechatWorkflowHtml(brandId, workflowId, payload, auth);
+    });
+  }
+
+  @Patch("brands/:brandId/wechat/workflows/:workflowId/html-style")
+  updateWechatWorkflowHtmlStyle(
+    @Param("brandId") brandId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() payload: UpdateWechatWorkflowHtmlStylePayload,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
+      await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
+      return this.worksService.updateWechatWorkflowHtmlStyle(brandId, workflowId, payload);
     });
   }
 
