@@ -555,6 +555,29 @@ export type WechatOfficialAccountRecord = {
   updatedAt: string;
 };
 
+export type WechatHtmlThemePreset =
+  | "newspaper"
+  | "magazine"
+  | "ink"
+  | "tech"
+  | "notion"
+  | "minimal";
+
+export type WechatHtmlLayoutPreset = "standard" | "hero-card" | "magazine" | "immersive";
+export type WechatHtmlFontFamily = "default" | "sans" | "serif" | "song" | "rounded";
+export type WechatHtmlFontSize = "15px" | "16px" | "17px";
+export type WechatHtmlDensity = "compact" | "comfortable" | "airy";
+export type WechatHtmlCitationMode = "inline" | "footnote";
+
+export type WechatHtmlStyleConfig = {
+  themePreset: WechatHtmlThemePreset;
+  layoutPreset: WechatHtmlLayoutPreset;
+  fontFamily: WechatHtmlFontFamily;
+  fontSize: WechatHtmlFontSize;
+  density: WechatHtmlDensity;
+  citationMode: WechatHtmlCitationMode;
+};
+
 export type WechatWorkflowSessionRecord = {
   id: string;
   brandId: string;
@@ -578,6 +601,7 @@ export type WechatWorkflowSessionRecord = {
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
   bodyImageSize: WechatBodyImageSize;
+  htmlStyleConfig: WechatHtmlStyleConfig;
   injectBrandProfile: boolean;
   selectedMarketingLabels: string[];
   selectedProductLabels: string[];
@@ -774,6 +798,10 @@ export type UpdateWechatWorkflowPublishForm = {
   commentMode?: WechatCommentMode;
   fanCommentsOnly?: boolean;
   coverImageUrl?: string;
+};
+
+export type GenerateWechatWorkflowHtmlForm = {
+  htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
 };
 
 export type GenerateXiaohongshuRewriteNoteForm = {
@@ -1465,11 +1493,15 @@ export async function generateWechatWorkflowImages(brandId: string, workflowId: 
   );
 }
 
-export async function generateWechatWorkflowHtml(brandId: string, workflowId: string) {
+export async function generateWechatWorkflowHtml(
+  brandId: string,
+  workflowId: string,
+  payload: GenerateWechatWorkflowHtmlForm = {},
+) {
   return jsonRequest<{ item: WechatWorkflowSessionRecord }>(
     `/works/brands/${brandId}/wechat/workflows/${workflowId}/html/generate`,
     "POST",
-    {},
+    payload,
   );
 }
 

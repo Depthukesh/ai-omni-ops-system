@@ -575,6 +575,29 @@ export type CreateWechatWorkflowPayload = {
   selectedBrandLabels?: string[];
 };
 
+export type WechatHtmlThemePreset =
+  | "newspaper"
+  | "magazine"
+  | "ink"
+  | "tech"
+  | "notion"
+  | "minimal";
+
+export type WechatHtmlLayoutPreset = "standard" | "hero-card" | "magazine" | "immersive";
+export type WechatHtmlFontFamily = "default" | "sans" | "serif" | "song" | "rounded";
+export type WechatHtmlFontSize = "15px" | "16px" | "17px";
+export type WechatHtmlDensity = "compact" | "comfortable" | "airy";
+export type WechatHtmlCitationMode = "inline" | "footnote";
+
+export type WechatHtmlStyleConfig = {
+  themePreset: WechatHtmlThemePreset;
+  layoutPreset: WechatHtmlLayoutPreset;
+  fontFamily: WechatHtmlFontFamily;
+  fontSize: WechatHtmlFontSize;
+  density: WechatHtmlDensity;
+  citationMode: WechatHtmlCitationMode;
+};
+
 export type UpdateWechatWorkflowInputPayload = Partial<CreateWechatWorkflowPayload>;
 
 export type UpdateWechatWorkflowArticlePayload = {
@@ -594,6 +617,21 @@ export type UpdateWechatWorkflowPublishPayload = {
   fanCommentsOnly?: boolean;
   coverImageUrl?: string;
 };
+
+export type GenerateWechatWorkflowHtmlPayload = {
+  htmlStyleConfig?: Partial<WechatHtmlStyleConfig>;
+};
+
+function buildDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
+  return {
+    themePreset: "magazine",
+    layoutPreset: "hero-card",
+    fontFamily: "sans",
+    fontSize: "16px",
+    density: "comfortable",
+    citationMode: "inline",
+  };
+}
 
 export type DesignWorkModuleKey = "image" | "html" | "deck" | "video";
 
@@ -783,6 +821,7 @@ export type WechatWorkflowSessionRecord = {
   commentMode: WechatCommentMode;
   imageMode: WechatImageMode;
   bodyImageSize: WechatBodyImageSize;
+  htmlStyleConfig: WechatHtmlStyleConfig;
   injectBrandProfile: boolean;
   selectedMarketingLabels: string[];
   selectedProductLabels: string[];
@@ -939,6 +978,7 @@ type WechatWorkflowSessionRow = {
   commentMode: string;
   imageMode: string;
   bodyImageSize: string;
+  htmlStyleConfigJson: Prisma.JsonValue | null;
   injectBrandProfile: boolean;
   selectedMarketingLabelsJson: Prisma.JsonValue | null;
   selectedProductLabelsJson: Prisma.JsonValue | null;
@@ -1167,6 +1207,7 @@ const wechatWorkflowSessionMockStore: WechatWorkflowSessionStoreItem[] = [
     commentMode: "open",
     imageMode: "cover-and-body",
     bodyImageSize: "landscape-4-3",
+    htmlStyleConfig: buildDefaultWechatHtmlStyleConfig(),
     injectBrandProfile: true,
     selectedMarketingLabels: ["夏季会员周"],
     selectedProductLabels: ["爆浆提拉米苏蛋糕"],
@@ -4053,6 +4094,7 @@ export class WorksService {
       commentMode: preferences?.commentMode || config?.commentMode || "open",
       imageMode: payload.imageMode || "cover-and-body",
       bodyImageSize: this.normalizeWechatBodyImageSizeValue(payload.bodyImageSize),
+      htmlStyleConfig: buildDefaultWechatHtmlStyleConfig(),
       injectBrandProfile: payload.injectBrandProfile === true,
       selectedMarketingLabels: this.normalizeWechatLabels(payload.selectedMarketingLabels, []),
       selectedProductLabels: this.normalizeWechatLabels(payload.selectedProductLabels, []),
@@ -4083,6 +4125,7 @@ export class WorksService {
     target.themeColor = String(payload.themeColor || "").trim() || target.themeColor;
     target.imageMode = payload.imageMode || target.imageMode;
     target.bodyImageSize = payload.bodyImageSize ? this.normalizeWechatBodyImageSizeValue(payload.bodyImageSize) : target.bodyImageSize;
+    target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(target.htmlStyleConfig);
     target.injectBrandProfile = payload.injectBrandProfile ?? target.injectBrandProfile;
     target.selectedMarketingLabels = this.normalizeWechatLabels(payload.selectedMarketingLabels, target.selectedMarketingLabels);
     target.selectedProductLabels = this.normalizeWechatLabels(payload.selectedProductLabels, target.selectedProductLabels);
@@ -4655,11 +4698,17 @@ export class WorksService {
     };
   }
 
-  async generateWechatWorkflowHtml(brandId: string, workflowId: string, auth?: RequestAuthContext) {
+  async generateWechatWorkflowHtml(
+    brandId: string,
+    workflowId: string,
+    payload: GenerateWechatWorkflowHtmlPayload = {},
+    auth?: RequestAuthContext,
+  ) {
     const target = await this.loadWechatWorkflowSessionStoreItem(brandId, workflowId);
     if (!target.imageBundle?.coverImageUrl && !target.imageBundle?.bodyImageUrls?.length) {
       throw new BadRequestException("请先完成封面图与正文配图生成，再执行 HTML 阶段。");
     }
+    target.htmlStyleConfig = this.normalizeWechatHtmlStyleConfig(payload.htmlStyleConfig, target.htmlStyleConfig);
     const htmlPreference = await this.loadSkillModelPreference(
       "wechat-html-renderer",
       "prompt_wechat_html_render",
@@ -4682,6 +4731,7 @@ export class WorksService {
         content: target.content,
         themeColor: target.themeColor,
         commentMode: target.commentMode,
+        htmlStyleConfig: target.htmlStyleConfig,
         coverImageUrl: target.imageBundle?.coverImageUrl,
         bodyImageUrls: target.imageBundle?.bodyImageUrls || [],
         bodyImageBriefs: target.bodyImageBriefs || [],
@@ -10362,6 +10412,7 @@ export class WorksService {
         "author" TEXT NOT NULL DEFAULT '',
         "content" TEXT NOT NULL DEFAULT '',
         "htmlContent" TEXT NOT NULL DEFAULT '',
+        "htmlStyleConfigJson" JSONB NOT NULL DEFAULT '{}'::jsonb,
         "articleProvider" TEXT NULL,
         "articleRuntimeKey" TEXT NULL,
         "articleModelName" TEXT NULL,
@@ -10382,6 +10433,10 @@ export class WorksService {
         "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "WechatWorkflowSession"
+      ADD COLUMN IF NOT EXISTS "htmlStyleConfigJson" JSONB NOT NULL DEFAULT '{}'::jsonb
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "WechatArticleDraft" (
@@ -10778,13 +10833,13 @@ export class WorksService {
     await this.prismaService.$executeRaw`
       INSERT INTO "WechatWorkflowSession" (
         "id","brandId","accountId","accountName","status","currentStep","inputType","inputContent","title","summary","author","content",
-        "htmlContent","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
+        "htmlContent","htmlStyleConfigJson","articleProvider","articleRuntimeKey","articleModelName","coverImageBrief","bodyImageBriefsJson","themeColor","commentMode",
         "imageMode","bodyImageSize","injectBrandProfile","selectedMarketingLabelsJson","selectedProductLabelsJson","selectedBrandLabelsJson","imageBundleJson",
         "publishConfigJson","linkedDraftId","errorDetail","createdAt","updatedAt"
       )
       VALUES (
         ${item.id},${item.brandId},${item.accountId ?? null},${item.accountName ?? null},${item.status},${item.currentStep},${item.inputType},
-        ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${item.articleProvider ?? null},
+        ${item.inputContent ?? null},${item.title},${item.summary},${item.author},${item.content},${item.htmlContent},${JSON.stringify(item.htmlStyleConfig || buildDefaultWechatHtmlStyleConfig())}::jsonb,${item.articleProvider ?? null},
         ${item.articleRuntimeKey ?? null},${item.articleModelName ?? null},${item.coverImageBrief ?? null},${JSON.stringify(item.bodyImageBriefs || [])}::jsonb,
         ${item.themeColor},${item.commentMode},${item.imageMode},${item.bodyImageSize},${item.injectBrandProfile},${JSON.stringify(item.selectedMarketingLabels || [])}::jsonb,
         ${JSON.stringify(item.selectedProductLabels || [])}::jsonb,${JSON.stringify(item.selectedBrandLabels || [])}::jsonb,
@@ -10804,6 +10859,7 @@ export class WorksService {
         "author" = EXCLUDED."author",
         "content" = EXCLUDED."content",
         "htmlContent" = EXCLUDED."htmlContent",
+        "htmlStyleConfigJson" = EXCLUDED."htmlStyleConfigJson",
         "articleProvider" = EXCLUDED."articleProvider",
         "articleRuntimeKey" = EXCLUDED."articleRuntimeKey",
         "articleModelName" = EXCLUDED."articleModelName",
@@ -11063,6 +11119,55 @@ export class WorksService {
     };
   }
 
+  private normalizeWechatHtmlStyleConfig(
+    value: unknown,
+    fallback?: Partial<WechatHtmlStyleConfig>,
+  ): WechatHtmlStyleConfig {
+    const defaults = {
+      ...buildDefaultWechatHtmlStyleConfig(),
+      ...(fallback || {}),
+    };
+    const record = this.asRecord(value);
+    const themePreset = String(record?.themePreset || "").trim();
+    const layoutPreset = String(record?.layoutPreset || "").trim();
+    const fontFamily = String(record?.fontFamily || "").trim();
+    const fontSize = String(record?.fontSize || "").trim();
+    const density = String(record?.density || "").trim();
+    const citationMode = String(record?.citationMode || "").trim();
+    return {
+      themePreset: (
+        ["newspaper", "magazine", "ink", "tech", "notion", "minimal"].includes(themePreset)
+          ? themePreset
+          : defaults.themePreset
+      ) as WechatHtmlThemePreset,
+      layoutPreset: (
+        ["standard", "hero-card", "magazine", "immersive"].includes(layoutPreset)
+          ? layoutPreset
+          : defaults.layoutPreset
+      ) as WechatHtmlLayoutPreset,
+      fontFamily: (
+        ["default", "sans", "serif", "song", "rounded"].includes(fontFamily)
+          ? fontFamily
+          : defaults.fontFamily
+      ) as WechatHtmlFontFamily,
+      fontSize: (
+        ["15px", "16px", "17px"].includes(fontSize)
+          ? fontSize
+          : defaults.fontSize
+      ) as WechatHtmlFontSize,
+      density: (
+        ["compact", "comfortable", "airy"].includes(density)
+          ? density
+          : defaults.density
+      ) as WechatHtmlDensity,
+      citationMode: (
+        ["inline", "footnote"].includes(citationMode)
+          ? citationMode
+          : defaults.citationMode
+      ) as WechatHtmlCitationMode,
+    };
+  }
+
   private normalizeWechatOfficialAccountRow(row: WechatOfficialAccountRow): WechatOfficialAccountStoreItem {
     return {
       id: row.id,
@@ -11100,6 +11205,7 @@ export class WorksService {
       commentMode: this.normalizeWechatCommentModeValue(row.commentMode),
       imageMode: this.normalizeWechatImageModeValue(row.imageMode),
       bodyImageSize: this.normalizeWechatBodyImageSizeValue(row.bodyImageSize),
+      htmlStyleConfig: this.normalizeWechatHtmlStyleConfig(row.htmlStyleConfigJson),
       injectBrandProfile: Boolean(row.injectBrandProfile),
       selectedMarketingLabels: this.normalizeStringArray(row.selectedMarketingLabelsJson, []),
       selectedProductLabels: this.normalizeStringArray(row.selectedProductLabelsJson, []),
@@ -12334,6 +12440,7 @@ export class WorksService {
     content: string;
     themeColor: string;
     commentMode: WechatCommentMode;
+    htmlStyleConfig: WechatHtmlStyleConfig;
     coverImageUrl?: string;
     bodyImageUrls: string[];
     bodyImageBriefs: string[];
@@ -12359,6 +12466,7 @@ export class WorksService {
       content: params.content,
       themeColor: params.themeColor,
       commentMode: params.commentMode,
+      htmlStyleConfig: params.htmlStyleConfig,
       coverImageUrl: params.coverImageUrl,
       bodyImageUrls: params.bodyImageUrls,
       bodyImageBriefs: params.bodyImageBriefs,
@@ -12380,6 +12488,9 @@ export class WorksService {
       "htmlContent 内部所有 HTML 属性统一使用单引号，不要使用双引号，避免破坏 JSON。",
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
       "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
+      "请严格依据输入中的 htmlStyleConfig 执行排版，重点体现主题风格、布局方式、字体、字号、密度和外链处理方式。",
+      "参考优秀公众号排版工具的做法：可以使用标题条、摘要卡、强调块、引用块、分组卡片、轻量画廊等微信兼容结构增强层次，但必须保持 API 发布稳定性。",
+      "如果 citationMode = footnote，需把普通外链整理为文末引用链接区；如果 citationMode = inline，则保留正文内联提及，不要额外生成引用区。",
     ].join("\n");
     const knowledgeContext = await this.buildWechatHtmlKnowledgeContext({
       brandId: params.brandId,

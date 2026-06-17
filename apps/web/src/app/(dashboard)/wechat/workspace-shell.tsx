@@ -15,6 +15,7 @@ import {
 } from "../../../services/reports";
 import {
   createWechatWorkflow,
+  type WechatHtmlStyleConfig,
   generateWechatWorkflowImages,
   generateWechatWorkflowArticle,
   generateWechatWorkflowHtml,
@@ -44,6 +45,12 @@ import {
 
 type WechatSectionKey = "setup" | "workflow" | "history";
 type ThemeOption = { label: string; color: string };
+type HtmlThemeOption = { value: WechatHtmlStyleConfig["themePreset"]; label: string; description: string };
+type HtmlLayoutOption = { value: WechatHtmlStyleConfig["layoutPreset"]; label: string; description: string };
+type HtmlFontOption = { value: WechatHtmlStyleConfig["fontFamily"]; label: string };
+type HtmlFontSizeOption = { value: WechatHtmlStyleConfig["fontSize"]; label: string };
+type HtmlDensityOption = { value: WechatHtmlStyleConfig["density"]; label: string };
+type HtmlCitationOption = { value: WechatHtmlStyleConfig["citationMode"]; label: string; description: string };
 const NO_PRODUCT_VALUE = "__no_product__";
 const wechatSections: Array<{ key: WechatSectionKey; label: string; description: string }> = [
   { key: "setup", label: "配置初始化", description: "完成公众号 API 凭据、默认账号和发布基础设置。" },
@@ -77,6 +84,58 @@ const commentModeOptions: Array<{ value: WechatCommentMode; label: string }> = [
   { value: "fans", label: "仅粉丝评论" },
   { value: "close", label: "关闭评论" },
 ];
+
+const wechatHtmlThemeOptions: HtmlThemeOption[] = [
+  { value: "magazine", label: "杂志大片", description: "大留白、封面感标题、适合品牌深度内容。" },
+  { value: "newspaper", label: "报纸专栏", description: "偏严肃、信息密度高，适合观点和长文。" },
+  { value: "tech", label: "科技卡片", description: "清晰分组、卡片强调，适合产品和方法论。" },
+  { value: "ink", label: "墨韵极简", description: "低彩度、留白感强，适合品牌故事和访谈。" },
+  { value: "notion", label: "简洁文档", description: "规整克制，适合知识整理和教程型文章。" },
+  { value: "minimal", label: "微信原生", description: "尽量贴近原生公众号阅读感，风险最低。" },
+];
+
+const wechatHtmlLayoutOptions: HtmlLayoutOption[] = [
+  { value: "hero-card", label: "头图卡片", description: "标题区更醒目，适合内容营销和专题推文。" },
+  { value: "standard", label: "标准长文", description: "稳定耐看，适合大多数公众号文章。" },
+  { value: "magazine", label: "杂志分栏", description: "分区更明显，适合章节较多的长文。" },
+  { value: "immersive", label: "沉浸叙事", description: "导语更强、段间更舒展，适合故事表达。" },
+];
+
+const wechatHtmlFontOptions: HtmlFontOption[] = [
+  { value: "sans", label: "衬线无" },
+  { value: "serif", label: "西文衬线" },
+  { value: "song", label: "宋体感" },
+  { value: "rounded", label: "圆润体" },
+  { value: "default", label: "系统默认" },
+];
+
+const wechatHtmlFontSizeOptions: HtmlFontSizeOption[] = [
+  { value: "15px", label: "15px" },
+  { value: "16px", label: "16px" },
+  { value: "17px", label: "17px" },
+];
+
+const wechatHtmlDensityOptions: HtmlDensityOption[] = [
+  { value: "compact", label: "紧凑" },
+  { value: "comfortable", label: "舒适" },
+  { value: "airy", label: "留白" },
+];
+
+const wechatHtmlCitationOptions: HtmlCitationOption[] = [
+  { value: "inline", label: "正文内联", description: "正常正文提及，不额外生成引用区。" },
+  { value: "footnote", label: "文末脚注", description: "把普通外链整理到文末引用链接区。" },
+];
+
+function createDefaultWechatHtmlStyleConfig(): WechatHtmlStyleConfig {
+  return {
+    themePreset: "magazine",
+    layoutPreset: "hero-card",
+    fontFamily: "sans",
+    fontSize: "16px",
+    density: "comfortable",
+    citationMode: "inline",
+  };
+}
 
 const workflowSteps: Array<{ key: WechatWorkflowStep; label: string; description: string }> = [
   { key: "input", label: "1. 输入", description: "选择输入来源、资料与账号。" },
@@ -313,6 +372,7 @@ export function WechatWorkspaceShell() {
   const [articleCommentMode, setArticleCommentMode] = useState<WechatCommentMode>("open");
   const [publishCoverImageUrl, setPublishCoverImageUrl] = useState("");
   const [publishFanCommentsOnly, setPublishFanCommentsOnly] = useState(false);
+  const [htmlStyleConfig, setHtmlStyleConfig] = useState<WechatHtmlStyleConfig>(createDefaultWechatHtmlStyleConfig);
 
   const calendarItems = useMemo(() => {
     const merged = [
@@ -501,6 +561,7 @@ export function WechatWorkspaceShell() {
     setArticleCommentMode(selectedWorkflow.commentMode);
     setPublishCoverImageUrl(selectedWorkflow.publishConfig?.coverImageUrl || selectedWorkflow.imageBundle?.coverImageUrl || "");
     setPublishFanCommentsOnly(selectedWorkflow.publishConfig?.fanCommentsOnly || false);
+    setHtmlStyleConfig(selectedWorkflow.htmlStyleConfig || createDefaultWechatHtmlStyleConfig());
   }, [accounts, calendarItems, products, selectedWorkflow]);
 
   useEffect(() => {
@@ -761,9 +822,12 @@ export function WechatWorkspaceShell() {
     setIsGeneratingWorkflowHtml(true);
     setErrorMessage("");
     try {
-      const response = await generateWechatWorkflowHtml(brandId, selectedWorkflow.id);
+      const response = await generateWechatWorkflowHtml(brandId, selectedWorkflow.id, {
+        htmlStyleConfig,
+      });
       upsertSession(response.item);
       setPublishCoverImageUrl(response.item.publishConfig?.coverImageUrl || response.item.imageBundle?.coverImageUrl || "");
+      setHtmlStyleConfig(response.item.htmlStyleConfig || createDefaultWechatHtmlStyleConfig());
       setNotice("HTML 阶段已完成，可继续进入发布确认。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "生成公众号 HTML 失败。");
@@ -1375,7 +1439,7 @@ export function WechatWorkspaceShell() {
                             <div className="wechat-panel-head">
                               <div>
                                 <strong>Step 4. HTML 阶段</strong>
-                                <p className="wechat-inline-tip">使用独立 HTML 技能把文章正文、封面图和正文配图渲染为最终公众号 HTML。</p>
+                                <p className="wechat-inline-tip">参考公众号排版工具思路，先选择风格、布局、字体和密度，再调用独立 HTML 技能生成最终公众号 HTML。</p>
                               </div>
                               <div className="strategy-inline-actions">
                                 {selectedWorkflow.htmlContent ? (
@@ -1394,10 +1458,109 @@ export function WechatWorkspaceShell() {
                               </div>
                             </div>
                             <div className="wechat-form-grid">
+                              <div className="wechat-field wechat-field--full">
+                                <span>排版风格</span>
+                                <div className="wechat-style-grid">
+                                  {wechatHtmlThemeOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`wechat-style-chip ${htmlStyleConfig.themePreset === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, themePreset: item.value }))}
+                                    >
+                                      <strong>{item.label}</strong>
+                                      <span>{item.description}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="wechat-field wechat-field--full">
+                                <span>布局方式</span>
+                                <div className="wechat-choice-row">
+                                  {wechatHtmlLayoutOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`tab-button ${htmlStyleConfig.layoutPreset === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, layoutPreset: item.value }))}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="wechat-inline-tip">
+                                  {wechatHtmlLayoutOptions.find((item) => item.value === htmlStyleConfig.layoutPreset)?.description}
+                                </div>
+                              </div>
+                              <label className="wechat-field">
+                                <span>字号</span>
+                                <div className="wechat-choice-row">
+                                  {wechatHtmlFontSizeOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`tab-button ${htmlStyleConfig.fontSize === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, fontSize: item.value }))}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </label>
+                              <label className="wechat-field">
+                                <span>字体</span>
+                                <div className="wechat-choice-row">
+                                  {wechatHtmlFontOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`tab-button ${htmlStyleConfig.fontFamily === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, fontFamily: item.value }))}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </label>
+                              <label className="wechat-field">
+                                <span>排版密度</span>
+                                <div className="wechat-choice-row">
+                                  {wechatHtmlDensityOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`tab-button ${htmlStyleConfig.density === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, density: item.value }))}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </label>
+                              <label className="wechat-field">
+                                <span>外链处理</span>
+                                <div className="wechat-choice-row">
+                                  {wechatHtmlCitationOptions.map((item) => (
+                                    <button
+                                      key={item.value}
+                                      type="button"
+                                      className={`tab-button ${htmlStyleConfig.citationMode === item.value ? "is-active" : ""}`}
+                                      onClick={() => setHtmlStyleConfig((current) => ({ ...current, citationMode: item.value }))}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="wechat-inline-tip">
+                                  {wechatHtmlCitationOptions.find((item) => item.value === htmlStyleConfig.citationMode)?.description}
+                                </div>
+                              </label>
                               {selectedWorkflow.htmlContent ? (
                                 <>
                                   <div className="wechat-pill-row">
                                     <span className="archive-pill status-ready">HTML 已生成</span>
+                                    <span className="archive-pill status-ready">风格：{wechatHtmlThemeOptions.find((item) => item.value === htmlStyleConfig.themePreset)?.label}</span>
+                                    <span className="archive-pill status-ready">布局：{wechatHtmlLayoutOptions.find((item) => item.value === htmlStyleConfig.layoutPreset)?.label}</span>
                                   </div>
                                   <div className="wechat-inline-tip">
                                     当前 HTML 已写回工作流，可先预览再进入发布确认。
@@ -1756,11 +1919,58 @@ export function WechatWorkspaceShell() {
 
         .wechat-swatch-row,
         .wechat-pill-row,
+        .wechat-choice-row,
         .wechat-card-actions,
         .wechat-meta-list {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
+        }
+
+        .wechat-style-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .wechat-style-chip {
+          display: grid;
+          gap: 6px;
+          min-height: 88px;
+          padding: 12px 14px;
+          text-align: left;
+          border-radius: 18px;
+          border: 1px solid var(--site-hero-border);
+          background:
+            radial-gradient(circle at top right, rgba(101, 140, 255, 0.12), transparent 44%),
+            var(--subtle-surface);
+          color: var(--site-hero-text);
+          cursor: pointer;
+          transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+        }
+
+        .wechat-style-chip strong {
+          font-size: 14px;
+          color: var(--site-hero-text);
+        }
+
+        .wechat-style-chip span {
+          color: var(--site-hero-muted);
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .wechat-style-chip:hover {
+          transform: translateY(-1px);
+          border-color: rgba(97, 123, 255, 0.34);
+        }
+
+        .wechat-style-chip.is-active {
+          border-color: rgba(97, 123, 255, 0.52);
+          box-shadow: 0 14px 30px rgba(69, 96, 206, 0.14);
+          background:
+            radial-gradient(circle at top right, rgba(101, 140, 255, 0.18), transparent 46%),
+            rgba(26, 35, 62, 0.92);
         }
 
         .wechat-swatch {
@@ -2023,7 +2233,8 @@ export function WechatWorkspaceShell() {
           .wechat-workflow-layout,
           .wechat-history-shell,
           .wechat-step-grid,
-          .wechat-history-card-grid {
+          .wechat-history-card-grid,
+          .wechat-style-grid {
             grid-template-columns: 1fr;
           }
         }

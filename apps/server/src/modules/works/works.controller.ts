@@ -12,6 +12,7 @@ import {
   type ContinueXiaohongshuVideoGenerationPayload,
   type GenerateDesignWorkPayload,
   type CreateWechatWorkflowPayload,
+  type GenerateWechatWorkflowHtmlPayload,
   type SaveWechatAccountConfigPayload,
   type SaveDouyinAdPreAuditConfigPayload,
   type SaveWechatWorkflowPreferencePayload,
@@ -282,11 +283,12 @@ export class WorksController {
   generateWechatWorkflowHtml(
     @Param("brandId") brandId: string,
     @Param("workflowId") workflowId: string,
+    @Body() payload: GenerateWechatWorkflowHtmlPayload,
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     return this.authService.resolveRequestAuthContext(headers).then(async (auth) => {
       await this.authService.assertBrandPermission(brandId, "wechat.original", "edit", auth);
-      return this.worksService.generateWechatWorkflowHtml(brandId, workflowId, auth);
+      return this.worksService.generateWechatWorkflowHtml(brandId, workflowId, payload, auth);
     });
   }
 
