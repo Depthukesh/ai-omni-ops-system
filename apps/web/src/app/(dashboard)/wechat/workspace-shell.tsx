@@ -1979,7 +1979,7 @@ export function WechatWorkspaceShell() {
         }
 
         .wechat-stage-grid {
-          grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.12fr);
+          grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
           align-items: start;
         }
 
@@ -2123,9 +2123,10 @@ export function WechatWorkspaceShell() {
 
         .wechat-html-console {
           display: grid;
-          grid-template-columns: minmax(0, 1.35fr) 280px;
+          grid-template-columns: minmax(0, 1.2fr) minmax(280px, 320px);
           gap: 18px;
           padding: 0 24px 24px;
+          align-items: start;
         }
 
         .wechat-html-main,
@@ -2133,11 +2134,12 @@ export function WechatWorkspaceShell() {
           display: grid;
           gap: 16px;
           align-content: start;
+          min-width: 0;
         }
 
         .wechat-control-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
           gap: 14px;
           padding: 18px;
           border-radius: 24px;
@@ -2194,12 +2196,12 @@ export function WechatWorkspaceShell() {
 
         .wechat-style-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
           gap: 10px;
         }
 
         .wechat-style-grid--preset {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
         .wechat-style-chip {
@@ -2214,6 +2216,7 @@ export function WechatWorkspaceShell() {
           color: #16203b;
           cursor: pointer;
           transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, filter 180ms ease;
+          min-width: 0;
         }
 
         .wechat-style-chip strong {
@@ -2300,6 +2303,7 @@ export function WechatWorkspaceShell() {
           border-radius: 24px;
           border: 1px solid rgba(125, 138, 170, 0.18);
           background: rgba(255, 255, 255, 0.82);
+          min-width: 0;
         }
 
         .wechat-summary-card strong {
@@ -2359,6 +2363,7 @@ export function WechatWorkspaceShell() {
           background: rgba(255, 255, 255, 0.82);
           color: #384866;
           box-shadow: none;
+          white-space: nowrap;
         }
 
         .wechat-choice-row .tab-button.is-active {
@@ -2589,13 +2594,19 @@ export function WechatWorkspaceShell() {
           font-size: 12px;
         }
 
+        @media (max-width: 1480px) {
+          .wechat-stage-grid,
+          .wechat-html-console {
+            grid-template-columns: 1fr;
+          }
+        }
+
         @media (max-width: 1280px) {
           .wechat-workflow-layout,
           .wechat-history-shell,
           .wechat-step-grid,
           .wechat-history-card-grid,
           .wechat-style-grid,
-          .wechat-stage-grid,
           .wechat-html-console {
             grid-template-columns: 1fr;
           }
