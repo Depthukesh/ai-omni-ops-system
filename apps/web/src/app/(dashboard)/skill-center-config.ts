@@ -378,7 +378,7 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
           {
             id: "wechat-article-compose",
             label: "公众号-创作文章",
-            description: "对应公众号工作流的文章阶段，用于生成标题、摘要、正文结构与 HTML 草稿。",
+            description: "对应公众号工作流的文章阶段，用于生成标题、摘要、正文结构与可供后续渲染的文章稿。",
             skillSlug: "wechat-article-composer",
             promptScene: "公众号创作文章",
           },
@@ -397,9 +397,16 @@ export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
             promptScene: "公众号正文配图生成",
           },
           {
+            id: "wechat-html-render",
+            label: "公众号-HTML渲染",
+            description: "对应公众号工作流的排版阶段，用于把文章内容、封面图和正文配图渲染成最终可发布的公众号 HTML。",
+            skillSlug: "wechat-html-renderer",
+            promptScene: "公众号HTML渲染",
+          },
+          {
             id: "wechat-api-publish",
             label: "公众号-API发布",
-            description: "对应公众号工作流的 API 发布确认阶段，用于整理发布参数、封面、评论策略和草稿箱发布动作。",
+            description: "对应公众号工作流的 API 发布确认阶段，用于校验发布参数、评论策略和草稿箱发布动作。",
             skillSlug: "wechat-api-publisher",
             promptScene: "公众号API发布",
           },
