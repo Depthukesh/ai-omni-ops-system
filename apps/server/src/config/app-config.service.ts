@@ -73,6 +73,10 @@ export class AppConfigService {
     };
   }
 
+  getOpenClawInstallTokenEncryptionSecret() {
+    return this.readFirst("OPENCLAW_INSTALL_TOKEN_SECRET", "AUTH_TOKEN_SECRET") || "ai-omni-ops-system-dev-secret";
+  }
+
   private readFirst(...keys: string[]) {
     for (const key of keys) {
       const value = process.env[key]?.trim();

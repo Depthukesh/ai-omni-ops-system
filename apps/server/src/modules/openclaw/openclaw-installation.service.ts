@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { database } from "../../common/mock-data";
 import { AppConfigService } from "../../config/app-config.service";
@@ -13,6 +13,7 @@ type OpenClawInstallTokenRow = {
   createdByUserId: string;
   tokenName: string;
   tokenHash: string;
+  encryptedToken: string;
   tokenPreview: string;
   status: string;
   lastUsedAt: Date | string | null;
@@ -32,6 +33,10 @@ export type OpenClawInstallTokenRecord = {
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type OpenClawInstallTokenStoredRecord = OpenClawInstallTokenRecord & {
+  encryptedToken: string;
 };
 
 export type OpenClawInstallWorkspace = {
@@ -89,6 +94,11 @@ export type CreateOpenClawInstallTokenResult = {
   workspace: OpenClawInstallWorkspace;
 };
 
+export type RevealOpenClawInstallTokenResult = {
+  tokenId: string;
+  token: string;
+};
+
 export type OpenClawSkillPackageFile = {
   fileName: string;
   contentType: string;
@@ -137,6 +147,7 @@ export class OpenClawInstallationService {
     const expiresInDays = this.normalizeExpiresInDays(payload?.expiresInDays);
     const token = this.generateInstallToken();
     const tokenHash = this.hashToken(token);
+    const encryptedToken = this.encryptToken(token);
     const tokenPreview = this.maskToken(token);
     const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString() : undefined;
 
@@ -146,6 +157,7 @@ export class OpenClawInstallationService {
       createdByUserId: auth.userId,
       tokenName,
       tokenHash,
+      encryptedToken,
       tokenPreview,
       expiresAt,
     });
@@ -176,6 +188,28 @@ export class OpenClawInstallationService {
       success: true,
       tokenId,
       workspace: await this.getInstallationWorkspace(auth),
+    };
+  }
+
+  async revealInstallationToken(auth: RequestAuthContext, tokenId: string): Promise<RevealOpenClawInstallTokenResult> {
+    const brandId = await this.requireCurrentBrandId(auth);
+    await this.authService.assertBrandPermission(brandId, "personalCenter.thirdPartyPlatforms", "edit", auth);
+    const current = await this.findTokenById(tokenId);
+    if (!current || current.brandId !== brandId) {
+      throw new NotFoundException("未找到指定的安装令牌");
+    }
+    if (current.status !== "ACTIVE") {
+      throw new BadRequestException("该安装令牌已停用，无法查看完整内容");
+    }
+    if (current.expiresAt && new Date(current.expiresAt).getTime() <= Date.now()) {
+      throw new BadRequestException("该安装令牌已过期，请重置后再使用");
+    }
+    if (!current.encryptedToken) {
+      throw new BadRequestException("当前安装令牌不支持回显完整内容，请重置正式安装令牌后再试");
+    }
+    return {
+      tokenId: current.id,
+      token: this.decryptToken(current.encryptedToken),
     };
   }
 
@@ -553,6 +587,7 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
     createdByUserId: string;
     tokenName: string;
     tokenHash: string;
+    encryptedToken: string;
     tokenPreview: string;
     expiresAt?: string;
   }) {
@@ -567,6 +602,7 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
           "createdByUserId",
           "tokenName",
           "tokenHash",
+          "encryptedToken",
           "tokenPreview",
           "status",
           "lastUsedAt",
@@ -580,6 +616,7 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
           ${input.createdByUserId},
           ${input.tokenName},
           ${input.tokenHash},
+          ${input.encryptedToken},
           ${input.tokenPreview},
           'ACTIVE',
           NULL,
@@ -598,6 +635,7 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
       createdByUserId: input.createdByUserId,
       tokenName: input.tokenName,
       tokenHash: input.tokenHash,
+      encryptedToken: input.encryptedToken,
       tokenPreview: input.tokenPreview,
       status: "ACTIVE",
       lastUsedAt: null,
@@ -665,12 +703,13 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
     }
   }
 
-  private normalizeTokenRow(row: OpenClawInstallTokenRow): OpenClawInstallTokenRecord {
+  private normalizeTokenRow(row: OpenClawInstallTokenRow): OpenClawInstallTokenStoredRecord {
     return {
       id: row.id,
       brandId: row.brandId,
       createdByUserId: row.createdByUserId,
       tokenName: String(row.tokenName || "").trim() || "OpenClaw 正式安装令牌",
+      encryptedToken: String(row.encryptedToken || "").trim(),
       tokenPreview: String(row.tokenPreview || "").trim(),
       status: row.status === "REVOKED" ? "REVOKED" : "ACTIVE",
       lastUsedAt: this.normalizeOptionalDate(row.lastUsedAt),
@@ -717,6 +756,7 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
         "createdByUserId" TEXT NOT NULL,
         "tokenName" TEXT NOT NULL DEFAULT '',
         "tokenHash" TEXT NOT NULL,
+        "encryptedToken" TEXT NOT NULL DEFAULT '',
         "tokenPreview" TEXT NOT NULL DEFAULT '',
         "status" TEXT NOT NULL DEFAULT 'ACTIVE',
         "lastUsedAt" TIMESTAMPTZ NULL,
@@ -733,5 +773,41 @@ description: 统一调度 AI 全域智能体网站能力的总入口 Skill，负
       CREATE INDEX IF NOT EXISTS "OpenClawInstallToken_brand_status_idx"
       ON "OpenClawInstallToken" ("brandId", "status", "createdAt" DESC)
     `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "OpenClawInstallToken"
+      ADD COLUMN IF NOT EXISTS "encryptedToken" TEXT NOT NULL DEFAULT ''
+    `);
+  }
+
+  private encryptToken(token: string) {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", this.getEncryptionKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `v1:${iv.toString("base64url")}:${tag.toString("base64url")}:${encrypted.toString("base64url")}`;
+  }
+
+  private decryptToken(payload: string) {
+    const [version, ivEncoded, tagEncoded, encryptedEncoded] = String(payload || "").split(":");
+    if (version !== "v1" || !ivEncoded || !tagEncoded || !encryptedEncoded) {
+      throw new BadRequestException("安装令牌密文格式无效");
+    }
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      this.getEncryptionKey(),
+      Buffer.from(ivEncoded, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(tagEncoded, "base64url"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedEncoded, "base64url")),
+      decipher.final(),
+    ]);
+    return decrypted.toString("utf8");
+  }
+
+  private getEncryptionKey() {
+    return createHash("sha256")
+      .update(this.appConfigService.getOpenClawInstallTokenEncryptionSecret())
+      .digest();
   }
 }

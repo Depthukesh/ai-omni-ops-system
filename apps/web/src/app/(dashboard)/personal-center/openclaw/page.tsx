@@ -7,6 +7,7 @@ import { logout as logoutSession, readAuthSession } from "../../../../services/a
 import {
   downloadOpenClawSkillPackage,
   getOpenClawInstallationWorkspace,
+  revealOpenClawInstallToken,
   revokeOpenClawInstallToken,
   rotateOpenClawInstallToken,
   type OpenClawInstallWorkspace,
@@ -92,6 +93,7 @@ export default function PersonalCenterOpenClawPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRotating, setIsRotating] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [isRevealingToken, setIsRevealingToken] = useState(false);
   const [isDownloadingSkill, setIsDownloadingSkill] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [notice, setNotice] = useState("");
@@ -122,13 +124,45 @@ export default function PersonalCenterOpenClawPage() {
 
   const tokenToggleLabel = isTokenVisible ? "隐藏完整令牌" : "查看完整令牌";
 
-  function handleToggleTokenVisibility() {
+  async function handleToggleTokenVisibility() {
+    if (isTokenVisible) {
+      setErrorMessage("");
+      setNotice("已隐藏完整令牌。");
+      setIsTokenVisible(false);
+      return;
+    }
+    if (!rawToken && !workspace?.activeToken?.id) {
+      return;
+    }
     if (!rawToken) {
+      if (!workspace?.canManage) {
+        setErrorMessage("当前账号没有查看完整安装令牌的权限，请联系品牌管理员处理。");
+        return;
+      }
+      setIsRevealingToken(true);
+      setErrorMessage("");
+      setNotice("");
+      try {
+        const revealed = await revealOpenClawInstallToken(workspace.activeToken!.id);
+        writeInstallTokenToSession(workspace.brandId, revealed.tokenId, revealed.token);
+        setRawToken(revealed.token);
+      } catch (error) {
+        if (isAuthFailure(error)) {
+          await handleSessionExpired();
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : "查看完整安装令牌失败");
+        return;
+      } finally {
+        setIsRevealingToken(false);
+      }
+    }
+    if (!rawToken && !workspace?.activeToken?.id) {
       return;
     }
     setErrorMessage("");
-    setNotice(isTokenVisible ? "已隐藏完整令牌。" : "已显示完整令牌，请注意保密。");
-    setIsTokenVisible((current) => !current);
+    setNotice("已显示完整令牌，请注意保密。");
+    setIsTokenVisible(true);
   }
 
   async function loadWorkspace() {
@@ -353,10 +387,10 @@ export default function PersonalCenterOpenClawPage() {
             <button
               type="button"
               className="secondary-button"
-              onClick={handleToggleTokenVisibility}
+              onClick={() => void handleToggleTokenVisibility()}
               aria-label={tokenToggleLabel}
-              title={rawToken ? tokenToggleLabel : "当前浏览器会话内没有可显示的完整令牌，请先重置正式安装令牌"}
-              disabled={!rawToken}
+              title={rawToken || workspace?.canManage ? tokenToggleLabel : "当前账号无权查看完整安装令牌"}
+              disabled={(!rawToken && !workspace?.activeToken?.id) || isRevealingToken}
               style={{ padding: "6px 10px", minWidth: "auto" }}
             >
               {isTokenVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
@@ -394,9 +428,9 @@ export default function PersonalCenterOpenClawPage() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={handleToggleTokenVisibility}
+                  onClick={() => void handleToggleTokenVisibility()}
                 >
-                  {tokenToggleLabel}
+                  {isRevealingToken ? "读取中..." : tokenToggleLabel}
                 </button>
               ) : null}
             </div>

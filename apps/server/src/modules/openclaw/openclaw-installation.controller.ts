@@ -44,6 +44,18 @@ export class OpenClawInstallationController {
     return this.openClawInstallationService.revokeInstallationToken(auth, tokenId);
   }
 
+  @Get("installation-hub/tokens/:tokenId/reveal")
+  async revealInstallationToken(
+    @Headers() headers: HeadersMap,
+    @Param("tokenId") tokenId: string,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    if (!auth?.userId) {
+      throw new UnauthorizedException("请先登录");
+    }
+    return this.openClawInstallationService.revealInstallationToken(auth, tokenId);
+  }
+
   @Get("installation-hub/skill-package.zip")
   async downloadSkillPackage(
     @Headers() headers: HeadersMap,

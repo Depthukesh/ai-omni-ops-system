@@ -68,6 +68,11 @@ export type RotateOpenClawInstallTokenResult = {
   workspace: OpenClawInstallWorkspace;
 };
 
+export type RevealOpenClawInstallTokenResult = {
+  tokenId: string;
+  token: string;
+};
+
 export async function getOpenClawInstallationWorkspace() {
   return request<OpenClawInstallWorkspace>("/openclaw/installation-hub");
 }
@@ -83,6 +88,10 @@ export async function revokeOpenClawInstallToken(tokenId: string) {
   return request<{ success: boolean; tokenId: string; workspace: OpenClawInstallWorkspace }>(`/openclaw/installation-hub/tokens/${tokenId}`, {
     method: "DELETE",
   });
+}
+
+export async function revealOpenClawInstallToken(tokenId: string) {
+  return request<RevealOpenClawInstallTokenResult>(`/openclaw/installation-hub/tokens/${tokenId}/reveal`);
 }
 
 export async function downloadOpenClawSkillPackage(downloadPath: string) {
