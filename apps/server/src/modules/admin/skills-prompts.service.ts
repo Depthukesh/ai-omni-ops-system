@@ -156,6 +156,11 @@ const DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
 
 const WECHAT_HTML_RENDER_LEGACY_FALLBACKS: Record<string, string> = {
   prompt_wechat_html_render: [
+    "---",
+    "name: wechat-html-renderer",
+    "source: wechat-workflow",
+    "mode: api-only",
+    "---",
     "# 公众号HTML渲染",
     "",
     "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。",
@@ -1533,12 +1538,17 @@ export class SkillsPromptsService {
         UPDATE "PromptTemplate"
         SET
           "content" = ${seedContent},
+          "version" = ${prompt.version},
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${prompt.id}
           AND (
             COALESCE(BTRIM("content"), '') = ''
             OR BTRIM("content") = ${legacyFallback.trim()}
             OR POSITION(${legacyFallback.trim()} IN BTRIM("content")) = 1
+            OR (
+              POSITION('用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。' IN BTRIM("content")) > 0
+              AND POSITION('## 参数映射协议' IN BTRIM("content")) = 0
+            )
           )
       `;
     }

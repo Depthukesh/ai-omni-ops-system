@@ -2081,18 +2081,20 @@ export function WechatWorkspaceShell() {
         .wechat-stage-card {
           overflow: hidden;
           border-radius: 26px;
-          border: 1px solid rgba(125, 138, 170, 0.22);
+          border: 1px solid var(--site-hero-border);
           background:
-            radial-gradient(circle at top right, rgba(109, 129, 255, 0.08), transparent 38%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 247, 253, 0.94));
-          box-shadow: 0 22px 60px rgba(16, 24, 40, 0.08);
+            radial-gradient(circle at top right, rgba(109, 129, 255, 0.1), transparent 38%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+            var(--card-surface);
+          box-shadow: var(--site-shadow-lg);
         }
 
         .wechat-stage-card--html {
           background:
-            radial-gradient(circle at top right, rgba(88, 114, 255, 0.16), transparent 34%),
-            radial-gradient(circle at bottom left, rgba(110, 208, 189, 0.12), transparent 26%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 255, 0.96));
+            radial-gradient(circle at top right, rgba(88, 114, 255, 0.18), transparent 34%),
+            radial-gradient(circle at bottom left, rgba(110, 208, 189, 0.14), transparent 26%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+            var(--card-surface-strong);
         }
 
         .wechat-stage-shell {
@@ -2110,7 +2112,7 @@ export function WechatWorkspaceShell() {
 
         .wechat-stage-hero--html {
           padding-bottom: 6px;
-          border-bottom: 1px solid rgba(125, 138, 170, 0.14);
+          border-bottom: 1px solid var(--site-hero-border);
         }
 
         .wechat-stage-copy {
