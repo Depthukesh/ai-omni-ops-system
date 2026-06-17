@@ -463,6 +463,7 @@ model WechatWorkflowSession {
   author                    String
   content                   String
   htmlContent               String
+  htmlStyleConfigJson       Json     @default("{}")
   articleProvider           String?
   articleRuntimeKey         String?
   articleModelName          String?
