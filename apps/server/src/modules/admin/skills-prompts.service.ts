@@ -154,6 +154,16 @@ const DOUYIN_ORIGINAL_COPY_LEGACY_FALLBACKS: Record<string, string> = {
   prompt_douyin_original_copy_local_sales: "根据品牌资料、营销日历、选题内容与抖音营销策划方案，生成同城带货类抖音原创文案。",
 };
 
+const WECHAT_HTML_RENDER_LEGACY_FALLBACKS: Record<string, string> = {
+  prompt_wechat_html_render: [
+    "# 公众号HTML渲染",
+    "",
+    "用于公众号工作流中的“生成 HTML”阶段，必须服务于后续 API 发布确认，并根据用户选择的风格、布局、字体、字号、密度与引用方式生成更丰富的公众号排版。",
+    "",
+    "## 核心要求",
+  ].join("\n"),
+};
+
 const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
   skill_growth_analysis: {
     promptIds: ["prompt_growth_report"],
@@ -1478,6 +1488,7 @@ export class SkillsPromptsService {
     }
 
     await this.backfillDouyinOriginalCopyPromptContents();
+    await this.backfillWechatHtmlRenderPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillPromptBindings();
@@ -1503,6 +1514,31 @@ export class SkillsPromptsService {
           AND (
             COALESCE(BTRIM("content"), '') = ''
             OR BTRIM("content") = ${legacyFallback.trim()}
+          )
+      `;
+    }
+  }
+
+  private async backfillWechatHtmlRenderPromptContents() {
+    for (const prompt of database.promptTemplates) {
+      const legacyFallback = WECHAT_HTML_RENDER_LEGACY_FALLBACKS[prompt.id];
+      if (!legacyFallback) {
+        continue;
+      }
+      const seedContent = this.readPromptContent(prompt.id, prompt.content);
+      if (!seedContent || seedContent.trim() === legacyFallback.trim()) {
+        continue;
+      }
+      await this.prismaService.$executeRaw`
+        UPDATE "PromptTemplate"
+        SET
+          "content" = ${seedContent},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${prompt.id}
+          AND (
+            COALESCE(BTRIM("content"), '') = ''
+            OR BTRIM("content") = ${legacyFallback.trim()}
+            OR POSITION(${legacyFallback.trim()} IN BTRIM("content")) = 1
           )
       `;
     }

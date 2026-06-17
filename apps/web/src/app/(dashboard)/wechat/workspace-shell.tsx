@@ -2183,10 +2183,11 @@ export function WechatWorkspaceShell() {
           min-width: 0;
           padding: 18px;
           border-radius: 24px;
-          border: 1px solid rgba(125, 138, 170, 0.14);
-          background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 247, 255, 0.92));
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+          border: 1px solid var(--site-hero-border);
+          background: var(--site-hero-surface);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            var(--site-shadow-md);
         }
 
         .wechat-html-section--controls {
@@ -2203,7 +2204,7 @@ export function WechatWorkspaceShell() {
         .wechat-html-section-head strong,
         .wechat-summary-head strong {
           display: block;
-          color: #16203b;
+          color: var(--site-hero-text);
           font-size: 18px;
           line-height: 1.2;
           letter-spacing: -0.02em;
@@ -2225,8 +2226,8 @@ export function WechatWorkspaceShell() {
           gap: 14px;
           padding: 16px;
           border-radius: 22px;
-          border: 1px solid rgba(125, 138, 170, 0.12);
-          background: rgba(255, 255, 255, 0.8);
+          border: 1px solid var(--site-hero-border);
+          background: var(--subtle-surface);
           min-width: 0;
         }
 
@@ -2298,9 +2299,9 @@ export function WechatWorkspaceShell() {
           padding: 16px;
           text-align: left;
           border-radius: 22px;
-          border: 1px solid rgba(125, 138, 170, 0.2);
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(242, 245, 252, 0.88));
-          color: #16203b;
+          border: 1px solid var(--site-hero-border);
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+          color: var(--site-hero-text);
           cursor: pointer;
           transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, filter 180ms ease;
           min-width: 0;
@@ -2308,11 +2309,11 @@ export function WechatWorkspaceShell() {
 
         .wechat-style-chip strong {
           font-size: 14px;
-          color: #16203b;
+          color: var(--site-hero-text);
         }
 
         .wechat-style-chip span {
-          color: #62708f;
+          color: var(--site-hero-muted);
           font-size: 12px;
           line-height: 1.6;
         }
@@ -2321,17 +2322,17 @@ export function WechatWorkspaceShell() {
           display: block;
           height: 44px;
           border-radius: 14px;
-          border: 1px solid rgba(255, 255, 255, 0.52);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
           background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.1)),
-            linear-gradient(120deg, #dbe3ff, #eef2f8 55%, #d9e9ff);
+            linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
+            linear-gradient(120deg, rgba(92, 115, 196, 0.86), rgba(162, 174, 216, 0.52) 55%, rgba(123, 201, 255, 0.72));
         }
 
         .wechat-style-chip:hover {
           transform: translateY(-2px);
-          border-color: rgba(97, 123, 255, 0.32);
-          box-shadow: 0 16px 30px rgba(77, 98, 171, 0.1);
+          border-color: rgba(97, 123, 255, 0.42);
+          box-shadow: 0 16px 30px rgba(17, 28, 55, 0.24);
         }
 
         .wechat-style-chip.is-active {
@@ -2388,8 +2389,8 @@ export function WechatWorkspaceShell() {
           gap: 12px;
           padding: 18px 20px;
           border-radius: 24px;
-          border: 1px solid rgba(125, 138, 170, 0.18);
-          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid var(--site-hero-border);
+          background: var(--site-hero-surface);
           min-width: 0;
         }
 
@@ -2397,14 +2398,14 @@ export function WechatWorkspaceShell() {
           font-size: 20px;
           line-height: 1.15;
           letter-spacing: -0.03em;
-          color: #16203b;
+          color: var(--site-hero-text);
         }
 
         .wechat-summary-card--accent {
           background:
             radial-gradient(circle at top right, rgba(109, 129, 255, 0.2), transparent 34%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 246, 255, 0.96));
-          box-shadow: 0 20px 36px rgba(56, 72, 120, 0.08);
+            linear-gradient(180deg, rgba(39, 51, 84, 0.82), rgba(20, 29, 48, 0.92));
+          box-shadow: 0 20px 36px rgba(7, 15, 31, 0.34);
         }
 
         .wechat-swatch {
@@ -2457,9 +2458,9 @@ export function WechatWorkspaceShell() {
           min-height: 42px;
           padding: 0 14px;
           border-radius: 14px;
-          border: 1px solid rgba(125, 138, 170, 0.2);
-          background: rgba(255, 255, 255, 0.82);
-          color: #384866;
+          border: 1px solid var(--site-hero-border);
+          background: var(--subtle-surface);
+          color: var(--site-hero-text);
           box-shadow: none;
           white-space: nowrap;
           width: 100%;
@@ -2469,9 +2470,9 @@ export function WechatWorkspaceShell() {
         .wechat-choice-row .tab-button.is-active,
         .wechat-choice-grid .tab-button.is-active {
           border-color: rgba(97, 123, 255, 0.42);
-          background: rgba(90, 107, 214, 0.12);
-          color: #25357a;
-          box-shadow: 0 10px 18px rgba(69, 96, 206, 0.1);
+          background: var(--tab-active-bg);
+          color: var(--tab-active-text);
+          box-shadow: var(--tab-active-shadow);
         }
 
         .wechat-history-work-card {

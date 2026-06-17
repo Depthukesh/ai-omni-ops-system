@@ -12505,7 +12505,13 @@ export class WorksService {
       "如果输入里已经给出 coverImageUrl 和 bodyImageUrls，就直接把这些真实图片 URL 写入 HTML，不要再使用空 src 占位。",
       "禁止在文末追加营销日历资料、产品资料、品牌资料、原文链接、创作来源、素材说明或附录说明。",
       "请严格依据输入中的 htmlStyleConfig 执行排版，重点体现主题风格、布局方式、字体、字号、密度和外链处理方式。",
-      "参考优秀公众号排版工具的做法：可以使用标题条、摘要卡、强调块、引用块、分组卡片、轻量画廊等微信兼容结构增强层次，但必须保持 API 发布稳定性。",
+      "你必须像成熟公众号排版工具一样工作：先根据 htmlStyleConfig 决定结构策略，再输出对应 HTML，不能只做轻微配色变化。",
+      "不同的 themePreset / layoutPreset 必须带来肉眼可见的结构差异，例如标题区形式、摘要区位置、章节容器、强调块、引用块、步骤块、轻量画廊等组合方式必须不同。",
+      "当 themePreset = magazine 时，优先采用更强的标题区、摘要卡、章节分隔和品牌专题感；当 themePreset = newspaper 时，优先采用更克制的专栏结构和更高信息密度；当 themePreset = tech 时，优先采用信息卡、步骤块、方法论分组；当 themePreset = ink 时，优先采用低彩度、留白和叙事型章节；当 themePreset = notion 或 minimal 时，优先采用规整、稳定、接近原生阅读的结构。",
+      "当 layoutPreset = hero-card 时，标题与摘要需要组成更明显的头图卡片区；当 layoutPreset = standard 时，采用稳定长文结构；当 layoutPreset = magazine 时，加强章节分区与模块化；当 layoutPreset = immersive 时，加强导语、引用和叙事流动感。",
+      "fontSize 和 density 必须真实影响正文、摘要、引用、列表和卡片间距，不允许只在文案说明里体现。",
+      "参考优秀公众号排版工具的做法：可以使用标题条、摘要卡、强调块、引用块、分组卡片、轻量画廊、步骤块、提示条等微信兼容结构增强层次，但必须保持 API 发布稳定性。",
+      "如果内容中存在连续问答、核心观点、步骤说明、多图分组等结构，应主动整理成更适合公众号的容器化表达。",
       "如果 citationMode = footnote，需把普通外链整理为文末引用链接区；如果 citationMode = inline，则保留正文内联提及，不要额外生成引用区。",
     ].join("\n");
     const knowledgeContext = await this.buildWechatHtmlKnowledgeContext({
