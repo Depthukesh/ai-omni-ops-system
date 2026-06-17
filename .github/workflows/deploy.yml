@@ -94,12 +94,44 @@ jobs:
             install -d -m 755 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.pm2"
             install -d -m 700 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh"
             install -m 600 -o "$APP_RUNTIME_USER" -g "$APP_RUNTIME_USER" /root/.ssh/github_repo_readonly "/home/$APP_RUNTIME_USER/.ssh/github_repo_readonly"
-            ssh-keyscan github.com > "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
-            chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
-            chmod 600 "/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+
+            prepare_github_known_hosts() {
+              local target_file temp_file attempt
+              target_file="/home/$APP_RUNTIME_USER/.ssh/known_hosts"
+              temp_file="$(mktemp)"
+              : > "$temp_file"
+
+              if [ -f /root/.ssh/known_hosts ]; then
+                grep -E '(^|[[:space:]])github\.com([[:space:]]|,|$)|(^|[[:space:]])\[ssh\.github\.com\]:443([[:space:]]|,|$)' /root/.ssh/known_hosts >> "$temp_file" || true
+              fi
+
+              for attempt in 1 2 3; do
+                ssh-keyscan -H -T 10 -p 443 ssh.github.com >> "$temp_file" 2>/dev/null || true
+                ssh-keyscan -H -T 10 github.com >> "$temp_file" 2>/dev/null || true
+                if [ -s "$temp_file" ]; then
+                  break
+                fi
+                echo "GitHub known_hosts 准备重试 ($attempt/3)"
+                sleep 2
+              done
+
+              if [ ! -s "$temp_file" ]; then
+                rm -f "$temp_file"
+                echo "部署终止：无法为 GitHub SSH 准备 known_hosts。请检查服务器到 github.com / ssh.github.com:443 的出网连通性。"
+                return 1
+              fi
+
+              sort -u "$temp_file" > "$target_file"
+              rm -f "$temp_file"
+              chown "$APP_RUNTIME_USER:$APP_RUNTIME_USER" "$target_file"
+              chmod 600 "$target_file"
+            }
+
+            prepare_github_known_hosts
             cat > "/home/$APP_RUNTIME_USER/.ssh/config" <<GITHUB_SSH_CONFIG
             Host github.com
-              HostName github.com
+              HostName ssh.github.com
+              Port 443
               User git
               IdentityFile /home/$APP_RUNTIME_USER/.ssh/github_repo_readonly
               IdentitiesOnly yes
