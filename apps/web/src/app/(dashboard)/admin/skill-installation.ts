@@ -1,10 +1,8 @@
 import {
-  createReferenceAsset,
-  createScriptAsset,
   InstallSkillResult,
   SkillConfigRecord,
 } from "../../../services/admin";
-import { buildPackageIdFromKey } from "./skill-asset-bindings";
+import type { SkillPackageFilterOption } from "./skill-asset-bindings";
 
 export type InstallSkillDraft = {
   sourceType: InstallSkillResult["sourceType"];
@@ -21,11 +19,6 @@ export type InstallSkillDraft = {
   packageKey: "NONE" | string;
   promptScene: string;
   bindingRemarks: string;
-};
-
-export type InstalledAssetsImportResult = {
-  importedReferenceCount: number;
-  importedScriptCount: number;
 };
 
 export function buildInstallSkillDraft(): InstallSkillDraft {
@@ -60,7 +53,7 @@ export function readFileAsBase64(file: File) {
   });
 }
 
-export function buildInstallSkillRequestPayload(draft: InstallSkillDraft) {
+export function buildInstallSkillRequestPayload(draft: InstallSkillDraft, packageOption?: SkillPackageFilterOption) {
   return {
     sourceType: draft.sourceType,
     githubUrl: draft.sourceType === "GITHUB" ? draft.githubUrl.trim() : undefined,
@@ -72,6 +65,10 @@ export function buildInstallSkillRequestPayload(draft: InstallSkillDraft) {
     status: draft.status,
     pointsCost: Number(draft.pointsCost || 0),
     descriptionPrefix: draft.descriptionPrefix.trim() || undefined,
+    packageId: draft.packageKey !== "NONE" ? packageOption?.packageId : undefined,
+    packageKey: draft.packageKey !== "NONE" ? draft.packageKey : undefined,
+    packageName: draft.packageKey !== "NONE" ? packageOption?.label || draft.packageKey : undefined,
+    bindingRemarks: draft.bindingRemarks.trim() || undefined,
   };
 }
 
@@ -87,66 +84,9 @@ export function resolveInstalledSkillBindingOptions(draft: InstallSkillDraft) {
   };
 }
 
-export async function importInstalledAssetsToPackage(options: {
-  packageKey: string;
-  packageId: string;
-  result: InstallSkillResult;
-  createReferenceAsset: typeof createReferenceAsset;
-  createScriptAsset: typeof createScriptAsset;
-}): Promise<InstalledAssetsImportResult> {
-  if (options.packageKey === "NONE") {
-    return {
-      importedReferenceCount: 0,
-      importedScriptCount: 0,
-    };
-  }
-
-  let importedReferenceCount = 0;
-  let importedScriptCount = 0;
-
-  for (const reference of options.result.references) {
-    try {
-      await options.createReferenceAsset(options.packageId, {
-        referenceKey: reference.referenceKey,
-        title: reference.title,
-        sourceType: reference.sourceType,
-        sourceUri: reference.sourceUri,
-        usageNote: reference.usageNote,
-        applicableScopes: reference.applicableScopes,
-        sortOrder: reference.sortOrder,
-      });
-      importedReferenceCount += 1;
-    } catch {
-      // Duplicate keys or package state issues should not break the whole install flow.
-    }
-  }
-
-  for (const script of options.result.scripts) {
-    try {
-      await options.createScriptAsset(options.packageId, {
-        scriptKey: script.scriptKey,
-        scriptName: script.scriptName,
-        runtime: script.runtime,
-        entry: script.entry,
-        usageNote: script.usageNote,
-        sortOrder: script.sortOrder,
-      });
-      importedScriptCount += 1;
-    } catch {
-      // Duplicate keys or package state issues should not break the whole install flow.
-    }
-  }
-
-  return {
-    importedReferenceCount,
-    importedScriptCount,
-  };
-}
-
 export function buildInstallSkillNotice(options: {
   draft: InstallSkillDraft;
   result: InstallSkillResult;
-  importedAssets: InstalledAssetsImportResult;
 }) {
   const parsedOverviewSummary = [
     options.result.parsedOverview.stepSummaries.length ? `解析步骤 ${options.result.parsedOverview.stepSummaries.length}` : "",
@@ -154,5 +94,12 @@ export function buildInstallSkillNotice(options: {
     options.result.parsedOverview.outputHints.length ? `输出要点 ${options.result.parsedOverview.outputHints.length}` : "",
   ].filter(Boolean).join("，");
 
-  return `技能已安装：${options.result.detectedSkillName}（References ${options.result.referenceFileCount}，Scripts ${options.result.scriptFileCount}${options.result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${options.draft.packageKey !== "NONE" ? `，已导入能力包资产 ${options.importedAssets.importedReferenceCount}/${options.result.referenceFileCount} References，${options.importedAssets.importedScriptCount}/${options.result.scriptFileCount} Scripts` : ""}）`;
+  const importedAssetsSummary =
+    options.draft.packageKey !== "NONE" && options.result.importedAssets
+      ? `，已导入能力包资产 ${options.result.importedAssets.importedReferenceCount}/${options.result.referenceFileCount} References，${options.result.importedAssets.importedScriptCount}/${options.result.scriptFileCount} Scripts`
+      : options.draft.packageKey !== "NONE"
+        ? "，能力包已绑定，资产导入结果待确认"
+        : "";
+
+  return `技能已安装：${options.result.detectedSkillName}（References ${options.result.referenceFileCount}，Scripts ${options.result.scriptFileCount}${options.result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${importedAssetsSummary}）`;
 }

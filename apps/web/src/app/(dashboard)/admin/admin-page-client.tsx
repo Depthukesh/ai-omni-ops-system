@@ -26,8 +26,6 @@ import {
   deleteKnowledgeBaseFile,
   deleteKnowledgeBinding,
   completeKnowledgeBaseSyncRun,
-  createReferenceAsset,
-  createScriptAsset,
   getAdminOrders,
   getApiProviders,
   getKnowledgeBindings,
@@ -164,7 +162,6 @@ import {
   buildInstallSkillDraft,
   buildInstallSkillNotice,
   buildInstallSkillRequestPayload,
-  importInstalledAssetsToPackage,
   readFileAsBase64,
   resolveInstalledSkillBindingOptions,
   resolveInstalledSkillPromptScene,
@@ -3841,7 +3838,8 @@ export default function AdminPage() {
     setNotice("");
     setErrorMessage("");
     try {
-      const result = await installSkillConfig(buildInstallSkillRequestPayload(installSkillDraft));
+      const packageMeta = skillPackageFilterOptions.find((item) => item.value === installSkillDraft.packageKey);
+      const result = await installSkillConfig(buildInstallSkillRequestPayload(installSkillDraft, packageMeta));
       setSkills((current) => [result.skill, ...current]);
       setSkillDrafts((current) => ({ [result.skill.id]: buildSkillDraft(result.skill), ...current }));
       if (result.initialPrompt) {
@@ -3851,16 +3849,22 @@ export default function AdminPage() {
       const resolvedPromptScene = resolveInstalledSkillPromptScene(installSkillDraft, result);
       await upsertSkillAssetBinding(result.skill, resolvedPromptScene, {
         ...resolveInstalledSkillBindingOptions(installSkillDraft),
+        persistPackageBinding: false,
       });
-      const packageMeta = skillPackageFilterOptions.find((item) => item.value === installSkillDraft.packageKey);
-      const importedAssets = await importInstalledAssetsToPackage({
-        packageKey: installSkillDraft.packageKey,
-        packageId: packageMeta?.packageId || buildPackageIdFromKey(installSkillDraft.packageKey),
-        result,
-        createReferenceAsset,
-        createScriptAsset,
-      });
-      setNotice(buildInstallSkillNotice({ draft: installSkillDraft, result, importedAssets }));
+      if (result.packageBinding) {
+        upsertSkillPackageSkillState(result.packageBinding);
+      }
+      if (result.packageBinding?.packageId) {
+        const refreshedPackageDetail = await getSkillPackage(result.packageBinding.packageId, {
+          includeReferences: true,
+          includeScripts: true,
+        });
+        setSkillPackageDetailMap((current) => ({
+          ...current,
+          [result.packageBinding!.packageId]: refreshedPackageDetail,
+        }));
+      }
+      setNotice(buildInstallSkillNotice({ draft: installSkillDraft, result }));
       setActiveAssetsWorkspaceTab("skillZone");
       setIsInstallSkillModalOpen(false);
       setInstallSkillDraft(buildInstallSkillDraft());
@@ -3879,6 +3883,7 @@ export default function AdminPage() {
       moduleKey: "NONE" | string;
       packageKey: "NONE" | string;
       bindingRemarks: string;
+      persistPackageBinding?: boolean;
     },
   ) {
     const resolvedBinding = bindingOptions || {
@@ -3910,18 +3915,20 @@ export default function AdminPage() {
       ...current.filter((item) => item.skillSlug !== created.slug),
     ]);
     if (resolvedBinding.packageKey !== "NONE") {
-      await persistSkillPackageBinding({
-        packageId: packageMeta?.packageId || buildPackageIdFromKey(resolvedBinding.packageKey),
-        packageKey: resolvedBinding.packageKey,
-        packageName: packageMeta?.label || resolvedBinding.packageKey,
-        skillId: created.id,
-        skillSlug: created.slug,
-        bindingType: "DEFAULT",
-        isDefault: true,
-        sortOrder: 100,
-        enabled: true,
-        remarks: resolvedBinding.bindingRemarks.trim() || undefined,
-      });
+      if (resolvedBinding.persistPackageBinding !== false) {
+        await persistSkillPackageBinding({
+          packageId: packageMeta?.packageId || buildPackageIdFromKey(resolvedBinding.packageKey),
+          packageKey: resolvedBinding.packageKey,
+          packageName: packageMeta?.label || resolvedBinding.packageKey,
+          skillId: created.id,
+          skillSlug: created.slug,
+          bindingType: "DEFAULT",
+          isDefault: true,
+          sortOrder: 100,
+          enabled: true,
+          remarks: resolvedBinding.bindingRemarks.trim() || undefined,
+        });
+      }
     }
     if (existingPrompt) {
       await persistSkillPromptBinding({

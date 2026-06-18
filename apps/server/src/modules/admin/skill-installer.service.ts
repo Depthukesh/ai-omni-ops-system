@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { createId } from "../../common/mock-data";
 import type { PromptTemplateRecord, SkillConfigRecord } from "../../common/mock-data";
+import { SkillPackageSkillsService, type SkillPackageSkillView } from "./skill-package-skills.service";
+import { SkillPackagesService } from "./skill-packages.service";
 import { SkillsPromptsService, type CreateSkillConfigPayload } from "./skills-prompts.service";
 
 type ZipEntryLike = {
@@ -35,6 +37,10 @@ export type InstallSkillPayload = {
   status?: SkillConfigRecord["status"];
   pointsCost?: number;
   descriptionPrefix?: string;
+  packageId?: string;
+  packageKey?: string;
+  packageName?: string;
+  bindingRemarks?: string;
 };
 
 export type InstallSkillResult = {
@@ -69,11 +75,20 @@ export type InstallSkillResult = {
   detectedSkillName: string;
   referenceFileCount: number;
   scriptFileCount: number;
+  packageBinding?: SkillPackageSkillView;
+  importedAssets?: {
+    importedReferenceCount: number;
+    importedScriptCount: number;
+  };
 };
 
 @Injectable()
 export class SkillInstallerService {
-  constructor(private readonly skillsPromptsService: SkillsPromptsService) {}
+  constructor(
+    private readonly skillsPromptsService: SkillsPromptsService,
+    private readonly skillPackageSkillsService: SkillPackageSkillsService,
+    private readonly skillPackagesService: SkillPackagesService,
+  ) {}
 
   async installSkill(payload: InstallSkillPayload): Promise<InstallSkillResult> {
     const category = String(payload.category || "").trim() || "导入技能";
@@ -159,6 +174,12 @@ export class SkillInstallerService {
     });
     const references = buildReferenceManifest(relativeFiles, detectedSkillSlug);
     const scripts = buildScriptManifest(relativeFiles, detectedSkillSlug);
+    const packageInstallResult = await this.installPackageAssetsIfNeeded({
+      payload,
+      skill,
+      references,
+      scripts,
+    });
 
     return {
       skill,
@@ -173,6 +194,86 @@ export class SkillInstallerService {
       detectedSkillName,
       referenceFileCount: references.length,
       scriptFileCount: scripts.length,
+      packageBinding: packageInstallResult.packageBinding,
+      importedAssets: packageInstallResult.importedAssets,
+    };
+  }
+
+  private async installPackageAssetsIfNeeded(input: {
+    payload: InstallSkillPayload;
+    skill: SkillConfigRecord;
+    references: InstallSkillResult["references"];
+    scripts: InstallSkillResult["scripts"];
+  }) {
+    const packageKey = String(input.payload.packageKey || "").trim();
+    if (!packageKey || packageKey === "NONE") {
+      return {
+        packageBinding: undefined,
+        importedAssets: undefined,
+      };
+    }
+
+    const packageId = String(input.payload.packageId || "").trim();
+    const packageName = String(input.payload.packageName || "").trim();
+    if (!packageId || !packageName) {
+      throw new BadRequestException("安装技能时，绑定能力包缺少必要标识");
+    }
+
+    const packageBinding = await this.skillPackageSkillsService.createSkillPackageSkill({
+      packageId,
+      packageKey,
+      packageName,
+      skillId: input.skill.id,
+      skillSlug: input.skill.slug,
+      bindingType: "DEFAULT",
+      isDefault: true,
+      sortOrder: 100,
+      enabled: true,
+      remarks: String(input.payload.bindingRemarks || "").trim() || undefined,
+    });
+
+    let importedReferenceCount = 0;
+    let importedScriptCount = 0;
+
+    for (const reference of input.references) {
+      try {
+        await this.skillPackagesService.createReferenceAsset(packageId, {
+          referenceKey: reference.referenceKey,
+          title: reference.title,
+          sourceType: reference.sourceType,
+          sourceUri: reference.sourceUri,
+          usageNote: reference.usageNote,
+          applicableScopes: reference.applicableScopes,
+          sortOrder: reference.sortOrder,
+        });
+        importedReferenceCount += 1;
+      } catch {
+        // Do not break the whole install flow for duplicate or package asset state conflicts.
+      }
+    }
+
+    for (const script of input.scripts) {
+      try {
+        await this.skillPackagesService.createScriptAsset(packageId, {
+          scriptKey: script.scriptKey,
+          scriptName: script.scriptName,
+          runtime: script.runtime,
+          entry: script.entry,
+          usageNote: script.usageNote,
+          sortOrder: script.sortOrder,
+        });
+        importedScriptCount += 1;
+      } catch {
+        // Do not break the whole install flow for duplicate or package asset state conflicts.
+      }
+    }
+
+    return {
+      packageBinding,
+      importedAssets: {
+        importedReferenceCount,
+        importedScriptCount,
+      },
     };
   }
 

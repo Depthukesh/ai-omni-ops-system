@@ -2682,6 +2682,11 @@ export type InstallSkillResult = {
   detectedSkillName: string;
   referenceFileCount: number;
   scriptFileCount: number;
+  packageBinding?: SkillPackageSkillRecord;
+  importedAssets?: {
+    importedReferenceCount: number;
+    importedScriptCount: number;
+  };
 };
 
 export async function installSkillConfig(payload: {
@@ -2695,6 +2700,10 @@ export async function installSkillConfig(payload: {
   status?: SkillConfigRecord["status"];
   pointsCost?: number;
   descriptionPrefix?: string;
+  packageId?: string;
+  packageKey?: string;
+  packageName?: string;
+  bindingRemarks?: string;
 }) {
   return jsonRequest<InstallSkillResult>("/admin/skills/install", "POST", payload);
 }
