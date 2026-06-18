@@ -1100,23 +1100,25 @@ export function BrandGrowthWorkspace() {
           partialFailures.push("每日热点");
         }
 
+        const shouldExposeFeishuCollectionFailures = targetPage !== "xiaohongshuCollection";
+
         if (feishuBindingResult.status === "fulfilled") {
           setFeishuBinding(feishuBindingResult.value);
           setFeishuBindingForm(createFeishuBindingFormFromRecord(feishuBindingResult.value));
-        } else {
+        } else if (shouldExposeFeishuCollectionFailures) {
           partialFailures.push("飞书绑定");
         }
 
         if (feishuAppConfigResult.status === "fulfilled") {
           setFeishuAppConfig(feishuAppConfigResult.value);
           setFeishuAppConfigForm(createFeishuAppConfigFormFromRecord(feishuAppConfigResult.value));
-        } else {
+        } else if (shouldExposeFeishuCollectionFailures) {
           partialFailures.push("飞书应用配置");
         }
 
         if (feishuAuthStatusResult.status === "fulfilled") {
           setFeishuAuthStatus(feishuAuthStatusResult.value);
-        } else {
+        } else if (shouldExposeFeishuCollectionFailures) {
           partialFailures.push("飞书授权状态");
         }
 

@@ -1942,7 +1942,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           <div className="strategy-card-toolbar">
             <div>
               <strong>{props.pageTitle}</strong>
-              <p>不再同步飞书多维表格，改为直接通过 Tikhub 提取品牌账号、竞品账号、品牌作品和对标作品数据。</p>
+              <p>直接通过 Tikhub 提取品牌账号、竞品账号、品牌作品和对标作品数据。</p>
             </div>
             <div className="strategy-inline-actions">
               <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
