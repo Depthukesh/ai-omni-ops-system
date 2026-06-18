@@ -696,7 +696,19 @@ function upsertXhsAccountEntries(
   if (matchedIndex < 0) {
     return [...entries, preparedEntry];
   }
-  return entries.map((item, index) => (index === matchedIndex ? { ...item, ...preparedEntry } : item));
+  return entries.map((item, index) => {
+    if (index !== matchedIndex) {
+      return item;
+    }
+    const mergedEntry: XhsAccountBindingEntry = {
+      ...item,
+      ...preparedEntry,
+    };
+    if (preparedEntry.accountRole === undefined && item.accountRole !== undefined) {
+      mergedEntry.accountRole = item.accountRole;
+    }
+    return mergedEntry;
+  });
 }
 
 function createXhsAccountEntryFromRecord(

@@ -730,6 +730,7 @@ function DouyinAccountBindingSubmitPanel(props: {
   modalDescription: string;
   emptyDescription: string;
   target: "brand" | "competitor";
+  enableRoleSelection?: boolean;
   entries: XhsAccountBindingEntry[];
   syncedAccounts: DouyinCollectedAccountRecord[];
   isSubmitting: boolean;
@@ -738,6 +739,7 @@ function DouyinAccountBindingSubmitPanel(props: {
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draftLocator, setDraftLocator] = useState("");
+  const [draftRole, setDraftRole] = useState<XhsAccountRole>("BRAND");
 
   const handleSave = () => {
     const trimmedLocator = draftLocator.trim();
@@ -748,9 +750,11 @@ function DouyinAccountBindingSubmitPanel(props: {
       upsertXhsAccountEntries(props.entries, {
         id: buildXhsAccountEntryId(trimmedLocator, props.target),
         locator: trimmedLocator,
+        accountRole: props.enableRoleSelection ? draftRole : undefined,
       }, props.target),
     );
     setDraftLocator("");
+    setDraftRole("BRAND");
     setIsModalOpen(false);
   };
 
@@ -778,6 +782,9 @@ function DouyinAccountBindingSubmitPanel(props: {
                 <div key={entry.id} className="xhs-account-entry-row">
                   <div className="xhs-account-entry-row__body">
                     <div className="xhs-account-entry-row__meta">
+                      {props.enableRoleSelection ? (
+                        <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                      ) : null}
                       <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
                         {hasSyncedResult ? "已采集" : "待提交"}
                       </span>
@@ -824,6 +831,21 @@ function DouyinAccountBindingSubmitPanel(props: {
                 关闭
               </button>
             </div>
+            {props.enableRoleSelection ? (
+              <div className="xhs-account-role-grid">
+                {XHS_ACCOUNT_ROLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`xhs-account-role-card ${draftRole === option.value ? "is-active" : ""}`}
+                    onClick={() => setDraftRole(option.value)}
+                  >
+                    <strong>{option.label}</strong>
+                    <span>{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <label className="field">
               <span>账号链接或抖音号</span>
               <input
@@ -2646,11 +2668,12 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
             <>
               <DouyinAccountBindingSubmitPanel
                 title="品牌账号信息"
-                description="按账号逐条维护抖音品牌号入口，保存后可以逐行提交更新，下方列表会同步展示最新结果。"
+                description="按账号逐条维护抖音品牌号入口，支持区分品牌号、员工号和达人号，并逐行提交更新。"
                 modalTitle="添加品牌抖音账号"
-                modalDescription="录入品牌账号主页链接、分享链接、sec_uid 或抖音号，保存后进入账号绑定列表。"
+                modalDescription="先选择账号类型，再录入主页链接、分享链接、sec_uid 或抖音号，保存后进入账号绑定列表。"
                 emptyDescription="当前还没有添加品牌账号，请先点击右上角添加账号。"
                 target="brand"
+                enableRoleSelection
                 entries={props.douyinSyncForm.brandAccountEntries}
                 syncedAccounts={props.sortedDouyinBrandAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
@@ -2743,6 +2766,9 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                         <div key={`douyin-brand-work-source-${entry.id}`} className="xhs-account-entry-row">
                           <div className="xhs-account-entry-row__body">
                             <div className="xhs-account-entry-row__meta">
+                              {entry.accountRole ? (
+                                <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                              ) : null}
                               <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
                                 {hasSyncedResult ? "作品源已就绪" : "待同步账号"}
                               </span>
