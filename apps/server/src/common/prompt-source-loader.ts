@@ -192,7 +192,7 @@ export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
 };
 
 function buildDerivedPromptCandidates(promptId: string) {
-  if (!/^prompt_(design|open_design)_/.test(promptId)) {
+  if (!/^prompt_design_/.test(promptId)) {
     return [];
   }
 

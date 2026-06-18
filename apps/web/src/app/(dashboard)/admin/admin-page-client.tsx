@@ -4467,7 +4467,7 @@ export default function AdminPage() {
                       创建提示词
                     </button>
                   </div>
-                  <div className="admin-user-filter-grid" style={{ marginBottom: 16 }}>
+                    <div className="admin-skill-filter-grid" style={{ marginBottom: 16 }}>
                     <label>
                       <span>模块筛选</span>
                       <select value={skillModuleFilter} onChange={(event) => setSkillModuleFilter(event.target.value)}>
@@ -4583,7 +4583,7 @@ export default function AdminPage() {
 
                 <section className="panel personal-center-panel admin-skill-center-panel">
                   {activeSkillLeaf ? (
-                    <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card">
+                    <article className="entity-card admin-rule-card admin-skill-center-card admin-skill-form-card admin-skill-form-shell">
                       <div className="admin-skill-card-topline">
                         <span className="admin-skill-card-kicker">{activeSkillPrimary?.label || "技能中心"}</span>
                         <span className={`archive-pill ${getStatusClassName(skillCenterStatus)}`}>{getStatusLabel(skillCenterStatus)}</span>
@@ -4594,14 +4594,14 @@ export default function AdminPage() {
                           <p>{activeSkillLeaf.description || activeSkillSection?.label || "技能分类"}</p>
                         </div>
                       </div>
-                      <div className="personal-grid" style={{ marginBottom: 16 }}>
+                      <div className="personal-grid admin-skill-metric-grid" style={{ marginBottom: 16 }}>
                         <SkillDimensionMetric label="当前技能" value={activeSkillConfig?.name || skillCenterName} />
                         <SkillDimensionMetric label="所在能力包" value={activePrimarySkillRelation?.packageName || activeSkillPackageLabel} />
                         <SkillDimensionMetric label="顺序位置" value={activeSkillFlowIndex >= 0 ? `${activeSkillFlowIndex + 1} / ${activeSkillFlow.length}` : "-"} />
                         <SkillDimensionMetric label="更新时间" value={skillCenterUpdatedAtLabel} />
                       </div>
 
-                      <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
+                      <section className="entity-card admin-skill-section-card admin-skill-section-card--inputs">
                         <div className="entity-card-head">
                           <div>
                             <strong>输入项</strong>
@@ -4663,8 +4663,8 @@ export default function AdminPage() {
                               {activeSkillConfig && updatingSkillId === activeSkillConfig.id ? "补齐中..." : "补齐输入项"}
                             </button>
                           </div>
-                          <div className="admin-skill-field admin-skill-field--full" style={{ display: "grid", gap: 12 }}>
-                            <div className="entity-card" style={{ padding: 12 }}>
+                          <div className="admin-skill-field admin-skill-field--full admin-skill-stack">
+                            <div className="entity-card admin-skill-stack-card">
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
                                   <strong>数据库参数</strong>
@@ -4773,7 +4773,7 @@ export default function AdminPage() {
                               </div>
                             </div>
 
-                            <div className="entity-card" style={{ padding: 12 }}>
+                            <div className="entity-card admin-skill-stack-card">
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
                                   <strong>知识库参数</strong>
@@ -4870,7 +4870,7 @@ export default function AdminPage() {
                               </div>
                             </div>
 
-                            <div className="entity-card" style={{ padding: 12 }}>
+                            <div className="entity-card admin-skill-stack-card">
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>
                                 <div>
                                   <strong>自定义输入参数</strong>
@@ -4998,7 +4998,7 @@ export default function AdminPage() {
                         </div>
                       </section>
 
-                      <section className="entity-card" style={{ padding: 16, marginBottom: 16 }}>
+                      <section className="entity-card admin-skill-section-card admin-skill-section-card--prompt">
                         <div className="entity-card-head">
                           <div>
                             <strong>提示词及其他元素</strong>
@@ -5043,7 +5043,7 @@ export default function AdminPage() {
                             />
                           </label>
                         </div>
-                        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                        <div className="admin-skill-stack" style={{ marginTop: 12 }}>
                           {dataSource === "seed" ? (
                             <div className="admin-skill-empty" style={{ marginTop: 0 }}>
                               当前为本地演示数据，技能真实资产仍以能力包详情页维护；切换到接口数据后，这里会自动展示所属能力包的 References / Scripts。
@@ -5065,7 +5065,7 @@ export default function AdminPage() {
                             </div>
                           ) : null}
                           {activePrimarySkillRelation && dataSource === "api" && !isLoadingActiveSkillAssets && !skillAssetLoadError ? (
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                            <div className="admin-skill-assets-grid">
                               <SkillAssetListCard
                                 title="References 资产"
                                 summary={buildInheritedAssetCardSummary({
@@ -5112,7 +5112,7 @@ export default function AdminPage() {
                         </label>
                       </section>
 
-                      <section className="entity-card" style={{ padding: 16 }}>
+                      <section className="entity-card admin-skill-section-card admin-skill-section-card--output">
                         <div className="entity-card-head">
                           <div>
                             <strong>输出</strong>

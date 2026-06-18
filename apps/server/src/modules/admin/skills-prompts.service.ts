@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import {
   PROMPT_SOURCE_CANDIDATES,
@@ -523,174 +523,6 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptIds: ["prompt_design_motion_storyboard"],
     promptScenes: ["设计工作台-动效脚本设计"],
   },
-  skill_open_design_critique: {
-    promptIds: ["prompt_open_design_critique"],
-    promptScenes: ["Open Design-设计评审"],
-  },
-  critique: {
-    promptIds: ["prompt_open_design_critique"],
-    promptScenes: ["Open Design-设计评审"],
-  },
-  skill_open_design_tweaks: {
-    promptIds: ["prompt_open_design_tweaks"],
-    promptScenes: ["Open Design-定向微调"],
-  },
-  tweaks: {
-    promptIds: ["prompt_open_design_tweaks"],
-    promptScenes: ["Open Design-定向微调"],
-  },
-  skill_open_design_wireframe_sketch: {
-    promptIds: ["prompt_open_design_wireframe_sketch"],
-    promptScenes: ["Open Design-线框草图"],
-  },
-  "wireframe-sketch": {
-    promptIds: ["prompt_open_design_wireframe_sketch"],
-    promptScenes: ["Open Design-线框草图"],
-  },
-  skill_open_design_design_brief: {
-    promptIds: ["prompt_open_design_design_brief"],
-    promptScenes: ["Open Design-设计简报"],
-  },
-  "design-brief": {
-    promptIds: ["prompt_open_design_design_brief"],
-    promptScenes: ["Open Design-设计简报"],
-  },
-  skill_open_design_dating_web: {
-    promptIds: ["prompt_open_design_dating_web"],
-    promptScenes: ["Open Design-约会产品网页"],
-  },
-  "dating-web": {
-    promptIds: ["prompt_open_design_dating_web"],
-    promptScenes: ["Open Design-约会产品网页"],
-  },
-  skill_open_design_digital_eguide: {
-    promptIds: ["prompt_open_design_digital_eguide"],
-    promptScenes: ["Open Design-数字指南"],
-  },
-  "digital-eguide": {
-    promptIds: ["prompt_open_design_digital_eguide"],
-    promptScenes: ["Open Design-数字指南"],
-  },
-  skill_open_design_hatch_pet: {
-    promptIds: ["prompt_open_design_hatch_pet"],
-    promptScenes: ["Open Design-宠物孵化互动页"],
-  },
-  "hatch-pet": {
-    promptIds: ["prompt_open_design_hatch_pet"],
-    promptScenes: ["Open Design-宠物孵化互动页"],
-  },
-  skill_open_design_audio_jingle: {
-    promptIds: ["prompt_open_design_audio_jingle"],
-    promptScenes: ["Open Design-音频 Jingle"],
-  },
-  "audio-jingle": {
-    promptIds: ["prompt_open_design_audio_jingle"],
-    promptScenes: ["Open Design-音频 Jingle"],
-  },
-  skill_open_design_pm_spec: {
-    promptIds: ["prompt_open_design_pm_spec"],
-    promptScenes: ["Open Design-PM 规格说明"],
-  },
-  "pm-spec": {
-    promptIds: ["prompt_open_design_pm_spec"],
-    promptScenes: ["Open Design-PM 规格说明"],
-  },
-  skill_open_design_eng_runbook: {
-    promptIds: ["prompt_open_design_eng_runbook"],
-    promptScenes: ["Open Design-工程 Runbook"],
-  },
-  "eng-runbook": {
-    promptIds: ["prompt_open_design_eng_runbook"],
-    promptScenes: ["Open Design-工程 Runbook"],
-  },
-  skill_open_design_finance_report: {
-    promptIds: ["prompt_open_design_finance_report"],
-    promptScenes: ["Open Design-财务报告"],
-  },
-  "finance-report": {
-    promptIds: ["prompt_open_design_finance_report"],
-    promptScenes: ["Open Design-财务报告"],
-  },
-  skill_open_design_hr_onboarding: {
-    promptIds: ["prompt_open_design_hr_onboarding"],
-    promptScenes: ["Open Design-HR 入职引导"],
-  },
-  "hr-onboarding": {
-    promptIds: ["prompt_open_design_hr_onboarding"],
-    promptScenes: ["Open Design-HR 入职引导"],
-  },
-  skill_open_design_invoice: {
-    promptIds: ["prompt_open_design_invoice"],
-    promptScenes: ["Open Design-发票模板"],
-  },
-  invoice: {
-    promptIds: ["prompt_open_design_invoice"],
-    promptScenes: ["Open Design-发票模板"],
-  },
-  skill_open_design_kanban_board: {
-    promptIds: ["prompt_open_design_kanban_board"],
-    promptScenes: ["Open Design-看板面板"],
-  },
-  "kanban-board": {
-    promptIds: ["prompt_open_design_kanban_board"],
-    promptScenes: ["Open Design-看板面板"],
-  },
-  skill_open_design_team_okrs: {
-    promptIds: ["prompt_open_design_team_okrs"],
-    promptScenes: ["Open Design-团队 OKR"],
-  },
-  "team-okrs": {
-    promptIds: ["prompt_open_design_team_okrs"],
-    promptScenes: ["Open Design-团队 OKR"],
-  },
-  skill_open_design_replit_deck: {
-    promptIds: ["prompt_open_design_replit_deck"],
-    promptScenes: ["Open Design-Replit Deck"],
-  },
-  "replit-deck": {
-    promptIds: ["prompt_open_design_replit_deck"],
-    promptScenes: ["Open Design-Replit Deck"],
-  },
-  skill_open_design_html_ppt_course_module: {
-    promptIds: ["prompt_open_design_html_ppt_course_module"],
-    promptScenes: ["Open Design-课程模块 Deck"],
-  },
-  "html-ppt-course-module": {
-    promptIds: ["prompt_open_design_html_ppt_course_module"],
-    promptScenes: ["Open Design-课程模块 Deck"],
-  },
-  skill_open_design_html_ppt_dir_key_nav_minimal: {
-    promptIds: ["prompt_open_design_html_ppt_dir_key_nav_minimal"],
-    promptScenes: ["Open Design-极简目录 Deck"],
-  },
-  "html-ppt-dir-key-nav-minimal": {
-    promptIds: ["prompt_open_design_html_ppt_dir_key_nav_minimal"],
-    promptScenes: ["Open Design-极简目录 Deck"],
-  },
-  skill_open_design_html_ppt_graphify_dark_graph: {
-    promptIds: ["prompt_open_design_html_ppt_graphify_dark_graph"],
-    promptScenes: ["Open Design-深色图表 Deck"],
-  },
-  "html-ppt-graphify-dark-graph": {
-    promptIds: ["prompt_open_design_html_ppt_graphify_dark_graph"],
-    promptScenes: ["Open Design-深色图表 Deck"],
-  },
-  skill_open_design_html_ppt_hermes_cyber_terminal: {
-    promptIds: ["prompt_open_design_html_ppt_hermes_cyber_terminal"],
-    promptScenes: ["Open Design-赛博终端 Deck"],
-  },
-  "html-ppt-hermes-cyber-terminal": {
-    promptIds: ["prompt_open_design_html_ppt_hermes_cyber_terminal"],
-    promptScenes: ["Open Design-赛博终端 Deck"],
-  },
-  skill_open_design_html_ppt_knowledge_arch_blueprint: {
-    promptIds: ["prompt_open_design_html_ppt_knowledge_arch_blueprint"],
-    promptScenes: ["Open Design-知识架构蓝图 Deck"],
-  },
-  "html-ppt-knowledge-arch-blueprint": {
-    promptIds: ["prompt_open_design_html_ppt_knowledge_arch_blueprint"],
-    promptScenes: ["Open Design-知识架构蓝图 Deck"],
-  },
   skill_xhs_rewrite_copy: {
     promptIds: ["prompt_xhs_rewrite_copy"],
     promptScenes: ["小红书二创笔记文案"],
@@ -796,6 +628,102 @@ const SKILL_PROMPT_BINDINGS: Record<string, SkillPromptBindingRule> = {
     promptScenes: ["抖音数字人-口播脚本"],
   },
 };
+
+const RETIRED_OPEN_DESIGN_SKILL_IDS = [
+  "skill_open_design_critique",
+  "skill_open_design_tweaks",
+  "skill_open_design_wireframe_sketch",
+  "skill_open_design_design_brief",
+  "skill_open_design_dating_web",
+  "skill_open_design_digital_eguide",
+  "skill_open_design_hatch_pet",
+  "skill_open_design_audio_jingle",
+  "skill_open_design_pm_spec",
+  "skill_open_design_eng_runbook",
+  "skill_open_design_finance_report",
+  "skill_open_design_hr_onboarding",
+  "skill_open_design_invoice",
+  "skill_open_design_kanban_board",
+  "skill_open_design_team_okrs",
+  "skill_open_design_replit_deck",
+  "skill_open_design_html_ppt_course_module",
+  "skill_open_design_html_ppt_dir_key_nav_minimal",
+  "skill_open_design_html_ppt_graphify_dark_graph",
+  "skill_open_design_html_ppt_hermes_cyber_terminal",
+  "skill_open_design_html_ppt_knowledge_arch_blueprint",
+] as const;
+
+const RETIRED_OPEN_DESIGN_SKILL_SLUGS = [
+  "critique",
+  "tweaks",
+  "wireframe-sketch",
+  "design-brief",
+  "dating-web",
+  "digital-eguide",
+  "hatch-pet",
+  "audio-jingle",
+  "pm-spec",
+  "eng-runbook",
+  "finance-report",
+  "hr-onboarding",
+  "invoice",
+  "kanban-board",
+  "team-okrs",
+  "replit-deck",
+  "html-ppt-course-module",
+  "html-ppt-dir-key-nav-minimal",
+  "html-ppt-graphify-dark-graph",
+  "html-ppt-hermes-cyber-terminal",
+  "html-ppt-knowledge-arch-blueprint",
+] as const;
+
+const RETIRED_OPEN_DESIGN_PROMPT_IDS = [
+  "prompt_open_design_critique",
+  "prompt_open_design_tweaks",
+  "prompt_open_design_wireframe_sketch",
+  "prompt_open_design_design_brief",
+  "prompt_open_design_dating_web",
+  "prompt_open_design_digital_eguide",
+  "prompt_open_design_hatch_pet",
+  "prompt_open_design_audio_jingle",
+  "prompt_open_design_pm_spec",
+  "prompt_open_design_eng_runbook",
+  "prompt_open_design_finance_report",
+  "prompt_open_design_hr_onboarding",
+  "prompt_open_design_invoice",
+  "prompt_open_design_kanban_board",
+  "prompt_open_design_team_okrs",
+  "prompt_open_design_replit_deck",
+  "prompt_open_design_html_ppt_course_module",
+  "prompt_open_design_html_ppt_dir_key_nav_minimal",
+  "prompt_open_design_html_ppt_graphify_dark_graph",
+  "prompt_open_design_html_ppt_hermes_cyber_terminal",
+  "prompt_open_design_html_ppt_knowledge_arch_blueprint",
+] as const;
+
+const RETIRED_OPEN_DESIGN_PROMPT_SCENES = [
+  "Open Design-设计评审",
+  "Open Design-定向微调",
+  "Open Design-线框草图",
+  "Open Design-设计简报",
+  "Open Design-约会产品网页",
+  "Open Design-数字指南",
+  "Open Design-宠物孵化互动页",
+  "Open Design-音频 Jingle",
+  "Open Design-PM 规格说明",
+  "Open Design-工程 Runbook",
+  "Open Design-财务报告",
+  "Open Design-HR 入职引导",
+  "Open Design-发票模板",
+  "Open Design-看板面板",
+  "Open Design-团队 OKR",
+  "Open Design-Replit Deck",
+  "Open Design-课程模块 Deck",
+  "Open Design-极简目录 Deck",
+  "Open Design-深色图表 Deck",
+  "Open Design-赛博终端 Deck",
+  "Open Design-知识架构蓝图 Deck",
+] as const;
 
 @Injectable()
 export class SkillsPromptsService {
@@ -1554,6 +1482,7 @@ export class SkillsPromptsService {
       `;
     }
 
+    await this.removeRetiredOpenDesignArtifacts();
     await this.backfillDouyinOriginalCopyPromptContents();
     await this.backfillWechatHtmlRenderPromptContents();
     await this.backfillImageGenerationSkillDefaults();
@@ -1562,6 +1491,42 @@ export class SkillsPromptsService {
     await this.backfillBuiltInSkillInputSchemas();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
+  }
+
+  private async removeRetiredOpenDesignArtifacts() {
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "SkillPromptBinding"
+        WHERE "skillId" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_SKILL_IDS])})
+          OR "promptId" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_PROMPT_IDS])})
+          OR "skillSlug" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_SKILL_SLUGS])})
+          OR "promptScene" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_PROMPT_SCENES])})
+      `,
+    );
+
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "PromptTemplate"
+        WHERE "id" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_PROMPT_IDS])})
+          OR "scene" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_PROMPT_SCENES])})
+      `,
+    );
+
+    await this.prismaService.$executeRaw(
+      Prisma.sql`
+        DELETE FROM "SkillConfig"
+        WHERE "id" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_SKILL_IDS])})
+          OR "slug" IN (${Prisma.join([...RETIRED_OPEN_DESIGN_SKILL_SLUGS])})
+      `,
+    );
+
+    database.skillConfigs = database.skillConfigs.filter(
+      (item) => !RETIRED_OPEN_DESIGN_SKILL_IDS.includes(item.id as (typeof RETIRED_OPEN_DESIGN_SKILL_IDS)[number]),
+    );
+    database.promptTemplates = database.promptTemplates.filter(
+      (item) => !RETIRED_OPEN_DESIGN_PROMPT_IDS.includes(item.id as (typeof RETIRED_OPEN_DESIGN_PROMPT_IDS)[number]),
+    );
+    this.legacySkillPromptBindings = undefined;
   }
 
   private async backfillLegacySkillInputSchemas() {
