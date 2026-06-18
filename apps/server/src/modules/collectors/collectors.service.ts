@@ -863,6 +863,82 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async fetchXhsStoredMedia(brandId: string, fileName: string) {
+    const safeFileName = this.sanitizeStoredFileName(fileName);
+    const file = await this.ossStorageService.getObject(this.buildXhsNoteMediaStorageKey(brandId, safeFileName));
+    if (!file) {
+      throw new NotFoundException("作品媒体不存在");
+    }
+    return {
+      ...file,
+      fileName: safeFileName,
+    };
+  }
+
+  private async cacheXhsNoteMediaBundle(brandId: string, noteId: string, imageUrls: string[], videoUrl?: string) {
+    const cachedImages: string[] = [];
+    for (const [index, sourceUrl] of imageUrls.entries()) {
+      try {
+        cachedImages.push(await this.cacheXhsRemoteMedia(brandId, noteId, sourceUrl, "image", index));
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "未知错误";
+        this.logger.warn(`小红书图片缓存失败：${noteId}#${index + 1} ${detail}`);
+      }
+    }
+
+    let cachedVideoUrl = "";
+    if (videoUrl) {
+      try {
+        cachedVideoUrl = await this.cacheXhsRemoteMedia(brandId, noteId, videoUrl, "video", 0);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "未知错误";
+        this.logger.warn(`小红书视频缓存失败：${noteId} ${detail}`);
+      }
+    }
+
+    return {
+      imageList: cachedImages,
+      videoUrl: cachedVideoUrl,
+    };
+  }
+
+  private async cacheXhsRemoteMedia(
+    brandId: string,
+    noteId: string,
+    sourceUrl: string,
+    mediaType: "image" | "video",
+    index: number,
+  ) {
+    const normalizedUrl = this.normalizeHttpUrl(sourceUrl);
+    if (!normalizedUrl) {
+      throw new BadRequestException("媒体地址无效");
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), mediaType === "video" ? 120000 : 45000);
+    try {
+      const response = await fetch(normalizedUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(`远程媒体下载失败：${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = this.resolveXhsMediaContentType(
+        response.headers.get("content-type") || "",
+        normalizedUrl,
+        mediaType,
+      );
+      const fileName = this.buildXhsNoteMediaFileName(noteId, mediaType, index, contentType, normalizedUrl);
+      await this.ossStorageService.putObject(this.buildXhsNoteMediaStorageKey(brandId, fileName), buffer, contentType);
+      return this.buildXhsNoteMediaAssetUrl(brandId, fileName);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async getDailyHotspotWorkspace(
     brandId: string,
     targetDate?: string,
@@ -1091,6 +1167,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private mapCollectedNote(asset: AssetRecord): XhsCollectedNoteRecord {
     const meta = this.asMeta(asset.metadataJson);
+    const cachedImages = this.readMetaStringArray(meta, "imageList").filter((item) => !/batch_get_tmp_download_url/i.test(item));
+    const sourceImages = this.readMetaStringArray(meta, "imageSourceList").filter((item) => !/batch_get_tmp_download_url/i.test(item));
+    const cachedVideoUrl = this.readMetaString(meta, "videoUrl");
+    const sourceVideoUrl = this.readMetaString(meta, "videoSourceUrl");
     return {
       id: asset.id,
       sourceAccountId: this.readMetaString(meta, "sourceAccountId"),
@@ -1100,7 +1180,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       nickname: this.readMetaString(meta, "nickname")
         || this.readMetaString(meta, "authorName")
         || undefined,
-      imageList: this.readMetaStringArray(meta, "imageList").filter((item) => !/batch_get_tmp_download_url/i.test(item)),
+      imageList: cachedImages.length ? cachedImages : sourceImages,
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       noteUrl: this.readMetaString(meta, "noteUrl") || asset.fileUrl,
       description: asset.description,
@@ -1114,8 +1194,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       shareRatio: this.readMetaNumber(meta, "shareRatio"),
       isExplosive: this.readMetaString(meta, "isExplosive") || undefined,
       followUpDecision: this.readMetaString(meta, "followUpDecision") || undefined,
-      videoUrl: this.readMetaString(meta, "videoUrl") && !/batch_get_tmp_download_url/i.test(this.readMetaString(meta, "videoUrl"))
-        ? this.readMetaString(meta, "videoUrl")
+      videoUrl: (cachedVideoUrl || sourceVideoUrl) && !/batch_get_tmp_download_url/i.test(cachedVideoUrl || sourceVideoUrl)
+        ? (cachedVideoUrl || sourceVideoUrl)
         : undefined,
       collectedAt: this.readMetaString(meta, "collectedAt") || new Date().toISOString(),
       sourceUrl: this.readMetaString(meta, "sourceUrl") || undefined,
@@ -2762,15 +2842,42 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private isImageMediaEntry(item: { url: string; name: string; type: string }) {
     const type = item.type.toLowerCase();
     const target = `${item.name} ${item.url}`.toLowerCase();
-    return type.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(target);
+    return type.startsWith("image/") || this.isLikelyImageUrl(target);
   }
 
   private isLikelyImageUrl(url: string) {
-    return /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url);
+    if (/\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i.test(url)) {
+      return true;
+    }
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      const target = `${parsed.pathname}${parsed.search}`.toLowerCase();
+      if (host.endsWith("rednotecdn.com") || host.endsWith("xhscdn.com")) {
+        return /imageview2|imagemogr2|x-oss-process=image|format\/(png|jpe?g|webp|gif|bmp|svg)|redimage\/frame|\/spectrum\//i.test(target)
+          || host.startsWith("sns-i");
+      }
+    } catch {
+      return false;
+    }
+    return false;
   }
 
   private isLikelyVideoUrl(url: string) {
-    return /\.(mp4|mov|m4v|avi|mkv|webm)(\?|$)/i.test(url);
+    if (/\.(mp4|mov|m4v|avi|mkv|webm)(\?|$)/i.test(url)) {
+      return true;
+    }
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      const target = `${parsed.pathname}${parsed.search}`.toLowerCase();
+      if (host.endsWith("xhscdn.com") || host.endsWith("rednotecdn.com")) {
+        return /video|stream|master|h264|h265|mp4|m3u8/i.test(target) || host.startsWith("sns-video");
+      }
+    } catch {
+      return false;
+    }
+    return false;
   }
 
   private extractUrlsFromText(value: string) {
@@ -2834,6 +2941,83 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return "";
     }
+  }
+
+  private sanitizeStoredFileName(value: string) {
+    const normalized = String(value || "").split(/[\\/]/).pop() || "";
+    return normalized.replace(/[^a-zA-Z0-9._-]/g, "_");
+  }
+
+  private buildXhsNoteMediaStorageKey(brandId: string, fileName: string) {
+    return `collectors/xiaohongshu/${brandId}/note-media/${fileName}`;
+  }
+
+  private buildXhsNoteMediaAssetUrl(brandId: string, fileName: string) {
+    return `/api/collectors/xiaohongshu/brands/${encodeURIComponent(brandId)}/media/${encodeURIComponent(fileName)}`;
+  }
+
+  private buildXhsNoteMediaFileName(
+    noteId: string,
+    mediaType: "image" | "video",
+    index: number,
+    contentType: string,
+    sourceUrl: string,
+  ) {
+    const safeNoteId = this.sanitizeStoredFileName(noteId).replace(/\.[^.]+$/, "") || "xhs-note";
+    const extension = this.resolveXhsMediaExtension(contentType, sourceUrl, mediaType);
+    const suffix = mediaType === "image" ? `image-${index + 1}` : "video";
+    return `xhs-${safeNoteId}-${suffix}-${createId("xhsmedia")}${extension}`;
+  }
+
+  private resolveXhsMediaContentType(contentType: string, sourceUrl: string, mediaType: "image" | "video") {
+    const normalizedType = String(contentType || "").split(";")[0].trim().toLowerCase();
+    if (normalizedType) {
+      return normalizedType;
+    }
+    const guessedExtension = this.guessFileExtensionFromUrl(sourceUrl).toLowerCase();
+    if (mediaType === "image") {
+      if (guessedExtension === ".png") {
+        return "image/png";
+      }
+      if (guessedExtension === ".gif") {
+        return "image/gif";
+      }
+      if (guessedExtension === ".jpg" || guessedExtension === ".jpeg") {
+        return "image/jpeg";
+      }
+      return "image/webp";
+    }
+    return "video/mp4";
+  }
+
+  private resolveXhsMediaExtension(contentType: string, sourceUrl: string, mediaType: "image" | "video") {
+    const normalizedType = this.resolveXhsMediaContentType(contentType, sourceUrl, mediaType);
+    if (normalizedType.includes("png")) {
+      return ".png";
+    }
+    if (normalizedType.includes("gif")) {
+      return ".gif";
+    }
+    if (normalizedType.includes("jpeg") || normalizedType.includes("jpg")) {
+      return ".jpg";
+    }
+    if (normalizedType.includes("svg")) {
+      return ".svg";
+    }
+    if (normalizedType.includes("webm")) {
+      return ".webm";
+    }
+    if (normalizedType.includes("mov")) {
+      return ".mov";
+    }
+    if (normalizedType.includes("mp4")) {
+      return ".mp4";
+    }
+    const guessed = this.guessFileExtensionFromUrl(sourceUrl);
+    if (guessed) {
+      return guessed;
+    }
+    return mediaType === "image" ? ".webp" : ".mp4";
   }
 
   private normalizeFieldKey(value: string) {
@@ -3042,6 +3226,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const externalUserId = this.pickString(item, ["userid", "user_id", "userId", "author_id"]);
       const createdAtText = this.pickString(item, ["create_time", "time", "publish_time"]);
       const videoUrl = this.extractXhsVideoUrl(item);
+      const cachedMedia = await this.cacheXhsNoteMediaBundle(brandId, noteId, imageList, videoUrl);
 
       const asset = await this.upsertCollectorAsset({
         brandId,
@@ -3058,14 +3243,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           noteUrl,
           noteType,
           nickname,
-          imageList,
+          imageList: cachedMedia.imageList,
+          imageSourceList: imageList,
           externalUserId,
           likeCount,
           collectCount,
           createdAtText,
           shareCount,
           commentCount,
-          videoUrl,
+          videoUrl: cachedMedia.videoUrl,
+          videoSourceUrl: videoUrl,
           collectedAt,
           rawFields: this.asMeta(item),
         },
@@ -3540,6 +3727,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const nickname = this.pickString(raw, ["nickname", "user_name", "author_name"]);
     const externalUserId = this.pickString(raw, ["userid", "user_id", "userId", "author_id"]);
     const createdAtText = this.pickString(raw, ["create_time", "time", "publish_time"]);
+    const cachedMedia = await this.cacheXhsNoteMediaBundle(brandId, noteId || sourceUrl, imageList, videoUrl);
 
     const asset = await this.upsertCollectorAsset({
       brandId,
@@ -3556,7 +3744,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         noteUrl,
         noteType,
         nickname,
-        imageList,
+        imageList: cachedMedia.imageList,
+        imageSourceList: imageList,
         externalUserId,
         likeCount,
         collectCount,
@@ -3566,7 +3755,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         likeCollectRatio: this.computeRatio(likeCount, collectCount),
         likeCommentRatio: this.computeRatio(likeCount, commentCount),
         shareRatio: this.computeRatio(shareCount, likeCount),
-        videoUrl,
+        videoUrl: cachedMedia.videoUrl,
+        videoSourceUrl: videoUrl,
         collectedAt,
         syncStatus: "SUCCESS",
         retryCount: 0,
@@ -3625,6 +3815,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       const externalUserId = this.pickString(item, ["userid", "user_id", "userId", "author_id"]);
       const createdAtText = this.pickString(item, ["create_time", "time", "publish_time"]);
       const videoUrl = this.extractXhsVideoUrl(item);
+      const cachedMedia = await this.cacheXhsNoteMediaBundle(brandId, noteId, imageList, videoUrl);
 
       const asset = await this.upsertCollectorAsset({
         brandId,
@@ -3641,7 +3832,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           noteUrl,
           noteType,
           nickname,
-          imageList,
+          imageList: cachedMedia.imageList,
+          imageSourceList: imageList,
           externalUserId,
           likeCount,
           collectCount,
@@ -3651,7 +3843,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           likeCollectRatio: this.computeRatio(likeCount, collectCount),
           likeCommentRatio: this.computeRatio(likeCount, commentCount),
           shareRatio: this.computeRatio(shareCount, likeCount),
-          videoUrl,
+          videoUrl: cachedMedia.videoUrl,
+          videoSourceUrl: videoUrl,
           collectedAt,
           syncStatus: "SUCCESS",
           retryCount: 0,
@@ -5222,15 +5415,43 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractXhsImageList(raw: unknown) {
-    return this.extractUrlsFromUnknown(raw)
-      .filter((item) => this.isLikelyImageUrl(item))
-      .slice(0, 12);
+    const payload = this.asMeta(raw);
+    const imageCandidates = [
+      ...this.extractXhsImageUrlsFromList(payload.images_list),
+      ...this.extractXhsImageUrlsFromList(payload.image_list),
+      ...this.extractXhsImageUrlsFromList(payload.images),
+      ...this.extractUrlsFromUnknown(raw).filter((item) => this.isLikelyImageUrl(item)),
+    ];
+    return Array.from(new Set(imageCandidates.filter(Boolean))).slice(0, 12);
   }
 
   private extractXhsVideoUrl(raw: unknown) {
-    return this.extractUrlsFromUnknown(raw)
-      .find((item) => this.isLikelyVideoUrl(item))
-      || "";
+    const payload = this.asMeta(raw);
+    const directCandidates = [
+      this.pickString(payload, ["video_url", "videoUrl"]),
+      this.pickString(this.asMeta(payload.video_info), ["master_url", "url", "video_url"]),
+      this.pickString(this.asMeta(payload.video_info_v2), ["master_url", "url", "video_url"]),
+    ].filter(Boolean);
+    const nestedCandidates = this.extractUrlsFromUnknown([
+      payload.video_info,
+      payload.video_info_v2,
+      payload.video,
+      payload.note_card,
+      raw,
+    ]);
+    return [...directCandidates, ...nestedCandidates].find((item) => this.isLikelyVideoUrl(item)) || "";
+  }
+
+  private extractXhsImageUrlsFromList(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => {
+        const record = this.asMeta(item);
+        return this.pickString(record, ["url_size_large", "url_default", "url_pre", "url", "original"]);
+      })
+      .filter((item): item is string => Boolean(item));
   }
 
   private deriveDouyinWorkType(raw: unknown, detail: unknown) {

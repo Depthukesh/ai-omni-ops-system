@@ -1894,6 +1894,7 @@ function XhsNotesTable(props: {
   items: XhsCollectedNoteRecord[];
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   return (
     <ScrollableTableShell>
@@ -1937,9 +1938,11 @@ function XhsNotesTable(props: {
               <td>{props.formatCount(item.commentCount)}</td>
               <td>
                 {item.imageList?.length ? (
-                  <a href={item.imageList[0]} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看首图 ({item.imageList.length} 张)
-                  </a>
+                  <ProtectedImageCard
+                    sourceUrl={item.imageList[0]}
+                    title={item.title || item.noteId}
+                    onPreviewMedia={props.onPreviewMedia}
+                  />
                 ) : "-"}
               </td>
               <td>
@@ -2577,6 +2580,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     items={props.paginatedBrandNotes}
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有品牌作品结果，先在品牌账号信息里绑定账号，再点击这里的提交按钮。</div>

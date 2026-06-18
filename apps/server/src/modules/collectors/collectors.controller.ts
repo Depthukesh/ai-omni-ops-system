@@ -122,6 +122,29 @@ export class CollectorsController {
     );
     return response.status(200).send(file.buffer);
   }
+
+  @Get("brands/:brandId/media/:fileName")
+  async xhsStoredMedia(
+    @Param("brandId") brandId: string,
+    @Param("fileName") fileName: string,
+    @Query("download") download: string | undefined,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Res() response: {
+      setHeader(name: string, value: string): unknown;
+      status(code: number): { send(body: Buffer): unknown };
+    },
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    const file = await this.collectorsService.fetchXhsStoredMedia(brandId, fileName);
+    response.setHeader("Content-Type", file.contentType);
+    response.setHeader("Cache-Control", "private, max-age=300");
+    response.setHeader(
+      "Content-Disposition",
+      `${download === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+    );
+    return response.status(200).send(file.buffer);
+  }
 }
 
 @Controller("collectors/douyin")
