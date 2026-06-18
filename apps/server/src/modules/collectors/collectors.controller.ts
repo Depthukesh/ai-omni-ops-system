@@ -60,6 +60,17 @@ export class CollectorsController {
     return this.collectorsService.syncBenchmarkNotes(brandId, payload.sourceUrls ?? []);
   }
 
+  @Post("brands/:brandId/search-notes/sync")
+  async syncSearchNotes(
+    @Param("brandId") brandId: string,
+    @Body() payload: { keyword?: string },
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const auth = await this.authService.resolveRequestAuthContext(headers);
+    await this.authService.assertBrandAccess(brandId, auth);
+    return this.collectorsService.syncSearchNotes(brandId, payload.keyword ?? "");
+  }
+
   @Post("brands/:brandId/material-library")
   async addBenchmarkNoteToMaterialLibrary(
     @Param("brandId") brandId: string,

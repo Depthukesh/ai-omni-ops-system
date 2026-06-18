@@ -81,6 +81,7 @@ export type XhsCollectionWorkspace = {
   competitorAccounts: XhsCollectedAccountRecord[];
   brandNotes: XhsCollectedNoteRecord[];
   benchmarkNotes: XhsCollectedNoteRecord[];
+  searchNotes: XhsCollectedNoteRecord[];
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
@@ -298,6 +299,7 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
     },
   ],
   benchmarkNotes: [],
+  searchNotes: [],
   targetUsers: [],
 };
 
@@ -491,6 +493,14 @@ export async function syncXiaohongshuBenchmarkNotes(sourceUrls: string[], brandI
     `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/benchmark-notes/sync`,
     "POST",
     { sourceUrls },
+  );
+}
+
+export async function syncXiaohongshuSearchNotes(keyword: string, brandId?: string) {
+  return jsonRequest<{ syncedCount: number; workspace: XhsCollectionWorkspace }>(
+    `/collectors/xiaohongshu/brands/${resolveBrandId(brandId)}/search-notes/sync`,
+    "POST",
+    { keyword },
   );
 }
 

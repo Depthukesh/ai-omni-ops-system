@@ -33,7 +33,8 @@ export type XiaohongshuCollectionCardKey =
   | "brandAccount"
   | "competitorAccount"
   | "brandWorks"
-  | "benchmarkWorks";
+  | "benchmarkWorks"
+  | "searchNotes";
 
 export const xiaohongshuCollectionCards: Array<{
   key: XiaohongshuCollectionCardKey;
@@ -43,6 +44,7 @@ export const xiaohongshuCollectionCards: Array<{
   { key: "competitorAccount", label: "竞品账号信息" },
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
+  { key: "searchNotes", label: "搜索笔记" },
 ];
 
 export type XhsAccountBindingEntry = {
@@ -211,12 +213,14 @@ export interface BrandGrowthCollectionWorkspaceProps {
     competitorAccountEntries: XhsAccountBindingEntry[];
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
+    searchKeyword: string;
   };
   setXhsSyncForm: Dispatch<SetStateAction<{
     brandAccountEntries: XhsAccountBindingEntry[];
     competitorAccountEntries: XhsAccountBindingEntry[];
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
+    searchKeyword: string;
   }>>;
   activeDouyinCollectionCard: DouyinCollectionCardKey;
   onDouyinCollectionCardChange: ValueAction<DouyinCollectionCardKey>;
@@ -280,6 +284,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
   onSyncXhsWorkspace: AsyncAction;
+  onSyncXhsSearchNotes: AsyncAction;
   onSyncAllXhsBrandAccounts: AsyncAction;
   onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
@@ -291,6 +296,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
   sortedBenchmarkNotes: XhsCollectedNoteRecord[];
+  sortedSearchNotes: XhsCollectedNoteRecord[];
   sortedDouyinBrandAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinCompetitorAccounts: DouyinCollectedAccountRecord[];
   sortedDouyinBrandWorks: DouyinCollectedWorkRecord[];
@@ -2012,7 +2018,8 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedBrandAccounts.length +
     props.sortedCompetitorAccounts.length +
     props.sortedBrandNotes.length +
-    props.sortedBenchmarkNotes.length;
+    props.sortedBenchmarkNotes.length +
+    props.sortedSearchNotes.length;
   const douyinSyncedCount =
     props.sortedDouyinBrandAccounts.length +
     props.sortedDouyinCompetitorAccounts.length +
@@ -2338,7 +2345,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           <div className="strategy-card-toolbar">
             <div>
               <strong>{props.pageTitle}</strong>
-              <p>直接通过 Tikhub 提取品牌账号、竞品账号、品牌作品和对标作品数据。</p>
+              <p>直接通过 Tikhub 提取品牌账号、竞品账号、品牌作品、对标作品与搜索笔记结果。</p>
             </div>
             <div className="strategy-inline-actions">
               <button type="button" className="secondary-button" onClick={() => void props.onRefreshData()} disabled={props.isHydrating}>
@@ -2613,6 +2620,57 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有对标作品结果，先提交作品链接或 note_id。</div>
+                )}
+              </article>
+            </>
+          ) : null}
+          {props.activeXhsCollectionCard === "searchNotes" ? (
+            <>
+              <article className="light-data-panel" style={{ marginBottom: 16 }}>
+                <div className="collection-result-head">
+                  <div>
+                    <h3>搜索笔记</h3>
+                    <p>调用 Tikhub 搜索笔记接口，按关键词检索小红书笔记，左侧素材库按钮可直接同步到小红书素材库。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void props.onSyncXhsSearchNotes()}
+                    disabled={props.isHydrating || props.isSyncingXhsWorkspace}
+                  >
+                    {props.isHydrating || props.isSyncingXhsWorkspace ? "提交中..." : "提交"}
+                  </button>
+                </div>
+                <label className="field">
+                  <span>搜索关键词</span>
+                  <input
+                    value={props.xhsSyncForm.searchKeyword}
+                    onChange={(event) => props.setXhsSyncForm((current) => ({ ...current, searchKeyword: event.target.value }))}
+                    placeholder="请输入笔记关键词，例如 咖啡店探店、夏日穿搭、烘焙教程"
+                  />
+                </label>
+              </article>
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>搜索笔记结果</h3>
+                    <p>调用 Tikhub 搜索笔记接口，结果结构与对标作品列表保持一致，可直接加入小红书素材库。</p>
+                  </div>
+                  <span className={`archive-pill ${props.sortedSearchNotes.length ? "status-ready" : "status-pending"}`}>
+                    已同步 {props.sortedSearchNotes.length} 条
+                  </span>
+                </div>
+                {props.sortedSearchNotes.length ? (
+                  <XhsBenchmarkNotesTable
+                    items={props.sortedSearchNotes}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddBenchmarkNoteToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    formatMetric={props.formatMetric}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有搜索笔记结果，先输入关键词并提交。</div>
                 )}
               </article>
             </>

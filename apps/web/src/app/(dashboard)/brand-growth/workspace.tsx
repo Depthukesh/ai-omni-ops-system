@@ -52,6 +52,7 @@ import {
   syncXiaohongshuBrandAccounts,
   syncXiaohongshuBrandNotes,
   syncXiaohongshuCompetitorAccounts,
+  syncXiaohongshuSearchNotes,
   type DouyinCollectedAccountRecord,
   type XhsAccountRole,
   type XhsSyncAccountEntry,
@@ -276,6 +277,7 @@ function createEmptyCollectionWorkspace(): XhsCollectionWorkspace {
     competitorAccounts: [],
     brandNotes: [],
     benchmarkNotes: [],
+    searchNotes: [],
     targetUsers: [],
   };
 }
@@ -587,6 +589,7 @@ type XhsSyncForm = {
   competitorAccountEntries: XhsAccountBindingEntry[];
   brandWorkLocators: string;
   benchmarkNoteLocators: string;
+  searchKeyword: string;
 };
 
 function createEmptyXhsSyncForm(): XhsSyncForm {
@@ -595,6 +598,7 @@ function createEmptyXhsSyncForm(): XhsSyncForm {
     competitorAccountEntries: [],
     brandWorkLocators: "",
     benchmarkNoteLocators: "",
+    searchKeyword: "",
   };
 }
 
@@ -870,6 +874,10 @@ export function BrandGrowthWorkspace() {
   const sortedBenchmarkNotes = useMemo(
     () => sortByCollectedAtDesc(collectionWorkspace.benchmarkNotes),
     [collectionWorkspace.benchmarkNotes],
+  );
+  const sortedSearchNotes = useMemo(
+    () => sortByCollectedAtDesc(collectionWorkspace.searchNotes),
+    [collectionWorkspace.searchNotes],
   );
   const sortedDouyinBrandAccounts = useMemo(
     () => sortByCollectedAtDesc(douyinCollectionWorkspace.brandAccounts),
@@ -1895,6 +1903,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       payload.sourceUrls = parseDouyinSyncLines(xhsSyncForm.benchmarkNoteLocators);
       requestLabel = "对标作品";
     }
+    if (activeXhsCollectionCard === "searchNotes") {
+      requestLabel = "搜索笔记";
+    }
 
     if (activeXhsCollectionCard === "brandAccount" && !payload.accountEntries?.length) {
       setErrorMessage("请先添加至少一个品牌账号后再提交。");
@@ -1906,6 +1917,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
     if (activeXhsCollectionCard === "brandWorks" && !payload.accountEntries?.length) {
       setErrorMessage("请先在品牌账号信息里添加至少一个品牌账号后再提交。");
+      return;
+    }
+    if (activeXhsCollectionCard === "searchNotes") {
       return;
     }
 
@@ -1926,6 +1940,33 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "采集失败";
       setErrorMessage(`${requestLabel || "小红书"}采集失败：${message}`);
+    } finally {
+      setIsSyncingXhsWorkspace(false);
+    }
+  }
+
+  async function handleSyncXhsSearchNotes() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const keyword = xhsSyncForm.searchKeyword.trim();
+    if (!keyword) {
+      setErrorMessage("请先输入搜索关键词后再提交。");
+      return;
+    }
+
+    setIsSyncingXhsWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncXiaohongshuSearchNotes(keyword, activeBrandId || archive.brand.id);
+      setCollectionWorkspace(response.workspace);
+      setNotice(`搜索笔记采集完成，关键词“${keyword}”已更新 ${response.syncedCount} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "采集失败";
+      setErrorMessage(`搜索笔记采集失败：${message}`);
     } finally {
       setIsSyncingXhsWorkspace(false);
     }
@@ -2634,6 +2675,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSaveFeishuBinding={handleSaveFeishuBinding}
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
         onSyncXhsWorkspace={handleSyncXhsWorkspace}
+        onSyncXhsSearchNotes={handleSyncXhsSearchNotes}
         onSyncAllXhsBrandAccounts={handleSyncAllXhsBrandAccounts}
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
@@ -2645,6 +2687,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
         sortedBenchmarkNotes={sortedBenchmarkNotes}
+        sortedSearchNotes={sortedSearchNotes}
         sortedDouyinBrandAccounts={sortedDouyinBrandAccounts}
         sortedDouyinCompetitorAccounts={sortedDouyinCompetitorAccounts}
         sortedDouyinBrandWorks={sortedDouyinBrandWorks}

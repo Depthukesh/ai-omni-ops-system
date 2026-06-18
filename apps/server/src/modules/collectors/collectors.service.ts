@@ -29,9 +29,9 @@ type DouyinCityHotspotKind = "DOUYIN_CITY_HOTSPOT";
 type CollectorNoteKind =
   | "XHS_BRAND_NOTE"
   | "XHS_BENCHMARK_NOTE"
-  | DouyinWorkKind;
+  | "XHS_SEARCH_NOTE";
 type CollectorTargetKind = "XHS_TARGET_USER";
-type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | CollectorTargetKind | DouyinCityHotspotKind;
+type CollectorAssetKind = CollectorAccountKind | CollectorNoteKind | DouyinWorkKind | CollectorTargetKind | DouyinCityHotspotKind;
 type CollectorSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DailyHotspotSyncStatus = "IDLE" | "RUNNING" | "SUCCESS" | "FAILED";
 type DouyinBillboardScopeKey =
@@ -225,6 +225,7 @@ export type XhsCollectionWorkspace = {
   competitorAccounts: XhsCollectedAccountRecord[];
   brandNotes: XhsCollectedNoteRecord[];
   benchmarkNotes: XhsCollectedNoteRecord[];
+  searchNotes: XhsCollectedNoteRecord[];
   targetUsers: XhsCollectedTargetUserRecord[];
 };
 
@@ -599,6 +600,16 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async syncSearchNotes(brandId: string, keyword: string) {
+    this.ensureBrandExistsInMockOrDatabase(brandId);
+    const rows = await this.collectAndStoreSearchNotes(brandId, keyword);
+    return {
+      syncedCount: rows.filter((item) => item.syncStatus === "SUCCESS").length,
+      items: rows,
+      workspace: await this.getXiaohongshuWorkspace(brandId),
+    };
+  }
+
   async syncTargetUsers(brandId: string, sourceUrls: string[]) {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const rows = await Promise.all(sourceUrls.filter(Boolean).map((url) => this.collectAndStoreTargetUser(brandId, url)));
@@ -613,8 +624,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     this.ensureBrandExistsInMockOrDatabase(brandId);
     const asset = await this.getCollectorAssetById(brandId, assetId);
     const meta = this.asMeta(asset.metadataJson);
-    if (this.readMetaString(meta, "kind") !== "XHS_BENCHMARK_NOTE") {
-      throw new BadRequestException("仅支持将对标作品加入素材库");
+    const kind = this.readMetaString(meta, "kind");
+    if (kind !== "XHS_BENCHMARK_NOTE" && kind !== "XHS_SEARCH_NOTE") {
+      throw new BadRequestException("仅支持将小红书作品加入素材库");
     }
 
     const materialAddedAt = this.readMetaString(meta, "materialAddedAt") || new Date().toISOString();
@@ -994,11 +1006,14 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const benchmarkNotes = assets
       .filter((item) => item.metadataJson?.kind === "XHS_BENCHMARK_NOTE")
       .map((item) => this.mapCollectedNote(item));
+    const searchNotes = assets
+      .filter((item) => item.metadataJson?.kind === "XHS_SEARCH_NOTE")
+      .map((item) => this.mapCollectedNote(item));
     const targetUsers = assets
       .filter((item) => item.metadataJson?.kind === "XHS_TARGET_USER")
       .map((item) => this.mapCollectedTargetUser(item));
 
-    return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, targetUsers };
+    return { brandAccounts, competitorAccounts, brandNotes, benchmarkNotes, searchNotes, targetUsers };
   }
 
   private buildDouyinWorkspaceFromAssets(
@@ -3252,7 +3267,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const raw = await this.fetchTikHubPost(
       config.path,
       {
-        page: 1,
+        page: "1",
         page_size: 10,
         date_window: 24,
         tags: this.buildDouyinBillboardTags(config.selection),
@@ -3553,6 +3568,94 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.mapCollectedNote(asset);
   }
 
+  private async collectAndStoreSearchNotes(brandId: string, keyword: string): Promise<XhsCollectedNoteRecord[]> {
+    const normalizedKeyword = String(keyword || "").trim();
+    if (!normalizedKeyword) {
+      throw new BadRequestException("搜索关键词不能为空");
+    }
+
+    const raw = await this.fetchTikHub(
+      "/api/v1/xiaohongshu/app_v2/search_notes",
+      {
+        keyword: normalizedKeyword,
+        page: "1",
+        sort_type: "general",
+        note_type: "不限",
+        time_filter: "不限",
+        source: "explore_feed",
+        ai_mode: "0",
+      },
+      brandId,
+    );
+
+    const collectedAt = new Date().toISOString();
+    const noteItems = this.extractNoteItems(raw);
+    const rows: XhsCollectedNoteRecord[] = [];
+
+    for (const item of noteItems) {
+      const noteId = this.pickString(item, ["note_id", "noteId", "id"]);
+      if (!noteId) {
+        continue;
+      }
+
+      const noteUrl =
+        this.pickString(item, ["note_url", "noteUrl", "share_url", "shareUrl"])
+        || this.extractShareUrl(item)
+        || `https://www.xiaohongshu.com/explore/${noteId}`;
+      const title = this.pickString(item, ["title", "name"]) || `小红书搜索笔记 ${noteId}`;
+      const description = this.pickString(item, ["desc", "description", "content", "text"]) || "";
+      const likeCount = this.pickNumber(item, ["likes", "liked_count", "like_count", "likedCount", "digg_count"]);
+      const collectCount = this.pickNumber(item, ["collected_count", "collect_count", "collectedCount", "collect_num"]);
+      const shareCount = this.pickNumber(item, ["share_count", "shareCount", "shared_count", "share_num"]);
+      const commentCount = this.pickNumber(item, ["comments_count", "comment_count", "commentCount", "comment_num"]);
+      const noteType = this.pickString(item, ["type", "note_type"]);
+      const nickname = this.pickString(item, ["nickname", "user_name", "author_name"]);
+      const imageList = this.extractXhsImageList(item);
+      const externalUserId = this.pickString(item, ["userid", "user_id", "userId", "author_id"]);
+      const createdAtText = this.pickString(item, ["create_time", "time", "publish_time"]);
+      const videoUrl = this.extractXhsVideoUrl(item);
+
+      const asset = await this.upsertCollectorAsset({
+        brandId,
+        kind: "XHS_SEARCH_NOTE",
+        matchValue: noteId,
+        title,
+        description,
+        fileUrl: noteUrl,
+        metadata: {
+          kind: "XHS_SEARCH_NOTE",
+          sourceKeyword: normalizedKeyword,
+          sourceAccountId: externalUserId || "",
+          noteId,
+          noteUrl,
+          noteType,
+          nickname,
+          imageList,
+          externalUserId,
+          likeCount,
+          collectCount,
+          createdAtText,
+          shareCount,
+          commentCount,
+          likeCollectRatio: this.computeRatio(likeCount, collectCount),
+          likeCommentRatio: this.computeRatio(likeCount, commentCount),
+          shareRatio: this.computeRatio(shareCount, likeCount),
+          videoUrl,
+          collectedAt,
+          syncStatus: "SUCCESS",
+          retryCount: 0,
+          nextRetryAt: "",
+          lastError: "",
+          rawFields: this.asMeta(item),
+        },
+      });
+
+      rows.push(this.mapCollectedNote(asset));
+    }
+
+    return rows;
+  }
+
   private async collectAndStoreTargetUser(brandId: string, sourceUrl: string): Promise<XhsCollectedTargetUserRecord> {
     const collectedAt = new Date().toISOString();
     const nextRetryAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
@@ -3684,7 +3787,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         ) {
           return true;
         }
-        if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE") {
+        if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE" || kind === "XHS_SEARCH_NOTE") {
           return meta.kind === kind && this.readMetaString(meta, "noteId") === matchValue;
         }
         if (this.isDouyinWorkKind(kind)) {
@@ -3766,7 +3869,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       ) {
         return true;
       }
-      if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE") {
+      if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE" || kind === "XHS_SEARCH_NOTE") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "noteId") === matchValue;
       }
         if (this.isDouyinWorkKind(kind)) {
@@ -3912,7 +4015,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private collectLegacyBenchmarkAvatarAssetIds(assets: AssetRecord[]) {
-    const benchmarkAssets = assets.filter((asset) => this.readMetaString(this.asMeta(asset.metadataJson), "kind") === "XHS_BENCHMARK_NOTE");
+    const benchmarkAssets = assets.filter((asset) => {
+      const kind = this.readMetaString(this.asMeta(asset.metadataJson), "kind");
+      return kind === "XHS_BENCHMARK_NOTE" || kind === "XHS_SEARCH_NOTE";
+    });
     const validTitles = new Set(
       benchmarkAssets
         .filter((asset) => this.isRealXiaohongshuNoteUrl(this.readBenchmarkAssetUrl(asset)))
@@ -3956,7 +4062,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (kind === "XHS_BENCHMARK_NOTE") {
+    if (kind === "XHS_BENCHMARK_NOTE" || kind === "XHS_SEARCH_NOTE") {
       const noteId = this.readMetaString(meta, "noteId");
       if (noteId) {
         return `${kind}:note:${noteId}`;
