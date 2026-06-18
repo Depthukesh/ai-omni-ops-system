@@ -126,6 +126,12 @@ import {
   mergeSkillAssetBindings,
 } from "./skill-asset-bindings";
 import {
+  countSkillCenterLeaves,
+  filterSkillCenterTree,
+  resolveActiveSkillSelection,
+  type SkillCenterPrimaryConfig,
+} from "./skill-center-state";
+import {
   buildInstallSkillDraft,
   buildInstallSkillNotice,
   buildInstallSkillRequestPayload,
@@ -507,24 +513,6 @@ type SyncRunEditDraft = {
   summary: string;
   errorDetail: string;
 };
-type SkillCenterLeafConfig = {
-  id: string;
-  label: string;
-  description: string;
-  skillSlug?: string;
-  promptScene?: string;
-};
-type SkillCenterSectionConfig = {
-  id: string;
-  label: string;
-  items: SkillCenterLeafConfig[];
-};
-type SkillCenterPrimaryConfig = {
-  id: string;
-  label: string;
-  sections: SkillCenterSectionConfig[];
-};
-
 const tabs: Array<{ key: AdminTab; label: string; description: string; shortLabel: string }> = [
   { key: "dashboard", label: "仪表盘", shortLabel: "总览", description: "统一查看后台运营状态、模块规模和当前数据来源。" },
   { key: "orders", label: "订单管理", shortLabel: "订单", description: "查看会员购买和点数充值订单，支持后台支付与取消。" },
@@ -2963,42 +2951,17 @@ export default function AdminPage() {
   );
   const filteredSkillTree = useMemo(
     () =>
-      SKILL_CENTER_TREE.map((primary) => ({
-        ...primary,
-        sections: primary.sections
-          .map((section) => ({
-            ...section,
-            items: section.items.filter((leaf) => {
-              const bindings = skillAssetBindings.filter(
-                (item) =>
-                  (leaf.skillSlug && item.skillSlug === leaf.skillSlug) ||
-                  (leaf.promptScene && item.promptScene === leaf.promptScene),
-              );
-              const keyword = skillKeywordFilter.trim().toLowerCase();
-              const keywordMatched = !keyword
-                || [
-                  leaf.label,
-                  leaf.description,
-                  leaf.skillSlug,
-                  leaf.promptScene,
-                  ...bindings.flatMap((item) => [...item.moduleKeys, ...item.packageKeys, ...item.packageNames]),
-                ]
-                  .join(" ")
-                  .toLowerCase()
-                  .includes(keyword);
-              const moduleMatched =
-                skillModuleFilter === "ALL" || bindings.some((item) => item.moduleKeys.includes(skillModuleFilter));
-              const packageMatched =
-                skillPackageFilter === "ALL" || bindings.some((item) => item.packageKeys.includes(skillPackageFilter));
-              return keywordMatched && moduleMatched && packageMatched;
-            }),
-          }))
-          .filter((section) => section.items.length > 0),
-      })).filter((primary) => primary.sections.length > 0),
-    [skillAssetBindings, skillKeywordFilter, skillModuleFilter, skillPackageFilter, skillPackageModules],
+      filterSkillCenterTree({
+        tree: SKILL_CENTER_TREE,
+        skillAssetBindings,
+        keyword: skillKeywordFilter,
+        moduleFilter: skillModuleFilter,
+        packageFilter: skillPackageFilter,
+      }),
+    [skillAssetBindings, skillKeywordFilter, skillModuleFilter, skillPackageFilter],
   );
   const filteredSkillLeafCount = useMemo(
-    () => filteredSkillTree.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0),
+    () => countSkillCenterLeaves(filteredSkillTree),
     [filteredSkillTree],
   );
   const operationPulse = [
@@ -3007,9 +2970,16 @@ export default function AdminPage() {
     { label: "接口健康", value: providers.length ? Math.round(providers.filter((item) => item.status === "ACTIVE").length / providers.length * 100) : 0 },
   ];
   const latestKnowledgeRun = knowledgeBaseSyncRuns[0];
-  const activeSkillPrimary = filteredSkillTree.find((item) => item.id === activeSkillPrimaryId) || filteredSkillTree[0];
-  const activeSkillSection = activeSkillPrimary?.sections.find((item) => item.id === activeSkillSectionId) || activeSkillPrimary?.sections[0];
-  const activeSkillLeaf = activeSkillSection?.items.find((item) => item.id === activeSkillLeafId) || activeSkillSection?.items[0];
+  const { activeSkillPrimary, activeSkillSection, activeSkillLeaf } = useMemo(
+    () =>
+      resolveActiveSkillSelection({
+        filteredSkillTree,
+        activeSkillPrimaryId,
+        activeSkillSectionId,
+        activeSkillLeafId,
+      }),
+    [filteredSkillTree, activeSkillPrimaryId, activeSkillSectionId, activeSkillLeafId],
+  );
   const activeSkillBindings = skillAssetBindings.filter(
     (item) =>
       (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
@@ -4449,7 +4419,7 @@ export default function AdminPage() {
                   <div className="admin-skill-card-topline">
                     <span className="admin-skill-card-kicker">技能专区</span>
                     <span className="archive-pill status-ready">
-                      {filteredSkillLeafCount} / {SKILL_CENTER_TREE.reduce((total, primary) => total + primary.sections.reduce((sum, section) => sum + section.items.length, 0), 0)} 项
+                      {filteredSkillLeafCount} / {countSkillCenterLeaves(SKILL_CENTER_TREE)} 项
                     </span>
                   </div>
                   <div className="personal-actions" style={{ marginBottom: 16 }}>
