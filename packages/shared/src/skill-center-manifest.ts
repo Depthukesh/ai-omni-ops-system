@@ -1,0 +1,745 @@
+export type SkillCenterLeafConfig = {
+  id: string;
+  label: string;
+  description: string;
+  skillSlug?: string;
+  promptScene?: string;
+};
+
+export type SkillCenterSectionConfig = {
+  id: string;
+  label: string;
+  items: SkillCenterLeafConfig[];
+};
+
+export type SkillCenterPrimaryConfig = {
+  id: string;
+  label: string;
+  sections: SkillCenterSectionConfig[];
+};
+
+export const SKILL_CENTER_TREE: SkillCenterPrimaryConfig[] = [
+  {
+    id: "brand-growth",
+    label: "品牌增长策略",
+    sections: [
+      {
+        id: "growth-report",
+        label: "品牌增长报告",
+        items: [
+          {
+            id: "growth-report-main",
+            label: "品牌增长报告-生成品牌增长报告",
+            description: "用于生成品牌全域增长分析报告。",
+            skillSlug: "brand-omni-growth-analysis",
+            promptScene: "品牌增长报告生成",
+          },
+          {
+            id: "growth-report-visual",
+            label: "品牌增长可视化报告-生成可视化报告",
+            description: "用于把品牌增长报告转成前端可展示的可视化报告。",
+            skillSlug: "article-visual-report-designer",
+            promptScene: "HTML 可视化报告生成",
+          },
+        ],
+      },
+      {
+        id: "annual-plan",
+        label: "半年营销规划",
+        items: [
+          {
+            id: "annual-plan-main",
+            label: "半年营销规划-生成半年营销规划",
+            description: "用于输出未来半年节奏、节点和多平台联动规划。",
+            skillSlug: "enterprise-annual-plan",
+            promptScene: "半年营销规划生成",
+          },
+        ],
+      },
+      {
+        id: "marketing-calendar",
+        label: "营销日历",
+        items: [
+          {
+            id: "xhs-calendar-main",
+            label: "营销日历-生成7天营销日历",
+            description: "对应前台营销日历工作区，基于营销策划方案、半年规划、热点与历史记录生成未来 7 天日历。",
+            skillSlug: "xiaohongshu-marketing-calendar",
+            promptScene: "小红书营销日历生成",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "xiaohongshu",
+    label: "小红书",
+    sections: [
+      {
+        id: "xhs-planning",
+        label: "营销规划",
+        items: [
+          {
+            id: "xhs-plan-main",
+            label: "小红书营销规划-生成营销规划",
+            description: "用于输出小红书年度种草策略、内容支柱与排期建议。",
+            skillSlug: "xiaohongshu-brand-marketing-plan",
+            promptScene: "小红书营销规划",
+          },
+        ],
+      },
+      {
+        id: "xhs-content",
+        label: "内容生产",
+        items: [
+          {
+            id: "xhs-original-copy",
+            label: "原创笔记-原创文案",
+            description: "对应前台原创笔记工作台，生成可直接发布的标题、正文与标签。",
+            skillSlug: "original_copy",
+            promptScene: "小红书原创笔记文案",
+          },
+          {
+            id: "xhs-original-image",
+            label: "原创笔记-原创配图",
+            description: "对应前台原创笔记工作台，生成封面提示词与多张配图提示词。",
+            skillSlug: "xhs-original-image-prompt",
+            promptScene: "小红书原创笔记配图",
+          },
+          {
+            id: "xhs-original-image-generation",
+            label: "原创笔记-图片生成",
+            description: "对应前台原创笔记工作台，控制最终出图模型、参考图跟随策略与中文排版安全区。",
+            skillSlug: "xhs-original-image-generation",
+            promptScene: "小红书原创图片生成",
+          },
+          {
+            id: "xhs-rewrite-copy",
+            label: "二创笔记-二创文案",
+            description: "对应前台二创笔记工作台，生成二创标题、正文与标签。",
+            skillSlug: "rewrite_copy",
+            promptScene: "小红书二创笔记文案",
+          },
+          {
+            id: "xhs-rewrite-note",
+            label: "二创笔记-二创配图",
+            description: "对应前台二创笔记工作台，生成参考图拆解后的二创配图提示词。",
+            skillSlug: "rewrite_image",
+            promptScene: "小红书二创笔记配图",
+          },
+          {
+            id: "xhs-rewrite-image-generation",
+            label: "二创笔记-图片生成",
+            description: "对应前台二创笔记工作台，控制最终出图模型、对标图跟随策略与中文排版安全区。",
+            skillSlug: "rewrite_image_generation",
+            promptScene: "小红书二创图片生成",
+          },
+        ],
+      },
+      {
+        id: "xhs-video-script",
+        label: "视频笔记-剧本策划",
+        items: [
+          {
+            id: "xhs-video-brand-script",
+            label: "视频笔记-品牌宣传剧本",
+            description: "对应前台品牌宣传视频，第 1 阶段生成创意剧本。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "视频笔记-品牌宣传剧本",
+          },
+          {
+            id: "xhs-video-spoken-script",
+            label: "视频笔记-口播带货剧本",
+            description: "对应前台口播带货视频，第 1 阶段生成创意剧本。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "视频笔记-口播带货剧本",
+          },
+          {
+            id: "xhs-video-skit-script",
+            label: "视频笔记-短剧带货剧本",
+            description: "对应前台短剧带货视频，第 1 阶段生成创意剧本。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "视频笔记-短剧带货剧本",
+          },
+          {
+            id: "xhs-video-remix-script",
+            label: "视频笔记-复刻视频拆解",
+            description: "对应前台复刻视频，第 1 阶段根据素材视频拆解剧情脚本。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "视频笔记-复刻视频拆解",
+          },
+        ],
+      },
+      {
+        id: "xhs-video-production",
+        label: "视频笔记-视频生成",
+        items: [
+          {
+            id: "xhs-video-storyboard",
+            label: "视频笔记-故事板提示词",
+            description: "对应前台第 2 阶段，根据剧本生成故事板提示词并驱动故事板图片生成。",
+            skillSlug: "short-video-api-studio",
+            promptScene: "视频笔记-故事板提示词",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "douyin",
+    label: "抖音",
+    sections: [
+      {
+        id: "douyin-planning",
+        label: "营销规划",
+        items: [
+          {
+            id: "douyin-plan-main",
+            label: "抖音营销策划方案-生成营销策划方案",
+            description: "对应前台抖音营销策划方案工作台，基于品牌报告、半年规划和抖音采集数据生成完整策划方案。",
+            skillSlug: "tongcheng-brand-douyin-planning",
+            promptScene: "抖音营销策划方案",
+          },
+          {
+            id: "douyin-hot-topic-candidates-main",
+            label: "热点找选题-生成热点选题",
+            description: "对应前台抖音热点找选题板块，基于所选日期的每日热点榜单与品牌背景资料生成 3 个可勾选选题。",
+            skillSlug: "douyin-hot-topic-candidates",
+            promptScene: "抖音热点找选题",
+          },
+        ],
+      },
+      {
+        id: "douyin-content",
+        label: "内容生产",
+        items: [
+          {
+            id: "douyin-original-copy-viewpoint",
+            label: "原创文案-聊观点",
+            description: "对应前台抖音原创文案板块，生成观点表达型短视频文案。",
+            skillSlug: "douyin-original-copy-viewpoint",
+            promptScene: "抖音原创文案-聊观点",
+          },
+          {
+            id: "douyin-original-copy-story",
+            label: "原创文案-讲故事",
+            description: "对应前台抖音原创文案板块，生成故事叙事型短视频文案。",
+            skillSlug: "douyin-original-copy-story",
+            promptScene: "抖音原创文案-讲故事",
+          },
+          {
+            id: "douyin-original-copy-process",
+            label: "原创文案-晒过程",
+            description: "对应前台抖音原创文案板块，生成过程展示型短视频文案。",
+            skillSlug: "douyin-original-copy-process",
+            promptScene: "抖音原创文案-晒过程",
+          },
+          {
+            id: "douyin-original-copy-knowledge",
+            label: "原创文案-教知识",
+            description: "对应前台抖音原创文案板块，生成知识讲解型短视频文案。",
+            skillSlug: "douyin-original-copy-knowledge",
+            promptScene: "抖音原创文案-教知识",
+          },
+          {
+            id: "douyin-original-copy-plot-sales",
+            label: "原创文案-剧情带货",
+            description: "对应前台抖音原创文案板块，生成剧情带货型短视频文案。",
+            skillSlug: "douyin-original-copy-plot-sales",
+            promptScene: "抖音原创文案-剧情带货",
+          },
+          {
+            id: "douyin-original-copy-seeding",
+            label: "原创文案-种草类",
+            description: "对应前台抖音原创文案板块，生成种草推荐型短视频文案。",
+            skillSlug: "douyin-original-copy-seeding",
+            promptScene: "抖音原创文案-种草类",
+          },
+          {
+            id: "douyin-original-copy-local-sales",
+            label: "原创文案-同城带货",
+            description: "对应前台抖音原创文案板块，生成同城带货型短视频文案。",
+            skillSlug: "douyin-original-copy-local-sales",
+            promptScene: "抖音原创文案-同城带货",
+          },
+          {
+            id: "douyin-remix-copy-intro",
+            label: "二创文案-拆解开头",
+            description: "对应前台抖音二创文案板块，第 1 阶段拆解素材视频文案的开头结构。",
+            skillSlug: "douyin-remix-copy-intro",
+            promptScene: "抖音二创文案-拆解开头",
+          },
+          {
+            id: "douyin-remix-copy-body",
+            label: "二创文案-拆解正文",
+            description: "对应前台抖音二创文案板块，第 2 阶段拆解素材视频文案的正文结构。",
+            skillSlug: "douyin-remix-copy-body",
+            promptScene: "抖音二创文案-拆解正文",
+          },
+          {
+            id: "douyin-remix-copy-outro",
+            label: "二创文案-拆解结尾",
+            description: "对应前台抖音二创文案板块，第 3 阶段拆解素材视频文案的结尾与转化动作。",
+            skillSlug: "douyin-remix-copy-outro",
+            promptScene: "抖音二创文案-拆解结尾",
+          },
+          {
+            id: "douyin-remix-copy-final",
+            label: "二创文案-生成二创文案",
+            description: "对应前台抖音二创文案板块，整合拆解结果与品牌资料生成最终二创文案。",
+            skillSlug: "douyin-remix-copy-final",
+            promptScene: "抖音二创文案-生成二创文案",
+          },
+        ],
+      },
+      {
+        id: "douyin-video-script",
+        label: "AI生视频（故事板）-剧本策划",
+        items: [
+          {
+            id: "douyin-video-brand-script",
+            label: "AI生视频-品牌宣传剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成品牌宣传视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-品牌宣传剧本",
+          },
+          {
+            id: "douyin-video-spoken-script",
+            label: "AI生视频-口播带货剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成口播视频/口播带货视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-口播带货剧本",
+          },
+          {
+            id: "douyin-video-skit-script",
+            label: "AI生视频-短剧带货剧本",
+            description: "对应前台抖音 AI生视频（故事板）板块，生成短剧带货视频的创意剧本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-短剧带货剧本",
+          },
+          {
+            id: "douyin-video-remix-script",
+            label: "AI生视频-复刻视频拆解",
+            description: "对应前台抖音 AI生视频（故事板）板块，根据素材视频拆解复刻脚本。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-复刻视频拆解",
+          },
+        ],
+      },
+      {
+        id: "douyin-video-production",
+        label: "AI生视频（故事板）-视频生成",
+        items: [
+          {
+            id: "douyin-video-storyboard",
+            label: "AI生视频-故事板提示词",
+            description: "对应前台抖音 AI生视频（故事板）板块，第 2 阶段根据剧本生成故事板提示词并驱动故事板图片生成。",
+            skillSlug: "douyin-video-storyboard-studio",
+            promptScene: "抖音AI生视频（故事板）-故事板提示词",
+          },
+        ],
+      },
+      {
+        id: "douyin-direct-video",
+        label: "AI生视频",
+        items: [
+          {
+            id: "douyin-direct-video-prompt",
+            label: "AI生视频-Seedance提示词",
+            description: "对应前台抖音 AI生视频 板块，根据选题、产品、素材和用户要求生成可直接用于 Seedance 2.0 的视频提示词。",
+            skillSlug: "douyin-direct-video-studio",
+            promptScene: "抖音AI生视频-Seedance提示词",
+          },
+        ],
+      },
+      {
+        id: "douyin-digital-human",
+        label: "数字人",
+        items: [
+          {
+            id: "douyin-digital-human-script",
+            label: "数字人-口播脚本",
+            description: "对应前台抖音数字人板块，用于生成适合数字人口播视频的短视频脚本。",
+            skillSlug: "douyin-digital-human-script-studio",
+            promptScene: "抖音数字人-口播脚本",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "wechat-oa",
+    label: "公众号",
+    sections: [
+      {
+        id: "wechat-compose",
+        label: "创作工作流",
+        items: [
+          {
+            id: "wechat-article-compose",
+            label: "公众号-创作文章",
+            description: "对应公众号工作流的文章阶段，用于生成标题、摘要、正文结构与可供后续渲染的文章稿。",
+            skillSlug: "wechat-article-composer",
+            promptScene: "公众号创作文章",
+          },
+          {
+            id: "wechat-cover-image-compose",
+            label: "公众号-封面图生成",
+            description: "对应公众号工作流的生图阶段，用于生成公众号封面图、头图与发布封面主视觉。",
+            skillSlug: "wechat-cover-image-designer",
+            promptScene: "公众号封面图生成",
+          },
+          {
+            id: "wechat-body-image-compose",
+            label: "公众号-正文配图生成",
+            description: "对应公众号工作流的生图阶段，用于生成正文插图、场景图和产品辅助图。",
+            skillSlug: "wechat-body-image-designer",
+            promptScene: "公众号正文配图生成",
+          },
+          {
+            id: "wechat-html-render",
+            label: "公众号-HTML渲染",
+            description: "对应公众号工作流的排版阶段，用于把文章内容、封面图和正文配图渲染成最终可发布的公众号 HTML。",
+            skillSlug: "wechat-html-renderer",
+            promptScene: "公众号HTML渲染",
+          },
+          {
+            id: "wechat-api-publish",
+            label: "公众号-API发布",
+            description: "对应公众号工作流的 API 发布确认阶段，用于校验发布参数、评论策略和草稿箱发布动作。",
+            skillSlug: "wechat-api-publisher",
+            promptScene: "公众号API发布",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "design-workspace",
+    label: "设计",
+    sections: [
+      {
+        id: "design-image",
+        label: "图片设计",
+        items: [
+          {
+            id: "design-social-carousel",
+            label: "图片设计-社媒轮播图",
+            description: "对应 Open Design 的 social-carousel 能力，用于生成社媒轮播图、方版卡片和品牌传播视觉。",
+            skillSlug: "design-social-carousel",
+            promptScene: "设计工作台-社媒轮播图设计",
+          },
+          {
+            id: "design-magazine-poster",
+            label: "图片设计-杂志风海报",
+            description: "对应 Open Design 的 magazine-poster / editorial 能力，用于生成杂志风海报、封面图和主视觉。",
+            skillSlug: "design-magazine-poster",
+            promptScene: "设计工作台-杂志风海报设计",
+          },
+          {
+            id: "design-motion-frames",
+            label: "图片设计-动效首帧",
+            description: "对应 Open Design 的 motion-frames 能力，用于生成动效海报首帧、动态标题视觉和动画关键帧。",
+            skillSlug: "design-motion-frames",
+            promptScene: "设计工作台-动效首帧设计",
+          },
+          {
+            id: "design-sprite-animation",
+            label: "图片设计-像素动画首帧",
+            description: "对应 Open Design 的 sprite-animation 能力，用于生成像素风、8-bit 和循环动画首帧视觉。",
+            skillSlug: "design-sprite-animation",
+            promptScene: "设计工作台-像素动画首帧设计",
+          },
+        ],
+      },
+      {
+        id: "design-html",
+        label: "HTML 设计",
+        items: [
+          {
+            id: "design-web-prototype",
+            label: "HTML设计-单页原型",
+            description: "对应 Open Design 的 web-prototype 能力，用于生成 landing、活动页和品牌展示页。",
+            skillSlug: "design-web-prototype",
+            promptScene: "设计工作台-HTML 原型设计",
+          },
+          {
+            id: "design-dashboard",
+            label: "HTML设计-数据看板",
+            description: "对应 Open Design 的 dashboard 能力，用于生成后台看板、经营分析页和运营监控页。",
+            skillSlug: "design-dashboard",
+            promptScene: "设计工作台-数据看板设计",
+          },
+          {
+            id: "design-saas-landing",
+            label: "HTML设计-SaaS落地页",
+            description: "对应 Open Design 的 saas-landing 能力，用于生成营销卖点、功能区、价格区和 CTA 完整落地页。",
+            skillSlug: "design-saas-landing",
+            promptScene: "设计工作台-SaaS 落地页设计",
+          },
+          {
+            id: "design-email-marketing",
+            label: "HTML设计-邮件营销页",
+            description: "对应 Open Design 的 email-marketing 能力，用于生成新品发布、促销预热和活动通知邮件页面。",
+            skillSlug: "design-email-marketing",
+            promptScene: "设计工作台-邮件营销页设计",
+          },
+          {
+            id: "design-docs-page",
+            label: "HTML设计-文档展示页",
+            description: "对应 Open Design 的 docs-page 能力，用于生成知识页、说明页和帮助中心页面。",
+            skillSlug: "design-docs-page",
+            promptScene: "设计工作台-文档展示页设计",
+          },
+          {
+            id: "design-blog-post",
+            label: "HTML设计-博客长页",
+            description: "对应 Open Design 的 blog-post 能力，用于生成专题页、长图文博客页和内容发布页。",
+            skillSlug: "design-blog-post",
+            promptScene: "设计工作台-博客长页设计",
+          },
+          {
+            id: "design-mobile-onboarding",
+            label: "HTML设计-移动端引导",
+            description: "对应 Open Design 的 mobile onboarding / mobile app 能力，用于生成多屏移动端原型。",
+            skillSlug: "design-mobile-onboarding",
+            promptScene: "设计工作台-移动端引导设计",
+          },
+          {
+            id: "design-gamified-app",
+            label: "HTML设计-游戏化活动页",
+            description: "对应 Open Design 的 gamified-app 能力，用于生成任务闯关、积分激励和签到打卡类页面。",
+            skillSlug: "design-gamified-app",
+            promptScene: "设计工作台-游戏化活动页设计",
+          },
+        ],
+      },
+      {
+        id: "design-deck",
+        label: "PPT 设计",
+        items: [
+          {
+            id: "design-pitch-deck",
+            label: "PPT设计-Pitch Deck",
+            description: "对应 Open Design 的 guizang-ppt / deck 能力，用于生成品牌提案、融资 deck 和汇报结构。",
+            skillSlug: "design-pitch-deck",
+            promptScene: "设计工作台-Pitch Deck 设计",
+          },
+          {
+            id: "design-weekly-update",
+            label: "PPT设计-周报更新",
+            description: "对应 Open Design 的 weekly-update 能力，用于生成阶段周报、里程碑同步和项目更新 deck。",
+            skillSlug: "design-weekly-update",
+            promptScene: "设计工作台-周报更新 Deck",
+          },
+          {
+            id: "design-simple-deck",
+            label: "PPT设计-极简Deck",
+            description: "对应 Open Design 的 simple-deck 能力，用于生成极简汇报、单主题提案和产品概览演示稿。",
+            skillSlug: "design-simple-deck",
+            promptScene: "设计工作台-极简 Deck",
+          },
+        ],
+      },
+      {
+        id: "design-video",
+        label: "视频设计",
+        items: [
+          {
+            id: "design-video-storyboard",
+            label: "视频设计-视频故事板",
+            description: "对应 Open Design 的 motion / storyboard 能力，用于生成镜头脚本、画面分镜和字幕口播建议。",
+            skillSlug: "design-video-storyboard",
+            promptScene: "设计工作台-视频故事板设计",
+          },
+          {
+            id: "design-motion-storyboard",
+            label: "视频设计-动效脚本",
+            description: "对应 Open Design 的 motion-frames 延展能力，用于生成转场脚本、动效节奏和动画镜头说明。",
+            skillSlug: "design-motion-storyboard",
+            promptScene: "设计工作台-动效脚本设计",
+          },
+        ],
+      },
+      {
+        id: "design-open-design-creative",
+        label: "Open Design 创意扩展",
+        items: [
+          {
+            id: "od-critique",
+            label: "Open Design-设计评审",
+            description: "来自 Open Design 的 critique skill，用于对现有页面、视觉稿和原型做结构化评审与改进建议。",
+            skillSlug: "critique",
+            promptScene: "Open Design-设计评审",
+          },
+          {
+            id: "od-tweaks",
+            label: "Open Design-定向微调",
+            description: "来自 Open Design 的 tweaks skill，用于在既有方案上进行小范围、高针对性的版式与文案微调。",
+            skillSlug: "tweaks",
+            promptScene: "Open Design-定向微调",
+          },
+          {
+            id: "od-wireframe-sketch",
+            label: "Open Design-线框草图",
+            description: "来自 Open Design 的 wireframe-sketch skill，用于在视觉深化前快速输出信息结构与低保真布局。",
+            skillSlug: "wireframe-sketch",
+            promptScene: "Open Design-线框草图",
+          },
+          {
+            id: "od-design-brief",
+            label: "Open Design-设计简报",
+            description: "来自 Open Design 的 design-brief skill，用于生成设计目标、受众、约束与交付物定义。",
+            skillSlug: "design-brief",
+            promptScene: "Open Design-设计简报",
+          },
+          {
+            id: "od-dating-web",
+            label: "Open Design-约会产品网页",
+            description: "来自 Open Design 的 dating-web skill，用于生成偏 editorial 的消费级关系产品官网或仪表盘页面。",
+            skillSlug: "dating-web",
+            promptScene: "Open Design-约会产品网页",
+          },
+          {
+            id: "od-digital-eguide",
+            label: "Open Design-数字指南",
+            description: "来自 Open Design 的 digital-eguide skill，用于生成带封面和内页结构的电子指南型页面。",
+            skillSlug: "digital-eguide",
+            promptScene: "Open Design-数字指南",
+          },
+          {
+            id: "od-hatch-pet",
+            label: "Open Design-宠物孵化互动页",
+            description: "来自 Open Design 的 hatch-pet skill，用于生成偏游戏化、IP 化的互动活动页与角色孵化体验。",
+            skillSlug: "hatch-pet",
+            promptScene: "Open Design-宠物孵化互动页",
+          },
+          {
+            id: "od-audio-jingle",
+            label: "Open Design-音频 Jingle",
+            description: "来自 Open Design 的 audio-jingle skill，用于生成品牌短旋律、片头音效和声音识别 brief。",
+            skillSlug: "audio-jingle",
+            promptScene: "Open Design-音频 Jingle",
+          },
+        ],
+      },
+      {
+        id: "design-open-design-business",
+        label: "Open Design 业务文档",
+        items: [
+          {
+            id: "od-pm-spec",
+            label: "Open Design-PM 规格说明",
+            description: "来自 Open Design 的 pm-spec skill，用于生成 PRD、功能结构、交互约束和验收要点。",
+            skillSlug: "pm-spec",
+            promptScene: "Open Design-PM 规格说明",
+          },
+          {
+            id: "od-eng-runbook",
+            label: "Open Design-工程 Runbook",
+            description: "来自 Open Design 的 eng-runbook skill，用于生成上线步骤、值守流程和异常处理 Runbook。",
+            skillSlug: "eng-runbook",
+            promptScene: "Open Design-工程 Runbook",
+          },
+          {
+            id: "od-finance-report",
+            label: "Open Design-财务报告",
+            description: "来自 Open Design 的 finance-report skill，用于生成财务简报、预算复盘和经营摘要页面。",
+            skillSlug: "finance-report",
+            promptScene: "Open Design-财务报告",
+          },
+          {
+            id: "od-hr-onboarding",
+            label: "Open Design-HR 入职引导",
+            description: "来自 Open Design 的 hr-onboarding skill，用于生成员工入职说明、培训引导与流程页面。",
+            skillSlug: "hr-onboarding",
+            promptScene: "Open Design-HR 入职引导",
+          },
+          {
+            id: "od-invoice",
+            label: "Open Design-发票模板",
+            description: "来自 Open Design 的 invoice skill，用于生成账单、发票和结算类单页模板。",
+            skillSlug: "invoice",
+            promptScene: "Open Design-发票模板",
+          },
+          {
+            id: "od-kanban-board",
+            label: "Open Design-看板面板",
+            description: "来自 Open Design 的 kanban-board skill，用于生成项目看板、任务泳道和团队协作面板。",
+            skillSlug: "kanban-board",
+            promptScene: "Open Design-看板面板",
+          },
+          {
+            id: "od-team-okrs",
+            label: "Open Design-团队 OKR",
+            description: "来自 Open Design 的 team-okrs skill，用于生成目标拆解、关键结果和进展管理页面。",
+            skillSlug: "team-okrs",
+            promptScene: "Open Design-团队 OKR",
+          },
+        ],
+      },
+      {
+        id: "design-open-design-decks",
+        label: "Open Design Deck 扩展",
+        items: [
+          {
+            id: "od-replit-deck",
+            label: "Open Design-Replit Deck",
+            description: "来自 Open Design 的 replit-deck skill，用于生成适合产品演示与创业项目的现代化 Deck。",
+            skillSlug: "replit-deck",
+            promptScene: "Open Design-Replit Deck",
+          },
+          {
+            id: "od-html-ppt-course-module",
+            label: "Open Design-课程模块 Deck",
+            description: "来自 Open Design 的 html-ppt-course-module skill，用于生成教学模块、章节课件和培训页面。",
+            skillSlug: "html-ppt-course-module",
+            promptScene: "Open Design-课程模块 Deck",
+          },
+          {
+            id: "od-html-ppt-dir-key-nav-minimal",
+            label: "Open Design-极简目录 Deck",
+            description: "来自 Open Design 的 html-ppt-dir-key-nav-minimal skill，用于生成键盘导航型、极简目录式演示页面。",
+            skillSlug: "html-ppt-dir-key-nav-minimal",
+            promptScene: "Open Design-极简目录 Deck",
+          },
+          {
+            id: "od-html-ppt-graphify-dark-graph",
+            label: "Open Design-深色图表 Deck",
+            description: "来自 Open Design 的 html-ppt-graphify-dark-graph skill，用于生成深色科技感图表演示页面。",
+            skillSlug: "html-ppt-graphify-dark-graph",
+            promptScene: "Open Design-深色图表 Deck",
+          },
+          {
+            id: "od-html-ppt-hermes-cyber-terminal",
+            label: "Open Design-赛博终端 Deck",
+            description: "来自 Open Design 的 html-ppt-hermes-cyber-terminal skill，用于生成终端风、赛博感叙事型演示页面。",
+            skillSlug: "html-ppt-hermes-cyber-terminal",
+            promptScene: "Open Design-赛博终端 Deck",
+          },
+          {
+            id: "od-html-ppt-knowledge-arch-blueprint",
+            label: "Open Design-知识架构蓝图 Deck",
+            description: "来自 Open Design 的 html-ppt-knowledge-arch-blueprint skill，用于生成知识架构、系统蓝图和关系图演示页面。",
+            skillSlug: "html-ppt-knowledge-arch-blueprint",
+            promptScene: "Open Design-知识架构蓝图 Deck",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+export function flattenSkillCenterLeaves(tree: SkillCenterPrimaryConfig[] = SKILL_CENTER_TREE) {
+  return tree.flatMap((primary) =>
+    primary.sections.flatMap((section) =>
+      section.items.map((item) => ({
+        ...item,
+        primaryId: primary.id,
+        primaryLabel: primary.label,
+        sectionId: section.id,
+        sectionLabel: section.label,
+      })),
+    ),
+  );
+}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { SKILL_CENTER_TREE as DASHBOARD_SKILL_CENTER_TREE } from "../skill-center-config";
+import { SKILL_CENTER_TREE as DASHBOARD_SKILL_CENTER_TREE } from "@shared/skill-center-manifest";
 import {
   apiProviderSeed,
   archiveApiProvider,
@@ -118,6 +118,17 @@ import {
 } from "../../../services/reports";
 import { ThemeModeToggle } from "../../../components/theme-mode-toggle";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
+import {
+  buildInstallSkillDraft,
+  buildInstallSkillNotice,
+  buildInstallSkillRequestPayload,
+  buildPackageIdFromKey,
+  importInstalledAssetsToPackage,
+  readFileAsBase64,
+  resolveInstalledSkillBindingOptions,
+  resolveInstalledSkillPromptScene,
+  type InstallSkillDraft,
+} from "./skill-installation";
 import { UsersManagementPanel } from "./users-management-panel";
 
 type AdminTab = "dashboard" | "orders" | "rules" | "users" | "usage" | "assets" | "modules" | "knowledge" | "providers";
@@ -205,22 +216,6 @@ type CreateSkillDraft = {
   defaultModel: string;
   pointsCost: string;
   description: string;
-  moduleKey: "NONE" | string;
-  packageKey: "NONE" | string;
-  promptScene: string;
-  bindingRemarks: string;
-};
-type InstallSkillDraft = {
-  sourceType: "GITHUB" | "ZIP_UPLOAD";
-  githubUrl: string;
-  archiveFileName: string;
-  archiveBase64: string;
-  category: string;
-  status: SkillConfigRecord["status"];
-  provider: string;
-  defaultModel: string;
-  pointsCost: string;
-  descriptionPrefix: string;
   moduleKey: "NONE" | string;
   packageKey: "NONE" | string;
   promptScene: string;
@@ -3925,39 +3920,26 @@ export default function AdminPage() {
     setNotice("");
     setErrorMessage("");
     try {
-      const result = await installSkillConfig({
-        sourceType: installSkillDraft.sourceType,
-        githubUrl: installSkillDraft.sourceType === "GITHUB" ? installSkillDraft.githubUrl.trim() : undefined,
-        archiveFileName: installSkillDraft.sourceType === "ZIP_UPLOAD" ? installSkillDraft.archiveFileName : undefined,
-        archiveBase64: installSkillDraft.sourceType === "ZIP_UPLOAD" ? installSkillDraft.archiveBase64 : undefined,
-        category: installSkillDraft.category.trim(),
-        provider: installSkillDraft.provider.trim(),
-        defaultModel: installSkillDraft.defaultModel.trim(),
-        status: installSkillDraft.status,
-        pointsCost: Number(installSkillDraft.pointsCost || 0),
-        descriptionPrefix: installSkillDraft.descriptionPrefix.trim() || undefined,
-      });
+      const result = await installSkillConfig(buildInstallSkillRequestPayload(installSkillDraft));
       setSkills((current) => [result.skill, ...current]);
       setSkillDrafts((current) => ({ [result.skill.id]: buildSkillDraft(result.skill), ...current }));
       if (result.initialPrompt) {
         setPrompts((current) => [result.initialPrompt!, ...current.filter((item) => item.id !== result.initialPrompt!.id)]);
         setPromptDrafts((current) => ({ [result.initialPrompt!.id]: buildPromptDraft(result.initialPrompt!), ...current }));
       }
-      const resolvedPromptScene = installSkillDraft.promptScene.trim() || result.initialPrompt?.scene || undefined;
+      const resolvedPromptScene = resolveInstalledSkillPromptScene(installSkillDraft, result);
       await upsertSkillAssetBinding(result.skill, resolvedPromptScene, {
-        moduleKey: installSkillDraft.moduleKey,
-        packageKey: installSkillDraft.packageKey,
-        bindingRemarks: installSkillDraft.bindingRemarks,
+        ...resolveInstalledSkillBindingOptions(installSkillDraft),
       });
-      const importedAssets = await importInstalledAssetsToPackage(installSkillDraft.packageKey, result);
-      const parsedOverviewSummary = [
-        result.parsedOverview.stepSummaries.length ? `解析步骤 ${result.parsedOverview.stepSummaries.length}` : "",
-        result.parsedOverview.inputHints.length ? `输入要点 ${result.parsedOverview.inputHints.length}` : "",
-        result.parsedOverview.outputHints.length ? `输出要点 ${result.parsedOverview.outputHints.length}` : "",
-      ].filter(Boolean).join("，");
-      setNotice(
-        `技能已安装：${result.detectedSkillName}（References ${result.referenceFileCount}，Scripts ${result.scriptFileCount}${result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${installSkillDraft.packageKey !== "NONE" ? `，已导入能力包资产 ${importedAssets.importedReferenceCount}/${result.referenceFileCount} References，${importedAssets.importedScriptCount}/${result.scriptFileCount} Scripts` : ""}）`,
-      );
+      const packageMeta = skillPackageFilterOptions.find((item) => item.value === installSkillDraft.packageKey);
+      const importedAssets = await importInstalledAssetsToPackage({
+        packageKey: installSkillDraft.packageKey,
+        packageId: packageMeta?.packageId || buildPackageIdFromKey(installSkillDraft.packageKey),
+        result,
+        createReferenceAsset,
+        createScriptAsset,
+      });
+      setNotice(buildInstallSkillNotice({ draft: installSkillDraft, result, importedAssets }));
       setActiveAssetsWorkspaceTab("skillZone");
       setIsInstallSkillModalOpen(false);
       setInstallSkillDraft(buildInstallSkillDraft());
@@ -4033,60 +4015,6 @@ export default function AdminPage() {
         remarks: resolvedBinding.bindingRemarks.trim() || undefined,
       });
     }
-  }
-
-  async function importInstalledAssetsToPackage(
-    packageKey: string,
-    result: Awaited<ReturnType<typeof installSkillConfig>>,
-  ) {
-    if (packageKey === "NONE") {
-      return {
-        importedReferenceCount: 0,
-        importedScriptCount: 0,
-      };
-    }
-    const packageMeta = skillPackageFilterOptions.find((item) => item.value === packageKey);
-    const packageId = packageMeta?.packageId || buildPackageIdFromKey(packageKey);
-    let importedReferenceCount = 0;
-    let importedScriptCount = 0;
-
-    for (const reference of result.references) {
-      try {
-        await createReferenceAsset(packageId, {
-          referenceKey: reference.referenceKey,
-          title: reference.title,
-          sourceType: reference.sourceType,
-          sourceUri: reference.sourceUri,
-          usageNote: reference.usageNote,
-          applicableScopes: reference.applicableScopes,
-          sortOrder: reference.sortOrder,
-        });
-        importedReferenceCount += 1;
-      } catch {
-        // Duplicate keys or package state issues should not break the whole install flow.
-      }
-    }
-
-    for (const script of result.scripts) {
-      try {
-        await createScriptAsset(packageId, {
-          scriptKey: script.scriptKey,
-          scriptName: script.scriptName,
-          runtime: script.runtime,
-          entry: script.entry,
-          usageNote: script.usageNote,
-          sortOrder: script.sortOrder,
-        });
-        importedScriptCount += 1;
-      } catch {
-        // Duplicate keys or package state issues should not break the whole install flow.
-      }
-    }
-
-    return {
-      importedReferenceCount,
-      importedScriptCount,
-    };
   }
 
   async function handleCreatePrompt() {
@@ -8240,38 +8168,6 @@ function buildCreateSkillDraft(): CreateSkillDraft {
   };
 }
 
-function buildInstallSkillDraft(): InstallSkillDraft {
-  return {
-    sourceType: "GITHUB",
-    githubUrl: "",
-    archiveFileName: "",
-    archiveBase64: "",
-    category: "内容生产",
-    status: "DRAFT",
-    provider: "",
-    defaultModel: "",
-    pointsCost: "120",
-    descriptionPrefix: "",
-    moduleKey: "NONE",
-    packageKey: "NONE",
-    promptScene: "",
-    bindingRemarks: "",
-  };
-}
-
-function readFileAsBase64(file: File) {
-  return new Promise<string>((resolvePromise, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const raw = String(reader.result || "");
-      const [, base64 = ""] = raw.split(",");
-      resolvePromise(base64);
-    };
-    reader.onerror = () => reject(reader.error || new Error("读取压缩包失败"));
-    reader.readAsDataURL(file);
-  });
-}
-
 function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): CreatePromptDraft {
   return {
     name: "",
@@ -8285,13 +8181,6 @@ function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): 
     bindSkillSlug: bindSkillSlug || "NONE",
     bindingRemarks: "",
   };
-}
-
-function buildPackageIdFromKey(packageKey: string) {
-  return `sp_${String(packageKey || "")
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, "_")}`;
 }
 
 function mergeSkillAssetBindings(

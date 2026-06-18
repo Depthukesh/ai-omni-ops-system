@@ -1,9 +1,9 @@
-﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { flattenSkillCenterLeaves } from "../../skill-center-config";
+import { flattenSkillCenterLeaves } from "@shared/skill-center-manifest";
 import { getMe, logout as logoutSession, readAuthSession, switchBrand, type MeResponse } from "../../../../services/auth";
 import {
   getUserSkillEditorOptions,

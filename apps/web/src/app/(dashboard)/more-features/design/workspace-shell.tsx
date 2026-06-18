@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { flattenSkillCenterLeaves } from "../../skill-center-config";
+import { flattenSkillCenterLeaves } from "@shared/skill-center-manifest";
 import { getStoredCurrentBrandId } from "../../../../services/auth-session";
 import {
   deleteDesignHistoryWork,

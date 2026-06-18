@@ -83,3 +83,4 @@ export type BrandArchiveBundle = {
 };
 
 export * from "./brand-permissions";
+export * from "./skill-center-manifest";
