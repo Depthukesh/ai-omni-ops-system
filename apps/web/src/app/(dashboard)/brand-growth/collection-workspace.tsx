@@ -474,6 +474,30 @@ function ProtectedVideoPanel(props: {
   );
 }
 
+function ProtectedVideoLink(props: {
+  sourceUrl?: string;
+}) {
+  const media = useProtectedMediaAsset(props.sourceUrl);
+
+  if (!props.sourceUrl) {
+    return <span>-</span>;
+  }
+
+  if (media.errorMessage) {
+    return <span className="note-data-link">{media.errorMessage}</span>;
+  }
+
+  if (!media.objectUrl) {
+    return <span className="note-data-link">{media.isLoading ? "视频加载中..." : "视频暂不可用"}</span>;
+  }
+
+  return (
+    <a href={media.objectUrl} target="_blank" rel="noreferrer" className="note-data-link">
+      打开视频
+    </a>
+  );
+}
+
 function CollectionPageStatus(props: {
   dataSource: "api" | "error" | "loading";
   notice: string;
@@ -1946,11 +1970,7 @@ function XhsNotesTable(props: {
                 ) : "-"}
               </td>
               <td>
-                {item.videoUrl ? (
-                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    打开视频
-                  </a>
-                ) : "-"}
+                <ProtectedVideoLink sourceUrl={item.videoUrl} />
               </td>
               <td>
                 {item.noteUrl ? (
@@ -1975,6 +1995,7 @@ function XhsBenchmarkNotesTable(props: {
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
   formatMetric: OptionalNumberFormatter;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
 }) {
   return (
     <ScrollableTableShell>
@@ -2035,17 +2056,15 @@ function XhsBenchmarkNotesTable(props: {
               <td>{props.formatMetric(item.shareRatio)}</td>
               <td>
                 {item.imageList?.length ? (
-                  <a href={item.imageList[0]} target="_blank" rel="noreferrer" className="note-data-link">
-                    查看首图 ({item.imageList.length} 张)
-                  </a>
+                  <ProtectedImageCard
+                    sourceUrl={item.imageList[0]}
+                    title={item.title || item.noteId}
+                    onPreviewMedia={props.onPreviewMedia}
+                  />
                 ) : "-"}
               </td>
               <td>
-                {item.videoUrl ? (
-                  <a href={item.videoUrl} target="_blank" rel="noreferrer" className="note-data-link">
-                    打开视频
-                  </a>
-                ) : "-"}
+                <ProtectedVideoLink sourceUrl={item.videoUrl} />
               </td>
               <td>
                 {item.sourceUrl || item.noteUrl ? (
@@ -2668,6 +2687,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     formatMetric={props.formatMetric}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有对标作品结果，先提交作品链接或 note_id。</div>
@@ -2719,6 +2739,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                     formatMetric={props.formatMetric}
+                    onPreviewMedia={props.onPreviewMedia}
                   />
                 ) : (
                   <div className="note-empty-state">当前还没有搜索笔记结果，先输入关键词并提交。</div>
