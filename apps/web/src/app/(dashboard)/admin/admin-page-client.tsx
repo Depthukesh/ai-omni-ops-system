@@ -10,6 +10,7 @@ import {
   archiveKnowledgeBase,
   adminUserSeed,
   adminOrderSeed,
+  backfillSkillInputSchema,
   billingRulesSeed,
   createApiProvider,
   createSkillPackageSkill,
@@ -1126,6 +1127,45 @@ export default function AdminPage() {
 
       const message = error instanceof Error ? error.message : "技能配置保存失败";
       setErrorMessage(`技能配置保存失败：${message}`);
+    } finally {
+      setUpdatingSkillId("");
+    }
+  }
+
+  async function handleBackfillSkillInputSchema(skillId: string) {
+    setUpdatingSkillId(skillId);
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const updated = await backfillSkillInputSchema(skillId);
+      setSkills((current) => applyUpdatedSkillRecord(current, skillId, updated));
+      setSkillDrafts((current) => ({
+        ...current,
+        [skillId]: buildSkillDraft(updated),
+      }));
+      setNotice(`已补齐技能输入项：${updated.name}`);
+    } catch (error) {
+      if (dataSource === "seed") {
+        const fallback = skillConfigSeed.find((item) => item.id === skillId);
+        if (fallback?.inputSchemaJson) {
+          const updatedAt = new Date().toISOString();
+          const nextSkill = {
+            ...fallback,
+            updatedAt,
+          };
+          setSkills((current) => applyUpdatedSkillRecord(current, skillId, nextSkill));
+          setSkillDrafts((current) => ({
+            ...current,
+            [skillId]: buildSkillDraft(nextSkill),
+          }));
+          setNotice("已从本地演示默认配置补齐技能输入项。");
+          return;
+        }
+      }
+
+      const message = error instanceof Error ? error.message : "技能输入项补齐失败";
+      setErrorMessage(`技能输入项补齐失败：${message}`);
     } finally {
       setUpdatingSkillId("");
     }
@@ -4612,6 +4652,17 @@ export default function AdminPage() {
                             <span>输入配置来源</span>
                             <input value={activeSkillInputSchemaSourceLabel} readOnly />
                           </label>
+                          <div className="admin-skill-field" style={{ justifyContent: "flex-end" }}>
+                            <span>输入项维护</span>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => activeSkillConfig && handleBackfillSkillInputSchema(activeSkillConfig.id)}
+                              disabled={!activeSkillConfig || updatingSkillId === activeSkillConfig.id}
+                            >
+                              {activeSkillConfig && updatingSkillId === activeSkillConfig.id ? "补齐中..." : "补齐输入项"}
+                            </button>
+                          </div>
                           <div className="admin-skill-field admin-skill-field--full" style={{ display: "grid", gap: 12 }}>
                             <div className="entity-card" style={{ padding: 12 }}>
                               <div className="entity-card-head" style={{ marginBottom: 12 }}>

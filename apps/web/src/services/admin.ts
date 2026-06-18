@@ -846,6 +846,50 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     defaultModel: "gpt-5.5",
     pointsCost: 320,
     description: "用于生成品牌诊断、增长机会和年度增长方向建议。",
+    inputSchemaJson: {
+      version: "v1",
+      source: "ADMIN_EDITED",
+      databaseInputs: [
+        {
+          id: "seed_db_brand_profile",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "brand_profile",
+          parameterLabel: "品牌资料",
+          selectedValue: "INJECT",
+          remarks: "生成品牌增长报告时默认植入品牌资料。",
+        },
+        {
+          id: "seed_db_product_library",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "product_library",
+          parameterLabel: "产品资料",
+          selectedValue: "INJECT",
+          remarks: "生成品牌增长报告时默认植入产品资料。",
+        },
+      ],
+      knowledgeInputs: [
+        {
+          id: "seed_kb_brand_docs",
+          knowledgeBaseId: "kb_brand_docs",
+          knowledgeBaseName: "品牌资料知识库",
+          targetContentId: "",
+          targetContentLabel: "",
+          remarks: "默认检索品牌资料知识库。",
+        },
+      ],
+      customInputs: [
+        {
+          id: "seed_custom_growth_goal",
+          inputType: "TEXT",
+          label: "补充目标",
+          required: false,
+          options: [],
+          placeholder: "例如：重点分析门店引流、节日礼赠或内容增长机会。",
+          acceptedFileTypes: "",
+          remarks: "允许在默认报告框架之外追加关注目标。",
+        },
+      ],
+    },
     updatedAt: "2026-05-02T02:03:00.000Z",
   },
   {
@@ -858,6 +902,50 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     defaultModel: "gpt-5.5",
     pointsCost: 280,
     description: "用于输出未来半年营销节点、活动主题和多平台协同规划。",
+    inputSchemaJson: {
+      version: "v1",
+      source: "ADMIN_EDITED",
+      databaseInputs: [
+        {
+          id: "seed_db_brand_profile_plan",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "brand_profile",
+          parameterLabel: "品牌资料",
+          selectedValue: "INJECT",
+          remarks: "半年规划默认读取品牌资料。",
+        },
+        {
+          id: "seed_db_marketing_calendar",
+          parameterType: "SELECT_CHOICE",
+          parameterKey: "marketing_calendar",
+          parameterLabel: "营销日历",
+          selectedValue: "",
+          remarks: "可引用历史营销日历或最近一期日历作为规划参考。",
+        },
+      ],
+      knowledgeInputs: [
+        {
+          id: "seed_kb_brand_docs_plan",
+          knowledgeBaseId: "kb_brand_docs",
+          knowledgeBaseName: "品牌资料知识库",
+          targetContentId: "",
+          targetContentLabel: "",
+          remarks: "默认检索品牌资料知识库。",
+        },
+      ],
+      customInputs: [
+        {
+          id: "seed_custom_plan_focus",
+          inputType: "TEXT",
+          label: "规划重点",
+          required: false,
+          options: [],
+          placeholder: "例如：新品上市、节日礼赠、门店拉新、会员运营。",
+          acceptedFileTypes: "",
+          remarks: "支持补充本轮半年规划的业务重点。",
+        },
+      ],
+    },
     updatedAt: "2026-05-02T01:20:00.000Z",
   },
   {
@@ -870,6 +958,50 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     defaultModel: "gpt-5.4-nano",
     pointsCost: 260,
     description: "用于输出小红书品牌规划、内容选题和种草策略。",
+    inputSchemaJson: {
+      version: "v1",
+      source: "ADMIN_EDITED",
+      databaseInputs: [
+        {
+          id: "seed_db_brand_profile_xhs",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "brand_profile",
+          parameterLabel: "品牌资料",
+          selectedValue: "INJECT",
+          remarks: "小红书营销规划默认植入品牌资料。",
+        },
+        {
+          id: "seed_db_topic_library_xhs",
+          parameterType: "SELECT_CHOICE",
+          parameterKey: "topic_library",
+          parameterLabel: "选题库",
+          selectedValue: "",
+          remarks: "可直接使用已有选题库作为规划参考。",
+        },
+      ],
+      knowledgeInputs: [
+        {
+          id: "seed_kb_brand_docs_xhs",
+          knowledgeBaseId: "kb_brand_docs",
+          knowledgeBaseName: "品牌资料知识库",
+          targetContentId: "",
+          targetContentLabel: "",
+          remarks: "默认检索品牌资料知识库。",
+        },
+      ],
+      customInputs: [
+        {
+          id: "seed_custom_xhs_target",
+          inputType: "TEXT",
+          label: "目标人群",
+          required: false,
+          options: [],
+          placeholder: "例如：职场女性、亲子家庭、城市白领。",
+          acceptedFileTypes: "",
+          remarks: "补充小红书种草重点人群。",
+        },
+      ],
+    },
     updatedAt: "2026-05-01T18:45:00.000Z",
   },
   {
@@ -966,6 +1098,68 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     defaultModel: "provider_runtime_text_global::gpt-5.5",
     pointsCost: 180,
     description: "用于根据营销日历、产品信息、品牌信息和主题色生成结构化公众号文章正文与图片提示词。",
+    inputSchemaJson: {
+      version: "v1",
+      source: "ADMIN_EDITED",
+      databaseInputs: [
+        {
+          id: "seed_db_brand_profile_wechat",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "brand_profile",
+          parameterLabel: "品牌资料",
+          selectedValue: "INJECT",
+          remarks: "公众号创作默认植入品牌资料。",
+        },
+        {
+          id: "seed_db_product_library_wechat",
+          parameterType: "INJECT_TOGGLE",
+          parameterKey: "product_library",
+          parameterLabel: "产品资料",
+          selectedValue: "INJECT",
+          remarks: "公众号创作默认植入产品资料。",
+        },
+        {
+          id: "seed_db_marketing_calendar_wechat",
+          parameterType: "SELECT_CHOICE",
+          parameterKey: "marketing_calendar",
+          parameterLabel: "营销日历",
+          selectedValue: "",
+          remarks: "可直接选择最近一期营销日历。",
+        },
+      ],
+      knowledgeInputs: [
+        {
+          id: "seed_kb_brand_docs_wechat",
+          knowledgeBaseId: "kb_brand_docs",
+          knowledgeBaseName: "品牌资料知识库",
+          targetContentId: "",
+          targetContentLabel: "",
+          remarks: "默认检索品牌资料知识库。",
+        },
+      ],
+      customInputs: [
+        {
+          id: "seed_custom_wechat_topic",
+          inputType: "TEXT",
+          label: "文章主题",
+          required: true,
+          options: [],
+          placeholder: "例如：新品上市、节日营销、门店活动。",
+          acceptedFileTypes: "",
+          remarks: "补充本轮公众号文章主题。",
+        },
+        {
+          id: "seed_custom_wechat_style",
+          inputType: "SELECT",
+          label: "文章风格",
+          required: false,
+          options: ["品牌故事", "活动种草", "专业解读", "促销转化"],
+          placeholder: "请选择文章风格",
+          acceptedFileTypes: "",
+          remarks: "用于控制公众号文章整体风格。",
+        },
+      ],
+    },
     updatedAt: "2026-06-03T11:00:00.000Z",
   },
   {
@@ -1002,6 +1196,34 @@ export const skillConfigSeed: SkillConfigRecord[] = [
     defaultModel: "provider_runtime_text_deepseek::deepseek-v4-pro",
     pointsCost: 160,
     description: "用于将公众号文章正文、封面图和正文配图渲染为最终可发布的公众号 HTML。",
+    inputSchemaJson: {
+      version: "v1",
+      source: "ADMIN_EDITED",
+      databaseInputs: [],
+      knowledgeInputs: [],
+      customInputs: [
+        {
+          id: "seed_custom_html_content",
+          inputType: "TEXT",
+          label: "Markdown 正文",
+          required: true,
+          options: [],
+          placeholder: "请输入或粘贴待渲染的公众号正文内容。",
+          acceptedFileTypes: "",
+          remarks: "HTML 渲染主输入。",
+        },
+        {
+          id: "seed_custom_html_style",
+          inputType: "SELECT",
+          label: "页面风格",
+          required: false,
+          options: ["品牌官网风", "科技深色风", "极简海报风", "杂志排版风"],
+          placeholder: "请选择页面风格",
+          acceptedFileTypes: "",
+          remarks: "控制公众号 HTML 的整体视觉风格。",
+        },
+      ],
+    },
     updatedAt: "2026-06-06T20:30:00.000Z",
   },
   {
@@ -2727,6 +2949,10 @@ export async function updateSkillConfig(
   >,
 ) {
   return jsonRequest<SkillConfigRecord>(`/admin/skills/${skillId}`, "PATCH", payload);
+}
+
+export async function backfillSkillInputSchema(skillId: string) {
+  return jsonRequest<SkillConfigRecord>(`/admin/skills/${skillId}/backfill-input-schema`, "POST", {});
 }
 
 export async function getPromptTemplates() {

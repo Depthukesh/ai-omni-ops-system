@@ -54,6 +54,15 @@ export class SkillsPromptsController {
     return this.skillsPromptsService.updateSkill(id, payload);
   }
 
+  @Post("skills/:id/backfill-input-schema")
+  async backfillSkillInputSchema(
+    @Param("id") id: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.operatorWrite);
+    return this.skillsPromptsService.backfillSkillInputSchema(id);
+  }
+
   @Get("prompts")
   async listPrompts(@Headers() headers: Record<string, string | string[] | undefined>) {
     await requireAdminRoles(this.authService, headers, ADMIN_ROLE_GROUPS.allAdmin);

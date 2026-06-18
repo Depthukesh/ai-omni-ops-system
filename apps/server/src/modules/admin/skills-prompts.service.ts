@@ -945,6 +945,36 @@ export class SkillsPromptsService {
     return { ...skill };
   }
 
+  async backfillSkillInputSchema(id: string) {
+    const skill = await this.findSkillByIdFromDatabase(id);
+    if (!skill) {
+      throw new Error(`未找到技能：${id}`);
+    }
+    const current = this.normalizeSkillConfigRow(skill);
+    if (current.inputSchemaJson) {
+      return current;
+    }
+
+    const nextInputSchema =
+      this.getBuiltInSkillInputSchemaSeed(current.slug)
+      || this.deriveLegacySkillInputSchemaFromDescription(current.description);
+
+    if (!nextInputSchema) {
+      return current;
+    }
+
+    await this.prismaService.$executeRaw`
+      UPDATE "SkillConfig"
+      SET
+        "inputSchemaJson" = CAST(${JSON.stringify(nextInputSchema)} AS JSONB),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${id}
+    `;
+
+    const refreshed = await this.findSkillByIdFromDatabase(id);
+    return refreshed ? this.normalizeSkillConfigRow(refreshed) : current;
+  }
+
   async listPrompts() {
     const prompts = await this.listPromptRows();
     return prompts.map((item) => this.hydratePromptTemplateRecord(item));
@@ -1529,6 +1559,7 @@ export class SkillsPromptsService {
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
     await this.backfillLegacySkillInputSchemas();
+    await this.backfillBuiltInSkillInputSchemas();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
   }
@@ -1543,6 +1574,29 @@ export class SkillsPromptsService {
 
     for (const row of rows) {
       const nextInputSchema = this.deriveLegacySkillInputSchemaFromDescription(row.description);
+      if (!nextInputSchema) {
+        continue;
+      }
+      await this.prismaService.$executeRaw`
+        UPDATE "SkillConfig"
+        SET
+          "inputSchemaJson" = CAST(${JSON.stringify(nextInputSchema)} AS JSONB),
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${row.id}
+          AND "inputSchemaJson" IS NULL
+      `;
+    }
+  }
+
+  private async backfillBuiltInSkillInputSchemas() {
+    const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+      SELECT *
+      FROM "SkillConfig"
+      WHERE "inputSchemaJson" IS NULL
+    `;
+
+    for (const row of rows) {
+      const nextInputSchema = this.getBuiltInSkillInputSchemaSeed(row.slug);
       if (!nextInputSchema) {
         continue;
       }
@@ -2135,6 +2189,279 @@ export class SkillsPromptsService {
       knowledgeInputs,
       customInputs,
     };
+  }
+
+  private getBuiltInSkillInputSchemaSeed(slug: string): SkillConfigRecord["inputSchemaJson"] {
+    const normalizedSlug = String(slug || "").trim();
+    const seeds: Record<string, NonNullable<SkillConfigRecord["inputSchemaJson"]>> = {
+      "brand-omni-growth-analysis": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [
+          {
+            id: "seed_db_brand_profile",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "brand_profile",
+            parameterLabel: "品牌资料",
+            selectedValue: "INJECT",
+            remarks: "生成品牌增长报告时默认植入品牌资料。",
+          },
+          {
+            id: "seed_db_product_library",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "product_library",
+            parameterLabel: "产品资料",
+            selectedValue: "INJECT",
+            remarks: "生成品牌增长报告时默认植入产品资料。",
+          },
+        ],
+        knowledgeInputs: [
+          {
+            id: "seed_kb_brand_docs",
+            knowledgeBaseId: "kb_brand_docs",
+            knowledgeBaseName: "品牌资料知识库",
+            targetContentId: "",
+            targetContentLabel: "",
+            remarks: "默认检索品牌资料知识库。",
+          },
+        ],
+        customInputs: [
+          {
+            id: "seed_custom_growth_goal",
+            inputType: "TEXT",
+            label: "补充目标",
+            required: false,
+            options: [],
+            placeholder: "例如：重点分析门店引流、节日礼赠或内容增长机会。",
+            acceptedFileTypes: "",
+            remarks: "允许在默认报告框架之外追加关注目标。",
+          },
+        ],
+      },
+      "enterprise-annual-plan": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [
+          {
+            id: "seed_db_brand_profile_plan",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "brand_profile",
+            parameterLabel: "品牌资料",
+            selectedValue: "INJECT",
+            remarks: "半年规划默认读取品牌资料。",
+          },
+          {
+            id: "seed_db_marketing_calendar",
+            parameterType: "SELECT_CHOICE",
+            parameterKey: "marketing_calendar",
+            parameterLabel: "营销日历",
+            selectedValue: "",
+            remarks: "可引用历史营销日历或最近一期日历作为规划参考。",
+          },
+        ],
+        knowledgeInputs: [
+          {
+            id: "seed_kb_brand_docs_plan",
+            knowledgeBaseId: "kb_brand_docs",
+            knowledgeBaseName: "品牌资料知识库",
+            targetContentId: "",
+            targetContentLabel: "",
+            remarks: "默认检索品牌资料知识库。",
+          },
+        ],
+        customInputs: [
+          {
+            id: "seed_custom_plan_focus",
+            inputType: "TEXT",
+            label: "规划重点",
+            required: false,
+            options: [],
+            placeholder: "例如：新品上市、节日礼赠、门店拉新、会员运营。",
+            acceptedFileTypes: "",
+            remarks: "支持补充本轮半年规划的业务重点。",
+          },
+        ],
+      },
+      "xiaohongshu-brand-marketing-plan": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [
+          {
+            id: "seed_db_brand_profile_xhs",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "brand_profile",
+            parameterLabel: "品牌资料",
+            selectedValue: "INJECT",
+            remarks: "小红书营销规划默认植入品牌资料。",
+          },
+          {
+            id: "seed_db_topic_library_xhs",
+            parameterType: "SELECT_CHOICE",
+            parameterKey: "topic_library",
+            parameterLabel: "选题库",
+            selectedValue: "",
+            remarks: "可直接使用已有选题库作为规划参考。",
+          },
+        ],
+        knowledgeInputs: [
+          {
+            id: "seed_kb_brand_docs_xhs",
+            knowledgeBaseId: "kb_brand_docs",
+            knowledgeBaseName: "品牌资料知识库",
+            targetContentId: "",
+            targetContentLabel: "",
+            remarks: "默认检索品牌资料知识库。",
+          },
+        ],
+        customInputs: [
+          {
+            id: "seed_custom_xhs_target",
+            inputType: "TEXT",
+            label: "目标人群",
+            required: false,
+            options: [],
+            placeholder: "例如：职场女性、亲子家庭、城市白领。",
+            acceptedFileTypes: "",
+            remarks: "补充小红书种草重点人群。",
+          },
+        ],
+      },
+      "tongcheng-brand-douyin-planning": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [
+          {
+            id: "seed_db_brand_profile_dy",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "brand_profile",
+            parameterLabel: "品牌资料",
+            selectedValue: "INJECT",
+            remarks: "抖音策划默认读取品牌资料。",
+          },
+          {
+            id: "seed_db_material_library_dy",
+            parameterType: "SELECT_CHOICE",
+            parameterKey: "material_library",
+            parameterLabel: "素材库",
+            selectedValue: "",
+            remarks: "可直接读取现有素材库内容作为策划参考。",
+          },
+        ],
+        knowledgeInputs: [
+          {
+            id: "seed_kb_brand_docs_dy",
+            knowledgeBaseId: "kb_brand_docs",
+            knowledgeBaseName: "品牌资料知识库",
+            targetContentId: "",
+            targetContentLabel: "",
+            remarks: "默认检索品牌资料知识库。",
+          },
+        ],
+        customInputs: [
+          {
+            id: "seed_custom_douyin_theme",
+            inputType: "TEXT",
+            label: "活动主题",
+            required: false,
+            options: [],
+            placeholder: "例如：暑期活动、新品促销、同城门店引流。",
+            acceptedFileTypes: "",
+            remarks: "用于补充本轮抖音策划主题。",
+          },
+        ],
+      },
+      "wechat-article-composer": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [
+          {
+            id: "seed_db_brand_profile_wechat",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "brand_profile",
+            parameterLabel: "品牌资料",
+            selectedValue: "INJECT",
+            remarks: "公众号创作默认植入品牌资料。",
+          },
+          {
+            id: "seed_db_product_library_wechat",
+            parameterType: "INJECT_TOGGLE",
+            parameterKey: "product_library",
+            parameterLabel: "产品资料",
+            selectedValue: "INJECT",
+            remarks: "公众号创作默认植入产品资料。",
+          },
+          {
+            id: "seed_db_marketing_calendar_wechat",
+            parameterType: "SELECT_CHOICE",
+            parameterKey: "marketing_calendar",
+            parameterLabel: "营销日历",
+            selectedValue: "",
+            remarks: "可直接选择最近一期营销日历。",
+          },
+        ],
+        knowledgeInputs: [
+          {
+            id: "seed_kb_brand_docs_wechat",
+            knowledgeBaseId: "kb_brand_docs",
+            knowledgeBaseName: "品牌资料知识库",
+            targetContentId: "",
+            targetContentLabel: "",
+            remarks: "默认检索品牌资料知识库。",
+          },
+        ],
+        customInputs: [
+          {
+            id: "seed_custom_wechat_topic",
+            inputType: "TEXT",
+            label: "文章主题",
+            required: true,
+            options: [],
+            placeholder: "例如：新品上市、节日营销、门店活动。",
+            acceptedFileTypes: "",
+            remarks: "补充本轮公众号文章主题。",
+          },
+          {
+            id: "seed_custom_wechat_style",
+            inputType: "SELECT",
+            label: "文章风格",
+            required: false,
+            options: ["品牌故事", "活动种草", "专业解读", "促销转化"],
+            placeholder: "请选择文章风格",
+            acceptedFileTypes: "",
+            remarks: "用于控制公众号文章整体风格。",
+          },
+        ],
+      },
+      "wechat-html-renderer": {
+        version: "v1",
+        source: "ADMIN_EDITED",
+        databaseInputs: [],
+        knowledgeInputs: [],
+        customInputs: [
+          {
+            id: "seed_custom_html_content",
+            inputType: "TEXT",
+            label: "Markdown 正文",
+            required: true,
+            options: [],
+            placeholder: "请输入或粘贴待渲染的公众号正文内容。",
+            acceptedFileTypes: "",
+            remarks: "HTML 渲染主输入。",
+          },
+          {
+            id: "seed_custom_html_style",
+            inputType: "SELECT",
+            label: "页面风格",
+            required: false,
+            options: ["品牌官网风", "科技深色风", "极简海报风", "杂志排版风"],
+            placeholder: "请选择页面风格",
+            acceptedFileTypes: "",
+            remarks: "控制公众号 HTML 的整体视觉风格。",
+          },
+        ],
+      },
+    };
+    return seeds[normalizedSlug] || null;
   }
 
   private normalizeImageGenerationModelValue(value: string) {
