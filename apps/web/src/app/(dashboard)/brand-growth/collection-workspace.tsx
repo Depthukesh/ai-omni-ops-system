@@ -236,8 +236,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   douyinWorkspace: DouyinCollectionWorkspace;
   isSyncingDouyinWorkspace: boolean;
   douyinSyncForm: {
-    brandAccountLinks: string;
-    competitorAccountLinks: string;
+    brandAccountEntries: XhsAccountBindingEntry[];
+    competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -256,8 +256,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
     };
   };
   setDouyinSyncForm: Dispatch<SetStateAction<{
-    brandAccountLinks: string;
-    competitorAccountLinks: string;
+    brandAccountEntries: XhsAccountBindingEntry[];
+    competitorAccountEntries: XhsAccountBindingEntry[];
     benchmarkAwemeIds: string;
     lowFanExplosiveWorks: {
       primaryTagId: string;
@@ -284,6 +284,9 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncDouyinWorkspace: AsyncAction;
+  onSyncAllDouyinBrandAccounts: AsyncAction;
+  onSyncSingleDouyinBrandAccount: ValueAction<XhsAccountBindingEntry>;
+  onSyncSingleDouyinCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
   sortedBrandNotes: XhsCollectedNoteRecord[];
@@ -557,6 +560,23 @@ function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: Xhs
   return normalizedEntry === normalizedSourceLink || normalizedEntry === normalizedExternalUserId;
 }
 
+function doesDouyinAccountMatchEntry(account: DouyinCollectedAccountRecord, entry: XhsAccountBindingEntry) {
+  const normalizedEntry = normalizeXhsAccountEntryLocator(entry.locator);
+  if (!normalizedEntry) {
+    return false;
+  }
+  const normalizedSourceLink = normalizeXhsAccountEntryLocator(account.sourceAccountLink || "");
+  const normalizedAccountLink = normalizeXhsAccountEntryLocator(account.accountLink || "");
+  const normalizedExternalUserId = normalizeXhsAccountEntryLocator(account.externalUserId || "");
+  const normalizedUsername = normalizeXhsAccountEntryLocator(account.username || "");
+  return (
+    normalizedEntry === normalizedSourceLink
+    || normalizedEntry === normalizedAccountLink
+    || normalizedEntry === normalizedExternalUserId
+    || normalizedEntry === normalizedUsername
+  );
+}
+
 function XhsAccountBindingSubmitPanel(props: {
   title: string;
   description: string;
@@ -686,6 +706,130 @@ function XhsAccountBindingSubmitPanel(props: {
                 value={draftLocator}
                 onChange={(event) => setDraftLocator(event.target.value)}
                 placeholder="请输入主页链接、分享链接或 user_id"
+              />
+            </label>
+            <div className="xhs-account-modal__actions">
+              <button type="button" className="secondary-button" onClick={() => setIsModalOpen(false)}>
+                取消
+              </button>
+              <button type="button" className="primary-button" onClick={handleSave} disabled={!draftLocator.trim()}>
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function DouyinAccountBindingSubmitPanel(props: {
+  title: string;
+  description: string;
+  modalTitle: string;
+  modalDescription: string;
+  emptyDescription: string;
+  target: "brand" | "competitor";
+  entries: XhsAccountBindingEntry[];
+  syncedAccounts: DouyinCollectedAccountRecord[];
+  isSubmitting: boolean;
+  onChangeEntries: ValueAction<XhsAccountBindingEntry[]>;
+  onSubmitEntry: ValueAction<XhsAccountBindingEntry>;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draftLocator, setDraftLocator] = useState("");
+
+  const handleSave = () => {
+    const trimmedLocator = draftLocator.trim();
+    if (!trimmedLocator) {
+      return;
+    }
+    props.onChangeEntries(
+      upsertXhsAccountEntries(props.entries, {
+        id: buildXhsAccountEntryId(trimmedLocator, props.target),
+        locator: trimmedLocator,
+      }, props.target),
+    );
+    setDraftLocator("");
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (entryId: string) => {
+    props.onChangeEntries(props.entries.filter((item) => item.id !== entryId));
+  };
+
+  return (
+    <>
+      <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
+        <div className="collection-result-head">
+          <div>
+            <h3>{props.title}</h3>
+            <p>{props.description}</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={() => setIsModalOpen(true)} disabled={props.isSubmitting}>
+            添加账号
+          </button>
+        </div>
+        {props.entries.length ? (
+          <div className="xhs-account-entry-list">
+            {props.entries.map((entry) => {
+              const hasSyncedResult = props.syncedAccounts.some((item) => doesDouyinAccountMatchEntry(item, entry));
+              return (
+                <div key={entry.id} className="xhs-account-entry-row">
+                  <div className="xhs-account-entry-row__body">
+                    <div className="xhs-account-entry-row__meta">
+                      <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
+                        {hasSyncedResult ? "已采集" : "待提交"}
+                      </span>
+                    </div>
+                    <strong>{entry.locator}</strong>
+                  </div>
+                  <div className="xhs-account-entry-row__actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSubmitEntry(entry)}
+                      disabled={props.isSubmitting}
+                    >
+                      {props.isSubmitting ? "提交中..." : "提交"}
+                    </button>
+                    <button
+                      type="button"
+                      className="note-inline-button"
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={props.isSubmitting}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="xhs-account-entry-empty">
+            {props.emptyDescription}
+          </div>
+        )}
+      </article>
+      {isModalOpen ? (
+        <div className="xhs-account-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setIsModalOpen(false)}>
+          <div className="xhs-account-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="xhs-account-modal__head">
+              <div>
+                <strong>{props.modalTitle}</strong>
+                <p>{props.modalDescription}</p>
+              </div>
+              <button type="button" className="xhs-account-modal__close" onClick={() => setIsModalOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <label className="field">
+              <span>账号链接或抖音号</span>
+              <input
+                value={draftLocator}
+                onChange={(event) => setDraftLocator(event.target.value)}
+                placeholder="请输入主页链接、分享链接、sec_uid 或抖音号"
               />
             </label>
             <div className="xhs-account-modal__actions">
@@ -2500,13 +2644,18 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           </div>
           {props.activeDouyinCollectionCard === "brandAccount" ? (
             <>
-              <DouyinSubmitPanel
-                title="品牌抖音主页链接"
-                value={props.douyinSyncForm.brandAccountLinks}
-                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                placeholder="每行一个"
+              <DouyinAccountBindingSubmitPanel
+                title="品牌账号信息"
+                description="按账号逐条维护抖音品牌号入口，保存后可以逐行提交更新，下方列表会同步展示最新结果。"
+                modalTitle="添加品牌抖音账号"
+                modalDescription="录入品牌账号主页链接、分享链接、sec_uid 或抖音号，保存后进入账号绑定列表。"
+                emptyDescription="当前还没有添加品牌账号，请先点击右上角添加账号。"
+                target="brand"
+                entries={props.douyinSyncForm.brandAccountEntries}
+                syncedAccounts={props.sortedDouyinBrandAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                onSubmit={props.onSyncDouyinWorkspace}
+                onChangeEntries={(entries) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountEntries: entries }))}
+                onSubmitEntry={props.onSyncSingleDouyinBrandAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">
@@ -2521,20 +2670,25 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有采集到品牌账号信息，请先输入品牌抖音主页链接并提交。</div>
+                  <div className="note-empty-state">当前还没有采集到品牌账号信息，请先添加品牌抖音账号并提交。</div>
                 )}
               </article>
             </>
           ) : null}
           {props.activeDouyinCollectionCard === "competitorAccount" ? (
             <>
-              <DouyinSubmitPanel
-                title="竞品抖音主页链接"
-                value={props.douyinSyncForm.competitorAccountLinks}
-                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountLinks: value }))}
-                placeholder="每行一个"
+              <DouyinAccountBindingSubmitPanel
+                title="竞品账号信息"
+                description="按账号逐条维护竞品抖音账号入口，支持绑定多个竞品账号，并按行提交更新。"
+                modalTitle="添加竞品抖音账号"
+                modalDescription="录入竞品账号主页链接、分享链接、sec_uid 或抖音号，保存后进入账号绑定列表。"
+                emptyDescription="当前还没有添加竞品账号，请先点击右上角添加账号。"
+                target="competitor"
+                entries={props.douyinSyncForm.competitorAccountEntries}
+                syncedAccounts={props.sortedDouyinCompetitorAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                onSubmit={props.onSyncDouyinWorkspace}
+                onChangeEntries={(entries) => props.setDouyinSyncForm((current) => ({ ...current, competitorAccountEntries: entries }))}
+                onSubmitEntry={props.onSyncSingleDouyinCompetitorAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">
@@ -2549,21 +2703,75 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有采集到竞品账号信息，请先输入竞品主页链接并提交。</div>
+                  <div className="note-empty-state">当前还没有采集到竞品账号信息，请先添加竞品抖音账号并提交。</div>
                 )}
               </article>
             </>
           ) : null}
           {props.activeDouyinCollectionCard === "brandWorks" ? (
             <>
-              <DouyinSubmitPanel
-                title="品牌抖音主页链接"
-                value={props.douyinSyncForm.brandAccountLinks}
-                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, brandAccountLinks: value }))}
-                placeholder="每行一个"
-                isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                onSubmit={props.onSyncDouyinWorkspace}
-              />
+              <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌作品信息及数据</h3>
+                    <p>直接复用“品牌账号信息”里已绑定的抖音品牌账号，先同步账号信息，再提交拉取这些账号下的品牌作品。</p>
+                  </div>
+                  <div className="strategy-inline-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void props.onSyncAllDouyinBrandAccounts()}
+                      disabled={props.isHydrating || props.isSyncingDouyinWorkspace || !props.douyinSyncForm.brandAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingDouyinWorkspace ? "同步中..." : "同步品牌账号信息"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSyncDouyinWorkspace()}
+                      disabled={props.isHydrating || props.isSyncingDouyinWorkspace || !props.douyinSyncForm.brandAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingDouyinWorkspace ? "提交中..." : "提交"}
+                    </button>
+                  </div>
+                </div>
+                {props.douyinSyncForm.brandAccountEntries.length ? (
+                  <div className="xhs-account-entry-list">
+                    {props.douyinSyncForm.brandAccountEntries.map((entry) => {
+                      const hasSyncedResult = props.sortedDouyinBrandAccounts.some((item) => doesDouyinAccountMatchEntry(item, entry));
+                      return (
+                        <div key={`douyin-brand-work-source-${entry.id}`} className="xhs-account-entry-row">
+                          <div className="xhs-account-entry-row__body">
+                            <div className="xhs-account-entry-row__meta">
+                              <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
+                                {hasSyncedResult ? "作品源已就绪" : "待同步账号"}
+                              </span>
+                            </div>
+                            <strong>{entry.locator}</strong>
+                          </div>
+                          <div className="xhs-account-entry-row__actions">
+                            <button
+                              type="button"
+                              className="note-inline-button"
+                              onClick={() => props.setDouyinSyncForm((current) => ({
+                                ...current,
+                                brandAccountEntries: current.brandAccountEntries.filter((item) => item.id !== entry.id),
+                              }))}
+                              disabled={props.isHydrating || props.isSyncingDouyinWorkspace}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="xhs-account-entry-empty">
+                    当前还没有绑定品牌抖音账号，请先到“品牌账号信息”里添加账号。
+                  </div>
+                )}
+              </article>
               <article className="light-data-panel">
                 <div className="collection-result-head">
                   <div>
@@ -2577,7 +2785,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有采集到品牌作品信息，请先输入品牌主页链接并提交。</div>
+                  <div className="note-empty-state">当前还没有采集到品牌作品信息，请先同步品牌账号信息后再提交。</div>
                 )}
               </article>
             </>

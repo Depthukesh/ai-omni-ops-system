@@ -52,6 +52,7 @@ import {
   syncXiaohongshuBrandAccounts,
   syncXiaohongshuBrandNotes,
   syncXiaohongshuCompetitorAccounts,
+  type DouyinCollectedAccountRecord,
   type XhsAccountRole,
   type XhsSyncAccountEntry,
   type DouyinSyncPayload,
@@ -561,8 +562,8 @@ function writeReportScopeSnapshot(brandId: string, snapshot: Omit<ReportScopeSna
 }
 
 type DouyinSyncForm = {
-  brandAccountLinks: string;
-  competitorAccountLinks: string;
+  brandAccountEntries: XhsAccountBindingEntry[];
+  competitorAccountEntries: XhsAccountBindingEntry[];
   benchmarkAwemeIds: string;
   lowFanExplosiveWorks: {
     primaryTagId: string;
@@ -599,8 +600,8 @@ function createEmptyXhsSyncForm(): XhsSyncForm {
 
 function createEmptyDouyinSyncForm(): DouyinSyncForm {
   return {
-    brandAccountLinks: "",
-    competitorAccountLinks: "",
+    brandAccountEntries: [],
+    competitorAccountEntries: [],
     benchmarkAwemeIds: "",
     lowFanExplosiveWorks: {
       primaryTagId: "",
@@ -699,14 +700,18 @@ function upsertXhsAccountEntries(
 }
 
 function createXhsAccountEntryFromRecord(
-  record: XhsCollectionWorkspace["brandAccounts"][number] | XhsCollectionWorkspace["competitorAccounts"][number],
+  record:
+    | XhsCollectionWorkspace["brandAccounts"][number]
+    | XhsCollectionWorkspace["competitorAccounts"][number]
+    | DouyinCollectedAccountRecord,
   target: "brand" | "competitor",
 ): XhsAccountBindingEntry {
   const locator = record.sourceAccountLink || record.externalUserId || record.sourceAccountId;
+  const accountRole = "accountRole" in record ? record.accountRole : undefined;
   return {
     id: buildXhsAccountEntryId(locator, target),
     locator,
-    accountRole: target === "brand" ? normalizeXhsAccountRole(record.accountRole) : undefined,
+    accountRole: target === "brand" && accountRole ? normalizeXhsAccountRole(accountRole) : undefined,
   };
 }
 
@@ -926,6 +931,38 @@ export function BrandGrowthWorkspace() {
       };
     });
   }, [sortedCompetitorAccounts]);
+  useEffect(() => {
+    if (!sortedDouyinBrandAccounts.length) {
+      return;
+    }
+    const seededEntries = sortedDouyinBrandAccounts.map((record) => createXhsAccountEntryFromRecord(record, "brand"));
+    setDouyinSyncForm((current) => {
+      const mergedEntries = mergeXhsAccountEntries(current.brandAccountEntries, seededEntries, "brand");
+      if (areXhsAccountEntriesEqual(current.brandAccountEntries, mergedEntries)) {
+        return current;
+      }
+      return {
+        ...current,
+        brandAccountEntries: mergedEntries,
+      };
+    });
+  }, [sortedDouyinBrandAccounts]);
+  useEffect(() => {
+    if (!sortedDouyinCompetitorAccounts.length) {
+      return;
+    }
+    const seededEntries = sortedDouyinCompetitorAccounts.map((record) => createXhsAccountEntryFromRecord(record, "competitor"));
+    setDouyinSyncForm((current) => {
+      const mergedEntries = mergeXhsAccountEntries(current.competitorAccountEntries, seededEntries, "competitor");
+      if (areXhsAccountEntriesEqual(current.competitorAccountEntries, mergedEntries)) {
+        return current;
+      }
+      return {
+        ...current,
+        competitorAccountEntries: mergedEntries,
+      };
+    });
+  }, [sortedDouyinCompetitorAccounts]);
   const canGenerateGrowthReport =
     collectionWorkspace.brandAccounts.length > 0
     && collectionWorkspace.competitorAccounts.length > 0
@@ -2061,10 +2098,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         scope: activeDouyinCollectionCard,
       };
       if (activeDouyinCollectionCard === "brandAccount" || activeDouyinCollectionCard === "brandWorks") {
-        payload.brandAccountLinks = parseDouyinSyncLines(douyinSyncForm.brandAccountLinks);
+        payload.brandAccountLinks = douyinSyncForm.brandAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
       }
       if (activeDouyinCollectionCard === "competitorAccount") {
-        payload.competitorAccountLinks = parseDouyinSyncLines(douyinSyncForm.competitorAccountLinks);
+        payload.competitorAccountLinks = douyinSyncForm.competitorAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
       }
       if (activeDouyinCollectionCard === "benchmarkWorks") {
         payload.benchmarkAwemeIds = parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds);
@@ -2108,6 +2145,93 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "同步失败";
       setErrorMessage(`抖音同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncSingleDouyinBrandAccount(entry: XhsAccountBindingEntry) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "brandAccount",
+          brandAccountLinks: [entry.locator.trim()].filter(Boolean),
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`品牌抖音账号同步完成，已更新 ${response.breakdown.brandAccounts} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`品牌抖音账号同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncAllDouyinBrandAccounts() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    const brandAccountLinks = douyinSyncForm.brandAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
+    if (!brandAccountLinks.length) {
+      setErrorMessage("请先添加至少一个品牌抖音账号后再同步。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "brandAccount",
+          brandAccountLinks,
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`品牌抖音账号同步完成，已更新 ${response.breakdown.brandAccounts} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`品牌抖音账号同步失败：${message}`);
+    } finally {
+      setIsSyncingDouyinWorkspace(false);
+    }
+  }
+
+  async function handleSyncSingleDouyinCompetitorAccount(entry: XhsAccountBindingEntry) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.douyinCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步收集数据板块的编辑权限。");
+      return;
+    }
+
+    setIsSyncingDouyinWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncDouyinCollectionWorkspace(
+        {
+          scope: "competitorAccount",
+          competitorAccountLinks: [entry.locator.trim()].filter(Boolean),
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setDouyinCollectionWorkspace(response.workspace);
+      setNotice(`竞品抖音账号同步完成，已更新 ${response.breakdown.competitorAccounts} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`竞品抖音账号同步失败：${message}`);
     } finally {
       setIsSyncingDouyinWorkspace(false);
     }
@@ -2502,6 +2626,9 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
+        onSyncAllDouyinBrandAccounts={handleSyncAllDouyinBrandAccounts}
+        onSyncSingleDouyinBrandAccount={handleSyncSingleDouyinBrandAccount}
+        onSyncSingleDouyinCompetitorAccount={handleSyncSingleDouyinCompetitorAccount}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
         sortedBrandNotes={sortedBrandNotes}
