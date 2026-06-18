@@ -19,7 +19,7 @@ export class CollectorsController {
   @Post("brands/:brandId/brand-accounts/sync")
   async syncBrandAccounts(
     @Param("brandId") brandId: string,
-    @Body() payload: { accountLocators?: string[] },
+    @Body() payload: { accountLocators?: string[]; accountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }> },
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);
@@ -30,7 +30,7 @@ export class CollectorsController {
   @Post("brands/:brandId/competitor-accounts/sync")
   async syncCompetitorAccounts(
     @Param("brandId") brandId: string,
-    @Body() payload: { accountLocators?: string[] },
+    @Body() payload: { accountLocators?: string[]; accountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }> },
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
     const auth = await this.authService.resolveRequestAuthContext(headers);

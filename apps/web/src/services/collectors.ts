@@ -2,11 +2,18 @@ import { getStoredCurrentBrandId } from "./auth-session";
 import { DEMO_BRAND_ID } from "./brand-growth";
 import { jsonRequest, request } from "./http";
 
+export type XhsAccountRole = "BRAND" | "STAFF" | "TALENT";
+export type XhsSyncAccountEntry = {
+  locator: string;
+  accountRole?: XhsAccountRole;
+};
+
 export type XhsCollectedAccountRecord = {
   id: string;
   kind: "XHS_BRAND_ACCOUNT" | "XHS_COMPETITOR_ACCOUNT";
   sourceAccountId: string;
   sourceAccountLink: string;
+  accountRole?: XhsAccountRole;
   accountName: string;
   externalUserId?: string;
   postedCount?: number;
@@ -79,6 +86,7 @@ export type XhsCollectionWorkspace = {
 
 export type XhsSyncPayload = {
   accountLocators?: string[];
+  accountEntries?: XhsSyncAccountEntry[];
   sourceUrls?: string[];
 };
 
@@ -234,6 +242,7 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
       kind: "XHS_BRAND_ACCOUNT",
       sourceAccountId: "acc_demo_001",
       sourceAccountLink: "https://www.xiaohongshu.com/user/profile/demo",
+      accountRole: "BRAND",
       accountName: "武汉仟吉烘焙",
       externalUserId: "xhs_brand_demo_001",
       postedCount: 18,
@@ -253,6 +262,7 @@ export const xhsCollectionSeed: XhsCollectionWorkspace = {
       kind: "XHS_COMPETITOR_ACCOUNT",
       sourceAccountId: "cmp_demo_001",
       sourceAccountLink: "https://www.xiaohongshu.com/user/profile/comp-a",
+      accountRole: "BRAND",
       accountName: "区域烘焙竞品A",
       externalUserId: "xhs_comp_demo_001",
       postedCount: 32,

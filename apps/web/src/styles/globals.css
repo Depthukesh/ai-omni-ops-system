@@ -4737,6 +4737,193 @@ button {
   line-height: 1.75;
 }
 
+.xhs-account-builder {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(115, 132, 255, 0.05) 0%, rgba(115, 132, 255, 0) 100%),
+    var(--card-surface);
+}
+
+.xhs-account-entry-list {
+  display: grid;
+  gap: 12px;
+}
+
+.xhs-account-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 14px;
+  background: var(--card-surface-strong);
+}
+
+.xhs-account-entry-row__body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.xhs-account-entry-row__body strong {
+  color: var(--site-hero-text);
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: break-all;
+}
+
+.xhs-account-entry-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.xhs-account-entry-row__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.xhs-account-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 111, 255, 0.16);
+  background: rgba(94, 111, 255, 0.08);
+  color: var(--site-hero-text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.xhs-account-entry-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 18px;
+  border: 1px dashed var(--site-hero-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.xhs-account-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 23, 36, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+.xhs-account-modal {
+  width: min(720px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(119, 137, 255, 0.16);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)),
+    var(--card-surface);
+  box-shadow: 0 24px 60px rgba(26, 34, 58, 0.24);
+}
+
+.xhs-account-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.xhs-account-modal__head strong {
+  display: block;
+  color: var(--site-hero-text);
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.xhs-account-modal__head p {
+  margin: 6px 0 0;
+  color: var(--site-hero-muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.xhs-account-modal__close {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 999px;
+  background: var(--card-surface-strong);
+  color: var(--site-hero-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.xhs-account-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.xhs-account-role-card {
+  min-height: 116px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--site-hero-border);
+  border-radius: 16px;
+  background: var(--card-surface-strong);
+  color: var(--site-hero-muted);
+  text-align: left;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.xhs-account-role-card strong {
+  color: var(--site-hero-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.xhs-account-role-card span {
+  color: var(--site-hero-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.xhs-account-role-card:hover,
+.xhs-account-role-card.is-active {
+  border-color: rgba(95, 116, 255, 0.28);
+  background: linear-gradient(180deg, rgba(95, 116, 255, 0.08), rgba(95, 116, 255, 0.02));
+  box-shadow: 0 14px 30px rgba(69, 86, 150, 0.12);
+  transform: translateY(-1px);
+}
+
+.xhs-account-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .collection-card-list {
   display: flex;
   flex-direction: column;
@@ -5187,6 +5374,40 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-top: 10px;
+
+@media (max-width: 900px) {
+  .xhs-account-role-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .xhs-account-entry-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .xhs-account-entry-row__actions {
+    justify-content: flex-start;
+  }
+
+  .xhs-account-modal-backdrop {
+    padding: 16px;
+  }
+
+  .xhs-account-modal {
+    padding: 18px;
+  }
+
+  .xhs-account-modal__head {
+    flex-direction: column;
+  }
+
+  .xhs-account-modal__close {
+    align-self: flex-start;
+  }
+}
   margin-top: 10px;
   color: var(--site-hero-muted);
   font-size: 12px;

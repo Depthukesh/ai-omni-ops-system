@@ -39,6 +39,14 @@ type DouyinBillboardScopeKey =
   | "highCompletionRateWorks"
   | "highLikeRateWorks";
 type DouyinCityHotspotScopeKey = "cityHotspots";
+export type XhsAccountRole = "BRAND" | "STAFF" | "TALENT";
+type XhsSyncAccountEntry = {
+  locator: string;
+  accountRole?: XhsAccountRole;
+};
+type XhsResolvedAccountRecord = PlatformAccountRecord & {
+  accountRole?: XhsAccountRole;
+};
 type DouyinContentTagSelection = {
   primaryTagId?: number;
   secondaryTagId?: number;
@@ -53,6 +61,7 @@ type DouyinSyncInput = {
 };
 type XhsSyncInput = {
   accountLocators?: string[];
+  accountEntries?: XhsSyncAccountEntry[];
   sourceUrls?: string[];
 };
 export type DouyinContentTagOption = {
@@ -148,6 +157,7 @@ export type XhsCollectedAccountRecord = {
   kind: CollectorAccountKind;
   sourceAccountId: string;
   sourceAccountLink: string;
+  accountRole?: XhsAccountRole;
   accountName: string;
   externalUserId?: string;
   postedCount?: number;
@@ -422,7 +432,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncBrandAccounts(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries);
     const collected = await Promise.all(
       accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_BRAND_ACCOUNT")),
     );
@@ -435,7 +445,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncCompetitorAccounts(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "competitor");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "competitor");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "competitor", input.accountEntries);
     const collected = await Promise.all(
       accounts.map((account) => this.collectAndStoreAccount(brandId, account, "XHS_COMPETITOR_ACCOUNT")),
     );
@@ -1042,6 +1052,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       kind,
       sourceAccountId: this.readMetaString(meta, "sourceAccountId"),
       sourceAccountLink: this.readMetaString(meta, "sourceAccountLink"),
+      accountRole: this.normalizeXhsAccountRole(this.readMetaString(meta, "accountRole")),
       accountName: asset.title,
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       postedCount: this.readMetaNumber(meta, "postedCount"),
@@ -2910,7 +2921,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async collectAndStoreAccount(
     brandId: string,
-    account: PlatformAccountRecord,
+    account: XhsResolvedAccountRecord,
     kind: CollectorAccountKind,
   ): Promise<XhsCollectedAccountRecord> {
     const userQuery = this.resolveXhsUserQuery(account.accountLink);
@@ -2938,6 +2949,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       kind,
       sourceAccountId: account.id,
       sourceAccountLink: accountLink,
+      accountRole: this.normalizeXhsAccountRole(account.accountRole) || "BRAND",
       externalUserId,
       postedCount: this.pickNumber(raw, ["posted", "note_count", "notes_count", "post_count"]),
       likedCount: this.pickNumber(raw, ["liked", "liked_count", "total_liked", "total_favorited"]),
@@ -2964,7 +2976,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     return this.mapCollectedAccount(asset, kind);
   }
 
-  private async collectAndStoreNotes(brandId: string, account: PlatformAccountRecord): Promise<XhsCollectedNoteRecord[]> {
+  private async collectAndStoreNotes(brandId: string, account: XhsResolvedAccountRecord): Promise<XhsCollectedNoteRecord[]> {
     const userQuery = this.resolveXhsUserQuery(account.accountLink);
     if (!userQuery.userId && !userQuery.shareText) {
       throw new BadRequestException(`小红书账号链接或用户 ID 无效：${account.accountLink}`);
@@ -4184,30 +4196,78 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     presetAccounts: PlatformAccountRecord[],
     manualLocators: string[] | undefined,
     target: "brand" | "competitor",
+    manualEntries?: XhsSyncAccountEntry[],
   ) {
-    const results = [...presetAccounts];
-    const existingKeys = new Set(
-      presetAccounts
-        .map((item) => this.normalizeXhsAccountLocator(item.accountLink))
-        .filter(Boolean),
-    );
-
-    for (const rawLocator of manualLocators ?? []) {
-      const normalizedLocator = this.normalizeXhsAccountLocator(rawLocator);
-      if (!normalizedLocator || existingKeys.has(normalizedLocator)) {
-        continue;
+    const results: XhsResolvedAccountRecord[] = presetAccounts.map((item) => ({
+      ...item,
+      accountRole: "BRAND",
+    }));
+    const existingIndexByKey = new Map<string, number>();
+    for (const [index, item] of results.entries()) {
+      const normalizedLocator = this.normalizeXhsAccountLocator(item.accountLink);
+      if (normalizedLocator) {
+        existingIndexByKey.set(normalizedLocator, index);
       }
-      existingKeys.add(normalizedLocator);
+    }
+
+    const upsertManualAccount = (rawLocator: string, accountRole?: XhsAccountRole) => {
+      const normalizedLocator = this.normalizeXhsAccountLocator(rawLocator);
+      if (!normalizedLocator) {
+        return;
+      }
+      const resolvedRole = this.normalizeXhsAccountRole(accountRole) || "BRAND";
+      const matchedIndex = existingIndexByKey.get(normalizedLocator);
+      if (matchedIndex !== undefined) {
+        results[matchedIndex] = {
+          ...results[matchedIndex],
+          accountLink: normalizedLocator,
+          accountRole: resolvedRole,
+        };
+        return;
+      }
       results.push({
-        id: `manual_xhs_${target}_${existingKeys.size}`,
+        id: this.buildManualXhsAccountId(normalizedLocator, target),
         brandId: "",
         platform: "XIAOHONGSHU",
-        accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
+        accountName:
+          target === "brand"
+            ? resolvedRole === "STAFF"
+              ? "手动输入员工号"
+              : resolvedRole === "TALENT"
+                ? "手动输入达人号"
+                : "手动输入品牌号"
+            : "手动输入竞品账号",
         accountLink: normalizedLocator,
+        accountRole: resolvedRole,
       });
+      existingIndexByKey.set(normalizedLocator, results.length - 1);
+    };
+
+    for (const rawLocator of manualLocators ?? []) {
+      upsertManualAccount(rawLocator, "BRAND");
+    }
+    for (const entry of manualEntries ?? []) {
+      upsertManualAccount(entry.locator, entry.accountRole);
     }
 
     return results;
+  }
+
+  private buildManualXhsAccountId(locator: string, target: "brand" | "competitor") {
+    const compact = locator
+      .toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/i, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 60);
+    return `manual_xhs_${target}_${compact || "entry"}`;
+  }
+
+  private normalizeXhsAccountRole(value?: string): XhsAccountRole | undefined {
+    if (value === "BRAND" || value === "STAFF" || value === "TALENT") {
+      return value;
+    }
+    return undefined;
   }
 
   private async fetchXhs(path: string, params: Record<string, string | undefined>) {

@@ -17,6 +17,7 @@ import type {
   DouyinContentTagOption,
   DouyinCollectionWorkspace,
   DouyinCollectedWorkRecord,
+  XhsAccountRole,
   XhsCollectedAccountRecord,
   XhsCollectedNoteRecord,
 } from "../../../services/collectors";
@@ -43,6 +44,12 @@ export const xiaohongshuCollectionCards: Array<{
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
 ];
+
+export type XhsBrandAccountEntry = {
+  id: string;
+  locator: string;
+  accountRole: XhsAccountRole;
+};
 
 export type DouyinCollectionCardKey =
   | "brandAccount"
@@ -200,13 +207,13 @@ export interface BrandGrowthCollectionWorkspaceProps {
   activeXhsCollectionCard: XiaohongshuCollectionCardKey;
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
   xhsSyncForm: {
-    brandAccountLocators: string;
+    brandAccountEntries: XhsBrandAccountEntry[];
     competitorAccountLocators: string;
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
   };
   setXhsSyncForm: Dispatch<SetStateAction<{
-    brandAccountLocators: string;
+    brandAccountEntries: XhsBrandAccountEntry[];
     competitorAccountLocators: string;
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
@@ -273,6 +280,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
   onSyncXhsWorkspace: AsyncAction;
+  onSyncSingleXhsBrandAccount: ValueAction<XhsBrandAccountEntry>;
   onSyncDouyinWorkspace: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
@@ -474,6 +482,207 @@ function CollectionPageStatus(props: {
       {!props.isHydrating && props.notice ? <span className="status-text success-text">{props.notice}</span> : null}
       {!props.isHydrating && props.errorMessage ? <span className="status-text error-text">{props.errorMessage}</span> : null}
     </div>
+  );
+}
+
+const XHS_ACCOUNT_ROLE_OPTIONS: Array<{ value: XhsAccountRole; label: string; description: string }> = [
+  { value: "BRAND", label: "品牌号", description: "官方品牌主体账号，适合品牌内容与官方活动。" },
+  { value: "STAFF", label: "员工号", description: "员工或门店同事出镜账号，适合真实视角分享。" },
+  { value: "TALENT", label: "达人号", description: "达人/KOC/KOL 视角账号，适合种草合作内容。" },
+];
+
+function getXhsAccountRoleLabel(role?: XhsAccountRole) {
+  if (role === "STAFF") {
+    return "员工号";
+  }
+  if (role === "TALENT") {
+    return "达人号";
+  }
+  return "品牌号";
+}
+
+function normalizeXhsAccountEntryLocator(locator: string) {
+  const trimmed = locator.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed
+      .replace(/[#?].*$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+  }
+  return trimmed.toLowerCase();
+}
+
+function buildXhsBrandAccountEntryId(locator: string) {
+  const compact = normalizeXhsAccountEntryLocator(locator)
+    .replace(/^https?:\/\/(www\.)?/i, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return `xhs_brand_account_${compact || "entry"}`;
+}
+
+function upsertXhsBrandAccountEntries(entries: XhsBrandAccountEntry[], nextEntry: XhsBrandAccountEntry) {
+  const normalizedLocator = normalizeXhsAccountEntryLocator(nextEntry.locator);
+  if (!normalizedLocator) {
+    return entries;
+  }
+  const preparedEntry: XhsBrandAccountEntry = {
+    ...nextEntry,
+    id: nextEntry.id || buildXhsBrandAccountEntryId(normalizedLocator),
+    locator: nextEntry.locator.trim(),
+  };
+  const matchedIndex = entries.findIndex((item) => normalizeXhsAccountEntryLocator(item.locator) === normalizedLocator);
+  if (matchedIndex < 0) {
+    return [...entries, preparedEntry];
+  }
+  return entries.map((item, index) => (index === matchedIndex ? { ...item, ...preparedEntry } : item));
+}
+
+function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: XhsBrandAccountEntry) {
+  const normalizedEntry = normalizeXhsAccountEntryLocator(entry.locator);
+  if (!normalizedEntry) {
+    return false;
+  }
+  const normalizedSourceLink = normalizeXhsAccountEntryLocator(account.sourceAccountLink || "");
+  const normalizedExternalUserId = normalizeXhsAccountEntryLocator(account.externalUserId || "");
+  return normalizedEntry === normalizedSourceLink || normalizedEntry === normalizedExternalUserId;
+}
+
+function XhsBrandAccountSubmitPanel(props: {
+  entries: XhsBrandAccountEntry[];
+  syncedAccounts: XhsCollectedAccountRecord[];
+  isSubmitting: boolean;
+  onChangeEntries: ValueAction<XhsBrandAccountEntry[]>;
+  onSubmitEntry: ValueAction<XhsBrandAccountEntry>;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draftLocator, setDraftLocator] = useState("");
+  const [draftRole, setDraftRole] = useState<XhsAccountRole>("BRAND");
+
+  const handleSave = () => {
+    const trimmedLocator = draftLocator.trim();
+    if (!trimmedLocator) {
+      return;
+    }
+    props.onChangeEntries(
+      upsertXhsBrandAccountEntries(props.entries, {
+        id: buildXhsBrandAccountEntryId(trimmedLocator),
+        locator: trimmedLocator,
+        accountRole: draftRole,
+      }),
+    );
+    setDraftLocator("");
+    setDraftRole("BRAND");
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (entryId: string) => {
+    props.onChangeEntries(props.entries.filter((item) => item.id !== entryId));
+  };
+
+  return (
+    <>
+      <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
+        <div className="collection-result-head">
+          <div>
+            <h3>品牌账号信息</h3>
+            <p>按账号逐条维护采集入口，支持区分品牌号、员工号和达人号，并在行内直接提交更新。</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={() => setIsModalOpen(true)} disabled={props.isSubmitting}>
+            添加账号
+          </button>
+        </div>
+        {props.entries.length ? (
+          <div className="xhs-account-entry-list">
+            {props.entries.map((entry) => {
+              const hasSyncedResult = props.syncedAccounts.some((item) => doesXhsAccountMatchEntry(item, entry));
+              return (
+                <div key={entry.id} className="xhs-account-entry-row">
+                  <div className="xhs-account-entry-row__body">
+                    <div className="xhs-account-entry-row__meta">
+                      <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                      <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
+                        {hasSyncedResult ? "已采集" : "待提交"}
+                      </span>
+                    </div>
+                    <strong>{entry.locator}</strong>
+                  </div>
+                  <div className="xhs-account-entry-row__actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSubmitEntry(entry)}
+                      disabled={props.isSubmitting}
+                    >
+                      {props.isSubmitting ? "提交中..." : "提交"}
+                    </button>
+                    <button
+                      type="button"
+                      className="note-inline-button"
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={props.isSubmitting}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="xhs-account-entry-empty">
+            右上角点击“添加账号”后，按账号类型逐条保存；保存后每个账号会单独展示并可直接提交采集。
+          </div>
+        )}
+      </article>
+      {isModalOpen ? (
+        <div className="xhs-account-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setIsModalOpen(false)}>
+          <div className="xhs-account-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="xhs-account-modal__head">
+              <div>
+                <strong>添加品牌账号</strong>
+                <p>先选择账号类型，再输入小红书主页链接、分享链接或 `user_id`。</p>
+              </div>
+              <button type="button" className="xhs-account-modal__close" onClick={() => setIsModalOpen(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="xhs-account-role-grid">
+              {XHS_ACCOUNT_ROLE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`xhs-account-role-card ${draftRole === option.value ? "is-active" : ""}`}
+                  onClick={() => setDraftRole(option.value)}
+                >
+                  <strong>{option.label}</strong>
+                  <span>{option.description}</span>
+                </button>
+              ))}
+            </div>
+            <label className="field">
+              <span>账号链接或 user_id</span>
+              <input
+                value={draftLocator}
+                onChange={(event) => setDraftLocator(event.target.value)}
+                placeholder="请输入主页链接、分享链接或 user_id"
+              />
+            </label>
+            <div className="xhs-account-modal__actions">
+              <button type="button" className="secondary-button" onClick={() => setIsModalOpen(false)}>
+                取消
+              </button>
+              <button type="button" className="primary-button" onClick={handleSave} disabled={!draftLocator.trim()}>
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1386,15 +1595,18 @@ function DouyinCityHotspotTable(props: {
 
 function XhsAccountTable(props: {
   items: XhsCollectedAccountRecord[];
+  showAccountRole?: boolean;
   formatDateTime: OptionalDateFormatter;
   formatCount: OptionalNumberFormatter;
 }) {
+  const showAccountRole = props.showAccountRole ?? false;
   return (
     <ScrollableTableShell>
       <table className="soft-table douyin-data-table">
         <thead>
           <tr>
             <th>昵称</th>
+            {showAccountRole ? <th>账号类型</th> : null}
             <th>用户 ID</th>
             <th>简介</th>
             <th>头像</th>
@@ -1412,6 +1624,7 @@ function XhsAccountTable(props: {
           {props.items.map((item) => (
             <tr key={item.id}>
               <td>{item.accountName || "-"}</td>
+              {showAccountRole ? <td>{getXhsAccountRoleLabel(item.accountRole)}</td> : null}
               <td><CopyableCell value={item.externalUserId} /></td>
               <td className="table-cell-wide">
                 <ExpandableTextCell value={item.description} emptyText="未提供简介" compactRows={2} />
@@ -1976,13 +2189,12 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           </div>
           {props.activeXhsCollectionCard === "brandAccount" ? (
             <>
-              <DouyinSubmitPanel
-                title="品牌账号信息"
-                value={props.xhsSyncForm.brandAccountLocators}
-                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, brandAccountLocators: value }))}
-                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置品牌账号"
+              <XhsBrandAccountSubmitPanel
+                entries={props.xhsSyncForm.brandAccountEntries}
+                syncedAccounts={props.sortedBrandAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
-                onSubmit={props.onSyncXhsWorkspace}
+                onChangeEntries={(entries) => props.setXhsSyncForm((current) => ({ ...current, brandAccountEntries: entries }))}
+                onSubmitEntry={props.onSyncSingleXhsBrandAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">
@@ -1997,11 +2209,12 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                 {props.sortedBrandAccounts.length ? (
                   <XhsAccountTable
                     items={props.sortedBrandAccounts}
+                    showAccountRole
                     formatDateTime={props.formatDateTime}
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有品牌账号结果，先提交链接或 user_id。</div>
+                  <div className="note-empty-state">当前还没有品牌账号结果，先添加账号并点击对应行的提交按钮。</div>
                 )}
               </article>
             </>
