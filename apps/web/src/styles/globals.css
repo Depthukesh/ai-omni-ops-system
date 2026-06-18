@@ -78,6 +78,14 @@
   --text-strong: #eef3ff;
   --text-soft: rgba(198, 207, 224, 0.72);
   --text-faint: rgba(186, 196, 214, 0.72);
+  --foreground: var(--text-strong);
+  --surface-elevated: rgba(255, 255, 255, 0.05);
+  --surface-warning-bg: rgba(242, 184, 75, 0.12);
+  --surface-warning-border: rgba(242, 184, 75, 0.28);
+  --select-menu-bg: #111927;
+  --select-menu-text: #eef3ff;
+  --select-menu-border: rgba(255, 255, 255, 0.12);
+  --overlay-scrim: rgba(6, 12, 22, 0.68);
   --avatar-bg: linear-gradient(180deg, rgba(114, 144, 255, 0.34) 0%, rgba(74, 100, 214, 0.42) 100%);
   --status-ready-bg: rgba(34, 197, 94, 0.15);
   --status-ready-text: #4ade80;
@@ -167,6 +175,14 @@
   --text-strong: #172032;
   --text-soft: #5f6d83;
   --text-faint: #72819a;
+  --foreground: var(--text-strong);
+  --surface-elevated: rgba(255, 255, 255, 0.88);
+  --surface-warning-bg: rgba(255, 243, 225, 0.96);
+  --surface-warning-border: rgba(224, 145, 56, 0.28);
+  --select-menu-bg: #f8fafd;
+  --select-menu-text: #172032;
+  --select-menu-border: rgba(120, 136, 166, 0.22);
+  --overlay-scrim: rgba(18, 26, 41, 0.42);
   --avatar-bg: linear-gradient(180deg, rgba(193, 213, 255, 0.92) 0%, rgba(219, 229, 255, 0.96) 100%);
   --status-ready-bg: rgba(34, 197, 94, 0.15);
   --status-ready-text: #166534;
@@ -198,6 +214,19 @@ body {
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   min-height: 100vh;
   transition: background-color 220ms ease, color 220ms ease;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+select option,
+select optgroup {
+  background: var(--select-menu-bg);
+  color: var(--select-menu-text);
 }
 
 .dashboard-layout {
@@ -1033,6 +1062,11 @@ button {
   transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
@@ -1040,6 +1074,23 @@ button {
   border-color: rgba(242, 184, 75, 0.56);
   box-shadow: 0 0 0 4px rgba(242, 184, 75, 0.12);
   background: var(--input-bg-focus);
+}
+
+.field select,
+.admin-skill-field select,
+.admin-provider-field select,
+.admin-rule-card select,
+.admin-user-filter-grid select,
+.admin-user-detail-form select,
+.personal-list select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6.5L8 10L12 6.5' stroke='%2395A3BC' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px 14px;
 }
 
 .inline-action-field {
@@ -4406,10 +4457,11 @@ button {
 }
 
 .light-data-panel {
-  padding: 16px 18px 20px;
+  padding: 18px 20px 22px;
   border: 1px solid var(--site-hero-border);
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--card-surface);
+  box-shadow: var(--card-shadow);
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
@@ -5340,7 +5392,7 @@ button {
   width: 100%;
   max-height: 220px;
   border-radius: 10px;
-  background: #dfe5f3;
+  background: var(--subtle-surface);
 }
 
 .note-empty-media {
@@ -5348,7 +5400,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed #dde3f1;
+  border: 1px dashed var(--site-hero-border);
   border-radius: 12px;
   background: var(--subtle-surface);
   color: var(--site-hero-muted);
@@ -5431,7 +5483,7 @@ button {
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: var(--card);
+  background: var(--overlay-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5441,13 +5493,14 @@ button {
 .media-preview-dialog {
   width: min(960px, 100%);
   max-height: calc(100vh - 48px);
-  border-radius: 18px;
-  background: var(--card-surface);
+  border: 1px solid var(--site-hero-border);
+  border-radius: 24px;
+  background: var(--card-surface-strong);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
-  padding: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .media-preview-close {
@@ -5482,17 +5535,17 @@ button {
 
 .note-empty-state {
   padding: 18px;
-  border: 1px dashed #dde3f1;
+  border: 1px dashed var(--site-hero-border);
   border-radius: 14px;
-  background: var(--subtle-surface);
-  color: var(--site-hero-muted);
+  background: var(--surface-elevated);
+  color: var(--text-soft);
   text-align: center;
 }
 
 .note-pagination-bar {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid #edf0f8;
+  border-top: 1px solid var(--site-hero-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8654,8 +8707,9 @@ button {
   border-radius: 12px;
   padding: 11px 12px;
   font: inherit;
-  background: var(--card-surface);
-  color: var(--foreground);
+  background: var(--input-bg);
+  color: var(--text-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .admin-rule-card textarea {
@@ -9393,7 +9447,7 @@ button {
 
 .admin-user-filter-summary strong {
   font-size: 24px;
-  color: var(--foreground);
+  color: var(--text-strong);
 }
 
 .admin-user-filter-grid {
@@ -9424,8 +9478,9 @@ button {
   border-radius: 14px;
   padding: 0 14px;
   font: inherit;
-  background: var(--card-surface);
-  color: var(--foreground);
+  background: var(--input-bg);
+  color: var(--text-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .admin-user-filter-actions {
@@ -9462,9 +9517,10 @@ button {
 .package-assembly-form-card,
 .package-assembly-table-card,
 .package-assembly-metric {
-  border: 1px solid rgba(140, 154, 187, 0.2);
+  border: 1px solid var(--site-hero-border);
   border-radius: 18px;
-  background: rgba(248, 250, 255, 0.78);
+  background: var(--card-surface-strong);
+  box-shadow: var(--card-shadow);
 }
 
 .package-assembly-form-card,
@@ -9502,8 +9558,9 @@ button {
   min-height: 40px;
   padding: 0 12px;
   border-radius: 12px;
-  background: rgba(91, 109, 255, 0.06);
-  color: var(--site-hero-text);
+  border: 1px solid var(--tab-active-border);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
 }
 
 .package-assembly-summary {
@@ -9541,8 +9598,8 @@ button {
 }
 
 .assembly-guidance-card--warning {
-  border-color: rgba(224, 145, 56, 0.22);
-  background: rgba(255, 244, 229, 0.9);
+  border-color: var(--surface-warning-border);
+  background: var(--surface-warning-bg);
 }
 
 .assembly-guidance-card strong {
@@ -9555,7 +9612,7 @@ button {
   margin: 4px 0 0;
   font-size: 13px;
   line-height: 1.7;
-  color: var(--site-hero-muted);
+  color: var(--text-soft);
 }
 
 .admin-user-table {
@@ -9594,7 +9651,7 @@ button {
 
 .admin-user-row-title {
   font-weight: 700;
-  color: var(--foreground);
+  color: var(--text-strong);
 }
 
 .admin-user-row-meta {
@@ -12542,8 +12599,8 @@ button {
   align-items: center;
   justify-content: center;
   padding: 28px 20px;
-  background: rgba(15, 28, 46, 0.48);
-  backdrop-filter: blur(8px);
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(12px);
 }
 
 .admin-user-modal {
@@ -12552,7 +12609,9 @@ button {
   display: grid;
   gap: 18px;
   overflow-y: auto;
+  border: 1px solid var(--site-hero-border);
   border-radius: 28px;
+  background: var(--card-surface-strong);
   box-shadow: 0 28px 72px rgba(16, 30, 48, 0.24);
 }
 
@@ -12561,6 +12620,8 @@ button {
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--site-hero-border);
 }
 
 .admin-user-modal-topbar strong {
@@ -12575,7 +12636,9 @@ button {
   width: min(420px, 100%);
   display: grid;
   gap: 18px;
+  border: 1px solid var(--site-hero-border);
   border-radius: 24px;
+  background: var(--card-surface-strong);
   box-shadow: 0 28px 72px rgba(16, 30, 48, 0.24);
 }
 
