@@ -646,6 +646,32 @@ function normalizeXhsAccountEntryLocator(locator: string) {
   if (!trimmed) {
     return "";
   }
+  const extractDouyinLocatorKey = (value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return "";
+    }
+    if (/^MS4w/i.test(normalizedValue)) {
+      return `douyin_user:${normalizedValue.toLowerCase()}`;
+    }
+    try {
+      const parsed = new URL(normalizedValue);
+      const pathMatch = parsed.pathname.match(/\/(?:share\/)?user\/([^/?#]+)/i);
+      const identifier =
+        pathMatch?.[1]
+        || parsed.searchParams.get("sec_user_id")
+        || parsed.searchParams.get("sec_uid")
+        || parsed.searchParams.get("sec_id");
+      return identifier ? `douyin_user:${decodeURIComponent(identifier).toLowerCase()}` : "";
+    } catch {
+      const rawMatch = normalizedValue.match(/\/(?:share\/)?user\/([^/?#]+)/i);
+      return rawMatch?.[1] ? `douyin_user:${decodeURIComponent(rawMatch[1]).toLowerCase()}` : "";
+    }
+  };
+  const douyinLocatorKey = extractDouyinLocatorKey(trimmed);
+  if (douyinLocatorKey) {
+    return douyinLocatorKey;
+  }
   if (/^https?:\/\//i.test(trimmed)) {
     return trimmed
       .replace(/[#?].*$/, "")
@@ -722,7 +748,10 @@ function createXhsAccountEntryFromRecord(
     | DouyinCollectedAccountRecord,
   target: "brand" | "competitor",
 ): XhsAccountBindingEntry {
-  const locator = record.sourceAccountLink || record.externalUserId || record.sourceAccountId;
+  const locator =
+    "accountLink" in record
+      ? record.accountLink || record.sourceAccountLink || record.username || record.externalUserId || record.sourceAccountId
+      : record.sourceAccountLink || record.externalUserId || record.sourceAccountId;
   const accountRole = "accountRole" in record ? record.accountRole : undefined;
   return {
     id: buildXhsAccountEntryId(locator, target),

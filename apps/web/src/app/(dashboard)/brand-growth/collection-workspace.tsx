@@ -566,21 +566,68 @@ function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: Xhs
   return normalizedEntry === normalizedSourceLink || normalizedEntry === normalizedExternalUserId;
 }
 
+function buildDouyinAccountMatchTokens(value: string) {
+  const trimmed = value.trim();
+  const normalized = normalizeXhsAccountEntryLocator(trimmed);
+  if (!normalized) {
+    return [] as string[];
+  }
+
+  const tokens = new Set<string>();
+  const pushToken = (candidate?: string | null) => {
+    const normalizedCandidate = normalizeXhsAccountEntryLocator(candidate || "");
+    if (!normalizedCandidate) {
+      return;
+    }
+    tokens.add(normalizedCandidate);
+    tokens.add(normalizedCandidate.replace(/^@+/, ""));
+  };
+
+  pushToken(trimmed);
+
+  try {
+    const url = new URL(trimmed);
+    const pathSegments = url.pathname
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const userSegmentIndex = pathSegments.findIndex((segment) => segment.toLowerCase() === "user");
+    if (userSegmentIndex >= 0) {
+      pushToken(pathSegments[userSegmentIndex + 1]);
+    }
+    pushToken(url.searchParams.get("sec_uid"));
+    pushToken(url.searchParams.get("sec_user_id"));
+    pushToken(url.searchParams.get("uid"));
+    pushToken(url.searchParams.get("user_id"));
+  } catch {
+    // Ignore non-URL locators and rely on the raw normalized token instead.
+  }
+
+  const pathUserMatch = normalized.match(/\/user\/([^/?#]+)/i);
+  if (pathUserMatch) {
+    pushToken(pathUserMatch[1]);
+  }
+
+  return [...tokens].filter(Boolean);
+}
+
 function doesDouyinAccountMatchEntry(account: DouyinCollectedAccountRecord, entry: XhsAccountBindingEntry) {
-  const normalizedEntry = normalizeXhsAccountEntryLocator(entry.locator);
-  if (!normalizedEntry) {
+  const entryTokens = buildDouyinAccountMatchTokens(entry.locator);
+  if (!entryTokens.length) {
     return false;
   }
-  const normalizedSourceLink = normalizeXhsAccountEntryLocator(account.sourceAccountLink || "");
-  const normalizedAccountLink = normalizeXhsAccountEntryLocator(account.accountLink || "");
-  const normalizedExternalUserId = normalizeXhsAccountEntryLocator(account.externalUserId || "");
-  const normalizedUsername = normalizeXhsAccountEntryLocator(account.username || "");
-  return (
-    normalizedEntry === normalizedSourceLink
-    || normalizedEntry === normalizedAccountLink
-    || normalizedEntry === normalizedExternalUserId
-    || normalizedEntry === normalizedUsername
-  );
+  const accountTokens = new Set<string>();
+  [
+    account.sourceAccountLink,
+    account.accountLink,
+    account.externalUserId,
+    account.username,
+    account.sourceAccountId,
+    account.shortId,
+  ].forEach((value) => {
+    buildDouyinAccountMatchTokens(value || "").forEach((token) => accountTokens.add(token));
+  });
+  return entryTokens.some((token) => accountTokens.has(token));
 }
 
 function XhsAccountBindingSubmitPanel(props: {

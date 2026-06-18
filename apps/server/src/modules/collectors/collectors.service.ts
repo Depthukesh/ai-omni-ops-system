@@ -5045,11 +5045,44 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractDouyinSecUserId(url: string) {
-    const match = url.match(/douyin\.com\/user\/([^/?#]+)/i);
-    if (match?.[1]) {
-      return decodeURIComponent(match[1]);
+    const text = String(url || "").trim();
+    if (!text) {
+      return "";
     }
-    return /^MS4w/i.test(url) ? url.trim() : "";
+    if (/^MS4w/i.test(text)) {
+      return text;
+    }
+
+    const extractFromCandidate = (candidate: string) => {
+      const normalized = String(candidate || "").trim();
+      if (!normalized) {
+        return "";
+      }
+      const match = normalized.match(/\/(?:share\/)?user\/([^/?#]+)/i);
+      if (match?.[1]) {
+        return decodeURIComponent(match[1]);
+      }
+      return "";
+    };
+
+    try {
+      const parsed = new URL(text);
+      const fromPath = extractFromCandidate(parsed.pathname);
+      if (fromPath) {
+        return fromPath;
+      }
+      const fromQuery =
+        parsed.searchParams.get("sec_user_id")
+        || parsed.searchParams.get("sec_uid")
+        || parsed.searchParams.get("sec_id");
+      if (fromQuery) {
+        return decodeURIComponent(fromQuery);
+      }
+    } catch {
+      // Ignore malformed URLs and fall back to regex matching below.
+    }
+
+    return extractFromCandidate(text);
   }
 
   private extractDouyinUser(raw: unknown) {
