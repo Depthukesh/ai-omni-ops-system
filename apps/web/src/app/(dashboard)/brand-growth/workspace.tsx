@@ -2181,9 +2181,11 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       };
       if (activeDouyinCollectionCard === "brandAccount" || activeDouyinCollectionCard === "brandWorks") {
         payload.brandAccountLinks = douyinSyncForm.brandAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
+        payload.brandAccountEntries = buildXhsSyncAccountEntries(douyinSyncForm.brandAccountEntries);
       }
       if (activeDouyinCollectionCard === "competitorAccount") {
         payload.competitorAccountLinks = douyinSyncForm.competitorAccountEntries.map((entry) => entry.locator.trim()).filter(Boolean);
+        payload.competitorAccountEntries = buildXhsSyncAccountEntries(douyinSyncForm.competitorAccountEntries);
       }
       if (activeDouyinCollectionCard === "benchmarkWorks") {
         payload.benchmarkAwemeIds = parseDouyinSyncLines(douyinSyncForm.benchmarkAwemeIds);
@@ -2246,6 +2248,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         {
           scope: "brandAccount",
           brandAccountLinks: [entry.locator.trim()].filter(Boolean),
+          brandAccountEntries: buildXhsSyncAccountEntries([entry]),
         },
         activeBrandId || archive.brand.id,
       );
@@ -2279,6 +2282,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         {
           scope: "brandAccount",
           brandAccountLinks,
+          brandAccountEntries: buildXhsSyncAccountEntries(douyinSyncForm.brandAccountEntries),
         },
         activeBrandId || archive.brand.id,
       );
@@ -2306,6 +2310,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         {
           scope: "competitorAccount",
           competitorAccountLinks: [entry.locator.trim()].filter(Boolean),
+          competitorAccountEntries: buildXhsSyncAccountEntries([entry]),
         },
         activeBrandId || archive.brand.id,
       );

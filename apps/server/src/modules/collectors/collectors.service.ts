@@ -55,9 +55,14 @@ type DouyinSyncInput = {
   scope?: "brandAccount" | "competitorAccount" | "brandWorks" | "benchmarkWorks" | DouyinBillboardScopeKey | DouyinCityHotspotScopeKey;
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
+  brandAccountEntries?: XhsSyncAccountEntry[];
+  competitorAccountEntries?: XhsSyncAccountEntry[];
   benchmarkAwemeIds?: string[];
   contentTagSelection?: DouyinContentTagSelection;
   cityCode?: number;
+};
+type DouyinResolvedAccountRecord = PlatformAccountRecord & {
+  accountRole?: XhsAccountRole;
 };
 type XhsSyncInput = {
   accountLocators?: string[];
@@ -235,6 +240,7 @@ export type DouyinCollectedAccountRecord = {
   sourceAccountId: string;
   accountLink: string;
   sourceAccountLink: string;
+  accountRole?: XhsAccountRole;
   accountName: string;
   externalUserId?: string;
   username?: string;
@@ -485,10 +491,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     const shouldSyncHighLikeRateWorks = scope === "highLikeRateWorks";
     const shouldSyncCityHotspots = scope === "cityHotspots";
     const brandAccounts = shouldSyncBrandAccounts || shouldSyncBrandWorks
-      ? this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand")
+      ? this.mergeDouyinManualAccounts(brandAccountPreset, input.brandAccountLinks, "brand", input.brandAccountEntries)
       : [];
     const competitorAccounts = shouldSyncCompetitorAccounts
-      ? this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor")
+      ? this.mergeDouyinManualAccounts(competitorAccountPreset, input.competitorAccountLinks, "competitor", input.competitorAccountEntries)
       : [];
 
     const brandAccountRows = await Promise.all(
@@ -1137,6 +1143,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       sourceAccountId: this.readMetaString(meta, "sourceAccountId"),
       accountLink,
       sourceAccountLink: accountLink,
+      accountRole: this.normalizeXhsAccountRole(this.readMetaString(meta, "accountRole")),
       accountName: asset.title,
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       username: this.readMetaString(meta, "username") || undefined,
@@ -3072,7 +3079,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async collectAndStoreDouyinAccount(
     brandId: string,
-    account: PlatformAccountRecord,
+    account: DouyinResolvedAccountRecord,
     kind: "DOUYIN_BRAND_ACCOUNT" | "DOUYIN_COMPETITOR_ACCOUNT",
   ): Promise<DouyinCollectedAccountRecord> {
     const secUserId = this.extractDouyinSecUserId(account.accountLink);
@@ -3092,6 +3099,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       sourceAccountId: account.id,
       accountLink: this.normalizeDouyinShareUrl(this.extractShareUrl(user) || account.accountLink) || account.accountLink,
       sourceAccountLink: account.accountLink,
+      accountRole: this.normalizeXhsAccountRole(account.accountRole) || "BRAND",
+      secUserId,
       externalUserId: this.pickString(user, ["uid"]) || undefined,
       username: this.pickString(user, ["unique_id"]) || undefined,
       shortId: this.pickString(user, ["short_id"]) || undefined,
@@ -3123,7 +3132,7 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private async collectAndStoreDouyinWorks(
     brandId: string,
-    account: PlatformAccountRecord,
+    account: DouyinResolvedAccountRecord,
     kind: "DOUYIN_BRAND_WORK" | "DOUYIN_BENCHMARK_WORK",
   ): Promise<DouyinCollectedWorkRecord[]> {
     const secUserId = this.extractDouyinSecUserId(account.accountLink);
@@ -3133,6 +3142,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
     const raw = await this.fetchTikHub("/api/v1/douyin/app/v3/fetch_user_post_videos", {
       sec_user_id: secUserId,
+      max_cursor: "0",
+      count: "20",
     }, brandId);
     const awemeList = this.extractDouyinAwemeList(raw).slice(0, 12);
     const awemeIds = awemeList
@@ -4379,27 +4390,52 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     presetAccounts: PlatformAccountRecord[],
     manualLinks: string[] | undefined,
     target: "brand" | "competitor",
+    manualEntries?: XhsSyncAccountEntry[],
   ) {
-    const results = [...presetAccounts];
-    const existingKeys = new Set(
-      presetAccounts
-        .map((item) => this.normalizeDouyinAccountLocator(item.accountLink))
-        .filter(Boolean),
-    );
-
-    for (const rawLink of manualLinks ?? []) {
-      const normalizedLink = this.normalizeDouyinAccountLocator(rawLink);
-      if (!normalizedLink || existingKeys.has(normalizedLink)) {
-        continue;
+    const results: DouyinResolvedAccountRecord[] = presetAccounts.map((item) => ({
+      ...item,
+      accountRole: target === "brand" ? "BRAND" : undefined,
+    }));
+    const existingIndexByKey = new Map<string, number>();
+    for (const [index, item] of results.entries()) {
+      const normalizedLocator = this.normalizeDouyinAccountLocator(item.accountLink);
+      if (normalizedLocator) {
+        existingIndexByKey.set(normalizedLocator, index);
       }
-      existingKeys.add(normalizedLink);
+    }
+
+    const upsertManualAccount = (rawLocator: string, accountRole?: XhsAccountRole) => {
+      const normalizedLink = this.normalizeDouyinAccountLocator(rawLocator);
+      if (!normalizedLink) {
+        return;
+      }
+      const matchedIndex = existingIndexByKey.get(normalizedLink);
+      const resolvedRole = target === "brand" ? this.normalizeXhsAccountRole(accountRole) || "BRAND" : undefined;
+      if (typeof matchedIndex === "number") {
+        const current = results[matchedIndex];
+        results[matchedIndex] = {
+          ...current,
+          accountLink: normalizedLink,
+          accountRole: resolvedRole ?? current.accountRole,
+        };
+        return;
+      }
+      existingIndexByKey.set(normalizedLink, results.length);
       results.push({
-        id: `manual_douyin_${target}_${existingKeys.size}`,
+        id: `manual_douyin_${target}_${results.length + 1}`,
         brandId: "",
         platform: "DOUYIN",
         accountName: target === "brand" ? "手动输入品牌账号" : "手动输入竞品账号",
         accountLink: normalizedLink,
+        accountRole: resolvedRole,
       });
+    };
+
+    for (const entry of manualEntries ?? []) {
+      upsertManualAccount(entry.locator, entry.accountRole);
+    }
+    for (const rawLink of manualLinks ?? []) {
+      upsertManualAccount(rawLink);
     }
 
     return results;

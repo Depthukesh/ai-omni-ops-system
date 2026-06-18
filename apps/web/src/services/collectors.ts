@@ -97,6 +97,7 @@ export type DouyinCollectedAccountRecord = {
   sourceAccountId: string;
   sourceAccountLink?: string;
   accountLink?: string;
+  accountRole?: XhsAccountRole;
   externalUserId?: string;
   accountName: string;
   username?: string;
@@ -228,6 +229,8 @@ export type DouyinSyncPayload = {
     | "cityHotspots";
   brandAccountLinks?: string[];
   competitorAccountLinks?: string[];
+  brandAccountEntries?: XhsSyncAccountEntry[];
+  competitorAccountEntries?: XhsSyncAccountEntry[];
   benchmarkAwemeIds?: string[];
   contentTagSelection?: {
     primaryTagId?: number;

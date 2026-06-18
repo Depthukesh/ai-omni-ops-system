@@ -154,6 +154,8 @@ export class DouyinCollectorsController {
         | "cityHotspots";
       brandAccountLinks?: string[];
       competitorAccountLinks?: string[];
+      brandAccountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }>;
+      competitorAccountEntries?: Array<{ locator: string; accountRole?: "BRAND" | "STAFF" | "TALENT" }>;
       benchmarkAwemeIds?: string[];
       contentTagSelection?: {
         primaryTagId?: number;
