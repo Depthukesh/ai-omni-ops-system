@@ -458,8 +458,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   async syncBrandNotes(brandId: string, input: XhsSyncInput = {}) {
     const presetAccounts = await this.getConfiguredAccounts(brandId, "brand");
-    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand");
+    const accounts = this.mergeXhsManualAccounts(presetAccounts, input.accountLocators, "brand", input.accountEntries);
     const rows = await Promise.all(accounts.map((account) => this.collectAndStoreNotes(brandId, account)));
+    await this.cleanupDuplicateCollectorAssets(brandId);
     return {
       syncedCount: rows.reduce((sum, items) => sum + items.length, 0),
       items: rows.flat(),
@@ -1075,7 +1076,9 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       noteId: this.readMetaString(meta, "noteId"),
       title: asset.title,
       noteType: this.readMetaString(meta, "noteType") || undefined,
-      nickname: this.readMetaString(meta, "nickname") || undefined,
+      nickname: this.readMetaString(meta, "nickname")
+        || this.readMetaString(meta, "authorName")
+        || undefined,
       imageList: this.readMetaStringArray(meta, "imageList").filter((item) => !/batch_get_tmp_download_url/i.test(item)),
       externalUserId: this.readMetaString(meta, "externalUserId") || undefined,
       noteUrl: this.readMetaString(meta, "noteUrl") || asset.fileUrl,
@@ -3942,7 +3945,18 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return `${kind}:feishu:${sourceTableId}:${sourceRecordId}`;
     }
 
-    if (kind === "XHS_BRAND_NOTE" || kind === "XHS_BENCHMARK_NOTE") {
+    if (kind === "XHS_BRAND_NOTE") {
+      const normalizedTitle = this.normalizeCollectorTitle(asset.title);
+      if (normalizedTitle) {
+        return `${kind}:title:${normalizedTitle}`;
+      }
+      const noteId = this.readMetaString(meta, "noteId");
+      if (noteId) {
+        return `${kind}:note:${noteId}`;
+      }
+    }
+
+    if (kind === "XHS_BENCHMARK_NOTE") {
       const noteId = this.readMetaString(meta, "noteId");
       if (noteId) {
         return `${kind}:note:${noteId}`;
@@ -3973,6 +3987,11 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
 
   private isXhsAccountKind(kind: CollectorAssetKind) {
     return kind === "XHS_BRAND_ACCOUNT" || kind === "XHS_COMPETITOR_ACCOUNT";
+  }
+
+  private normalizeCollectorTitle(title: string | undefined) {
+    const normalized = String(title || "").trim().toLowerCase();
+    return normalized || "";
   }
 
   private isSameXhsAccountAssetIdentity(

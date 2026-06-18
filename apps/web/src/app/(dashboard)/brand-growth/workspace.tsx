@@ -1839,7 +1839,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       requestLabel = "竞品账号";
     }
     if (activeXhsCollectionCard === "brandWorks") {
-      payload.accountLocators = parseDouyinSyncLines(xhsSyncForm.brandWorkLocators);
+      payload.accountEntries = buildXhsSyncAccountEntries(xhsSyncForm.brandAccountEntries);
       requestLabel = "品牌作品";
     }
     if (activeXhsCollectionCard === "benchmarkWorks") {
@@ -1853,6 +1853,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
     if (activeXhsCollectionCard === "competitorAccount" && !payload.accountEntries?.length) {
       setErrorMessage("请先添加至少一个竞品账号后再提交。");
+      return;
+    }
+    if (activeXhsCollectionCard === "brandWorks" && !payload.accountEntries?.length) {
+      setErrorMessage("请先在品牌账号信息里添加至少一个品牌账号后再提交。");
       return;
     }
 

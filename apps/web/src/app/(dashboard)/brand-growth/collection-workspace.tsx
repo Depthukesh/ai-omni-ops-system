@@ -1683,7 +1683,7 @@ function XhsNotesTable(props: {
             <th>笔记 ID</th>
             <th>标题</th>
             <th>笔记类型</th>
-            <th>作者</th>
+            <th>昵称</th>
             <th>用户 ID</th>
             <th>正文摘要</th>
             <th>发布时间</th>
@@ -2281,14 +2281,43 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeXhsCollectionCard === "brandWorks" ? (
             <>
-              <DouyinSubmitPanel
-                title="品牌作品信息及数据"
-                value={props.xhsSyncForm.brandWorkLocators}
-                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, brandWorkLocators: value }))}
-                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置品牌账号"
-                isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
-                onSubmit={props.onSyncXhsWorkspace}
-              />
+              <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
+                <div className="collection-result-head">
+                  <div>
+                    <h3>品牌作品信息及数据</h3>
+                    <p>直接复用“品牌账号信息”里已绑定的品牌账号，点击提交后按这些账号拉取作品并更新下面列表。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void props.onSyncXhsWorkspace()}
+                    disabled={props.isHydrating || props.isSyncingXhsWorkspace || !props.xhsSyncForm.brandAccountEntries.length}
+                  >
+                    {props.isHydrating || props.isSyncingXhsWorkspace ? "提交中..." : "提交"}
+                  </button>
+                </div>
+                {props.xhsSyncForm.brandAccountEntries.length ? (
+                  <div className="xhs-account-entry-list">
+                    {props.xhsSyncForm.brandAccountEntries.map((entry) => (
+                      <div key={`brand-work-source-${entry.id}`} className="xhs-account-entry-row">
+                        <div className="xhs-account-entry-row__body">
+                          <div className="xhs-account-entry-row__meta">
+                            {entry.accountRole ? (
+                              <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                            ) : null}
+                            <span className="archive-pill status-ready">作品采集来源</span>
+                          </div>
+                          <strong>{entry.locator}</strong>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="xhs-account-entry-empty">
+                    先在“品牌账号信息”里绑定至少一个品牌账号，品牌作品采集会自动复用这些账号。
+                  </div>
+                )}
+              </article>
               <article className="light-data-panel">
                 <div className="collection-result-head">
                   <div>
@@ -2306,7 +2335,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有品牌作品结果，先提交作者主页链接或 user_id。</div>
+                  <div className="note-empty-state">当前还没有品牌作品结果，先在品牌账号信息里绑定账号，再点击这里的提交按钮。</div>
                 )}
                 {props.sortedBrandNotes.length ? (
                   <div className="note-pagination-bar">
