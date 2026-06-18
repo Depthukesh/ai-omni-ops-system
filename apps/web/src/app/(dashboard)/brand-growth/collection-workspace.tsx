@@ -45,10 +45,10 @@ export const xiaohongshuCollectionCards: Array<{
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
 ];
 
-export type XhsBrandAccountEntry = {
+export type XhsAccountBindingEntry = {
   id: string;
   locator: string;
-  accountRole: XhsAccountRole;
+  accountRole?: XhsAccountRole;
 };
 
 export type DouyinCollectionCardKey =
@@ -207,14 +207,14 @@ export interface BrandGrowthCollectionWorkspaceProps {
   activeXhsCollectionCard: XiaohongshuCollectionCardKey;
   onXhsCollectionCardChange: ValueAction<XiaohongshuCollectionCardKey>;
   xhsSyncForm: {
-    brandAccountEntries: XhsBrandAccountEntry[];
-    competitorAccountLocators: string;
+    brandAccountEntries: XhsAccountBindingEntry[];
+    competitorAccountEntries: XhsAccountBindingEntry[];
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
   };
   setXhsSyncForm: Dispatch<SetStateAction<{
-    brandAccountEntries: XhsBrandAccountEntry[];
-    competitorAccountLocators: string;
+    brandAccountEntries: XhsAccountBindingEntry[];
+    competitorAccountEntries: XhsAccountBindingEntry[];
     brandWorkLocators: string;
     benchmarkNoteLocators: string;
   }>>;
@@ -280,7 +280,8 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
   onSyncXhsWorkspace: AsyncAction;
-  onSyncSingleXhsBrandAccount: ValueAction<XhsBrandAccountEntry>;
+  onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
+  onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncDouyinWorkspace: AsyncAction;
   sortedBrandAccounts: XhsCollectedAccountRecord[];
   sortedCompetitorAccounts: XhsCollectedAccountRecord[];
@@ -515,23 +516,27 @@ function normalizeXhsAccountEntryLocator(locator: string) {
   return trimmed.toLowerCase();
 }
 
-function buildXhsBrandAccountEntryId(locator: string) {
+function buildXhsAccountEntryId(locator: string, target: "brand" | "competitor") {
   const compact = normalizeXhsAccountEntryLocator(locator)
     .replace(/^https?:\/\/(www\.)?/i, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
-  return `xhs_brand_account_${compact || "entry"}`;
+  return `xhs_${target}_account_${compact || "entry"}`;
 }
 
-function upsertXhsBrandAccountEntries(entries: XhsBrandAccountEntry[], nextEntry: XhsBrandAccountEntry) {
+function upsertXhsAccountEntries(
+  entries: XhsAccountBindingEntry[],
+  nextEntry: XhsAccountBindingEntry,
+  target: "brand" | "competitor",
+) {
   const normalizedLocator = normalizeXhsAccountEntryLocator(nextEntry.locator);
   if (!normalizedLocator) {
     return entries;
   }
-  const preparedEntry: XhsBrandAccountEntry = {
+  const preparedEntry: XhsAccountBindingEntry = {
     ...nextEntry,
-    id: nextEntry.id || buildXhsBrandAccountEntryId(normalizedLocator),
+    id: nextEntry.id || buildXhsAccountEntryId(normalizedLocator, target),
     locator: nextEntry.locator.trim(),
   };
   const matchedIndex = entries.findIndex((item) => normalizeXhsAccountEntryLocator(item.locator) === normalizedLocator);
@@ -541,7 +546,7 @@ function upsertXhsBrandAccountEntries(entries: XhsBrandAccountEntry[], nextEntry
   return entries.map((item, index) => (index === matchedIndex ? { ...item, ...preparedEntry } : item));
 }
 
-function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: XhsBrandAccountEntry) {
+function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: XhsAccountBindingEntry) {
   const normalizedEntry = normalizeXhsAccountEntryLocator(entry.locator);
   if (!normalizedEntry) {
     return false;
@@ -551,12 +556,19 @@ function doesXhsAccountMatchEntry(account: XhsCollectedAccountRecord, entry: Xhs
   return normalizedEntry === normalizedSourceLink || normalizedEntry === normalizedExternalUserId;
 }
 
-function XhsBrandAccountSubmitPanel(props: {
-  entries: XhsBrandAccountEntry[];
+function XhsAccountBindingSubmitPanel(props: {
+  title: string;
+  description: string;
+  modalTitle: string;
+  modalDescription: string;
+  emptyDescription: string;
+  target: "brand" | "competitor";
+  enableRoleSelection?: boolean;
+  entries: XhsAccountBindingEntry[];
   syncedAccounts: XhsCollectedAccountRecord[];
   isSubmitting: boolean;
-  onChangeEntries: ValueAction<XhsBrandAccountEntry[]>;
-  onSubmitEntry: ValueAction<XhsBrandAccountEntry>;
+  onChangeEntries: ValueAction<XhsAccountBindingEntry[]>;
+  onSubmitEntry: ValueAction<XhsAccountBindingEntry>;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draftLocator, setDraftLocator] = useState("");
@@ -568,11 +580,11 @@ function XhsBrandAccountSubmitPanel(props: {
       return;
     }
     props.onChangeEntries(
-      upsertXhsBrandAccountEntries(props.entries, {
-        id: buildXhsBrandAccountEntryId(trimmedLocator),
+      upsertXhsAccountEntries(props.entries, {
+        id: buildXhsAccountEntryId(trimmedLocator, props.target),
         locator: trimmedLocator,
-        accountRole: draftRole,
-      }),
+        accountRole: props.enableRoleSelection ? draftRole : undefined,
+      }, props.target),
     );
     setDraftLocator("");
     setDraftRole("BRAND");
@@ -588,8 +600,8 @@ function XhsBrandAccountSubmitPanel(props: {
       <article className="light-data-panel xhs-account-builder" style={{ marginBottom: 16 }}>
         <div className="collection-result-head">
           <div>
-            <h3>品牌账号信息</h3>
-            <p>按账号逐条维护采集入口，支持区分品牌号、员工号和达人号，并在行内直接提交更新。</p>
+            <h3>{props.title}</h3>
+            <p>{props.description}</p>
           </div>
           <button type="button" className="secondary-button" onClick={() => setIsModalOpen(true)} disabled={props.isSubmitting}>
             添加账号
@@ -603,7 +615,9 @@ function XhsBrandAccountSubmitPanel(props: {
                 <div key={entry.id} className="xhs-account-entry-row">
                   <div className="xhs-account-entry-row__body">
                     <div className="xhs-account-entry-row__meta">
-                      <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                      {props.enableRoleSelection ? (
+                        <span className="xhs-account-role-badge">{getXhsAccountRoleLabel(entry.accountRole)}</span>
+                      ) : null}
                       <span className={`archive-pill ${hasSyncedResult ? "status-ready" : "status-pending"}`}>
                         {hasSyncedResult ? "已采集" : "待提交"}
                       </span>
@@ -634,7 +648,7 @@ function XhsBrandAccountSubmitPanel(props: {
           </div>
         ) : (
           <div className="xhs-account-entry-empty">
-            右上角点击“添加账号”后，按账号类型逐条保存；保存后每个账号会单独展示并可直接提交采集。
+            {props.emptyDescription}
           </div>
         )}
       </article>
@@ -643,26 +657,28 @@ function XhsBrandAccountSubmitPanel(props: {
           <div className="xhs-account-modal" onClick={(event) => event.stopPropagation()}>
             <div className="xhs-account-modal__head">
               <div>
-                <strong>添加品牌账号</strong>
-                <p>先选择账号类型，再输入小红书主页链接、分享链接或 `user_id`。</p>
+                <strong>{props.modalTitle}</strong>
+                <p>{props.modalDescription}</p>
               </div>
               <button type="button" className="xhs-account-modal__close" onClick={() => setIsModalOpen(false)}>
                 关闭
               </button>
             </div>
-            <div className="xhs-account-role-grid">
-              {XHS_ACCOUNT_ROLE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`xhs-account-role-card ${draftRole === option.value ? "is-active" : ""}`}
-                  onClick={() => setDraftRole(option.value)}
-                >
-                  <strong>{option.label}</strong>
-                  <span>{option.description}</span>
-                </button>
-              ))}
-            </div>
+            {props.enableRoleSelection ? (
+              <div className="xhs-account-role-grid">
+                {XHS_ACCOUNT_ROLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`xhs-account-role-card ${draftRole === option.value ? "is-active" : ""}`}
+                    onClick={() => setDraftRole(option.value)}
+                  >
+                    <strong>{option.label}</strong>
+                    <span>{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <label className="field">
               <span>账号链接或 user_id</span>
               <input
@@ -2189,7 +2205,14 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           </div>
           {props.activeXhsCollectionCard === "brandAccount" ? (
             <>
-              <XhsBrandAccountSubmitPanel
+              <XhsAccountBindingSubmitPanel
+                title="品牌账号信息"
+                description="按账号逐条维护采集入口，支持区分品牌号、员工号和达人号，并在行内直接提交更新。"
+                modalTitle="添加品牌账号"
+                modalDescription="先选择账号类型，再输入小红书主页链接、分享链接或 user_id。"
+                emptyDescription="右上角点击“添加账号”后，按账号类型逐条保存；保存后每个账号会单独展示并可直接提交采集。"
+                target="brand"
+                enableRoleSelection
                 entries={props.xhsSyncForm.brandAccountEntries}
                 syncedAccounts={props.sortedBrandAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
@@ -2221,13 +2244,18 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeXhsCollectionCard === "competitorAccount" ? (
             <>
-              <DouyinSubmitPanel
+              <XhsAccountBindingSubmitPanel
                 title="竞品账号信息"
-                value={props.xhsSyncForm.competitorAccountLocators}
-                onChange={(value) => props.setXhsSyncForm((current) => ({ ...current, competitorAccountLocators: value }))}
-                placeholder="每行一个小红书主页链接、分享链接或 user_id；留空则使用已配置竞品账号"
+                description="按账号逐条绑定竞品采集入口，可同时维护多个竞品账号，并在行内直接提交覆盖更新。"
+                modalTitle="添加竞品账号"
+                modalDescription="输入小红书主页链接、分享链接或 user_id，保存后可逐条提交采集。"
+                emptyDescription="右上角点击“添加账号”后，逐条保存竞品账号；保存后每个账号会单独展示并可直接提交采集。"
+                target="competitor"
+                entries={props.xhsSyncForm.competitorAccountEntries}
+                syncedAccounts={props.sortedCompetitorAccounts}
                 isSubmitting={props.isHydrating || props.isSyncingXhsWorkspace}
-                onSubmit={props.onSyncXhsWorkspace}
+                onChangeEntries={(entries) => props.setXhsSyncForm((current) => ({ ...current, competitorAccountEntries: entries }))}
+                onSubmitEntry={props.onSyncSingleXhsCompetitorAccount}
               />
               <article className="light-data-panel">
                 <div className="collection-result-head">
@@ -2246,7 +2274,7 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     formatCount={props.formatCount}
                   />
                 ) : (
-                  <div className="note-empty-state">当前还没有竞品账号结果，先提交链接或 user_id。</div>
+                  <div className="note-empty-state">当前还没有竞品账号结果，先添加账号并点击对应行的提交按钮。</div>
                 )}
               </article>
             </>

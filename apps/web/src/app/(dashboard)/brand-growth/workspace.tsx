@@ -13,7 +13,7 @@ import {
 } from "../xiaohongshu/calendar-helpers";
 import {
   type DouyinCollectionCardKey,
-  type XhsBrandAccountEntry,
+  type XhsAccountBindingEntry,
   type XiaohongshuCollectionCardKey,
 } from "./collection-workspace";
 import {
@@ -582,8 +582,8 @@ type DouyinSyncForm = {
 };
 
 type XhsSyncForm = {
-  brandAccountEntries: XhsBrandAccountEntry[];
-  competitorAccountLocators: string;
+  brandAccountEntries: XhsAccountBindingEntry[];
+  competitorAccountEntries: XhsAccountBindingEntry[];
   brandWorkLocators: string;
   benchmarkNoteLocators: string;
 };
@@ -591,7 +591,7 @@ type XhsSyncForm = {
 function createEmptyXhsSyncForm(): XhsSyncForm {
   return {
     brandAccountEntries: [],
-    competitorAccountLocators: "",
+    competitorAccountEntries: [],
     brandWorkLocators: "",
     benchmarkNoteLocators: "",
   };
@@ -650,13 +650,13 @@ function normalizeXhsAccountEntryLocator(locator: string) {
   return trimmed.toLowerCase();
 }
 
-function buildXhsBrandAccountEntryId(locator: string) {
+function buildXhsAccountEntryId(locator: string, target: "brand" | "competitor") {
   const compact = normalizeXhsAccountEntryLocator(locator)
     .replace(/^https?:\/\/(www\.)?/i, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
-  return `xhs_brand_account_${compact || "entry"}`;
+  return `xhs_${target}_account_${compact || "entry"}`;
 }
 
 function normalizeXhsAccountRole(role?: XhsAccountRole): XhsAccountRole {
@@ -676,16 +676,20 @@ function getXhsAccountRoleLabel(role?: XhsAccountRole) {
   return "品牌号";
 }
 
-function upsertXhsBrandAccountEntries(entries: XhsBrandAccountEntry[], nextEntry: XhsBrandAccountEntry) {
+function upsertXhsAccountEntries(
+  entries: XhsAccountBindingEntry[],
+  nextEntry: XhsAccountBindingEntry,
+  target: "brand" | "competitor",
+) {
   const normalizedLocator = normalizeXhsAccountEntryLocator(nextEntry.locator);
   if (!normalizedLocator) {
     return entries;
   }
-  const preparedEntry: XhsBrandAccountEntry = {
+  const preparedEntry: XhsAccountBindingEntry = {
     ...nextEntry,
-    id: nextEntry.id || buildXhsBrandAccountEntryId(normalizedLocator),
+    id: nextEntry.id || buildXhsAccountEntryId(normalizedLocator, target),
     locator: nextEntry.locator.trim(),
-    accountRole: normalizeXhsAccountRole(nextEntry.accountRole),
+    accountRole: nextEntry.accountRole ? normalizeXhsAccountRole(nextEntry.accountRole) : undefined,
   };
   const matchedIndex = entries.findIndex((item) => normalizeXhsAccountEntryLocator(item.locator) === normalizedLocator);
   if (matchedIndex < 0) {
@@ -694,23 +698,27 @@ function upsertXhsBrandAccountEntries(entries: XhsBrandAccountEntry[], nextEntry
   return entries.map((item, index) => (index === matchedIndex ? { ...item, ...preparedEntry } : item));
 }
 
-function createXhsBrandAccountEntryFromRecord(record: XhsCollectionWorkspace["brandAccounts"][number]): XhsBrandAccountEntry {
+function createXhsAccountEntryFromRecord(
+  record: XhsCollectionWorkspace["brandAccounts"][number] | XhsCollectionWorkspace["competitorAccounts"][number],
+  target: "brand" | "competitor",
+): XhsAccountBindingEntry {
   const locator = record.sourceAccountLink || record.externalUserId || record.sourceAccountId;
   return {
-    id: buildXhsBrandAccountEntryId(locator),
+    id: buildXhsAccountEntryId(locator, target),
     locator,
-    accountRole: normalizeXhsAccountRole(record.accountRole),
+    accountRole: target === "brand" ? normalizeXhsAccountRole(record.accountRole) : undefined,
   };
 }
 
-function mergeXhsBrandAccountEntries(
-  currentEntries: XhsBrandAccountEntry[],
-  incomingEntries: XhsBrandAccountEntry[],
+function mergeXhsAccountEntries(
+  currentEntries: XhsAccountBindingEntry[],
+  incomingEntries: XhsAccountBindingEntry[],
+  target: "brand" | "competitor",
 ) {
-  return incomingEntries.reduce((result, item) => upsertXhsBrandAccountEntries(result, item), [...currentEntries]);
+  return incomingEntries.reduce((result, item) => upsertXhsAccountEntries(result, item, target), [...currentEntries]);
 }
 
-function areXhsBrandAccountEntriesEqual(left: XhsBrandAccountEntry[], right: XhsBrandAccountEntry[]) {
+function areXhsAccountEntriesEqual(left: XhsAccountBindingEntry[], right: XhsAccountBindingEntry[]) {
   if (left.length !== right.length) {
     return false;
   }
@@ -721,12 +729,15 @@ function areXhsBrandAccountEntriesEqual(left: XhsBrandAccountEntry[], right: Xhs
   );
 }
 
-function buildXhsSyncAccountEntries(entries: XhsBrandAccountEntry[]): XhsSyncAccountEntry[] {
+function buildXhsSyncAccountEntries(entries: XhsAccountBindingEntry[]): XhsSyncAccountEntry[] {
   return entries
-    .map((entry) => ({
-      locator: entry.locator.trim(),
-      accountRole: normalizeXhsAccountRole(entry.accountRole),
-    }))
+    .map((entry) => {
+      const normalizedRole = entry.accountRole ? normalizeXhsAccountRole(entry.accountRole) : undefined;
+      return {
+        locator: entry.locator.trim(),
+        ...(normalizedRole ? { accountRole: normalizedRole } : {}),
+      };
+    })
     .filter((entry) => Boolean(entry.locator));
 }
 
@@ -887,10 +898,10 @@ export function BrandGrowthWorkspace() {
     if (!sortedBrandAccounts.length) {
       return;
     }
-    const seededEntries = sortedBrandAccounts.map(createXhsBrandAccountEntryFromRecord);
+    const seededEntries = sortedBrandAccounts.map((record) => createXhsAccountEntryFromRecord(record, "brand"));
     setXhsSyncForm((current) => {
-      const mergedEntries = mergeXhsBrandAccountEntries(current.brandAccountEntries, seededEntries);
-      if (areXhsBrandAccountEntriesEqual(current.brandAccountEntries, mergedEntries)) {
+      const mergedEntries = mergeXhsAccountEntries(current.brandAccountEntries, seededEntries, "brand");
+      if (areXhsAccountEntriesEqual(current.brandAccountEntries, mergedEntries)) {
         return current;
       }
       return {
@@ -899,6 +910,22 @@ export function BrandGrowthWorkspace() {
       };
     });
   }, [sortedBrandAccounts]);
+  useEffect(() => {
+    if (!sortedCompetitorAccounts.length) {
+      return;
+    }
+    const seededEntries = sortedCompetitorAccounts.map((record) => createXhsAccountEntryFromRecord(record, "competitor"));
+    setXhsSyncForm((current) => {
+      const mergedEntries = mergeXhsAccountEntries(current.competitorAccountEntries, seededEntries, "competitor");
+      if (areXhsAccountEntriesEqual(current.competitorAccountEntries, mergedEntries)) {
+        return current;
+      }
+      return {
+        ...current,
+        competitorAccountEntries: mergedEntries,
+      };
+    });
+  }, [sortedCompetitorAccounts]);
   const canGenerateGrowthReport =
     collectionWorkspace.brandAccounts.length > 0
     && collectionWorkspace.competitorAccounts.length > 0
@@ -1808,7 +1835,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       requestLabel = "品牌账号";
     }
     if (activeXhsCollectionCard === "competitorAccount") {
-      payload.accountLocators = parseDouyinSyncLines(xhsSyncForm.competitorAccountLocators);
+      payload.accountEntries = buildXhsSyncAccountEntries(xhsSyncForm.competitorAccountEntries);
       requestLabel = "竞品账号";
     }
     if (activeXhsCollectionCard === "brandWorks") {
@@ -1822,6 +1849,10 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
 
     if (activeXhsCollectionCard === "brandAccount" && !payload.accountEntries?.length) {
       setErrorMessage("请先添加至少一个品牌账号后再提交。");
+      return;
+    }
+    if (activeXhsCollectionCard === "competitorAccount" && !payload.accountEntries?.length) {
+      setErrorMessage("请先添加至少一个竞品账号后再提交。");
       return;
     }
 
@@ -1847,7 +1878,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
-  async function handleSyncSingleXhsBrandAccount(entry: XhsBrandAccountEntry) {
+  async function handleSyncSingleXhsBrandAccount(entry: XhsAccountBindingEntry) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
       setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
       return;
@@ -1863,11 +1894,11 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     clearMessages();
 
     try {
-      const normalizedEntry: XhsBrandAccountEntry = {
+      const normalizedEntry: XhsAccountBindingEntry = {
         ...entry,
         locator: normalizedLocator,
         accountRole: normalizeXhsAccountRole(entry.accountRole),
-        id: entry.id || buildXhsBrandAccountEntryId(normalizedLocator),
+        id: entry.id || buildXhsAccountEntryId(normalizedLocator, "brand"),
       };
       const response = await syncXiaohongshuBrandAccounts(
         {
@@ -1878,7 +1909,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
       setCollectionWorkspace(response.workspace);
       setXhsSyncForm((current) => ({
         ...current,
-        brandAccountEntries: upsertXhsBrandAccountEntries(current.brandAccountEntries, normalizedEntry),
+        brandAccountEntries: upsertXhsAccountEntries(current.brandAccountEntries, normalizedEntry, "brand"),
       }));
       setNotice(
         `${getXhsAccountRoleLabel(normalizedEntry.accountRole)}采集完成，已更新 ${response.syncedCount} 条结果。`,
@@ -1886,6 +1917,47 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     } catch (error) {
       const message = error instanceof Error ? error.message : "采集失败";
       setErrorMessage(`品牌账号采集失败：${message}`);
+    } finally {
+      setIsSyncingXhsWorkspace(false);
+    }
+  }
+
+  async function handleSyncSingleXhsCompetitorAccount(entry: XhsAccountBindingEntry) {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const normalizedLocator = entry.locator.trim();
+    if (!normalizedLocator) {
+      setErrorMessage("账号链接或 user_id 不能为空。");
+      return;
+    }
+
+    setIsSyncingXhsWorkspace(true);
+    clearMessages();
+
+    try {
+      const normalizedEntry: XhsAccountBindingEntry = {
+        ...entry,
+        locator: normalizedLocator,
+        id: entry.id || buildXhsAccountEntryId(normalizedLocator, "competitor"),
+      };
+      const response = await syncXiaohongshuCompetitorAccounts(
+        {
+          accountEntries: buildXhsSyncAccountEntries([normalizedEntry]),
+        },
+        activeBrandId || archive.brand.id,
+      );
+      setCollectionWorkspace(response.workspace);
+      setXhsSyncForm((current) => ({
+        ...current,
+        competitorAccountEntries: upsertXhsAccountEntries(current.competitorAccountEntries, normalizedEntry, "competitor"),
+      }));
+      setNotice(`竞品账号采集完成，已更新 ${response.syncedCount} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "采集失败";
+      setErrorMessage(`竞品账号采集失败：${message}`);
     } finally {
       setIsSyncingXhsWorkspace(false);
     }
@@ -2393,6 +2465,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
         onSyncXhsWorkspace={handleSyncXhsWorkspace}
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
+        onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
         sortedBrandAccounts={sortedBrandAccounts}
         sortedCompetitorAccounts={sortedCompetitorAccounts}
