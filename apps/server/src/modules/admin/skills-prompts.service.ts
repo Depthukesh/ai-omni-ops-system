@@ -19,6 +19,7 @@ type SkillConfigRow = {
   defaultModel: string;
   pointsCost: number;
   description: string;
+  inputSchemaJson: Prisma.JsonValue | null;
   updatedAt: Date | string;
 };
 
@@ -58,6 +59,7 @@ export type UpdateSkillConfigPayload = {
   defaultModel?: string;
   pointsCost?: number;
   description?: string;
+  inputSchemaJson?: Prisma.JsonValue | null;
 };
 
 export type CreateSkillConfigPayload = {
@@ -69,6 +71,7 @@ export type CreateSkillConfigPayload = {
   defaultModel: string;
   pointsCost?: number;
   description?: string;
+  inputSchemaJson?: Prisma.JsonValue | null;
 };
 
 export type UpdatePromptTemplatePayload = {
@@ -841,6 +844,7 @@ export class SkillsPromptsService {
       defaultModel,
       pointsCost: Math.max(0, Number(payload.pointsCost || 0)),
       description: String(payload.description || "").trim(),
+      inputSchemaJson: this.normalizeSkillInputSchemaValue(payload.inputSchemaJson),
       updatedAt: new Date().toISOString(),
     };
 
@@ -861,6 +865,7 @@ export class SkillsPromptsService {
           "defaultModel",
           "pointsCost",
           "description",
+          "inputSchemaJson",
           "updatedAt"
         )
         VALUES (
@@ -873,6 +878,7 @@ export class SkillsPromptsService {
           ${nextSkill.defaultModel},
           ${nextSkill.pointsCost},
           ${nextSkill.description},
+          CAST(${this.serializeSkillInputSchemaValue(nextSkill.inputSchemaJson)} AS JSONB),
           CURRENT_TIMESTAMP
         )
         RETURNING *
@@ -903,6 +909,9 @@ export class SkillsPromptsService {
           "defaultModel" = ${payload.defaultModel ?? current.defaultModel},
           "pointsCost" = ${payload.pointsCost ?? current.pointsCost},
           "description" = ${payload.description ?? current.description},
+          "inputSchemaJson" = CAST(${this.serializeSkillInputSchemaValue(
+            payload.inputSchemaJson !== undefined ? payload.inputSchemaJson : current.inputSchemaJson,
+          )} AS JSONB),
           "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${id}
         RETURNING *
@@ -928,6 +937,9 @@ export class SkillsPromptsService {
     }
     if (payload.description !== undefined) {
       skill.description = payload.description;
+    }
+    if (payload.inputSchemaJson !== undefined) {
+      skill.inputSchemaJson = this.normalizeSkillInputSchemaValue(payload.inputSchemaJson);
     }
     skill.updatedAt = new Date().toISOString();
     return { ...skill };
@@ -1392,8 +1404,13 @@ export class SkillsPromptsService {
         "defaultModel" TEXT NOT NULL,
         "pointsCost" INTEGER NOT NULL DEFAULT 0,
         "description" TEXT NOT NULL DEFAULT '',
+        "inputSchemaJson" JSONB,
         "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await this.prismaService.$executeRawUnsafe(`
+      ALTER TABLE "SkillConfig"
+      ADD COLUMN IF NOT EXISTS "inputSchemaJson" JSONB
     `);
     await this.prismaService.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "PromptTemplate" (
@@ -1453,6 +1470,7 @@ export class SkillsPromptsService {
           "defaultModel",
           "pointsCost",
           "description",
+          "inputSchemaJson",
           "updatedAt"
         )
         VALUES (
@@ -1465,6 +1483,7 @@ export class SkillsPromptsService {
           ${skill.defaultModel},
           ${skill.pointsCost},
           ${skill.description},
+          CAST(${this.serializeSkillInputSchemaValue(skill.inputSchemaJson)} AS JSONB),
           ${new Date(skill.updatedAt)}
         )
         ON CONFLICT ("id") DO NOTHING
@@ -1509,8 +1528,33 @@ export class SkillsPromptsService {
     await this.backfillWechatHtmlRenderPromptContents();
     await this.backfillImageGenerationSkillDefaults();
     await this.backfillLegacyVideoNoteDefaults();
+    await this.backfillLegacySkillInputSchemas();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
+  }
+
+  private async backfillLegacySkillInputSchemas() {
+    const rows = await this.prismaService.$queryRaw<SkillConfigRow[]>`
+      SELECT *
+      FROM "SkillConfig"
+      WHERE "inputSchemaJson" IS NULL
+        AND COALESCE(BTRIM("description"), '') <> ''
+    `;
+
+    for (const row of rows) {
+      const nextInputSchema = this.deriveLegacySkillInputSchemaFromDescription(row.description);
+      if (!nextInputSchema) {
+        continue;
+      }
+      await this.prismaService.$executeRaw`
+        UPDATE "SkillConfig"
+        SET
+          "inputSchemaJson" = CAST(${JSON.stringify(nextInputSchema)} AS JSONB),
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${row.id}
+          AND "inputSchemaJson" IS NULL
+      `;
+    }
   }
 
   private async backfillDouyinOriginalCopyPromptContents() {
@@ -1953,6 +1997,7 @@ export class SkillsPromptsService {
       defaultModel: this.normalizeImageGenerationModelValue(row.defaultModel),
       pointsCost: Number(row.pointsCost || 0),
       description: isHalfYearPlan ? "用于输出未来半年营销节点、活动主题和多平台协同规划。" : row.description,
+      inputSchemaJson: this.normalizeSkillInputSchemaValue(row.inputSchemaJson),
       updatedAt: this.normalizeDate(row.updatedAt),
     };
   }
@@ -2005,6 +2050,91 @@ export class SkillsPromptsService {
     }
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }
+
+  private normalizeSkillInputSchemaValue(value: unknown): SkillConfigRecord["inputSchemaJson"] {
+    const parsed = this.parseJsonValue(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const current = parsed as Record<string, unknown>;
+    return {
+      version: "v1",
+      source:
+        current.source === "INSTALLER_PARSED" || current.source === "DESCRIPTION_MIGRATED" || current.source === "ADMIN_EDITED"
+          ? current.source
+          : undefined,
+      databaseInputs: Array.isArray(current.databaseInputs) ? current.databaseInputs : [],
+      knowledgeInputs: Array.isArray(current.knowledgeInputs) ? current.knowledgeInputs : [],
+      customInputs: Array.isArray(current.customInputs) ? current.customInputs : [],
+    };
+  }
+
+  private serializeSkillInputSchemaValue(value: unknown) {
+    const normalized = this.normalizeSkillInputSchemaValue(value);
+    return normalized ? JSON.stringify(normalized) : null;
+  }
+
+  private parseJsonValue(value: unknown) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return null;
+      }
+    }
+    return value;
+  }
+
+  private deriveLegacySkillInputSchemaFromDescription(description: string): SkillConfigRecord["inputSchemaJson"] {
+    const source = String(description || "").trim();
+    if (!source) {
+      return null;
+    }
+
+    const markers = [
+      "步骤摘要：",
+      "数据库参数：",
+      "知识库参数：",
+      "自定义输入参数：",
+      "输入要点：",
+      "输出要点：",
+      "References 资产：",
+      "Scripts 资产：",
+    ];
+    const extractJsonArray = (title: string) => {
+      const start = source.indexOf(title);
+      if (start < 0) {
+        return [];
+      }
+      const nextStart = markers
+        .map((marker) => source.indexOf(marker, start + title.length))
+        .filter((index) => index >= 0)
+        .sort((left, right) => left - right)[0];
+      const body = source.slice(start + title.length, nextStart ?? source.length).trim();
+      const parsed = this.parseJsonValue(body);
+      return Array.isArray(parsed) ? parsed : [];
+    };
+
+    const databaseInputs = extractJsonArray("数据库参数：");
+    const knowledgeInputs = extractJsonArray("知识库参数：");
+    const customInputs = extractJsonArray("自定义输入参数：");
+
+    if (!databaseInputs.length && !knowledgeInputs.length && !customInputs.length) {
+      return null;
+    }
+
+    return {
+      version: "v1",
+      source: "DESCRIPTION_MIGRATED",
+      databaseInputs,
+      knowledgeInputs,
+      customInputs,
+    };
   }
 
   private normalizeImageGenerationModelValue(value: string) {

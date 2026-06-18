@@ -100,6 +100,10 @@ export function buildInstallSkillNotice(options: {
       : options.draft.packageKey !== "NONE"
         ? "，能力包已绑定，资产导入结果待确认"
         : "";
+  const inputSchema = options.result.skill.inputSchemaJson;
+  const structuredInputsSummary = inputSchema
+    ? `，结构化输入 ${inputSchema.databaseInputs.length}/${inputSchema.knowledgeInputs.length}/${inputSchema.customInputs.length}（数据库/知识库/自定义）`
+    : "";
 
-  return `技能已安装：${options.result.detectedSkillName}（References ${options.result.referenceFileCount}，Scripts ${options.result.scriptFileCount}${options.result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${importedAssetsSummary}）`;
+  return `技能已安装：${options.result.detectedSkillName}（References ${options.result.referenceFileCount}，Scripts ${options.result.scriptFileCount}${options.result.initialPrompt ? "，已生成初始提示词" : ""}${parsedOverviewSummary ? `，${parsedOverviewSummary}` : ""}${structuredInputsSummary}${importedAssetsSummary}）`;
 }

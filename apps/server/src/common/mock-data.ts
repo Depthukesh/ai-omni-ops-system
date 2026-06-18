@@ -173,6 +173,13 @@ export type SkillConfigRecord = {
   defaultModel: string;
   pointsCost: number;
   description: string;
+  inputSchemaJson?: {
+    version: "v1";
+    source?: "INSTALLER_PARSED" | "DESCRIPTION_MIGRATED" | "ADMIN_EDITED";
+    databaseInputs: unknown[];
+    knowledgeInputs: unknown[];
+    customInputs: unknown[];
+  } | null;
   updatedAt: string;
 };
 

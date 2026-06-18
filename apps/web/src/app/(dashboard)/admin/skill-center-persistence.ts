@@ -4,6 +4,7 @@ type SkillDraftPatchShape = {
   status: SkillConfigRecord["status"];
   defaultModel: string;
   pointsCost: string;
+  inputSchemaJson?: SkillConfigRecord["inputSchemaJson"];
 };
 
 type PromptDraftPatchShape = {
@@ -44,12 +45,17 @@ export function patchPromptDraftRecord<T>(options: {
   };
 }
 
-export function buildSkillConfigUpdatePayload<T extends SkillDraftPatchShape>(draft: T, composedDescription: string) {
+export function buildSkillConfigUpdatePayload<T extends SkillDraftPatchShape>(
+  draft: T,
+  composedDescription: string,
+  inputSchemaJson?: SkillConfigRecord["inputSchemaJson"],
+) {
   return {
     status: draft.status,
     defaultModel: draft.defaultModel,
     pointsCost: Number(draft.pointsCost || 0),
     description: composedDescription,
+    inputSchemaJson: inputSchemaJson ?? draft.inputSchemaJson ?? null,
   };
 }
 
@@ -82,6 +88,7 @@ export function applySeedUpdatedSkillRecord(options: {
           defaultModel: options.draft.defaultModel,
           pointsCost: Number(options.draft.pointsCost || 0),
           description: options.description,
+          inputSchemaJson: options.draft.inputSchemaJson ?? item.inputSchemaJson ?? null,
           updatedAt: options.updatedAt,
         }
       : item,

@@ -1,0 +1,2 @@
+ALTER TABLE "SkillConfig"
+ADD COLUMN IF NOT EXISTS "inputSchemaJson" JSONB;

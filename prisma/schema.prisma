@@ -714,6 +714,7 @@ model SkillConfig {
   defaultModel String
   pointsCost   Int      @default(0)
   description  String   @default("")
+  inputSchemaJson Json?
   updatedAt    DateTime @default(now())
 
   userSkillProfiles UserSkillProfile[]

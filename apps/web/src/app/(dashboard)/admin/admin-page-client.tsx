@@ -98,6 +98,7 @@ import {
   type PromptTemplateRecord,
   type SkillAssetBindingRecord,
   type SkillConfigRecord,
+  type SkillInputSchemaRecord,
   type SkillPackageDetailRecord,
   type SkillPackageRecord,
   type SkillPackageModuleRecord,
@@ -177,6 +178,7 @@ type SkillEditDraft = {
   defaultModel: string;
   pointsCost: string;
   description: string;
+  inputSchemaJson?: SkillInputSchemaRecord | null;
   descriptionIntro: string;
   workflowSummary: string;
   inputSummary: string;
@@ -1089,13 +1091,18 @@ export default function AdminPage() {
       return;
     }
     const nextDescription = composeSkillDescription(draft);
+    const nextInputSchema = composeSkillInputSchema(draft);
+    const nextDraft = {
+      ...draft,
+      inputSchemaJson: nextInputSchema,
+    };
 
     setUpdatingSkillId(skillId);
     setNotice("");
     setErrorMessage("");
 
     try {
-      const updated = await updateSkillConfig(skillId, buildSkillConfigUpdatePayload(draft, nextDescription));
+      const updated = await updateSkillConfig(skillId, buildSkillConfigUpdatePayload(nextDraft, nextDescription, nextInputSchema));
 
       setSkills((current) => applyUpdatedSkillRecord(current, skillId, updated));
       setSkillDrafts((current) => ({
@@ -1109,7 +1116,7 @@ export default function AdminPage() {
         setSkills((current) => applySeedUpdatedSkillRecord({
           list: current,
           skillId,
-          draft,
+          draft: nextDraft,
           description: nextDescription,
           updatedAt,
         }));
@@ -3019,6 +3026,10 @@ export default function AdminPage() {
     [activeSkillLeaf, activeSkillConfig, skillAssetBindings, skillPackageSkills, skillPackageModules, skillPackageDetailMap, modules, prompts],
   );
   const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
+  const activeSkillInputSchemaSourceLabel = useMemo(
+    () => resolveSkillInputSchemaSourceLabel(activeSkillConfig, activeSkillDraft),
+    [activeSkillConfig, activeSkillDraft],
+  );
   const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
   const effectiveReferenceAssetKeys = resolveEffectiveInheritedReferenceKeys({
     draft: activeSkillDraft,
@@ -4596,6 +4607,10 @@ export default function AdminPage() {
                           <label className="admin-skill-field">
                             <span>提示词场景</span>
                             <input value={resolvedActivePromptScene || "-"} readOnly />
+                          </label>
+                          <label className="admin-skill-field">
+                            <span>输入配置来源</span>
+                            <input value={activeSkillInputSchemaSourceLabel} readOnly />
                           </label>
                           <div className="admin-skill-field admin-skill-field--full" style={{ display: "grid", gap: 12 }}>
                             <div className="entity-card" style={{ padding: 12 }}>
@@ -7248,18 +7263,20 @@ function updatePointsPackage(list: PointsPackageRule[], index: number, nextItem:
 
 function buildSkillDraft(item: SkillConfigRecord): SkillEditDraft {
   const parsed = parseSkillDescription(item.description);
+  const parsedInputSchema = parseSkillInputSchema(item.inputSchemaJson);
   return {
     status: item.status,
     defaultModel: item.defaultModel,
     pointsCost: String(item.pointsCost),
     description: item.description,
+    inputSchemaJson: parsedInputSchema,
     descriptionIntro: parsed.descriptionIntro,
     workflowSummary: parsed.workflowSummary,
     inputSummary: parsed.inputSummary,
     outputSummary: parsed.outputSummary,
-    databaseInputs: parsed.databaseInputs,
-    knowledgeInputs: parsed.knowledgeInputs,
-    customInputs: parsed.customInputs,
+    databaseInputs: parsedInputSchema?.databaseInputs ?? parsed.databaseInputs,
+    knowledgeInputs: parsedInputSchema?.knowledgeInputs ?? parsed.knowledgeInputs,
+    customInputs: parsedInputSchema?.customInputs ?? parsed.customInputs,
     referenceAssetKeys: parsed.referenceAssetKeys,
     scriptAssetKeys: parsed.scriptAssetKeys,
     hasReferenceAssetSelection: parsed.hasReferenceAssetSelection,
@@ -7358,6 +7375,53 @@ function composeSkillDescription(draft: SkillEditDraft) {
     draft.hasScriptAssetSelection ? `Scripts 资产：\n${draft.scriptAssetKeys.join("\n")}` : "",
   ].filter(Boolean);
   return blocks.join("\n\n");
+}
+
+function composeSkillInputSchema(draft: SkillEditDraft): SkillInputSchemaRecord {
+  return {
+    version: "v1",
+    source: "ADMIN_EDITED",
+    databaseInputs: draft.databaseInputs,
+    knowledgeInputs: draft.knowledgeInputs,
+    customInputs: draft.customInputs,
+  };
+}
+
+function parseSkillInputSchema(value?: SkillInputSchemaRecord | null) {
+  if (!value) {
+    return null;
+  }
+  return {
+    version: "v1" as const,
+    source:
+      value.source === "INSTALLER_PARSED" || value.source === "DESCRIPTION_MIGRATED" || value.source === "ADMIN_EDITED"
+        ? value.source
+        : undefined,
+    databaseInputs: Array.isArray(value.databaseInputs) ? value.databaseInputs.map(normalizeDatabaseInputConfig) : [],
+    knowledgeInputs: Array.isArray(value.knowledgeInputs) ? value.knowledgeInputs.map(normalizeKnowledgeInputConfig) : [],
+    customInputs: Array.isArray(value.customInputs) ? value.customInputs.map(normalizeCustomInputConfig) : [],
+  };
+}
+
+function resolveSkillInputSchemaSourceLabel(activeSkillConfig?: SkillConfigRecord, activeSkillDraft?: SkillEditDraft) {
+  const source = activeSkillDraft?.inputSchemaJson?.source || activeSkillConfig?.inputSchemaJson?.source;
+  if (source === "INSTALLER_PARSED") {
+    return "结构化同步：安装器解析";
+  }
+  if (source === "DESCRIPTION_MIGRATED") {
+    return "兼容迁移：旧描述回填";
+  }
+  if (source === "ADMIN_EDITED") {
+    return "结构化同步：后台编辑";
+  }
+  if (
+    activeSkillDraft?.databaseInputs.length
+    || activeSkillDraft?.knowledgeInputs.length
+    || activeSkillDraft?.customInputs.length
+  ) {
+    return "兼容读取：描述协议解析";
+  }
+  return "未配置";
 }
 
 function normalizeSkillSectionBody(value: string) {

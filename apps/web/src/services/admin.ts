@@ -90,7 +90,16 @@ export type SkillConfigRecord = {
   defaultModel: string;
   pointsCost: number;
   description: string;
+  inputSchemaJson?: SkillInputSchemaRecord | null;
   updatedAt: string;
+};
+
+export type SkillInputSchemaRecord = {
+  version: "v1";
+  source?: "INSTALLER_PARSED" | "DESCRIPTION_MIGRATED" | "ADMIN_EDITED";
+  databaseInputs: unknown[];
+  knowledgeInputs: unknown[];
+  customInputs: unknown[];
 };
 
 export type PromptTemplateRecord = {
@@ -2645,7 +2654,10 @@ export async function getSkillConfigs() {
 }
 
 export async function createSkillConfig(
-  payload: Pick<SkillConfigRecord, "name" | "slug" | "category" | "status" | "provider" | "defaultModel" | "pointsCost" | "description">,
+  payload: Pick<
+    SkillConfigRecord,
+    "name" | "slug" | "category" | "status" | "provider" | "defaultModel" | "pointsCost" | "description" | "inputSchemaJson"
+  >,
 ) {
   return jsonRequest<SkillConfigRecord>("/admin/skills", "POST", payload);
 }
@@ -2710,7 +2722,9 @@ export async function installSkillConfig(payload: {
 
 export async function updateSkillConfig(
   skillId: string,
-  payload: Partial<Pick<SkillConfigRecord, "status" | "provider" | "defaultModel" | "pointsCost" | "description">>,
+  payload: Partial<
+    Pick<SkillConfigRecord, "status" | "provider" | "defaultModel" | "pointsCost" | "description" | "inputSchemaJson">
+  >,
 ) {
   return jsonRequest<SkillConfigRecord>(`/admin/skills/${skillId}`, "PATCH", payload);
 }

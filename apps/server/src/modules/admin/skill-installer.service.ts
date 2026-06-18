@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { BadRequestException, Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { createId } from "../../common/mock-data";
 import type { PromptTemplateRecord, SkillConfigRecord } from "../../common/mock-data";
 import { SkillPackageSkillsService, type SkillPackageSkillView } from "./skill-package-skills.service";
@@ -147,6 +148,7 @@ export class SkillInstallerService {
     const detectedSkillSlug = await this.resolveAvailableSlug(detectedSlugBase);
     const detectedSkillName = deriveSkillDisplayName(markdownText, frontmatter.name || loaded.skillFolderName || detectedSkillSlug);
     const parsedOverview = parseSkillMarkdownOverview(markdownText);
+    const parsedInputSchema = parseSkillMarkdownInputSchema(markdownText, parsedOverview.inputHints);
     const detectedDescription = buildInstalledSkillDescription({
       descriptionPrefix: String(payload.descriptionPrefix || "").trim(),
       frontmatterDescription: String(frontmatter.description || "").trim(),
@@ -163,6 +165,7 @@ export class SkillInstallerService {
       status: payload.status || "DRAFT",
       pointsCost: Math.max(0, Number(payload.pointsCost || 0)),
       description: detectedDescription,
+      inputSchemaJson: parsedInputSchema as Prisma.JsonValue | null,
     };
 
     const skill = await this.skillsPromptsService.createSkill(createPayload);
@@ -526,6 +529,55 @@ function parseSkillMarkdownOverview(content: string) {
   };
 }
 
+function parseSkillMarkdownInputSchema(content: string, fallbackInputHints: string[]): SkillConfigRecord["inputSchemaJson"] {
+  const normalized = String(content || "").trim();
+  const sections = (normalized.match(/^##\s+.+?$(?:\r?\n(?!##\s).*)*/gm) || []).map((section) => {
+    const title = section.match(/^##\s+(.+)$/m)?.[1]?.trim() || "";
+    const items = section
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line))
+      .map((line) => line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "").trim())
+      .filter(Boolean);
+    return { title, items };
+  });
+
+  const databaseLines = sections
+    .filter((section) => includesAnyKeyword(section.title, ["数据库", "database", "data source", "brand archive", "素材库", "选题库"]))
+    .flatMap((section) => section.items);
+  const knowledgeLines = sections
+    .filter((section) => includesAnyKeyword(section.title, ["知识库", "knowledge", "faq", "文档", "资料"]))
+    .flatMap((section) => section.items);
+  const customLines = sections
+    .filter((section) => includesAnyKeyword(section.title, ["自定义", "custom", "表单", "上传", "用户输入", "input"]))
+    .flatMap((section) => section.items);
+
+  const databaseInputs = dedupeStrings(databaseLines)
+    .map((line, index) => buildDatabaseInputSchemaItem(line, index))
+    .filter(Boolean);
+  const knowledgeInputs = dedupeStrings(knowledgeLines).map((line, index) => buildKnowledgeInputSchemaItem(line, index));
+  const inferredCustomInputs = dedupeStrings(customLines).map((line, index) => buildCustomInputSchemaItem(line, index));
+
+  const hasExplicitSchema = databaseInputs.length || knowledgeInputs.length || inferredCustomInputs.length;
+  const fallbackCustomInputs = !hasExplicitSchema
+    ? dedupeStrings(fallbackInputHints).map((line, index) => buildCustomInputSchemaItem(line, index))
+    : [];
+
+  const customInputs = hasExplicitSchema ? inferredCustomInputs : fallbackCustomInputs;
+
+  if (!databaseInputs.length && !knowledgeInputs.length && !customInputs.length) {
+    return null;
+  }
+
+  return {
+    version: "v1",
+    source: "INSTALLER_PARSED",
+    databaseInputs,
+    knowledgeInputs,
+    customInputs,
+  };
+}
+
 function extractHeadingsByKeywords(headings: string[], keywords: string[]) {
   return headings.filter((item) => includesAnyKeyword(item, keywords));
 }
@@ -597,6 +649,95 @@ function dedupeStrings(values: string[]) {
     result.push(value);
   }
   return result;
+}
+
+function buildDatabaseInputSchemaItem(line: string, index: number) {
+  const normalized = String(line || "").trim();
+  const key = inferDatabaseParameterKey(normalized);
+  if (!key) {
+    return null;
+  }
+  const isSelect = key === "marketing_calendar" || key === "topic_library" || key === "material_library";
+  return {
+    id: `installer_db_${index + 1}`,
+    parameterType: isSelect ? "SELECT_CHOICE" : "INJECT_TOGGLE",
+    parameterKey: key,
+    parameterLabel: inferDatabaseParameterLabel(key),
+    selectedValue: isSelect ? "" : "INJECT",
+    remarks: normalized,
+  };
+}
+
+function buildKnowledgeInputSchemaItem(line: string, index: number) {
+  const normalized = String(line || "").trim();
+  return {
+    id: `installer_kb_${index + 1}`,
+    knowledgeBaseId: "",
+    knowledgeBaseName: normalized,
+    targetContentId: "",
+    targetContentLabel: "",
+    remarks: normalized,
+  };
+}
+
+function buildCustomInputSchemaItem(line: string, index: number) {
+  const normalized = String(line || "").trim();
+  const isFile = includesAnyKeyword(normalized, ["文件", "上传", "附件", "素材", "image", "pdf", "doc"]);
+  const isSelect = includesAnyKeyword(normalized, ["选择", "选项", "类型", "风格", "布局", "模式"]);
+  return {
+    id: `installer_custom_${index + 1}`,
+    inputType: isFile ? "FILE" : isSelect ? "SELECT" : "TEXT",
+    label: normalizeInstallerInputLabel(normalized),
+    required: true,
+    options: [],
+    placeholder: normalized,
+    acceptedFileTypes: isFile ? ".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,.mp4" : "",
+    remarks: normalized,
+  };
+}
+
+function inferDatabaseParameterKey(line: string) {
+  const normalized = String(line || "").toLowerCase();
+  if (normalized.includes("品牌")) {
+    return "brand_profile";
+  }
+  if (normalized.includes("产品") || normalized.includes("商品")) {
+    return "product_library";
+  }
+  if (normalized.includes("营销策划") || normalized.includes("营销方案") || normalized.includes("plan")) {
+    return "marketing_plan";
+  }
+  if (normalized.includes("营销日历") || normalized.includes("calendar")) {
+    return "marketing_calendar";
+  }
+  if (normalized.includes("选题")) {
+    return "topic_library";
+  }
+  if (normalized.includes("素材")) {
+    return "material_library";
+  }
+  return "";
+}
+
+function inferDatabaseParameterLabel(key: string) {
+  const mapping: Record<string, string> = {
+    brand_profile: "品牌资料",
+    product_library: "产品资料",
+    marketing_plan: "营销策划方案",
+    marketing_calendar: "营销日历",
+    topic_library: "选题库",
+    material_library: "素材库",
+  };
+  return mapping[key] || key;
+}
+
+function normalizeInstallerInputLabel(line: string) {
+  const trimmed = String(line || "").trim();
+  const normalized = trimmed
+    .replace(/^(需要|需提供|输入|提供|上传|选择)\s*/i, "")
+    .replace(/[：:，,。；;].*$/, "")
+    .trim();
+  return normalized || trimmed || "自定义输入";
 }
 
 function buildReferenceManifest(
