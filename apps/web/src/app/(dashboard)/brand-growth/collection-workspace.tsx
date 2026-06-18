@@ -395,10 +395,77 @@ function useProtectedMediaAsset(sourceUrl?: string) {
   };
 }
 
-function ProtectedImageCard(props: {
+function useProtectedMediaGallery(sourceUrls: string[]) {
+  const [items, setItems] = useState<Array<{
+    sourceUrl: string;
+    objectUrl: string;
+    fileName: string;
+    isLoading: boolean;
+    errorMessage: string;
+  }>>([]);
+
+  useEffect(() => {
+    if (!sourceUrls.length) {
+      setItems([]);
+      return;
+    }
+
+    let active = true;
+    const createdObjectUrls: string[] = [];
+    setItems(
+      sourceUrls.map((sourceUrl) => ({
+        sourceUrl,
+        objectUrl: "",
+        fileName: "",
+        isLoading: true,
+        errorMessage: "",
+      })),
+    );
+
+    void Promise.allSettled(sourceUrls.map((sourceUrl) => requestBlobByUrl(sourceUrl)))
+      .then((results) => {
+        if (!active) {
+          return;
+        }
+        setItems(
+          results.map((result, index) => {
+            const sourceUrl = sourceUrls[index] || "";
+            if (result.status === "fulfilled") {
+              const objectUrl = URL.createObjectURL(result.value.blob);
+              createdObjectUrls.push(objectUrl);
+              return {
+                sourceUrl,
+                objectUrl,
+                fileName: result.value.fileName,
+                isLoading: false,
+                errorMessage: "",
+              };
+            }
+            return {
+              sourceUrl,
+              objectUrl: "",
+              fileName: "",
+              isLoading: false,
+              errorMessage: result.reason instanceof Error ? result.reason.message : "附件加载失败",
+            };
+          }),
+        );
+      });
+
+    return () => {
+      active = false;
+      createdObjectUrls.forEach((item) => URL.revokeObjectURL(item));
+    };
+  }, [sourceUrls]);
+
+  return items;
+}
+
+function ProtectedImageThumb(props: {
   sourceUrl: string;
   title: string;
   onPreviewMedia: ValueAction<MediaPreviewState>;
+  showDownloadLink?: boolean;
 }) {
   const media = useProtectedMediaAsset(props.sourceUrl);
 
@@ -417,13 +484,63 @@ function ProtectedImageCard(props: {
       >
         {media.objectUrl ? <img src={media.objectUrl} alt={props.title} /> : <span>{media.isLoading ? "附件加载中..." : "附件暂不可用"}</span>}
       </button>
-      {media.objectUrl ? (
+      {props.showDownloadLink !== false && media.objectUrl ? (
         <a href={media.objectUrl} download={media.fileName || undefined} className="note-data-link">
           下载附件
         </a>
-      ) : (
+      ) : props.showDownloadLink !== false ? (
         <span className="note-data-link">{media.isLoading ? "准备下载..." : "下载不可用"}</span>
-      )}
+      ) : null}
+    </div>
+  );
+}
+
+function ProtectedImageGallery(props: {
+  sourceUrls: string[];
+  title: string;
+  onPreviewMedia: ValueAction<MediaPreviewState>;
+}) {
+  const mediaItems = useProtectedMediaGallery(props.sourceUrls);
+  const visibleItems = mediaItems.slice(0, 4);
+  const previewableUrls = mediaItems.map((item) => item.objectUrl).filter(Boolean);
+  const remainingCount = Math.max(props.sourceUrls.length - visibleItems.length, 0);
+
+  return (
+    <div className="note-image-card">
+      <div className="note-image-grid">
+        {visibleItems.map((item, index) => (
+          <div key={`${item.sourceUrl}-${index + 1}`} className="note-image-card">
+            <button
+              type="button"
+              className="note-image-thumb"
+              title={`${props.title} 第 ${index + 1} 张`}
+              onClick={() =>
+                item.objectUrl
+                  && props.onPreviewMedia({
+                    url: item.objectUrl,
+                    title: props.title,
+                    galleryUrls: previewableUrls,
+                    activeIndex: previewableUrls.indexOf(item.objectUrl),
+                  })}
+              disabled={!item.objectUrl}
+            >
+              {item.objectUrl ? (
+                <>
+                  <img src={item.objectUrl} alt={`${props.title} 第 ${index + 1} 张`} />
+                  {remainingCount > 0 && index === visibleItems.length - 1 ? (
+                    <span className="note-image-more-badge">+{remainingCount}</span>
+                  ) : null}
+                </>
+              ) : (
+                <span>{item.isLoading ? "附件加载中..." : item.errorMessage || "附件暂不可用"}</span>
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
+      <span className="note-image-count">
+        共 {props.sourceUrls.length} 张
+      </span>
     </div>
   );
 }
@@ -1962,8 +2079,8 @@ function XhsNotesTable(props: {
               <td>{props.formatCount(item.commentCount)}</td>
               <td>
                 {item.imageList?.length ? (
-                  <ProtectedImageCard
-                    sourceUrl={item.imageList[0]}
+                  <ProtectedImageGallery
+                    sourceUrls={item.imageList}
                     title={item.title || item.noteId}
                     onPreviewMedia={props.onPreviewMedia}
                   />
@@ -2056,8 +2173,8 @@ function XhsBenchmarkNotesTable(props: {
               <td>{props.formatMetric(item.shareRatio)}</td>
               <td>
                 {item.imageList?.length ? (
-                  <ProtectedImageCard
-                    sourceUrl={item.imageList[0]}
+                  <ProtectedImageGallery
+                    sourceUrls={item.imageList}
                     title={item.title || item.noteId}
                     onPreviewMedia={props.onPreviewMedia}
                   />

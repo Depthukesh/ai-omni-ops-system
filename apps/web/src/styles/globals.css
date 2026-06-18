@@ -5337,6 +5337,18 @@ button {
   line-height: 1.4;
 }
 
+.note-image-more-badge {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .note-media-actions {
   display: flex;
   flex-wrap: wrap;
@@ -5521,6 +5533,20 @@ button {
   object-fit: contain;
   border-radius: 14px;
   background: var(--subtle-surface);
+}
+
+.media-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.media-preview-count {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .media-preview-footer {

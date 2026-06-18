@@ -19,6 +19,8 @@ export type FeishuAppConfigForm = {
 export type MediaPreviewState = {
   url: string;
   title: string;
+  galleryUrls?: string[];
+  activeIndex?: number;
 };
 
 export type BrandGrowthLibraryPageKey =

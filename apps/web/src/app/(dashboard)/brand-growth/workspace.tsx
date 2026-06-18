@@ -854,11 +854,58 @@ export function BrandGrowthWorkspace() {
   const [dataSource, setDataSource] = useState<"api" | "error" | "loading">("loading");
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
   const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
+  const previewUrls = mediaPreview?.galleryUrls?.filter(Boolean).length ? mediaPreview.galleryUrls.filter(Boolean) : mediaPreview ? [mediaPreview.url] : [];
+  const previewIndex = mediaPreview ? Math.min(Math.max(mediaPreview.activeIndex ?? 0, 0), Math.max(previewUrls.length - 1, 0)) : 0;
+  const previewUrl = previewUrls[previewIndex] || mediaPreview?.url || "";
+  const previewTitle = mediaPreview
+    ? previewUrls.length > 1
+      ? `${mediaPreview.title} (${previewIndex + 1}/${previewUrls.length})`
+      : mediaPreview.title
+    : "";
   const [loadedScopes, setLoadedScopes] = useState<Record<BrandGrowthLoadScope, boolean>>({
     library: false,
     collection: false,
     report: false,
   });
+
+  useEffect(() => {
+    if (!mediaPreview) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMediaPreview(null);
+        return;
+      }
+      if (previewUrls.length <= 1) {
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setMediaPreview((current) =>
+          current
+            ? {
+                ...current,
+                activeIndex: previewIndex > 0 ? previewIndex - 1 : previewUrls.length - 1,
+              }
+            : current,
+        );
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setMediaPreview((current) =>
+          current
+            ? {
+                ...current,
+                activeIndex: previewIndex < previewUrls.length - 1 ? previewIndex + 1 : 0,
+              }
+            : current,
+        );
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mediaPreview, previewIndex, previewUrls]);
   const completion = useMemo(() => getCompletion(archive), [archive]);
   const visibleStrategySections = useMemo(() => {
     const permissionMap = brandPermissionSettings?.currentUserPermissions;
@@ -3038,10 +3085,47 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
             <button type="button" className="media-preview-close" onClick={() => setMediaPreview(null)}>
               关闭
             </button>
-            <img src={mediaPreview.url} alt={mediaPreview.title} className="media-preview-image" />
+            {previewUrls.length > 1 ? (
+              <div className="media-preview-toolbar">
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() =>
+                    setMediaPreview((current) =>
+                      current
+                        ? {
+                            ...current,
+                            activeIndex: previewIndex > 0 ? previewIndex - 1 : previewUrls.length - 1,
+                          }
+                        : current,
+                    )}
+                >
+                  上一张
+                </button>
+                <span className="media-preview-count">
+                  第 {previewIndex + 1} / {previewUrls.length} 张
+                </span>
+                <button
+                  type="button"
+                  className="note-inline-button"
+                  onClick={() =>
+                    setMediaPreview((current) =>
+                      current
+                        ? {
+                            ...current,
+                            activeIndex: previewIndex < previewUrls.length - 1 ? previewIndex + 1 : 0,
+                          }
+                        : current,
+                    )}
+                >
+                  下一张
+                </button>
+              </div>
+            ) : null}
+            <img src={previewUrl} alt={previewTitle} className="media-preview-image" />
             <div className="media-preview-footer">
-              <span>{mediaPreview.title}</span>
-              <a href={mediaPreview.url} target="_blank" rel="noreferrer" className="note-data-link">
+              <span>{previewTitle}</span>
+              <a href={previewUrl} target="_blank" rel="noreferrer" className="note-data-link">
                 新窗口打开
               </a>
             </div>
