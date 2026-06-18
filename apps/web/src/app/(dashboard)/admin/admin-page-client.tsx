@@ -119,10 +119,16 @@ import {
 import { ThemeModeToggle } from "../../../components/theme-mode-toggle";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
 import {
+  buildPackageIdFromKey,
+  buildSkillModuleFilterOptions,
+  buildSkillPackageFilterOptions,
+  mergeSkillAssetBindingRecord,
+  mergeSkillAssetBindings,
+} from "./skill-asset-bindings";
+import {
   buildInstallSkillDraft,
   buildInstallSkillNotice,
   buildInstallSkillRequestPayload,
-  buildPackageIdFromKey,
   importInstalledAssetsToPackage,
   readFileAsBase64,
   resolveInstalledSkillBindingOptions,
@@ -2950,42 +2956,11 @@ export default function AdminPage() {
     { key: "knowledge" as const, count: summary.knowledgeBaseCount, note: `当前共有 ${summary.knowledgeBaseCount} 个知识库` },
     { key: "providers" as const, count: summary.providerCount, note: `接口供应商 ${summary.providerCount} 个` },
   ].filter((item) => accessibleTabs.some((tab) => tab.key === item.key));
-  const skillModuleFilterOptions = useMemo(
-    () =>
-      modules.map((item) => ({
-        value: item.moduleKey,
-        label: item.moduleName,
-      })),
-    [modules],
+  const skillModuleFilterOptions = useMemo(() => buildSkillModuleFilterOptions(modules), [modules]);
+  const skillPackageFilterOptions = useMemo(
+    () => buildSkillPackageFilterOptions({ skillPackageModules, skillPackageSkills }),
+    [skillPackageModules, skillPackageSkills],
   );
-  const skillPackageFilterOptions = useMemo(() => {
-    const packageMap = new Map<string, { label: string; packageId: string }>();
-    skillPackageModules.forEach((item) => {
-      packageMap.set(item.packageKey, {
-        label: item.packageName,
-        packageId: item.packageId,
-      });
-    });
-    skillPackageSkills.forEach((item) => {
-      packageMap.set(item.packageKey, {
-        label: item.packageName,
-        packageId: item.packageId,
-      });
-    });
-    skillAssetBindingSeed.forEach((item) => {
-      item.packageKeys.forEach((packageKey, index) => {
-        if (!packageMap.has(packageKey)) {
-          packageMap.set(packageKey, {
-            label: item.packageNames[index] || packageKey,
-            packageId: buildPackageIdFromKey(packageKey),
-          });
-        }
-      });
-    });
-    return Array.from(packageMap.entries())
-      .map(([value, meta]) => ({ value, label: meta.label, packageId: meta.packageId }))
-      .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
-  }, [skillPackageModules, skillPackageSkills]);
   const filteredSkillTree = useMemo(
     () =>
       SKILL_CENTER_TREE.map((primary) => ({
@@ -8180,76 +8155,6 @@ function buildCreatePromptDraft(bindSkillSlug: string | undefined = undefined): 
     content: "",
     bindSkillSlug: bindSkillSlug || "NONE",
     bindingRemarks: "",
-  };
-}
-
-function mergeSkillAssetBindings(
-  records: SkillAssetBindingRecord[],
-  skillPackageSkills: SkillPackageSkillRecord[] = [],
-  skillPackageModules: SkillPackageModuleRecord[] = [],
-) {
-  return records.map((item) =>
-    mergeSkillAssetBindingRecord(skillAssetBindingSeed, item, skillPackageSkills, skillPackageModules),
-  );
-}
-
-function mergeSkillAssetBindingRecord(
-  existingList: SkillAssetBindingRecord[],
-  incoming: SkillAssetBindingRecord,
-  skillPackageSkills: SkillPackageSkillRecord[] = [],
-  skillPackageModules: SkillPackageModuleRecord[] = [],
-): SkillAssetBindingRecord {
-  const matched =
-    existingList.find((item) => incoming.id && item.id === incoming.id)
-    || existingList.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
-    || skillAssetBindingSeed.find((item) => incoming.skillSlug && item.skillSlug === incoming.skillSlug)
-    || skillAssetBindingSeed.find((item) => incoming.promptScene && item.promptScene === incoming.promptScene);
-  const resolvedSkillSlug = incoming.skillSlug || matched?.skillSlug;
-  const relatedPackageBindings = resolvedSkillSlug
-    ? skillPackageSkills.filter((item) => item.skillSlug === resolvedSkillSlug && item.enabled)
-    : [];
-  const packageNameMap = new Map<string, string>();
-  matched?.packageKeys?.forEach((packageKey, index) => {
-    packageNameMap.set(packageKey, matched.packageNames[index] || packageKey);
-  });
-  incoming.packageKeys?.forEach((packageKey, index) => {
-    packageNameMap.set(packageKey, incoming.packageNames?.[index] || packageKey);
-  });
-  relatedPackageBindings.forEach((item) => {
-    packageNameMap.set(item.packageKey, item.packageName);
-  });
-  const resolvedPackageKeys = Array.from(
-    new Set([
-      ...(incoming.packageKeys || []),
-      ...relatedPackageBindings.map((item) => item.packageKey),
-      ...(matched?.packageKeys || []),
-    ]),
-  );
-  const derivedModuleKeys = relatedPackageBindings.flatMap((item) =>
-    skillPackageModules
-      .filter((relation) => relation.packageKey === item.packageKey && relation.enabled)
-      .map((relation) => relation.moduleKey),
-  );
-  const resolvedModuleKeys = Array.from(
-    new Set([...(incoming.moduleKeys || []), ...derivedModuleKeys, ...(matched?.moduleKeys || [])]),
-  );
-
-  return {
-    id: incoming.id || matched?.id || `sab_${incoming.skillSlug || incoming.promptScene || Date.now()}`,
-    skillId: incoming.skillId || matched?.skillId,
-    skillSlug: incoming.skillSlug || matched?.skillSlug,
-    skillName: incoming.skillName || matched?.skillName,
-    promptId: incoming.promptId || matched?.promptId,
-    promptScene: incoming.promptScene || matched?.promptScene,
-    promptName: incoming.promptName || matched?.promptName,
-    bindingType: incoming.bindingType || matched?.bindingType || "PRIMARY",
-    isPrimary: incoming.isPrimary ?? matched?.isPrimary ?? true,
-    sortOrder: incoming.sortOrder ?? matched?.sortOrder ?? 100,
-    enabled: incoming.enabled ?? matched?.enabled ?? true,
-    moduleKeys: resolvedModuleKeys,
-    packageKeys: resolvedPackageKeys,
-    packageNames: resolvedPackageKeys.map((packageKey) => packageNameMap.get(packageKey) || packageKey),
-    remarks: incoming.remarks ?? matched?.remarks,
   };
 }
 

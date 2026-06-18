@@ -1,9 +1,10 @@
-import type {
+import {
   createReferenceAsset,
   createScriptAsset,
   InstallSkillResult,
   SkillConfigRecord,
 } from "../../../services/admin";
+import { buildPackageIdFromKey } from "./skill-asset-bindings";
 
 export type InstallSkillDraft = {
   sourceType: InstallSkillResult["sourceType"];
@@ -57,13 +58,6 @@ export function readFileAsBase64(file: File) {
     reader.onerror = () => reject(reader.error || new Error("读取压缩包失败"));
     reader.readAsDataURL(file);
   });
-}
-
-export function buildPackageIdFromKey(packageKey: string) {
-  return `sp_${String(packageKey || "")
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, "_")}`;
 }
 
 export function buildInstallSkillRequestPayload(draft: InstallSkillDraft) {
