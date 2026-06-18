@@ -280,6 +280,7 @@ export interface BrandGrowthCollectionWorkspaceProps {
   onSaveFeishuBinding: AsyncAction;
   onSyncFeishuWorkspace: AsyncAction;
   onSyncXhsWorkspace: AsyncAction;
+  onSyncAllXhsBrandAccounts: AsyncAction;
   onSyncSingleXhsBrandAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncSingleXhsCompetitorAccount: ValueAction<XhsAccountBindingEntry>;
   onSyncDouyinWorkspace: AsyncAction;
@@ -2287,14 +2288,24 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                     <h3>品牌作品信息及数据</h3>
                     <p>直接复用“品牌账号信息”里已绑定的品牌账号，点击提交后按这些账号拉取作品并更新下面列表。</p>
                   </div>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => void props.onSyncXhsWorkspace()}
-                    disabled={props.isHydrating || props.isSyncingXhsWorkspace || !props.xhsSyncForm.brandAccountEntries.length}
-                  >
-                    {props.isHydrating || props.isSyncingXhsWorkspace ? "提交中..." : "提交"}
-                  </button>
+                  <div className="strategy-inline-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void props.onSyncAllXhsBrandAccounts()}
+                      disabled={props.isHydrating || props.isSyncingXhsWorkspace || !props.xhsSyncForm.brandAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingXhsWorkspace ? "同步中..." : "同步品牌账号信息"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void props.onSyncXhsWorkspace()}
+                      disabled={props.isHydrating || props.isSyncingXhsWorkspace || !props.xhsSyncForm.brandAccountEntries.length}
+                    >
+                      {props.isHydrating || props.isSyncingXhsWorkspace ? "提交中..." : "提交"}
+                    </button>
+                  </div>
                 </div>
                 {props.xhsSyncForm.brandAccountEntries.length ? (
                   <div className="xhs-account-entry-list">
@@ -2308,6 +2319,19 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
                             <span className="archive-pill status-ready">作品采集来源</span>
                           </div>
                           <strong>{entry.locator}</strong>
+                        </div>
+                        <div className="xhs-account-entry-row__actions">
+                          <button
+                            type="button"
+                            className="note-inline-button"
+                            onClick={() => props.setXhsSyncForm((current) => ({
+                              ...current,
+                              brandAccountEntries: current.brandAccountEntries.filter((item) => item.id !== entry.id),
+                            }))}
+                            disabled={props.isHydrating || props.isSyncingXhsWorkspace}
+                          >
+                            删除
+                          </button>
                         </div>
                       </div>
                     ))}

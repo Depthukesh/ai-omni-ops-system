@@ -1926,6 +1926,36 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
     }
   }
 
+  async function handleSyncAllXhsBrandAccounts() {
+    if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
+      setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
+      return;
+    }
+
+    const accountEntries = buildXhsSyncAccountEntries(xhsSyncForm.brandAccountEntries);
+    if (!accountEntries.length) {
+      setErrorMessage("请先添加至少一个品牌账号后再同步。");
+      return;
+    }
+
+    setIsSyncingXhsWorkspace(true);
+    clearMessages();
+
+    try {
+      const response = await syncXiaohongshuBrandAccounts(
+        { accountEntries },
+        activeBrandId || archive.brand.id,
+      );
+      setCollectionWorkspace(response.workspace);
+      setNotice(`品牌账号信息同步完成，已更新 ${response.syncedCount} 条结果。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "同步失败";
+      setErrorMessage(`品牌账号信息同步失败：${message}`);
+    } finally {
+      setIsSyncingXhsWorkspace(false);
+    }
+  }
+
   async function handleSyncSingleXhsCompetitorAccount(entry: XhsAccountBindingEntry) {
     if (!brandPermissionSettings?.currentUserPermissions["brandGrowth.collection.xiaohongshuCollection"]?.edit) {
       setErrorMessage("当前账号没有同步小红书收集数据的编辑权限。");
@@ -2468,6 +2498,7 @@ function buildFeishuMediaProxyUrl(sourceUrl?: string, download = false, brandId?
         onSaveFeishuBinding={handleSaveFeishuBinding}
         onSyncFeishuWorkspace={handleSyncFeishuWorkspace}
         onSyncXhsWorkspace={handleSyncXhsWorkspace}
+        onSyncAllXhsBrandAccounts={handleSyncAllXhsBrandAccounts}
         onSyncSingleXhsBrandAccount={handleSyncSingleXhsBrandAccount}
         onSyncSingleXhsCompetitorAccount={handleSyncSingleXhsCompetitorAccount}
         onSyncDouyinWorkspace={handleSyncDouyinWorkspace}
