@@ -3667,9 +3667,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
           brandId,
           category: AssetCategory.PLATFORM_EXPORT,
         },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
       });
 
-      const matched = existing.find((item) => {
+      const matchedItems = existing.filter((item) => {
         const meta = this.asMeta(item.metadataJson);
         if (
           sourceTableId
@@ -3689,8 +3690,20 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
         if (kind === "XHS_TARGET_USER") {
           return meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
         }
+        if (this.isXhsAccountKind(kind)) {
+          return this.isSameXhsAccountAssetIdentity(meta, item.fileUrl ?? undefined, kind, matchValue, fileUrl, metadata);
+        }
         return meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
       });
+      const [matched, ...duplicateMatches] = matchedItems;
+
+      if (duplicateMatches.length) {
+        await this.prismaService.businessAsset.deleteMany({
+          where: {
+            id: { in: duplicateMatches.map((item) => item.id) },
+          },
+        });
+      }
 
       if (matched) {
         const updated = await this.prismaService.businessAsset.update({
@@ -3758,6 +3771,10 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       }
       if (kind === "XHS_TARGET_USER") {
         return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceUrl") === matchValue;
+      }
+      if (this.isXhsAccountKind(kind)) {
+        return item.brandId === brandId
+          && this.isSameXhsAccountAssetIdentity(meta, item.fileUrl, kind, matchValue, fileUrl, metadata);
       }
       return item.brandId === brandId && meta.kind === kind && this.readMetaString(meta, "sourceAccountId") === matchValue;
     });
@@ -3940,13 +3957,84 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (kind === "XHS_BRAND_ACCOUNT" || kind === "XHS_COMPETITOR_ACCOUNT") {
-      const sourceAccountId = this.readMetaString(meta, "sourceAccountId");
-      if (sourceAccountId) {
-        return `${kind}:account:${sourceAccountId}`;
+      const accountIdentityKeys = this.collectXhsAccountIdentityKeys(
+        kind as CollectorAssetKind,
+        this.readMetaString(meta, "sourceAccountId"),
+        asset.fileUrl,
+        meta,
+      );
+      if (accountIdentityKeys.length) {
+        return `${kind}:account:${accountIdentityKeys[0]}`;
       }
     }
 
     return "";
+  }
+
+  private isXhsAccountKind(kind: CollectorAssetKind) {
+    return kind === "XHS_BRAND_ACCOUNT" || kind === "XHS_COMPETITOR_ACCOUNT";
+  }
+
+  private isSameXhsAccountAssetIdentity(
+    existingMeta: Record<string, unknown>,
+    existingFileUrl: string | undefined,
+    kind: CollectorAssetKind,
+    matchValue: string,
+    fileUrl: string | undefined,
+    metadata: Record<string, unknown>,
+  ) {
+    if (!this.isXhsAccountKind(kind)) {
+      return false;
+    }
+    if (this.readMetaString(existingMeta, "kind") !== kind) {
+      return false;
+    }
+    const nextKeys = new Set(this.collectXhsAccountIdentityKeys(kind, matchValue, fileUrl, metadata));
+    if (!nextKeys.size) {
+      return false;
+    }
+    const existingKeys = this.collectXhsAccountIdentityKeys(
+      kind,
+      this.readMetaString(existingMeta, "sourceAccountId"),
+      existingFileUrl,
+      existingMeta,
+    );
+    return existingKeys.some((key) => nextKeys.has(key));
+  }
+
+  private collectXhsAccountIdentityKeys(
+    kind: CollectorAssetKind,
+    matchValue: string,
+    fileUrl: string | undefined,
+    metadata: Record<string, unknown>,
+  ) {
+    if (!this.isXhsAccountKind(kind)) {
+      return [];
+    }
+
+    const keys = new Set<string>();
+    const push = (prefix: string, value: string) => {
+      const normalized = String(value || "").trim();
+      if (!normalized) {
+        return;
+      }
+      keys.add(`${prefix}:${normalized.toLowerCase()}`);
+    };
+
+    push("source", matchValue);
+    push("source", this.readMetaString(metadata, "sourceAccountId"));
+
+    const externalUserId = this.readMetaString(metadata, "externalUserId");
+    push("user", externalUserId);
+
+    const accountLink = this.readMetaString(metadata, "sourceAccountLink") || fileUrl || "";
+    const normalizedLocator = this.normalizeXhsAccountLocator(accountLink);
+    push("locator", normalizedLocator);
+
+    const userIdFromLocator = this.extractUserIdFromUrl(normalizedLocator);
+    push("user", userIdFromLocator);
+
+    return [...keys];
   }
 
   private readBenchmarkAssetUrl(asset: AssetRecord) {
