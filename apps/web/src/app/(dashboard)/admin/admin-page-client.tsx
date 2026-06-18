@@ -127,6 +127,15 @@ import {
   toggleInheritedAssetKeys,
 } from "./skill-asset-selection";
 import {
+  appendCustomInputConfig,
+  appendDatabaseInputConfig,
+  appendKnowledgeInputConfig,
+  removeSkillInputConfigById,
+  updateCustomInputConfigs,
+  updateDatabaseInputConfigs,
+  updateKnowledgeInputConfigs,
+} from "./skill-input-editing";
+import {
   buildPackageIdFromKey,
   buildSkillModuleFilterOptions,
   buildSkillPackageFilterOptions,
@@ -139,6 +148,17 @@ import {
   resolveActiveSkillSelection,
   type SkillCenterPrimaryConfig,
 } from "./skill-center-state";
+import {
+  applySeedUpdatedPromptRecord,
+  applySeedUpdatedSkillRecord,
+  applyUpdatedPromptRecord,
+  applyUpdatedSkillRecord,
+  buildPromptTemplateUpdatePayload,
+  buildSkillConfigUpdatePayload,
+  patchPromptDraftRecord,
+  patchSkillDraftRecord,
+  resolveSkillCenterSavePlan,
+} from "./skill-center-persistence";
 import { resolveSkillDisplaySummaries } from "./skill-display-summaries";
 import {
   buildInstallSkillDraft,
@@ -1078,14 +1098,9 @@ export default function AdminPage() {
     setErrorMessage("");
 
     try {
-      const updated = await updateSkillConfig(skillId, {
-        status: draft.status,
-        defaultModel: draft.defaultModel,
-        pointsCost: Number(draft.pointsCost || 0),
-        description: nextDescription,
-      });
+      const updated = await updateSkillConfig(skillId, buildSkillConfigUpdatePayload(draft, nextDescription));
 
-      setSkills((current) => current.map((item) => (item.id === skillId ? updated : item)));
+      setSkills((current) => applyUpdatedSkillRecord(current, skillId, updated));
       setSkillDrafts((current) => ({
         ...current,
         [skillId]: buildSkillDraft(updated),
@@ -1094,20 +1109,13 @@ export default function AdminPage() {
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
-        setSkills((current) =>
-          current.map((item) =>
-            item.id === skillId
-              ? {
-                  ...item,
-                  status: draft.status,
-                  defaultModel: draft.defaultModel,
-                  pointsCost: Number(draft.pointsCost || 0),
-                  description: nextDescription,
-                  updatedAt,
-                }
-              : item,
-          ),
-        );
+        setSkills((current) => applySeedUpdatedSkillRecord({
+          list: current,
+          skillId,
+          draft,
+          description: nextDescription,
+          updatedAt,
+        }));
         setNotice("技能配置已更新到本地演示数据。");
         return;
       }
@@ -1130,15 +1138,9 @@ export default function AdminPage() {
     setErrorMessage("");
 
     try {
-      const updated = await updatePromptTemplate(promptId, {
-        status: draft.status,
-        modelName: draft.modelName,
-        temperature: Number(draft.temperature || 0),
-        maxTokens: Number(draft.maxTokens || 0),
-        content: draft.content,
-      });
+      const updated = await updatePromptTemplate(promptId, buildPromptTemplateUpdatePayload(draft));
 
-      setPrompts((current) => current.map((item) => (item.id === promptId ? updated : item)));
+      setPrompts((current) => applyUpdatedPromptRecord(current, promptId, updated));
       setPromptDrafts((current) => ({
         ...current,
         [promptId]: buildPromptDraft(updated),
@@ -1147,21 +1149,12 @@ export default function AdminPage() {
     } catch (error) {
       if (dataSource === "seed") {
         const updatedAt = new Date().toISOString();
-        setPrompts((current) =>
-          current.map((item) =>
-            item.id === promptId
-              ? {
-                  ...item,
-                  status: draft.status,
-                  modelName: draft.modelName,
-                  temperature: Number(draft.temperature || 0),
-                  maxTokens: Number(draft.maxTokens || 0),
-                  content: draft.content,
-                  updatedAt,
-                }
-              : item,
-          ),
-        );
+        setPrompts((current) => applySeedUpdatedPromptRecord({
+          list: current,
+          promptId,
+          draft,
+          updatedAt,
+        }));
         setNotice("提示词模板已更新到本地演示数据。");
         return;
       }
@@ -1174,23 +1167,25 @@ export default function AdminPage() {
   }
 
   function handleSkillDraftChange(skillId: string, patch: Partial<SkillEditDraft>) {
-    setSkillDrafts((current) => ({
-      ...current,
-      [skillId]: {
-        ...(current[skillId] || buildSkillDraft(skillConfigSeed[0])),
-        ...patch,
-      },
-    }));
+    setSkillDrafts((current) =>
+      patchSkillDraftRecord({
+        current,
+        skillId,
+        patch,
+        fallback: buildSkillDraft(skillConfigSeed[0]),
+      }),
+    );
   }
 
   function handlePromptDraftChange(promptId: string, patch: Partial<PromptEditDraft>) {
-    setPromptDrafts((current) => ({
-      ...current,
-      [promptId]: {
-        ...(current[promptId] || buildPromptDraft(promptTemplateSeed[0])),
-        ...patch,
-      },
-    }));
+    setPromptDrafts((current) =>
+      patchPromptDraftRecord({
+        current,
+        promptId,
+        patch,
+        fallback: buildPromptDraft(promptTemplateSeed[0]),
+      }),
+    );
   }
 
   function handleSkillCenterStatusChange(status: SkillConfigRecord["status"]) {
@@ -1226,25 +1221,12 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      databaseInputs: draft.databaseInputs.map((item) => {
-        if (item.id !== inputId) {
-          return item;
-        }
-        const next = {
-          ...item,
-          ...patch,
-        };
-        if (patch.parameterKey) {
-          const meta = getDatabaseParameterMeta(next.parameterType, patch.parameterKey);
-          next.parameterLabel = meta?.label || patch.parameterKey;
-          const selectOptions = next.parameterType === "SELECT_CHOICE"
-            ? getDatabaseSelectValueOptions(patch.parameterKey, databaseParameterSync)
-            : [];
-          if (next.parameterType === "SELECT_CHOICE" && !selectOptions.some((option) => option.value === next.selectedValue)) {
-            next.selectedValue = selectOptions[0]?.value || "";
-          }
-        }
-        return next;
+      databaseInputs: updateDatabaseInputConfigs({
+        items: draft.databaseInputs,
+        inputId,
+        patch,
+        getDatabaseParameterMeta,
+        getDatabaseSelectValueOptions: (parameterKey) => getDatabaseSelectValueOptions(parameterKey, databaseParameterSync),
       }),
     });
   }
@@ -1255,7 +1237,11 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      databaseInputs: [...draft.databaseInputs, buildDatabaseInputConfig(parameterType, databaseParameterSync)],
+      databaseInputs: appendDatabaseInputConfig({
+        items: draft.databaseInputs,
+        parameterType,
+        buildDatabaseInputConfig: (nextParameterType) => buildDatabaseInputConfig(nextParameterType, databaseParameterSync),
+      }),
     });
   }
 
@@ -1265,7 +1251,7 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      databaseInputs: draft.databaseInputs.filter((item) => item.id !== inputId),
+      databaseInputs: removeSkillInputConfigById(draft.databaseInputs, inputId),
     });
   }
 
@@ -1296,24 +1282,13 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      knowledgeInputs: draft.knowledgeInputs.map((item) => {
-        if (item.id !== inputId) {
-          return item;
-        }
-        const next = { ...item, ...patch };
-        if (Object.prototype.hasOwnProperty.call(patch, "knowledgeBaseId")) {
-          const matched = knowledgeBases.find((entry) => entry.id === patch.knowledgeBaseId);
-          next.knowledgeBaseName = matched?.name || "";
-          const nextOptions = getKnowledgeContentOptions(patch.knowledgeBaseId || "", knowledgeBaseFiles);
-          next.targetContentId = nextOptions[0]?.value || "";
-          next.targetContentLabel = nextOptions[0]?.label || "";
-        }
-        if (Object.prototype.hasOwnProperty.call(patch, "targetContentId")) {
-          const nextOptions = getKnowledgeContentOptions(next.knowledgeBaseId, knowledgeBaseFiles, patch.targetContentId, next.targetContentLabel);
-          const matchedOption = nextOptions.find((entry) => entry.value === (patch.targetContentId || ""));
-          next.targetContentLabel = matchedOption?.label || "";
-        }
-        return next;
+      knowledgeInputs: updateKnowledgeInputConfigs({
+        items: draft.knowledgeInputs,
+        inputId,
+        patch,
+        knowledgeBases,
+        knowledgeBaseFiles,
+        getKnowledgeContentOptions,
       }),
     });
   }
@@ -1323,9 +1298,13 @@ export default function AdminPage() {
       return;
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
-    const defaultKnowledgeBase = knowledgeBases.find((item) => item.status !== "DISABLED");
     handleSkillDraftChange(activeSkillConfig.id, {
-      knowledgeInputs: [...draft.knowledgeInputs, buildKnowledgeInputConfig(defaultKnowledgeBase, knowledgeBaseFiles)],
+      knowledgeInputs: appendKnowledgeInputConfig({
+        items: draft.knowledgeInputs,
+        knowledgeBases,
+        knowledgeBaseFiles,
+        buildKnowledgeInputConfig,
+      }),
     });
   }
 
@@ -1335,7 +1314,7 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      knowledgeInputs: draft.knowledgeInputs.filter((item) => item.id !== inputId),
+      knowledgeInputs: removeSkillInputConfigById(draft.knowledgeInputs, inputId),
     });
   }
 
@@ -1357,7 +1336,11 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      customInputs: draft.customInputs.map((item) => (item.id === inputId ? { ...item, ...patch } : item)),
+      customInputs: updateCustomInputConfigs({
+        items: draft.customInputs,
+        inputId,
+        patch,
+      }),
     });
   }
 
@@ -1367,7 +1350,11 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      customInputs: [...draft.customInputs, buildCustomInputConfig(inputType)],
+      customInputs: appendCustomInputConfig({
+        items: draft.customInputs,
+        inputType,
+        buildCustomInputConfig,
+      }),
     });
   }
 
@@ -1377,7 +1364,7 @@ export default function AdminPage() {
     }
     const draft = activeSkillDraft || buildSkillDraft(activeSkillConfig);
     handleSkillDraftChange(activeSkillConfig.id, {
-      customInputs: draft.customInputs.filter((item) => item.id !== inputId),
+      customInputs: removeSkillInputConfigById(draft.customInputs, inputId),
     });
   }
 
@@ -1444,11 +1431,15 @@ export default function AdminPage() {
   }
 
   async function handleSaveSkillCenter() {
-    if (activeSkillConfig) {
-      await handleSaveSkill(activeSkillConfig.id);
+    const plan = resolveSkillCenterSavePlan({
+      activeSkillId: activeSkillConfig?.id,
+      activePromptId: activePromptConfig?.id,
+    });
+    if (plan.shouldSaveSkill) {
+      await handleSaveSkill(plan.activeSkillId);
     }
-    if (activePromptConfig) {
-      await handleSavePrompt(activePromptConfig.id);
+    if (plan.shouldSavePrompt) {
+      await handleSavePrompt(plan.activePromptId);
     }
   }
 
