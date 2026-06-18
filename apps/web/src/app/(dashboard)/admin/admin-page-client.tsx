@@ -118,6 +118,14 @@ import {
 } from "../../../services/reports";
 import { ThemeModeToggle } from "../../../components/theme-mode-toggle";
 import { ModuleDefinitionsPanel } from "./module-definitions-panel";
+import { resolveActiveSkillRelations } from "./skill-active-context";
+import {
+  buildInheritedAssetCardSummary,
+  buildInheritedAssetSourceSummary,
+  resolveEffectiveInheritedReferenceKeys,
+  resolveEffectiveInheritedScriptKeys,
+  toggleInheritedAssetKeys,
+} from "./skill-asset-selection";
 import {
   buildPackageIdFromKey,
   buildSkillModuleFilterOptions,
@@ -131,6 +139,7 @@ import {
   resolveActiveSkillSelection,
   type SkillCenterPrimaryConfig,
 } from "./skill-center-state";
+import { resolveSkillDisplaySummaries } from "./skill-display-summaries";
 import {
   buildInstallSkillDraft,
   buildInstallSkillNotice,
@@ -1404,9 +1413,11 @@ export default function AdminPage() {
     const currentKeys = draft.hasReferenceAssetSelection
       ? draft.referenceAssetKeys
       : activeReferenceAssets.map((item) => item.referenceKey);
-    const nextKeys = checked
-      ? Array.from(new Set([...currentKeys, referenceKey]))
-      : currentKeys.filter((item) => item !== referenceKey);
+    const nextKeys = toggleInheritedAssetKeys({
+      currentKeys,
+      targetKey: referenceKey,
+      checked,
+    });
     handleSkillDraftChange(activeSkillConfig.id, {
       referenceAssetKeys: nextKeys,
       hasReferenceAssetSelection: true,
@@ -1421,9 +1432,11 @@ export default function AdminPage() {
     const currentKeys = draft.hasScriptAssetSelection
       ? draft.scriptAssetKeys
       : activeScriptAssets.map((item) => item.scriptKey);
-    const nextKeys = checked
-      ? Array.from(new Set([...currentKeys, scriptKey]))
-      : currentKeys.filter((item) => item !== scriptKey);
+    const nextKeys = toggleInheritedAssetKeys({
+      currentKeys,
+      targetKey: scriptKey,
+      checked,
+    });
     handleSkillDraftChange(activeSkillConfig.id, {
       scriptAssetKeys: nextKeys,
       hasScriptAssetSelection: true,
@@ -2980,108 +2993,85 @@ export default function AdminPage() {
       }),
     [filteredSkillTree, activeSkillPrimaryId, activeSkillSectionId, activeSkillLeafId],
   );
-  const activeSkillBindings = skillAssetBindings.filter(
-    (item) =>
-      (activeSkillLeaf?.skillSlug && item.skillSlug === activeSkillLeaf.skillSlug) ||
-      (activeSkillLeaf?.promptScene && item.promptScene === activeSkillLeaf.promptScene),
-  );
-  const activeExactPromptBinding = activeSkillBindings.find((item) => item.promptScene === activeSkillLeaf?.promptScene);
-  const activePrimaryPromptBinding = activeSkillBindings.find((item) => item.isPrimary) || activeSkillBindings[0];
-  const resolvedActivePromptScene = activeExactPromptBinding?.promptScene || activePrimaryPromptBinding?.promptScene || activeSkillLeaf?.promptScene;
   const activeSkillConfig = activeSkillLeaf?.skillSlug ? skills.find((item) => item.slug === activeSkillLeaf.skillSlug) : undefined;
-  const activePromptConfig = resolvedActivePromptScene ? prompts.find((item) => item.scene === resolvedActivePromptScene) : undefined;
+  const {
+    activeSkillBindings,
+    resolvedActivePromptScene,
+    activePromptConfig,
+    activeSkillModuleKeys,
+    activeSkillPackageKeys,
+    activeSkillModules,
+    activeSkillModuleLabel,
+    activeSkillPackageNames,
+    activeSkillPackageLabel,
+    activeSkillBindingLabel,
+    activeSkillRelations,
+    activePrimarySkillRelation,
+    activeSkillPackageDetail,
+    activeSkillFlow,
+    activeSkillFlowIndex,
+    upstreamSkillNames,
+    downstreamSkillNames,
+    activeOutputSummary,
+    activeReferenceAssets,
+    activeScriptAssets,
+    activeSkillAssetSourceLabel,
+  } = useMemo(
+    () =>
+      resolveActiveSkillRelations({
+        activeSkillLeaf,
+        activeSkillConfig,
+        skillAssetBindings,
+        skillPackageSkills,
+        skillPackageModules,
+        skillPackageDetailMap,
+        modules,
+        prompts,
+      }),
+    [activeSkillLeaf, activeSkillConfig, skillAssetBindings, skillPackageSkills, skillPackageModules, skillPackageDetailMap, modules, prompts],
+  );
   const activeSkillDraft = activeSkillConfig ? skillDrafts[activeSkillConfig.id] || buildSkillDraft(activeSkillConfig) : undefined;
   const activePromptDraft = activePromptConfig ? promptDrafts[activePromptConfig.id] || buildPromptDraft(activePromptConfig) : undefined;
-  const activeSkillModuleKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.moduleKeys)));
-  const activeSkillPackageKeys = Array.from(new Set(activeSkillBindings.flatMap((item) => item.packageKeys)));
-  const activeSkillModules = modules.filter((item) => activeSkillModuleKeys.includes(item.moduleKey));
-  const activeSkillModuleLabel = activeSkillModules.length
-    ? activeSkillModules.map((item) => item.moduleName).join(" / ")
-    : activeSkillModuleKeys.length
-      ? activeSkillModuleKeys.join(" / ")
-      : "-";
-  const activeSkillPackageNames = Array.from(
-    new Set([
-      ...skillPackageSkills.filter((item) => activeSkillPackageKeys.includes(item.packageKey)).map((item) => item.packageName),
-      ...skillPackageModules.filter((item) => activeSkillPackageKeys.includes(item.packageKey)).map((item) => item.packageName),
-      ...activeSkillBindings.flatMap((item) => item.packageNames),
-    ]),
-  );
-  const activeSkillPackageLabel = activeSkillPackageNames.length ? activeSkillPackageNames.join(" / ") : "-";
-  const activeSkillBindingLabel =
-    activeSkillBindings[0]?.remarks ||
-    (activeSkillPackageNames.length || activeSkillModules.length ? "已建立技能归属映射" : "暂未建立技能归属映射");
-  const activeSkillRelations = activeSkillConfig
-    ? skillPackageSkills.filter((item) => item.skillSlug === activeSkillConfig.slug && item.enabled)
-    : [];
-  const activePrimarySkillRelation =
-    activeSkillRelations.find((item) => activeSkillPackageKeys.includes(item.packageKey))
-    || activeSkillRelations[0];
-  const activeSkillPackageDetail = activePrimarySkillRelation
-    ? skillPackageDetailMap[activePrimarySkillRelation.packageId]
-    : undefined;
-  const activeSkillFlow = activePrimarySkillRelation
-    ? skillPackageSkills
-      .filter((item) => item.packageKey === activePrimarySkillRelation.packageKey && item.enabled)
-      .sort((left, right) => left.sortOrder - right.sortOrder)
-    : [];
-  const activeSkillFlowIndex = activePrimarySkillRelation
-    ? activeSkillFlow.findIndex((item) => item.id === activePrimarySkillRelation.id)
-    : -1;
-  const upstreamSkillNames = activeSkillFlowIndex > 0
-    ? activeSkillFlow.slice(0, activeSkillFlowIndex).map((item) => item.skillName || item.skillSlug)
-    : [];
-  const downstreamSkillNames =
-    activeSkillFlowIndex >= 0
-      ? activeSkillFlow.slice(activeSkillFlowIndex + 1).map((item) => item.skillName || item.skillSlug)
-      : [];
-  const activeOutputSummary = downstreamSkillNames.length
-    ? `当前技能输出将继续传递给：${downstreamSkillNames.join(" -> ")}`
-    : "当前技能输出为能力包终态输出，或进入人工审核 / 发布环节。";
-  const activeReferenceAssets = activeSkillPackageDetail?.references || [];
-  const activeScriptAssets = activeSkillPackageDetail?.scripts || [];
-  const effectiveReferenceAssetKeys =
-    activeSkillDraft?.hasReferenceAssetSelection
-      ? activeSkillDraft.referenceAssetKeys
-      : activeReferenceAssets.map((item) => item.referenceKey);
-  const effectiveScriptAssetKeys =
-    activeSkillDraft?.hasScriptAssetSelection
-      ? activeSkillDraft.scriptAssetKeys
-      : activeScriptAssets.map((item) => item.scriptKey);
-  const activeSkillAssetSourceLabel = activePrimarySkillRelation?.packageName || activeSkillPackageLabel;
+  const effectiveReferenceAssetKeys = resolveEffectiveInheritedReferenceKeys({
+    draft: activeSkillDraft,
+    activeReferenceAssets,
+  });
+  const effectiveScriptAssetKeys = resolveEffectiveInheritedScriptKeys({
+    draft: activeSkillDraft,
+    activeScriptAssets,
+  });
   const isLoadingActiveSkillAssets = !!activePrimarySkillRelation?.packageId && loadingSkillAssetPackageId === activePrimarySkillRelation.packageId;
-  const activeKnowledgeBaseSummary = knowledgeBases.filter((item) => item.status === "ACTIVE").slice(0, 6).map((item) => item.name);
-  const activeKnowledgeBaseRecords = knowledgeBases
-    .filter((item) => item.status !== "DISABLED")
-    .map((item) => ({ value: item.id, label: item.name, documentCount: item.documentCount }));
-  const activeKnowledgeBaseOptions = activeKnowledgeBaseRecords.map((item) => ({ value: item.value, label: item.label }));
-  const knowledgeBaseFileCountMap = knowledgeBaseFiles.reduce<Record<string, number>>((accumulator, item) => {
-    if (item.status === "FAILED") {
-      return accumulator;
-    }
-    accumulator[item.knowledgeBaseId] = (accumulator[item.knowledgeBaseId] || 0) + 1;
-    return accumulator;
-  }, {});
-  const knowledgeBaseSyncSummary = activeKnowledgeBaseRecords
-    .slice(0, 6)
-    .map((item) => `${item.label} ${knowledgeBaseFileCountMap[item.value] || 0} 项`);
-  const databaseInputSummary = (activeSkillDraft?.databaseInputs || [])
-    .map((item) => {
-      if (item.parameterType === "INJECT_TOGGLE") {
-        return `${item.parameterLabel || item.parameterKey}：${item.selectedValue === "INJECT" ? "植入" : "不植入"}`;
-      }
-      const matchedOption = getDatabaseSelectValueOptions(item.parameterKey, databaseParameterSync)
-        .find((option) => option.value === item.selectedValue);
-      return `${item.parameterLabel || item.parameterKey}：${matchedOption?.label || "未选择"}`;
-    })
-    .join(" / ");
-  const databaseParameterSyncSummary = databaseParameterSync.summary.join(" / ");
-  const knowledgeInputSummary = (activeSkillDraft?.knowledgeInputs || [])
-    .map((item) => `${item.knowledgeBaseName || "未选择知识库"}：${item.targetContentLabel || "整库检索"}`)
-    .join(" / ");
-  const customInputSummary = (activeSkillDraft?.customInputs || [])
-    .map((item) => `${item.label || "未命名参数"}（${item.inputType === "SELECT" ? "下拉" : item.inputType === "FILE" ? "上传" : "输入"}）`)
-    .join(" / ");
+  const {
+    activeKnowledgeBaseSummary,
+    activeKnowledgeBaseRecords,
+    activeKnowledgeBaseOptions,
+    knowledgeBaseFileCountMap,
+    knowledgeBaseSyncSummary,
+    databaseInputSummary,
+    databaseParameterSyncSummary,
+    knowledgeInputSummary,
+    customInputSummary,
+    skillCenterStatus,
+    skillCenterModel,
+    skillCenterPointsCost,
+    skillCenterUpdatedAt,
+    skillCenterUpdatedAtLabel,
+  } = useMemo(
+    () =>
+      resolveSkillDisplaySummaries({
+        knowledgeBases,
+        knowledgeBaseFiles,
+        activeSkillDraft,
+        activePromptDraft,
+        activeSkillConfig,
+        activePromptConfig,
+        databaseParameterSummary: databaseParameterSync.summary,
+        getDatabaseSelectValueOptions: (parameterKey, currentValue) =>
+          getDatabaseSelectValueOptions(parameterKey, databaseParameterSync, currentValue),
+        formatDateTime,
+      }),
+    [knowledgeBases, knowledgeBaseFiles, activeSkillDraft, activePromptDraft, activeSkillConfig, activePromptConfig, databaseParameterSync],
+  );
   const skillModelOptions = useMemo(
     () =>
       buildScopedModelOptions(
@@ -3126,13 +3116,8 @@ export default function AdminPage() {
       ).sort((a, b) => a.localeCompare(b, "zh-CN")),
     [newSkill.promptScene, prompts],
   );
-  const skillCenterStatus = activePromptDraft?.status || activeSkillDraft?.status || "DRAFT";
-  const skillCenterModel = activePromptDraft?.modelName || activeSkillDraft?.defaultModel || "";
-  const skillCenterPointsCost = activeSkillDraft?.pointsCost || `${activeSkillConfig?.pointsCost || 180}`;
-  const skillCenterUpdatedAt = activePromptConfig?.updatedAt || activeSkillConfig?.updatedAt;
   const skillCenterPromptValue = activePromptDraft?.content || "";
   const skillCenterName = activeSkillLeaf?.label || activePromptConfig?.name || activeSkillConfig?.name || "-";
-  const skillCenterUpdatedAtLabel = skillCenterUpdatedAt ? formatDateTime(skillCenterUpdatedAt) : "自动更新";
   const isSkillPrimaryExpanded = (primaryId: string) => !collapsedSkillPrimaryMap[primaryId];
   const isSkillSectionExpanded = (primaryId: string, sectionId: string) =>
     !collapsedSkillSectionMap[buildAdminSkillSectionCollapseKey(primaryId, sectionId)];
@@ -4968,22 +4953,28 @@ export default function AdminPage() {
                           <label className="admin-skill-field admin-skill-field--wide">
                             <span>References 来源</span>
                             <input
-                              value={
-                                activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeReferenceAssets.length} 项 / ${activeSkillDraft?.hasReferenceAssetSelection ? `已选 ${effectiveReferenceAssetKeys.length} 项` : "默认全继承"}`
-                                  : "当前技能尚未绑定能力包，暂无可继承 References 资产"
-                              }
+                              value={buildInheritedAssetSourceSummary({
+                                hasPrimaryRelation: !!activePrimarySkillRelation,
+                                assetSourceLabel: activeSkillAssetSourceLabel,
+                                assetCount: activeReferenceAssets.length,
+                                selectedCount: effectiveReferenceAssetKeys.length,
+                                hasExplicitSelection: !!activeSkillDraft?.hasReferenceAssetSelection,
+                                assetType: "References",
+                              })}
                               readOnly
                             />
                           </label>
                           <label className="admin-skill-field admin-skill-field--wide">
                             <span>Scripts 来源</span>
                             <input
-                              value={
-                                activePrimarySkillRelation
-                                  ? `${activeSkillAssetSourceLabel} / ${activeScriptAssets.length} 项 / ${activeSkillDraft?.hasScriptAssetSelection ? `已选 ${effectiveScriptAssetKeys.length} 项` : "默认全继承"}`
-                                  : "当前技能尚未绑定能力包，暂无可继承 Scripts 资产"
-                              }
+                              value={buildInheritedAssetSourceSummary({
+                                hasPrimaryRelation: !!activePrimarySkillRelation,
+                                assetSourceLabel: activeSkillAssetSourceLabel,
+                                assetCount: activeScriptAssets.length,
+                                selectedCount: effectiveScriptAssetKeys.length,
+                                hasExplicitSelection: !!activeSkillDraft?.hasScriptAssetSelection,
+                                assetType: "Scripts",
+                              })}
                               readOnly
                             />
                           </label>
@@ -5013,7 +5004,10 @@ export default function AdminPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                               <SkillAssetListCard
                                 title="References 资产"
-                                summary={activeSkillDraft?.hasReferenceAssetSelection ? "当前技能已从所属能力包资产中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 References 资产；勾选后可收口为技能级选择。"}
+                                summary={buildInheritedAssetCardSummary({
+                                  hasExplicitSelection: !!activeSkillDraft?.hasReferenceAssetSelection,
+                                  assetType: "References",
+                                })}
                                 emptyText="所属能力包当前还没有参考资料资产。"
                                 items={activeReferenceAssets.map((item) => (
                                   <SkillReferenceAssetItem
@@ -5026,7 +5020,10 @@ export default function AdminPage() {
                               />
                               <SkillAssetListCard
                                 title="Scripts 资产"
-                                summary={activeSkillDraft?.hasScriptAssetSelection ? "当前技能已从所属能力包脚本中选择子集；保存后会随技能说明一起持久化。" : "当前技能默认继承所属能力包中的全部 Scripts 资产；勾选后可收口为技能级选择。"}
+                                summary={buildInheritedAssetCardSummary({
+                                  hasExplicitSelection: !!activeSkillDraft?.hasScriptAssetSelection,
+                                  assetType: "Scripts",
+                                })}
                                 emptyText="所属能力包当前还没有脚本资产。"
                                 items={activeScriptAssets.map((item) => (
                                   <SkillScriptAssetItem
