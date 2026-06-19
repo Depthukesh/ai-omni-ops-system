@@ -369,6 +369,8 @@ export type DailyHotspotWorkspace = {
   platforms: DailyHotspotPlatformRecord[];
 };
 
+type DouyinMetadataCacheKind = "DOUYIN_CONTENT_TAG_CACHE" | "DOUYIN_CITY_OPTION_CACHE";
+
 @Injectable()
 export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DAILY_HOTSPOT_JOB_NAME = "collectors.daily-hotspots.sync";
@@ -376,11 +378,13 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
   private static readonly DOUYIN_VIDEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CONTENT_TAG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private static readonly DOUYIN_CITY_OPTION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE = "__douyin_content_tag_cache__";
+  private static readonly DOUYIN_CITY_OPTION_CACHE_ASSET_TITLE = "__douyin_city_option_cache__";
+  private static readonly DOUYIN_METADATA_CACHE_DESCRIPTION = "抖音采集元数据缓存，仅供服务端复用。";
   private readonly logger = new Logger(CollectorsService.name);
   private douyinVideoCacheQueue = Promise.resolve();
   private douyinContentTagCache: { expiresAt: number; items: DouyinContentTagOption[] } | null = null;
   private douyinCityOptionCache: { expiresAt: number; items: DouyinCityOption[] } | null = null;
-  private readonly dailyHotspotCatchUpInFlight = new Set<string>();
 
   constructor(
     @Inject(PrismaService)
@@ -944,27 +948,8 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     targetDate?: string,
     options?: { skipAutoCatchUp?: boolean; blockOnAutoCatchUp?: boolean },
   ): Promise<DailyHotspotWorkspace> {
-    const workspace = await this.readDailyHotspotWorkspace(brandId, targetDate);
-    if (targetDate || options?.skipAutoCatchUp) {
-      return workspace;
-    }
-    if (!(await this.shouldCatchUpDailyHotspotBrand(brandId))) {
-      return workspace;
-    }
-
-    if (options?.blockOnAutoCatchUp) {
-      try {
-        await this.syncDailyHotspots(brandId, []);
-        return this.readDailyHotspotWorkspace(brandId, targetDate);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "未知错误";
-        console.error(`每日热点工作区自动补抓失败: ${brandId} - ${message}`);
-        return workspace;
-      }
-    }
-
-    this.triggerDailyHotspotCatchUpInBackground(brandId);
-    return workspace;
+    void options;
+    return this.readDailyHotspotWorkspace(brandId, targetDate);
   }
 
   private async readDailyHotspotWorkspace(brandId: string, targetDate?: string): Promise<DailyHotspotWorkspace> {
@@ -4937,6 +4922,19 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       return this.douyinContentTagCache.items;
     }
 
+    const persisted = await this.readPersistedDouyinMetadataCache(
+      CollectorsService.DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE,
+      "DOUYIN_CONTENT_TAG_CACHE",
+      (raw) => this.extractDouyinContentTags(raw),
+    );
+    if (persisted.length) {
+      this.douyinContentTagCache = {
+        items: persisted,
+        expiresAt: Date.now() + CollectorsService.DOUYIN_CONTENT_TAG_CACHE_TTL_MS,
+      };
+      return persisted;
+    }
+
     const raw = await this.fetchTikHub("/api/v1/douyin/billboard/fetch_content_tag", {}, brandId);
     const items = this.extractDouyinContentTags(raw);
     if (!items.length) {
@@ -4946,12 +4944,32 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       items,
       expiresAt: Date.now() + CollectorsService.DOUYIN_CONTENT_TAG_CACHE_TTL_MS,
     };
+    await this.persistDouyinMetadataCache({
+      brandId,
+      title: CollectorsService.DOUYIN_CONTENT_TAG_CACHE_ASSET_TITLE,
+      kind: "DOUYIN_CONTENT_TAG_CACHE",
+      items,
+      ttlMs: CollectorsService.DOUYIN_CONTENT_TAG_CACHE_TTL_MS,
+    });
     return items;
   }
 
   private async getDouyinCityOptions(brandId?: string) {
     if (this.douyinCityOptionCache && this.douyinCityOptionCache.expiresAt > Date.now()) {
       return this.douyinCityOptionCache.items;
+    }
+
+    const persisted = await this.readPersistedDouyinMetadataCache(
+      CollectorsService.DOUYIN_CITY_OPTION_CACHE_ASSET_TITLE,
+      "DOUYIN_CITY_OPTION_CACHE",
+      (raw) => this.extractDouyinCityOptions(raw),
+    );
+    if (persisted.length) {
+      this.douyinCityOptionCache = {
+        items: persisted,
+        expiresAt: Date.now() + CollectorsService.DOUYIN_CITY_OPTION_CACHE_TTL_MS,
+      };
+      return persisted;
     }
 
     const raw = await this.fetchTikHub("/api/v1/douyin/billboard/fetch_city_list", {}, brandId);
@@ -4963,7 +4981,133 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
       items,
       expiresAt: Date.now() + CollectorsService.DOUYIN_CITY_OPTION_CACHE_TTL_MS,
     };
+    await this.persistDouyinMetadataCache({
+      brandId,
+      title: CollectorsService.DOUYIN_CITY_OPTION_CACHE_ASSET_TITLE,
+      kind: "DOUYIN_CITY_OPTION_CACHE",
+      items,
+      ttlMs: CollectorsService.DOUYIN_CITY_OPTION_CACHE_TTL_MS,
+    });
     return items;
+  }
+
+  private async readPersistedDouyinMetadataCache<T>(
+    title: string,
+    kind: DouyinMetadataCacheKind,
+    extract: (raw: unknown) => T[],
+  ): Promise<T[]> {
+    const now = Date.now();
+    if (await this.prismaService.canUseDatabase()) {
+      const asset = await this.prismaService.businessAsset.findFirst({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+        },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      });
+      if (!asset) {
+        return [];
+      }
+      return this.extractFreshDouyinMetadataCacheItems(this.asMeta(asset.metadataJson), kind, now, extract);
+    }
+
+    const asset = [...database.assets]
+      .reverse()
+      .find((item) => item.category === "PLATFORM_EXPORT" && item.title === title);
+    if (!asset) {
+      return [];
+    }
+    return this.extractFreshDouyinMetadataCacheItems(this.asMeta(asset.metadataJson), kind, now, extract);
+  }
+
+  private extractFreshDouyinMetadataCacheItems<T>(
+    meta: Record<string, unknown>,
+    kind: DouyinMetadataCacheKind,
+    now: number,
+    extract: (raw: unknown) => T[],
+  ): T[] {
+    if (this.readMetaString(meta, "kind") !== kind) {
+      return [];
+    }
+    const expiresAt = this.readMetaNumber(meta, "expiresAt");
+    if (typeof expiresAt !== "number" || expiresAt <= now) {
+      return [];
+    }
+    const items = extract(meta.items);
+    return items.length ? items : [];
+  }
+
+  private async persistDouyinMetadataCache<T>(params: {
+    brandId?: string;
+    title: string;
+    kind: DouyinMetadataCacheKind;
+    items: T[];
+    ttlMs: number;
+  }) {
+    const { brandId, title, kind, items, ttlMs } = params;
+    if (!brandId || !items.length) {
+      return;
+    }
+
+    const metadata = {
+      kind,
+      cachedAt: new Date().toISOString(),
+      expiresAt: Date.now() + ttlMs,
+      items,
+    };
+
+    if (await this.prismaService.canUseDatabase()) {
+      await this.ensureBrandExistsInDatabase(brandId);
+      const existing = await this.prismaService.businessAsset.findFirst({
+        where: {
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+        },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      });
+
+      if (existing) {
+        await this.prismaService.businessAsset.update({
+          where: { id: existing.id },
+          data: {
+            description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+            metadataJson: metadata as Prisma.InputJsonValue,
+          },
+        });
+        return;
+      }
+
+      await this.prismaService.businessAsset.create({
+        data: {
+          brandId,
+          category: AssetCategory.PLATFORM_EXPORT,
+          title,
+          description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+          metadataJson: metadata as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+
+    this.ensureBrandExistsInMock(brandId);
+    const existing = [...database.assets]
+      .reverse()
+      .find((item) => item.category === "PLATFORM_EXPORT" && item.title === title);
+    if (existing) {
+      existing.description = CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION;
+      existing.metadataJson = metadata as Record<string, unknown>;
+      return;
+    }
+
+    database.assets.push({
+      id: createId("asset"),
+      brandId,
+      category: "PLATFORM_EXPORT",
+      title,
+      description: CollectorsService.DOUYIN_METADATA_CACHE_DESCRIPTION,
+      sourceName: "抖音采集缓存",
+      metadataJson: metadata as Record<string, unknown>,
+    });
   }
 
   private extractDouyinContentTags(raw: unknown): DouyinContentTagOption[] {
@@ -5907,39 +6051,6 @@ export class CollectorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return false;
-  }
-
-  private async shouldCatchUpDailyHotspotBrand(brandId: string) {
-    if (!process.env.TIKHUB_API_KEY) {
-      return false;
-    }
-
-    const today = this.getLocalDateString();
-    const snapshots = await this.getDailyHotspotSnapshotStatuses(brandId);
-    for (const config of DAILY_HOTSPOT_CONFIGS) {
-      const matched = snapshots.find((item) => item.platformKey === config.platformKey && item.snapshotDate === today);
-      if (!matched || matched.syncStatus !== "SUCCESS") {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  private triggerDailyHotspotCatchUpInBackground(brandId: string) {
-    if (this.dailyHotspotCatchUpInFlight.has(brandId)) {
-      return;
-    }
-
-    this.dailyHotspotCatchUpInFlight.add(brandId);
-    void this.syncDailyHotspots(brandId, [])
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : "未知错误";
-        this.logger.warn(`每日热点工作区后台补抓失败: ${brandId} - ${message}`);
-      })
-      .finally(() => {
-        this.dailyHotspotCatchUpInFlight.delete(brandId);
-      });
   }
 
   private async getDailyHotspotBrandIds() {
