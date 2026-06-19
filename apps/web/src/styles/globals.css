@@ -95,9 +95,15 @@
   --status-paused-text: #f87171;
   --success-text-strong: #8de8c1;
   --error-text-strong: #ffbeb6;
-  --platform-card-selected-bg: rgba(108, 124, 255, 0.08);
-  --platform-card-selected-border: rgba(108, 124, 255, 0.4);
-  --platform-card-selected-shadow: 0 4px 16px rgba(108, 124, 255, 0.1);
+  --platform-card-selected-bg:
+    radial-gradient(circle at top left, rgba(128, 150, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(26, 36, 63, 0.96) 0%, rgba(18, 27, 48, 0.98) 100%);
+  --platform-card-selected-border: rgba(126, 148, 255, 0.5);
+  --platform-card-selected-shadow: 0 14px 30px rgba(48, 71, 170, 0.22);
+  --reference-upload-panel-bg:
+    radial-gradient(circle at top left, rgba(112, 132, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(24, 32, 53, 0.96) 0%, rgba(16, 23, 41, 0.98) 100%);
+  --reference-upload-panel-border: rgba(135, 150, 205, 0.28);
   --chip-bg: rgba(108, 132, 255, 0.14);
   --chip-text: #dce6ff;
   --chip-active-bg: rgba(89, 207, 180, 0.18);
@@ -192,9 +198,15 @@
   --status-paused-text: #991b1b;
   --success-text-strong: #1c8b63;
   --error-text-strong: #be5a4b;
-  --platform-card-selected-bg: rgba(108, 124, 255, 0.08);
-  --platform-card-selected-border: rgba(108, 124, 255, 0.4);
-  --platform-card-selected-shadow: 0 4px 16px rgba(108, 124, 255, 0.1);
+  --platform-card-selected-bg:
+    radial-gradient(circle at top left, rgba(154, 177, 255, 0.44), transparent 34%),
+    linear-gradient(180deg, rgba(231, 238, 255, 0.98) 0%, rgba(218, 228, 252, 1) 100%);
+  --platform-card-selected-border: rgba(109, 129, 210, 0.4);
+  --platform-card-selected-shadow: 0 12px 24px rgba(121, 140, 181, 0.16);
+  --reference-upload-panel-bg:
+    radial-gradient(circle at top left, rgba(176, 193, 255, 0.46), transparent 34%),
+    linear-gradient(180deg, rgba(248, 250, 255, 0.98) 0%, rgba(239, 244, 252, 1) 100%);
+  --reference-upload-panel-border: rgba(121, 140, 182, 0.22);
   --chip-bg: rgba(208, 220, 255, 0.84);
   --chip-text: #32467a;
   --chip-active-bg: rgba(200, 245, 231, 0.92);
@@ -7429,11 +7441,10 @@ button {
   display: grid;
   gap: 10px;
   padding: 14px;
-  border: 1px solid var(--site-hero-border);
+  border: 1px solid var(--reference-upload-panel-border);
   border-radius: 18px;
-  background:
-    radial-gradient(circle at top left, rgba(225, 231, 255, 0.56), transparent 36%),
-    linear-gradient(180deg, #fbfcff 0%, #f6f8ff 100%);
+  background: var(--reference-upload-panel-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .reference-upload-actions {
@@ -7448,6 +7459,10 @@ button {
 
 .reference-upload-panel strong {
   color: var(--site-hero-text);
+}
+
+.reference-upload-panel .panel-subtext {
+  color: var(--site-hero-muted);
 }
 
 .reference-template-dialog {

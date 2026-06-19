@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -447,8 +447,9 @@ export default function PersonalCenterSkillsPage() {
                                 style={{
                                   width: "100%",
                                   textAlign: "left",
-                                  border: item.id === selectedLeaf?.id ? "1px solid rgba(30, 64, 175, 0.45)" : undefined,
-                                  background: item.id === selectedLeaf?.id ? "rgba(239, 246, 255, 0.8)" : undefined,
+                                  border: item.id === selectedLeaf?.id ? "1px solid var(--platform-card-selected-border)" : undefined,
+                                  background: item.id === selectedLeaf?.id ? "var(--platform-card-selected-bg)" : undefined,
+                                  boxShadow: item.id === selectedLeaf?.id ? "var(--platform-card-selected-shadow)" : undefined,
                                 }}
                               >
                                 <div className="entity-card-head">
