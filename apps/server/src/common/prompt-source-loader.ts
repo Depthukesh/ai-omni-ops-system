@@ -10,18 +10,22 @@ export type PromptSourceBundle = {
 
 export const PROMPT_SOURCE_CANDIDATES: Record<string, string[]> = {
   prompt_xhs_original_copy: [
+    "提示词/original_copy/original_copy/SKILL.md",
     "../../../提示词/original_copy/original_copy/SKILL.md",
     "../提示词/original_copy/original_copy/SKILL.md",
   ],
   prompt_xhs_original_copy_science: [
+    "提示词/original_copy/science/SKILL.md",
     "../../../提示词/original_copy/science/SKILL.md",
     "../提示词/original_copy/science/SKILL.md",
   ],
   prompt_xhs_original_copy_review: [
+    "提示词/original_copy/review/SKILL.md",
     "../../../提示词/original_copy/review/SKILL.md",
     "../提示词/original_copy/review/SKILL.md",
   ],
   prompt_xhs_original_copy_avoid_pitfall: [
+    "提示词/original_copy/avoid_pitfall/SKILL.md",
     "../../../提示词/original_copy/avoid_pitfall/SKILL.md",
     "../提示词/original_copy/avoid_pitfall/SKILL.md",
   ],

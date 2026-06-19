@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { createId, database, type PromptTemplateRecord, type SkillConfigRecord } from "../../common/mock-data";
 import {
@@ -746,10 +746,15 @@ const RETIRED_OPEN_DESIGN_PROMPT_SCENES = [
 ] as const;
 
 @Injectable()
-export class SkillsPromptsService {
-  private registryBootstrapPromise?: Promise<void>;
+export class SkillsPromptsService implements OnModuleInit {
+  private registryBootstrapPromise?: Promise<boolean>;
+  private registryBootstrapCompleted = false;
   private skillPromptBindingCache = new Map<string, string[]>();
   private legacySkillPromptBindings?: SkillPromptBindingRecord[];
+
+  async onModuleInit() {
+    await this.ensureRegistryTablesReady();
+  }
 
   private readonly promptFileCandidates = PROMPT_SOURCE_CANDIDATES;
 
@@ -1360,15 +1365,29 @@ export class SkillsPromptsService {
   }
 
   private async ensureRegistryTablesReady() {
-    if (!this.registryBootstrapPromise) {
-      this.registryBootstrapPromise = this.bootstrapRegistryTables();
+    if (this.registryBootstrapCompleted) {
+      return;
     }
+
+    if (!this.registryBootstrapPromise) {
+      this.registryBootstrapPromise = this.bootstrapRegistryTables()
+        .then((bootstrapped) => {
+          if (bootstrapped) {
+            this.registryBootstrapCompleted = true;
+          }
+          return bootstrapped;
+        })
+        .finally(() => {
+          this.registryBootstrapPromise = undefined;
+        });
+    }
+
     await this.registryBootstrapPromise;
   }
 
   private async bootstrapRegistryTables() {
     if (!(await this.prismaService.canUseDatabase())) {
-      return;
+      return false;
     }
 
     await this.prismaService.$executeRawUnsafe(`
@@ -1511,6 +1530,7 @@ export class SkillsPromptsService {
     await this.backfillBuiltInSkillInputSchemas();
     await this.backfillLegacySkillPromptBindings();
     await this.refreshSkillPromptBindingCache();
+    return true;
   }
 
   private async removeRetiredOpenDesignArtifacts() {
