@@ -60,7 +60,6 @@ export type DouyinCollectionCardKey =
   | "brandWorks"
   | "benchmarkWorks"
   | "searchWorks"
-  | "keywordRecommendations"
   | "lowFanExplosiveWorks"
   | "highCompletionRateWorks"
   | "highLikeRateWorks"
@@ -75,7 +74,6 @@ export const douyinCollectionCards: Array<{
   { key: "brandWorks", label: "品牌作品信息及数据" },
   { key: "benchmarkWorks", label: "对标作品信息及数据" },
   { key: "searchWorks", label: "搜索关键词" },
-  { key: "keywordRecommendations", label: "关键词推荐" },
   { key: "lowFanExplosiveWorks", label: "获取低粉爆款榜" },
   { key: "highCompletionRateWorks", label: "获取高完播率榜" },
   { key: "highLikeRateWorks", label: "获取高点赞率榜" },
@@ -167,12 +165,6 @@ const douyinFieldPreviewMap: Record<DouyinCollectionCardKey, DouyinFieldPreviewR
     { field: "commentCount", label: "评论数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.comment_count", required: "可选", patch: "否" },
     { field: "shareCount", label: "分享数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.share_count", required: "可选", patch: "否" },
     { field: "collectCount", label: "收藏数", source: "获取综合搜索 V1", path: "data[].aweme_info.statistics.collect_count", required: "可选", patch: "否" },
-  ],
-  keywordRecommendations: [
-    { field: "searchKeyword", label: "搜索关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content", required: "必需", patch: "否" },
-    { field: "recommendedKeyword", label: "推荐关键词", source: "获取搜索关键词推荐", path: "data.sug_list[].content / data.sug_list[].word_record.words_content", required: "必需", patch: "否" },
-    { field: "searchTime", label: "搜索时间", source: "获取搜索关键词推荐", path: "data.extra.now", required: "可选", patch: "否" },
-    { field: "queryId", label: "推荐查询 ID", source: "获取搜索关键词推荐", path: "data.sug_list[].words_query_record.query_id", required: "可选", patch: "否" },
   ],
   lowFanExplosiveWorks: [
     { field: "workId", label: "作品 ID", source: "获取低粉爆款榜", path: "data.data.data[].item_id", required: "必需", patch: "否" },
@@ -2605,7 +2597,6 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
     props.sortedDouyinBrandWorks.length +
     props.sortedDouyinBenchmarkWorks.length +
     props.sortedDouyinSearchWorks.length +
-    props.sortedDouyinKeywordRecommendations.length +
     props.sortedDouyinLowFanExplosiveWorks.length +
     props.sortedDouyinHighCompletionRateWorks.length +
     props.sortedDouyinHighLikeRateWorks.length +
@@ -3495,69 +3486,35 @@ export function BrandGrowthCollectionWorkspace(props: BrandGrowthCollectionWorks
           ) : null}
           {props.activeDouyinCollectionCard === "searchWorks" ? (
             <>
-              <div className="keyword-recommendation-top-grid">
-                <DouyinSubmitPanel
-                  title="搜索关键词"
-                  value={props.douyinSyncForm.searchKeyword}
-                  onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
-                  placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onSubmit={props.onSyncDouyinWorkspace}
-                />
-                <DouyinKeywordRecommendationBuilder
-                  entries={props.douyinSyncForm.keywordRecommendationEntries}
-                  results={props.sortedDouyinKeywordRecommendations}
-                  isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                  onChangeEntries={(entries) =>
-                    props.setDouyinSyncForm((current) => ({ ...current, keywordRecommendationEntries: entries }))}
-                  onSubmitEntry={props.onSyncSingleDouyinKeywordRecommendation}
-                />
-              </div>
-              <div className="keyword-recommendation-content-grid">
-                <article className="light-data-panel">
-                  <div className="collection-result-head">
-                    <div>
-                      <h3>搜索关键词结果</h3>
-                      <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
-                    </div>
-                  </div>
-                  {douyinPreviewItems.length ? (
-                    <DouyinMaterialReadyWorksTable
-                      items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
-                      addingMaterialAssetId={props.addingMaterialAssetId}
-                      onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
-                      formatDateTime={props.formatDateTime}
-                      formatCount={props.formatCount}
-                      onPreviewMedia={props.onPreviewMedia}
-                      showBillboardColumns={false}
-                    />
-                  ) : (
-                    <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
-                  )}
-                </article>
-                <DouyinKeywordRecommendationResults
-                  items={props.sortedDouyinKeywordRecommendations}
-                  deletingItemId={props.deletingDouyinKeywordRecommendationId}
-                  onDelete={props.onRemoveDouyinKeywordRecommendation}
-                />
-              </div>
-            </>
-          ) : null}
-          {props.activeDouyinCollectionCard === "keywordRecommendations" ? (
-            <>
-              <DouyinKeywordRecommendationBuilder
-                entries={props.douyinSyncForm.keywordRecommendationEntries}
-                results={props.sortedDouyinKeywordRecommendations}
+              <DouyinSubmitPanel
+                title="搜索关键词"
+                value={props.douyinSyncForm.searchKeyword}
+                onChange={(value) => props.setDouyinSyncForm((current) => ({ ...current, searchKeyword: value }))}
+                placeholder="请输入抖音搜索关键词，例如：生日蛋糕、探店咖啡、烘焙教程"
                 isSubmitting={props.isHydrating || props.isSyncingDouyinWorkspace}
-                onChangeEntries={(entries) =>
-                  props.setDouyinSyncForm((current) => ({ ...current, keywordRecommendationEntries: entries }))}
-                onSubmitEntry={props.onSyncSingleDouyinKeywordRecommendation}
+                onSubmit={props.onSyncDouyinWorkspace}
               />
-              <DouyinKeywordRecommendationResults
-                items={props.sortedDouyinKeywordRecommendations}
-                deletingItemId={props.deletingDouyinKeywordRecommendationId}
-                onDelete={props.onRemoveDouyinKeywordRecommendation}
-              />
+              <article className="light-data-panel">
+                <div className="collection-result-head">
+                  <div>
+                    <h3>搜索关键词结果</h3>
+                    <p>调用 TikHub 抖音综合搜索接口，返回关键词下的视频结果，支持加入抖音素材库。</p>
+                  </div>
+                </div>
+                {douyinPreviewItems.length ? (
+                  <DouyinMaterialReadyWorksTable
+                    items={douyinPreviewItems as DouyinCollectedWorkRecord[]}
+                    addingMaterialAssetId={props.addingMaterialAssetId}
+                    onAddToMaterialLibrary={props.onAddDouyinBenchmarkWorkToMaterial}
+                    formatDateTime={props.formatDateTime}
+                    formatCount={props.formatCount}
+                    onPreviewMedia={props.onPreviewMedia}
+                    showBillboardColumns={false}
+                  />
+                ) : (
+                  <div className="note-empty-state">当前还没有搜索结果，请先输入关键词并提交。</div>
+                )}
+              </article>
             </>
           ) : null}
           {props.activeDouyinCollectionCard === "lowFanExplosiveWorks" ? (
